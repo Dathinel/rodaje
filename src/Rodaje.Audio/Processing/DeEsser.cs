@@ -13,6 +13,9 @@ public sealed record DeEsserSettings(double FrequencyHz, double ThresholdDb, dou
     public bool SplitBand { get; init; } = true;
 
     internal override IAudioStage CreateStage(double sampleRate) => new DeEsserStage(this, sampleRate);
+
+    internal override DeEsserSettings Limited() =>
+        new(Limit(FrequencyHz, 2000, 14000, 6000), Limit(ThresholdDb, -60, 0, -30), Limit(RangeDb, 0, 24, 8)) { SplitBand = SplitBand };
 }
 
 /// <summary>

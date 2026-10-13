@@ -133,7 +133,7 @@ public sealed class AudioEffectChain
         {
             for (int i = 0; i < inserts.Count; i++)
             {
-                _slots[i].Stage.Configure(inserts[i].Settings);
+                _slots[i].Stage.Configure(inserts[i].Settings.Limited());
             }
         }
         else
@@ -145,12 +145,12 @@ public sealed class AudioEffectChain
                 Slot? kept = Array.Find(_slots, s => s.Id == insert.Id && s.Type == insert.Settings.GetType());
                 if (kept is not null && !Array.Exists(slots, s => ReferenceEquals(s, kept)))
                 {
-                    kept.Stage.Configure(insert.Settings);
+                    kept.Stage.Configure(insert.Settings.Limited());
                     slots[i] = kept;
                 }
                 else
                 {
-                    IAudioStage stage = insert.Settings.CreateStage(_sampleRate);
+                    IAudioStage stage = insert.Settings.Limited().CreateStage(_sampleRate);
                     stage.Reset();
                     slots[i] = new Slot(insert.Id, insert.Settings.GetType(), stage);
                 }
@@ -192,12 +192,16 @@ public sealed class AudioEffectChain
         StateLength = length + _keyLine.Length + 1;
     }
 
-    /// <summary>Umbral, relación y mezcla del primer compresor para el tramo que sigue (sus keyframes).</summary>
+    /// <summary>
+    /// Umbral, relación y mezcla del primer compresor para el tramo que sigue (sus keyframes), acotados a sus rangos; una
+    /// pendiente que no es un número no mueve la mezcla.
+    /// </summary>
     public void Automate(double thresholdDb, double ratio, double mix, double mixSlope)
     {
         if (_compressor >= 0)
         {
-            ((EqualizerCompressorStage)_slots[_compressor].Stage).Automate(thresholdDb, ratio, mix, mixSlope);
+            ((EqualizerCompressorStage)_slots[_compressor].Stage).Automate(CompressorSettings.LimitThreshold(thresholdDb),
+                CompressorSettings.LimitRatio(ratio), CompressorSettings.LimitMix(mix), double.IsFinite(mixSlope) ? mixSlope : 0);
         }
     }
 
@@ -221,9 +225,19 @@ public sealed class AudioEffectChain
         _keyPosition = 0;
     }
 
-    /// <summary>Procesa en el sitio; <paramref name="key"/> es el sidechain externo alineado con la entrada (vacío: el propio audio).</summary>
+    /// <summary>
+    /// Procesa en el sitio; <paramref name="key"/> es el sidechain externo alineado con la entrada (vacío: el propio audio).
+    /// Las muestras que no son números entran como silencio (<see cref="AudioSamples.Sanitize(Span{float})"/>), así no quedan en el
+    /// estado de los filtros y lo que sigue suena.
+    /// </summary>
     public void Process(Span<float> interleaved, ReadOnlySpan<float> key = default)
     {
+        if (_slots.Length == 0)
+        {
+            return;
+        }
+
+        AudioSamples.Sanitize(interleaved);
         if (_compressor >= 0)
         {
             var compressor = (EqualizerCompressorStage)_slots[_compressor].Stage;
@@ -254,14 +268,17 @@ public sealed class AudioEffectChain
             return default;
         }
 
-        if (_keyDelay == 0)
-        {
-            return key[..length];
-        }
-
         if (_keyDelayed.Length < length)
         {
             _keyDelayed = new float[length];
+        }
+
+        if (_keyDelay == 0)
+        {
+            Span<float> copy = _keyDelayed.AsSpan(0, length);
+            key[..length].CopyTo(copy);
+            AudioSamples.Sanitize(copy);
+            return copy;
         }
 
         int line = _keyLine.Length;
@@ -270,7 +287,7 @@ public sealed class AudioEffectChain
         {
             int at = (position * Channels) + (i & 1);
             _keyDelayed[i] = (float)_keyLine[at];
-            _keyLine[at] = key[i];
+            _keyLine[at] = AudioSamples.Sanitize(key[i]);
             if ((i & 1) == 1 && ++position * Channels == line)
             {
                 position = 0;
