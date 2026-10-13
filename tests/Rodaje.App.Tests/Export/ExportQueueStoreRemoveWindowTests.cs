@@ -12,7 +12,9 @@ namespace Rodaje.App.Tests.Export;
 /// <summary>
 /// Tarea 156: al apartar una cola dañada, <c>RemoveOriginalIfUnchanged</c> leía, comparaba y después borraba por nombre;
 /// si otra instancia reemplazaba la cola entre la comparación y el borrado, se borraba la cola buena. Ahora compara desde
-/// el manejador que borra (<see cref="FileOptions.DeleteOnClose"/>, <see cref="FileShare.Read"/>).
+/// el manejador que borra (compartido solo para lectura). Tarea 184: ese manejador se abría con
+/// <see cref="FileOptions.DeleteOnClose"/> y borraba también una cola distinta escrita por otra instancia antes de abrirla,
+/// para reescribirla después; si la reescritura fallaba, la cola buena se perdía. Ahora una cola distinta no se toca.
 /// </summary>
 public sealed class ExportQueueStoreRemoveWindowTests
 {
@@ -39,9 +41,9 @@ public sealed class ExportQueueStoreRemoveWindowTests
         return text;
     }
 
-    // En Linux FileShare solo pone un bloqueo orientativo (flock) que rename() no respeta, y DeleteOnClose borra por nombre
-    // al cerrar: allí la ventana sigue abierta, pero Rodaje solo corre en Windows.
-    [WindowsOnlyFact("FileShare.Read impide reemplazar el archivo mientras el manejador con DeleteOnClose sigue abierto")]
+    // En Linux FileShare solo pone un bloqueo orientativo (flock) que rename() no respeta y el borrado es por nombre: allí
+    // la ventana sigue abierta, pero Rodaje solo corre en Windows.
+    [WindowsOnlyFact("compartir solo para lectura impide reemplazar el archivo mientras el manejador que lo borra sigue abierto")]
     public void OtraInstanciaReemplazaLaColaJustoAntesDelBorrado_LaColaBuenaSobrevive()
     {
         using var dir = new TempDirectory();
@@ -123,5 +125,37 @@ public sealed class ExportQueueStoreRemoveWindowTests
         Assert.Equal(0, hooks);
         Assert.Equal(good, File.ReadAllText(path));
         Assert.Equal(new[] { path, store.DamagedPath! }.Order(StringComparer.Ordinal), Directory.GetFiles(dir.Path).Order(StringComparer.Ordinal));
+    }
+
+    // Tarea 184: la cola distinta se borraba al cerrar el manejador (DeleteOnClose) y se reescribía en
+    // «.restaurar.tmp»; aquí esa reescritura falla (en su lugar hay una carpeta) y la cola buena se perdía.
+    [Fact]
+    public void ReemplazadaAntesDeAbrirla_SiReescribirlaFallara_LaColaAjenaSigueIntacta()
+    {
+        using var dir = new TempDirectory();
+        string path = Path.Combine(dir.Path, ExportQueueStore.FileName);
+        string good = GoodQueue(Path.Combine(dir.Path, "otra.json"), "buena.mp4");
+        File.Delete(Path.Combine(dir.Path, "otra.json"));
+        string broken = AllBroken(path);
+        Directory.CreateDirectory(path + ".restaurar.tmp");
+        int hooks = 0;
+        var store = new ExportQueueStore(path)
+        {
+            ReadBytes = p =>
+            {
+                byte[] read = File.ReadAllBytes(p);
+                AppDataPaths.WriteAllTextAtomic(p, good);
+                return read;
+            },
+            BeforeRemove = () => hooks++,
+        };
+
+        Assert.Empty(store.Load());
+
+        Assert.Equal(0, hooks);
+        Assert.True(File.Exists(path));
+        Assert.Equal(good, File.ReadAllText(path));
+        Assert.Equal(broken, File.ReadAllText(store.DamagedPath!));
+        Assert.Equal(["buena.mp4"], new ExportQueueStore(path).Load().Select(l => Path.GetFileName(l.Request.OutputPath)));
     }
 }
