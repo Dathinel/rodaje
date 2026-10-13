@@ -128,8 +128,10 @@ public class EffectContentTests
         var loader = new FakeContentLoader();
         loader.LutFiles[file] = FakeContentLoader.Identity();
         var content = new EffectContent(loader);
-        string reference = LutReference.ForFile(file, Path.Combine(folder, "corto.rodaje"));
-        Assert.Equal("file:luts/mi look.cube", reference);
+
+        // LutReference.ForFile la deja absoluta (tarea 236); relativa, como la de un proyecto de antes, se resuelve
+        // contra la carpeta del proyecto.
+        const string reference = "file:luts/mi look.cube";
 
         Assert.False(content.TryGetLut(new ResourceKey(reference), out _));
         await content.WhenLoadedAsync(reference);
@@ -145,8 +147,8 @@ public class EffectContentTests
     public void Referencias_DeArchivo()
     {
         string other = Path.Combine(Path.GetTempPath(), "x.cube");
-        Assert.Equal("file:" + Path.GetFullPath(other).Replace('\\', '/'), LutReference.ForFile(other, null));
-        Assert.Equal(Path.GetFullPath(other), LutReference.ResolveFile(LutReference.ForFile(other, null), null));
+        Assert.Equal("file:" + Path.GetFullPath(other).Replace('\\', '/'), LutReference.ForFile(other));
+        Assert.Equal(Path.GetFullPath(other), LutReference.ResolveFile(LutReference.ForFile(other), null));
         Assert.Null(LutReference.ResolveFile("file:rel/x.cube", null));
         Assert.Null(LutReference.ResolveFile("paquete@1.0.0/lut", @"C:\p"));
         Assert.Equal("mi look", LutReference.DisplayName("file:luts/mi look.cube", Rodaje.Packages.PackageScan.Empty));

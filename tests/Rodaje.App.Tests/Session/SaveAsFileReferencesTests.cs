@@ -33,9 +33,9 @@ public class SaveAsFileReferencesTests
         Assert.True(session.AppendToTimeline(imported.MediaIds[0]));
         Assert.True(await session.SaveAsAsync(Path.Combine(folderA, "corto")));
 
-        // Como VisionDialogs: con el proyecto ya guardado, la referencia queda relativa a su carpeta.
+        // Como VisionDialogs, con el proyecto ya guardado en A.
         string clipId = session.Sequence.VideoTracks[0].Clips[0].Id;
-        Assert.True(session.Execute(Edits.SetImageMask(session.SequenceId, clipId, LutReference.ForFile(matte, session.FilePath), Time.Zero)));
+        Assert.True(session.Execute(Edits.SetImageMask(session.SequenceId, clipId, LutReference.ForFile(matte), Time.Zero)));
         Assert.True(await session.SaveAsAsync(Path.Combine(folderB, "corto")));
 
         // Antes quedaba «file:máscaras/fondo.mp4» y se resolvía contra B, donde no hay nada.
@@ -66,7 +66,7 @@ public class SaveAsFileReferencesTests
         Assert.True(session.AppendToTimeline(imported.MediaIds[0]));
         Assert.True(await session.SaveAsAsync(Path.Combine(folderA, "corto")));
         string clipId = session.Sequence.VideoTracks[0].Clips[0].Id;
-        Assert.True(session.Execute(Edits.SetImageMask(session.SequenceId, clipId, LutReference.ForFile(matte, session.FilePath), Time.Zero)));
+        Assert.True(session.Execute(Edits.SetImageMask(session.SequenceId, clipId, LutReference.ForFile(matte), Time.Zero)));
         Assert.True(await session.SaveAsAsync(Path.Combine(folderB, "corto")));
 
         // Ctrl+S: antes resolvía «mascaras/fondo.mp4» contra B (la carpeta nueva, también como «anterior») y escribía

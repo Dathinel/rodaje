@@ -123,7 +123,7 @@ internal static class VisionDialogs
             return;
         }
 
-        string reference = LutReference.ForFile(matte.Path, session.FilePath);
+        string reference = LutReference.ForFile(matte.Path);
         var proposal = new ModuleProposal(RemoveBackgroundTitle, session.SequenceId,
             [new PreviewMark(PreviewMarkKind.Range, clip.Start, clip.End, RemoveBackgroundTitle)],
             _ => [Edits.SetImageMask(session.SequenceId, clip.Id, reference, matte.Start)]);

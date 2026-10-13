@@ -5,9 +5,10 @@ namespace Rodaje.Core.Model;
 /// <summary>
 /// Rutas de archivo que guarda el proyecto: las de los medios y los archivos sueltos (<c>file:</c>) de las opciones que
 /// los admiten (la LUT de «Cargar .cube…», la imagen del barrido por luminancia y el video de una máscara de imagen).
-/// En el archivo van relativas a su carpeta cuando se puede, para poder mover la carpeta entera. En memoria, los medios
-/// van absolutos; las referencias <c>file:</c>, como las escribe <c>LutReference.ForFile</c>: relativas a la carpeta del
-/// proyecto guardado o absolutas si no lo estaba. Al abrir se dejan como vienen, así guardar y abrir devuelve lo mismo.
+/// En el archivo van relativas a su carpeta cuando se puede, para poder mover la carpeta entera. En memoria van todas
+/// absolutas (las referencias <c>file:</c>, como las escribe <c>LutReference.ForFile</c>), y al abrir se resuelven contra
+/// la carpeta del archivo: así no dependen de la carpeta del proyecto, que cambia con «Guardar como», ni lo que guarda la
+/// pila de deshacer, y guardar y abrir devuelve lo mismo.
 /// </summary>
 /// <remarks>
 /// Antes solo se volvían relativas las rutas de los medios. Un archivo suelto elegido con el proyecto sin guardar
@@ -17,8 +18,8 @@ namespace Rodaje.Core.Model;
 public static class ProjectFilePaths
 {
     /// <summary>
-    /// Resuelve contra <paramref name="projectDirectory"/> las rutas relativas de los medios del proyecto recién leído.
-    /// Las referencias <c>file:</c> quedan como están: se resuelven contra la carpeta del proyecto al usarlas.
+    /// Resuelve contra <paramref name="projectDirectory"/> las rutas relativas del proyecto recién leído: las de los medios
+    /// y las de las referencias <c>file:</c>. Una referencia que no se puede resolver queda como está.
     /// </summary>
     public static void MakeAbsolute(Project project, string projectDirectory)
     {
@@ -28,6 +29,8 @@ public static class ProjectFilePaths
         {
             media.Path = media.ResolvePath(projectDirectory);
         }
+
+        RewriteFileOptions(project, path => Path.IsPathFullyQualified(path) ? null : AbsoluteFile(path, projectDirectory));
     }
 
     /// <summary>
@@ -38,7 +41,8 @@ public static class ProjectFilePaths
     /// <param name="projectDirectory">Carpeta donde se va a guardar.</param>
     /// <param name="currentDirectory">
     /// Carpeta contra la que están escritas las referencias <c>file:</c> relativas que haya en memoria (la del archivo
-    /// abierto hasta ahora), o <c>null</c> si no hay: entonces esas referencias se guardan como están.
+    /// abierto hasta ahora), o <c>null</c> si no hay: entonces esas referencias se guardan como están. La sesión ya no
+    /// deja referencias relativas en memoria; puede traerlas un autoguardado de una versión anterior.
     /// </param>
     public static Project ForSaving(Project project, string projectDirectory, string? currentDirectory = null)
     {

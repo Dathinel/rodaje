@@ -113,8 +113,8 @@ public sealed class ProjectFilePathsTests : IDisposable
         Sequence sequence = opened.Sequences[0];
         string lutRef = sequence.VideoTracks[0].Clips[1].Effects.Single(e => e.Id == "fx-lut").Options[BuiltInEffects.ColorOptions.Lut];
         string matteRef = sequence.VideoTracks[1].Clips[0].Effects.Single(e => e.Type == BuiltInEffects.Mask).Options[BuiltInEffects.MaskOptions.Matte];
-        Assert.Equal("file:luts/" + Path.GetFileName(lut), lutRef);
-        Assert.Equal("file:máscaras/" + Path.GetFileName(matte), matteRef);
+        Assert.Equal(FileRef(movedLut), lutRef);
+        Assert.Equal(FileRef(movedMatte), matteRef);
         Assert.Equal(movedLut, Resolve(lutRef, projectB));
         Assert.Equal(movedMatte, Resolve(matteRef, projectB));
         Assert.True(File.Exists(movedLut));
@@ -171,16 +171,17 @@ public sealed class ProjectFilePathsTests : IDisposable
     }
 
     [Fact]
-    public void Abrir_deja_las_referencias_como_vienen_y_guardar_en_otra_carpeta_las_recalcula()
+    public void Abrir_vuelve_absolutas_las_referencias_y_guardar_en_otra_carpeta_las_recalcula()
     {
-        // Guardar y abrir tiene que devolver el mismo proyecto en memoria (lo comprueba el fuzz de la sesión).
+        // En memoria van absolutas (tarea 236): no dependen de la carpeta del proyecto ni de lo que guarda la pila de
+        // deshacer. Guardar y abrir sigue devolviendo el mismo proyecto (lo comprueba el fuzz de la sesión).
         string folderA = Path.Combine(_root, "A");
         string folderB = Path.Combine(_root, "B");
         Project project = WithLut("file:luts/mi look.cube");
 
         ProjectFilePaths.MakeAbsolute(project, folderA);
 
-        Assert.Equal("file:luts/mi look.cube", Lut(project));
+        Assert.Equal(FileRef(Path.Combine(folderA, "luts", "mi look.cube")), Lut(project));
         Assert.Equal("file:luts/mi look.cube", Lut(ProjectFilePaths.ForSaving(project, folderA, folderA)));
         Assert.Equal("file:../A/luts/mi look.cube", Lut(ProjectFilePaths.ForSaving(project, folderB, folderA)));
     }

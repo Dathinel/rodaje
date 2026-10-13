@@ -4,8 +4,9 @@ namespace Rodaje.App.Services.Effects;
 
 /// <summary>
 /// Valor de la opción <c>lut</c> de <c>rodaje.color</c>: una referencia <c>paquete@versión/elemento</c> o un archivo
-/// <c>.cube</c> suelto, escrito <c>file:</c> más su ruta con <c>/</c>, relativa a la carpeta del <c>.rodaje</c> cuando se
-/// puede (si el proyecto se mueve con la LUT, sigue funcionando) y absoluta si no.
+/// <c>.cube</c> suelto, escrito <c>file:</c> más su ruta con <c>/</c>. En memoria la ruta va siempre absoluta; solo en el
+/// archivo va relativa a la carpeta del <c>.rodaje</c> cuando se puede (<c>ProjectFilePaths.ForSaving</c>), para que la
+/// LUT siga al proyecto si se mueve la carpeta entera.
 /// </summary>
 public static class LutReference
 {
@@ -13,23 +14,15 @@ public static class LutReference
 
     public static bool IsFile(string? reference) => reference is not null && reference.StartsWith(FilePrefix, StringComparison.Ordinal);
 
-    /// <summary>La referencia de un archivo; relativa a la carpeta de <paramref name="projectFile"/> si está en la misma unidad.</summary>
-    public static string ForFile(string path, string? projectFile)
+    /// <summary>
+    /// La referencia de un archivo, con su ruta absoluta. Antes era relativa a la carpeta del proyecto guardado: esa
+    /// referencia quedaba también en la pila de deshacer y, tras «Guardar como» en otra carpeta, deshacer o rehacer la
+    /// devolvía relativa a la carpeta vieja y el guardado siguiente la resolvía contra la nueva.
+    /// </summary>
+    public static string ForFile(string path)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
-        string full = Path.GetFullPath(path);
-        string? folder = projectFile is null ? null : Path.GetDirectoryName(Path.GetFullPath(projectFile));
-        string stored = full;
-        if (folder is not null)
-        {
-            string relative = Path.GetRelativePath(folder, full);
-            if (!Path.IsPathRooted(relative))
-            {
-                stored = relative;
-            }
-        }
-
-        return FilePrefix + stored.Replace('\\', '/');
+        return FilePrefix + Path.GetFullPath(path).Replace('\\', '/');
     }
 
     /// <summary>Ruta absoluta del archivo de una referencia <c>file:</c>, o <c>null</c> si no es de archivo o es relativa sin proyecto guardado.</summary>

@@ -197,10 +197,16 @@ internal static class RandomTimeline
         BuiltInTransitions.PushOptions.Direction, BuiltInTransitions.PresetOptions.Preset, "otra",
     ];
 
+    /// <summary>
+    /// Carpeta absoluta de las LUT sueltas (<c>file:</c>): en memoria esas referencias van siempre absolutas, como las deja
+    /// <c>LutReference.ForFile</c> y la apertura del proyecto (tarea 236); solo el archivo las guarda relativas.
+    /// </summary>
+    private static readonly string LutFolder = Path.Combine(Path.GetTempPath(), "rodaje-luts").Replace('\\', '/');
+
     private static readonly string[] OptionValues =
     [
         "multiply", "softLight", "up", "left", "", "rodaje-transiciones@1.0.0/suave", "mal formada", "diagonal",
-        "file:luts/cálido 2.cube", "file:", "file:a<b.cube",
+        $"file:{LutFolder}/cálido 2.cube", "file:", "file:a<b.cube",
     ];
 
     public static readonly Gen<OpSpec> GenOp = Gen.Select(
@@ -876,7 +882,7 @@ internal static class RandomTimeline
                 : option.Kind == OptionKind.Choice
                     ? option.Choices[c % option.Choices.Length]
                     : option.AllowsFile && c % 3 == 0
-                        ? Inv($"file:luts/look {c % 4}.cube")
+                        ? Inv($"file:{LutFolder}/look {c % 4}.cube")
                         : Inv($"rodaje-filtros@1.{c % 3}.0/elemento-{c % 4}");
             return (option.Name, value);
         }

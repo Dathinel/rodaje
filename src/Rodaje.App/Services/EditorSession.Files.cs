@@ -402,18 +402,9 @@ public sealed partial class EditorSession
             OnPropertyChanged(nameof(ProjectName));
         }
 
-        bool moved = !string.Equals(folder, previousFolder, StringComparison.Ordinal);
-        if (moved)
-        {
-            RebaseFileReferences(folder, previousFolder);
-        }
-
+        // Las referencias «file:» en memoria son absolutas (LutReference.ForFile y al abrir): no hay que tocarlas al
+        // cambiar de carpeta, ni en el proyecto ni en la pila de deshacer.
         FilePath = path;
-        if (moved)
-        {
-            _playback.Reload(PlaybackProject());
-        }
-
         if (version == _editVersion && !IsInGesture)
         {
             // Si se editó mientras se escribía, lo guardado ya es viejo y el proyecto sigue con cambios.
@@ -421,66 +412,6 @@ public sealed partial class EditorSession
         }
 
         return true;
-    }
-
-    /// <summary>
-    /// Tras guardar en otra carpeta, deja las referencias <c>file:</c> en memoria como quedaron en el archivo: relativas a
-    /// <paramref name="folder"/> cuando se puede. La vista previa las resuelve contra la carpeta del proyecto; antes
-    /// seguían relativas a la carpeta vieja y la LUT, la imagen del barrido o la máscara de imagen no aparecían hasta
-    /// reabrir. Así, además, guardar y abrir sigue devolviendo el mismo proyecto.
-    /// </summary>
-    private void RebaseFileReferences(string folder, string? previousFolder)
-    {
-        // Se calcula ahora, en este hilo, sobre el proyecto actual (pudo cambiar mientras se escribía): la copia tiene la
-        // misma forma y se recorren las dos a la par.
-        Project rebased = ProjectPaths.ForSaving(Project, folder, previousFolder);
-        for (int s = 0; s < Project.Sequences.Count; s++)
-        {
-            Sequence mine = Project.Sequences[s];
-            Sequence theirs = rebased.Sequences[s];
-            CopyFileOptions(mine.MasterEffects, theirs.MasterEffects);
-            for (int b = 0; b < mine.AudioBuses.Count; b++)
-            {
-                CopyFileOptions(mine.AudioBuses[b].Effects, theirs.AudioBuses[b].Effects);
-            }
-
-            Track[] myTracks = [.. mine.VideoTracks, .. mine.AudioTracks];
-            Track[] theirTracks = [.. theirs.VideoTracks, .. theirs.AudioTracks];
-            for (int t = 0; t < myTracks.Length; t++)
-            {
-                CopyFileOptions(myTracks[t].Effects, theirTracks[t].Effects);
-                for (int c = 0; c < myTracks[t].Clips.Count; c++)
-                {
-                    CopyFileOptions(myTracks[t].Clips[c].Effects, theirTracks[t].Clips[c].Effects);
-                }
-
-                for (int x = 0; x < myTracks[t].Transitions.Count; x++)
-                {
-                    TransitionInstance transition = myTracks[t].Transitions[x];
-                    CopyFileOptions(transition.Type, transition.Options, theirTracks[t].Transitions[x].Options);
-                }
-            }
-        }
-    }
-
-    private static void CopyFileOptions(List<EffectInstance> mine, List<EffectInstance> theirs)
-    {
-        for (int i = 0; i < mine.Count; i++)
-        {
-            CopyFileOptions(mine[i].Type, mine[i].Options, theirs[i].Options);
-        }
-    }
-
-    private static void CopyFileOptions(string type, Dictionary<string, string> mine, Dictionary<string, string> theirs)
-    {
-        foreach ((string name, string value) in mine.ToList())
-        {
-            if (Rodaje.Core.Effects.OptionDefinition.IsFileReference(value) && ProjectFilePaths.IsFileOption(type, name)
-                && theirs.TryGetValue(name, out string? rebased))
-            {
-                mine[name] = rebased;
-            }
-        }
     }
 
     private bool RefuseWhileBusy()
