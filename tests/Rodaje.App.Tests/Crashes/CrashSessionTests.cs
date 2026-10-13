@@ -97,7 +97,7 @@ public class CrashSessionTests
             {
                 textWhenDumping = File.ReadAllText(Assert.Single(Directory.GetFiles(dir.Path, "*.txt")));
                 File.WriteAllBytes(path, "MDMP"u8.ToArray());
-                return true;
+                return 0;
             },
         };
 
@@ -111,16 +111,17 @@ public class CrashSessionTests
     }
 
     [Fact]
-    public unsafe void FalloNativo_SiElMinivolcadoFalla_QuedaElTextoSinMencionarlo()
+    public unsafe void FalloNativo_SiElMinivolcadoFalla_QuedaElTextoConElError()
     {
+        // Antes el error de MiniDumpWriteDump quedaba en un estático que nadie leía; ahora va en el informe.
         using var dir = new TempDirectory();
-        var reporter = new CrashReporter(dir.Path, "1.0.0+prueba", new SessionLog()) { MinidumpWriter = (_, _) => false };
+        var reporter = new CrashReporter(dir.Path, "1.0.0+prueba", new SessionLog()) { MinidumpWriter = (_, _) => 299 };
 
         string? report = reporter.WriteNativeFatal(CrashReporter.StowedExceptionCode, null);
 
         Assert.NotNull(report);
-        Assert.DoesNotContain("Minivolcado", File.ReadAllText(report), StringComparison.Ordinal);
-        Assert.Empty(Directory.GetFiles(dir.Path, "*.dmp"));
+        Assert.Contains("Minivolcado: no se pudo escribir (código 299, 0x0000012B)", File.ReadAllText(report), StringComparison.Ordinal);
+        Assert.Empty(Directory.GetFiles(dir.Path, "*.dmp*"));
     }
 
     [Fact]
@@ -136,7 +137,11 @@ public class CrashSessionTests
         });
         var reporter = new CrashReporter(dir.Path, "1.0.0+prueba", new SessionLog())
         {
-            MinidumpWriter = (_, _) => stuck.Wait(TimeSpan.FromSeconds(30)) && false,
+            MinidumpWriter = (_, _) =>
+            {
+                _ = stuck.Wait(TimeSpan.FromSeconds(30));
+                return 5;
+            },
         };
 
         string? report = NativeCrashHandler.WriteGuarded(reporter, watchdog, 0xC0000005, null);
@@ -161,7 +166,7 @@ public class CrashSessionTests
             {
                 armedWhileWriting = watchdog.IsArmed;
                 File.WriteAllBytes(path, "MDMP"u8.ToArray());
-                return true;
+                return 0;
             },
         };
 

@@ -21,13 +21,35 @@ public static unsafe partial class SessionEndWatcher
     public static bool Install(nint hwnd, Action onSessionEnd)
     {
         ArgumentNullException.ThrowIfNull(onSessionEnd);
-        if (!OperatingSystem.IsWindows() || hwnd == 0 || s_onEnd is not null)
+        if (!OperatingSystem.IsWindows() || hwnd == 0)
         {
             return false;
         }
 
-        s_onEnd = onSessionEnd;
-        return SetWindowSubclass(hwnd, &OnMessage, SubclassId, 0);
+        return Install(ref s_onEnd, onSessionEnd, () => SetWindowSubclass(hwnd, &OnMessage, SubclassId, 0));
+    }
+
+    /// <summary>
+    /// Lo de <see cref="Install(nint, Action)"/> sin Windows: guarda <paramref name="onSessionEnd"/> en
+    /// <paramref name="slot"/> si está libre y engancha con <paramref name="subclass"/>; si eso falla, deja el hueco libre
+    /// para que otro intento pueda engancharse.
+    /// </summary>
+    internal static bool Install(ref Action? slot, Action onSessionEnd, Func<bool> subclass)
+    {
+        if (slot is not null)
+        {
+            return false;
+        }
+
+        // Antes de enganchar: el procedimiento de ventana lo lee en cuanto queda instalado.
+        slot = onSessionEnd;
+        if (subclass())
+        {
+            return true;
+        }
+
+        slot = null;
+        return false;
     }
 
     /// <summary>

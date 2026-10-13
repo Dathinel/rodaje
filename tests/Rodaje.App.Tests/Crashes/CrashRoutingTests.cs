@@ -105,7 +105,7 @@ public class CrashRoutingTests
     {
         using var dir = new TempDirectory();
         var log = new SessionLog();
-        var reporter = new CrashReporter(dir.Path, Version, log) { MinidumpWriter = (_, _) => false };
+        var reporter = new CrashReporter(dir.Path, Version, log) { MinidumpWriter = (_, _) => 5 };
         var hooks = new RecordingHooks(log);
         var errorFile = new List<string?>();
 
