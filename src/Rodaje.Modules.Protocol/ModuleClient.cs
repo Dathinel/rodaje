@@ -51,6 +51,7 @@ public sealed class ModuleClient : IAsyncDisposable
     private readonly CancellationTokenSource _stop = new();
     private Exception? _failure;
     private long _nextId;
+    private long _received;
     private Task _readLoop = Task.CompletedTask;
 
     private ModuleClient(MessageChannel channel, ModuleClientOptions options)
@@ -67,6 +68,12 @@ public sealed class ModuleClient : IAsyncDisposable
     public Task Completion => _completion.Task;
 
     public event Action<LogMessage>? Log;
+
+    /// <summary>
+    /// Mensajes recibidos del módulo tras el saludo (avances, registros, resultados, errores, <c>pong</c>). Es la señal de
+    /// vida del vigilante del editor: un módulo ocupado que sigue avisando no está colgado aunque su <c>pong</c> se atrase.
+    /// </summary>
+    public long ReceivedMessages => Interlocked.Read(ref _received);
 
     /// <summary>Saluda y negocia la versión.</summary>
     /// <exception cref="ModuleVersionException">Sin versión común.</exception>
@@ -256,6 +263,7 @@ public sealed class ModuleClient : IAsyncDisposable
                     Fail(new ModuleDisconnectedException("El módulo cerró la conexión."));
                     return;
                 }
+                Interlocked.Increment(ref _received);
                 Dispatch(message);
             }
         }

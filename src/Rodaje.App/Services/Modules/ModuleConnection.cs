@@ -6,8 +6,8 @@ namespace Rodaje.App.Services.Modules;
 
 /// <summary>
 /// El proceso de un módulo: se abre con la primera llamada, se cierra tras <see cref="ModuleManagerOptions.IdleTimeout"/>
-/// sin llamadas y se vigila con <c>ping</c> mientras hay alguna (sin respuesta en <see cref="ModuleManagerOptions.PingTimeout"/>
-/// se da por colgado y se mata). Si muere, la próxima llamada lo vuelve a abrir.
+/// sin llamadas y se vigila con <c>ping</c> mientras hay alguna (sin respuesta ni ningún otro mensaje en
+/// <see cref="ModuleManagerOptions.PingTimeout"/> se da por colgado y se mata). Si muere, la próxima llamada lo vuelve a abrir.
 /// </summary>
 internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, ModuleManagerOptions options, ModuleJobObject? job, Action<ModuleConnection> closed) : IDisposable
 {
@@ -209,12 +209,20 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
                     return;
                 }
 
-                await process.Client.PingAsync().WaitAsync(options.PingTimeout).ConfigureAwait(false);
-            }
-            catch (TimeoutException)
-            {
+                ModuleClient client = process.Client;
+                if (await PingRoundAsync(() => client.PingAsync(), () => client.ReceivedMessages,
+                    () => Task.WhenAny(process.Exited, Task.Delay(options.PingTimeout))).ConfigureAwait(false))
+                {
+                    continue;
+                }
+
+                if (process.Exited.IsCompleted)
+                {
+                    return;
+                }
+
                 Volatile.Write(ref _hungProcess, process);
-                Trace.WriteLine($"Rodaje: el módulo {Descriptor.Id} no respondió al ping en {options.PingTimeout.TotalSeconds:0.#} s; se cierra.");
+                Trace.WriteLine($"Rodaje: el módulo {Descriptor.Id} no respondió al ping ni mandó nada en {options.PingTimeout.TotalSeconds:0.#} s; se cierra.");
                 process.Kill();
                 return;
             }
@@ -222,6 +230,41 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
             {
                 return;
             }
+        }
+    }
+
+    /// <summary>
+    /// Una vuelta del vigilante: manda un <c>ping</c> y espera el <c>pong</c> por ventanas (<paramref name="window"/>, de
+    /// <see cref="ModuleManagerOptions.PingTimeout"/>). Si una ventana vence sin <c>pong</c> pero el módulo mandó algo en
+    /// ella (<paramref name="activity"/>: avances, registros, resultados), está ocupado y no colgado: se sigue esperando el
+    /// mismo <c>ping</c>. Solo una ventana entera sin ningún mensaje lo da por colgado. Con la CPU llena (CinemaDNG en la
+    /// CI de Windows), el <c>pong</c> de un módulo sano que revelaba y avisaba su avance se atrasaba más que el tope y se
+    /// mataba a mitad de trabajo. Las ventanas se inyectan para que las pruebas no dependan del reloj.
+    /// </summary>
+    /// <returns><c>false</c> si el módulo quedó colgado (o una ventana terminó porque el proceso salió sin contestar).</returns>
+    /// <exception cref="ModuleException">El <c>ping</c> falló porque la conexión se cortó.</exception>
+    internal static async Task<bool> PingRoundAsync(Func<Task> ping, Func<long> activity, Func<Task> window)
+    {
+        long seen = activity();
+        Task pong = ping();
+        while (true)
+        {
+            if (await Task.WhenAny(pong, window()).ConfigureAwait(false) == pong)
+            {
+                await pong.ConfigureAwait(false);
+                return true;
+            }
+
+            long now = activity();
+            if (now == seen)
+            {
+                // El ping queda pendiente hasta que la conexión se corte al matar el proceso: su fallo no se pierde.
+                _ = pong.ContinueWith(static t => _ = t.Exception, CancellationToken.None,
+                    TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+                return false;
+            }
+
+            seen = now;
         }
     }
 }
