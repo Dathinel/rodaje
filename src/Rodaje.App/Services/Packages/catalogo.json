@@ -140,6 +140,15 @@
       "repository": "https://github.com/Dathinel/modulo-raw",
       "apps": ["rodaje"],
       "provides": ["info", "revelar"]
+    },
+    {
+      "id": "rodaje-codificadores-gpl",
+      "kind": "module",
+      "name": "Codificadores GPL (x264 y x265)",
+      "description": "H.264 y HEVC por CPU, en 8 y 10 bits, en Exportar → Avanzado, con un ffmpeg.exe GPL aparte. Nunca se eligen solos; ver la nota sobre patentes de su repositorio.",
+      "repository": "https://github.com/Dathinel/rodaje-codificadores-gpl",
+      "apps": ["rodaje"],
+      "provides": ["libx264", "libx265"]
     }
   ]
 }

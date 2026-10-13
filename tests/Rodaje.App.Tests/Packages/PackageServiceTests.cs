@@ -1,5 +1,6 @@
 using System.IO.Compression;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Tests.Support;
 using Rodaje.Core.Model;
@@ -22,15 +23,16 @@ public sealed class PackageServiceTests : IDisposable
         Assert.Empty(problems);
         Assert.Equal(
             ["modulo-audio-ia", "modulo-raw", "modulo-subtitulos", "modulo-traducir", "modulo-vision", "modulo-voz",
-             "rodaje-360", "rodaje-camaras", "rodaje-filtros", "rodaje-fuentes", "rodaje-preajustes-pro", "rodaje-sonidos", "rodaje-titulos",
-             "rodaje-transiciones", "rodaje-zonas"],
+             "rodaje-360", "rodaje-camaras", "rodaje-codificadores-gpl", "rodaje-filtros", "rodaje-fuentes", "rodaje-preajustes-pro",
+             "rodaje-sonidos", "rodaje-titulos", "rodaje-transiciones", "rodaje-zonas"],
             catalog.Entries.Select(e => e.Id).Order());
         Assert.All(catalog.Entries, e =>
         {
             Assert.Equal($"https://github.com/Dathinel/{e.Id}", e.Repository.AbsoluteUri);
             Assert.Contains(PackageService.AppId, e.Apps);
             Assert.False(string.IsNullOrWhiteSpace(e.Description));
-            Assert.Equal(e.Id.StartsWith("modulo-", StringComparison.Ordinal) ? PackageKind.Module : PackageKind.Content, e.Kind);
+            bool module = e.Id.StartsWith("modulo-", StringComparison.Ordinal) || e.Id == GplEncoderPack.Id;
+            Assert.Equal(module ? PackageKind.Module : PackageKind.Content, e.Kind);
         });
         Assert.Equal("Editor de audio (en planes)", catalog.AppName("editor-audio"));
     }
