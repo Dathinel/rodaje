@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Rodaje.Engine.Tests.Timeline;
 
 namespace Rodaje.Playback.Tests.Support;
 
@@ -68,7 +69,7 @@ internal static class Stress
         for (int i = 0; i < workers.Length; i++)
         {
             (string name, Action<Random, CancellationToken> body) = workers[i];
-            var random = new ProgressRandom(HashCode.Combine(seed, i));
+            var random = new ProgressRandom(WorkerSeed(seed, i));
             var thread = new Thread(() =>
             {
                 try
@@ -139,6 +140,13 @@ internal static class Stress
 
         Assert.True(errors.IsEmpty, $"Semilla {seed}: {string.Join(Environment.NewLine, errors)}");
     }
+
+    /// <summary>
+    /// Semilla del <see cref="Random"/> del hilo <paramref name="worker"/> de <see cref="Run(int, ValueTuple{string, Action{Random, CancellationToken}}[])"/>:
+    /// depende solo de la semilla y del índice (SplitMix64), así que la «Semilla N» de un fallo repite la corrida en otro
+    /// proceso. Con <see cref="HashCode.Combine{T1, T2}"/>, que cambia de un proceso a otro, no la repetía.
+    /// </summary>
+    public static int WorkerSeed(int seed, int worker) => StressSeeds.Seed(seed, worker);
 
     /// <summary>Corre <paramref name="action"/> en otro hilo y falla con la semilla si no vuelve antes de <paramref name="limit"/>.</summary>
     public static void Within(int seed, string what, TimeSpan limit, Action action)
