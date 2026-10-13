@@ -315,7 +315,9 @@ internal sealed partial class TitleBar : UserControl
         return item;
     }
 
-    private async void OnTemplateClick(object sender, RoutedEventArgs e)
+    private void OnTemplateClick(object sender, RoutedEventArgs e) => UiTask.Run(OnTemplateClickAsync(sender));
+
+    private async Task OnTemplateClickAsync(object sender)
     {
         if (sender is not FrameworkElement { Tag: string id } || _services is null || _templates?.Find(id) is not { } template)
         {
@@ -336,7 +338,9 @@ internal sealed partial class TitleBar : UserControl
     }
 
     /// <summary>Borra una plantilla propia después de confirmarlo (no se puede deshacer).</summary>
-    private async void OnDeleteTemplateClick(object sender, RoutedEventArgs e)
+    private void OnDeleteTemplateClick(object sender, RoutedEventArgs e) => UiTask.Run(OnDeleteTemplateClickAsync(sender));
+
+    private async Task OnDeleteTemplateClickAsync(object sender)
     {
         if (sender is not FrameworkElement { Tag: string id } || _services is null || _templates is null)
         {

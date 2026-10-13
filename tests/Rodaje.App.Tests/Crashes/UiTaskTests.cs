@@ -32,6 +32,70 @@ public sealed class UiTaskTests
     }
 
     [Fact]
+    public async Task Run_ManejadorConCatchDeTipos_LoDemasLlegaAlInformeYElFinallyCorre()
+    {
+        // La forma de los manejadores de la tarea 208 («void OnDrop(…) => UiTask.Run(OnDropAsync(e))»): lo que corre hasta
+        // el primer await (GetDeferral) sigue dentro del evento; lo que su catch de tipos no atrapa ya no depende del
+        // contexto del hilo (antes, async void) y llega al informe con aviso; el finally (deferral.Complete) corre igual.
+        var error = new ArgumentException("valor fuera de rango");
+        var reported = new ConcurrentBag<Exception>();
+        var errorReported = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        Action<Exception, bool>? before = UiTask.Reporter;
+        UiTask.Reporter = (ex, notify) =>
+        {
+            reported.Add(ex);
+            if (ReferenceEquals(ex, error))
+            {
+                errorReported.TrySetResult(notify);
+            }
+        };
+        try
+        {
+            var expected = new TaskCompletionSource();
+            var unexpected = new TaskCompletionSource();
+            var expectedDone = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            var steps = new ConcurrentQueue<string>();
+
+            UiTask.Run(DropAsync(expected.Task, steps, "esperado", expectedDone));
+            UiTask.Run(DropAsync(unexpected.Task, steps, "inesperado", null));
+            Assert.Equal(["deferral esperado", "deferral inesperado"], steps);
+
+            expected.SetException(new IOException("el archivo está en uso"));
+            unexpected.SetException(error);
+
+            Assert.True(await errorReported.Task.WaitAsync(TimeSpan.FromSeconds(30)));
+            await expectedDone.Task.WaitAsync(TimeSpan.FromSeconds(30));
+            Assert.Contains("aviso esperado", steps);
+            Assert.Contains("complete esperado", steps);
+            Assert.Contains("complete inesperado", steps);
+            Assert.DoesNotContain("aviso inesperado", steps);
+            Assert.DoesNotContain(reported, r => r is IOException { Message: "el archivo está en uso" });
+        }
+        finally
+        {
+            UiTask.Reporter = before;
+        }
+
+        static async Task DropAsync(Task data, ConcurrentQueue<string> steps, string name, TaskCompletionSource? done)
+        {
+            steps.Enqueue("deferral " + name);
+            try
+            {
+                await data.ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is IOException or InvalidOperationException)
+            {
+                steps.Enqueue("aviso " + name);
+            }
+            finally
+            {
+                steps.Enqueue("complete " + name);
+                done?.TrySetResult();
+            }
+        }
+    }
+
+    [Fact]
     public void Run_LambdaQueLanzaAntesDeEsperar_LaInforma()
     {
         var reported = new ConcurrentBag<Exception>();

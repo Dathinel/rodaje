@@ -2,6 +2,7 @@ using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
@@ -754,7 +755,11 @@ internal sealed partial class TimelineView
         }
     }
 
-    private async void OnLanesDragEnter(object sender, DragEventArgs e)
+    // Sin async void: lo que no atrapan los casos esperados lo informa UiTask (informe y aviso). La parte hasta el primer
+    // await (AcceptedOperation, GetDeferral) sigue corriendo dentro del evento.
+    private void OnLanesDragEnter(object sender, DragEventArgs e) => UiTask.Run(OnLanesDragEnterAsync(e));
+
+    private async Task OnLanesDragEnterAsync(DragEventArgs e)
     {
         _dropMediaId = null;
         if (!e.DataView.Contains(MediaIdFormat))
@@ -762,17 +767,17 @@ internal sealed partial class TimelineView
             if (CarriesSound(e.DataView))
             {
                 e.AcceptedOperation = DataPackageOperation.Copy;
-                ReadDroppedSound(e);
+                await ReadDroppedSoundAsync(e);
             }
             else if (CarriesTitle(e.DataView))
             {
                 e.AcceptedOperation = DataPackageOperation.Copy;
-                ReadDroppedTitle(e);
+                await ReadDroppedTitleAsync(e);
             }
             else if (CarriesElement(e.DataView))
             {
                 e.AcceptedOperation = DataPackageOperation.Copy;
-                ReadDroppedTransition(e);
+                await ReadDroppedTransitionAsync(e);
             }
 
             return;
@@ -838,7 +843,9 @@ internal sealed partial class TimelineView
         Invalidate();
     }
 
-    private async void OnLanesDrop(object sender, DragEventArgs e)
+    private void OnLanesDrop(object sender, DragEventArgs e) => UiTask.Run(OnLanesDropAsync(e));
+
+    private async Task OnLanesDropAsync(DragEventArgs e)
     {
         if (Session is null)
         {
@@ -849,11 +856,11 @@ internal sealed partial class TimelineView
         {
             if (CarriesSound(e.DataView))
             {
-                DropSound(e);
+                await DropSoundAsync(e);
             }
             else if (CarriesTitle(e.DataView))
             {
-                DropTitle(e);
+                await DropTitleAsync(e);
             }
             else if (CarriesElement(e.DataView))
             {

@@ -16,7 +16,7 @@ internal sealed partial class TimelineView
 
     private static bool CarriesSound(DataPackageView view) => view.Contains(SoundDrag.DragFormat);
 
-    private async void ReadDroppedSound(DragEventArgs e)
+    private async Task ReadDroppedSoundAsync(DragEventArgs e)
     {
         _dropSound = null;
         _dropSoundInfo = null;
@@ -69,7 +69,7 @@ internal sealed partial class TimelineView
         Invalidate();
     }
 
-    private async void DropSound(DragEventArgs e)
+    private async Task DropSoundAsync(DragEventArgs e)
     {
         EditorSession session = Session!;
         e.Handled = true;

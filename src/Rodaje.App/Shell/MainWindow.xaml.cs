@@ -798,7 +798,9 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
     }
 
-    private async void OnDrop(object sender, DragEventArgs e)
+    private void OnDrop(object sender, DragEventArgs e) => UiTask.Run(OnDropAsync(e));
+
+    private async Task OnDropAsync(DragEventArgs e)
     {
         if (!e.DataView.Contains(StandardDataFormats.StorageItems))
         {
@@ -838,7 +840,10 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private void OnCloseModal(object sender, RoutedEventArgs e) => ClosePage();
 
-    private async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
+    // args.Cancel se pone antes del primer await: sigue dentro del evento.
+    private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args) => UiTask.Run(OnClosingAsync(args));
+
+    private async Task OnClosingAsync(AppWindowClosingEventArgs args)
     {
         if (_allowClose || _options.IsAutomated)
         {

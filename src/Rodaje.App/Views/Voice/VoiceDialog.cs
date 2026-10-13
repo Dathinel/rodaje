@@ -213,7 +213,7 @@ internal static class VoiceDialog
 
         // Insertar o regenerar espera a la voz dentro del diálogo; si falla, el diálogo queda abierto con el motivo.
         SynthesizedVoice? chosen = null;
-        async void Accept(ContentDialog _, ContentDialogButtonClickEventArgs args)
+        async Task AcceptAsync(ContentDialogButtonClickEventArgs args)
         {
             ContentDialogButtonClickDeferral deferral = args.GetDeferral();
             try
@@ -221,7 +221,7 @@ internal static class VoiceDialog
                 chosen = await Generate();
                 args.Cancel = chosen is null;
             }
-#pragma warning disable CA1031 // Un manejador async void: lo inesperado se informa y el diálogo sigue abierto.
+#pragma warning disable CA1031 // Lo inesperado se informa y el diálogo sigue abierto.
             catch (Exception ex) when (UiTask.Report(ex))
 #pragma warning restore CA1031
             {
@@ -233,8 +233,9 @@ internal static class VoiceDialog
             }
         }
 
-        dialog.PrimaryButtonClick += Accept;
-        dialog.SecondaryButtonClick += Accept;
+        // La espera (GetDeferral) se pide dentro del evento, antes del primer await.
+        dialog.PrimaryButtonClick += (_, args) => UiTask.Run(AcceptAsync(args));
+        dialog.SecondaryButtonClick += (_, args) => UiTask.Run(AcceptAsync(args));
         UiTask.Run(LoadVoices());
 
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);

@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Shell;
 
@@ -27,7 +28,9 @@ internal sealed partial class LibraryView
         }
     }
 
-    private async void OnWatchedImportClick(object sender, RoutedEventArgs e)
+    private void OnWatchedImportClick(object sender, RoutedEventArgs e) => UiTask.Run(ImportWatchedAsync());
+
+    private async Task ImportWatchedAsync()
     {
         if (_services?.WatchedFolders is not { } inbox)
         {

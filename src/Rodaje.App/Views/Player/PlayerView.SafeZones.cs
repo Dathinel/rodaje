@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.SafeZones;
 using Rodaje.App.Theme;
@@ -452,7 +453,9 @@ internal sealed partial class PlayerView
 
     private void OnSafeZoneCancel(object sender, RoutedEventArgs e) => EndSafeZoneEdit();
 
-    private async void OnSafeZoneSave(object sender, RoutedEventArgs e)
+    private void OnSafeZoneSave(object sender, RoutedEventArgs e) => UiTask.Run(SaveSafeZonesAsync());
+
+    private async Task SaveSafeZonesAsync()
     {
         if (_zoneEditor is not { } editor || _services is null || Session is null)
         {
