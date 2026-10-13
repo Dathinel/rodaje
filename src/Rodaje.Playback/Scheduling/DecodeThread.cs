@@ -135,33 +135,82 @@ public sealed class DecodeThread : IDecodeExecutor, IDisposable
         }
     }
 
+    /// <remarks>
+    /// Un trabajo que lanza no detiene el hilo: la excepción se escribe en el registro y se sigue con la cola. Antes salía
+    /// del hilo sin atrapar, lo que en .NET tumba el proceso, y lo encolado detrás (la liberación del decodificador entre
+    /// ello) no corría. Quien encola no puede verla (<see cref="Post"/> no devuelve nada y los bombeos atrapan sus propios
+    /// errores), así que el registro es donde queda.
+    /// </remarks>
     private void Run()
     {
-        Action? onExit;
-        while (true)
+        try
         {
-            Action work;
+            while (true)
+            {
+                Action work;
+                lock (_gate)
+                {
+                    while (_work.Count == 0 && !_stopping)
+                    {
+                        Monitor.Wait(_gate);
+                    }
+
+                    if (_work.Count == 0)
+                    {
+                        break;
+                    }
+
+                    work = _work.Dequeue();
+                }
+
+                try
+                {
+                    work();
+                }
+                catch (Exception ex)
+                {
+                    Trace.WriteLine($"Rodaje: un trabajo del hilo «{Name}» lanzó; se sigue con la cola: {ex}");
+                }
+            }
+        }
+        finally
+        {
+            // Pase lo que pase con el bucle, lo encargado con Stop(TimeSpan, Action) corre al salir, y lo que llegue
+            // después se descarta (o se libera en quien cierra) en vez de quedar en una cola que nadie atiende.
+            Action? onExit;
             lock (_gate)
             {
-                while (_work.Count == 0 && !_stopping)
-                {
-                    Monitor.Wait(_gate);
-                }
-
-                if (_work.Count == 0)
-                {
-                    _exited = true;
-                    onExit = _onExit;
-                    _onExit = null;
-                    break;
-                }
-
-                work = _work.Dequeue();
+                _stopping = true;
+                _exited = true;
+                onExit = _onExit;
+                _onExit = null;
             }
 
-            work();
+            RunExit(onExit);
+        }
+    }
+
+    /// <summary>
+    /// Corre cada liberación por separado: si una lanza, se registra y las demás corren igual. Una excepción aquí, en el
+    /// propio hilo, tumbaría el proceso.
+    /// </summary>
+    private void RunExit(Action? onExit)
+    {
+        if (onExit is null)
+        {
+            return;
         }
 
-        onExit?.Invoke();
+        foreach (Delegate release in onExit.GetInvocationList())
+        {
+            try
+            {
+                ((Action)release)();
+            }
+            catch (Exception ex)
+            {
+                Trace.WriteLine($"Rodaje: al liberar lo del hilo «{Name}» al cerrarse: {ex}");
+            }
+        }
     }
 }
