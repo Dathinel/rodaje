@@ -11,12 +11,14 @@ namespace Rodaje.Module.Raw;
 internal static class FrameBatch
 {
     /// <summary>
-    /// Se llama en el hilo que arranca cada hilo de revelado, justo antes de <see cref="Thread.Start()"/>. Costura para
-    /// las pruebas: por hilo (<see cref="ThreadStaticAttribute"/>), así cada prueba ve solo los arranques que hace su
-    /// propio hilo, y uno hecho desde el pool no la llamaría.
+    /// Costura para las pruebas: recibe la acción que arranca un hilo de revelado (<see cref="Thread.Start()"/>) y devuelve
+    /// la que se ejecuta en su lugar, en el mismo sitio. Así la prueba ve en qué hilo corre de verdad el arranque (si se
+    /// moviera al pool, su envoltorio correría allí) y puede hacerlo fallar. Es por hilo
+    /// (<see cref="ThreadStaticAttribute"/>): cada prueba ve solo los arranques que hace su propio hilo, y un bucle de
+    /// arranques llevado al pool no la encontraría.
     /// </summary>
     [ThreadStatic]
-    internal static Action? BeforeWorkerStartsForTests;
+    internal static Func<Action, Action>? WrapWorkerStartForTests;
 
     /// <summary>
     /// Revela los cuadros 0 a <paramref name="frames"/> − 1 con <paramref name="develop"/>, hasta <paramref name="threads"/>
@@ -76,8 +78,9 @@ internal static class FrameBatch
             try
             {
                 Thread thread = new(Work) { IsBackground = true, Name = "Rodaje: revelado" };
-                BeforeWorkerStartsForTests?.Invoke();
-                thread.Start();
+                Action start = thread.Start;
+                start = WrapWorkerStartForTests?.Invoke(start) ?? start;
+                start();
             }
             catch (Exception ex) when (w > 0)
             {

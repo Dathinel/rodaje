@@ -9,9 +9,10 @@ namespace Rodaje.Module.Raw.Tests;
 public class FrameBatchTests
 {
     /// <summary>
-    /// Tope anticuelgue de todas las esperas: no mide nada, solo corta si algo se cuelga. Todas dependen del pool de hilos
-    /// (los cuadros salen de <c>Task.Run</c> y de la continuación de <c>gate.WaitAsync</c>, la cancelación la pide el bucle
-    /// de <c>RunAsync</c> en una continuación y los plazos de <c>WaitAsync</c> son temporizadores del pool). En la CI de
+    /// Tope anticuelgue de todas las esperas: no mide nada, solo corta si algo se cuelga. Los cuadros ya no salen del pool
+    /// (los revelan hilos propios de <c>FrameBatch</c>), pero las esperas siguen dependiendo de él: el bucle de
+    /// <c>RunAsync</c> recoge los cuadros y pide la cancelación en continuaciones del pool, y los plazos de
+    /// <c>WaitAsync</c> son temporizadores del pool. En la CI de
     /// Windows, con 14 testhost en 4 núcleos, el pool tardó más de 10 s en atender: con un tope de 10 s, el primer cuadro
     /// fallaba antes de que empezara el segundo y la prueba caía sin que <c>FrameBatch</c> hiciera nada mal. Un minuto es
     /// seis veces ese atasco y cuatro veces el que se reprodujo en Linux (4 hilos del pool ocupados 15 s, #189), y una
