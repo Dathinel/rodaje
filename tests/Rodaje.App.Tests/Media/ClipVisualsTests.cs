@@ -404,16 +404,46 @@ public sealed class ClipVisualsTests : IDisposable
         Assert.Equal(2, _sources.Decoded.Count);
     }
 
+    /// <summary>
+    /// No mide reloj: el lector atascado solo se suelta después de ver que <c>Dispose</c> volvió, así que un <c>Dispose</c>
+    /// que lo esperase no volvería nunca y la prueba caería al agotar el tope anticuelgue. La cota de 1 s que tenía podía
+    /// fallar sin defecto en un runner de Windows cargado; ahora va en la prueba <c>TiempoReal</c> de abajo.
+    /// </summary>
     [Fact]
     public void Dispose_does_not_wait_for_a_reader_that_ignores_cancellation()
+    {
+        (bool returned, _) = DisposeWithAStuckReader();
+
+        Assert.True(returned, "Dispose no volvió con el lector atascado.");
+    }
+
+    /// <summary>
+    /// La cota de la prueba de arriba. Mide reloj de pared, así que es <c>TiempoReal</c> (la CI la excluye; corre sola con
+    /// <c>Probar.bat</c>).
+    /// </summary>
+    [Fact]
+    [Trait("Categoria", "TiempoReal")]
+    public void Dispose_with_a_stuck_reader_returns_within_a_second()
+    {
+        (bool returned, long elapsed) = DisposeWithAStuckReader();
+
+        Assert.True(returned, "Dispose no volvió con el lector atascado.");
+        Assert.InRange(elapsed, 0, 1000);
+    }
+
+    /// <summary>
+    /// Deja un lector atascado sin mirar la cancelación y cronometra <c>Dispose</c> en un hilo propio de prioridad alta.
+    /// Devuelve si <c>Dispose</c> volvió con el lector aún atascado (antes del tope anticuelgue) y cuánto tardó.
+    /// </summary>
+    private (bool Returned, long Elapsed) DisposeWithAStuckReader()
     {
         var visuals = new ClipVisuals(id => _media.GetValueOrDefault(id), _sources);
         _sources.Stuck.Reset();
         visuals.GetThumbnail("m1", Time.Zero, 32);
         WaitFor(() => _sources.Attempts > 0 ? "" : null);
 
-        // Se cronometra solo Dispose, en un hilo propio de prioridad alta: así la medida no depende de que el pool o el
-        // hilo de la prueba tengan turno en un runner cargado. Los hilos de trabajo siguen en prioridad baja, como en la app.
+        // Se cronometra solo Dispose, en un hilo propio de prioridad alta. Los hilos de trabajo siguen en prioridad baja,
+        // como en la app.
         long elapsed = -1;
         var disposer = new Thread(() =>
         {
@@ -423,11 +453,12 @@ public sealed class ClipVisualsTests : IDisposable
         })
         { IsBackground = true, Name = "Prueba: Dispose de ClipVisuals", Priority = ThreadPriority.Highest };
         disposer.Start();
+
+        // El lector sigue atascado hasta ver que Dispose volvió; si Dispose lo esperase, el tope anticuelgue lo suelta para
+        // que la prueba falle en vez de colgarse.
         bool returned = disposer.Join(Patience);
         _sources.Stuck.Set();
-
-        Assert.True(returned, "Dispose no volvió.");
-        Assert.InRange(elapsed, 0, 1000);
+        return (returned, Volatile.Read(ref elapsed));
     }
 
     /// <summary>
@@ -435,16 +466,17 @@ public sealed class ClipVisualsTests : IDisposable
     /// otro hilo, como un hilo de trabajo de prioridad baja que se queda sin turno con él tomado, y comprueba que
     /// <c>Dispose</c> no lo espera y que el hilo de ondas, dormido en <c>Monitor.Wait</c> sin tope, sale con el
     /// <c>PulseAll</c> diferido al pool. El candado y el hilo se alcanzan con ganchos internos (este proyecto compila los fuentes
-    /// de Services). La cota es holgada, como la de la prueba de arriba: lo que se vigila aquí es que <c>Dispose</c> vuelva
-    /// con el candado retenido; la cota fina va en la prueba <c>TiempoReal</c> de abajo.
+    /// de Services). No mide reloj: el candado solo se suelta después de ver que <c>Dispose</c> volvió, así que un
+    /// <c>Dispose</c> que lo esperase no volvería nunca y la prueba caería al agotar el tope anticuelgue. Con una cota de 1 s
+    /// (y antes un tope de 5 s) falló en el runner de Windows sin defecto: el hilo de <c>Dispose</c> no tuvo turno a tiempo.
+    /// La cota fina va en la prueba <c>TiempoReal</c> de abajo.
     /// </summary>
     [Fact]
     public void Dispose_does_not_wait_for_a_held_gate_and_the_waveform_thread_leaves_afterwards()
     {
-        (bool returned, long elapsed, bool left) = DisposeWithTheGateHeld();
+        (bool returned, _, bool left) = DisposeWithTheGateHeld();
 
         Assert.True(returned, "Dispose esperó el candado retenido.");
-        Assert.InRange(elapsed, 0, 1000);
         Assert.True(left, "El hilo de ondas no salió tras soltar el candado.");
     }
 
@@ -465,8 +497,8 @@ public sealed class ClipVisualsTests : IDisposable
 
     /// <summary>
     /// Deja el hilo de ondas en <c>Monitor.Wait</c>, retiene el candado desde otro hilo y cronometra <c>Dispose</c> en un hilo
-    /// propio de prioridad alta. Devuelve si <c>Dispose</c> volvió en 5 s, cuánto tardó y si el hilo de ondas salió después
-    /// de soltar el candado.
+    /// propio de prioridad alta. Devuelve si <c>Dispose</c> volvió con el candado aún retenido (antes del tope anticuelgue),
+    /// cuánto tardó y si el hilo de ondas salió después de soltar el candado.
     /// </summary>
     private (bool Returned, long Elapsed, bool Left) DisposeWithTheGateHeld()
     {
@@ -499,9 +531,9 @@ public sealed class ClipVisualsTests : IDisposable
         { IsBackground = true, Name = "Prueba: Dispose de ClipVisuals", Priority = ThreadPriority.Highest };
         disposer.Start();
 
-        // Con el lock de antes, Dispose se queda esperando el candado: se suelta a los 5 s para que la prueba falle en vez
-        // de colgarse.
-        bool returned = disposer.Join(TimeSpan.FromSeconds(5));
+        // El candado sigue retenido hasta ver que Dispose volvió. Con el lock de antes, Dispose se quedaría esperándolo para
+        // siempre: el tope anticuelgue lo suelta para que la prueba falle en vez de colgarse.
+        bool returned = disposer.Join(Patience);
         release.Set();
         Assert.True(holder.Join(Patience), "El hilo que retenía el candado no lo soltó.");
         return (returned, Volatile.Read(ref elapsed), waveformThread.Join(Patience));
