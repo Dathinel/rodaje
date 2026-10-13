@@ -4,6 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Win32.SafeHandles;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Settings;
 using Rodaje.Core.Serialization;
 using Rodaje.Export;
 
@@ -150,6 +151,15 @@ public sealed partial class ExportQueueStore(string path)
                 // Una entrada nula o sin proyecto, secuencia, salida o ajustes (un archivo dañado) lanzaba NullReference o
                 // ArgumentNull fuera de este catch: se salta.
                 if (e is not { ProjectJson: not null, SequenceId: not null, OutputPath.Length: > 0, Settings: not null })
+                {
+                    Skipped++;
+                    continue;
+                }
+
+                // Un 1e400 en los ajustes se lee como ±∞ y el siguiente Save lanzaba ArgumentException al escribirlo
+                // (tarea 288): se salta como una entrada rota y queda en la copia «.dañado», en vez de exportar con otros
+                // ajustes que quien la puso en cola no eligió.
+                if (ExportSettingsNumbers.NonFinite(e.Settings) is not null)
                 {
                     Skipped++;
                     continue;

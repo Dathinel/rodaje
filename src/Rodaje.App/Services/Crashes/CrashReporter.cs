@@ -115,7 +115,8 @@ public sealed class CrashReporter
     private string? _gpuCache;
     private string? _fatalReport;
 
-    // 1 tras el primer EndSession de la sesión: las siguientes llamadas no hacen nada (tarea 242).
+    // 1 tras el primer EndSession de la sesión: las siguientes no esperan el cerrojo ni cierran otra vez la copia del
+    // registro (tarea 242), pero sí anotan las repeticiones de después si el cerrojo está libre (tarea 292).
     private int _sessionEnded;
 
     public CrashReporter(string folder, string version, SessionLog log, Func<string?>? gpu = null, Func<DateTime>? clock = null)
@@ -461,13 +462,26 @@ public sealed class CrashReporter
 
     /// <summary>
     /// Cierre limpio: anota las repeticiones pendientes y borra la copia del registro. Se puede llamar más de una vez
-    /// (al volver de <c>Application.Start</c>, con <c>WM_ENDSESSION</c> y al salir el proceso): solo la primera hace algo;
-    /// las demás vuelven enseguida, sin esperar el cerrojo ni anotar nada (tarea 242).
+    /// (al volver de <c>Application.Start</c>, con <c>WM_ENDSESSION</c> y al salir el proceso): solo la primera cierra la
+    /// copia; las demás vuelven enseguida, sin esperar el cerrojo ni anotar el aviso (tarea 242), y solo anotan las
+    /// repeticiones de un fallo que siguió entre una y otra si el cerrojo está libre en ese momento (tarea 292).
     /// </summary>
     public void EndSession()
     {
         if (Interlocked.Exchange(ref _sessionEnded, 1) != 0)
         {
+            if (_gate.TryEnter(TimeSpan.Zero))
+            {
+                try
+                {
+                    FlushBursts();
+                }
+                finally
+                {
+                    _gate.Exit();
+                }
+            }
+
             return;
         }
 

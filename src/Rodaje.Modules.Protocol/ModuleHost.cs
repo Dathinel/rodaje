@@ -362,13 +362,106 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     /// hilos, y si el trabajo lo ocupa, el bucle de <see cref="ModuleHost"/> no contesta el <c>ping</c> ni manda los
     /// avances y el editor mata un módulo sano (tarea 195; antes, solo «RAW de cine» en la tarea 138).
     /// </summary>
-    /// <remarks>Si <paramref name="cancellationToken"/> ya está cancelado, el trabajo no empieza.</remarks>
-    public static Task<T> RunBlockingAsync<T>(Func<T> work, CancellationToken cancellationToken = default) =>
-        Task.Factory.StartNew(work, cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+    /// <remarks>
+    /// Si <paramref name="cancellationToken"/> ya está cancelado, el trabajo no empieza. Llamada desde el pool (tras un
+    /// <c>await</c>, como las oleadas de Visión), el hilo no se arranca ahí sino en el hilo de arranque de los trabajos
+    /// largos (tarea 289), y la tarea se devuelve sin esperar a que arranque; véase <see cref="BlockingStarter"/>.
+    /// </remarks>
+    public static Task<T> RunBlockingAsync<T>(Func<T> work, CancellationToken cancellationToken = default)
+    {
+        Task<T> task = new(work, cancellationToken, TaskCreationOptions.LongRunning);
+        BlockingStarter.Start(task);
+        return task;
+    }
 
     /// <inheritdoc cref="RunBlockingAsync{T}(Func{T}, CancellationToken)"/>
-    public static Task RunBlockingAsync(Action work, CancellationToken cancellationToken = default) =>
-        Task.Factory.StartNew(work, cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+    public static Task RunBlockingAsync(Action work, CancellationToken cancellationToken = default)
+    {
+        Task task = new(work, cancellationToken, TaskCreationOptions.LongRunning);
+        BlockingStarter.Start(task);
+        return task;
+    }
+
+    /// <summary>
+    /// Costura de pruebas: corre justo antes de arrancar el hilo de un trabajo de <see cref="RunBlockingAsync(Action, CancellationToken)"/>,
+    /// donde <see cref="Thread.Start()"/> espera a que el hilo nuevo arranque (tarea 289). Por hilo: la lee el hilo que
+    /// llama a <c>RunBlockingAsync</c> y la corre el hilo que arranca el trabajo, así cada prueba ve solo sus arranques.
+    /// </summary>
+    [ThreadStatic]
+    internal static Action? BeforeBlockingThreadStartsForTests;
+
+    /// <summary>
+    /// Arranca los hilos de <see cref="RunBlockingAsync(Action, CancellationToken)"/> pedidos desde el pool, de uno en uno,
+    /// en un hilo suyo (uno por proceso), como <see cref="CallStarter"/> con los hilos de las llamadas (tarea 260) y
+    /// <c>FrameBatch</c> de RAW con los de revelado (#262). <see cref="Thread.Start()"/> espera a que el hilo nuevo arranque,
+    /// y en la CI de Windows esa espera pasó de 10 s: hecho en el pool, cada trabajo pedido tras un <c>await</c> retenía un
+    /// hilo del pool, y con las oleadas de Visión (hasta 4 trabajos por llamada y varias llamadas a la vez) el bucle de
+    /// <see cref="ModuleHost"/> no contestaba el <c>ping</c> ni mandaba los avances y el vigilante del editor mataba el
+    /// módulo (tarea 289). Desde un hilo que no es del pool (el hilo propio de una llamada, antes de su primer
+    /// <c>await</c>) el hilo se arranca allí mismo, como antes: no le quita nada al pool. Un arranque lento solo retrasa a
+    /// los trabajos que vienen detrás. El hilo de arranque se crea con el primer trabajo pedido desde el pool y lo arranca
+    /// un único trabajo del pool (el único arranque que espera ahí); no termina nunca.
+    /// </summary>
+    private static class BlockingStarter
+    {
+        private static readonly Queue<(Task Work, Action? BeforeStart)> s_pending = new();
+        private static bool s_created;
+
+        public static void Start(Task work)
+        {
+            // Con el token ya cancelado, la tarea nace cancelada: no hay hilo que arrancar.
+            if (work.IsCompleted) return;
+            Action? beforeStart = BeforeBlockingThreadStartsForTests;
+            if (!Thread.CurrentThread.IsThreadPoolThread)
+            {
+                beforeStart?.Invoke();
+                work.Start(TaskScheduler.Default);
+                return;
+            }
+
+            bool create;
+            lock (s_pending)
+            {
+                s_pending.Enqueue((work, beforeStart));
+                Monitor.Pulse(s_pending);
+                create = !s_created;
+                s_created = true;
+            }
+
+            if (create)
+            {
+                Thread thread = new(Run) { IsBackground = true, Name = "Rodaje: arranque de trabajos largos" };
+                ThreadPool.UnsafeQueueUserWorkItem(static t => t.UnsafeStart(), thread, preferLocal: false);
+            }
+        }
+
+        private static void Run()
+        {
+            while (true)
+            {
+                (Task Work, Action? BeforeStart) next;
+                lock (s_pending)
+                {
+                    while (s_pending.Count == 0) Monitor.Wait(s_pending);
+                    next = s_pending.Dequeue();
+                }
+
+                next.BeforeStart?.Invoke();
+                try
+                {
+                    next.Work.Start(TaskScheduler.Default);
+                }
+                catch (InvalidOperationException) when (next.Work.IsCompleted)
+                {
+                    // Se canceló mientras esperaba en la cola: la tarea ya está cancelada y no hay nada que arrancar.
+                }
+                catch (TaskSchedulerException)
+                {
+                    // El hilo no se pudo crear: la tarea ya quedó con el fallo, que ve quien la espera.
+                }
+            }
+        }
+    }
 
     /// <summary>
     /// Cancela una llamada que puede estar terminando: su tarea la saca de <c>active</c> y desecha su

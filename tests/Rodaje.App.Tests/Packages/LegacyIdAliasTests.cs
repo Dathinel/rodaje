@@ -51,6 +51,32 @@ public sealed class LegacyIdAliasTests : IDisposable
     }
 
     [Fact]
+    public void Un_estilo_de_texto_con_el_id_exacto_gana_al_que_lo_tiene_como_id_antiguo()
+    {
+        // «Café» tiene el id «cafe» y el antiguo «caf», que es el id actual de «caf.json» (tarea 291).
+        var locations = PackageLocations.Under(_folder.Path);
+        // Las carpetas «a» y «b» ponen «Café» antes en la lista (por nombre, «caf.json» iría primero).
+        Directory.CreateDirectory(Path.Combine(locations.Own, "estilos", "a"));
+        Directory.CreateDirectory(Path.Combine(locations.Own, "estilos", "b"));
+        File.WriteAllBytes(Path.Combine(locations.Own, "estilos", "a", "Café.json"), """{ "kind": "text-style" }"""u8.ToArray());
+        File.WriteAllBytes(Path.Combine(locations.Own, "estilos", "b", "caf.json"), """{ "kind": "text-style" }"""u8.ToArray());
+        PackageScan scan = PackageLibrary.Scan(locations, "rodaje");
+        Assert.Equal("caf", scan.Find(PackageLibrary.OwnPackageId)!.Manifest.Items.First(i => i.Id == "cafe").LegacyId);
+        ChoiceList<LibraryElement> styles = TextStyleChoices.Build(scan);
+        Assert.True(
+            styles.Values.ToList().FindIndex(e => e.Reference == "propios@0.0.0/cafe")
+                < styles.Values.ToList().FindIndex(e => e.Reference == "propios@0.0.0/caf"),
+            "«Café» debe ir antes en la lista para que la prueba muestre el defecto.");
+        TextStyle style = TitleStyles.Default();
+        style.Source = "propios@0.0.0/caf";
+
+        int index = TextStyleChoices.IndexOf(styles, style);
+
+        Assert.True(index >= 0);
+        Assert.Equal("propios@0.0.0/caf", styles.Values[index].Reference);
+    }
+
+    [Fact]
     public void Una_LUT_propia_que_usa_un_filtro_por_su_id_antiguo_no_sale_repetida()
     {
         Own("luts", """{ "kind": "lut" }"""u8.ToArray());

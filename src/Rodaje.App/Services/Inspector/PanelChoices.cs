@@ -269,17 +269,28 @@ public static class TextStyleChoices
     }
 
     /// <summary>
-    /// El estilo de <paramref name="styles"/> que tiene el título: el de su origen o, sin origen, el de fábrica si no se
-    /// cambió; −1 si ninguno.
+    /// El estilo de <paramref name="styles"/> que tiene el título: el de su origen (primero por el id actual y, si ninguno lo
+    /// tiene, por el antiguo) o, sin origen, el de fábrica si no se cambió; −1 si ninguno.
     /// </summary>
     public static int IndexOf(ChoiceList<LibraryElement> styles, TextStyle style)
     {
         ArgumentNullException.ThrowIfNull(styles);
         ArgumentNullException.ThrowIfNull(style);
+        if (style.Source is { } source)
+        {
+            // El id exacto gana: un estilo anterior en la lista puede tener como id antiguo el id actual de otro.
+            int exact = Find(styles, e => e.Reference == source);
+            return exact >= 0 ? exact : Find(styles, e => e.LegacyReference == source);
+        }
+
+        return Find(styles, e => e.IsBuiltIn && style.ContentEquals(TitleStyles.Default()));
+    }
+
+    private static int Find(ChoiceList<LibraryElement> styles, Func<LibraryElement, bool> match)
+    {
         for (int i = 0; i < styles.Count; i++)
         {
-            LibraryElement e = styles.Values[i];
-            if (style.Source is { } source ? e.IsReferredBy(source) : e.IsBuiltIn && style.ContentEquals(TitleStyles.Default()))
+            if (match(styles.Values[i]))
             {
                 return i;
             }
