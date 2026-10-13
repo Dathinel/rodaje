@@ -23,8 +23,8 @@ public static unsafe partial class NativeCrashHandler
     private static CrashWatchdog? s_watchdog;
     private static int s_entered;
 
-    /// <summary>Último error de Win32 de <c>MiniDumpWriteDump</c> que falló (para el diagnóstico de las pruebas).</summary>
-    public static int LastMinidumpError { get; private set; }
+    // ERROR_NOT_SUPPORTED: fuera de Windows no hay minivolcado.
+    private const int NotSupportedError = 50;
 
     /// <summary>Instala el filtro (una vez por proceso; en otro sistema que no sea Windows no hace nada).</summary>
     public static void Install(CrashReporter reporter)
@@ -43,12 +43,14 @@ public static unsafe partial class NativeCrashHandler
     /// <summary>
     /// Escribe un minivolcado de este proceso en <paramref name="path"/>; con <paramref name="exceptionPointers"/>
     /// (un <c>EXCEPTION_POINTERS*</c>) lleva la excepción y el hilo que falló. Nunca lanza. Volcarse a sí mismo puede
-    /// trabarse si otro hilo tiene el cargador o el montón: vale en un proceso que ya se cae, no en uno sano.
+    /// trabarse si otro hilo tiene el cargador o el montón: vale en un proceso que ya se cae, no en uno sano. Si falla,
+    /// <paramref name="error"/> es el error de Win32 (o el HRESULT de la excepción) y no queda archivo.
     /// </summary>
-    public static bool WriteMinidump(string path, void* exceptionPointers)
+    public static bool WriteMinidump(string path, void* exceptionPointers, out int error)
     {
         if (!OperatingSystem.IsWindows())
         {
+            error = NotSupportedError;
             return false;
         }
 
@@ -58,24 +60,26 @@ public static unsafe partial class NativeCrashHandler
             ExceptionPointers = exceptionPointers,
             ClientPointers = 0,
         };
-        return WriteMinidump(path, GetCurrentProcess(), (uint)Environment.ProcessId, exceptionPointers is null ? null : &info);
+        return WriteMinidump(path, GetCurrentProcess(), (uint)Environment.ProcessId, exceptionPointers is null ? null : &info, out error);
     }
 
-    /// <summary>Escribe un minivolcado de otro proceso (sin excepción). Nunca lanza.</summary>
-    public static bool WriteMinidump(string path, System.Diagnostics.Process process)
+    /// <summary>Escribe un minivolcado de otro proceso (sin excepción). Nunca lanza; si falla, <paramref name="error"/> dice por qué.</summary>
+    public static bool WriteMinidump(string path, System.Diagnostics.Process process, out int error)
     {
         ArgumentNullException.ThrowIfNull(process);
         if (!OperatingSystem.IsWindows())
         {
+            error = NotSupportedError;
             return false;
         }
 
         try
         {
-            return WriteMinidump(path, process.Handle, (uint)process.Id, null);
+            return WriteMinidump(path, process.Handle, (uint)process.Id, null, out error);
         }
         catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception or NotSupportedException)
         {
+            error = ex.HResult;
             return false;
         }
     }
@@ -104,15 +108,17 @@ public static unsafe partial class NativeCrashHandler
         }
     }
 
-    private static bool WriteMinidump(string path, nint process, uint processId, MinidumpExceptionInformation* info)
+    private static bool WriteMinidump(string path, nint process, uint processId, MinidumpExceptionInformation* info, out int error)
     {
+        error = 0;
         try
         {
             using var file = new FileStream(path, FileMode.Create, FileAccess.ReadWrite, FileShare.None);
             bool ok = MiniDumpWriteDump(process, processId, file.SafeFileHandle, DumpType, info, 0, 0);
             if (!ok)
             {
-                LastMinidumpError = Marshal.GetLastPInvokeError();
+                // MiniDumpWriteDump devuelve un HRESULT en GetLastError; sin él, un código distinto de 0 igual.
+                error = Marshal.GetLastPInvokeError() is int last and not 0 ? last : -1;
                 file.Close();
                 File.Delete(path);
             }
@@ -120,9 +126,10 @@ public static unsafe partial class NativeCrashHandler
             return ok;
         }
 #pragma warning disable CA1031 // En medio de un fallo nada puede lanzar: sin minivolcado, queda el informe de texto.
-        catch (Exception)
+        catch (Exception ex)
 #pragma warning restore CA1031
         {
+            error = ex.HResult is int code and not 0 ? code : -1;
             return false;
         }
     }

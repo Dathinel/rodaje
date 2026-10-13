@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Audio;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
 using Rodaje.Audio.Metering;
@@ -65,13 +66,13 @@ internal sealed partial class MixerView : UserControl, IEditorView, IStripHost
             busMenu.Items.Add(Item(name, () => AddBuses([name])));
         }
 
-        busMenu.Items.Add(Item("Otro…", async () =>
+        busMenu.Items.Add(Item("Otro…", () => UiTask.Run(async () =>
         {
             if (await AskNameAsync("Bus nuevo", "") is { } named)
             {
                 AddBuses([named]);
             }
-        }));
+        })));
         addBus.Flyout = busMenu;
         ToolTipService.SetToolTip(addBus, "Un bus suma pistas (su salida o un envío) y les aplica sus efectos y su fader: una submezcla.");
         Grid.SetColumn(addBus, 1);
@@ -527,7 +528,9 @@ internal sealed partial class MixerView : UserControl, IEditorView, IStripHost
         }
     }
 
-    public async void RenameBus(MixerStrip strip)
+    public void RenameBus(MixerStrip strip) => UiTask.Run(RenameBusAsync(strip));
+
+    private async Task RenameBusAsync(MixerStrip strip)
     {
         if (await AskNameAsync("Renombrar bus", strip.Name) is { } name && name != strip.Name)
         {

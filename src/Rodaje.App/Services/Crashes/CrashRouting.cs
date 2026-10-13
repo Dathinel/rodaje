@@ -138,9 +138,10 @@ public class CrashHooks
 
     public virtual void OnProcessExit(EventHandler handler) => AppDomain.CurrentDomain.ProcessExit += handler;
 
-    public virtual void RunLater(TimeSpan delay, Action action) => _ = Task.Run(async () =>
+    // Observada con UiTask: si la acción lanza, queda informe en vez de perderse en la tarea.
+    public virtual void RunLater(TimeSpan delay, Action action) => UiTask.Run(Task.Run(async () =>
     {
         await Task.Delay(delay).ConfigureAwait(false);
         action();
-    });
+    }));
 }

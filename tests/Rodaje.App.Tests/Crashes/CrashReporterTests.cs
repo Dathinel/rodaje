@@ -125,7 +125,7 @@ public class CrashReporterTests
         Assert.Contains("0xC000027B", text, StringComparison.Ordinal);
         Assert.Contains("stowed", text, StringComparison.Ordinal);
         string dump = Assert.Single(Directory.GetFiles(dir.Path, "*.dmp"));
-        Assert.Contains("Minivolcado: " + CrashReportScrubber.Default.Scrub(dump), text, StringComparison.Ordinal);
+        Assert.Contains("Minivolcado: " + ExpectedDumpPath.Of(dump) + Environment.NewLine, text, StringComparison.Ordinal);
         AssertMinidump(dump);
     }
 
@@ -143,8 +143,8 @@ public class CrashReporterTests
         Assert.Contains("Minivolcado:", File.ReadAllText(managed!), StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Minivolcado_EsUnArchivoMdmp()
+    [WindowsOnlyFact("MiniDumpWriteDump de dbghelp y un proceso hijo con cmd.exe.")]
+    public async Task Minivolcado_EsUnArchivoMdmp()
     {
         // De otro proceso: volcar el de las pruebas desde dentro puede trabarse con los demás hilos.
         using var dir = new TempDirectory();
@@ -159,17 +159,20 @@ public class CrashReporterTests
         })!;
         try
         {
-            Assert.Equal("listo", child.StandardOutput.ReadLine()?.Trim());
+            // Con plazo: si el hijo no llega a escribir, la prueba falla (TimeoutException) en vez de colgar la CI.
+            string? ready = await child.StandardOutput.ReadLineAsync().WaitAsync(TimeSpan.FromSeconds(30));
+            Assert.Equal("listo", ready?.Trim());
             // Aun así, si el sistema está cargado, unos reintentos breves antes de darlo por fallido.
             bool written = false;
+            int error = 0;
             var clock = System.Diagnostics.Stopwatch.StartNew();
-            while (!(written = NativeCrashHandler.WriteMinidump(path, child)) && clock.Elapsed < TimeSpan.FromSeconds(10))
+            while (!(written = NativeCrashHandler.WriteMinidump(path, child, out error)) && clock.Elapsed < TimeSpan.FromSeconds(10))
             {
-                Thread.Sleep(200);
+                await Task.Delay(200);
             }
 
             Assert.True(written, string.Create(CultureInfo.InvariantCulture,
-                $"MiniDumpWriteDump falló durante {clock.Elapsed.TotalSeconds:0.0} s (último error de Win32: {NativeCrashHandler.LastMinidumpError})."));
+                $"MiniDumpWriteDump falló durante {clock.Elapsed.TotalSeconds:0.0} s (último error: {error}, 0x{error:X8})."));
             AssertMinidump(path);
         }
         finally
@@ -284,7 +287,7 @@ public class CrashReporterTests
 
         for (int i = 0; i < CrashReporter.KeepReports + 5; i++)
         {
-            reporter.Write(CrashKind.Caught, "error " + i.ToString(CultureInfo.InvariantCulture), fatal: false);
+            reporter.Write(CrashKind.Caught, "error " + (char)('a' + (i / 26)) + (char)('a' + (i % 26)), fatal: false); // Distintos: la firma no mira los números.
         }
 
         Assert.Equal(CrashReporter.KeepReports, Reports(dir).Length);
@@ -309,10 +312,10 @@ public class CrashReporterTests
     }
 
     // El minivolcado de verdad se prueba con otro proceso (Minivolcado_EsUnArchivoMdmp).
-    private static bool FakeMinidump(string path, nint exceptionPointers)
+    private static int FakeMinidump(string path, nint exceptionPointers)
     {
         File.WriteAllBytes(path, "MDMP"u8.ToArray());
-        return true;
+        return 0;
     }
 
     private static string[] Reports(TempDirectory dir) => Directory.GetFiles(dir.Path, "*.txt");

@@ -29,29 +29,36 @@ public sealed class UiThreadPoolBlockingTests(ITestOutputHelper output)
     public async Task El_pool_cuenta_como_bloqueado_el_hilo_que_espera_a_la_prueba_de_interfaz()
     {
         ThreadPool.GetMinThreads(out int min, out _);
-        // La meta del pool por bloqueos es «mínimo + bloqueados» y solo sube si estaba por debajo; si otras pruebas la
-        // dejaron alta, se bloquean más para pasarla (la meta no queda por encima de los hilos que existen).
-        int tests = Math.Clamp(ThreadPool.ThreadCount - min + 8, 8, 64);
-        int target = min + tests;
-        using var listener = new PoolAdjustmentListener { Target = target };
+        // La meta del pool por bloqueos es «mínimo + bloqueados» y solo sube si la meta actual estaba por debajo. La meta
+        // no se puede leer y puede quedar muy por encima de los hilos que existen (el ascenso de colina la sube y los hilos
+        // ociosos se retiran sin bajarla: en la CI, 12 hilos con la meta en 40 o 60 y ningún ajuste por bloqueo con 8
+        // bloqueados). Por eso se bloquean tandas que duplican el total (8, 16, 32… hasta 256) hasta que llegue un ajuste
+        // por bloqueo. Con Thread.Join no llega con ninguna.
+        using var listener = new PoolAdjustmentListener { Target = 0 };
         int started = 0;
-        TaskCompletionSource allStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        Task[] runs = [.. Enumerable.Range(0, tests).Select(_ => Task.Run(() => UiThread.Run(async () =>
-        {
-            if (Interlocked.Increment(ref started) == tests)
-            {
-                allStarted.TrySetResult();
-            }
-
-            await release.Task;
-        })))];
-        bool reached;
+        var runs = new List<Task>();
+        bool reached = false;
         try
         {
-            // Topes contra cuelgues, no medidas: en verde vuelve en cuanto el pool sube su meta por los bloqueados.
-            await allStarted.Task.WaitAsync(TimeSpan.FromSeconds(120));
-            reached = await Task.WhenAny(listener.ReachedByBlocking, Task.Delay(TimeSpan.FromSeconds(60))) == listener.ReachedByBlocking;
+            for (int batch = 8; !reached && runs.Count < 256; batch = runs.Count)
+            {
+                int expected = runs.Count + batch;
+                TaskCompletionSource batchStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
+                runs.AddRange(Enumerable.Range(0, batch).Select(_ => Task.Run(() => UiThread.Run(async () =>
+                {
+                    if (Interlocked.Increment(ref started) == expected)
+                    {
+                        batchStarted.TrySetResult();
+                    }
+
+                    await release.Task;
+                }))));
+
+                // Topes contra cuelgues, no medidas: en verde vuelve en cuanto el pool sube su meta por los bloqueados.
+                await batchStarted.Task.WaitAsync(TimeSpan.FromSeconds(120));
+                reached = await Task.WhenAny(listener.ReachedByBlocking, Task.Delay(TimeSpan.FromSeconds(20))) == listener.ReachedByBlocking;
+            }
         }
         finally
         {
@@ -59,9 +66,9 @@ public sealed class UiThreadPoolBlockingTests(ITestOutputHelper output)
         }
 
         await Task.WhenAll(runs).WaitAsync(TimeSpan.FromSeconds(120));
-        output.WriteLine($"{tests} pruebas de interfaz bloqueadas; ajustes del pool: {listener.Describe()}. {UiThread.PoolState()}");
+        output.WriteLine($"{runs.Count} pruebas de interfaz bloqueadas; ajustes del pool: {listener.Describe()}. {UiThread.PoolState()}");
         Assert.True(reached,
-            $"Con {tests} pruebas de interfaz bloqueadas el pool no subió su meta por bloqueo a {target} hilos (mínimo {min} + {tests}): "
+            $"Con hasta {runs.Count} pruebas de interfaz bloqueadas (mínimo {min}) el pool no subió su meta por bloqueo: "
             + $"UiThread.Run bloquea sin que el pool lo sepa (¿volvió Thread.Join?). Ajustes: {listener.Describe()}. {UiThread.PoolState()}");
     }
 

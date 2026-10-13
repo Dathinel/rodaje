@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector;
@@ -881,7 +882,9 @@ internal sealed partial class ExportView : UserControl
 
     private void OnCancelClick(object sender, RoutedEventArgs e) => CloseRequested?.Invoke(this, EventArgs.Empty);
 
-    private async void OnExportClick(object sender, RoutedEventArgs e)
+    private void OnExportClick(object sender, RoutedEventArgs e) => UiTask.Run(OnExportClickAsync(sender, e));
+
+    private async Task OnExportClickAsync(object sender, RoutedEventArgs e)
     {
         if (_model is not { } model)
         {

@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Packages;
@@ -72,8 +73,8 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     {
         InitializeComponent();
         _addItem = MenuItem("Añadir a la línea de tiempo", "\uE710", (_, _) => AppendTarget());
-        _replaceItem = MenuItem("Reemplazar el clip seleccionado", "\uE8AB", (_, _) => _ = ReplaceSelectedAsync());
-        _proxyItem = MenuItem("Generar proxy", "\uE8B1", (_, _) => _ = GenerateProxyAsync());
+        _replaceItem = MenuItem("Reemplazar el clip seleccionado", "\uE8AB", (_, _) => UiTask.Run(ReplaceSelectedAsync()));
+        _proxyItem = MenuItem("Generar proxy", "\uE8B1", (_, _) => UiTask.Run(GenerateProxyAsync()));
         _revealItem = MenuItem("Mostrar en el Explorador", "\uEC50", (_, _) => RevealTarget());
         _removeItem = MenuItem("Quitar del proyecto", "\uE74D", (_, _) => RemoveTarget());
         _mediaMenu.Items.Add(_addItem);
@@ -135,10 +136,10 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         MarkersView.Attach(services);
         RefreshMedia();
         RefreshPackages();
-        _ = services.Packages.RefreshAsync();
+        UiTask.Run(services.Packages.RefreshAsync());
         if (Rodaje.Media.EnvironmentVariables.Read(LibraryScrollMeasurement.Variable) is { } report)
         {
-            _ = LibraryScrollMeasurement.RunAsync(this, MediaGrid, report);
+            UiTask.Run(LibraryScrollMeasurement.RunAsync(this, MediaGrid, report));
         }
     }
 
@@ -427,6 +428,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
         catch (Exception ex)
         {
+            UiTask.Report(ex, notify: false);
             _services.Session.Notify(NotificationSeverity.Error, "No se pudo importar", ex.Message);
         }
     }
@@ -500,7 +502,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
                 return;
             }
 
-            _ = ApplyElementAsync(item.Element);
+            UiTask.Run(ApplyElementAsync(item.Element));
         }
     }
 
@@ -520,16 +522,16 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
         else if (item.Element.Kind == ItemKind.TextStyle)
         {
-            menu.Items.Add(MenuItem("A\u00F1adir texto en el cursor", "\uE8D2", (_, _) => _ = AddTitleAsync(item.Element)));
+            menu.Items.Add(MenuItem("A\u00F1adir texto en el cursor", "\uE8D2", (_, _) => UiTask.Run(AddTitleAsync(item.Element))));
             if (_services?.Session.SelectedTitle is not null)
             {
-                menu.Items.Add(MenuItem("Aplicar al texto seleccionado", "\uE710", (_, _) => _ = ApplyElementAsync(item.Element)));
+                menu.Items.Add(MenuItem("Aplicar al texto seleccionado", "\uE710", (_, _) => UiTask.Run(ApplyElementAsync(item.Element))));
             }
         }
         else
         {
             string text = item.Element.Kind == ItemKind.Transition ? "Poner en el corte del clip seleccionado" : "Aplicar al clip seleccionado";
-            menu.Items.Add(MenuItem(text, "\uE710", (_, _) => _ = ApplyElementAsync(item.Element)));
+            menu.Items.Add(MenuItem(text, "\uE710", (_, _) => UiTask.Run(ApplyElementAsync(item.Element))));
         }
 
         if (args.TryGetPosition(element, out Point point))
@@ -771,13 +773,15 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             _ownRefresh = DispatcherQueue.CreateTimer();
             _ownRefresh.Interval = TimeSpan.FromMilliseconds(400);
             _ownRefresh.IsRepeating = false;
-            _ownRefresh.Tick += (_, _) => _ = _services?.Packages.RefreshAsync();
+            _ownRefresh.Tick += (_, _) => UiTask.Run(_services?.Packages.RefreshAsync());
             _ownWatcher = new FileSystemWatcher(folder) { IncludeSubdirectories = true, EnableRaisingEvents = true };
-            FileSystemEventHandler changed = (_, _) => _dispatcher?.RunLater(() => _ownRefresh?.Start());
+            // Copiar un archivo grande dispara muchos Changed seguidos: un solo aviso pendiente a la vez.
+            var restart = new CoalescedDispatch(DispatcherQueue, () => _ownRefresh?.Start());
+            FileSystemEventHandler changed = (_, _) => restart.Request();
             _ownWatcher.Created += changed;
             _ownWatcher.Changed += changed;
             _ownWatcher.Deleted += changed;
-            _ownWatcher.Renamed += (_, _) => _dispatcher?.RunLater(() => _ownRefresh?.Start());
+            _ownWatcher.Renamed += (_, _) => restart.Request();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException)
         {
@@ -810,6 +814,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
         catch (Exception ex)
         {
+            UiTask.Report(ex, notify: false);
             _services.Session.Notify(NotificationSeverity.Error, "No se pudo abrir lo soltado", ex.Message);
         }
     }

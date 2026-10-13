@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
@@ -21,7 +22,7 @@ internal sealed partial class PlayerView
     private void AttachFormat(EditorServices services)
     {
         services.ShortcutRegistry.Register(new ShortcutAction(PlayerActionIds.ProjectFormat, "Formato del proyecto…", ShortcutGroups.View, []));
-        _bindings.Add(services.Shortcuts.Bind(PlayerActionIds.ProjectFormat, () => _ = ShowFormatDialogAsync()));
+        _bindings.Add(services.Shortcuts.Bind(PlayerActionIds.ProjectFormat, () => UiTask.Run(ShowFormatDialogAsync())));
     }
 
     private void UpdateFormatButton()
@@ -100,7 +101,7 @@ internal sealed partial class PlayerView
         }
 
         var custom = new RadioMenuFlyoutItem { Text = "Personalizado…", GroupName = "ProjectAspect", IsChecked = current.Custom };
-        custom.Click += (_, _) => _ = ShowFormatDialogAsync();
+        custom.Click += (_, _) => UiTask.Run(ShowFormatDialogAsync());
         FormatMenu.Items.Add(custom);
         FormatMenu.Items.Add(new MenuFlyoutSeparator());
 
@@ -124,7 +125,7 @@ internal sealed partial class PlayerView
 
         FormatMenu.Items.Add(rates);
         var more = new MenuFlyoutItem { Text = "Resolución y más opciones…", Icon = new FontIcon { Glyph = "" } };
-        more.Click += (_, _) => _ = ShowFormatDialogAsync();
+        more.Click += (_, _) => UiTask.Run(ShowFormatDialogAsync());
         FormatMenu.Items.Add(more);
     }
 

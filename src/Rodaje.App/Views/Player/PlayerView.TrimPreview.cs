@@ -19,12 +19,14 @@ internal sealed partial class PlayerView
     private void AttachTrimPreview(EditorServices services)
     {
         services.Session.TrimPreviewChanged += (_, _) => ShowTrimPreview();
+        // Las miniaturas llegan en ráfagas: un solo aviso pendiente a la vez.
+        var thumbnails = new CoalescedDispatch(DispatcherQueue, ShowTrimPreview);
         services.Visuals.Changed += (_, e) =>
         {
             if (e.Kind == ClipVisualKind.Thumbnails && Session?.CurrentTrimPreview is { } preview
                 && (preview.Left.MediaId == e.MediaId || preview.Right.MediaId == e.MediaId))
             {
-                DispatcherQueue.RunLater(ShowTrimPreview);
+                thumbnails.Request();
             }
         };
     }

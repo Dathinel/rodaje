@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
@@ -295,7 +296,9 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         }
     }
 
-    private async void OnStyleChosen(object sender, SelectionChangedEventArgs e)
+    private void OnStyleChosen(object sender, SelectionChangedEventArgs e) => UiTask.Run(OnStyleChosenAsync(sender, e));
+
+    private async Task OnStyleChosenAsync(object sender, SelectionChangedEventArgs e)
     {
         if (_updating || _services is not { } services || _editor is not { } editor || _styleBox is not { } box
             || !_styles.TryGet(box.SelectedIndex, out LibraryElement element))

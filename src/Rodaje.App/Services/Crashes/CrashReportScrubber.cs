@@ -1,86 +1,91 @@
+using System.Diagnostics;
 using System.Text;
-using System.Text.RegularExpressions;
 
 namespace Rodaje.App.Services.Crashes;
 
 /// <summary>
-/// Quita los datos personales del texto de un informe de fallo, que la app invita a pegar en GitHub (público):
+/// Quita los datos personales del texto de un informe de fallo, que la app invita a pegar en GitHub (público). Funciona
+/// con una lista blanca: de toda ruta absoluta (unidad, UNC, <c>\\?\</c>, <c>file:///</c>, también con las barras
+/// dobles de un JSON) queda solo su último segmento, salvo en las raíces conocidas, que no son del usuario y ayudan a
+/// depurar:
 /// <list type="bullet">
-/// <item>de una ruta a un medio, un proyecto o un recurso del usuario (video, audio, imagen, subtítulo, LUT,
-/// <c>.rodaje</c>) deja solo el nombre del archivo;</item>
-/// <item>las carpetas del usuario (<c>%LOCALAPPDATA%</c>, <c>%APPDATA%</c>, <c>%TEMP%</c>, <c>%USERPROFILE%</c>) pasan a
-/// su variable, sin distinguir mayúsculas y con <c>\</c> o <c>/</c>;</item>
-/// <item>cualquier otro <c>X:\Users\&lt;nombre&gt;</c> (otra unidad, el nombre corto 8.3, otra sesión) pasa a
-/// <c>%USERPROFILE%</c>.</item>
+/// <item><c>X:\Windows</c>, <c>X:\Program Files</c>, <c>X:\Program Files (x86)</c>, <c>X:\ProgramData</c> y las carpetas
+/// comunes de <c>X:\Users</c> (<c>Public</c>, <c>Default</c>…);</item>
+/// <item>las rutas de compilación del runner (<c>D:\a\rodaje\…\Archivo.cs:line 12</c>);</item>
+/// <item>las variables <c>%…%</c> (<c>%LOCALAPPDATA%\Rodaje\fallos</c>), salvo <c>%USERPROFILE%</c> y las de OneDrive,
+/// que solo conservan lo que cuelga de <c>AppData</c>.</item>
 /// </list>
-/// Se aplica a todo el informe: el error, la pila, la línea de comandos del arranque y las líneas del registro. Las
-/// rutas de compilación de las pilas (<c>D:\a\rodaje\…\Archivo.cs:line 12</c>) no son del usuario y quedan como están.
-/// Nunca lanza: si una expresión tarda demasiado, se queda con lo que ya limpió y sigue con el paso siguiente.
+/// Antes, las carpetas del usuario (<c>%LOCALAPPDATA%</c>, <c>%APPDATA%</c>, <c>%TEMP%</c>, <c>%USERPROFILE%</c>) pasan a
+/// su variable, y cualquier otro <c>X:\Users\&lt;nombre&gt;</c> a <c>%USERPROFILE%</c>. Fuera de las rutas, el nombre del
+/// usuario y el del equipo pasan a <c>%USERNAME%</c> y <c>%COMPUTERNAME%</c>.
+/// <para>
+/// Se aplica a todo el informe, línea a línea y con código propio de costo lineal (sin expresiones regulares). Una línea
+/// de más de <see cref="MaxLineLength"/> caracteres se recorta. Nunca lanza ni falla abierto: si una línea no se puede
+/// limpiar o se agota <see cref="Budget"/>, la línea se tapa en vez de quedar como estaba.
+/// </para>
 /// </summary>
 public sealed class CrashReportScrubber
 {
-    /// <summary>Extensiones de los archivos cuya carpeta no se muestra (solo el nombre).</summary>
-    public static readonly IReadOnlyList<string> MediaExtensions =
-    [
-        // Video.
-        "mp4", "mkv", "mov", "m4v", "webm", "avi", "mts", "m2ts", "ts", "wmv", "flv", "3gp", "mxf", "mpg", "mpeg", "m2v",
-        "vob", "dv", "r3d", "braw", "insv", "360",
-        // Audio.
-        "mp3", "wav", "m4a", "aac", "flac", "ogg", "opus", "wma", "aif", "aiff", "ac3", "mka",
-        // Imagen.
-        "png", "jpg", "jpeg", "gif", "bmp", "tif", "tiff", "webp", "heic", "heif", "avif", "svg", "exr", "dpx", "psd",
-        // Subtítulos, LUT y proyectos.
-        "srt", "vtt", "ass", "ssa", "cube", "3dl", "rodaje",
-    ];
+    /// <summary>Largo máximo de una línea; lo que sigue se recorta.</summary>
+    public const int MaxLineLength = 8192;
 
-    private static readonly TimeSpan Timeout = TimeSpan.FromSeconds(1);
+    /// <summary>Lo que sustituye a una línea que no se pudo limpiar.</summary>
+    public const string HiddenLine = "[línea omitida: no se pudo limpiar]";
 
-    // Comienzo de una ruta absoluta: unidad (con «\\?\» delante o no) o UNC «\\servidor\». No empieza dentro de una
-    // palabra («abc:\» no es una unidad).
-    private const string RootPattern = @"(?<![\p{L}\p{N}])(?:(?:\\\\[?.]\\)?[A-Za-z]:|\\\\[^\\/\s:*?""<>|]+)[\\/]+";
+    /// <summary>Lo que sustituye a las líneas que quedan cuando se agota el tiempo.</summary>
+    public const string OutOfTimeLine = "[línea omitida: se agotó el tiempo del limpiador]";
 
-    // Un nombre dentro de una ruta: puede llevar espacios y tildes, no los caracteres prohibidos en Windows ni saltos.
-    private const string SegmentChars = @"[^\\/:*?""<>|\r\n]";
+    // Raíces de una unidad que no son del usuario: la ruta queda entera.
+    private static readonly string[] SystemRoots = ["Windows", "Program Files", "Program Files (x86)", "ProgramData"];
 
-    private static readonly Regex MediaPath = new(
-        RootPattern + "(?:" + SegmentChars + @"+[\\/]+)*?" + "(?<name>" + SegmentChars + @"*?\.(?:" + string.Join('|', MediaExtensions) + @"))(?![\p{L}\p{N}_])",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture, Timeout);
+    // Carpetas de «X:\Users» que no son de una persona.
+    private static readonly string[] SharedProfiles = ["Public", "Default", "Default User", "All Users"];
 
-    // «X:\Users\<nombre>»: el nombre puede llevar espacios si le sigue una barra; al final, sin espacios.
-    private static readonly Regex AnyProfile = new(
-        @"(?<![\p{L}\p{N}])[A-Za-z]:[\\/]+(?:Users|Documents and Settings)[\\/]+(?!(?:Public|Default|All Users)(?:[\\/]|$|\s))"
-            + "(?:" + SegmentChars + @"+?(?=[\\/])|[^\\/:*?""<>|\s]+)",
-        RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, Timeout);
+    // Variables cuyo contenido es del usuario (documentos, escritorio, OneDrive): solo queda lo de «AppData».
+    private static readonly string[] PersonalVariables =
+        ["%USERPROFILE%", "%HOMEPATH%", "%ONEDRIVE%", "%ONEDRIVECOMMERCIAL%", "%ONEDRIVECONSUMER%"];
 
-    private readonly IReadOnlyList<(Regex Pattern, string Token)> _folders;
+    private readonly IReadOnlyList<(string[] Components, string Token)> _folders;
+    private readonly string? _userName;
+    private readonly string? _machineName;
 
     /// <summary>
-    /// <paramref name="folders"/>: carpeta del usuario → variable que la sustituye (<c>%TEMP%</c>…). Las vacías se
-    /// ignoran; las más largas se sustituyen primero (<c>%TEMP%</c> suele estar dentro de <c>%LOCALAPPDATA%</c>).
+    /// <paramref name="folders"/>: carpeta del usuario → variable que la sustituye (<c>%TEMP%</c>…). Las vacías o que no
+    /// son rutas absolutas se ignoran; las más largas se sustituyen primero (<c>%TEMP%</c> suele estar dentro de
+    /// <c>%LOCALAPPDATA%</c>). <paramref name="userName"/> y <paramref name="machineName"/> (de 3 caracteres o más) se
+    /// sustituyen por <c>%USERNAME%</c> y <c>%COMPUTERNAME%</c> en todo el texto, sin distinguir mayúsculas y solo como
+    /// palabra entera.
     /// </summary>
-    public CrashReportScrubber(IEnumerable<KeyValuePair<string, string?>> folders)
+    public CrashReportScrubber(IEnumerable<KeyValuePair<string, string?>> folders, string? userName = null, string? machineName = null)
     {
         ArgumentNullException.ThrowIfNull(folders);
         _folders = [.. folders
-            .Select(f => (Path: Trim(f.Value), Token: f.Key))
-            .Where(f => f.Path.Length >= 3)
-            .DistinctBy(f => f.Path.Replace('/', '\\').ToUpperInvariant())
-            .OrderByDescending(f => f.Path.Length)
-            .Select(f => (FolderPattern(f.Path), f.Token))];
+            .Select(f => (Components: FolderComponents(f.Value), Token: f.Key))
+            .Where(f => f.Components is not null)
+            .Select(f => (Components: f.Components!, f.Token))
+            .DistinctBy(f => string.Join('\\', f.Components).ToUpperInvariant())
+            .OrderByDescending(f => f.Components.Length)];
+        _userName = Name(userName);
+        _machineName = Name(machineName);
     }
 
     /// <summary>El de este usuario, con las variables de entorno de este proceso.</summary>
     public static CrashReportScrubber Default { get; } = FromEnvironment();
 
-    /// <summary>Con las carpetas de las variables de entorno de este proceso.</summary>
+    /// <summary>Tiempo máximo de una llamada a <see cref="Scrub"/>; las líneas que quedan después se tapan.</summary>
+    public TimeSpan Budget { get; init; } = TimeSpan.FromSeconds(2);
+
+    /// <summary>Con las carpetas de las variables de entorno de este proceso, el usuario y el equipo.</summary>
     public static CrashReportScrubber FromEnvironment()
     {
         string[] names = ["LOCALAPPDATA", "APPDATA", "TEMP", "TMP", "USERPROFILE"];
-        return new CrashReportScrubber(names.Select(n => new KeyValuePair<string, string?>(
-            n == "TMP" ? "%TEMP%" : "%" + n + "%", Environment.GetEnvironmentVariable(n))));
+        return new CrashReportScrubber(
+            names.Select(n => new KeyValuePair<string, string?>(n == "TMP" ? "%TEMP%" : "%" + n + "%", Environment.GetEnvironmentVariable(n))),
+            Safe(() => Environment.UserName),
+            Safe(() => Environment.MachineName));
     }
 
-    /// <summary>El texto sin rutas de medios ni carpetas del usuario.</summary>
+    /// <summary>El texto sin rutas personales ni nombres del usuario o del equipo.</summary>
     public string Scrub(string? text)
     {
         if (string.IsNullOrEmpty(text))
@@ -88,40 +93,400 @@ public sealed class CrashReportScrubber
             return text ?? string.Empty;
         }
 
-        text = TryReplace(text, MediaPath, m => m.Groups["name"].Value);
-        foreach ((Regex pattern, string token) in _folders)
+        var watch = Stopwatch.StartNew();
+        var result = new StringBuilder(text.Length);
+        int start = 0;
+        while (start <= text.Length)
         {
-            text = TryReplace(text, pattern, _ => token);
+            int newline = text.IndexOf('\n', start);
+            int end = newline < 0 ? text.Length : newline;
+            if (end > start || newline >= 0)
+            {
+                result.Append(watch.Elapsed >= Budget ? OutOfTimeLine : SafeScrubLine(text[start..end]));
+            }
+
+            if (newline < 0)
+            {
+                break;
+            }
+
+            result.Append('\n');
+            start = newline + 1;
         }
 
-        return TryReplace(text, AnyProfile, _ => "%USERPROFILE%");
+        return result.ToString();
     }
 
-    private static string TryReplace(string text, Regex pattern, MatchEvaluator evaluator)
+    private string SafeScrubLine(string line)
     {
         try
         {
-            return pattern.Replace(text, evaluator);
+            string carriageReturn = line.EndsWith('\r') ? "\r" : string.Empty;
+            string body = line[..(line.Length - carriageReturn.Length)];
+            string suffix = string.Empty;
+            if (body.Length > MaxLineLength)
+            {
+                suffix = $" … [recortado: {body.Length - MaxLineLength} caracteres]";
+                body = body[..MaxLineLength];
+            }
+
+            return ReplaceNames(ScrubPaths(body)) + suffix + carriageReturn;
         }
-        catch (RegexMatchTimeoutException)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or IndexOutOfRangeException or OutOfMemoryException)
         {
-            return text;
+            return HiddenLine;
         }
     }
 
-    private static string Trim(string? path) => (path ?? string.Empty).Trim().TrimEnd('\\', '/');
-
-    // La carpeta con «\» o «/» en cada separador, sin distinguir mayúsculas, y sin seguir dentro de un nombre más largo
-    // («C:\Users\ana» no toca «C:\Users\anabel»).
-    private static Regex FolderPattern(string path)
+    private string ScrubPaths(string line)
     {
-        var pattern = new StringBuilder(@"(?<![\p{L}\p{N}])");
-        foreach (char c in path)
+        var output = new StringBuilder(line.Length);
+        int copied = 0;
+        int i = 0;
+        while (i < line.Length)
         {
-            pattern.Append(c is '\\' or '/' ? @"[\\/]+" : Regex.Escape(c.ToString()));
+            if (!TryParsePath(line, i, out ParsedPath path))
+            {
+                i++;
+                continue;
+            }
+
+            (string replacement, int resume) = Replace(line, path);
+            output.Append(line, copied, i - copied).Append(replacement);
+            copied = resume;
+
+            // Siempre se avanza: el último segmento se vuelve a recorrer por si empieza otra ruta en él.
+            i = resume;
         }
 
-        pattern.Append(@"(?![\p{L}\p{N}_.~$\-])");
-        return new Regex(pattern.ToString(), RegexOptions.IgnoreCase | RegexOptions.CultureInvariant, Timeout);
+        output.Append(line, copied, line.Length - copied);
+        return output.ToString();
     }
+
+    // Qué queda en lugar de [inicio de la ruta, resume): la ruta sin el último segmento (que se copia aparte) o, si el
+    // último segmento es el nombre de un perfil, la ruta entera.
+    private (string Replacement, int Resume) Replace(string line, ParsedPath path)
+    {
+        List<Span> components = path.Components;
+        string? token = null;
+        int matched = 0;
+
+        foreach ((string[] folder, string folderToken) in _folders)
+        {
+            if (StartsWith(line, components, folder))
+            {
+                token = folderToken;
+                matched = folder.Length;
+                break;
+            }
+        }
+
+        if (token is null && path.Kind == RootKind.Drive && components.Count >= 3
+            && (Is(line, components[1], "Users") || Is(line, components[1], "Documents and Settings"))
+            && !SharedProfiles.Any(p => Is(line, components[2], p)))
+        {
+            token = "%USERPROFILE%";
+            matched = 3;
+        }
+
+        if (token is null && path.Kind == RootKind.Variable)
+        {
+            token = Text(line, components[0]);
+            matched = 1;
+        }
+
+        bool tailMatched = path.HasTail && matched == components.Count;
+        if (tailMatched)
+        {
+            // «C:\Users\Ana Perez» al final: el segmento entero es el nombre, con sus espacios.
+            return (token!, path.TailEnd);
+        }
+
+        bool keep;
+        if (token is not null)
+        {
+            keep = matched == components.Count
+                || !PersonalVariables.Contains(token, StringComparer.OrdinalIgnoreCase)
+                || (matched < components.Count && Is(line, components[matched], "AppData"));
+        }
+        else
+        {
+            keep = path.Kind == RootKind.Drive
+                && (components.Count < 2 || !path.HasSegments
+                    || SystemRoots.Any(r => Is(line, components[1], r))
+                    || (Is(line, components[1], "Users") && components.Count >= 3 && SharedProfiles.Any(p => Is(line, components[2], p)))
+                    || (char.ToUpperInvariant(line[components[0].Start]) == 'D' && Is(line, components[1], "a")));
+        }
+
+        if (keep)
+        {
+            if (token is null)
+            {
+                return (line[path.Start..path.TailStart], path.TailStart);
+            }
+
+            return (token + line[components[matched - 1].End..path.TailStart], path.TailStart);
+        }
+
+        // Se reduce al último segmento. Si la ruta termina en barra (una carpeta), queda «…\».
+        // En «file://servidor/…» quedan las barras de la URL.
+        string url = path.Kind == RootKind.Unc && path.Start > 0 && line[path.Start - 1] == ':' ? line[components[0].Start..components[0].End] : string.Empty;
+        return (url + (path.HasTail ? string.Empty : "…" + line[path.TailStart - 1]), path.TailStart);
+    }
+
+    private static bool StartsWith(string line, List<Span> components, string[] folder)
+    {
+        if (folder.Length > components.Count)
+        {
+            return false;
+        }
+
+        for (int k = 0; k < folder.Length; k++)
+        {
+            if (!Is(line, components[k], folder[k]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool Is(string line, Span span, string value) =>
+        span.Normalized is not null
+            ? string.Equals(span.Normalized, value, StringComparison.OrdinalIgnoreCase)
+            : line.AsSpan(span.Start, span.End - span.Start).Equals(value, StringComparison.OrdinalIgnoreCase);
+
+    private static string Text(string line, Span span) => span.Normalized ?? line[span.Start..span.End];
+
+    // Una ruta absoluta que empieza en «i»: su raíz y sus segmentos. Recorre cada carácter una vez.
+    private static bool TryParsePath(string s, int i, out ParsedPath path)
+    {
+        path = default;
+        if (i > 0 && IsWordChar(s[i - 1]))
+        {
+            return false;
+        }
+
+        var components = new List<Span>();
+        RootKind kind;
+        int p;
+        if (IsDrive(s, i))
+        {
+            kind = RootKind.Drive;
+            components.Add(new Span(i, i + 2, char.ToUpperInvariant(s[i]) + ":"));
+            p = SkipSeparators(s, i + 2);
+        }
+        else if (s[i] == '%')
+        {
+            int j = i + 1;
+            while (j < s.Length && (char.IsAsciiLetterOrDigit(s[j]) || s[j] == '_'))
+            {
+                j++;
+            }
+
+            if (j == i + 1 || j + 1 >= s.Length || s[j] != '%' || !IsSeparator(s[j + 1]))
+            {
+                return false;
+            }
+
+            kind = RootKind.Variable;
+            components.Add(new Span(i, j + 1, null));
+            p = SkipSeparators(s, j + 1);
+        }
+        else if (IsSeparator(s[i]))
+        {
+            if (i > 0 && IsSeparator(s[i - 1]))
+            {
+                return false;
+            }
+
+            int run = SkipSeparators(s, i);
+            if (run - i < 2)
+            {
+                return false;
+            }
+
+            if (i > 0 && s[i - 1] == ':')
+            {
+                // Una URL: solo «file://servidor/…»; «file:///D:/…» lo toma la unidad que sigue.
+                if (i < 5 || !s.AsSpan(i - 5, 5).Equals("file:", StringComparison.OrdinalIgnoreCase) || IsDrive(s, run))
+                {
+                    return false;
+                }
+            }
+
+            p = run;
+            if (p + 1 < s.Length && s[p] is '?' or '.' && IsSeparator(s[p + 1]))
+            {
+                // «\\?\C:\…», «\\?\UNC\servidor\…» o «\\.\pipe\…».
+                p = SkipSeparators(s, p + 1);
+                if (IsDrive(s, p))
+                {
+                    kind = RootKind.Drive;
+                    components.Add(new Span(p, p + 2, char.ToUpperInvariant(s[p]) + ":"));
+                    p = SkipSeparators(s, p + 2);
+                    return ParseSegments(s, i, p, kind, components, out path);
+                }
+
+                if (p + 3 < s.Length && s.AsSpan(p, 3).Equals("UNC", StringComparison.OrdinalIgnoreCase) && IsSeparator(s[p + 3]))
+                {
+                    p = SkipSeparators(s, p + 3);
+                }
+            }
+
+            kind = RootKind.Unc;
+            components.Add(new Span(i, p, @"\\"));
+        }
+        else
+        {
+            return false;
+        }
+
+        return ParseSegments(s, i, p, kind, components, out path) && (kind != RootKind.Unc || path.HasSegments);
+    }
+
+    private static bool ParseSegments(string s, int start, int p, RootKind kind, List<Span> components, out ParsedPath path)
+    {
+        bool hasSegments = false;
+        int tailStart;
+        while (true)
+        {
+            int segment = p;
+            while (p < s.Length && IsSegmentChar(s[p]))
+            {
+                p++;
+            }
+
+            if (p > segment && p < s.Length && IsSeparator(s[p]))
+            {
+                components.Add(new Span(segment, p, null));
+                hasSegments = true;
+                p = SkipSeparators(s, p);
+                continue;
+            }
+
+            tailStart = segment;
+            break;
+        }
+
+        // Lo que sigue a la última barra tras un espacio («C:\Users\ana\ (12 s)») no es un nombre de la ruta.
+        bool hasTail = p > tailStart && !char.IsWhiteSpace(s[tailStart]);
+        if (hasTail)
+        {
+            components.Add(new Span(tailStart, p, null));
+        }
+
+        path = new ParsedPath(start, kind, components, hasSegments, tailStart, p, hasTail);
+        return true;
+    }
+
+    private static bool IsDrive(string s, int i) =>
+        i + 2 < s.Length && char.IsAsciiLetter(s[i]) && s[i + 1] == ':' && IsSeparator(s[i + 2])
+        && (i == 0 || !IsWordChar(s[i - 1]));
+
+    private static int SkipSeparators(string s, int p)
+    {
+        while (p < s.Length && IsSeparator(s[p]))
+        {
+            p++;
+        }
+
+        return p;
+    }
+
+    private static bool IsSeparator(char c) => c is '\\' or '/';
+
+    // Un nombre dentro de una ruta: con espacios y tildes; sin los caracteres prohibidos en Windows, «;» (separa las
+    // rutas de una lista) ni caracteres de control.
+    private static bool IsSegmentChar(char c) => c >= ' ' && c is not ('\\' or '/' or ':' or '*' or '?' or '"' or '<' or '>' or '|' or ';');
+
+    private static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c == '_';
+
+    private string ReplaceNames(string line)
+    {
+        // El equipo primero: suele contener el nombre del usuario («ANA-PC»).
+        if (_machineName is not null)
+        {
+            line = ReplaceWord(line, _machineName, "%COMPUTERNAME%");
+        }
+
+        return _userName is not null ? ReplaceWord(line, _userName, "%USERNAME%") : line;
+    }
+
+    private static string ReplaceWord(string line, string word, string token)
+    {
+        int found = line.IndexOf(word, StringComparison.OrdinalIgnoreCase);
+        if (found < 0)
+        {
+            return line;
+        }
+
+        var output = new StringBuilder(line.Length);
+        int copied = 0;
+        while (found >= 0)
+        {
+            int after = found + word.Length;
+            bool before = found == 0 || !IsWordChar(line[found - 1]);
+            bool next = after == line.Length || !IsWordChar(line[after]);
+            bool insideToken = found > 0 && line[found - 1] == '%' && after < line.Length && line[after] == '%';
+            if (before && next && !insideToken)
+            {
+                output.Append(line, copied, found - copied).Append(token);
+                copied = after;
+            }
+
+            found = after < line.Length ? line.IndexOf(word, after, StringComparison.OrdinalIgnoreCase) : -1;
+        }
+
+        return output.Append(line, copied, line.Length - copied).ToString();
+    }
+
+    private static string[]? FolderComponents(string? folder)
+    {
+        string text = (folder ?? string.Empty).Trim();
+        if (text.Length < 3 || !TryParsePath(text, 0, out ParsedPath path) || path.Kind == RootKind.Variable
+            || path.TailEnd != text.Length || path.Components.Count < 2)
+        {
+            return null;
+        }
+
+        return [.. path.Components.Select(c => Text(text, c))];
+    }
+
+    private static string? Name(string? name)
+    {
+        string trimmed = (name ?? string.Empty).Trim();
+        return trimmed.Length >= 3 ? trimmed : null;
+    }
+
+    private static string? Safe(Func<string> read)
+    {
+        try
+        {
+            return read();
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+        catch (PlatformNotSupportedException)
+        {
+            return null;
+        }
+    }
+
+    private enum RootKind
+    {
+        Drive,
+        Unc,
+        Variable,
+    }
+
+    // Un componente de la ruta en la línea; «Normalized» es su forma canónica cuando no coincide con el texto (la raíz).
+    private readonly record struct Span(int Start, int End, string? Normalized);
+
+    // Components: la raíz, los segmentos seguidos de barra y, si lo hay, el último segmento (TailStart..TailEnd).
+    private readonly record struct ParsedPath(
+        int Start, RootKind Kind, List<Span> Components, bool HasSegments, int TailStart, int TailEnd, bool HasTail);
 }

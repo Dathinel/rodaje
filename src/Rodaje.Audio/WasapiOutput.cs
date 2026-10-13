@@ -263,16 +263,43 @@ public sealed unsafe class WasapiOutput : IAudioOutput, IRenderTransport
         return handle != 0 ? handle : throw new InvalidOperationException("Windows no pudo crear un evento para el hilo de audio.");
     }
 
+    /// <summary>Qué hace <see cref="Request"/> con una orden de transporte.</summary>
+    internal enum TransportRequest
+    {
+        /// <summary>Se anota y se despierta al hilo de audio.</summary>
+        Signal,
+
+        /// <summary>No se hace nada: pausar algo cerrado no es error.</summary>
+        Ignore,
+
+        /// <summary>Se lanza <see cref="ObjectDisposedException"/>.</summary>
+        Disposed,
+    }
+
+    /// <summary>
+    /// La decisión de <see cref="Request"/>, sin dispositivo para las pruebas. Dispose pudo ganar la carrera después de la
+    /// comprobación de entrada: con <paramref name="shutdown"/> el hilo ya terminó (o está terminando) y sus eventos se
+    /// cierran, así que no se vuelve a señalar <c>_wakeEvent</c>. Una pausa sin flush se ignora; lo demás, cerrado, lanza.
+    /// </summary>
+    internal static TransportRequest DecideRequest(bool shutdown, bool? running, Time? flush)
+    {
+        if (!shutdown)
+        {
+            return TransportRequest.Signal;
+        }
+
+        return running == false && flush is null ? TransportRequest.Ignore : TransportRequest.Disposed;
+    }
+
     private void Request(bool? running, Time? flush)
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         lock (_control)
         {
-            // Dispose pudo ganar la carrera después de la comprobación de arriba: con _shutdown el hilo ya terminó (o está
-            // terminando) y sus eventos se cierran, así que no se vuelve a señalar _wakeEvent. Pausar algo cerrado no es error.
-            if (_shutdown)
+            TransportRequest decision = DecideRequest(_shutdown, running, flush);
+            ObjectDisposedException.ThrowIf(decision == TransportRequest.Disposed, this);
+            if (decision == TransportRequest.Ignore)
             {
-                ObjectDisposedException.ThrowIf(running != false || flush is not null, this);
                 return;
             }
 

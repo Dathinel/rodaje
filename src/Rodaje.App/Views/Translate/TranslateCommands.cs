@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 
@@ -21,5 +22,5 @@ internal static class TranslateCommands
     }
 
     private static void Run(EditorServices services) =>
-        _ = services.LongActions.RunAsync(TranslateTrack, "Traducir pista", _ => TranslateDialog.ShowAsync(services));
+        UiTask.Run(services.LongActions.RunAsync(TranslateTrack, "Traducir pista", _ => TranslateDialog.ShowAsync(services)));
 }

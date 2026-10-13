@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Services.Templates;
@@ -329,6 +330,7 @@ internal sealed partial class TitleBar : UserControl
         catch (Exception ex)
 #pragma warning restore CA1031
         {
+            UiTask.Report(ex, notify: false);
             _services.Session.Notify(NotificationSeverity.Error, "No se pudo crear el proyecto", ex.Message);
         }
     }
@@ -427,7 +429,9 @@ internal sealed partial class TitleBar : UserControl
         }
     }
 
-    private async void OnGeneratedFolderClick(object sender, RoutedEventArgs e)
+    private void OnGeneratedFolderClick(object sender, RoutedEventArgs e) => UiTask.Run(OnGeneratedFolderClickAsync(sender, e));
+
+    private async Task OnGeneratedFolderClickAsync(object sender, RoutedEventArgs e)
     {
         if (DialogGate.IsOpen || _services is not { } services || XamlRoot is null)
         {
@@ -452,7 +456,9 @@ internal sealed partial class TitleBar : UserControl
         await DialogGate.ShowAsync(dialog);
     }
 
-    private async void OnAboutClick(object sender, RoutedEventArgs e)
+    private void OnAboutClick(object sender, RoutedEventArgs e) => UiTask.Run(OnAboutClickAsync(sender, e));
+
+    private async Task OnAboutClickAsync(object sender, RoutedEventArgs e)
     {
         if (XamlRoot is null)
         {

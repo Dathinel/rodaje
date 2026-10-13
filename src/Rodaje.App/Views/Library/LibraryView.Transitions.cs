@@ -2,6 +2,7 @@ using System.Runtime.InteropServices.WindowsRuntime;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Views.Inspector.Transition;
@@ -57,7 +58,9 @@ internal sealed partial class LibraryView
             : null;
     }
 
-    private async void LoadTransitionPreviews()
+    private void LoadTransitionPreviews() => UiTask.Run(LoadTransitionPreviewsAsync());
+
+    private async Task LoadTransitionPreviewsAsync()
     {
         _transitionThumbs.Clear();
         StopThumbAnimation();
