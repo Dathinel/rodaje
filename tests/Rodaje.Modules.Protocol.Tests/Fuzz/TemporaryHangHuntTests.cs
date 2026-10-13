@@ -19,13 +19,29 @@ public sealed class TemporaryHangHuntTests
         if (!OperatingSystem.IsWindows()) return;
         Stopwatch clock = Stopwatch.StartNew();
         int rounds = 0;
-        await FuzzSupport.RunCasesAsync(100_000, async seed =>
+        // Segunda pasada: con la CPU llena por hilos propios (no del pool), como cuando falló junto a otros proyectos.
+        using CancellationTokenSource burn = new();
+        List<Thread> burners = [];
+        for (int i = 0; i < Environment.ProcessorCount; i++)
         {
-            if (clock.Elapsed > TimeSpan.FromMinutes(4)) return;
-            Interlocked.Increment(ref rounds);
-            await RoundAsync(seed);
-        }, parallel: 4);
-        Assert.True(rounds > 0);
+            Thread t = new(() => { while (!burn.IsCancellationRequested) Thread.SpinWait(1000); }) { IsBackground = true };
+            t.Start();
+            burners.Add(t);
+        }
+        try
+        {
+            await FuzzSupport.RunCasesAsync(100_000, async seed =>
+            {
+                if (clock.Elapsed > TimeSpan.FromMinutes(5)) return;
+                Interlocked.Increment(ref rounds);
+                await RoundAsync(seed);
+            }, parallel: 2);
+        }
+        finally
+        {
+            await burn.CancelAsync();
+        }
+        Assert.Fail($"TEMPORAL: {rounds} rondas en {clock.Elapsed.TotalSeconds:0} s sin cuelgue.");
     }
 
     private static async Task RoundAsync(int round)
