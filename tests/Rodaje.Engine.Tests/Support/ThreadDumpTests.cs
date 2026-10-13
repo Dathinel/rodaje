@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 namespace Rodaje.Engine.Tests.Support;
 
 /// <summary>
@@ -42,5 +44,75 @@ public sealed class ThreadDumpTests
         string text = ThreadDump.Capture(() => throw new InvalidOperationException("sin permiso"), Timeout.InfiniteTimeSpan);
 
         Assert.Equal("(no se pudieron leer las pilas: InvalidOperationException: sin permiso)", text);
+    }
+
+    /// <summary>
+    /// Con capturas en paralelo, la que vence solo mata el <c>createdump</c> que nació durante ella, no el de otra que ya
+    /// estaba en curso. Los dos hijos son copias de <c>sleep</c> llamadas <c>createdump</c> (su <c>comm</c> en
+    /// <c>/proc</c>): uno se lanza antes de la captura y el otro dentro de ella, que después no vuelve hasta que la prueba
+    /// la suelta. El plazo solo tiene que cubrir el arranque del segundo hijo, y la prueba comprueba que lo cubrió.
+    /// </summary>
+    [LinuxOnlyFact]
+    public void Al_vencer_el_plazo_solo_muere_el_createdump_de_esta_captura()
+    {
+        string dir = Directory.CreateTempSubdirectory("rodaje-createdump-").FullName;
+        using var release = new ManualResetEventSlim();
+        Process? other = null;
+        Process? mine = null;
+        try
+        {
+            string fake = Path.Combine(dir, "createdump");
+            File.Copy("/bin/sleep", fake); // Copia también el permiso de ejecución.
+            other = Process.Start(fake, "300");
+            Assert.NotNull(other);
+
+            string text = ThreadDump.Capture(
+                () =>
+                {
+                    mine = Process.Start(fake, "300");
+                    release.Wait(CancellationToken.None);
+                    return "no debió llegar";
+                },
+                TimeSpan.FromSeconds(2));
+
+            Assert.StartsWith(ThreadDump.TimedOutPrefix, text, StringComparison.Ordinal);
+            Assert.True(mine is not null, "El createdump de la captura no arrancó dentro del plazo.");
+            Assert.True(mine.WaitForExit(TimeSpan.FromSeconds(10)), "El createdump de esta captura siguió vivo.");
+            Assert.False(other.HasExited, "Se mató el createdump de otra captura.");
+        }
+        finally
+        {
+            release.Set();
+            foreach (Process? child in new[] { other, mine })
+            {
+                if (child is not null)
+                {
+                    try
+                    {
+                        child.Kill();
+                        child.WaitForExit(TimeSpan.FromSeconds(10));
+                    }
+                    catch (InvalidOperationException)
+                    {
+                    }
+
+                    child.Dispose();
+                }
+            }
+
+            Directory.Delete(dir, recursive: true);
+        }
+    }
+}
+
+/// <summary>Una prueba que solo tiene sentido en Linux (lee <c>/proc</c>): fuera de Linux se omite y lo dice.</summary>
+file sealed class LinuxOnlyFactAttribute : FactAttribute
+{
+    public LinuxOnlyFactAttribute()
+    {
+        if (!OperatingSystem.IsLinux())
+        {
+            Skip = "Solo Linux: lee los procesos hijos en /proc.";
+        }
     }
 }
