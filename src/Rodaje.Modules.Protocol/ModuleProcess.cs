@@ -16,6 +16,33 @@ public sealed class ModuleProcess : IAsyncDisposable
     private const int StderrTail = 2048;
     internal const int PipeBufferBytes = 64 * 1024;
 
+    /// <summary>
+    /// Lo que <see cref="DisposeAsync"/> espera la salida del proceso tras cerrar el cliente y, si hubo que matarlo, otra
+    /// vez tras matarlo.
+    /// </summary>
+    public static readonly TimeSpan ExitWait = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Holgura sobre <see cref="DisposeBudget"/> para quien espera el cierre con un tope (la ventana al salir, a través de
+    /// <c>ModuleManager.CloseTimeout</c>): cubre matar el árbol de procesos, que con la CPU llena tarda, y el reparto de
+    /// continuaciones.
+    /// </summary>
+    public static readonly TimeSpan DisposeMargin = TimeSpan.FromSeconds(1);
+
+    /// <summary>
+    /// Lo más que tarda <see cref="DisposeAsync"/> con un módulo que no cierra tras <c>shutdown</c>, sin contar lo que
+    /// tarde matarlo: <see cref="ModuleClientOptions.ShutdownGrace"/> + <see cref="ExitWait"/> + (matar) +
+    /// <see cref="ExitWait"/>. Quien espere el cierre con un tope debe esperar al menos esto más
+    /// <see cref="DisposeMargin"/>, o seguiría antes de que el módulo colgado muera (tarea 197). No cubre un
+    /// <c>shutdown</c> que no llega a salir porque el módulo dejó de leer con la tubería llena
+    /// (<see cref="ModuleClientOptions.WriteTimeout"/>): ahí queda el Job Object.
+    /// </summary>
+    public static TimeSpan DisposeBudget(ModuleClientOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        return options.ShutdownGrace + ExitWait + ExitWait;
+    }
+
     private readonly Process _process;
     private readonly StringBuilder _stderr = new();
     private readonly TaskCompletionSource<int> _exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -157,16 +184,17 @@ public sealed class ModuleProcess : IAsyncDisposable
 
     /// <summary>
     /// Cierre ordenado: <see cref="ModuleClient.DisposeAsync"/> manda <c>shutdown</c> y espera a que el módulo cierre su
-    /// lado de la tubería (o salga) antes de cerrar el del editor; luego se espera la salida y, si no llega en 2 s, se mata
-    /// el árbol de procesos.
+    /// lado de la tubería (o salga) antes de cerrar el del editor; luego se espera la salida y, si no llega en
+    /// <see cref="ExitWait"/>, se mata el árbol de procesos. En total, a lo sumo <see cref="DisposeBudget"/> más lo que
+    /// tarde matarlo.
     /// </summary>
     public async ValueTask DisposeAsync()
     {
         await Client.DisposeAsync().ConfigureAwait(false);
-        if (await Task.WhenAny(_exited.Task, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false) != _exited.Task)
+        if (await Task.WhenAny(_exited.Task, Task.Delay(ExitWait)).ConfigureAwait(false) != _exited.Task)
         {
             await KillOffPool(() => Kill(_process), TaskScheduler.Default).ConfigureAwait(false);
-            await Task.WhenAny(_exited.Task, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
+            await Task.WhenAny(_exited.Task, Task.Delay(ExitWait)).ConfigureAwait(false);
         }
         _process.Dispose();
     }
