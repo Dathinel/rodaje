@@ -447,8 +447,17 @@ internal sealed partial class ExportView : UserControl
     }
 
     /// <summary>Pone las opciones y la elegida; si las opciones no cambiaron, solo mueve la elección (ver <see cref="QueueRefresh"/>).</summary>
+    /// <remarks>
+    /// Con la lista abierta no se toca nada: cambiar los elementos o la elección de un desplegable abierto de WinUI puede
+    /// cerrar la app sin rastro (tarea 91); el próximo refresco lo pone al día.
+    /// </remarks>
     private static void Fill(ComboBox box, IEnumerable<string> labels, int selected)
     {
+        if (box.IsDropDownOpen)
+        {
+            return;
+        }
+
         List<string> list = [.. labels];
         if (!ChoiceList.Same(box.Items.Select(i => (i as ComboBoxItem)?.Content as string ?? ""), list))
         {
