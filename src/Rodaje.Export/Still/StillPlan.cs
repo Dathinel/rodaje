@@ -106,7 +106,7 @@ public sealed record StillPlan
             problems.Add(extension);
         }
 
-        if (settings.Crop is { } crop && (crop.X + crop.Width > sequence.Width || crop.Y + crop.Height > sequence.Height))
+        if (settings.Crop is { } crop && ((long)crop.X + crop.Width > sequence.Width || (long)crop.Y + crop.Height > sequence.Height))
         {
             problems.Add($"El recorte se sale de la secuencia de {sequence.Width}×{sequence.Height}.");
         }
