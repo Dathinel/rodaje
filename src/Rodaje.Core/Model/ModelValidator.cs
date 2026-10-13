@@ -29,13 +29,10 @@ public static partial class ModelValidator
                 errors.Add($"El medio «{media.Id}» tiene una duración no positiva.");
             }
 
+            // Una ruta más larga de lo que admite Windows no se rechaza (la v1.0.0 la guardaba): el medio queda sin archivo.
             if (!IsUsablePath(media.Path))
             {
                 errors.Add($"El medio «{media.Id}» tiene una ruta con caracteres que no puede tener una ruta de archivo.");
-            }
-            else if (media.Path.Length > MaxPathLength)
-            {
-                errors.Add($"El medio «{media.Id}» tiene una ruta de más de {MaxPathLength} caracteres, más larga de lo que admite Windows.");
             }
         }
 
@@ -111,11 +108,11 @@ public static partial class ModelValidator
         {
             errors.Add($"La secuencia «{sequence.Id}» tiene una tasa de cuadros no válida.");
         }
-        else if (!Sequence.IsValidFrameRate(sequence.FrameRate))
+        else if (!Sequence.IsSupportedFrameRate(sequence.FrameRate))
         {
             // Una tasa extrema (1/2^62 o 2^62 fps) es una fracción válida, pero un cuadro de más de 400 años o de menos de
-            // un tick hacía desbordar empujar, recortar o cortar en el cursor.
-            errors.Add($"La secuencia «{sequence.Id}» tiene una tasa de {sequence.FrameRate} cuadros por segundo; va de 1 a {Sequence.MaxFrameRate}.");
+            // un tick hacía desbordar empujar, recortar o cortar en el cursor. Al abrir se acota (TimelineLimits).
+            errors.Add($"La secuencia «{sequence.Id}» tiene una tasa de {sequence.FrameRate} cuadros por segundo; va de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate}.");
         }
 
         CheckTrackKinds(sequence.VideoTracks, TrackKind.Video, sequence, errors);
@@ -587,12 +584,6 @@ public static partial class ModelValidator
         clip.Speed is null ? (Int128)clip.SourceOut.Ticks - clip.SourceIn.Ticks : clip.Duration.Ticks;
 
     private static bool FitsInLong(Int128 value) => value >= long.MinValue && value <= long.MaxValue;
-
-    /// <summary>
-    /// Windows no admite rutas de más de 32 767 caracteres y al abrir se resuelven contra la carpeta del proyecto:
-    /// <see cref="System.IO.Path.GetFullPath(string, string)"/> lanzaba <see cref="System.IO.PathTooLongException"/> (hallado por el fuzz de la tarea 94).
-    /// </summary>
-    internal const int MaxPathLength = 30_000;
 
     // Un archivo editado a mano puede traer caracteres que Windows no admite en una ruta; resolverla lanzaría al abrir.
     private static bool IsUsablePath(string? path) =>

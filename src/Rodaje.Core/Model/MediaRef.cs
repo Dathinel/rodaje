@@ -34,11 +34,25 @@ public sealed class MediaRef
     /// <remarks>
     /// <c>\Videos\a.mp4</c> y <c>C:a.mp4</c> tienen raíz pero no son absolutas: se resuelven contra la
     /// carpeta del proyecto, nunca contra el directorio actual del proceso.
+    /// Una ruta que, resuelta, pasa de lo que admite Windows (32 767 caracteres) no apunta a ningún archivo: se deja
+    /// como está y el medio queda sin archivo, en vez de no abrir el proyecto.
     /// </remarks>
-    public string ResolvePath(string projectDirectory) =>
-        System.IO.Path.IsPathFullyQualified(Path)
-            ? Path
-            : System.IO.Path.GetFullPath(Path, System.IO.Path.GetFullPath(projectDirectory));
+    public string ResolvePath(string projectDirectory)
+    {
+        if (System.IO.Path.IsPathFullyQualified(Path))
+        {
+            return Path;
+        }
+
+        try
+        {
+            return System.IO.Path.GetFullPath(Path, System.IO.Path.GetFullPath(projectDirectory));
+        }
+        catch (System.IO.PathTooLongException)
+        {
+            return Path;
+        }
+    }
 
     public MediaRef Clone() => (MediaRef)MemberwiseClone();
 }
