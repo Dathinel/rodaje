@@ -392,7 +392,9 @@ public sealed class CompositorTests
         }
 
         Assert.NotNull(ms);
-        Assert.InRange(ms.Value, 0.0001, 100);
+        // Lo que se prueba es que el temporizador mide (más que cero, finito). En la CI la GPU es WARP, en la CPU
+        // compartida con las demás pruebas: una composición 1080p llegó a medir 206 ms con la cota de 100 que había.
+        Assert.InRange(ms.Value, 0.0001, 10_000);
     }
 
     private static RgbaImage Compose(GpuDevice gpu, int width, int height, CompositeFormat format, params LayerFrame[] layers) =>

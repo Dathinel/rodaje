@@ -62,10 +62,27 @@ public sealed class ConcurrentDownloadTests(ITestOutputHelper output) : IAsyncLi
 
     private PackageLocations Locations => PackageLocations.Under(Path.Combine(_folder.Path, "complementos"));
 
+    /// <summary>
+    /// Lo que se mide sin reloj: en el hilo de la interfaz solo corren los avisos de progreso (limitados por
+    /// <see cref="ThrottledProgress{T}"/>) y unas pocas continuaciones de la prueba. Con el defecto corrían ahí también las
+    /// continuaciones de cada bloque de 64 KB (leer, hash, escribir): cientos de mensajes.
+    /// </summary>
     [Theory]
     [InlineData(0)]
     [InlineData(10)]
-    public void Two_installs_at_once_never_hold_the_interface_thread(int chunkDelayMs)
+    public void Two_installs_at_once_never_hold_the_interface_thread(int chunkDelayMs) => TwoInstalls(chunkDelayMs, strictClock: false);
+
+    /// <summary>
+    /// La racha y la espera del hilo de la interfaz en 100 ms de reloj. En una vuelta lenta de la CI de Windows la racha
+    /// llegó a 2,3 s con solo los avisos en la cola (el hilo no recibía CPU): es TiempoReal.
+    /// </summary>
+    [Theory]
+    [Trait("Categoria", "TiempoReal")]
+    [InlineData(0)]
+    [InlineData(10)]
+    public void Two_installs_at_once_keep_the_interface_thread_free_within_100_ms(int chunkDelayMs) => TwoInstalls(chunkDelayMs, strictClock: true);
+
+    private void TwoInstalls(int chunkDelayMs, bool strictClock)
     {
         var delay = TimeSpan.FromMilliseconds(chunkDelayMs);
         byte[] model = TestPayloads.Deterministic(24 << 20, seed: 11);
@@ -95,8 +112,14 @@ public sealed class ConcurrentDownloadTests(ITestOutputHelper output) : IAsyncLi
         int bound = (int)Math.Ceiling(seconds * 10) + 3;
         Assert.InRange(subtitles.Count, 1, bound);
         Assert.InRange(audio.Count, 1, bound);
-        Assert.InRange(ui.LongestStretch, TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
-        Assert.InRange(ui.LongestWait, TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
+
+        // Cada aviso es un mensaje; lo demás son las continuaciones de la prueba (8 en Linux).
+        Assert.InRange(ui.Callbacks, 0, subtitles.Count + audio.Count + 20);
+        if (strictClock)
+        {
+            Assert.InRange(ui.LongestStretch, TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
+            Assert.InRange(ui.LongestWait, TimeSpan.Zero, TimeSpan.FromMilliseconds(100));
+        }
     }
 
     [Fact]

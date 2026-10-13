@@ -50,13 +50,53 @@ public sealed class LibraryFileFuzzTests : IDisposable
     /// carpeta y el nombre libre recorría la lista entera por cada una: cúbico) y una cadena de miles desbordaba la pila al
     /// armar el menú «Mover a». Defecto hallado por el fuzz de la tarea 94.
     /// </summary>
+    /// <remarks>
+    /// La cota de reloj (10 s para 20 000 carpetas) no vale en la CI: en vueltas lentas de Windows, con todos los proyectos
+    /// a la vez, «cadena» tardó 33,7 s y «iguales» 48 s sin que el código cambiara. Aquí queda como TiempoReal; en la CI,
+    /// <see cref="ThousandsOfFolders_LoadInLinearTime"/> compara dos tamaños en la misma corrida.
+    /// </remarks>
     [Theory]
+    [Trait("Categoria", "TiempoReal")]
     [InlineData("iguales")]
     [InlineData("cadena")]
     [InlineData("ciclo")]
     public void ThousandsOfFolders_LoadQuickly(string shape)
     {
         const int count = 20_000;
+        TimeSpan elapsed = LoadFolders(shape, count, "p", check: true);
+        Assert.True(elapsed < TimeSpan.FromSeconds(10), $"Tardó {elapsed.TotalSeconds:F1} s");
+    }
+
+    /// <summary>
+    /// Lo mismo sin depender de la carga del runner: el costo de cargar 20 000 carpetas contra el de 2 500, intercalados y
+    /// con la mejor de dos vueltas de cada uno. Lineal da unas 8 veces; cuadrático, unas 64 (y cúbico, que era el defecto,
+    /// no terminaría).
+    /// </summary>
+    [Theory]
+    [InlineData("iguales")]
+    [InlineData("cadena")]
+    [InlineData("ciclo")]
+    public void ThousandsOfFolders_LoadInLinearTime(string shape)
+    {
+        const int small = 2_500, large = 20_000;
+        TimeSpan smallBest = TimeSpan.MaxValue, largeBest = TimeSpan.MaxValue;
+        for (int round = 0; round < 2; round++)
+        {
+            TimeSpan smallTime = LoadFolders(shape, small, $"chico{round}", check: round == 0);
+            TimeSpan largeTime = LoadFolders(shape, large, $"grande{round}", check: round == 0);
+            smallBest = smallTime < smallBest ? smallTime : smallBest;
+            largeBest = largeTime < largeBest ? largeTime : largeBest;
+        }
+
+        // Con menos de 50 ms el tamaño chico es casi todo arranque y ruido: entonces basta con que el grande sea corto.
+        double ratio = largeBest.TotalMilliseconds / Math.Max(smallBest.TotalMilliseconds, 50);
+        Assert.True(ratio < 24,
+            $"{large} carpetas tardaron {largeBest.TotalMilliseconds:0} ms y {small}, {smallBest.TotalMilliseconds:0} ms ({ratio:0.0}×; lineal ≈ 8×).");
+    }
+
+    /// <summary>Escribe un archivo con <paramref name="count"/> carpetas de la forma dada y mide cargarlo y armar el árbol.</summary>
+    private TimeSpan LoadFolders(string shape, int count, string key, bool check)
+    {
         var folders = new JsonArray();
         for (int i = 0; i < count; i++)
         {
@@ -71,21 +111,25 @@ public sealed class LibraryFileFuzzTests : IDisposable
 
         var store = new LibraryOrganizationStore(_dir);
         Directory.CreateDirectory(_dir);
-        File.WriteAllText(store.PathFor("p"), new JsonObject { ["version"] = 2, ["folders"] = folders }.ToJsonString());
+        File.WriteAllText(store.PathFor(key), new JsonObject { ["version"] = 2, ["folders"] = folders }.ToJsonString());
 
         var watch = Stopwatch.StartNew();
-        LibraryOrganization org = store.Load("p");
+        LibraryOrganization org = store.Load(key);
         IReadOnlyList<(LibraryFolder Folder, int Depth)> tree = org.Tree();
         watch.Stop();
 
-        Assert.Equal(count, org.Folders.Count);
-        Assert.Equal(count, tree.Count);
-        Assert.Equal(count, org.Folders.Select(f => (f.ParentId, f.Name)).Distinct().Count());
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"Tardó {watch.Elapsed.TotalSeconds:F1} s");
-        if (shape == "ciclo")
+        if (check)
         {
-            Assert.Single(org.Folders, f => f.ParentId is null);
+            Assert.Equal(count, org.Folders.Count);
+            Assert.Equal(count, tree.Count);
+            Assert.Equal(count, org.Folders.Select(f => (f.ParentId, f.Name)).Distinct().Count());
+            if (shape == "ciclo")
+            {
+                Assert.Single(org.Folders, f => f.ParentId is null);
+            }
         }
+
+        return watch.Elapsed;
     }
 
     /// <summary>Un ciclo: la primera de sus carpetas sube a la raíz y las que cuelgan de él se quedan donde estaban.</summary>
