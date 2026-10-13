@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using Rodaje.App.Services;
@@ -58,7 +57,7 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
 
         var opened = new List<WeakReference<Project>>();
         long memoryBefore = 0;
-        var handles = new List<int>();
+        var handles = new List<ProcessHandles.Snapshot>();
         int subscriptionsBefore = 0;
         int cycles = 100 * Scale;
         for (int cycle = 0; cycle < cycles; cycle++)
@@ -83,21 +82,27 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
 
             if (cycle >= 9 && (cycle + 1) % HandleSampleCycles == 0)
             {
-                handles.Add(Handles());
+                handles.Add(ProcessHandles.Take());
             }
         }
 
         long grown = ManagedMemory() - memoryBefore;
         int alive = opened.Count(w => w.TryGetTarget(out _));
-        output.WriteLine($"{cycles} aperturas: {alive} proyectos vivos de {opened.Count}, {subscriptionsBefore} suscripciones, memoria {grown / 1024.0:F0} KB, identificadores cada {HandleSampleCycles}: {string.Join(" ", handles)}.");
+        int[] owned = [.. handles.Select(h => h.Owned)];
+        int[] ownThreads = [.. handles.Select(h => h.OwnThreads)];
+        string changes = ProcessHandles.Changes(handles[0], handles[^1]);
+        output.WriteLine($"{cycles} aperturas: {alive} proyectos vivos de {opened.Count}, {subscriptionsBefore} suscripciones, memoria {grown / 1024.0:F0} KB.");
+        output.WriteLine($"Cada {HandleSampleCycles}: identificadores {string.Join(" ", owned)} (sin los de los hilos; total {string.Join(" ", handles.Select(h => h.Total))}); hilos propios {string.Join(" ", ownThreads)} (del grupo {string.Join(" ", handles.Select(h => h.PoolThreads))}). Por tipo: {changes}.");
 
         // El proyecto abierto y, como mucho, el anterior (lo que la ventana retiene hasta el próximo cuadro).
         Assert.InRange(alive, 0, 2);
         Assert.Equal(subscriptionsBefore, Subscriptions(session));
         Assert.True(grown < 8L << 20, $"La memoria administrada creció {grown / 1024.0:F0} KB en {cycles} aperturas.");
 
-        string? leak = HandleLeak(handles);
-        Assert.True(leak is null, leak);
+        string? leak = HandleLeak(owned);
+        Assert.True(leak is null, $"{leak} Por tipo: {changes}.");
+        string? threadLeak = HandleLeak(ownThreads, "Los hilos que no son del grupo de hilos");
+        Assert.True(threadLeak is null, threadLeak);
     });
 
     /// <summary>
@@ -122,32 +127,108 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
 
         // Una ráfaga que no para tampoco pasa, aunque no sea constante.
         Assert.NotNull(HandleLeak([400, 400, 400, 400, 400, 440, 480, 480, 480, 480]));
+
+        // Lo que falló dos veces en la CI de Windows (tarea 299): un identificador que unas muestras están abiertos y otras
+        // no (una escritura del autoguardado o un hilo del grupo en vuelo al contar). Sube 5 tramos de 9 y baja 3, así que
+        // la mediana de lo que crece cada tramo era 1, pero en 90 aperturas solo sumó 2: no hay nada que no se cierre.
+        Assert.Null(HandleLeak([746, 747, 746, 747, 746, 747, 747, 748, 747, 748]));
+
+        // La misma oscilación encima de una fuga de uno cada diez aperturas sí se ve: lo que no se cierra nunca vuelve a bajar.
+        Assert.NotNull(HandleLeak([400, 402, 402, 404, 404, 406, 406, 408, 408, 410]));
+        Assert.NotNull(HandleLeak([400, 402, 401, 403, 402, 404, 403, 405, 404, 406]));
     }
 
     /// <summary>
-    /// Por qué fallar con estas muestras de identificadores (una cada <see cref="HandleSampleCycles"/> aperturas), o nulo.
-    /// Un archivo, evento o hilo sin cerrar crece en todos los tramos, aunque sea uno cada diez aperturas: la mediana de
-    /// lo que crece cada tramo no llega a uno si no hay fuga, porque los hilos que el grupo de hilos crea o suelta por su
-    /// cuenta lo hacen de vez en cuando. El total sigue con su tope, contra una fuga a ráfagas.
+    /// Los hilos no cuentan como identificadores de la sesión, y los archivos abiertos sí. En la CI de Windows el grupo de
+    /// hilos sumó 108 identificadores en 40 aperturas (unos tres por hilo) y paró: el total los mezclaba con los de la
+    /// sesión.
     /// </summary>
-    private static string? HandleLeak(IReadOnlyList<int> samples)
+    [Fact]
+    public void Threads_are_counted_apart_from_session_handles_and_open_files_are_not()
     {
-        int[] steps = [.. samples.Zip(samples.Skip(1), (a, b) => b - a).Order()];
+        const int Count = 24;
+        ProcessHandles.Snapshot before = ProcessHandles.Take();
+        using var release = new ManualResetEventSlim();
+        Thread[] threads = [.. Enumerable.Range(0, Count).Select(_ => new Thread(() => release.Wait()) { IsBackground = true })];
+        foreach (Thread thread in threads)
+        {
+            thread.Start();
+        }
+
+        ProcessHandles.Snapshot withThreads;
+        try
+        {
+            withThreads = ProcessHandles.Take();
+        }
+        finally
+        {
+            release.Set();
+            foreach (Thread thread in threads)
+            {
+                thread.Join();
+            }
+        }
+
+        var files = new List<FileStream>();
+        ProcessHandles.Snapshot withFiles;
+        try
+        {
+            for (int i = 0; i < Count; i++)
+            {
+                files.Add(new FileStream(Path.Combine(_folder.Path, $"abierto-{i}.bin"), FileMode.Create, FileAccess.Write, FileShare.None));
+            }
+
+            withFiles = ProcessHandles.Take();
+        }
+        finally
+        {
+            files.ForEach(f => f.Dispose());
+        }
+
+        output.WriteLine($"Con {Count} hilos: {ProcessHandles.Changes(before, withThreads)}; con {Count} archivos: {ProcessHandles.Changes(before, withFiles)}.");
+        Assert.True(withThreads.OwnThreads - before.OwnThreads >= Count, $"Hilos propios {before.OwnThreads} → {withThreads.OwnThreads}.");
+        Assert.True(Math.Abs(withThreads.Owned - before.Owned) < Count / 3, $"Los hilos movieron los identificadores sin los de los hilos: {ProcessHandles.Changes(before, withThreads)}.");
+        Assert.True(withFiles.Owned - before.Owned >= Count, $"Los archivos abiertos no se contaron: {ProcessHandles.Changes(before, withFiles)}.");
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.NotNull(before.ByType);
+            Assert.True(withThreads.Total - before.Total >= Count, $"En Windows cada hilo es al menos un identificador: total {before.Total} → {withThreads.Total}.");
+        }
+    }
+
+    /// <summary>
+    /// Por qué fallar con estas muestras (una cada <see cref="HandleSampleCycles"/> aperturas), o nulo. Lo que no se cierra
+    /// no vuelve a bajar: se mira el piso de cada muestra (el mínimo de ella y las que siguen), que no sube por un
+    /// identificador que solo estaba abierto al contar, pero sí con cada uno que queda para siempre. Una fuga crece en
+    /// todos los tramos, aunque sea una cada diez aperturas: la mediana de lo que sube el piso cada tramo llega a uno; si
+    /// no hay fuga, no. El total sigue con su tope, contra una fuga a ráfagas.
+    /// </summary>
+    private static string? HandleLeak(int[] samples, string what = "Los identificadores del proceso")
+    {
+        int[] floor = new int[samples.Length];
+        int lowest = int.MaxValue;
+        for (int i = samples.Length - 1; i >= 0; i--)
+        {
+            lowest = Math.Min(lowest, samples[i]);
+            floor[i] = lowest;
+        }
+
+        int[] steps = [.. floor.Zip(floor.Skip(1), (a, b) => b - a).Order()];
         if (steps.Length == 0)
         {
             return "No hubo muestras de identificadores.";
         }
 
         int median = steps[steps.Length / 2];
-        int total = samples[^1] - samples[0];
+        int total = floor[^1] - floor[0];
         int measured = steps.Length * HandleSampleCycles;
         if (median >= 1)
         {
-            return $"Los identificadores del proceso crecen en casi cada tramo de {HandleSampleCycles} aperturas (mediana {median}; {string.Join(" ", samples)}).";
+            return $"{what} crecen en casi cada tramo de {HandleSampleCycles} aperturas (mediana {median}; {string.Join(" ", samples)}).";
         }
 
         return total >= measured / 2
-            ? $"Los identificadores del proceso crecieron {total} en {measured} aperturas ({string.Join(" ", samples)})."
+            ? $"{what} crecieron {total} en {measured} aperturas ({string.Join(" ", samples)})."
             : null;
     }
 
@@ -207,15 +288,6 @@ public sealed class SessionOpenCloseLeakTests(ITestOutputHelper output) : IDispo
         }
 
         return count;
-    }
-
-    /// <summary>Identificadores del proceso (archivos, eventos, hilos…), después de juntar la basura y correr los finalizadores.</summary>
-    private static int Handles()
-    {
-        // Lo que solo espera a su finalizador (un SafeHandle abandonado) no es una fuga: se cierra antes de contar.
-        _ = ManagedMemory();
-        using var process = Process.GetCurrentProcess();
-        return process.HandleCount;
     }
 
     private static long ManagedMemory()
