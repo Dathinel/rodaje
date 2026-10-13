@@ -19,6 +19,51 @@ internal static class UiThread
 
     public static void Run(Func<Task> body, TimeSpan timeout)
     {
+        (Task finished, Func<ExceptionDispatchInfo?> failure) = Start(body);
+
+        // xUnit 2.9 (algoritmo «conservative») corre el cuerpo de las pruebas en hilos del pool, así que esta espera ocupa
+        // uno mientras dura la prueba. Con Thread.Join el pool no se enteraba: cuatro pruebas así a la vez dejaban el pool
+        // en su mínimo y lo demás esperaba a que la inyección lenta de hilos sumara uno. Esperar una Task desde un hilo
+        // del pool hace que el pool lo cuente como bloqueado y ponga otro en su lugar enseguida.
+        if (!finished.Wait(timeout))
+        {
+            throw new TimeoutException($"La prueba no terminó en {timeout.TotalSeconds:0} s. {PoolState()}");
+        }
+
+        failure()?.Throw();
+    }
+
+    /// <summary>
+    /// Como <see cref="Run(Func{Task}, TimeSpan)"/>, pero el tope es contra un cuerpo que deja de avanzar, no contra uno
+    /// lento: falla si <paramref name="progress"/> no cambia en <paramref name="idle"/>. Para cuerpos largos hechos de
+    /// tramos cortos (el fuzz de la sesión): con un tope total, un runner cargado que va lento pero avanza falla igual que
+    /// un cuelgue de verdad, y el mensaje no los distingue. <paramref name="waitSlice"/> sustituye la espera de cada tramo
+    /// de vigilancia (<c>Task.Wait(idle)</c>; devuelve si el cuerpo terminó), para probarla sin depender del reloj.
+    /// </summary>
+    public static void Run(Func<Task> body, Func<long> progress, TimeSpan idle, Func<Task, TimeSpan, bool>? waitSlice = null)
+    {
+        ArgumentNullException.ThrowIfNull(progress);
+        waitSlice ??= static (task, timeout) => task.Wait(timeout);
+        // Antes de arrancar: leído después, podía ver ya el primer avance y tomarlo por el punto de partida.
+        long seen = progress();
+        (Task finished, Func<ExceptionDispatchInfo?> failure) = Start(body);
+        while (!waitSlice(finished, idle))
+        {
+            long now = progress();
+            if (now == seen && !finished.IsCompleted)
+            {
+                throw new TimeoutException($"La prueba no avanzó en {idle.TotalSeconds:0.#} s. {PoolState()}");
+            }
+
+            seen = now;
+        }
+
+        failure()?.Throw();
+    }
+
+    /// <summary>Arranca el hilo; devuelve la tarea que termina con él y lo que lanzó el cuerpo (leído después de terminar).</summary>
+    private static (Task Finished, Func<ExceptionDispatchInfo?> Failure) Start(Func<Task> body)
+    {
         ExceptionDispatchInfo? failure = null;
         var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var thread = new Thread(() =>
@@ -34,17 +79,7 @@ internal static class UiThread
         })
         { IsBackground = true, Name = "Hilo de interfaz de prueba" };
         thread.Start();
-
-        // xUnit 2.9 (algoritmo «conservative») corre el cuerpo de las pruebas en hilos del pool, así que esta espera ocupa
-        // uno mientras dura la prueba. Con Thread.Join el pool no se enteraba: cuatro pruebas así a la vez dejaban el pool
-        // en su mínimo y lo demás esperaba a que la inyección lenta de hilos sumara uno. Esperar una Task desde un hilo
-        // del pool hace que el pool lo cuente como bloqueado y ponga otro en su lugar enseguida.
-        if (!finished.Task.Wait(timeout))
-        {
-            throw new TimeoutException($"La prueba no terminó en {timeout.TotalSeconds:0} s. {PoolState()}");
-        }
-
-        failure?.Throw();
+        return (finished.Task, () => failure);
     }
 
     private static void RunLoop(Func<Task> body, ref ExceptionDispatchInfo? failure)

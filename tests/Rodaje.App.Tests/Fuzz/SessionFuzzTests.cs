@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using Rodaje.App.Tests.Support;
 using Xunit.Abstractions;
 using Xunit.Sdk;
 
@@ -22,22 +23,23 @@ public class SessionFuzzTests(ITestOutputHelper output)
 
     /// <summary>
     /// Corren siempre las 200, sin tope de tiempo: con un tope, un runner lento pasaba la prueba con menos semillas sin que
-    /// nadie lo notara. En Linux tardan unos 18 s; si un día tardan demasiado, se bajan aquí, no en silencio.
+    /// nadie lo notara. En Linux tardan unos 18 s; si un día tardan demasiado, se bajan aquí, no en silencio. Como todas las
+    /// de esta clase, en un hilo propio (<see cref="OwnThread"/>): la espera del fuzz no ocupa un hilo del pool.
     /// </summary>
     [Fact]
-    public void DoscientasSemillas_SinFallos() => RunSeeds(0, 200, CiSteps);
+    public Task DoscientasSemillas_SinFallos() => OwnThread.Run(() => RunSeeds(0, 200, CiSteps));
 
     [LongFuzzFact]
-    public void VeinteMilSemillas_SinFallos() => RunSeeds(1_000_000, 20_000, LongSteps);
+    public Task VeinteMilSemillas_SinFallos() => OwnThread.Run(() => RunSeeds(1_000_000, 20_000, LongSteps));
 
     /// <summary>Unas pocas secuencias de 5 000 acciones, con el historial y los compuestos bien hondos.</summary>
     [LongFuzzFact]
-    public void SecuenciasDeCincoMilAcciones_SinFallos() => RunSeeds(2_000_000, 10, 5_000);
+    public Task SecuenciasDeCincoMilAcciones_SinFallos() => OwnThread.Run(() => RunSeeds(2_000_000, 10, 5_000));
 
     /// <summary>Para reproducir una semilla del mensaje de un fallo: cámbiala aquí y quita el Skip.</summary>
     [Theory(Skip = "Solo para reproducir a mano una semilla que falló.")]
     [InlineData(0, CiSteps)]
-    public void Semilla_Reproduce(int seed, int steps) => SessionFuzzer.Run(seed, steps);
+    public Task Semilla_Reproduce(int seed, int steps) => OwnThread.Run(() => SessionFuzzer.Run(seed, steps));
 
     /// <summary>
     /// Las semillas que encontraron defectos, con las acciones que hacían falta para llegar a ellos. Si el generador
@@ -47,12 +49,12 @@ public class SessionFuzzTests(ITestOutputHelper output)
     /// </summary>
     [Theory]
     [MemberData(nameof(FailedSeeds))]
-    public void SemillasQueFallaron_YaNoFallan(int seed, int steps, string action)
+    public Task SemillasQueFallaron_YaNoFallan(int seed, int steps, string action) => OwnThread.Run(() =>
     {
         string trace = SessionFuzzer.Run(seed, steps);
         Assert.True(Regex.IsMatch(trace, action, RegexOptions.Multiline),
             $"La semilla {seed} ya no hace «{action}»: el generador cambió y la semilla prueba otra cosa.");
-    }
+    });
 
     /// <summary>
     /// Semilla, acciones y la acción defectuosa como expresión regular sobre el recorrido (una línea por acción, ver
@@ -70,7 +72,8 @@ public class SessionFuzzTests(ITestOutputHelper output)
         { 651, 300, @"^\d+\. DeleteSide izquierda Track (magnética=True|.*auto=True)" },
         // Q con ripple por pista desfasaba enlazados que empezaban en instantes distintos.
         { 1007, 300, @"^\d+\. DeleteSide izquierda Track (magnética=True|.*auto=True)" },
-        // Aplicar un seguimiento cuyo tipo no coincidía con sus cuadros lanzaba.
+        // Aplicar un seguimiento cuyo tipo no coincidía con sus cuadros lanzaba. (En una vuelta de la CI de Windows agotó el
+        // tope de 120 s «por el paso 240 de 300: Select», que no espera nada; ver SessionFuzzWatchTests.)
         { 9335, 300, @"^\d+\. Tracking aplicar .*no son de este tipo de seguimiento" },
     };
 
