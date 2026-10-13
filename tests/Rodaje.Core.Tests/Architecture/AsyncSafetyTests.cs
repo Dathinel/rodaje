@@ -17,6 +17,7 @@ public sealed partial class AsyncSafetyTests
     {
         ["GuardedDispatch.cs"] = "es la red: envuelve el callback.",
         ["App.xaml.cs"] = "el aviso de un error ya informado no puede pasar por la red (informar volvería a avisar sin fin); atrapa lo suyo.",
+        ["Views/Inspector/DispatcherQueueLater.cs"] = "encola la acción ya envuelta por UiDeferral.Run (informe y aviso).",
     };
 
     // async void que no son manejadores de eventos.
