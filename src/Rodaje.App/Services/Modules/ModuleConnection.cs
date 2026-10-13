@@ -17,7 +17,7 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
     private int _idleGeneration;
     private Timer? _idleTimer;
     private Task _watchdog = Task.CompletedTask;
-    private volatile bool _hung;
+    private ModuleProcess? _hungProcess;
 
     public ModuleDescriptor Descriptor { get; } = descriptor;
 
@@ -27,8 +27,11 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
 
     public int? ProcessId => Volatile.Read(ref _process)?.ProcessId;
 
-    /// <summary>El último proceso se mató por no responder al <c>ping</c>.</summary>
-    public bool WasHung => _hung;
+    /// <summary>
+    /// <paramref name="process"/> se mató por no responder al <c>ping</c>. Va por proceso y no por conexión: si la llamada
+    /// siguiente ya abrió otro, la que falló con el colgado sigue sabiendo por qué.
+    /// </summary>
+    public bool WasHung(ModuleProcess? process) => process is not null && ReferenceEquals(Volatile.Read(ref _hungProcess), process);
 
     public void BeginCall()
     {
@@ -62,9 +65,16 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
         await _gate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
+            // Un proceso muerto o matado por colgado se suelta aquí mismo: OnExited llega por continuaciones asíncronas
+            // (RunContinuationsAsynchronously) y, con el pool ocupado, la llamada siguiente podía tomar todavía el proceso
+            // muerto y fallar al instante con «El módulo cerró la conexión» (CI de Windows tras #111).
+            if (_process is { } stale && IsDead(stale))
+            {
+                OnExited(stale);
+            }
+
             if (_process is null)
             {
-                _hung = false;
                 ModuleProcess process = await ModuleProcess.StartAsync(Descriptor.EntryPath, null,
                     options.ClientOptions with { HandshakeTimeout = options.StartTimeout },
                     p => job?.TryAssign(p), cancellationToken).ConfigureAwait(false);
@@ -159,6 +169,9 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
         closed(this);
     }
 
+    private bool IsDead(ModuleProcess process) =>
+        process.Exited.IsCompleted || process.Client.Completion.IsCompleted || ReferenceEquals(Volatile.Read(ref _hungProcess), process);
+
     private void OnExited(ModuleProcess process)
     {
         if (Interlocked.CompareExchange(ref _process, null, process) == process)
@@ -185,7 +198,7 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
             }
             catch (TimeoutException)
             {
-                _hung = true;
+                Volatile.Write(ref _hungProcess, process);
                 Trace.WriteLine($"Rodaje: el módulo {Descriptor.Id} no respondió al ping en {options.PingTimeout.TotalSeconds:0.#} s; se cierra.");
                 process.Kill();
                 return;
