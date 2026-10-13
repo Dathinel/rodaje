@@ -218,32 +218,51 @@ public sealed class ConcurrentDownloadTests(ITestOutputHelper output) : IAsyncLi
         {
             var context = new MeasuredUiThread();
             ExceptionDispatchInfo? failure = null;
+            var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
             var thread = new Thread(() =>
             {
-                SynchronizationContext.SetSynchronizationContext(context);
-                Task task;
                 try
                 {
-                    task = body();
+                    context.RunBody(body, ref failure);
                 }
-                catch (Exception ex)
+                finally
                 {
-                    failure = ExceptionDispatchInfo.Capture(ex);
-                    return;
-                }
-
-                task.ContinueWith(_ => context.Complete(), TaskScheduler.Default);
-                context.Loop();
-                if (task.Exception is { } error)
-                {
-                    failure = ExceptionDispatchInfo.Capture(error.InnerExceptions[0]);
+                    finished.TrySetResult();
                 }
             })
             { IsBackground = true, Name = "Hilo de interfaz medido" };
             thread.Start();
-            Assert.True(thread.Join(UiThread.DefaultTimeout), "Las descargas no terminaron a tiempo. " + UiThread.PoolState());
+
+            // Como en UiThread: la prueba corre en un hilo del pool y esperar una Task (no Thread.Join) le dice al pool que
+            // ese hilo está bloqueado, para que ponga otro en su lugar.
+            Assert.True(finished.Task.Wait(UiThread.DefaultTimeout), "Las descargas no terminaron a tiempo. " + UiThread.PoolState());
             failure?.Throw();
             return context;
+        }
+
+        private void RunBody(Func<Task> body, ref ExceptionDispatchInfo? failure)
+        {
+            SynchronizationContext.SetSynchronizationContext(this);
+            Task task;
+            try
+            {
+                task = body();
+            }
+            catch (Exception ex)
+            {
+                failure = ExceptionDispatchInfo.Capture(ex);
+                return;
+            }
+
+            // Se cierra en el hilo que termina la tarea (casi siempre este mismo), sin pasar por el pool, como en
+            // UiThread: con TaskScheduler.Default a secas el cierre era un trabajo más en la cola del pool y, con el pool
+            // ocupado por otras pruebas, el hilo medido seguía vivo hasta agotar el tope de 120 s.
+            task.ContinueWith(_ => Complete(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            Loop();
+            if (task.Exception is { } error)
+            {
+                failure = ExceptionDispatchInfo.Capture(error.InnerExceptions[0]);
+            }
         }
 
         public override void Post(SendOrPostCallback d, object? state)
