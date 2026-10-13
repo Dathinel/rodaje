@@ -16,7 +16,8 @@ namespace Rodaje.Engine.Tests.Support;
 /// tarda medio segundo pasaba de 60 s y se daba por interbloqueo. Interbloqueo es ahora un hilo vivo que no avanza
 /// (no saca ningún número de su <see cref="Random"/>) en <see cref="Stall"/>, o la corrida entera pasada de
 /// <see cref="Deadline"/>. Cortar por presupuesto no puede dejar la prueba vacía: una corrida en la que ningún hilo sacó
-/// un número (cero vueltas) falla, en vez de pasar en verde sin haber probado nada.
+/// un número (cero vueltas) falla, en vez de pasar en verde sin haber probado nada. Al dar con un interbloqueo, el mensaje
+/// trae las pilas de todos los hilos (<see cref="ThreadDump"/>), con los trabajadores por su nombre.
 /// </remarks>
 internal static class Stress
 {
@@ -94,12 +95,16 @@ internal static class Stress
         long[] seen = new long[threads.Count];
         TimeSpan[] moved = new TimeSpan[threads.Count];
         string? hung = null;
+        TimeSpan looked = TimeSpan.Zero;
+        TimeSpan widestGap = TimeSpan.Zero;
         // Un hilo puede terminar entre la condición y la espera: se toma el primero vivo una sola vez, y si ya no queda
         // ninguno se sale (con First, la corrida lanzaba «Sequence contains no matching element»).
         while (threads.FirstOrDefault(t => t.Thread.IsAlive).Thread is { } alive)
         {
             alive.Join(TimeSpan.FromMilliseconds(100));
             TimeSpan now = clock();
+            widestGap = now - looked > widestGap ? now - looked : widestGap;
+            looked = now;
             var stalled = new List<string>();
             for (int i = 0; i < threads.Count; i++)
             {
@@ -130,8 +135,18 @@ internal static class Stress
 
         if (hung is not null)
         {
+            // Las pilas antes de encender la parada: así se ve dónde estaba cada hilo, no cómo sale de ahí.
+            // Con el estado de cada uno y lo que tardó el propio vigilante entre dos miradas: si también él estuvo parado
+            // mucho tiempo, el proceso entero se quedó sin CPU; si miró cada 100 ms, el hilo de verdad no avanzaba.
+            var names = threads.ToDictionary(t => t.Thread.ManagedThreadId, t => "[" + t.Name + "]");
+            string stacks = ThreadDump.Capture(names);
+            string state = string.Join("; ", threads.Select((t, i) =>
+                $"{t.Name}: {(t.Thread.IsAlive ? "vivo" : "terminado")}, {seen[i]} números, el último hace {(looked - moved[i]).TotalSeconds:0.#} s"));
+            string budget = stop.IsCancellationRequested ? "ya pedida" : "sin pedir";
             stop.Cancel();
-            errors.Enqueue(hung);
+            errors.Enqueue($"{hung}{Environment.NewLine}Estado: {state}. A los {looked.TotalSeconds:0.#} s; la parada estaba {budget}; "
+                + $"el vigilante tardó como mucho {widestGap.TotalSeconds:0.##} s entre dos miradas.{Environment.NewLine}"
+                + $"Pilas de los hilos al saltar el detector:{Environment.NewLine}{stacks}");
         }
         else if (errors.IsEmpty && threads.All(t => t.Random.Draws == 0))
         {
@@ -168,7 +183,12 @@ internal static class Stress
         })
         { IsBackground = true, Name = "Estrés " + what };
         thread.Start();
-        Assert.True(thread.Join(limit), $"Semilla {seed}: {what} no terminó en {limit.TotalSeconds:0.#} s (posible interbloqueo).");
+        if (!thread.Join(limit))
+        {
+            string stacks = ThreadDump.Capture(new Dictionary<int, string> { [thread.ManagedThreadId] = "[" + what + "]" });
+            Assert.Fail($"Semilla {seed}: {what} no terminó en {limit.TotalSeconds:0.#} s (posible interbloqueo).{Environment.NewLine}Pilas de los hilos:{Environment.NewLine}{stacks}");
+        }
+
         Assert.True(error is null, $"Semilla {seed}: {what} lanzó {error}");
     }
 

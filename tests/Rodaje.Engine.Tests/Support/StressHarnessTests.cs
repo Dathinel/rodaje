@@ -11,7 +11,8 @@ public sealed class StressHarnessTests
     /// El reloj inyectado avanza 10 s por cada vuelta de vigilancia del arnés, y solo después de que el hilo sano
     /// saque un número: entre dos lecturas del reloj el sano avanzó siempre, aunque la máquina lo deje sin CPU, y el
     /// trabado, que no avanza nunca, pasa del tope de 30 s en cuatro vueltas. Si se quita el detector de «sin avance», la
-    /// corrida termina por <see cref="Stress.Deadline"/> (24 vueltas) con otro mensaje y la prueba falla.
+    /// corrida termina por <see cref="Stress.Deadline"/> (24 vueltas) con otro mensaje y la prueba falla. El mensaje trae
+    /// además las pilas de los hilos, con el trabado en <see cref="StuckWorker"/>.
     /// </summary>
     [Fact]
     public void Un_hilo_trabado_que_no_saca_numeros_se_da_por_interbloqueo()
@@ -55,19 +56,30 @@ public sealed class StressHarnessTests
                 ("trabado", (random, stop) =>
                 {
                     _ = random.Next();
-                    // Sin mirar la señal de parada, como un interbloqueo.
-                    unblock.Wait(CancellationToken.None);
+                    StuckWorker(unblock);
                 })));
 
             Assert.Contains("Semilla 5", error.Message, StringComparison.Ordinal);
             Assert.Contains("Posible interbloqueo: trabado no avanzó", error.Message, StringComparison.Ordinal);
-            Assert.DoesNotContain("sano", error.Message, StringComparison.Ordinal);
+            Assert.DoesNotContain("sano no avanzó", error.Message, StringComparison.Ordinal);
+
+            // Las pilas dicen dónde estaba: el trabado, por su nombre, en su espera.
+            string stacks = error.Message[error.Message.IndexOf("Pilas de los hilos", StringComparison.Ordinal)..];
+            string stuck = stacks[stacks.IndexOf("--- [trabado]", StringComparison.Ordinal)..];
+            stuck = stuck[..(stuck.IndexOf("\n---", StringComparison.Ordinal) is int next and > 0 ? next : stuck.Length)];
+            Assert.Contains(nameof(StuckWorker), stuck, StringComparison.Ordinal);
         }
         finally
         {
             unblock.Set();
         }
     }
+
+    /// <summary>El cuerpo del hilo trabado, con nombre propio para buscarlo en las pilas del mensaje.</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static void StuckWorker(ManualResetEventSlim unblock) =>
+        // Sin mirar la señal de parada, como un interbloqueo.
+        unblock.Wait(CancellationToken.None);
 
     [Fact]
     public void Una_corrida_sin_ninguna_vuelta_falla()
