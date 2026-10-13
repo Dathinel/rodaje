@@ -36,7 +36,7 @@ public static class ExportSettingsValidator
 
             CheckRate(v.RateControl, video, problems);
             CheckVideoDetails(v, video, problems);
-            CheckScan(settings.Container, v, video, problems);
+            CheckScan(settings.Container, v, video, pixels, problems);
         }
 
         if (settings.Audio is { } a && audio is not null)
@@ -117,8 +117,12 @@ public static class ExportSettingsValidator
         }
     }
 
-    /// <summary>Entrelazado (solo ProRes, con tasa fija y alto par de campos) y 360 (MP4 o MOV, 2:1).</summary>
-    private static void CheckScan(ExportContainer container, VideoExportSettings v, EncoderSpec encoder, List<ExportProblem> problems)
+    /// <summary>
+    /// Entrelazado (solo ProRes, con tasa fija y un alto que se pueda partir en campos según el croma:
+    /// <see cref="ExportPixelFormats.InterlacedHeightStep"/>) y 360 (MP4 o MOV, 2:1).
+    /// </summary>
+    private static void CheckScan(ExportContainer container, VideoExportSettings v, EncoderSpec encoder, ExportPixelFormat? pixels,
+        List<ExportProblem> problems)
     {
         if (v.FieldOrder != ExportFieldOrder.Progressive)
         {
@@ -132,9 +136,10 @@ public static class ExportSettingsValidator
                 problems.Add(new(ExportProblemCode.InvalidValue, "Un video entrelazado necesita una tasa de cuadros fija."));
             }
 
-            if (v.Height is { } h && h % 4 != 0)
+            // Sin formato de píxel ya hay un problema que lo dice; el paso del alto depende de su croma.
+            if (v.Height is { } h && pixels is { } format && h % format.InterlacedHeightStep() != 0)
             {
-                problems.Add(new(ExportProblemCode.InvalidValue, "Entrelazado, el alto tiene que ser múltiplo de 4."));
+                problems.Add(new(ExportProblemCode.InvalidValue, InterlacedHeightMessage(format)));
             }
         }
 
@@ -151,6 +156,11 @@ public static class ExportSettingsValidator
             }
         }
     }
+
+    /// <summary>Por qué un alto no sirve entrelazado con <paramref name="format"/>; lo usa también <c>ExportPlan</c>.</summary>
+    internal static string InterlacedHeightMessage(ExportPixelFormat format) => format.InterlacedHeightStep() == 4
+        ? "Entrelazado con croma 4:2:0, el alto tiene que ser múltiplo de 4."
+        : "Entrelazado, el alto tiene que ser par.";
 
     private static void CheckAudioDetails(AudioExportSettings a, EncoderSpec encoder, List<ExportProblem> problems)
     {

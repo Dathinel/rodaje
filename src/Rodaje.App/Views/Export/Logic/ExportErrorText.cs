@@ -52,7 +52,8 @@ public static class ExportErrorText
             ExportErrorCode.EncoderFailed => ("El codificador se detuvo", "Prueba otra vez; si se repite, elige otro codificador en Avanzado.", ExportErrorAction.Retry),
             ExportErrorCode.DiskFull => ("No hay espacio en el disco", "Libera espacio o guarda en otro disco.", ExportErrorAction.ChooseOutput),
             ExportErrorCode.OutputNotWritable => ("No se puede escribir ahí", "La carpeta es de solo lectura o el archivo está abierto en otro programa. Ciérralo o elige otra carpeta.", ExportErrorAction.ChooseOutput),
-            ExportErrorCode.InvalidSettings => ("Los ajustes no son válidos", "Revisa el formato en Avanzado o vuelve a un preajuste.", ExportErrorAction.ChangeSettings),
+            // El motivo lo da el plan en español («Entrelazado, el alto tiene que ser par…»); sin él solo quedaba la pista.
+            ExportErrorCode.InvalidSettings => ("Los ajustes no son válidos", $"{Reason(error)}Revisa el formato en Avanzado o vuelve a un preajuste.", ExportErrorAction.ChangeSettings),
             ExportErrorCode.Canceled => ("Exportación cancelada", "No se guardó ningún archivo.", ExportErrorAction.None),
             _ => ("La exportación falló", "Algo inesperado la detuvo. Vuelve a intentarlo; los detalles quedan en rodaje-error.txt.", ExportErrorAction.Retry),
         };
@@ -68,6 +69,13 @@ public static class ExportErrorText
         }
 
         return new(title, message, action, ActionText(action));
+    }
+
+    /// <summary>El mensaje de la excepción como frase terminada en punto y un espacio, o nada si no trae.</summary>
+    private static string Reason(ExportException error)
+    {
+        string text = error.Message.Trim();
+        return text.Length == 0 ? "" : text.EndsWith('.') ? text + " " : text + ". ";
     }
 
     /// <summary>El nombre del archivo de una ruta, o la referencia de paquete tal cual.</summary>

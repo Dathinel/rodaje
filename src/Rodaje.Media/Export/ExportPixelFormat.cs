@@ -110,6 +110,14 @@ public static class ExportPixelFormats
     /// <summary>Si el croma tiene la mitad de filas (4:2:0).</summary>
     public static bool HalfHeightChroma(this ExportPixelFormat format) => format.Chroma() == ChromaSubsampling.Chroma420;
 
+    /// <summary>
+    /// De cuánto en cuánto va el alto de un cuadro entrelazado: cada campo tiene la mitad de las filas y tiene que llevar
+    /// su croma entero. En 4:2:0 el croma va a media altura dentro de cada campo y hace falta un múltiplo de 4 (cada
+    /// campo de alto par); en 4:2:2 y 4:4:4 el croma tiene todas las filas y basta un alto par (lo pide
+    /// <c>separatefields</c>), así 720×486 (D1 NTSC) y 720×480 en ProRes 422 se pueden tejer.
+    /// </summary>
+    public static int InterlacedHeightStep(this ExportPixelFormat format) => format.HalfHeightChroma() ? 4 : 2;
+
     /// <summary>Si el ancho debe ser par (croma 4:2:0 o 4:2:2).</summary>
     public static bool NeedsEvenWidth(this ExportPixelFormat format) => format.Chroma() != ChromaSubsampling.Chroma444;
 
