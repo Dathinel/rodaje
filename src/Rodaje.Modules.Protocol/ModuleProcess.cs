@@ -155,20 +155,63 @@ public sealed class ModuleProcess : IAsyncDisposable
     internal static Task KillOffPool(Action kill, TaskScheduler scheduler) =>
         Task.Factory.StartNew(kill, CancellationToken.None, TaskCreationOptions.LongRunning | TaskCreationOptions.DenyChildAttach, scheduler);
 
+    /// <summary>Lo que se espera a que el módulo salga tras el cierre del cliente, y otra vez tras matarlo.</summary>
+    internal static readonly TimeSpan ExitGrace = TimeSpan.FromSeconds(2);
+
+    /// <summary>
+    /// Dónde va la línea de un cierre que salió mal (tarea 200). Por omisión <see cref="Trace"/>, como el resto de avisos
+    /// de módulos (la app lo lleva al registro de la sesión con <c>SessionLogTraceListener</c>); las pruebas la capturan.
+    /// </summary>
+    internal Action<string> Report { get; set; } = static line => Trace.WriteLine(line);
+
     /// <summary>
     /// Cierre ordenado: <see cref="ModuleClient.DisposeAsync"/> manda <c>shutdown</c> y espera a que el módulo cierre su
     /// lado de la tubería (o salga) antes de cerrar el del editor; luego se espera la salida y, si no llega en 2 s, se mata
-    /// el árbol de procesos.
+    /// el árbol de procesos. Si tras el <c>shutdown</c> el módulo sale con un código distinto de 0 o hay que matarlo, se
+    /// deja una línea en el registro: <see cref="ModuleClient.Completion"/> termina limpio igual (tarea 191) y el código
+    /// solo queda en <see cref="Exited"/>, que nadie mira al cerrar.
     /// </summary>
     public async ValueTask DisposeAsync()
     {
-        await Client.DisposeAsync().ConfigureAwait(false);
-        if (await Task.WhenAny(_exited.Task, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false) != _exited.Task)
-        {
-            await KillOffPool(() => Kill(_process), TaskScheduler.Default).ConfigureAwait(false);
-            await Task.WhenAny(_exited.Task, Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
-        }
+        ModuleClient client = Client;
+        Process process = _process;
+        await CloseAsync(client.DisposeAsync, () => client.ShutdownDelivered, _exited.Task,
+            () => KillOffPool(() => Kill(process), TaskScheduler.Default), ExitGrace, client.Module.Id, Report).ConfigureAwait(false);
         _process.Dispose();
+    }
+
+    /// <summary>
+    /// El cierre de <see cref="DisposeAsync"/> sin el proceso, para probarlo sin lanzar el módulo: cierra el cliente,
+    /// espera la salida <paramref name="grace"/>, mata si no llega y vuelve a esperar, y da a <paramref name="report"/> la
+    /// línea de <see cref="DescribeClose"/> si la hay.
+    /// </summary>
+    internal static async Task CloseAsync(Func<ValueTask> disposeClient, Func<bool> shutdownDelivered, Task<int> exited,
+        Func<Task> kill, TimeSpan grace, string module, Action<string> report)
+    {
+        await disposeClient().ConfigureAwait(false);
+        bool killed = false;
+        if (await Task.WhenAny(exited, Task.Delay(grace)).ConfigureAwait(false) != exited)
+        {
+            killed = true;
+            await kill().ConfigureAwait(false);
+            await Task.WhenAny(exited, Task.Delay(grace)).ConfigureAwait(false);
+        }
+        if (shutdownDelivered() && DescribeClose(module, killed, exited, grace) is { } line) report(line);
+    }
+
+    /// <summary>
+    /// La línea del registro para un módulo al que se mandó <c>shutdown</c>: <c>null</c> si salió solo con 0.
+    /// </summary>
+    internal static string? DescribeClose(string module, bool killed, Task<int> exited, TimeSpan grace)
+    {
+        string seconds = grace.TotalSeconds.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture);
+        if (killed)
+        {
+            string end = exited.IsCompletedSuccessfully ? $"(código {exited.Result})" : "y no se lo vio salir";
+            return $"Rodaje: el módulo {module} no salió en {seconds} s tras «shutdown»; se mató {end}.";
+        }
+        int code = exited.Result;
+        return code == 0 ? null : $"Rodaje: el módulo {module} salió con el código {code} tras «shutdown».";
     }
 
     private static void Kill(Process process)
