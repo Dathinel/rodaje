@@ -200,7 +200,10 @@ public static class ModuleCatalog
                 return (0, null);
             }
 
-            int vram = module.TryGetProperty("vramMb", out JsonElement v) && v.TryGetInt32(out int mb) ? Math.Clamp(mb, 0, MaxVramMb) : 0;
+            // TryGetInt32 lanza InvalidOperationException si no es un número («"vramMb": "8"»), y el catch no la atrapa.
+            int vram = module.TryGetProperty("vramMb", out JsonElement v) && v.ValueKind == JsonValueKind.Number && v.TryGetInt32(out int mb)
+                ? Math.Clamp(mb, 0, MaxVramMb)
+                : 0;
             string? runtime = module.TryGetProperty("runtime", out JsonElement r) && r.ValueKind == JsonValueKind.String && r.GetString() is { Length: > 0 and <= 64 } s ? s : null;
             return (vram, runtime);
         }

@@ -44,6 +44,9 @@ public sealed class ExportQueueStore(string path)
 
     public string Path { get; } = System.IO.Path.GetFullPath(path);
 
+    /// <summary>Cuántas entradas saltó el último <see cref="Load"/> por estar dañadas, para avisar de que no se recuperan.</summary>
+    public int Skipped { get; private set; }
+
     /// <summary>Escribe las peticiones (o borra el archivo si no queda ninguna).</summary>
     public void Save(IEnumerable<(ExportRequest Request, bool ContinueWithoutMissing)> pending)
     {
@@ -72,9 +75,13 @@ public sealed class ExportQueueStore(string path)
         AppDataPaths.WriteAllTextAtomic(Path, JsonSerializer.Serialize(file, ExportQueueJsonContext.Default.SavedExportFile));
     }
 
-    /// <summary>Lo que quedó de la última vez; vacío si no hay archivo o está dañado (entonces se aparta).</summary>
+    /// <summary>
+    /// Lo que quedó de la última vez; vacío si no hay archivo o está dañado (entonces se aparta). Una entrada dañada se salta
+    /// sola y se cuenta en <see cref="Skipped"/>: las demás se recuperan.
+    /// </summary>
     public IReadOnlyList<(ExportRequest Request, bool ContinueWithoutMissing)> Load()
     {
+        Skipped = 0;
         if (!File.Exists(Path))
         {
             return [];
@@ -83,12 +90,30 @@ public sealed class ExportQueueStore(string path)
         try
         {
             SavedExportFile? file = JsonSerializer.Deserialize(File.ReadAllText(Path), ExportQueueJsonContext.Default.SavedExportFile);
+            List<(ExportRequest Request, bool ContinueWithoutMissing)> loaded = [];
+            foreach (SavedExport? e in file?.Exports ?? [])
+            {
+                // Una entrada nula o sin proyecto, secuencia, salida o ajustes (un archivo dañado) lanzaba NullReference o
+                // ArgumentNull fuera de este catch: se salta.
+                if (e is not { ProjectJson: not null, SequenceId: not null, OutputPath.Length: > 0, Settings: not null })
+                {
+                    Skipped++;
+                    continue;
+                }
 
-            // Una entrada nula o sin proyecto, secuencia, salida o ajustes (un archivo dañado) lanzaba NullReference o
-            // ArgumentNull fuera de este catch: se salta.
-            return [.. (file?.Exports ?? []).Where(e => e is { ProjectJson: not null, SequenceId: not null, OutputPath.Length: > 0, Settings: not null })
-                .Select(e => (new ExportRequest(ProjectSerializer.Deserialize(e.ProjectJson), e.SequenceId, e.OutputPath,
-                    e.Settings, e.Range) { ProjectDirectory = e.ProjectDirectory }, e.ContinueWithoutMissing))];
+                // Un ProjectJson roto apartaba el archivo entero como «.dañado» y se perdían también las entradas buenas.
+                try
+                {
+                    loaded.Add((new ExportRequest(ProjectSerializer.Deserialize(e.ProjectJson), e.SequenceId, e.OutputPath,
+                        e.Settings, e.Range) { ProjectDirectory = e.ProjectDirectory }, e.ContinueWithoutMissing));
+                }
+                catch (Exception ex) when (ex is JsonException or ProjectFormatException or NotSupportedException)
+                {
+                    Skipped++;
+                }
+            }
+
+            return loaded;
         }
         catch (Exception ex) when (ex is JsonException or ProjectFormatException or IOException or UnauthorizedAccessException or NotSupportedException)
         {
