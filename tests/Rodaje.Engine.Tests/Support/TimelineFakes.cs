@@ -341,6 +341,12 @@ internal sealed class FakeTimelineBackend : IClipBackend
     /// </summary>
     public Func<string, long, bool>? HangFrame { get; init; }
 
+    /// <summary>
+    /// Si se da, un cuadro de <see cref="HangFrame"/> termina con esta excepción cuando se cancela su petición, en vez de
+    /// terminar cancelado: como un decodificador colgado que vuelve con un error después del cierre.
+    /// </summary>
+    public Func<Exception>? HangFailure { get; init; }
+
     /// <summary>Peticiones de <see cref="HangFrame"/> todavía en vuelo (no canceladas).</summary>
     public int HungFrames => Volatile.Read(ref _hungFrames);
 
@@ -453,7 +459,10 @@ internal sealed class FakeTimelineBackend : IClipBackend
 
     public IKeyframeIndex? ReadKeyframes(string path) => OnReadKeyframes?.Invoke(path);
 
-    /// <summary>Un cuadro que solo termina (cancelado) cuando se cancela su petición; mientras, cuenta en <see cref="HungFrames"/>.</summary>
+    /// <summary>
+    /// Un cuadro que solo termina (cancelado, o con <see cref="HangFailure"/>) cuando se cancela su petición; mientras,
+    /// cuenta en <see cref="HungFrames"/>.
+    /// </summary>
     public Task<DecodedFrame?> Hang(CancellationToken cancellationToken)
     {
         var pending = new TaskCompletionSource<DecodedFrame?>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -461,7 +470,14 @@ internal sealed class FakeTimelineBackend : IClipBackend
         cancellationToken.Register(() =>
         {
             Interlocked.Decrement(ref _hungFrames);
-            pending.TrySetCanceled(cancellationToken);
+            if (HangFailure is { } failure)
+            {
+                pending.TrySetException(failure());
+            }
+            else
+            {
+                pending.TrySetCanceled(cancellationToken);
+            }
         });
         return pending.Task;
     }

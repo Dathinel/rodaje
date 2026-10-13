@@ -920,7 +920,18 @@ internal sealed partial class MainWindow : Window, IShellHost
         _autosave?.Complete();
         _exports.Dispose();
         // Pide shutdown a los módulos abiertos; si alguno no sale, lo mata (y el Job Object cubre el resto).
-        _modules.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(3));
+        // Un fallo al cerrarlos (Wait lo relanza como AggregateException) se informa y no salta el resto del cierre.
+        try
+        {
+            _modules.DisposeAsync().AsTask().Wait(TimeSpan.FromSeconds(3));
+        }
+#pragma warning disable CA1031 // Ver arriba.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            UiTask.Report(ex, notify: false);
+        }
+
         _engine.Dispose();
         _visuals.Dispose();
         _instance.Dispose();

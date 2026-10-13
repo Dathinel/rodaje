@@ -44,24 +44,36 @@ internal sealed partial class ExportView
         string? folder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
         var request = new ExportRequest(session.Project.Clone(), session.SequenceId, model.OutputPath, settings, range) { ProjectDirectory = folder };
         IReadOnlyList<EncoderSpec> encoders = model.Encoders;
-        UiTask.Run(Task.Run(() =>
+        // Con await y no con ContinueWith: un fallo inesperado de la decisión ya no queda en una tarea que nadie mira (la
+        // continuación solo miraba si había terminado bien). Se informa sin aviso: la nota es solo una explicación.
+        UiTask.Run(async () =>
         {
-            try
+            string? note = await Task.Run(() => Explain(request, encoders)).ConfigureAwait(true);
+            if (_streamCopyKey == key && _model is { } current)
             {
-                return StreamCopyPlanner.Decide(ExportPlan.Create(request, encoders)).Explanation;
-            }
-            catch (ExportException)
-            {
-                return null;
-            }
-        }).ContinueWith(task =>
-        {
-            if (_streamCopyKey == key && task.IsCompletedSuccessfully && _model is { } current)
-            {
-                _streamCopyNote = task.Result;
+                _streamCopyNote = note;
                 ShowAdjustments(current);
             }
-        }, TaskScheduler.FromCurrentSynchronizationContext()));
+        });
+    }
+
+    private static string? Explain(ExportRequest request, IReadOnlyList<EncoderSpec> encoders)
+    {
+        try
+        {
+            return StreamCopyPlanner.Decide(ExportPlan.Create(request, encoders)).Explanation;
+        }
+        catch (ExportException)
+        {
+            return null;
+        }
+#pragma warning disable CA1031 // Cualquier otro fallo se informa y el diálogo sigue sin la nota.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            UiTask.Report(ex, notify: false);
+            return null;
+        }
     }
 
     private void ShowAdjustments(ExportDialogModel model)

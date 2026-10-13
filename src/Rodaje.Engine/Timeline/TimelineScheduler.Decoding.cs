@@ -510,10 +510,15 @@ internal sealed partial class TimelineScheduler
         MediaState media = decoder.Media;
         DecodedFrame? discard = null;
         bool post;
+        bool report;
         lock (_gate)
         {
             decoder.InFlight = null;
             bool current = job.Epoch == decoder.Epoch;
+
+            // Un cuadro que vuelve después de cerrar (la sesión o el decodificador) no le importa a nadie: un decodificador
+            // colgado puede volver con un error después de Dispose, con la vista cerrada u otro proyecto abierto.
+            report = !_disposed && !decoder.Closed;
             if (_disposed || decoder.Closed)
             {
                 discard = frame;
@@ -559,18 +564,25 @@ internal sealed partial class TimelineScheduler
                 media.Unavailable.Add(job.Index);
             }
 
-            if (!_disposed && error is not null)
+            if (report && error is not null)
             {
                 _decodeErrors++;
             }
 
-            post = !_disposed && !decoder.Closed && RequestPump(decoder);
+            post = report && RequestPump(decoder);
         }
 
         discard?.Dispose();
         if (error is not null)
         {
-            DecodeFailed?.Invoke(this, new TimelineDecodeFailedEventArgs(media.Key.MediaId, media.Key.Path, job.Index, error));
+            if (report)
+            {
+                DecodeFailed?.Invoke(this, new TimelineDecodeFailedEventArgs(media.Key.MediaId, media.Key.Path, job.Index, error));
+            }
+            else
+            {
+                Trace.WriteLine($"Rodaje: el cuadro {job.Index} de «{media.Key.Path}» falló después de cerrar su decodificador {decoder.Id}; no se avisa: {error.Message}");
+            }
         }
 
         return post;
