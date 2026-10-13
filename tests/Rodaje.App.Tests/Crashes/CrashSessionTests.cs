@@ -107,7 +107,7 @@ public class CrashSessionTests
         Assert.Contains("0xC0000005", textWhenDumping, StringComparison.Ordinal);
         string dump = Assert.Single(Directory.GetFiles(dir.Path, "*.dmp"));
         Assert.Equal(Path.ChangeExtension(report, ".dmp"), dump);
-        Assert.Contains("Minivolcado: " + dump, File.ReadAllText(report!), StringComparison.Ordinal);
+        Assert.Contains("Minivolcado: " + CrashReportScrubber.Default.Scrub(dump), File.ReadAllText(report!), StringComparison.Ordinal);
     }
 
     [Fact]

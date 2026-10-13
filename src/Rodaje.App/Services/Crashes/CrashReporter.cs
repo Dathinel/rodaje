@@ -212,7 +212,7 @@ public sealed class CrashReporter
             {
                 if (report is not null)
                 {
-                    TryAppend(report, $"{Environment.NewLine}Minivolcado: {dump}{Environment.NewLine}");
+                    TryAppend(report, $"{Environment.NewLine}Minivolcado: {CrashReportScrubber.Default.Scrub(dump)}{Environment.NewLine}");
                 }
 
                 Prune();
@@ -682,6 +682,7 @@ public sealed record CrashReport(CrashKind Kind, DateTime Time, bool Fatal, stri
             text.AppendLine(line);
         }
 
-        return text.ToString();
+        // Se invita a pegarlo en GitHub, que es público: sin rutas de medios ni carpetas del usuario.
+        return CrashReportScrubber.Default.Scrub(text.ToString());
     }
 }
