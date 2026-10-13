@@ -19,6 +19,9 @@ internal sealed class FakeEffectContent : IEffectContent
 
     public List<(string Analysis, double Intensity, bool AutoCrop)> StabilizationRequests { get; } = [];
 
+    /// <summary>Cada pregunta por una LUT, al empezar <see cref="TryGetLut"/> (antes de mirar si está).</summary>
+    public Action<ResourceKey>? LutAsked { get; set; }
+
     /// <summary>Quien pregunta por una LUT que aún no está; se llama dentro de <see cref="TryGetLut"/>, antes de contestar.</summary>
     public Action<ResourceKey>? LutNotReady { get; set; }
 
@@ -51,6 +54,7 @@ internal sealed class FakeEffectContent : IEffectContent
     public bool TryGetLut(ResourceKey key, out LutData? lut)
     {
         LutRequests++;
+        LutAsked?.Invoke(key);
         lut = null;
         bool ready;
         lock (ReadyLuts)
