@@ -30,15 +30,16 @@ public class ExtremeProjectSessionTests
         new(1, 1), new(1000, 1), new(24000, 1001), new(Big, Big - 1), new((1000L << 40) - 1, 1L << 40), new(30000, 1001), new(25, 1), new(120, 1),
     ];
 
-    /// <summary>En qué parte del caso va el fuzz y desde cuándo, para el mensaje de un cuelgue.</summary>
-    private static string _phase = "";
-
-    private static long _phaseStarted;
+    /// <summary>En qué parte del caso va el fuzz, desde cuándo y cómo fueron los tramos anteriores, para el mensaje de un cuelgue.</summary>
+    private static readonly PhaseLog Phases = new();
 
     /// <summary>
     /// En la CI de Windows, dos veces un caso «tardó más de 15 s» (semillas 20261013 y 20261015) que en Linux tarda de 17 a
     /// 460 ms (800 semillas, la más lenta 0,6 s): ningún paso recorre los números extremos. Si vuelve a pasar, el mensaje
-    /// dice en qué tramo estaba (las esperas al pool al abrir y guardar, o un paso síncrono) y el estado del pool.
+    /// dice en qué tramo estaba (las esperas al pool al abrir y guardar, o un paso síncrono) y el estado del pool. Otra vez
+    /// (semilla 20261022, tarea 290) llevaba 5,4 s en «volver a leer», que tarda 2 ms, con el pool libre, y otra (semilla
+    /// 20261014) 0,7 s en «guardar como»: los otros 10 y 14 s se fueron en tramos anteriores que no se veían. El mensaje
+    /// dice además cuánto duró cada tramo, la pausa y las colecciones del GC, la CPU del proceso y el estado del hilo.
     /// </summary>
     [Fact]
     public Task ProyectosExtremos_SeEditanSinExcepciones() => OwnThread.Run(() =>
@@ -47,7 +48,7 @@ public class ExtremeProjectSessionTests
         {
             FuzzRunner.Run("proyecto con números extremos", 20261013, cases: 40, budget: TimeSpan.FromSeconds(10), minimumCases: 40, (seed, random) =>
             {
-                Mark("preparar");
+                Phases.StartCase("preparar");
                 using var directory = new TempDirectory();
                 Project project = BuildProject(random, directory.Path);
                 Assert.Empty(ModelValidator.Validate(project));
@@ -60,16 +61,11 @@ public class ExtremeProjectSessionTests
         }
         catch (XunitException ex) when (ex.Message.Contains("tardó más de", StringComparison.Ordinal))
         {
-            double seconds = System.Diagnostics.Stopwatch.GetElapsedTime(Interlocked.Read(ref _phaseStarted)).TotalSeconds;
-            throw new XunitException(Invariant($"{ex.Message} Iba por «{Volatile.Read(ref _phase)}» desde hace {seconds:F1} s. {UiThread.PoolState()}"));
+            throw new XunitException($"{ex.Message} {Phases.Describe()} {UiThread.PoolState()}");
         }
     });
 
-    private static void Mark(string phase)
-    {
-        Interlocked.Exchange(ref _phaseStarted, System.Diagnostics.Stopwatch.GetTimestamp());
-        Volatile.Write(ref _phase, phase);
-    }
+    private static void Mark(string phase) => Phases.Mark(phase);
 
     /// <summary>
     /// Una tasa de 1/2^62 (un cuadro de más de 400 años): empujar o recortar un cuadro lanzaba OverflowException. La v1.0.0
