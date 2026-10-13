@@ -112,8 +112,10 @@ public class WasapiHardwareTests(ITestOutputHelper output)
         trace.SampleFor(TimeSpan.FromMilliseconds(300));
 
         audio.SimulateDeviceLoss(blockReopen: false);
-        trace.SampleFor(TimeSpan.FromMilliseconds(300));
+        // Reabrir el Realtek del PC de Daniel tarda unos 370 ms (antes se esperaba un tramo fijo de 300 ms).
+        trace.SampleUntil(() => !messages.IsEmpty, TimeSpan.FromSeconds(3));
         Assert.NotNull(audio.Device);
+        trace.SampleFor(TimeSpan.FromMilliseconds(300));
 
         audio.SimulateDeviceLoss(blockReopen: true);
         trace.SampleFor(TimeSpan.FromMilliseconds(100));

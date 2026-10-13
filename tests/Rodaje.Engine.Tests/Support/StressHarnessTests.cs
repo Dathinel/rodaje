@@ -218,7 +218,7 @@ public sealed class StressHarnessTests
             9,
             ("conductor", (random, stop) =>
             {
-                foreach (int i in Stress.Steps(400, stop))
+                foreach (int i in Stress.Steps(Stress.Iterations(400), stop))
                 {
                     _ = random.Next(10);
                     if (i == 9)
@@ -229,7 +229,7 @@ public sealed class StressHarnessTests
             })));
 
         Assert.Contains("Semilla 9", error.Message, StringComparison.Ordinal);
-        Assert.Contains($"conductor hizo 9 de 400 vueltas; el mínimo es {Stress.MinimumSteps(400)}.", error.Message, StringComparison.Ordinal);
+        Assert.Contains($"conductor hizo 9 de {Stress.Iterations(400)} vueltas; el mínimo es {Stress.MinimumSteps(Stress.Iterations(400))}.", error.Message, StringComparison.Ordinal);
     }
 
     [Fact]

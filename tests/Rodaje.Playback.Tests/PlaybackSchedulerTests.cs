@@ -340,7 +340,7 @@ public class PlaybackSchedulerTests
         // Regresión: al pasar al cuadro nuevo se sacaba de la caché uno por uno cada índice saltado, O(salto)
         // con el candado tomado; con 10^10 cuadros eso son minutos. Aquí solo hay una guarda contra cuelgues
         // (60 s, muy por encima de cualquier carga del runner); el límite de 2 s vive en la prueba TiempoReal.
-        FramePresentation landed = await SeekLejos(jump, TimeSpan.FromSeconds(60));
+        (FramePresentation landed, _) = await SeekLejos(jump, TimeSpan.FromSeconds(60));
         Assert.True(landed.IsExact);
     }
 
@@ -348,12 +348,12 @@ public class PlaybackSchedulerTests
     [Trait("Categoria", "TiempoReal")]
     public async Task SeekLejosReproduciendo_TardaMenosDeDosSegundos()
     {
-        var watch = System.Diagnostics.Stopwatch.StartNew();
-        await SeekLejos(10_000_000_000L, TimeSpan.FromSeconds(10));
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"El seek tardó {watch.Elapsed}.");
+        // Se mide solo el seek: la nocturna midió 2,23 s contando la espera de Task.Run con el runner cargado; aquí, 2 ms.
+        (_, TimeSpan seek) = await SeekLejos(10_000_000_000L, TimeSpan.FromSeconds(10));
+        Assert.True(seek < TimeSpan.FromSeconds(2), $"El seek tardó {seek}.");
     }
 
-    private static async Task<FramePresentation> SeekLejos(long jump, TimeSpan guard)
+    private static async Task<(FramePresentation Landed, TimeSpan Seek)> SeekLejos(long jump, TimeSpan guard)
     {
         var timing = new ClipTiming(Time.Zero, Time.Zero, Time.FromFrames(jump + 100, Rational.Fps25), Rational.Fps25);
         using var h = new PlaybackHarness(timing, prefetch: 4, budget: 16);
@@ -366,15 +366,17 @@ public class PlaybackSchedulerTests
         long before = h.Scheduler.Tick().Frame!.Index;
         var work = Task.Run(() =>
         {
+            var watch = System.Diagnostics.Stopwatch.StartNew();
             h.Scheduler.SeekToFrame(before + jump);
-            return h.SettleAndTick();
+            FramePresentation result = h.SettleAndTick();
+            return (result, watch.Elapsed);
         });
-        FramePresentation landed = await work.WaitAsync(guard);
+        (FramePresentation landed, TimeSpan seek) = await work.WaitAsync(guard);
         Assert.Equal(before + jump, landed.Frame!.Index);
         Assert.False(h.Cache.Contains(before), "El cuadro que quedó atrás sigue en la caché.");
         Assert.True(h.Scheduler.IsPlaying);
         Assert.True(h.Refresh().IsExact);
-        return landed;
+        return (landed, seek);
     }
 
     [Fact]
