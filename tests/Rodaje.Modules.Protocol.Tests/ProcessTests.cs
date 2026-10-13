@@ -20,6 +20,45 @@ public sealed class ProcessTests(ITestOutputHelper output)
         Assert.Equal(0, await module.Exited.WaitAsync(TimeSpan.FromSeconds(3)));
     }
 
+    /// <summary>
+    /// Tarea 189: con la CPU llena, el módulo recibe el <c>shutdown</c> y sale con 0 sin que lo maten (matado saldría con
+    /// -1). Antes, en Windows, el editor cerraba la tubería con el <c>shutdown</c> aún sin leer, a veces el módulo no lo
+    /// recibía y <see cref="ModuleProcess.DisposeAsync"/> lo mataba a los 2 s. La versión determinista es
+    /// <c>ShutdownCloseTests</c>.
+    /// </summary>
+    [Fact]
+    public async Task Echo_module_exits_with_0_on_shutdown_with_the_cpu_full()
+    {
+        using CancellationTokenSource burn = new();
+        List<Thread> burners = [];
+        for (int i = 0; i < Environment.ProcessorCount; i++)
+        {
+            Thread burner = new(() =>
+            {
+                while (!burn.IsCancellationRequested) Thread.SpinWait(1000);
+            }) { IsBackground = true, Name = "Carga de CPU" };
+            burner.Start();
+            burners.Add(burner);
+        }
+        try
+        {
+            for (int round = 0; round < 5; round++)
+            {
+                ModuleProcess module = await ModuleProcess.StartAsync(Support.EchoExe).WaitAsync(TimeSpan.FromSeconds(60));
+                await module.Client.InvokeAsync("eco", Support.Json("{\"a\":1}")).WaitAsync(TimeSpan.FromSeconds(60));
+                await module.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(60));
+                Assert.Equal(0, await module.Exited.WaitAsync(TimeSpan.FromSeconds(60)));
+                Assert.True(module.Client.Completion.IsCompletedSuccessfully || module.Client.Completion.Exception?.InnerException is ModuleExitedException { ExitCode: 0 },
+                    $"ronda {round}: {module.Client.Completion.Exception?.InnerException}");
+            }
+        }
+        finally
+        {
+            await burn.CancelAsync();
+            foreach (Thread burner in burners) burner.Join();
+        }
+    }
+
     /// <remarks>
     /// Cota holgada de <see cref="Support.CiBound"/>; la de 1 s la mide
     /// <see cref="A_module_that_dies_mid_call_fails_the_call_within_a_second"/> (TiempoReal).
