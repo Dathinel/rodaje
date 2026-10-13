@@ -33,19 +33,71 @@ internal static unsafe class Av
 
     public static bool IsValid(AVRational r) => r.num > 0 && r.den > 0;
 
-    /// <summary>Convierte una marca en la base de tiempo dada a <see cref="Time"/>, redondeando al tick.</summary>
-    public static Time ToTime(long timestamp, AVRational timeBase)
+    /// <summary>
+    /// <c>AV_NOPTS_VALUE</c> de FFmpeg («sin marca»). Copia literal para que las conversiones puras se prueben sin cargar
+    /// FFmpeg; <c>AvTimeTests</c> comprueba que coincide.
+    /// </summary>
+    public const long NoTimestamp = long.MinValue;
+
+    /// <summary>
+    /// Convierte una marca en la base de tiempo dada a <see cref="Time"/>, redondeando al tick. Devuelve
+    /// <see langword="false"/> si no hay marca (<see cref="NoTimestamp"/>), si la base no es válida o si el instante no cabe
+    /// en <see cref="Time"/> (una cabecera dañada con más de ~415 años): antes se truncaba a un instante inventado.
+    /// </summary>
+    public static bool TryToTime(long timestamp, AVRational timeBase, out Time time)
     {
-        Int128 numerator = (Int128)timestamp * Time.TicksPerSecond * timeBase.num;
-        return Time.FromTicks((long)RoundDiv(numerator, timeBase.den));
+        time = Time.Zero;
+        if (timestamp == NoTimestamp || !IsValid(timeBase))
+        {
+            return false;
+        }
+
+        Int128 ticks = RoundDiv((Int128)timestamp * Time.TicksPerSecond * timeBase.num, timeBase.den);
+        if (ticks < long.MinValue || ticks > long.MaxValue)
+        {
+            return false;
+        }
+
+        time = Time.FromTicks((long)ticks);
+        return true;
     }
 
-    /// <summary>Convierte un <see cref="Time"/> a la base de tiempo dada, redondeando al entero más cercano.</summary>
-    public static long FromTime(Time time, AVRational timeBase)
+    /// <summary>
+    /// Convierte un <see cref="Time"/> a la base de tiempo dada, redondeando al entero más cercano. Devuelve
+    /// <see langword="false"/> si la base no es válida o si la marca no cabe en <see langword="long"/> o cae en
+    /// <see cref="NoTimestamp"/> (con bases finas, como 1/1 000 000 000, los instantes de más de ~292 años no caben).
+    /// </summary>
+    public static bool TryFromTime(Time time, AVRational timeBase, out long timestamp)
     {
-        Int128 numerator = (Int128)time.Ticks * timeBase.den;
-        return (long)RoundDiv(numerator, (Int128)Time.TicksPerSecond * timeBase.num);
+        timestamp = 0;
+        if (!IsValid(timeBase))
+        {
+            return false;
+        }
+
+        Int128 value = RoundDiv((Int128)time.Ticks * timeBase.den, (Int128)Time.TicksPerSecond * timeBase.num);
+        if (value <= NoTimestamp || value > long.MaxValue)
+        {
+            return false;
+        }
+
+        timestamp = (long)value;
+        return true;
     }
+
+    /// <summary>Como <see cref="TryToTime"/>, pero lanza <see cref="MediaException"/> si la marca no tiene instante válido.</summary>
+    public static Time ToTime(long timestamp, AVRational timeBase) =>
+        TryToTime(timestamp, timeBase, out Time time)
+            ? time
+            : throw new MediaException(
+                $"La marca de tiempo {timestamp} en base {timeBase.num}/{timeBase.den} no es un instante válido; el archivo puede estar dañado.");
+
+    /// <summary>Como <see cref="TryFromTime"/>, pero lanza <see cref="MediaException"/> si el instante no cabe en la base.</summary>
+    public static long FromTime(Time time, AVRational timeBase) =>
+        TryFromTime(time, timeBase, out long timestamp)
+            ? timestamp
+            : throw new MediaException(
+                $"El instante {time} no cabe en la base de tiempo {timeBase.num}/{timeBase.den}; el archivo puede estar dañado.");
 
     /// <summary>Redondeo al más cercano, con las mitades hacia +∞, válido para signos cualesquiera.</summary>
     public static Int128 RoundDiv(Int128 numerator, Int128 denominator)

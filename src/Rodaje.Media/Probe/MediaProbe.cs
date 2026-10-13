@@ -106,7 +106,7 @@ public static unsafe class MediaProbe
 
         AVRational microseconds = new() { num = 1, den = ffmpeg.AV_TIME_BASE };
         Time containerStart = format->start_time == ffmpeg.AV_NOPTS_VALUE ? Time.Zero : Av.ToTime(format->start_time, microseconds);
-        Time? containerDuration = format->duration > 0 ? Av.ToTime(format->duration, microseconds) : null;
+        Time? containerDuration = KnownDuration(format->duration, microseconds);
 
         VideoStreamInfo? video = videoIndex >= 0
             ? ReadVideo(format, videoIndex, containerStart, containerDuration, scanTimestamps)
@@ -158,13 +158,15 @@ public static unsafe class MediaProbe
 
     private static Time? StreamDuration(AVStream* stream, Time start, Time containerStart, Time? containerDuration)
     {
-        if (stream->duration > 0 && Av.IsValid(stream->time_base))
-        {
-            return Av.ToTime(stream->duration, stream->time_base);
-        }
-
-        return RemainingContainerDuration(containerDuration, start, containerStart);
+        return KnownDuration(stream->duration, stream->time_base) ?? RemainingContainerDuration(containerDuration, start, containerStart);
     }
+
+    /// <summary>
+    /// La duración que declara una cabecera, o <see langword="null"/> (desconocida) si no es positiva, no hay marca o no cabe
+    /// en <see cref="Time"/>: una cabecera dañada con una duración enorme se truncaba a una duración inventada.
+    /// </summary>
+    internal static Time? KnownDuration(long duration, AVRational timeBase) =>
+        duration > 0 && Av.TryToTime(duration, timeBase, out Time time) ? time : null;
 
     /// <summary>
     /// Lo que queda del contenedor desde que empieza el flujo, para un flujo que no declara su duración. Un flujo que dice
