@@ -119,7 +119,7 @@ public class ProcessTests(ITestOutputHelper output)
     /// ModuleManagerTests, una espera de ping de 400 ms llegó a 2 063 ms de reloj). El segundo de cada una va en la gemela
     /// TiempoReal; el ping del final de Bad_input_fails_the_call_without_closing_the_module usa la misma cota de la CI.
     /// </summary>
-    private static readonly TimeSpan CiLimit = TimeSpan.FromSeconds(10);
+    internal static readonly TimeSpan CiLimit = TimeSpan.FromSeconds(10);
 
     [Fact]
     public Task Cancel_is_confirmed_quickly() => CancelIsConfirmed(CiLimit);

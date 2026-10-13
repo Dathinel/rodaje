@@ -86,6 +86,9 @@ internal static unsafe class RawDeveloper
                 Check(LibRawNative.DcrawProcess(raw.Handle), "revelar", cancellationToken);
             }
 
+            // LibRaw solo mira la cancelación al pasar de etapa, y lo que sigue (copiar la imagen y escribir la salida) no
+            // la mira: con la CPU llena, un cuadro grande tardaba en confirmarla todo eso más (tarea 221).
+            cancellationToken.ThrowIfCancellationRequested();
             int error = 0;
             image = LibRawNative.MakeMemImage(raw.Handle, &error);
             Check(error, "copiar", cancellationToken);
@@ -99,6 +102,7 @@ internal static unsafe class RawDeveloper
                 throw new RawException($"El cuadro revelado mide {image->Width}×{image->Height} y la salida {layout.Width}×{layout.Height}.");
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             var pixels = new ReadOnlySpan<ushort>(&image->Data, image->Width * image->Height * 3);
             table.Write(pixels, image->Width, image->Height, output, layout.Stride);
         }

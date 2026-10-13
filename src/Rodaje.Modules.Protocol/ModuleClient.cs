@@ -32,8 +32,24 @@ public sealed record ModuleClientOptions
     /// </summary>
     public TimeSpan HandshakeTimeout { get; init; } = DefaultHandshakeTimeout;
 
-    /// <summary>Lo que se espera a que el módulo confirme una cancelación antes de darlo por colgado y cortar.</summary>
-    public TimeSpan CancelGrace { get; init; } = TimeSpan.FromSeconds(2);
+    /// <summary>
+    /// El plazo de fábrica para confirmar una cancelación (<see cref="CancelGrace"/>). Una función solo puede confirmarla
+    /// al llegar a su siguiente punto de cancelación, y entre dos puntos hay pasos que no se interrumpen: una etapa de
+    /// LibRaw al revelar un cuadro RAW (la interpolación AHD de un cuadro grande), una inferencia de ONNX Runtime en Visión
+    /// o un tramo de Whisper en Subtítulos. Con la CPU llena esos pasos pasan de 2 s, y con 2 s el editor daba por colgado
+    /// un módulo sano: cortaba la conexión, mataba el proceso (con los modelos cargados) y fallaba las demás llamadas en
+    /// curso de ese módulo con «El módulo no confirmó la cancelación en 2 s» (tarea 221, CI de Windows en
+    /// <c>Rodaje.Module.Raw.Tests.ProcessTests.Cancel_is_confirmed_quickly</c>). 10 s, lo mismo que el vigilante del
+    /// editor tolera un módulo sin señal de vida (<c>ModuleManagerOptions.PingTimeout</c>) y la cota de las pruebas de
+    /// cancelación de los módulos en la CI. Un módulo de verdad colgado sigue muriendo, solo que a los 10 s.
+    /// </summary>
+    public static readonly TimeSpan DefaultCancelGrace = TimeSpan.FromSeconds(10);
+
+    /// <summary>
+    /// Lo que se espera a que el módulo confirme una cancelación antes de darlo por colgado y cortar. Por omisión
+    /// <see cref="DefaultCancelGrace"/>; las pruebas que ejercen el corte lo bajan a propósito.
+    /// </summary>
+    public TimeSpan CancelGrace { get; init; } = DefaultCancelGrace;
 
     /// <summary>
     /// Lo que puede tardar en salir un mensaje hacia el módulo una vez que le toca escribir. Si el módulo deja de leer
@@ -132,7 +148,8 @@ public sealed class ModuleClient : IAsyncDisposable
 
     /// <summary>
     /// Ejecuta <paramref name="function"/>. Si se cancela, avisa al módulo y espera su confirmación hasta
-    /// <see cref="ModuleClientOptions.CancelGrace"/>; si no llega, corta la conexión (el módulo se da por colgado).
+    /// <see cref="ModuleClientOptions.CancelGrace"/> (10 s por omisión, <see cref="ModuleClientOptions.DefaultCancelGrace"/>);
+    /// si no llega, corta la conexión (el módulo se da por colgado).
     /// </summary>
     /// <exception cref="OperationCanceledException">Cancelada.</exception>
     /// <exception cref="ModuleCallException">La función falló; la conexión sigue.</exception>
