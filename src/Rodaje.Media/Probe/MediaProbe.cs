@@ -78,6 +78,20 @@ public static unsafe class MediaProbe
 
     internal static MediaInfo Probe(AVFormatContext* format, string path, bool scanTimestamps)
     {
+        try
+        {
+            return ProbeStreams(format, path, scanTimestamps);
+        }
+        catch (ArithmeticException ex)
+        {
+            // Un contenedor dañado puede declarar duraciones, inicios o cuadros que no caben en Time: las cuentas comprobadas
+            // lanzaban OverflowException, que quien lee solo espera como MediaException (no se entendía o cerraba la app).
+            throw new MediaException($"El archivo {path} declara una duración o unas marcas de tiempo imposibles; puede estar dañado.", ex);
+        }
+    }
+
+    private static MediaInfo ProbeStreams(AVFormatContext* format, string path, bool scanTimestamps)
+    {
         int videoIndex = ffmpeg.av_find_best_stream(format, AVMediaType.AVMEDIA_TYPE_VIDEO, -1, -1, null, 0);
         int audioIndex = ffmpeg.av_find_best_stream(format, AVMediaType.AVMEDIA_TYPE_AUDIO, -1, -1, null, 0);
         if (videoIndex >= 0 && (format->streams[videoIndex]->disposition & ffmpeg.AV_DISPOSITION_ATTACHED_PIC) != 0)
@@ -129,6 +143,16 @@ public static unsafe class MediaProbe
         };
     }
 
+    /// <summary>
+    /// Los cuadros que declara el contenedor, sin pasar de los que caben en <see cref="Time"/> a esa tasa: un archivo dañado
+    /// puede declarar billones y <see cref="Time.FromFrames"/> lanzaba <see cref="OverflowException"/>.
+    /// </summary>
+    internal static long SafeFrameCount(long frames, Rational rate)
+    {
+        Int128 max = (Int128)long.MaxValue * rate.Num / ((Int128)Time.TicksPerSecond * rate.Den) - 1;
+        return frames <= 0 ? frames : (long)Int128.Min(frames, Int128.Max(max, 0));
+    }
+
     private static Time StreamStart(AVStream* stream, Time containerStart) =>
         stream->start_time == ffmpeg.AV_NOPTS_VALUE ? containerStart : Av.ToTime(stream->start_time, stream->time_base);
 
@@ -163,9 +187,9 @@ public static unsafe class MediaProbe
         Rational rate = ResolveFrameRate(average, real, measured, vfr) ?? Rational.Fps30;
         Time start = StreamStart(stream, containerStart);
         Time? streamDuration = StreamDuration(stream, start, containerStart, containerDuration);
-        long frameCount = stream->nb_frames > 0
+        long frameCount = SafeFrameCount(stream->nb_frames > 0
             ? stream->nb_frames
-            : streamDuration is { } sd ? Math.Max(1, (long)Av.RoundDiv((Int128)sd.Ticks * rate.Num, (Int128)Time.TicksPerSecond * rate.Den)) : 0;
+            : streamDuration is { } sd ? Math.Max(1, (long)Av.RoundDiv((Int128)sd.Ticks * rate.Num, (Int128)Time.TicksPerSecond * rate.Den)) : 0, rate);
         Time duration = vfr && streamDuration is { } vd ? vd : Time.FromFrames(frameCount, rate);
 
         Rational sar = ToRational(par->sample_aspect_ratio) ?? ToRational(stream->sample_aspect_ratio) ?? new Rational(1, 1);
