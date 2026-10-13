@@ -31,6 +31,13 @@ public sealed record LibraryElement(string Name, string Description, string Sour
 
     /// <summary>Es algo del motor (un tipo del registro) y no de un paquete.</summary>
     public bool IsBuiltIn => Origin is null;
+
+    /// <summary>La referencia con el id antiguo de un elemento propio de la v1.0.0 (<see cref="PackageItem.LegacyId"/>).</summary>
+    public string? LegacyReference { get; init; }
+
+    /// <summary>Es el elemento de <paramref name="reference"/>, por su id actual o por el antiguo.</summary>
+    public bool IsReferredBy(string? reference) =>
+        reference is not null && (Reference == reference || LegacyReference == reference);
 }
 
 /// <summary>Qué muestra cada categoría: lo que trae el motor y lo que aportan los paquetes.</summary>
@@ -106,7 +113,10 @@ public static class LibraryElements
                 }
 
                 string source = entry.Package.Origin == PackageOrigin.Own ? "Mío" : entry.Package.Manifest.Name;
-                elements.Add(new LibraryElement(entry.Item.Name, entry.Item.Description ?? "", source, entry.Reference.ToString(), true, entry.Package.Origin, kind));
+                elements.Add(new LibraryElement(entry.Item.Name, entry.Item.Description ?? "", source, entry.Reference.ToString(), true, entry.Package.Origin, kind)
+                {
+                    LegacyReference = entry.LegacyReference?.ToString(),
+                });
             }
         }
 
@@ -133,9 +143,11 @@ public static class LibraryElements
             {
                 foreach (string value in effect.Options.Values)
                 {
-                    if (PackageReference.TryParse(value, out PackageReference? reference) && reference.PackageId == entry.Package.Id)
+                    // Por el id actual de la LUT: un filtro propio de la v1.0.0 puede nombrarla por el antiguo.
+                    if (PackageReference.TryParse(value, out PackageReference? reference) && reference.PackageId == entry.Package.Id
+                        && entry.Package.Manifest.FindItem(reference.ItemId, ItemKind.Lut) is { } lut)
                     {
-                        used.Add((reference.PackageId, reference.ItemId));
+                        used.Add((reference.PackageId, lut.Id));
                     }
                 }
             }

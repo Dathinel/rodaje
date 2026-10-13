@@ -17,6 +17,9 @@ public enum SafeZoneOrigin
 public sealed record SafeZoneChoice(string Reference, SafeZonePreset Preset, SafeZoneOrigin Origin)
 {
     public string Name => Preset.Name;
+
+    /// <summary>La referencia con el id antiguo de un juego propio de la v1.0.0 (<see cref="PackageItem.LegacyId"/>), que también lo elige.</summary>
+    public string? LegacyReference { get; init; }
 }
 
 /// <summary>
@@ -57,7 +60,10 @@ public static class SafeZoneCatalog
                 using FileStream stream = File.OpenRead(entry.FilePath ?? throw new FileNotFoundException(entry.Item.Name));
                 SafeZonePreset preset = ContentReaders.ReadSafeZones(stream) with { Name = entry.Item.Name };
                 all.Add(new SafeZoneChoice(entry.Reference.ToString(), preset,
-                    entry.Package.Origin == PackageOrigin.Own ? SafeZoneOrigin.Own : SafeZoneOrigin.Package));
+                    entry.Package.Origin == PackageOrigin.Own ? SafeZoneOrigin.Own : SafeZoneOrigin.Package)
+                {
+                    LegacyReference = entry.LegacyReference?.ToString(),
+                });
             }
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PackageContentException)
             {
@@ -73,6 +79,7 @@ public static class SafeZoneCatalog
     {
         ArgumentNullException.ThrowIfNull(all);
         return all.FirstOrDefault(c => c.Reference == reference)
+            ?? (reference is null ? null : all.FirstOrDefault(c => c.LegacyReference == reference))
             ?? all.FirstOrDefault(c => c.Reference == Classic)
             ?? BuiltIn[0];
     }
