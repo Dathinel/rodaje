@@ -237,8 +237,10 @@ public sealed class CrashReporter
     /// Firma de un error para agrupar las repeticiones: la primera línea (tipo y mensaje) con cada palabra que lleva una
     /// cifra cambiada por «#» (números de cuadro, tiempos, identificadores) y la primera línea de la pila («at …»), si la
     /// hay. Dos errores con la misma pila y mensajes distintos no son repeticiones: cada uno deja su informe y su aviso.
-    /// Los códigos de error no se cambian: ni los «0x…» (un HRESULT) ni la palabra que sigue a «código», «code» (también
-    /// «exit code») o «HRESULT»; <c>COMException (0x887A0005)</c> y <c>(0x80070057)</c> son errores distintos.
+    /// Los códigos de error no se cambian: ni los «0x…» de hasta 8 cifras (un HRESULT, un NTSTATUS) ni la palabra que sigue
+    /// a «código», «code» (también «exit code») o «HRESULT» con hasta 10 cifras; <c>COMException (0x887A0005)</c> y
+    /// <c>(0x80070057)</c> son errores distintos. Los más largos (una dirección o un handle de 64 bits, que cambia en cada
+    /// repetición) sí se cambian por «#».
     /// </summary>
     public static string Signature(string? details)
     {
@@ -272,7 +274,7 @@ public sealed class CrashReporter
             }
 
             ReadOnlySpan<char> word = line.AsSpan(start, i - start);
-            if (digit && !afterCodeLabel && !IsHexCode(word))
+            if (digit && !IsErrorCode(word, afterCodeLabel))
             {
                 text.Append('#');
             }
@@ -288,11 +290,30 @@ public sealed class CrashReporter
 
         static bool IsWordChar(char c) => char.IsLetterOrDigit(c) || c is '_' or '-';
 
-        // «0x887A0005», «-0x7FF8FFA9».
-        static bool IsHexCode(ReadOnlySpan<char> word)
+        // «0x887A0005», «-0x7FF8FFA9» y, tras «código», «-2147024809» o «137»: un código de 32 bits como mucho. Un puntero
+        // («0x000001F2A3B4C5D6») no es un código: cambia en cada repetición y daría una firma nueva cada vez.
+        static bool IsErrorCode(ReadOnlySpan<char> word, bool afterCodeLabel)
         {
             word = word.TrimStart('-');
-            return word.Length > 2 && word[0] == '0' && word[1] is 'x' or 'X';
+            if (word.Length > 2 && word[0] == '0' && word[1] is 'x' or 'X')
+            {
+                return word.Length - 2 <= 8;
+            }
+
+            return afterCodeLabel && (!IsAllDigits(word) || word.Length <= 10);
+        }
+
+        static bool IsAllDigits(ReadOnlySpan<char> word)
+        {
+            foreach (char c in word)
+            {
+                if (!char.IsAsciiDigit(c))
+                {
+                    return false;
+                }
+            }
+
+            return true;
         }
 
         static bool IsCodeLabel(ReadOnlySpan<char> word) =>
