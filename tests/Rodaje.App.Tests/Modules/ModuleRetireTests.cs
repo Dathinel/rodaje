@@ -330,7 +330,12 @@ public sealed class ModuleRetireTests : IDisposable
         Assert.False(await CloseIfIdle(connection), "CloseIfIdleAsync dijo que cerró un proceso que no había.");
     }
 
-    /// <summary>Con una llamada en curso no cierra nada (<c>false</c>) y el proceso sigue abierto.</summary>
+    /// <summary>
+    /// Con una llamada en curso no cierra nada (<c>false</c>) y el proceso sigue abierto. Fija el contrato de la guarda
+    /// <c>_active &gt; 0</c>, que ya estaba antes de #169: no detecta la reversión de ese arreglo (para eso,
+    /// <see cref="CloseIfIdle_da_false_mientras_el_proceso_muerto_se_retira"/> y
+    /// <see cref="ReserveVram_espera_en_vez_de_girar_mientras_el_proceso_muerto_se_retira"/>).
+    /// </summary>
     [Fact]
     public async Task CloseIfIdle_da_false_con_una_llamada_en_curso()
     {
@@ -350,6 +355,68 @@ public sealed class ModuleRetireTests : IDisposable
 
         finish.SetResult(0);
         await call;
+    }
+
+    /// <summary>
+    /// Otro módulo pesado espera VRAM mientras el muerto de «vision» se retira (la costura <c>KillProcess</c> bloqueada):
+    /// no hay proceso que cerrar, <c>CloseIfIdleAsync</c> da <c>false</c> y ReserveVramAsync espera <c>Budget.Changed</c>
+    /// o la pausa de reintento (100 ms) antes de la vuelta siguiente. Con el contrato de antes de #169 (<c>true</c> aunque
+    /// no cerrara nada) giraba sin pausa y en línea. Cada vuelta avisa una vez en <c>Jobs.Changed</c> (SetWaiting; sin
+    /// contexto, en el mismo hilo), así que ahí se cuentan. La cota sale del tiempo que de verdad pasó: una máquina lenta
+    /// solo la agranda; la pausa de medio segundo solo le da tiempo a girar al fallo.
+    /// </summary>
+    [Fact]
+    public async Task ReserveVram_espera_en_vez_de_girar_mientras_el_proceso_muerto_se_retira()
+    {
+        using EchoModules gpu = new EchoModules().Add("vision", vramMb: 1500).Add("voz-gpu", vramMb: 1200);
+        await using ModuleManager manager = gpu.Manager(new ModuleManagerOptions
+        {
+            IdleTimeout = Timeout.InfiniteTimeSpan,
+            DedicatedVideoMemory = () => 4L << 30,
+        });
+        await manager.InvokeAsync("vision", "eco", null, "Abrir");
+        object connection = Connection(manager, "vision");
+        int callerThread = Environment.CurrentManagedThreadId;
+        using var release = new ManualResetEventSlim();
+        SetProperty(connection, "KillProcess", (Action<ModuleProcess>)(p =>
+        {
+            // Un árbol lento de matar. En el hilo del llamador no se espera: la prueba se colgaría en vez de fallar.
+            if (Environment.CurrentManagedThreadId != callerThread)
+            {
+                release.Wait();
+            }
+
+            p.Kill();
+        }));
+
+        Task<ModuleResult> call;
+        try
+        {
+            Invoke(connection, "OnExited", GetField(connection, "_process") ?? throw new InvalidOperationException("Sin proceso."));
+            Assert.Equal(["vision"], manager.Budget.Resident);
+            int notices = 0;
+            manager.Jobs.Changed += (_, _) => Interlocked.Increment(ref notices);
+            Stopwatch watch = Stopwatch.StartNew();
+            // En otro hilo: con el contrato de antes las vueltas son síncronas y la llamada no devolvería el control.
+            call = Task.Run(() => manager.InvokeAsync("voz-gpu", "eco", null, "Eco"));
+            await WaitUntil(() => manager.Jobs.Jobs.Any(j => j.Title == "Eco" && j.Stage == "Esperando memoria de video"));
+            await Task.Delay(500);
+            int seen = Volatile.Read(ref notices);
+            long elapsed = watch.ElapsedMilliseconds;
+
+            // Una vuelta cada 100 ms como mucho, más el alta del trabajo: el doble de margen por la resolución del reloj.
+            Assert.True(seen <= (elapsed / 50) + 5, $"ReserveVramAsync dio {seen} vueltas en {elapsed} ms: reintenta en vacío.");
+            Assert.Equal(["vision"], manager.Budget.Resident);
+        }
+        finally
+        {
+            release.Set();
+        }
+
+        // Al terminar de morir, el aviso de cierre suelta la VRAM de «vision» y la llamada que esperaba entra.
+        await Retired(connection);
+        await call.WaitAsync(TimeSpan.FromSeconds(60));
+        Assert.Equal(["voz-gpu"], manager.Budget.Resident);
     }
 
     private static Task<bool> CloseIfIdle(object connection) =>

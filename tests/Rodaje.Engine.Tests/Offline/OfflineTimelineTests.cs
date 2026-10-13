@@ -454,24 +454,6 @@ public sealed class OfflineTimelineTests(ITestOutputHelper output)
         Assert.Equal(new ResourceKey(OfflineProjects.Lut), frame.Layers.Single(l => l.ClipId == "ntsc").Effects[0].Resource);
     }
 
-    /// <summary>El aviso de carga llega entre la primera pregunta y la suscripción a <c>Changed</c>: nadie lo oye, y aun así no se pierde.</summary>
-    [Fact]
-    public void A_load_notice_that_arrives_before_the_wait_subscribes_is_not_lost()
-    {
-        var backend = new FakeTimelineBackend();
-        var content = new FakeEffectContent();
-        TimelineBuilder b = OfflineProjects.Full(Rational.Fps30, backend, content);
-        content.ReadyLuts.Clear();
-        using OfflineTimeline offline = OfflineProjects.Open(b, backend, new OfflineTimelineOptions { Content = content, ContentTimeout = AntiHang });
-        content.LutNotReady = key =>
-        {
-            content.LutNotReady = null;
-            content.FinishLoading(key.Reference!);
-        };
-
-        Assert.Empty(offline.Prepare(Time.Zero, offline.Duration, CancellationToken.None));
-    }
-
     /// <summary>
     /// Un aviso que ya tomó la lista de manejadores puede llegar cuando la espera terminó y se desuscribió: no puede
     /// tirar al hilo que carga (en un hilo del pool o de un <see cref="Timer"/>, la excepción cierra el proceso).

@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using Rodaje.Engine.Offline;
+using Rodaje.Engine.Tests.Support;
 using Rodaje.Engine.Timeline;
 using Rodaje.Playback.Composition;
 
@@ -33,6 +34,76 @@ public sealed class OfflineContentTests
 
         Assert.False(OfflineContent.WaitForLut(content, Look, Generous, CancellationToken.None));
         Assert.Equal(1, content.Loads);
+    }
+
+    /// <summary>
+    /// Un aviso de carga que llega en el hueco antes de esperar <c>Changed</c> no se pierde: 1, entre la primera pregunta y
+    /// la suscripción (lo recoge la comprobación del bucle, ya suscrito); 2, entre la comprobación del bucle y el
+    /// <c>Wait</c> (lo guarda el semáforo). La espera sondea cada 50 ms y vuelve a mirar al acabar el tope, así que un
+    /// aviso perdido no da <c>false</c>: solo deja el hilo bloqueado hasta el sondeo. Por eso otro hilo vigila si el que
+    /// espera pasa por <see cref="ThreadState.WaitSleepJoin"/> mientras dura el hueco (desde el aviso hasta la pregunta
+    /// siguiente). En el caso correcto no se bloquea nunca, sin depender de tiempos; el vigilante solo hace falta para ver
+    /// el fallo (si no llegara a verlo, el fallo pasaría, nunca al revés).
+    /// </summary>
+    [Theory]
+    [InlineData(1)]
+    [InlineData(2)]
+    public void Un_aviso_de_carga_en_el_hueco_antes_de_la_espera_no_se_pierde(int noticeAt)
+    {
+        var content = new FakeEffectContent();
+        Thread waiter = Thread.CurrentThread;
+        int notReady = 0;
+        int phase = 0; // 0: antes del aviso; 1: en el hueco; 2: después.
+        bool blocked = false;
+        using var watching = new ManualResetEventSlim();
+        var watcher = new Thread(() =>
+        {
+            watching.Set();
+            while (Volatile.Read(ref phase) < 2)
+            {
+                // Las dos lecturas de la fase rodean la del estado: así se vio dentro del hueco y no después.
+                if (Volatile.Read(ref phase) == 1 && (waiter.ThreadState & ThreadState.WaitSleepJoin) != 0 && Volatile.Read(ref phase) == 1)
+                {
+                    Volatile.Write(ref blocked, true);
+                }
+            }
+        })
+        {
+            IsBackground = true,
+            Name = "Vigilante del hueco",
+        };
+        watcher.Start();
+        Assert.True(watching.Wait(Generous));
+        content.LutAsked = _ =>
+        {
+            if (Volatile.Read(ref phase) == 1)
+            {
+                Volatile.Write(ref phase, 2);
+            }
+        };
+        content.LutNotReady = key =>
+        {
+            if (++notReady == noticeAt)
+            {
+                content.FinishLoading(key.Reference!);
+                Volatile.Write(ref phase, 1);
+            }
+        };
+
+        bool loaded;
+        try
+        {
+            loaded = OfflineContent.WaitForLut(content, Look, Generous, CancellationToken.None);
+        }
+        finally
+        {
+            Volatile.Write(ref phase, 2);
+        }
+
+        Assert.True(watcher.Join(Generous));
+        Assert.True(loaded);
+        Assert.False(Volatile.Read(ref blocked), "La espera se bloqueó con el aviso de carga ya dado: lo perdió y la sacó el sondeo.");
+        Assert.Equal(noticeAt + 1, content.LutRequests);
     }
 
     /// <summary>
