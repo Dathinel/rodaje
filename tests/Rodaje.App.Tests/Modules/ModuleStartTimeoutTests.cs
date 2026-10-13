@@ -33,7 +33,10 @@ public sealed class ModuleStartTimeoutTests : IDisposable
 
     /// <summary>
     /// 30 s, no menos que el saludo del protocolo (también 30 s desde la tarea 205): en Windows el primer arranque de un exe
-    /// recién copiado pasa por el antivirus y por el arranque de .NET, y con el equipo cargado 10 s no alcanzaban.
+    /// recién copiado pasa por el antivirus y por el arranque de .NET, y con el equipo cargado 10 s no alcanzaban. La
+    /// comparación es «no menos», no «más»: <c>ModuleConnection</c> sustituye el plazo del saludo del cliente por
+    /// <see cref="ModuleManagerOptions.StartTimeout"/>, así que en la app los dos plazos son el mismo y la igualdad no
+    /// acorta nada; solo fallaría que el tope de arranque quedara por debajo de lo que el módulo espera el <c>hello</c>.
     /// </summary>
     [Fact]
     public void El_tope_de_arranque_de_fabrica_es_de_30_s_y_supera_el_saludo_del_protocolo()
@@ -41,6 +44,7 @@ public sealed class ModuleStartTimeoutTests : IDisposable
         var options = new ModuleManagerOptions();
         Assert.Equal(TimeSpan.FromSeconds(30), options.StartTimeout);
         Assert.True(options.StartTimeout >= options.ClientOptions.HandshakeTimeout);
+        Assert.True(options.StartTimeout >= ModuleClientOptions.DefaultHandshakeTimeout);
     }
 
     /// <summary>
