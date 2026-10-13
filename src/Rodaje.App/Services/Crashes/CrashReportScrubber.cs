@@ -102,14 +102,66 @@ public sealed class CrashReportScrubber
     /// <summary>Tiempo máximo de una llamada a <see cref="Scrub"/>; las líneas que quedan después se tapan.</summary>
     public TimeSpan Budget { get; init; } = TimeSpan.FromSeconds(2);
 
-    /// <summary>Con las carpetas de las variables de entorno de este proceso, el usuario y el equipo.</summary>
-    public static CrashReportScrubber FromEnvironment()
+    /// <summary>
+    /// Con las carpetas de las variables de entorno de este proceso, el usuario y el equipo. <c>%TEMP%</c> se reconoce
+    /// también por <see cref="Path.GetTempPath"/> y, en los dos casos, en su forma 8.3 (<c>C:\Users\ANAPR~1\…</c>) y en
+    /// su nombre largo (<c>C:\Users\Ana Pérez\…</c>): una ruta escrita en la otra forma dejaba a la vista sus carpetas
+    /// (<c>%LOCALAPPDATA%\Temp\Boda Pérez\…</c>; #263).
+    /// </summary>
+    public static CrashReportScrubber FromEnvironment() =>
+        FromEnvironment(Environment.GetEnvironmentVariable, Path.GetTempPath, CrashLongPathName.Expand);
+
+    /// <summary>
+    /// Como <see cref="FromEnvironment()"/>, con las costuras de las pruebas: <paramref name="variable"/> lee una
+    /// variable de entorno, <paramref name="tempPath"/> da la carpeta temporal y <paramref name="longPath"/> expande una
+    /// ruta 8.3 a su nombre largo (devuelve la entrada, o <c>null</c>, si no puede).
+    /// </summary>
+    internal static CrashReportScrubber FromEnvironment(
+        Func<string, string?> variable, Func<string> tempPath, Func<string, string?> longPath)
     {
         string[] names = ["LOCALAPPDATA", "APPDATA", "TEMP", "TMP", "USERPROFILE"];
-        return new CrashReportScrubber(
-            names.Select(n => new KeyValuePair<string, string?>(n == "TMP" ? "%TEMP%" : "%" + n + "%", Environment.GetEnvironmentVariable(n))),
-            Safe(() => Environment.UserName),
-            Safe(() => Environment.MachineName));
+        var folders = new List<KeyValuePair<string, string?>>();
+        foreach (string name in names)
+        {
+            string token = name == "TMP" ? "%TEMP%" : "%" + name + "%";
+            string? value = variable(name);
+            folders.Add(new(token, value));
+            if (token == "%TEMP%")
+            {
+                AddLongForm(folders, token, value, longPath);
+            }
+        }
+
+        string? temp = Safe(tempPath);
+        folders.Add(new("%TEMP%", temp));
+        AddLongForm(folders, "%TEMP%", temp, longPath);
+        return new CrashReportScrubber(folders, Safe(() => Environment.UserName), Safe(() => Environment.MachineName));
+    }
+
+    // La forma larga de una carpeta, si es distinta de la que vino. Nunca lanza: sin forma larga queda la que hay.
+    private static void AddLongForm(List<KeyValuePair<string, string?>> folders, string token, string? folder, Func<string, string?> longPath)
+    {
+        if (string.IsNullOrWhiteSpace(folder))
+        {
+            return;
+        }
+
+        string? expanded;
+        try
+        {
+            expanded = longPath(folder.Trim());
+        }
+#pragma warning disable CA1031 // El limpiador no puede fallar por no saber expandir una ruta.
+        catch (Exception)
+#pragma warning restore CA1031
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(expanded) && !string.Equals(expanded, folder, StringComparison.OrdinalIgnoreCase))
+        {
+            folders.Add(new(token, expanded));
+        }
     }
 
     /// <summary>El texto sin rutas personales ni nombres del usuario o del equipo.</summary>
@@ -699,7 +751,13 @@ public sealed class CrashReportScrubber
 
     private static string[]? FolderComponents(string? folder)
     {
+        // «Path.GetTempPath()» termina en barra: sin ella, la carpeta es la misma.
         string text = (folder ?? string.Empty).Trim();
+        if (text.Length > 3)
+        {
+            text = text.TrimEnd('\\', '/');
+        }
+
         long work = 0;
         if (text.Length < 3 || !TryParsePath(text, 0, out ParsedPath path, ref work) || path.Kind == RootKind.Variable
             || path.TailEnd != text.Length || path.Components.Count < 2)
