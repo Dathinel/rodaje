@@ -17,10 +17,10 @@ internal static class Stress
     /// <summary>Cuántas veces más iteraciones con <c>RODAJE_PRUEBAS_LARGAS=1</c>.</summary>
     public const int LongFactor = 20;
 
-    /// <summary>Tope de cada corrida: lo que tarde de más es un interbloqueo (o un hilo colgado).</summary>
-    public static readonly TimeSpan Deadline = TimeSpan.FromSeconds(60);
-
     public static bool Long => Environment.GetEnvironmentVariable(Skip.LongVariable) == "1";
+
+    /// <summary>Tope de cada corrida: lo que tarde de más es un interbloqueo (o un hilo colgado).</summary>
+    public static TimeSpan Deadline => TimeSpan.FromSeconds(Long ? 600 : 60);
 
     /// <summary>Las iteraciones de la CI, multiplicadas por <see cref="LongFactor"/> con las pruebas largas.</summary>
     public static int Iterations(int ci) => Long ? ci * LongFactor : ci;
