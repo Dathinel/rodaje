@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Runtime.CompilerServices;
 using Rodaje.Media.Export;
 
 namespace Rodaje.Media.Tests.Export;
@@ -10,12 +11,19 @@ namespace Rodaje.Media.Tests.Export;
 /// </summary>
 /// <remarks>
 /// Con el ffmpeg falso, así que corre también en Linux. Sin reloj: <see cref="FfmpegPipeSink.KillOverride"/> se queda
-/// parado en el primer intento hasta que la prueba lo suelta, así que el Start ocurre siempre dentro del hueco.
+/// parado en el primer intento hasta que la prueba lo suelta, así que el Start ocurre siempre dentro del hueco; y al
+/// soltarlo mata y espera a que el falso salga sin un tope que decida el camino (<see cref="KillAndWait"/>).
 /// </remarks>
 public sealed class FfmpegPipeSinkAbortOwnerTests
 {
     // El falso copia en la salida lo que llega por la tubería: los cuadros enteros, sin el relleno del pitch.
     private const long FrameBytes = 320 * 180 * 3 / 2;
+
+    /// <summary>
+    /// Solo corte de cuelgue: un falso que no sale en este tiempo es un fallo propio, con su mensaje. El falso colgado
+    /// sale solo a los dos minutos, así que no se llega aquí sin un defecto.
+    /// </summary>
+    private static readonly TimeSpan HangCut = TimeSpan.FromMinutes(3);
 
     [Fact]
     public void Start_to_the_same_output_while_abort_is_still_killing_does_not_lose_its_temporaries()
@@ -25,13 +33,13 @@ public sealed class FfmpegPipeSinkAbortOwnerTests
         ExportSinkRequest request = Request(scratch, "abortada en curso.mkv", FakeFfmpeg.Hang);
         using var killEntered = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
+        var hung = new StrongBox<bool>();
         using FfmpegPipeSink aborted = FakeFfmpeg.Sink(new FfmpegPipeSinkOptions { Journal = journal });
         aborted.KillOverride = process =>
         {
             killEntered.Set();
             release.Wait();
-            process.Kill();
-            return HasExitedWithin(process, TimeSpan.FromSeconds(10));
+            return KillAndWait(process, hung);
         };
         aborted.Start(request, CancellationToken.None);
         int? processId = aborted.ProcessId;
@@ -55,7 +63,8 @@ public sealed class FfmpegPipeSinkAbortOwnerTests
             Assert.False(release.IsSet);
 
             release.Set();
-            Assert.True(abortThread.Join(TimeSpan.FromSeconds(30)), "Abort no volvió tras soltar el kill.");
+            Assert.True(abortThread.Join(HangCut + TimeSpan.FromSeconds(30)), "Abort no volvió tras soltar el kill.");
+            Assert.False(hung.Value, $"El ffmpeg falso ({processId}) no salió {HangCut.TotalMinutes:0} min después de matarlo.");
             Assert.Null(abortError);
             Assert.Null(aborted.PendingCleanup);
             Assert.False(SinkRuns.IsAlive(processId), $"El ffmpeg falso ({processId}) sigue vivo.");
@@ -80,7 +89,7 @@ public sealed class FfmpegPipeSinkAbortOwnerTests
             KillIfAlive(fake);
             if ((abortThread.ThreadState & System.Threading.ThreadState.Unstarted) == 0)
             {
-                abortThread.Join(TimeSpan.FromSeconds(30));
+                abortThread.Join(HangCut + TimeSpan.FromSeconds(30));
             }
         }
     }
@@ -91,12 +100,17 @@ public sealed class FfmpegPipeSinkAbortOwnerTests
         using var scratch = new ExportScratch();
         ExportSinkRequest request = Request(scratch, "abortada a tiempo.mkv", FakeFfmpeg.Hang);
         using FfmpegPipeSink aborted = FakeFfmpeg.Sink();
+        // El kill de verdad espera 600 + 300 ms y deja la limpieza pendiente si el proceso no salió: en un runner
+        // cargado eso decidía cuál de los dos caminos se probaba. Aquí se prueba el de «salió dentro del Abort».
+        var hung = new StrongBox<bool>();
+        aborted.KillOverride = process => KillAndWait(process, hung);
         aborted.Start(request, CancellationToken.None);
         int? processId = aborted.ProcessId;
         WriteSome(aborted, request, 6);
 
         aborted.Abort();
 
+        Assert.False(hung.Value, $"El ffmpeg falso ({processId}) no salió {HangCut.TotalMinutes:0} min después de matarlo.");
         // El Abort que mata a tiempo suelta sus rutas al volver: no deja nada que haga esperar al siguiente Start.
         Assert.Null(aborted.PendingCleanup);
         Assert.False(SinkRuns.IsAlive(processId), $"El ffmpeg falso ({processId}) sigue vivo.");
@@ -106,6 +120,36 @@ public sealed class FfmpegPipeSinkAbortOwnerTests
         ExportSinkResult result = aborted.Complete(CancellationToken.None);
         Assert.Equal(again.FrameCount * FrameBytes, new FileInfo(result.OutputPath).Length);
         Assert.Equal([result.OutputPath], scratch.Leftovers());
+    }
+
+    // Mata como Kill del sink (primero a High) y espera a que el falso salga, con HangCut solo como corte de cuelgue.
+    // Antes esperaba con un tope de 10 s y sin subir la prioridad: el falso corre en BelowNormal (la del sink por omisión)
+    // y Windows lo termina recién cuando cada uno de sus hilos tiene turno, así que con el runner saturado pasaban los 10 s,
+    // el kill «no salía», Abort dejaba la limpieza pendiente y la prueba fallaba en PendingCleanup («Task { Status =
+    // Running }», CI de Windows, 13-oct, 11 s). El tope decidía el resultado; ahora solo corta un cuelgue de verdad.
+    private static bool KillAndWait(Process process, StrongBox<bool> hung)
+    {
+        try
+        {
+            process.PriorityClass = ProcessPriorityClass.High;
+        }
+        catch (InvalidOperationException)
+        {
+            // Ya salió.
+        }
+        catch (System.ComponentModel.Win32Exception)
+        {
+            // Está saliendo.
+        }
+
+        process.Kill();
+        if (HasExitedWithin(process, HangCut))
+        {
+            return true;
+        }
+
+        hung.Value = true;
+        return false;
     }
 
     // Solo el proceso, no sus tuberías: WaitForExit con tope espera además el fin de la salida redirigida, y en Windows
