@@ -267,7 +267,7 @@ El editor manda `cancel` con el `id` de la llamada. El módulo deja de trabajar 
   577 ms módulo → editor  {"type":"result","id":2,"value":1}
 ```
 
-- **Plazo de gracia:** el editor espera la confirmación hasta `ModuleClientOptions.CancelGrace`, **2 s** por defecto (`ModuleClient.InvokeAsync`). Si no llega, da el módulo por colgado: corta la conexión, falla todas las llamadas en curso con `ModuleDisconnectedException` («El módulo no confirmó la cancelación en 2 s.») y `ModuleProcess` mata el proceso con todo su árbol (prueba `A_module_that_ignores_cancel_is_killed_after_the_grace_period`). Las llamadas fallan antes de que termine de matarlo: la muerte corre en el pool, fuera de la ruta que corta la conexión, porque con la CPU llena puede tardar segundos (`FailPathTests`). Una función que no puede detenerse a tiempo debería declararse `cancellable: false`; el editor todavía no usa ese dato: el `ModuleManager` deja cancelar cualquier trabajo desde Trabajos.
+- **Plazo de gracia:** el editor espera la confirmación hasta `ModuleClientOptions.CancelGrace`, **10 s** por defecto (`ModuleClientOptions.DefaultCancelGrace`, desde #219; `ModuleClient.InvokeAsync`). Antes eran 2 s: con la CPU llena, un paso que no se interrumpe (una etapa del revelado RAW, una inferencia de ONNX Runtime) pasaba de ese plazo y el editor mataba un módulo sano. Si no llega, da el módulo por colgado: corta la conexión, falla todas las llamadas en curso con `ModuleDisconnectedException` («El módulo no confirmó la cancelación en 10 s.») y `ModuleProcess` mata el proceso con todo su árbol (prueba `A_module_that_ignores_cancel_is_killed_after_the_grace_period`). Las llamadas fallan antes de que termine de matarlo: la muerte corre en el pool, fuera de la ruta que corta la conexión, porque con la CPU llena puede tardar segundos (`FailPathTests`). Una función que no puede detenerse a tiempo debería declararse `cancellable: false`; el editor todavía no usa ese dato: el `ModuleManager` deja cancelar cualquier trabajo desde Trabajos.
 - Si en el plazo llega un `result` en vez de la confirmación, el `ModuleClient` devuelve ese resultado; si llega cualquier `error`, la llamada termina como cancelada (`OperationCanceledException`).
 - Un `cancel` de una llamada que ya terminó o que no existe se ignora (`ModuleHost.RunAsync`).
 - En el anfitrión de C#, `cancel` cancela el `CancellationToken` que recibe la función. Si la función lanza `OperationCanceledException` con ese token cancelado, el anfitrión manda el `error` `cancelled`; si termina antes, manda su `result`. Una `OperationCanceledException` sin que se haya pedido cancelar cuenta como error `internal`.
@@ -414,7 +414,7 @@ Plazos y cantidades del lado del editor y del anfitrión de C#:
 | Contestar el saludo con `welcome` (editor) | 30 s (`HandshakeTimeout`) | `ModuleClient.cs` |
 | Conectarse a la tubería (anfitrión) | 10 s | `ModuleHost.cs` |
 | Recibir `hello` (anfitrión) | 30 s (`HandshakeTimeout`) | `ModuleHost.cs` |
-| Confirmar un `cancel` | 2 s (`CancelGrace`) | `ModuleClient.cs` |
+| Confirmar un `cancel` | 10 s (`CancelGrace`; `DefaultCancelGrace`, desde #219) | `ModuleClient.cs` |
 | Escribir un mensaje hacia el módulo, una vez que le toca (editor) | 10 s (`WriteTimeout`); después se corta la conexión | `ModuleClient.cs` |
 | Llamadas a la vez en el anfitrión de C# | 4 (`MaxConcurrentCalls`); después, `busy` | `ModuleHost.cs` |
 | Avance | uno cada 50 ms por llamada como mucho | `ModuleHost.cs` (`ModuleCall`) |
@@ -646,7 +646,7 @@ Lo mínimo que tiene que hacer cualquier módulo:
 1. Leer el nombre de la tubería después de `--rodaje-pipe` y conectarse en menos de 10 s.
 2. Esperar `hello`, elegir versión y contestar `welcome` (o `error` `version-incompatible`) en menos de 30 s.
 3. Contestar cada `invoke` con un `result` o un `error` con su `id`, y cada `ping` con su `pong`.
-4. Confirmar cada `cancel` con `error` `cancelled` en menos de 2 s (o declarar la función `cancellable: false` y terminar rápido).
+4. Confirmar cada `cancel` con `error` `cancelled` en menos de 10 s (`DefaultCancelGrace`; cuanto antes, mejor), o declarar la función `cancellable: false` y terminar rápido.
 5. Salir al recibir `shutdown` o cuando se cierra la tubería, en menos de 2 s.
 6. No escribir el protocolo por la salida estándar (se descarta) y dejar los mensajes de diagnóstico en la de errores.
 

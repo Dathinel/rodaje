@@ -48,13 +48,13 @@ internal sealed class FaceDetector(VisionModels models)
     private static readonly int[] Strides = [8, 16, 32];
     private static readonly string[] Outputs = ["cls_8", "cls_16", "cls_32", "obj_8", "obj_16", "obj_32", "bbox_8", "bbox_16", "bbox_32"];
 
-    public (List<Box> Boxes, string Device) Detect(BgraFrame frame, ComputeDevice device)
+    public (List<Box> Boxes, string Device) Detect(BgraFrame frame, ComputeDevice device, CancellationToken cancellationToken = default)
     {
         float scale = (float)Size / Math.Max(frame.Width, frame.Height);
         int cw = Math.Max(1, (int)Math.Round(frame.Width * scale)), ch = Math.Max(1, (int)Math.Round(frame.Height * scale));
         var tensor = new float[3 * Size * Size];
         Imaging.ToPlanar(frame, tensor, 0, Size, Size, cw, ch, Format);
-        ModelOutput outputs = models.Run(ModelFiles.YuNet, device, "input", tensor, [1, 3, Size, Size], Outputs);
+        ModelOutput outputs = models.Run(ModelFiles.YuNet, device, "input", tensor, [1, 3, Size, Size], Outputs, cancellationToken);
         var boxes = new List<Box>();
         float sx = scale * frame.Width, sy = scale * frame.Height;
         for (int s = 0; s < Strides.Length; s++)
@@ -93,7 +93,7 @@ internal sealed class PersonDetector(VisionModels models)
     private const float Threshold = 0.5f;
     private static readonly PlanarFormat Format = new(true, [1f, 1f, 1f], [0f, 0f, 0f]);
 
-    public (List<Box>[] Boxes, string Device) Detect(IReadOnlyList<BgraFrame> frames, ComputeDevice device)
+    public (List<Box>[] Boxes, string Device) Detect(IReadOnlyList<BgraFrame> frames, ComputeDevice device, CancellationToken cancellationToken = default)
     {
         if (frames.Count > Batch)
         {
@@ -107,7 +107,7 @@ internal sealed class PersonDetector(VisionModels models)
             Imaging.ToPlanar(frames[f], tensor, f * plane, Size, Size, Size, Size, Format);
         }
 
-        ModelOutput outputs = models.Run(ModelFiles.RtDetr, device, "pixel_values", tensor, [Batch, 3, Size, Size], ["logits", "pred_boxes"]);
+        ModelOutput outputs = models.Run(ModelFiles.RtDetr, device, "pixel_values", tensor, [Batch, 3, Size, Size], ["logits", "pred_boxes"], cancellationToken);
         float[] logits = outputs.Values[0], boxes = outputs.Values[1];
         int queries = logits.Length / Batch / Classes;
         var result = new List<Box>[frames.Count];

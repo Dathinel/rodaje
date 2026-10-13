@@ -6,7 +6,11 @@ namespace Rodaje.Module.Vision;
 /// <summary>Salidas de un modelo, ya en float, y dónde corrió.</summary>
 internal sealed record ModelOutput(float[][] Values, string Device);
 
-/// <summary>Una sesión abierta. DirectML no admite <c>Run</c> concurrentes en la misma sesión: se serializan; en la CPU van a la vez.</summary>
+/// <summary>
+/// Una sesión abierta. DirectML no admite <c>Run</c> concurrentes en la misma sesión: se serializan; en la CPU van a la vez.
+/// Cada inferencia enlaza <see cref="RunOptions.Terminate"/> al token, como Voz: una llamada cancelada corta el modelo en el
+/// siguiente nodo en vez de seguir hasta el final (con la CPU llena podía pasar del plazo de cancelación del cliente).
+/// </summary>
 internal sealed class LoadedModel(InferenceSession session, string device) : IDisposable
 {
     private readonly ReaderWriterLockSlim _gate = new();
@@ -17,12 +21,13 @@ internal sealed class LoadedModel(InferenceSession session, string device) : IDi
 
     public long LastUse { get; set; }
 
-    public float[][] Run(string input, float[] data, long[] shape, string[] outputs)
+    public float[][] Run(string input, float[] data, long[] shape, string[] outputs, CancellationToken cancellationToken = default)
     {
         using OrtValue value = _half
             ? OrtValue.CreateTensorValueFromMemory(Array.ConvertAll(data, v => (Float16)v), shape)
             : OrtValue.CreateTensorValueFromMemory(data, shape);
         using RunOptions options = new();
+        using CancellationTokenRegistration registration = cancellationToken.Register(static o => ((RunOptions)o!).Terminate = true, options);
         bool exclusive = Device == "directml";
         if (exclusive)
         {
@@ -36,8 +41,14 @@ internal sealed class LoadedModel(InferenceSession session, string device) : IDi
         try
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            cancellationToken.ThrowIfCancellationRequested();
             using IDisposableReadOnlyCollection<OrtValue> results = session.Run(options, [input], [value], outputs);
             return [.. results.Select(r => _half ? Widen(r.GetTensorDataAsSpan<Float16>()) : r.GetTensorDataAsSpan<float>().ToArray())];
+        }
+        catch (OnnxRuntimeException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Lo cortó Terminate: es una cancelación, no un fallo del modelo (ni de DirectML, que pasaría el modelo a la CPU).
+            throw new OperationCanceledException(cancellationToken);
         }
         finally
         {
@@ -100,14 +111,14 @@ internal sealed class VisionModels(ModelFiles files) : IDisposable
         set => Volatile.Write(ref _cpuThreads, Math.Clamp(value, 0, 64));
     }
 
-    public ModelOutput Run(ModelFile model, ComputeDevice device, string input, float[] data, long[] shape, string[] outputs)
+    public ModelOutput Run(ModelFile model, ComputeDevice device, string input, float[] data, long[] shape, string[] outputs, CancellationToken cancellationToken = default)
     {
         for (int attempt = 0; ; attempt++)
         {
             LoadedModel loaded = Get(model, device, shape);
             try
             {
-                return new ModelOutput(loaded.Run(input, data, shape, outputs), loaded.Device);
+                return new ModelOutput(loaded.Run(input, data, shape, outputs, cancellationToken), loaded.Device);
             }
             catch (ObjectDisposedException) when (attempt == 0)
             {
@@ -120,7 +131,7 @@ internal sealed class VisionModels(ModelFiles files) : IDisposable
                 }
 
                 LoadedModel cpu = Get(model, ComputeDevice.Cpu, shape);
-                return new ModelOutput(cpu.Run(input, data, shape, outputs), cpu.Device);
+                return new ModelOutput(cpu.Run(input, data, shape, outputs, cancellationToken), cpu.Device);
             }
         }
     }
