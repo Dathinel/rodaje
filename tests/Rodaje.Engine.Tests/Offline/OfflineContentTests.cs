@@ -10,8 +10,8 @@ public sealed class OfflineContentTests
 {
     private static readonly ResourceKey Look = new("rodaje-filtros@1.0.0/look-calido");
 
-    // Tope anticuelgue: la carga nueva termina en un hilo propio en milisegundos.
-    private static readonly TimeSpan Generous = TimeSpan.FromSeconds(30);
+    // Tope anticuelgue: la carga nueva termina en un hilo propio en milisegundos; solo evita colgarse.
+    private static readonly TimeSpan AntiHang = TimeSpan.FromMinutes(5);
 
     [Fact]
     public void Una_LUT_que_se_recarga_por_Invalidate_durante_la_espera_no_cuenta_como_que_falta()
@@ -23,7 +23,7 @@ public sealed class OfflineContentTests
             content.Invalidate();
         };
 
-        Assert.True(OfflineContent.WaitForLut(content, Look, Generous, CancellationToken.None));
+        Assert.True(OfflineContent.WaitForLut(content, Look, AntiHang, CancellationToken.None));
         Assert.Equal(2, content.Loads);
     }
 
@@ -32,7 +32,7 @@ public sealed class OfflineContentTests
     {
         var content = new ReloadingContent { Fails = true };
 
-        Assert.False(OfflineContent.WaitForLut(content, Look, Generous, CancellationToken.None));
+        Assert.False(OfflineContent.WaitForLut(content, Look, AntiHang, CancellationToken.None));
         Assert.Equal(1, content.Loads);
     }
 
@@ -43,7 +43,9 @@ public sealed class OfflineContentTests
     /// aviso perdido no da <c>false</c>: solo deja el hilo bloqueado hasta el sondeo. Por eso otro hilo vigila si el que
     /// espera pasa por <see cref="ThreadState.WaitSleepJoin"/> mientras dura el hueco (desde el aviso hasta la pregunta
     /// siguiente). En el caso correcto no se bloquea nunca, sin depender de tiempos; el vigilante solo hace falta para ver
-    /// el fallo (si no llegara a verlo, el fallo pasaría, nunca al revés).
+    /// el fallo (si no llegara a verlo, el fallo pasaría, nunca al revés). Para que lo vea aunque la máquina esté saturada,
+    /// el vigilante corre con prioridad alta y cede el núcleo en cada vuelta: cuando el que espera se bloquea, el vigilante
+    /// es el primero en recibir CPU; cuando no, le deja avanzar (con prioridad alta y sin ceder lo dejaría sin CPU).
     /// </summary>
     [Theory]
     [InlineData(1)]
@@ -66,14 +68,18 @@ public sealed class OfflineContentTests
                 {
                     Volatile.Write(ref blocked, true);
                 }
+
+                // Thread.Yield y no Thread.Sleep(0): en Windows el primero cede también a hilos de menos prioridad (el que espera).
+                Thread.Yield();
             }
         })
         {
             IsBackground = true,
             Name = "Vigilante del hueco",
+            Priority = ThreadPriority.Highest,
         };
         watcher.Start();
-        Assert.True(watching.Wait(Generous));
+        Assert.True(watching.Wait(AntiHang));
         content.LutAsked = _ =>
         {
             if (Volatile.Read(ref phase) == 1)
@@ -93,14 +99,14 @@ public sealed class OfflineContentTests
         bool loaded;
         try
         {
-            loaded = OfflineContent.WaitForLut(content, Look, Generous, CancellationToken.None);
+            loaded = OfflineContent.WaitForLut(content, Look, AntiHang, CancellationToken.None);
         }
         finally
         {
             Volatile.Write(ref phase, 2);
         }
 
-        Assert.True(watcher.Join(Generous));
+        Assert.True(watcher.Join(AntiHang));
         Assert.True(loaded);
         Assert.False(Volatile.Read(ref blocked), "La espera se bloqueó con el aviso de carga ya dado: lo perdió y la sacó el sondeo.");
         Assert.Equal(noticeAt + 1, content.LutRequests);

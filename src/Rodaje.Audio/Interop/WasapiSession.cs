@@ -130,9 +130,7 @@ internal sealed unsafe class WasapiSession : IDisposable
             }
             else
             {
-                // Un IAudioClient que falló al inicializarse no admite otro intento.
-                Com.Release(_client);
-                _client = Activate(wrappers, _device);
+                ReplaceClient(wrappers);
             }
         }
 
@@ -147,8 +145,7 @@ internal sealed unsafe class WasapiSession : IDisposable
             int hr = _client.Initialize(AudioConstants.ShareModeShared, flags, options.BufferDuration.Ticks, 0, &format, null);
             if (hr == AudioHResults.UnsupportedFormat && (flags & AudioConstants.StreamFlagsAutoConvertPcm) == 0)
             {
-                Com.Release(_client);
-                _client = Activate(wrappers, _device);
+                ReplaceClient(wrappers);
                 flags |= AudioConstants.StreamFlagsAutoConvertPcm | AudioConstants.StreamFlagsSrcDefaultQuality;
                 hr = _client.Initialize(AudioConstants.ShareModeShared, flags, options.BufferDuration.Ticks, 0, &format, null);
             }
@@ -184,6 +181,19 @@ internal sealed unsafe class WasapiSession : IDisposable
             TimeSpan.FromSeconds(PeriodFrames / (double)rate),
             lowLatency,
             TimeSpan.FromTicks(Math.Max(0, streamLatency)));
+    }
+
+    /// <summary>
+    /// Un IAudioClient que falló al inicializarse no admite otro intento: se suelta y se activa otro. El campo queda nulo
+    /// entre medias: si el dispositivo se fue y Activate lanza, Dispose no toca el cliente ya soltado (Stop sobre un
+    /// ComObject liberado lanza ObjectDisposedException, que taparía el error de audio y el hilo de audio no atrapa).
+    /// </summary>
+    [System.Diagnostics.CodeAnalysis.MemberNotNull(nameof(_client))]
+    private void ReplaceClient(ComWrappers wrappers)
+    {
+        Com.Release(_client);
+        _client = null;
+        _client = Activate(wrappers, _device!);
     }
 
     private static IAudioClient Activate(ComWrappers wrappers, IMMDevice device)
