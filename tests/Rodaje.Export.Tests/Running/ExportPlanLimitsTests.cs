@@ -44,12 +44,72 @@ public sealed class ExportPlanLimitsTests
         ExportSettings prores = ExportPresets.ProResMaster.Settings;
         ExportSettings interlaced = prores with { Video = prores.Video! with { FieldOrder = ExportFieldOrder.TopFirst, FrameRate = Rational.Ntsc30 } };
 
-        ExportException error = Invalid(() => ExportPlan.Create(Request(Sized(1920, 1082), interlaced), Encoders));
-        Assert.Contains("múltiplo de 4", error.Message, StringComparison.Ordinal);
-        Invalid(() => ExportPlan.Create(Request(Sized(2, 2), interlaced), Encoders));
+        // ProRes es 4:2:2 o 4:4:4: basta un alto par (tarea 232), y el de la secuencia ya se redondea a par.
+        ExportPlan odd = ExportPlan.Create(Request(Sized(1920, 1081), interlaced), Encoders);
+        Assert.Equal((1920, 1080), (odd.Video!.Width, odd.Video.Height));
+        Assert.Equal(1082, ExportPlan.Create(Request(Sized(1920, 1082), interlaced), Encoders).Video!.Height);
+        Assert.Equal(2, ExportPlan.Create(Request(Sized(2, 2), interlaced), Encoders).Video!.Height);
 
         ExportPlan plan = ExportPlan.Create(Request(Sized(1920, 1080), interlaced), Encoders);
         Assert.Equal((1920, 1080, new Rational(60000, 1001)), (plan.Video!.Width, plan.Video.Height, plan.OutputRate));
+    }
+
+    /// <summary>
+    /// D1 NTSC (720×486) y DV NTSC (720×480) en ProRes entrelazado sin tamaño pedido (tarea 232): ProRes es 4:2:2 o
+    /// 4:4:4, el croma tiene todas las filas y cada campo de 243 líneas lo lleva entero; antes se pedía un múltiplo de 4,
+    /// la regla del 4:2:0, y el plan decía «Elige un tamaño de salida».
+    /// </summary>
+    [Theory]
+    [InlineData(486, ExportFieldOrder.BottomFirst, "hq")]
+    [InlineData(480, ExportFieldOrder.BottomFirst, "hq")]
+    [InlineData(486, ExportFieldOrder.TopFirst, "4444")]
+    public void Ntsc_sd_in_interlaced_prores_is_planned_at_the_sequence_size(int height, ExportFieldOrder order, string profile)
+    {
+        ExportSettings prores = ExportPresets.ProResMaster.Settings;
+        ExportSettings interlaced = prores with
+        {
+            Video = prores.Video! with
+            {
+                Width = null, Height = null, FieldOrder = order, FrameRate = Rational.Ntsc30, Profile = profile,
+                Chroma = profile == "hq" ? ChromaSubsampling.Chroma422 : ChromaSubsampling.Chroma444,
+            },
+        };
+
+        ExportPlan plan = ExportPlan.Create(Request(Sized(720, height), interlaced), Encoders);
+
+        Assert.Equal((720, height), (plan.Video!.Width, plan.Video.Height));
+        Assert.True(plan.Interlaced);
+        Assert.Equal(new Rational(60000, 1001), plan.OutputRate);
+        Assert.Contains("separatefields", plan.VideoFilters);
+    }
+
+    /// <summary>Con croma 4:2:0 el campo lleva su croma a media altura: el alto sigue teniendo que ser múltiplo de 4.</summary>
+    [Fact]
+    public void Interlaced_420_still_needs_a_height_multiple_of_four()
+    {
+        Assert.Equal(4, ExportPixelFormat.Nv12.InterlacedHeightStep());
+        Assert.Equal(4, ExportPixelFormat.Yuv420P10.InterlacedHeightStep());
+        Assert.Equal(2, ExportPixelFormat.Yuv422P10.InterlacedHeightStep());
+        Assert.Equal(2, ExportPixelFormat.Yuva444P10.InterlacedHeightStep());
+
+        // Un ProRes de mentira que codificara 4:2:0: el validador mira el croma del formato, no el códec.
+        EncoderSpec prores420 = Encoders.First(e => e.Codec == ExportCodec.ProRes) with
+        {
+            PixelFormats = [ExportPixelFormat.Yuv420P10],
+            Profiles = [],
+        };
+        ExportSettings prores = ExportPresets.ProResMaster.Settings;
+        VideoExportSettings video = prores.Video! with
+        {
+            Width = 720, Height = 486, FieldOrder = ExportFieldOrder.BottomFirst, FrameRate = Rational.Ntsc30,
+            Profile = null, Chroma = ChromaSubsampling.Chroma420, Alpha = false,
+        };
+
+        IReadOnlyList<ExportProblem> problems = ExportSettingsValidator.Validate(prores with { Video = video, Audio = null }, prores420, null);
+        Assert.Contains(problems, p => p.Message.Contains("4:2:0, el alto tiene que ser múltiplo de 4", StringComparison.Ordinal));
+
+        problems = ExportSettingsValidator.Validate(prores with { Video = video with { Height = 480 }, Audio = null }, prores420, null);
+        Assert.DoesNotContain(problems, p => p.Message.Contains("alto", StringComparison.Ordinal));
     }
 
     [Fact]
@@ -223,7 +283,7 @@ public sealed class ExportPlanLimitsTests
                 return string.Create(CultureInfo.InvariantCulture, $"tamaño {video.Width}×{video.Height} en {video.PixelFormat}");
             }
 
-            if (plan.Interlaced && (video.Height % 4 != 0 || plan.FrameCount % 2 != 0))
+            if (plan.Interlaced && (video.Height % video.PixelFormat.InterlacedHeightStep() != 0 || plan.FrameCount % 2 != 0))
             {
                 return string.Create(CultureInfo.InvariantCulture, $"entrelazado de {video.Height} filas y {plan.FrameCount} campos");
             }

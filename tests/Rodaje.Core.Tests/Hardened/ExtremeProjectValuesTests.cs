@@ -125,6 +125,30 @@ public sealed class ExtremeProjectValuesTests
         }
     }
 
+    /// <summary>
+    /// El desborde se rechaza con el mensaje de siempre, pero su pila queda en el registro de la sesión (Trace, tarea 232):
+    /// un defecto real de cálculo no queda disfrazado de límite del usuario.
+    /// </summary>
+    [Fact]
+    public void AnEditThatOverflows_LeavesTheInnerExceptionInTheTrace()
+    {
+        Project project = OneClip(Rational.Fps25, 0, Time.TicksPerSecond);
+        var history = new UndoStack(project);
+        string name = "desborde " + Guid.NewGuid().ToString("N");
+        long big = long.MaxValue;
+        var edit = new SequenceEditCommand(name, "s", (EditContext context) => { _ = checked(big + Time.TicksPerSecond); });
+
+        using var trace = new FilteredTrace(name);
+        EditException ex = Assert.Throws<EditException>(() => history.Execute(edit));
+
+        Assert.Equal("La edición se saldría del rango de tiempos que admite el proyecto.", ex.Message);
+        Assert.IsType<OverflowException>(ex.InnerException);
+        string line = Assert.Single(trace.Lines);
+        Assert.Contains("desbordó", line, StringComparison.Ordinal);
+        Assert.Contains(nameof(OverflowException), line, StringComparison.Ordinal);
+        Assert.Contains(nameof(AnEditThatOverflows_LeavesTheInnerExceptionInTheTrace), line, StringComparison.Ordinal);
+    }
+
     /// <summary>Invertir un clip de más de 6,9 horas lanzaba ArgumentOutOfRangeException (el largo máximo con velocidad).</summary>
     [Fact]
     public void ReversingAClipLongerThanTheMaximumWithSpeed_IsAnEditException()
@@ -155,6 +179,49 @@ public sealed class ExtremeProjectValuesTests
         Assert.Equal(RetimeMath.MinRate, clip.Speed!.Rate);
         Assert.Equal(Time.FromTicks(10 * Time.TicksPerSecond), clip.Duration);
         Assert.Empty(ModelValidator.Validate(project));
+    }
+
+    /// <summary>Junta lo que se escribe con <see cref="System.Diagnostics.Trace"/> y menciona <c>filter</c> (las pruebas corren en paralelo).</summary>
+    private sealed class FilteredTrace : System.Diagnostics.TraceListener
+    {
+        private readonly string _filter;
+        private readonly List<string> _lines = [];
+
+        public FilteredTrace(string filter)
+        {
+            _filter = filter;
+            System.Diagnostics.Trace.Listeners.Add(this);
+        }
+
+        public IReadOnlyList<string> Lines
+        {
+            get
+            {
+                lock (_lines)
+                {
+                    return [.. _lines];
+                }
+            }
+        }
+
+        public override void Write(string? message) => WriteLine(message);
+
+        public override void WriteLine(string? message)
+        {
+            if (message is not null && message.Contains(_filter, StringComparison.Ordinal))
+            {
+                lock (_lines)
+                {
+                    _lines.Add(message);
+                }
+            }
+        }
+
+        protected override void Dispose(bool disposing)
+        {
+            System.Diagnostics.Trace.Listeners.Remove(this);
+            base.Dispose(disposing);
+        }
     }
 
     /// <summary>Un medio con video y sonido de toda la duración del rango y un clip suyo en la pista «v» de la secuencia «s».</summary>
