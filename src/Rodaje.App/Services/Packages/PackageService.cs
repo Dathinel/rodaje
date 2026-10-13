@@ -372,7 +372,8 @@ public sealed class PackageService
 
     /// <summary>
     /// Pasa los módulos instalados con un id viejo (<see cref="RenamedModules"/>) al nuevo: cambia el id de su manifiesto y
-    /// el nombre de su carpeta. Si el nuevo ya está instalado, el viejo se borra. Devuelve cuántos migró o borró.
+    /// el nombre de su carpeta. Si el nuevo ya está instalado, el viejo se borra. Uno con el manifiesto dañado se deja donde
+    /// está. Devuelve cuántos migró o borró.
     /// </summary>
     public static int MigrateRenamedModules(PackageLocations locations)
     {
@@ -397,7 +398,19 @@ public sealed class PackageService
             string manifest = Path.Combine(from, PackageManifest.FileName);
             if (File.Exists(manifest))
             {
-                File.WriteAllBytes(manifest, WithId(File.ReadAllBytes(manifest), oldId, newId));
+                // Un manifiesto dañado se deja como está: la lectura lo anota en los problemas de lo instalado. Antes, su
+                // JsonException hacía fallar toda operación con complementos, y en cada intento (tarea 262).
+                byte[] renamed;
+                try
+                {
+                    renamed = WithId(File.ReadAllBytes(manifest), oldId, newId);
+                }
+                catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+                {
+                    continue;
+                }
+
+                File.WriteAllBytes(manifest, renamed);
             }
 
             Directory.Move(from, to);
