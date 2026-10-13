@@ -472,79 +472,91 @@ public sealed class HostileMessageTests(ITestOutputHelper output)
     /// exactamente una respuesta final (o el módulo terminó por <c>malformed</c>).
     /// </summary>
     [Fact]
-    public async Task Secuencias_al_azar_terminan_y_cada_llamada_tiene_una_respuesta()
+    public Task Secuencias_al_azar_terminan_y_cada_llamada_tiene_una_respuesta() =>
+        FuzzSupport.RunCasesAsync(150, RandomSequenceAsync, first: 1_000_000);
+
+    /// <summary>
+    /// Semillas de <see cref="Secuencias_al_azar_terminan_y_cada_llamada_tiene_una_respuesta"/> que fallaron alguna vez,
+    /// repetidas para que la carrera tenga más ocasiones. 21261124: en la CI de Windows (tarea 211) la llamada 2 quedó
+    /// sin respuesta final; la causa la fija <c>ReplyRaceTests</c>.
+    /// </summary>
+    [Theory]
+    [InlineData(21261124)]
+    public async Task Secuencias_al_azar_semillas_que_fallaron(int seed)
     {
-        await FuzzSupport.RunCasesAsync(150, async seed =>
+        for (int round = 0; round < 20; round++) await RandomSequenceAsync(seed);
+    }
+
+    private static async Task RandomSequenceAsync(int seed)
+    {
+        var random = new Random(seed);
+        var frames = new List<string>();
+        var invoked = new HashSet<long>();
+        bool broken = false;
+        for (int k = random.Next(1, 30); k > 0; k--)
         {
-            var random = new Random(seed);
-            var frames = new List<string>();
-            var invoked = new HashSet<long>();
-            bool broken = false;
-            for (int k = random.Next(1, 30); k > 0; k--)
+            long id = random.Next(1, 12);
+            switch (random.Next(8))
             {
-                long id = random.Next(1, 12);
-                switch (random.Next(8))
-                {
-                    case 0 or 1:
-                        frames.Add($$"""{"type":"invoke","id":{{id}},"function":"{{(random.Next(4) == 0 ? "contar" : "eco")}}","parameters":{"pasos":{{random.Next(1, 5)}},"msPorPaso":1""" + "}}");
-                        if (!broken && !invoked.Add(id)) broken = true;
-                        break;
-                    case 2:
-                        frames.Add($$"""{"type":"cancel","id":{{id}}}""");
-                        break;
-                    case 3:
-                        frames.Add($$"""{"type":"ping","id":{{random.NextInt64(long.MinValue, long.MaxValue)}}}""");
-                        break;
-                    case 4:
-                        frames.Add($$"""{"type":"futuro","id":{{id}}}""");
-                        break;
-                    case 5:
-                        frames.Add(MalformedList[random.Next(MalformedList.Length)]);
-                        broken = true;
-                        break;
-                    default:
-                        frames.Add($$"""{"type":"invoke","id":{{id}},"function":"fallar"}""");
-                        if (!broken && !invoked.Add(id)) broken = true;
-                        break;
-                }
+                case 0 or 1:
+                    frames.Add($$"""{"type":"invoke","id":{{id}},"function":"{{(random.Next(4) == 0 ? "contar" : "eco")}}","parameters":{"pasos":{{random.Next(1, 5)}},"msPorPaso":1""" + "}}");
+                    if (!broken && !invoked.Add(id)) broken = true;
+                    break;
+                case 2:
+                    frames.Add($$"""{"type":"cancel","id":{{id}}}""");
+                    break;
+                case 3:
+                    frames.Add($$"""{"type":"ping","id":{{random.NextInt64(long.MinValue, long.MaxValue)}}}""");
+                    break;
+                case 4:
+                    frames.Add($$"""{"type":"futuro","id":{{id}}}""");
+                    break;
+                case 5:
+                    frames.Add(MalformedList[random.Next(MalformedList.Length)]);
+                    broken = true;
+                    break;
+                default:
+                    frames.Add($$"""{"type":"invoke","id":{{id}},"function":"fallar"}""");
+                    if (!broken && !invoked.Add(id)) broken = true;
+                    break;
             }
+        }
 
-            // Los ids repetidos pueden ser legales si la primera llamada ya terminó: no se sabe de antemano.
-            (bool result, List<string> replies) = await AgainstHostAsync(Support.EchoHost(maxConcurrent: 64), [.. frames]);
-            bool malformed = false;
-            var finals = new Dictionary<long, int>();
-            foreach (string reply in replies)
+        // Los ids repetidos pueden ser legales si la primera llamada ya terminó: no se sabe de antemano.
+        (bool result, List<string> replies) = await AgainstHostAsync(Support.EchoHost(maxConcurrent: 64), [.. frames]);
+        bool malformed = false;
+        var finals = new Dictionary<long, int>();
+        foreach (string reply in replies)
+        {
+            ModuleMessage? message = MessageChannel.Parse(Encoding.UTF8.GetBytes(reply));
+            Assert.NotNull(message);
+            switch (message)
             {
-                ModuleMessage? message = MessageChannel.Parse(Encoding.UTF8.GetBytes(reply));
-                Assert.NotNull(message);
-                switch (message)
-                {
-                    case ResultMessage r:
-                        finals[r.Id] = finals.GetValueOrDefault(r.Id) + 1;
-                        break;
-                    case ErrorMessage { Id: { } eid }:
-                        finals[eid] = finals.GetValueOrDefault(eid) + 1;
-                        break;
-                    case ErrorMessage { Code: ErrorCodes.Malformed }:
-                        malformed = true;
-                        break;
-                    case PongMessage or ProgressMessage:
-                        break;
-                    default:
-                        Assert.Fail($"El módulo mandó {message.GetType().Name}.");
-                        break;
-                }
+                case ResultMessage r:
+                    finals[r.Id] = finals.GetValueOrDefault(r.Id) + 1;
+                    break;
+                case ErrorMessage { Id: { } eid }:
+                    finals[eid] = finals.GetValueOrDefault(eid) + 1;
+                    break;
+                case ErrorMessage { Code: ErrorCodes.Malformed }:
+                    malformed = true;
+                    break;
+                case PongMessage or ProgressMessage:
+                    break;
+                default:
+                    Assert.Fail($"El módulo mandó {message.GetType().Name}.");
+                    break;
             }
+        }
 
-            Assert.Equal(!malformed, result);
-            if (!broken && !malformed)
+        Assert.Equal(!malformed, result);
+        if (!broken && !malformed)
+        {
+            foreach (long id in invoked)
             {
-                foreach (long id in invoked)
-                {
-                    Assert.True(finals.GetValueOrDefault(id) == 1, $"La llamada {id} tuvo {finals.GetValueOrDefault(id)} respuestas finales.");
-                }
+                Assert.True(finals.GetValueOrDefault(id) == 1, $"La llamada {id} tuvo {finals.GetValueOrDefault(id)} respuestas finales.");
             }
-        }, first: 1_000_000);
+        }
     }
 
     private static InvokeMessage? TryParse(string json)
