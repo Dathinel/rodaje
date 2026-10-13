@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Tests.TimelineLogic;
+using Rodaje.App.Views.Player;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.Timeline;
@@ -14,7 +15,7 @@ namespace Rodaje.App.Tests.Leaks;
 /// <summary>
 /// Las texturas de los títulos viven en la caché del rasterizador, que es del reproductor y no del proyecto. Antes, al
 /// abrir otro proyecto, las del anterior quedaban en la VRAM hasta que el tope de la caché las expulsaba; ahora
-/// <c>PlayerEngine</c> llama a <see cref="TitleRasterizer.Trim"/> al cargar otro proyecto, y aquí se hace lo mismo.
+/// <c>PlayerEngine</c> carga cada proyecto con <see cref="ProjectSwitch.Load"/>, que las suelta, y aquí se carga igual.
 /// </summary>
 [Collection(GpuCompositionGroup.Name)]
 public sealed class TitleTextureLeakTests
@@ -34,14 +35,24 @@ public sealed class TitleTextureLeakTests
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)), "Los shaders no compilaron en 60 s.");
 
         int worst = 0;
-        for (int cycle = 0; cycle < Cycles; cycle++)
+        TimelineSession? session = null;
+        try
         {
-            using (TimelineSession session = TimelineSession.Open(TitleProject(cycle), "s", gpu,
-                new TimelineSessionOptions { EnableAudio = false, UseProxies = ProxyUsage.Never, Titles = titles }))
+            for (int cycle = 0; cycle < Cycles; cycle++)
             {
-                // Como PlayerEngine al cargar otro proyecto: suelta lo que no se usó en los dos últimos cuadros.
-                titles.Trim();
-                session.Seek(Time.FromSeconds(1));
+                // Como PlayerEngine al cargar otro proyecto: cierra la sesión anterior, abre la nueva y suelta los títulos.
+                Project project = TitleProject(cycle);
+                ProjectSwitch.Load(
+                    () =>
+                    {
+                        session?.Dispose();
+                        session = null;
+                        session = TimelineSession.Open(project, "s", gpu,
+                            new TimelineSessionOptions { EnableAudio = false, UseProxies = ProxyUsage.Never, Titles = titles });
+                    },
+                    titles);
+                TimelineSession current = session!;
+                current.Seek(Time.FromSeconds(1));
                 var watch = Stopwatch.StartNew();
                 CompositeResult result;
                 do
@@ -49,19 +60,31 @@ public sealed class TitleTextureLeakTests
                     // Tope contra cuelgues: en la CI el título se rasteriza en otro hilo y se compone con WARP en la CPU.
                     Assert.True(watch.Elapsed < TimeSpan.FromSeconds(60), $"El título de la vuelta {cycle} no llegó en 60 s.");
                     ready.Wait(TimeSpan.FromMilliseconds(20));
-                    using CompositionFrame frame = session.Tick();
+                    using CompositionFrame frame = current.Tick();
                     result = compositor.Render(frame);
                 }
-                while (session.IsSeekPending || result.TitlesPending > 0);
+                while (current.IsSeekPending || result.TitlesPending > 0);
 
                 Assert.Equal(1, result.LayersDrawn);
-            }
 
-            worst = Math.Max(worst, titles.CachedCount);
+                // Un cuadro más con el título ya dibujado: así el de la vuelta anterior quedó al menos dos cuadros atrás y
+                // la cuenta no depende de cuántos cuadros tardó en llegar este.
+                using (CompositionFrame frame = current.Tick())
+                {
+                    Assert.Equal(1, compositor.Render(frame).LayersDrawn);
+                }
+
+                worst = Math.Max(worst, titles.CachedCount);
+            }
+        }
+        finally
+        {
+            session?.Dispose();
         }
 
-        // Sin soltarlas quedaba una textura por proyecto abierto: 20 al terminar.
-        Assert.InRange(worst, 1, 4);
+        // El título de este proyecto y el del anterior, que se usó en el último cuadro antes de cargar. Sin soltarlos
+        // quedaba una textura por proyecto abierto: 20 al terminar.
+        Assert.Equal(2, worst);
     }
 
     private static Project TitleProject(int cycle)
