@@ -36,7 +36,7 @@ public sealed partial class CrashWatchdog : IDisposable
     /// Si está contando (entre <see cref="Arm"/> y <see cref="Disarm"/>). Deja comprobar el desarme sin esperar a que
     /// venza el plazo.
     /// </summary>
-    public bool IsArmed => _isArmed;
+    internal bool IsArmed => _isArmed;
 
     /// <summary>Empieza a contar: si no llega <see cref="Disarm"/> a tiempo, termina el proceso con <paramref name="exitCode"/>.</summary>
     public void Arm(uint exitCode)

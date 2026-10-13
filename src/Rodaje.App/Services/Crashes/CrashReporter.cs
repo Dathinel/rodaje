@@ -122,7 +122,7 @@ public sealed class CrashReporter
     /// volcar un proceso sano desde dentro puede trabarse. Escribe en la ruta que recibe (una <c>.dmp.tmp</c> que después
     /// se renombra) y devuelve 0 si lo logró, o el código del error, que se anota en el informe.
     /// </summary>
-    public Func<string, nint, int> MinidumpWriter { get; init; } = WriteOwnMinidump;
+    internal Func<string, nint, int> MinidumpWriter { get; init; } = WriteOwnMinidump;
 
     /// <summary>
     /// Cuánto se espera el cerrojo de los informes si otro hilo quedó a mitad de uno (el fallo lo detuvo, o se traba el
@@ -134,7 +134,7 @@ public sealed class CrashReporter
     /// Quién escribe un informe de texto (ruta, texto); devuelve si quedó en disco. Las pruebas lo cambian para simular
     /// un disco lleno o una carpeta sin permiso (como administrador, una carpeta de solo lectura no impide escribir).
     /// </summary>
-    public Func<string, string, bool> ReportWriter { get; init; } = TryWrite;
+    internal Func<string, string, bool> ReportWriter { get; init; } = TryWrite;
 
     /// <summary>Borra la copia del registro de una sesión ya informada; las pruebas lo cambian para simular que falla.</summary>
     internal Action<string> SessionDeleter { get; init; } = File.Delete;
