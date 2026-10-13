@@ -377,7 +377,7 @@ public sealed partial class EditorSession
         Project target = Project;
         bool rename = !string.Equals(path, FilePath, StringComparison.OrdinalIgnoreCase);
         string name = rename ? Path.GetFileNameWithoutExtension(path) : Project.Name;
-        Project copy = ProjectPaths.ForSaving(Project, Path.GetDirectoryName(path)!);
+        Project copy = ProjectPaths.ForSaving(Project, Path.GetDirectoryName(path)!, FilePath is null ? null : Path.GetDirectoryName(FilePath));
         copy.Name = name;
         try
         {
