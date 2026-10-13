@@ -111,8 +111,12 @@ public sealed class ProjectFilePathsTests : IDisposable
         string movedLut = Path.Combine(projectB, "luts", Path.GetFileName(lut));
         string movedMatte = Path.Combine(projectB, "máscaras", Path.GetFileName(matte));
         Sequence sequence = opened.Sequences[0];
-        Assert.Equal(FileRef(movedLut), sequence.VideoTracks[0].Clips[1].Effects.Single(e => e.Id == "fx-lut").Options[BuiltInEffects.ColorOptions.Lut]);
-        Assert.Equal(FileRef(movedMatte), sequence.VideoTracks[1].Clips[0].Effects.Single(e => e.Type == BuiltInEffects.Mask).Options[BuiltInEffects.MaskOptions.Matte]);
+        string lutRef = sequence.VideoTracks[0].Clips[1].Effects.Single(e => e.Id == "fx-lut").Options[BuiltInEffects.ColorOptions.Lut];
+        string matteRef = sequence.VideoTracks[1].Clips[0].Effects.Single(e => e.Type == BuiltInEffects.Mask).Options[BuiltInEffects.MaskOptions.Matte];
+        Assert.Equal("file:luts/" + Path.GetFileName(lut), lutRef);
+        Assert.Equal("file:máscaras/" + Path.GetFileName(matte), matteRef);
+        Assert.Equal(movedLut, Resolve(lutRef, projectB));
+        Assert.Equal(movedMatte, Resolve(matteRef, projectB));
         Assert.True(File.Exists(movedLut));
         Assert.True(File.Exists(movedMatte));
     }
@@ -167,17 +171,18 @@ public sealed class ProjectFilePathsTests : IDisposable
     }
 
     [Fact]
-    public void Al_abrir_las_referencias_quedan_absolutas_y_guardar_en_otra_carpeta_no_las_pierde()
+    public void Abrir_deja_las_referencias_como_vienen_y_guardar_en_otra_carpeta_las_recalcula()
     {
+        // Guardar y abrir tiene que devolver el mismo proyecto en memoria (lo comprueba el fuzz de la sesión).
         string folderA = Path.Combine(_root, "A");
         string folderB = Path.Combine(_root, "B");
         Project project = WithLut("file:luts/mi look.cube");
 
         ProjectFilePaths.MakeAbsolute(project, folderA);
 
-        Assert.Equal(FileRef(Path.Combine(folderA, "luts", "mi look.cube")), Lut(project));
-        Assert.Equal("file:../A/luts/mi look.cube", Lut(ProjectFilePaths.ForSaving(project, folderB)));
-        Assert.Equal("file:luts/mi look.cube", Lut(ProjectFilePaths.ForSaving(project, folderA)));
+        Assert.Equal("file:luts/mi look.cube", Lut(project));
+        Assert.Equal("file:luts/mi look.cube", Lut(ProjectFilePaths.ForSaving(project, folderA, folderA)));
+        Assert.Equal("file:../A/luts/mi look.cube", Lut(ProjectFilePaths.ForSaving(project, folderB, folderA)));
     }
 
     [Fact]
@@ -303,6 +308,9 @@ public sealed class ProjectFilePathsTests : IDisposable
     /// <summary>Carpetas anidadas que, con la del proyecto, pasan de 260 caracteres.</summary>
     private static string LongFolder(Random random) =>
         Path.Combine([.. Enumerable.Range(0, 4).Select(i => $"{i} {Name(random).Trim()} " + new string('x', 70))]);
+
+    private static string Resolve(string reference, string projectDirectory) =>
+        Path.GetFullPath(reference["file:".Length..].Replace('/', Path.DirectorySeparatorChar), projectDirectory);
 
     private static string FileRef(string path) => "file:" + path.Replace(Path.DirectorySeparatorChar, '/');
 

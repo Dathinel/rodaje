@@ -37,7 +37,7 @@ public class ProjectFileReferencesTests
         Project project = WithLut("file:luts/mi look.cube");
 
         ProjectPaths.MakeAbsolute(project, folderA);
-        Project copy = ProjectPaths.ForSaving(project, folderB);
+        Project copy = ProjectPaths.ForSaving(project, folderB, currentDirectory: folderA);
 
         // Antes se guardaba «file:luts/mi look.cube» junto al proyecto nuevo, donde no hay ninguna LUT.
         Assert.Equal(Path.Combine(folderA, "luts", "mi look.cube"), LutReference.ResolveFile(Lut(copy), folderB));

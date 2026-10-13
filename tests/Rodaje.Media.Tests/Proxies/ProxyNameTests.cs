@@ -13,7 +13,32 @@ public sealed class ProxyNameTests : IDisposable
     private static readonly string[] Reserved = ["CON", "PRN", "AUX", "NUL", "COM1", "LPT1", "CONIN$", "CONOUT$"];
     private readonly TempDirectory _temp = new();
 
-    public void Dispose() => _temp.Dispose();
+    public void Dispose()
+    {
+        // Con el prefijo, para que Windows pueda borrar también lo que pasa de 260 caracteres.
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                Directory.Delete(@"\\?\" + _temp.Path, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
+        }
+
+        _temp.Dispose();
+    }
+
+    /// <summary>
+    /// En Windows, una ruta de 260 caracteres o más con el prefijo <c>\\?\</c>: el proceso de pruebas no declara
+    /// <c>longPathAware</c> y sin el prefijo no podría crear el archivo. La huella sigue dependiendo de toda la ruta.
+    /// </summary>
+    private static string Extended(string path) =>
+        OperatingSystem.IsWindows() && path.Length >= 260 && !path.StartsWith(@"\\", StringComparison.Ordinal) ? @"\\?\" + path : path;
 
     [Fact]
     public void Dos_originales_con_el_mismo_contenido_y_la_misma_fecha_no_comparten_proxy()
@@ -32,7 +57,7 @@ public sealed class ProxyNameTests : IDisposable
 
         foreach (string name in names)
         {
-            string source = _temp.Combine(name);
+            string source = Extended(_temp.Combine(name));
             Directory.CreateDirectory(Path.GetDirectoryName(source)!);
             File.WriteAllBytes(source, content);
             File.SetLastWriteTimeUtc(source, SameDate);

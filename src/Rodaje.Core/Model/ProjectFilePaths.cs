@@ -5,7 +5,9 @@ namespace Rodaje.Core.Model;
 /// <summary>
 /// Rutas de archivo que guarda el proyecto: las de los medios y los archivos sueltos (<c>file:</c>) de las opciones que
 /// los admiten (la LUT de «Cargar .cube…», la imagen del barrido por luminancia y el video de una máscara de imagen).
-/// En memoria van absolutas; en el archivo, relativas a su carpeta cuando se puede, para poder mover la carpeta entera.
+/// En el archivo van relativas a su carpeta cuando se puede, para poder mover la carpeta entera. En memoria, los medios
+/// van absolutos; las referencias <c>file:</c>, como las escribe <c>LutReference.ForFile</c>: relativas a la carpeta del
+/// proyecto guardado o absolutas si no lo estaba. Al abrir se dejan como vienen, así guardar y abrir devuelve lo mismo.
 /// </summary>
 /// <remarks>
 /// Antes solo se volvían relativas las rutas de los medios. Un archivo suelto elegido con el proyecto sin guardar
@@ -14,7 +16,10 @@ namespace Rodaje.Core.Model;
 /// </remarks>
 public static class ProjectFilePaths
 {
-    /// <summary>Resuelve contra <paramref name="projectDirectory"/> las rutas relativas del proyecto recién leído.</summary>
+    /// <summary>
+    /// Resuelve contra <paramref name="projectDirectory"/> las rutas relativas de los medios del proyecto recién leído.
+    /// Las referencias <c>file:</c> quedan como están: se resuelven contra la carpeta del proyecto al usarlas.
+    /// </summary>
     public static void MakeAbsolute(Project project, string projectDirectory)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -23,8 +28,6 @@ public static class ProjectFilePaths
         {
             media.Path = media.ResolvePath(projectDirectory);
         }
-
-        RewriteFileOptions(project, path => AbsoluteFile(path, projectDirectory));
     }
 
     /// <summary>
