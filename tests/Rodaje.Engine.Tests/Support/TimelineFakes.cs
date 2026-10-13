@@ -359,6 +359,12 @@ internal sealed class FakeTimelineBackend : IClipBackend
     /// <summary>Corre en el hilo que cierra cada decodificador, antes de darlo por cerrado: puede bloquearlo.</summary>
     public Action<FakeMediaVideo>? OnVideoDispose { get; set; }
 
+    /// <summary>
+    /// Si se da, la lectura de keyframes del archivo (corre en el ejecutor de servicio, así que puede bloquearlo, como una
+    /// lectura lenta del disco). Sin darlo devuelve nulo, como hasta ahora.
+    /// </summary>
+    public Func<string, IKeyframeIndex?>? OnReadKeyframes { get; set; }
+
     /// <summary>Si se da, cada decodificador simula un pool de D3D11VA con superficies de este tamaño y pide su tamaño al programador.</summary>
     public long? PoolSurfaceBytes { get; init; }
 
@@ -450,6 +456,8 @@ internal sealed class FakeTimelineBackend : IClipBackend
         Executors.Add(executor);
         return executor;
     }
+
+    public IKeyframeIndex? ReadKeyframes(string path) => OnReadKeyframes?.Invoke(path);
 
     /// <summary>
     /// Un cuadro que solo termina (cancelado, o con <see cref="HangFailure"/>) cuando se cancela su petición; mientras,

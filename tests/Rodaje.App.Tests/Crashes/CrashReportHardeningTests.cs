@@ -5,7 +5,7 @@ using Rodaje.App.Tests.Support;
 namespace Rodaje.App.Tests.Crashes;
 
 /// <summary>
-/// Tarea 132: informes huérfanos de una ráfaga, firma que ignoraba el mensaje, tope de informes por ráfaga, minivolcado
+/// Informes huérfanos de una ráfaga, firma que ignoraba el mensaje, tope de informes por ráfaga, minivolcado
 /// a medias, cierre de sesión que esperaba sin fin y el enganche de <c>WM_ENDSESSION</c> que no se reintentaba. Con el
 /// reloj inyectado del <see cref="CrashReporter"/>: ninguna prueba duerme.
 /// </summary>

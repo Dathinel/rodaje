@@ -66,7 +66,10 @@ public sealed class MatteLeakTests : IDisposable
         var opener = Start(() => reader.TryGet(file, 0.5, out _));
         Assert.True(gate.WaitOpening(TimeSpan.FromSeconds(10)), "El lector no empezó a abrir.");
 
+        using var closing = new ManualResetEventSlim();
+        reader.BeforeClose = _ => closing.Set();
         var clear = Start(reader.Clear);
+        Assert.True(closing.Wait(TimeSpan.FromSeconds(10)), "Clear no llegó a cerrar el archivo.");
         WaitUntilDoneOrBlocked(clear, "Clear");
         gate.Release();
         Join(opener, clear);
@@ -173,7 +176,11 @@ public sealed class MatteLeakTests : IDisposable
         return worker;
     }
 
-    /// <summary>Espera, sin tope fijo de tiempo, a que el hilo termine o quede bloqueado (en el candado del lector).</summary>
+    /// <summary>
+    /// Espera a que el hilo termine o quede bloqueado. Se llama después de la señal del código
+    /// (<see cref="MatteReader.BeforeClose"/>): desde ahí la única espera posible es el candado del lector, y no cualquier
+    /// otra (como la de arrancar el hilo), que era lo que podía confundir mirar solo el estado del hilo.
+    /// </summary>
     private static void WaitUntilDoneOrBlocked(Worker worker, string what)
     {
         Thread thread = worker.Thread!;

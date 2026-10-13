@@ -6,9 +6,9 @@ using Xunit;
 namespace Rodaje.Engine.Tests.Recording;
 
 /// <summary>
-/// Regresión (revisión de #100): si el disco se llenaba a mitad de la toma, el grabador guardaba el error en silencio y el
-/// diálogo seguía contando hasta que se pulsaba «Detener»; además, el error salía aunque se hubiera cancelado. Ahora el
-/// error se ve en <see cref="VoiceOverRecorder.Failure"/> en cuanto ocurre, y cancelar lo descarta sin avisar.
+/// Si el disco se llena a mitad de la toma, el error se ve en <see cref="VoiceOverRecorder.Failure"/> en cuanto ocurre (no
+/// al pulsar «Detener»), cancelar lo descarta sin avisar y el WAV a medias queda en <see cref="VoiceOverRecorder.Path"/>,
+/// donde se puede borrar en cuanto se suelta el grabador.
 /// </summary>
 public sealed class VoiceOverRecorderFailureTests : IDisposable
 {
@@ -57,6 +57,31 @@ public sealed class VoiceOverRecorderFailureTests : IDisposable
         Assert.Null(recorder.Failure);
         Assert.Equal(480, recorder.Finish().Frames);
         Assert.Null(recorder.Failure);
+    }
+
+    [Fact]
+    public void After_a_write_error_the_partial_WAV_is_at_Path_and_can_be_deleted_once_disposed()
+    {
+        var capture = new FakeCapture();
+        int writes = 0;
+        var recorder = new VoiceOverRecorder(capture, Path.Combine(_folder, "toma.wav"), Time.Zero, _ => Time.Zero, _ =>
+        {
+            if (++writes == 2)
+            {
+                throw new IOException("No queda espacio en el disco.");
+            }
+        });
+        recorder.Begin();
+        capture.Push(new float[480]);
+        capture.Push(new float[480]);
+        Assert.NotNull(recorder.Failure);
+        Assert.Throws<IOException>(recorder.Finish);
+
+        // Finish no da toma, pero el archivo ya existe: el diálogo lo borra por Path después de Dispose.
+        Assert.True(File.Exists(recorder.Path));
+        recorder.Dispose();
+        File.Delete(recorder.Path);
+        Assert.False(File.Exists(recorder.Path));
     }
 
     [Theory]

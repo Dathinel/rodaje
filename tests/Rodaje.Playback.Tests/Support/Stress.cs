@@ -49,6 +49,19 @@ internal static class Stress
     /// </summary>
     public static void Run(int seed, TimeSpan stall, params (string Name, Action<Random, CancellationToken> Body)[] workers)
     {
+        var watch = Stopwatch.StartNew();
+        Run(seed, stall, () => watch.Elapsed, workers);
+    }
+
+    /// <summary>
+    /// Como <see cref="Run(int, TimeSpan, ValueTuple{string, Action{Random, CancellationToken}}[])"/>, con el reloj que
+    /// deciden los topes de «sin avance» y de <see cref="Deadline"/>: se lee una vez por vuelta de vigilancia (tras esperar
+    /// hasta 100 ms al primer hilo vivo). Las pruebas del propio arnés lo avanzan a mano para no depender de cuánto CPU
+    /// les dé la máquina; <see cref="Budget"/> sigue siendo de tiempo real.
+    /// </summary>
+    public static void Run(int seed, TimeSpan stall, Func<TimeSpan> clock, params (string Name, Action<Random, CancellationToken> Body)[] workers)
+    {
+        ArgumentNullException.ThrowIfNull(clock);
         var errors = new ConcurrentQueue<string>();
         using var stop = new CancellationTokenSource();
         var threads = new List<(string Name, Thread Thread, ProgressRandom Random)>();
@@ -76,7 +89,6 @@ internal static class Stress
 
         threads.ForEach(t => t.Thread.Start());
         stop.CancelAfter(Budget);
-        var watch = Stopwatch.StartNew();
         long[] seen = new long[threads.Count];
         TimeSpan[] moved = new TimeSpan[threads.Count];
         string? hung = null;
@@ -85,7 +97,7 @@ internal static class Stress
         while (threads.FirstOrDefault(t => t.Thread.IsAlive).Thread is { } alive)
         {
             alive.Join(TimeSpan.FromMilliseconds(100));
-            TimeSpan now = watch.Elapsed;
+            TimeSpan now = clock();
             var stalled = new List<string>();
             for (int i = 0; i < threads.Count; i++)
             {

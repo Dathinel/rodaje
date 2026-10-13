@@ -2,26 +2,54 @@ namespace Rodaje.Engine.Tests.Support;
 
 /// <summary>
 /// El propio arnés de estrés: que su detector de «sin avance» falle de verdad con un hilo trabado y que una corrida de
-/// cero vueltas no pase en verde. Sin reloj que medir: el tope de «sin avance» baja a unos cientos de milisegundos y lo
-/// que se comprueba es que la corrida falla, no cuánto tarda.
+/// cero vueltas no pase en verde. Sin reloj que medir: la prueba del hilo trabado avanza a mano el reloj del arnés, en
+/// paso cerrado con el hilo sano, y lo que se comprueba es que la corrida falla, no cuánto tarda.
 /// </summary>
 public sealed class StressHarnessTests
 {
+    /// <summary>
+    /// El reloj inyectado avanza 10 s por cada vuelta de vigilancia del arnés, y solo después de que el hilo sano
+    /// saque un número: entre dos lecturas del reloj el sano avanzó siempre, aunque la máquina lo deje sin CPU, y el
+    /// trabado, que no avanza nunca, pasa del tope de 30 s en cuatro vueltas. Si se quita el detector de «sin avance», la
+    /// corrida termina por <see cref="Stress.Deadline"/> (24 vueltas) con otro mensaje y la prueba falla.
+    /// </summary>
     [Fact]
     public void Un_hilo_trabado_que_no_saca_numeros_se_da_por_interbloqueo()
     {
         using var unblock = new ManualResetEventSlim();
+        using var tick = new SemaphoreSlim(0);
+        using var drew = new SemaphoreSlim(0);
+        TimeSpan now = TimeSpan.Zero;
+        TimeSpan Clock()
+        {
+            // Una vuelta del sano por cada lectura: la suelta y espera a que haya sacado su número.
+            tick.Release();
+            Assert.True(drew.Wait(TimeSpan.FromMinutes(1)), "El hilo sano no sacó su número.");
+            now += TimeSpan.FromSeconds(10);
+            return now;
+        }
+
         try
         {
             var error = Assert.ThrowsAny<Exception>(() => Stress.Run(
                 5,
-                TimeSpan.FromMilliseconds(300),
+                TimeSpan.FromSeconds(30),
+                Clock,
                 ("sano", (random, stop) =>
                 {
-                    while (!stop.IsCancellationRequested)
+                    while (true)
                     {
+                        try
+                        {
+                            tick.Wait(stop);
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            return;
+                        }
+
                         _ = random.Next();
-                        Thread.Sleep(1);
+                        drew.Release();
                     }
                 }),
                 ("trabado", (random, stop) =>

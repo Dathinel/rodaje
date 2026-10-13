@@ -18,6 +18,7 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
     private int _idleGeneration;
     private Timer? _idleTimer;
     private Task _watchdog = Task.CompletedTask;
+    private ModuleProcess? _watched;
     private ModuleProcess? _hungProcess;
 
     public ModuleDescriptor Descriptor { get; } = descriptor;
@@ -27,6 +28,9 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
     public int ActiveCalls => Volatile.Read(ref _active);
 
     public int? ProcessId => Volatile.Read(ref _process)?.ProcessId;
+
+    /// <summary>Mata el árbol de procesos de un módulo retirado. Costura para las pruebas (por reflexión).</summary>
+    internal Action<ModuleProcess> KillProcess { get; set; } = static p => p.Kill();
 
     /// <summary>
     /// <paramref name="process"/> se mató por no responder al <c>ping</c>. Va por proceso y no por conexión: si la llamada
@@ -87,8 +91,11 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
             ModuleProcess current = _process;
             lock (_lock)
             {
-                if (_watchdog.IsCompleted)
+                // Uno por proceso: el del anterior sale solo al ver que su proceso ya no es el actual, pero con el pool
+                // cargado puede no haber despertado todavía, y esperar a que termine dejaba al nuevo sin ping.
+                if (_watchdog.IsCompleted || !ReferenceEquals(_watched, current))
                 {
+                    _watched = current;
                     _watchdog = Task.Run(() => WatchAsync(current), CancellationToken.None);
                 }
             }
@@ -177,8 +184,15 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
     {
         if (Interlocked.CompareExchange(ref _process, null, process) == process)
         {
-            process.Kill();
-            UiTask.Run(process.DisposeAsync().AsTask());
+            // Matar el árbol de procesos puede tardar segundos con la CPU llena: nunca en línea. Desde EnsureStartedAsync
+            // esto corre con _gate tomado y quizá en el hilo de la interfaz. En un hilo propio, como KillWhenFaulted, y
+            // observado con UiTask para que una excepción del cierre no se pierda.
+            Action<ModuleProcess> kill = KillProcess;
+            UiTask.Run(Task.Factory.StartNew(() =>
+            {
+                kill(process);
+                return process.DisposeAsync().AsTask();
+            }, CancellationToken.None, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap());
             closed(this);
         }
     }
