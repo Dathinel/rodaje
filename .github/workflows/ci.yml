@@ -129,12 +129,14 @@ jobs:
         run: '& .entorno\dotnet\dotnet.exe build Rodaje.slnx --no-restore'
 
       # Sin RODAJE_PRUEBAS_LARGAS las largas y las de hardware se omiten solas (tests/Rodaje.TestMedia/Skip.cs);
-      # TiempoReal y Rendimiento se excluyen igual que en Linux.
+      # TiempoReal y Rendimiento se excluyen igual que en Linux. Una prueba colgada se corta a los 10 minutos con su nombre
+      # en el registro (--blame-hang), en vez de agotar los 45 del trabajo sin decir cuál era.
       - name: Pruebas
         shell: pwsh
         run: |
           $filtro = 'Categoria!=TiempoReal&Categoria!=Rendimiento'
-          & .entorno\dotnet\dotnet.exe test Rodaje.slnx --no-build --filter $filtro --logger trx --results-directory TestResults
+          & .entorno\dotnet\dotnet.exe test Rodaje.slnx --no-build --filter $filtro --logger trx --results-directory TestResults `
+            --blame-hang-timeout 10m --blame-hang-dump-type none
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Resultados

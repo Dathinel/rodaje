@@ -221,17 +221,26 @@ public sealed class TimelineReverseTests(ITestOutputHelper output)
 
         using TimelineSession session = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { EnableAudio = false, TimeProvider = new ManualTimeProvider() });
         Settle(session, backend).Dispose();
-        for (int i = 0; i < 50; i++)
+
+        // Cada Tick en pausa manda a liberar los cuadros que suelta al ejecutor de servicio, que aquí es un
+        // ManualExecutor que nadie corre: su cola crece un trabajo por Tick y duplica su arreglo a los 64, 128, 256…
+        // trabajos. Esas duplicaciones (1–8 KB de una vez) caían dentro de las ventanas medidas en un sentido y fuera en
+        // el otro, según cuántos Tick llevó Settle, y daban 2 bytes por Tick de diferencia (2 841 contra 2 839 en la CI de
+        // Windows) o 24 con una de 4 KB. Se calienta hasta que la cola tiene sitio para una ventana entera y se vacía
+        // antes de cada ventana: dentro de la ventana la cola ya no crece y solo cuenta lo que reserva el Tick.
+        for (int i = 0; i < 250; i++)
         {
             session.Tick().Dispose();
         }
 
-        // La ventana con menos bytes de tres: lo que reserva cada Tick sale en todas. En la CI de Windows, con el runner
-        // cargado, una ventana sumó unos 4,8 KB de una vez (24 bytes por Tick de diferencia entre sentidos), que no son
-        // del Tick.
         long fewest = long.MaxValue;
         for (int round = 0; round < 3; round++)
         {
+            foreach (ManualExecutor executor in backend.Executors.ToList())
+            {
+                executor.RunAll();
+            }
+
             long before = GC.GetAllocatedBytesForCurrentThread();
             for (int i = 0; i < 200; i++)
             {

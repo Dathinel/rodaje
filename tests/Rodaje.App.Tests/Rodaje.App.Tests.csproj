@@ -18,6 +18,17 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!--
+    Pool de hilos con un mínimo de 32. Las pruebas de este proyecto corren cuatro clases a la vez y muchas dejan hilos del
+    pool bloqueados (esperas de procesos, módulos, ffmpeg) o encadenando trabajo en su cola local; en la CI de Windows, con
+    el mínimo de 4, el pool se quedó en 9 o 10 hilos y un trabajo de la cola global esperó más de 2 minutos
+    («Pool: 9 hilos (mínimo 4), 1 trabajos en cola»): el ping de un módulo sano no llegaba a tiempo y se daba por colgado,
+    y las pruebas del hilo de interfaz agotaban su tope. Con el mínimo alto, un trabajo nuevo despierta un hilo enseguida.
+  -->
+  <ItemGroup>
+    <RuntimeHostConfigurationOption Include="System.Threading.ThreadPool.MinThreads" Value="32" />
+  </ItemGroup>
+
   <ItemGroup>
     <Compile Include="..\..\src\Rodaje.App\Services\**\*.cs" Link="Services\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- Completa un método parcial de Shell (EditorServices.cs), que las pruebas no compilan. -->
