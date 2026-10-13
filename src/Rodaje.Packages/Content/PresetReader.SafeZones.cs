@@ -119,9 +119,11 @@ internal static partial class PresetReader
                 w.WriteString("label", zone.Label);
                 w.WriteString("kind", zone.Kind == SafeZoneKind.Safe ? "safe" : "interface");
                 w.WriteStartArray("rect");
-                foreach (double v in (double[])[zone.Left, zone.Top, zone.Width, zone.Height])
+                (double x, double width) = Rounded(zone.Left, zone.Width);
+                (double y, double height) = Rounded(zone.Top, zone.Height);
+                foreach (double v in (double[])[x, y, width, height])
                 {
-                    w.WriteNumberValue(Math.Round(v, 4));
+                    w.WriteNumberValue(v);
                 }
 
                 w.WriteEndArray();
@@ -133,6 +135,16 @@ internal static partial class PresetReader
         }
 
         return buffer.ToArray();
+    }
+
+    /// <summary>
+    /// Inicio y tamaño de un eje a 4 decimales, si así se vuelven a leer: redondeados por separado pueden sumar más de 1
+    /// (0,98415 + 0,01585 da 0,9842 + 0,0159) o dejar el tamaño en 0; entonces se escriben sin redondear.
+    /// </summary>
+    private static (double Start, double Size) Rounded(double start, double size)
+    {
+        double s = Math.Round(start, 4), z = Math.Round(size, 4);
+        return z > 0 && s + z <= 1 + FractionSlack ? (s, z) : (start, size);
     }
 
     private static long Integer(JsonElement owner, string property, string where)

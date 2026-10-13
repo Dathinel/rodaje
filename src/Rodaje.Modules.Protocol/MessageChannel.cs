@@ -146,12 +146,34 @@ internal sealed class MessageChannel(Stream stream, int maxFrameBytes = Protocol
                 if (!reader.Read()) return false;
                 if (isType)
                     return reader.TokenType == JsonTokenType.String && reader.GetString() is { } t
-                        && Limits.Identifier(t) is null && !ModuleMessage.KnownTypes.Contains(t);
+                        && Limits.Identifier(t) is null && !ModuleMessage.KnownTypes.Contains(t)
+                        && IsCompleteJson(json);
                 reader.Skip();
             }
             return false;
         }
         catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Si el marco entero es un único valor JSON válido en UTF-8: un tipo desconocido solo se salta si lo es; cortado, con
+    /// basura detrás o con UTF-8 roto es malformado y corta la conexión, como cualquier otro marco.
+    /// </summary>
+    private static bool IsCompleteJson(ReadOnlySpan<byte> json)
+    {
+        if (!System.Text.Unicode.Utf8.IsValid(json)) return false;
+        try
+        {
+            Utf8JsonReader reader = new(json, new JsonReaderOptions { MaxDepth = 32 });
+            while (reader.Read())
+            {
+            }
+            return reader.BytesConsumed > 0;
+        }
+        catch (JsonException)
         {
             return false;
         }

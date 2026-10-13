@@ -8,7 +8,8 @@ public static partial class TimelineEdits
     /// <summary>
     /// Lleva los clips (con sus enlazados) a una secuencia nueva y pone en su lugar un clip compuesto que la muestra: uno
     /// en la pista de video más baja tocada y otro, enlazado, en la de audio más baja. Lo anidado conserva las pistas
-    /// relativas, los ids, los enlaces y las transiciones entre clips elegidos; empieza en 0.
+    /// relativas (ocultas o mudas como estaban), los ids, los enlaces y las transiciones entre clips elegidos; empieza en 0.
+    /// Si la pista del compuesto está oculta (o muda) y algo elegido viene de una que se ve (o suena), no se crea.
     /// </summary>
     /// <returns>Los compuestos creados (video primero) y, al final, el id de la secuencia nueva.</returns>
     public static IReadOnlyList<string> CreateCompound(EditContext ctx, IEnumerable<string> clipIds, string name)
@@ -49,10 +50,27 @@ public static partial class TimelineEdits
                 continue;
             }
 
+            // El compuesto va en la pista más baja tocada: si está oculta (o muda), lo elegido de pistas que se ven (o suenan)
+            // dejaría de verse. Se comprueba antes de mover nada.
+            if (Off(list[used[0]]) && used.Any(i => !Off(list[i])))
+            {
+                throw new EditException(kind == TrackKind.Video
+                    ? $"El compuesto iría en la pista «{list[used[0]].Name}», que está oculta, y lo elegido de las pistas visibles dejaría de verse. Muéstrala antes."
+                    : $"El compuesto iría en la pista «{list[used[0]].Name}», que está silenciada, y lo elegido de las pistas con sonido dejaría de oírse. Quita el silencio antes.");
+            }
+
             for (int i = used[0]; i <= used[^1]; i++)
             {
                 Track source = list[i];
-                var track = new Track { Id = ctx.Ids.NewId("track"), Kind = kind, Name = source.Name, Role = source.Role };
+                var track = new Track
+                {
+                    Id = ctx.Ids.NewId("track"),
+                    Kind = kind,
+                    Name = source.Name,
+                    Role = source.Role,
+                    Hidden = source.Hidden,
+                    Muted = source.Muted,
+                };
                 var moving = chosen.Where(c => c.Track == source).Select(c => c.Clip).ToHashSet();
                 foreach (Clip clip in moving)
                 {
@@ -95,6 +113,8 @@ public static partial class TimelineEdits
 
         ctx.EnsureValid();
         return [.. created, nested.Id];
+
+        static bool Off(Track track) => track.Kind == TrackKind.Video ? track.Hidden : track.Muted;
     }
 
     /// <summary>

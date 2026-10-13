@@ -140,7 +140,8 @@ public sealed record SharedBufferRef(string Region, long Offset, long Length, Vi
         {
             if (a.SampleFormat != SampleFormats.F32) return $"formato de muestra desconocido: {a.SampleFormat}";
             if (a.SampleRate is < 8000 or > 384000 || a.Channels is < 1 or > 32 || a.Frames < 0) return "audio inválido";
-            if (a.Frames * a.Channels * 4L > Length) return "el audio no cabe en el búfer";
+            // Frames × canales × 4 desborda un long con frames enormes (2⁶² da 0): se compara dividiendo.
+            if (a.Frames > Length / (a.Channels * 4L)) return "el audio no cabe en el búfer";
         }
         return null;
     }

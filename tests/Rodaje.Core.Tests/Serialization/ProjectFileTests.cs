@@ -84,9 +84,33 @@ public sealed class ProjectFileTests : IDisposable
     [Fact]
     public void Save_RelativePath_IsResolvedAndWorks()
     {
-        string relative = Path.GetRelativePath(Environment.CurrentDirectory, PathFor("relativo"));
-        ProjectSerializer.Save(SerializationSamples.Rich(), relative);
-        Assert.True(File.Exists(PathFor("relativo")));
+        // Bajo la carpeta actual y no en %TEMP%: en la CI de Windows %TEMP% está en C: y la carpeta actual en D:, y entre
+        // unidades no hay ruta relativa (GetRelativePath devolvería la absoluta y no se probaría nada).
+        string dir = Path.Combine(Environment.CurrentDirectory, "Rodaje pruebas", $"Relativa ñ {Guid.NewGuid():N}");
+        Directory.CreateDirectory(dir);
+        try
+        {
+            string absolute = Path.Combine(dir, "relativo" + ProjectSerializer.FileExtension);
+            string relative = Path.GetRelativePath(Environment.CurrentDirectory, absolute);
+            Assert.False(Path.IsPathRooted(relative), relative);
+            ProjectSerializer.Save(SerializationSamples.Rich(), relative);
+            Assert.True(File.Exists(absolute));
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+            catch (IOException)
+            {
+                // Una carpeta sobrante no afecta a otras pruebas.
+            }
+            catch (UnauthorizedAccessException)
+            {
+                // Igual: el antivirus puede tener abierto el archivo recién escrito.
+            }
+        }
     }
 
     [Fact]
@@ -116,8 +140,9 @@ public sealed class ProjectFileTests : IDisposable
     }
 
     // Solo Windows: IsTransient reintenta con los HRESULT de Windows; en Linux el bloqueo llega como EWOULDBLOCK (11)
-    // y el guardado no reintenta. La integración continua de Linux excluye esta categoría.
-    [Fact]
+    // y el guardado no reintenta. La integración continua de Linux excluye esta categoría; fuera de Windows, además, se
+    // omite con su causa para que un «dotnet test» a mano sin filtro no salga en rojo.
+    [Hardened.WindowsOnlyFact("IsTransient reintenta con los HRESULT de bloqueo de Windows; en Linux el bloqueo llega como EWOULDBLOCK y el guardado no reintenta.")]
     [Trait("Categoria", "SoloWindows")]
     public void Save_TempLockedByAnotherProgram_ThrowsAndKeepsExistingFile()
     {

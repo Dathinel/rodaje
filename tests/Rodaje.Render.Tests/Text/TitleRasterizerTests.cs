@@ -403,7 +403,8 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         full.Sort();
         output.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"{gpu.AdapterName}: relleno solo mediana {plain[15]:0.00} ms (p90 {plain[27]:0.00}); dos líneas con borde y sombra mediana {full[15]:0.00} ms (p90 {full[27]:0.00})"));
-        Assert.True(full[15] < (Strict ? 2 : 20), $"Rasterizar un título 1080p con borde y sombra tomó {full[15]:0.00} ms.");
+        // Con WARP la parte de GPU corre en la CPU (122 ms forzando WARP en un equipo con GPU) y en Debug solo se informa.
+        Assert.True(!MeasuredGpuFactAttribute.CanTime(gpu) || full[15] < (Strict ? 2 : 20), $"Rasterizar un título 1080p con borde y sombra tomó {full[15]:0.00} ms.");
     }
 
     [MeasuredGpuFact]

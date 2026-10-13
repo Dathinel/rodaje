@@ -14,6 +14,11 @@ namespace Rodaje.App.Tests.Packages;
 /// Un módulo instalado desde el catálogo: sus modelos se bajan al almacén (hash y reanudación) y quedan en su carpeta
 /// donde el módulo los busca; desinstalar o actualizar un módulo abierto lo cierra antes; los ids viejos se migran.
 /// </summary>
+/// <remarks>
+/// Corren solas (<see cref="ModuleProcessGroup"/>): arrancan procesos de módulo y esperan su progreso, y en la CI
+/// compartiendo la CPU una vez no terminaron en 120 s.
+/// </remarks>
+[Collection(ModuleProcessGroup.Name)]
 public sealed class ModuleInstallTests : IAsyncLifetime, IDisposable
 {
     private static readonly string[] EchoFiles =

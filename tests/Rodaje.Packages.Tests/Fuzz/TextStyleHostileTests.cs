@@ -473,7 +473,7 @@ public sealed class TextStyleHostileTests(ITestOutputHelper output)
     /// dice que los propios se leen «tolerando una marca BOM inicial». Lo que debería pasar: los lectores de contenido
     /// también la saltan (o la biblioteca no lista lo que no se puede leer).
     /// </summary>
-    [Fact(Skip = "Defecto: ContentReaders rechaza un JSON con BOM que PackageLibrary sí lista como elemento propio.")]
+    [Fact]
     public void Un_elemento_propio_con_bom_se_lista_y_se_lee()
     {
         using var temp = new TempFolder();

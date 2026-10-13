@@ -36,9 +36,10 @@ public sealed class DownloadUrlPolicy
             return true;
         }
 
-        if (!SafeText.TryParseHttpsUri(url.OriginalString, out Uri? parsed) || parsed.Query.Length > 0 || parsed.Fragment.Length > 0)
+        // Solo el puerto de https (443, escrito o no): https://github.com:8443/… es otro servidor.
+        if (!SafeText.TryParseHttpsUri(url.OriginalString, out Uri? parsed) || parsed.Query.Length > 0 || parsed.Fragment.Length > 0 || parsed.Port != 443)
         {
-            reason = "La dirección no es https o tiene partes no permitidas.";
+            reason = "La dirección no es https (puerto 443) o tiene partes no permitidas.";
             return false;
         }
 

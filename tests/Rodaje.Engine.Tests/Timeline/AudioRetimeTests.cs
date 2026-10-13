@@ -462,7 +462,7 @@ public sealed class AudioRetimeTests(ITestOutputHelper output)
 
         // Hasta que el JIT por niveles deje el código optimizado, como lo deja Native AOT desde el principio.
         var warmUp = Stopwatch.StartNew();
-        while (warmUp.ElapsedMilliseconds < 1500)
+        for (int warm = 0; warm < 20 || warmUp.ElapsedMilliseconds < 1500; warm++)
         {
             reader.Read(next, block, reader.DecoderNext);
             next += 1024;
