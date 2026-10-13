@@ -24,12 +24,12 @@ public sealed class LibrarySubclipLookupTests
     }
 
     /// <summary>
-    /// Lo que hace la vista al rehacer la lista: buscar cada subclip. Se cuentan los ciclos del hilo, no el reloj
-    /// (<see cref="CycleGrowth"/>); con la búsqueda lineal, de 2 000 a 16 000 se multiplicaban por unas 64 veces.
+    /// Lo que hace la vista al rehacer la lista: buscar cada subclip. Se cuentan los bytes y el tiempo sin pausas del
+    /// recolector (<see cref="WorkGrowth"/>); con la búsqueda lineal, de 2 000 a 16 000 se multiplicaban por unas 64 veces.
     /// </summary>
     [Fact]
     public void FindingEverySubclip_GrowsLinearly() =>
-        CycleGrowth.AssertLinear(count => (Org: WithSubclips(count), Ids: Enumerable.Range(0, count).Select(i => $"s{i}").ToArray()),
+        WorkGrowth.AssertLinear(count => (Org: WithSubclips(count), Ids: Enumerable.Range(0, count).Select(i => $"s{i}").ToArray()),
             input =>
             {
                 foreach (string id in input.Ids)
