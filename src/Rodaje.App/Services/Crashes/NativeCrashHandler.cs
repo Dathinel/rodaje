@@ -22,6 +22,9 @@ public static unsafe partial class NativeCrashHandler
     private static nint s_previous;
     private static int s_entered;
 
+    /// <summary>Último error de Win32 de <c>MiniDumpWriteDump</c> que falló (para el diagnóstico de las pruebas).</summary>
+    public static int LastMinidumpError { get; private set; }
+
     /// <summary>Instala el filtro (una vez por proceso; en otro sistema que no sea Windows no hace nada).</summary>
     public static void Install(CrashReporter reporter)
     {
@@ -83,6 +86,7 @@ public static unsafe partial class NativeCrashHandler
             bool ok = MiniDumpWriteDump(process, processId, file.SafeFileHandle, DumpType, info, 0, 0);
             if (!ok)
             {
+                LastMinidumpError = Marshal.GetLastPInvokeError();
                 file.Close();
                 File.Delete(path);
             }
