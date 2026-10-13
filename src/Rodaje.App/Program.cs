@@ -90,13 +90,16 @@ internal static class Program
     /// Deja el error en <c>rodaje-error.txt</c> junto al exe (una app de ventana no tiene consola) y un informe
     /// «recuperado» en <c>fallos\</c>, que se puede escribir aunque la carpeta del exe no (Archivos de programa).
     /// </summary>
-    public static void WriteCrash(string? text)
+    /// <returns>La ruta del informe, o nulo si no se pudo escribir.</returns>
+    public static string? WriteCrash(string? text)
     {
-        _ = Crashes.Write(CrashKind.Caught, text, fatal: false, out bool repeated);
+        string? path = Crashes.Write(CrashKind.Caught, text, fatal: false, out bool repeated);
         if (!repeated)
         {
             AppendErrorFile(text);
         }
+
+        return path;
     }
 
     /// <summary>Informa una excepción que llegó por una de las vías sin atrapar (también en <c>rodaje-error.txt</c>).</summary>
@@ -132,10 +135,10 @@ internal static class Program
     /// </summary>
     private static void ReportHandlerException(Exception exception, bool notify)
     {
-        _ = ReportException(CrashKind.DispatcherCallback, exception, fatal: false, out bool repeated);
+        string? path = ReportException(CrashKind.DispatcherCallback, exception, fatal: false, out bool repeated);
         if (notify && !repeated)
         {
-            Instance?.NotifyUnexpectedError(exception.Message);
+            Instance?.NotifyUnexpectedError(path);
         }
     }
 

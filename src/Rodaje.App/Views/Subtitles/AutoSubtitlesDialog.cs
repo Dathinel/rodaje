@@ -111,15 +111,16 @@ internal static class AutoSubtitlesDialog
         var draft = new TranscriptionDraft();
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
-        timer.Tick += (_, _) =>
+        void ShowActivity()
         {
-            if (job is not null)
-            {
-                progress.Value = job.Progress;
-                scope?.Report(job.Progress, "Transcribiendo la voz…");
-                status.Text = (job.Stage ?? "Transcribiendo") + "…";
-            }
-        };
+            ModuleActivityView view = ModuleActivity.Describe(job, cancel.IsCancellationRequested, "Transcribiendo");
+            progress.IsIndeterminate = view.IsIndeterminate;
+            progress.Value = view.Progress;
+            scope?.Report(view.IsIndeterminate ? null : view.Progress, view.IsIndeterminate ? view.Text : "Transcribiendo la voz…");
+            status.Text = view.Text;
+        }
+
+        timer.Tick += (_, _) => ShowActivity();
 
         string Selected() => language.SelectedIndex >= 0 ? AutoSubtitles.Languages[language.SelectedIndex].Id : "auto";
         List<string> labels = [];
@@ -140,10 +141,9 @@ internal static class AutoSubtitlesDialog
             again.IsEnabled = false;
             dialog.IsPrimaryButtonEnabled = false;
             progress.Visibility = Visibility.Visible;
-            progress.Value = 0;
-            status.Text = "Transcribiendo…";
             string wanted = Selected();
             job = null;
+            ShowActivity();
             timer.Start();
             try
             {
@@ -208,6 +208,7 @@ internal static class AutoSubtitlesDialog
         if (answer != ContentDialogResult.Primary || draft.Running)
         {
             await cancel.CancelAsync();
+            await services.LongActions.ShowCancellingAsync(Title, current, scope);
         }
 
         await current;

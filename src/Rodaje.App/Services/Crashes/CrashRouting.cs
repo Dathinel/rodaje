@@ -45,7 +45,8 @@ public static class CrashRouting
 
     /// <summary>
     /// Un callback del hilo de la interfaz lanzó. Con ventana (<paramref name="showError"/>): informe «recuperado», aviso
-    /// (una vez por ráfaga) y la app sigue (<c>true</c>). Sin ventana: informe fatal y la excepción sigue su camino.
+    /// (una vez por ráfaga) y la app sigue (<c>true</c>). Sin ventana: informe fatal y la excepción sigue su camino. El aviso
+    /// es el texto fijo de <see cref="UnexpectedErrorNotice"/>: el mensaje de la excepción solo va al informe.
     /// </summary>
     public static bool OnDispatcherException(Exception exception, Action<string>? showError, ExceptionReport report)
     {
@@ -57,10 +58,10 @@ public static class CrashRouting
             return false;
         }
 
-        _ = report(CrashKind.DispatcherCallback, exception, false, out bool repeated);
+        string? path = report(CrashKind.DispatcherCallback, exception, false, out bool repeated);
         if (!repeated)
         {
-            showError(exception.Message);
+            showError(UnexpectedErrorNotice.Describe(path));
         }
 
         return true;
@@ -68,7 +69,8 @@ public static class CrashRouting
 
     /// <summary>
     /// <c>Application.UnhandledException</c> de WinUI. Devuelve si queda atendida: con ventana, informe «recuperado» y
-    /// aviso (una vez por ráfaga); sin ventana no se atiende (WinUI cierra la app), pero el informe fatal ya quedó.
+    /// aviso (una vez por ráfaga, con el texto de <see cref="UnexpectedErrorNotice"/>); sin ventana no se atiende (WinUI
+    /// cierra la app), pero el informe fatal ya quedó.
     /// </summary>
     public static bool OnXamlUnhandled(Exception? exception, string? message, Action<string>? showError, ExceptionReport report, TextReport reportText)
     {
@@ -76,14 +78,9 @@ public static class CrashRouting
         ArgumentNullException.ThrowIfNull(reportText);
         bool fatal = showError is null;
         bool repeated;
-        if (exception is not null)
-        {
-            _ = report(CrashKind.XamlUnhandled, exception, fatal, out repeated);
-        }
-        else
-        {
-            _ = reportText(CrashKind.XamlUnhandled, message, fatal, out repeated);
-        }
+        string? path = exception is not null
+            ? report(CrashKind.XamlUnhandled, exception, fatal, out repeated)
+            : reportText(CrashKind.XamlUnhandled, message, fatal, out repeated);
 
         if (showError is null)
         {
@@ -92,7 +89,7 @@ public static class CrashRouting
 
         if (!repeated)
         {
-            showError(exception?.Message ?? message ?? "(sin detalles)");
+            showError(UnexpectedErrorNotice.Describe(path));
         }
 
         return true;
