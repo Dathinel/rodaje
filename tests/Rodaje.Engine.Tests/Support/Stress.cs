@@ -189,10 +189,10 @@ internal static class Stress
             string stacks = ThreadDump.Capture(names);
             string state = string.Join("; ", threads.Select((t, i) =>
                 $"{t.Name}: {(t.Thread.IsAlive ? "vivo" : "terminado")}, {seen[i]} números, el último hace {(looked - moved[i]).TotalSeconds:0.#} s"));
-            string budget = stop.IsCancellationRequested ? "ya pedida" : "sin pedir";
+            string requested = stop.IsCancellationRequested ? "ya pedida" : "sin pedir";
             run.Fail();
             stop.Cancel();
-            errors.Enqueue($"{hung}{Environment.NewLine}Estado: {state}. A los {looked.TotalSeconds:0.#} s; la parada estaba {budget}; "
+            errors.Enqueue($"{hung}{Environment.NewLine}Estado: {state}. A los {looked.TotalSeconds:0.#} s; la parada estaba {requested}; "
                 + $"el vigilante tardó como mucho {widestGap.TotalSeconds:0.##} s entre dos miradas.{Environment.NewLine}"
                 + $"Pilas de los hilos al saltar el detector:{Environment.NewLine}{stacks}");
         }
