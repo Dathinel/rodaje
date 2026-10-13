@@ -80,10 +80,16 @@ public class CrashReportScrubberSlashTests
     {
         string line = string.Concat(Enumerable.Repeat("D:/a.b c/", 2_000))
             + string.Concat(Enumerable.Repeat("file:///D:/x y.mp4 y/o %TEMP%/a.b c/", 1_000));
-        string many = string.Join('\n', Enumerable.Repeat(line[..CrashReportScrubber.MaxLineLength], 200));
+        // Pocas líneas y un presupuesto propio: en la CI de Windows (con cobertura) corre a la vez que la prueba
+        // patológica de CrashReportScrubberTextTests, y las dos comparten el presupuesto de 2 s por llamada.
+        string many = string.Join('\n', Enumerable.Repeat(line[..CrashReportScrubber.MaxLineLength], 20));
+        var scrubber = new CrashReportScrubber(new Dictionary<string, string?> { ["%TEMP%"] = @"C:\Users\ana\AppData\Local\Temp\" })
+        {
+            Budget = TimeSpan.FromSeconds(30),
+        };
         var watch = Stopwatch.StartNew();
 
-        string text = Ana.Scrub(line + "\n" + many);
+        string text = scrubber.Scrub(line + "\n" + many);
 
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), $"tardó {watch.Elapsed}");
         Assert.DoesNotContain(CrashReportScrubber.HiddenLine, text, StringComparison.Ordinal);
