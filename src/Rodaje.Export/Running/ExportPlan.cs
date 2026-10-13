@@ -129,7 +129,7 @@ public sealed record ExportPlan
         {
             ExportPixelFormat pixels = video.PixelFormatFor(vs.BitDepth, vs.Chroma, vs.Alpha)!.Value;
             (int width, int height) = vs.OutputSize(sequence.Width, sequence.Height);
-            CheckOutputSize(vs, width, height);
+            CheckOutputSize(vs, pixels, width, height);
             format = new ExportVideoFormat(width, height, output, pixels, vs.Color ?? ExportColor.For(width, height, pixels));
             if (video.Codec == ExportCodec.Gif)
             {
@@ -311,7 +311,7 @@ public sealed record ExportPlan
     /// <see cref="ArgumentOutOfRangeException"/> desde <see cref="ExportVideoFormat"/>, y el entrelazado y el 360 salían
     /// con un alto o una forma que no admiten.
     /// </summary>
-    private static void CheckOutputSize(VideoExportSettings video, int width, int height)
+    private static void CheckOutputSize(VideoExportSettings video, ExportPixelFormat pixels, int width, int height)
     {
         if (width > ExportVideoFormat.MaxDimension || height > ExportVideoFormat.MaxDimension)
         {
@@ -319,10 +319,11 @@ public sealed record ExportPlan
                 $"El video saldría de {width}×{height}; el máximo es {ExportVideoFormat.MaxDimension} por lado. Elige un tamaño de salida menor."));
         }
 
-        if (video.FieldOrder != ExportFieldOrder.Progressive && height % 4 != 0)
+        // El paso depende del croma: 4 en 4:2:0, 2 en 4:2:2 y 4:4:4 (ProRes, con D1 NTSC de 486 líneas; tarea 232).
+        if (video.FieldOrder != ExportFieldOrder.Progressive && height % pixels.InterlacedHeightStep() != 0)
         {
-            throw Invalid(string.Create(CultureInfo.InvariantCulture,
-                $"Entrelazado, el alto tiene que ser múltiplo de 4 y saldría de {height}. Elige un tamaño de salida."));
+            string why = ExportSettingsValidator.InterlacedHeightMessage(pixels).TrimEnd('.');
+            throw Invalid(string.Create(CultureInfo.InvariantCulture, $"{why} y saldría de {height}. Elige un tamaño de salida."));
         }
 
         if (video.Projection == ExportProjection.Equirectangular && width != 2 * height)

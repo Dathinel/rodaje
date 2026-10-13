@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 
@@ -89,7 +90,9 @@ public sealed class SequenceEditCommand : ICommand
             if (ex is OverflowException)
             {
                 // Un cálculo de tiempos que no cabe en un long (clips cerca del final del rango, un desplazamiento enorme):
-                // la edición no se puede hacer, como cualquier otra imposible, en vez de cerrar la app.
+                // la edición no se puede hacer, como cualquier otra imposible, en vez de cerrar la app. La pila queda en el
+                // registro de la sesión (Trace): un defecto real de cálculo no debe quedar disfrazado de límite del usuario.
+                Trace.WriteLine($"Rodaje: la edición «{Description}» de la secuencia {SequenceId} desbordó un cálculo de tiempos; se rechaza como imposible: {ex}");
                 throw new EditException("La edición se saldría del rango de tiempos que admite el proyecto.", ex);
             }
 

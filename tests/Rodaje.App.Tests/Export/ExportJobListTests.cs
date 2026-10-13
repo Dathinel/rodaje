@@ -142,6 +142,19 @@ public class ExportJobListTests
         Assert.DoesNotContain("está dañado", message, StringComparison.Ordinal);
     }
 
+    /// <summary>El motivo de un plan imposible (tarea 232) se ve en el aviso, antes de la pista general.</summary>
+    [Fact]
+    public void UnosAjustesImposiblesDicenElMotivoDelPlan()
+    {
+        var error = new ExportException(ExportErrorCode.InvalidSettings, "Entrelazado, el alto tiene que ser par y saldría de 1081. Elige un tamaño de salida.");
+
+        ExportErrorView view = ExportErrorText.For(error);
+
+        Assert.Equal(ExportErrorAction.ChangeSettings, view.Action);
+        Assert.Equal("Entrelazado, el alto tiene que ser par y saldría de 1081. Elige un tamaño de salida. Revisa el formato en Avanzado o vuelve a un preajuste.", view.Message);
+        Assert.StartsWith("x. Revisa", ExportErrorText.For(new ExportException(ExportErrorCode.InvalidSettings, "x")).Message, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void TodosLosCodigosTienenTexto()
     {

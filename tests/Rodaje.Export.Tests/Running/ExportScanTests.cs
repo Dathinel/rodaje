@@ -99,6 +99,22 @@ public sealed class ExportScanTests : IDisposable
         Assert.Contains("nb_read_frames=50", probe, StringComparison.Ordinal);
     }
 
+    /// <summary>D1 NTSC (720×486, campos de 243 líneas) en 4:2:2: FFmpeg separa, teje y ProRes lo codifica (tarea 232).</summary>
+    [ProxyFact]
+    public async Task The_weave_filters_take_ntsc_d1_486_lines_in_prores_422()
+    {
+        string path = Path.Combine(Directory.CreateDirectory(_folder).FullName, "d1.mov");
+        IReadOnlyList<string> filters = ExportPlan.WeaveFields(ExportFieldOrder.BottomFirst, ExportPixelFormat.Yuv422P10, new Rational(25, 1));
+
+        await FfmpegAsync("-f", "lavfi", "-i", "testsrc2=size=720x486:rate=50:duration=1", "-pix_fmt", "yuv422p10le", "-c:v", "prores_ks",
+            "-profile:v", "hq", "-flags", "+ildct", "-filter:v:0", string.Join(',', filters), path);
+
+        string probe = await ProbeAsync("-select_streams", "v:0", "-show_entries", "stream=width,height,field_order", "-of", "compact", path);
+        Assert.Contains("width=720|height=486", probe, StringComparison.Ordinal);
+        Assert.Contains("field_order=bt", probe, StringComparison.Ordinal);
+        Assert.Equal("", await FfmpegAsync("-v", "error", "-i", path, "-f", "null", "-"));
+    }
+
     [ProxyFact]
     public async Task Spherical_boxes_go_into_an_mp4_with_moov_at_the_start_and_it_still_decodes()
     {
