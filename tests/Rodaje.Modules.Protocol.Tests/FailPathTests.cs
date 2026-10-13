@@ -39,7 +39,9 @@ public sealed class FailPathTests
             bool? callDoneWhenSlowStartedOnFailThread = null;
             TaskCompletionSource slowStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
             // Como el OnExited de ModuleConnection (mata el árbol de procesos), pero que no termina hasta que la prueba lo
-            // suelte.
+            // suelte. Es la única espera síncrona sobre el pool del proyecto y es a propósito (tarea 137): la prueba
+            // necesita una continuación que ocupe el hilo del pool que la toma, para ver si ese hilo es el de Fail. Ocupa
+            // un solo hilo y lo suelta el finally de cada vuelta, en cuanto la llamada falló.
             Task slow = client.Completion.ContinueWith(_ =>
             {
                 if (Environment.CurrentManagedThreadId == Volatile.Read(ref failThread))
