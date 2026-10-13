@@ -22,6 +22,7 @@ public sealed class DecodeThread : IDecodeExecutor, IDisposable
     private readonly Queue<Action> _work = new();
     private readonly Thread _thread;
     private bool _stopping;
+    private int _hangReported;
 
     public DecodeThread(string name = "Rodaje decodificación")
         : this(name, DefaultJoinTimeout)
@@ -69,22 +70,38 @@ public sealed class DecodeThread : IDecodeExecutor, IDisposable
     /// </remarks>
     public void Dispose() => Stop(JoinTimeout);
 
-    /// <summary>Como <see cref="Dispose"/>, con otro plazo. Devuelve falso (y lo registra) si el hilo no terminó a tiempo.</summary>
+    /// <summary>Como <see cref="Dispose"/>, con otro plazo. Devuelve falso (y lo registra la primera vez) si el hilo no terminó a tiempo.</summary>
+    /// <remarks>
+    /// Lo registra una sola vez por hilo: quien cierra puede volver a pedirlo (el cierre de la sesión tras el de un
+    /// decodificador ocioso) y repetir la misma línea no dice nada nuevo.
+    /// </remarks>
     public bool Stop(TimeSpan timeout)
+    {
+        RequestStop();
+        if (Thread.CurrentThread == _thread || _thread.Join(timeout))
+        {
+            return true;
+        }
+
+        if (Interlocked.Exchange(ref _hangReported, 1) == 0)
+        {
+            Trace.WriteLine($"Rodaje: el hilo «{Name}» no terminó en {timeout.TotalSeconds:0.###} s al cerrarse; sigue en segundo plano con lo que tenía en cola.");
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Pide que el hilo termine en cuanto acabe lo ya encolado, sin esperarlo: lo nuevo que llegue se descarta. Para quien
+    /// no puede quedarse esperando (el ejecutor de servicio, que atiende otros cierres y lecturas).
+    /// </summary>
+    public void RequestStop()
     {
         lock (_gate)
         {
             _stopping = true;
             Monitor.Pulse(_gate);
         }
-
-        if (Thread.CurrentThread == _thread || _thread.Join(timeout))
-        {
-            return true;
-        }
-
-        Trace.WriteLine($"Rodaje: el hilo «{Name}» no terminó en {timeout.TotalSeconds:0.###} s al cerrarse; sigue en segundo plano con lo que tenía en cola.");
-        return false;
     }
 
     private void Run()
