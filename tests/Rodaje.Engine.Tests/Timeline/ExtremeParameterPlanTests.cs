@@ -15,6 +15,7 @@ namespace Rodaje.Engine.Tests.Timeline;
 /// repetidos o desordenados y con curvas Bézier degeneradas. Lo que el motor entrega (la transformación, la colocación de
 /// la capa, los valores que van a la GPU, los ajustes del audio) es siempre un número dentro del rango.
 /// </summary>
+[Collection(ExtremeValuesGroup.Name)]
 public sealed class ExtremeParameterPlanTests
 {
     public static readonly double[] Extremes =

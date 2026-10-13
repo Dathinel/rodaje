@@ -15,6 +15,7 @@ namespace Rodaje.Engine.Tests.Timeline;
 /// en ese tramo y nada más: las inserciones del clip, de la pista y de la mezcla con estado (filtros, reverb, delay) no
 /// quedan envenenadas y lo que sigue suena. También con cada inserción en sus valores extremos.
 /// </summary>
+[Collection(ExtremeValuesGroup.Name)]
 public sealed class AudioNonFiniteMixTests : IDisposable
 {
     private const int Rate = 48_000;
