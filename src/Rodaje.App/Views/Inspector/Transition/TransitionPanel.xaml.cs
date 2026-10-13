@@ -415,29 +415,8 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
         }
 
         _typesShown = (installed, type, preset, kind);
-        var types = new ChoiceList<(string Type, string Preset)>();
-        foreach (EffectDefinition definition in TransitionEditor.TypesFor(kind))
-        {
-            types.Add(EffectUi.Name(definition.Type), (definition.Type, ""));
-        }
-
-        if (kind != TrackKind.Audio)
-        {
-            foreach (PackageItemEntry entry in installed.Items(ItemKind.Transition))
-            {
-                string source = entry.Package.Origin == PackageOrigin.Own ? "Mía" : entry.Package.Manifest.Name;
-                types.Add($"{entry.Item.Name} · {source}", (Tr.Preset, entry.Reference.ToString()));
-            }
-        }
-
-        int index = types.IndexOf((type, preset));
-        if (index < 0)
-        {
-            // Un tipo de imagen en una pista de audio (de antes del formato 12) o un paquete que falta: se muestra igual.
-            types.Add(preset.Length > 0 ? preset + " (falta el paquete)" : EffectUi.Name(type), (type, preset));
-            index = types.Count - 1;
-        }
-
+        // Un tipo de imagen en una pista de audio (de antes del formato 12) o un paquete que falta se muestra igual.
+        (ChoiceList<(string Type, string Preset)> types, int index) = TransitionChoices.Types(kind, installed, type, preset);
         _updating = true;
         _types = ComboBoxChoices.Show(TypeBox, _types, types, index);
         _updating = false;
@@ -637,10 +616,7 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
         }
 
         // Cambiar el tipo edita y refresca el panel, que puede rehacer este desplegable: va después del evento.
-        if (!DispatcherQueue.TryEnqueue(() => ChooseType(id, choice.Type, choice.Preset)))
-        {
-            ChooseType(id, choice.Type, choice.Preset);
-        }
+        DispatcherQueue.RunAfterEvent(() => ChooseType(id, choice.Type, choice.Preset));
     }
 
     private void ChooseType(string id, string type, string preset)

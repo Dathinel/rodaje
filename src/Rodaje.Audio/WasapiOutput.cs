@@ -268,6 +268,14 @@ public sealed unsafe class WasapiOutput : IAudioOutput, IRenderTransport
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         lock (_control)
         {
+            // Dispose pudo ganar la carrera después de la comprobación de arriba: con _shutdown el hilo ya terminó (o está
+            // terminando) y sus eventos se cierran, así que no se vuelve a señalar _wakeEvent. Pausar algo cerrado no es error.
+            if (_shutdown)
+            {
+                ObjectDisposedException.ThrowIf(running != false || flush is not null, this);
+                return;
+            }
+
             if (running is { } r)
             {
                 _wantRunning = r;

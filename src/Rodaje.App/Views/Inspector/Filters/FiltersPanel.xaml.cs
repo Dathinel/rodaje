@@ -122,7 +122,6 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
 /// </summary>
 internal sealed partial class FiltersPanel : UserControl, IEditorView
 {
-    private const string LoadCubeLabel = "Cargar .cube…";
 
     private readonly List<ParameterRow> _rows = [];
     /// <summary>Lo que muestra ahora el desplegable de LUT (nulo: «Cargar .cube…»; ver <see cref="ComboBoxChoices"/>).</summary>
@@ -438,25 +437,10 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
 
         _lutShown = (installed, current);
-        var luts = new ChoiceList<string?>();
-        Add("Sin LUT", "");
-        foreach (PackageItemEntry entry in installed.Items(ItemKind.Lut))
-        {
-            Add($"{entry.Item.Name} · {entry.Package.Manifest.Name}", entry.Reference.ToString());
-        }
-
-        if (current.Length > 0 && !luts.Contains(current))
-        {
-            string name = LutReference.DisplayName(current, installed);
-            Add(LutReference.IsFile(current) ? name + " (archivo)" : name + " (falta el paquete)", current);
-        }
-
-        Add(LoadCubeLabel, null);
+        (ChoiceList<string?> luts, int selected) = LutChoices.Build(installed, current);
         _updating = true;
-        _lutValues = ComboBoxChoices.Show(LutBox, _lutValues, luts, luts.IndexOf(current));
+        _lutValues = ComboBoxChoices.Show(LutBox, _lutValues, luts, selected);
         _updating = false;
-
-        void Add(string label, string? value) => luts.Add(label, value);
     }
 
     private IEnumerable<(string Name, double DefaultValue)> Defaults() => _rows.Select(r => (r.Spec.Name, r.Spec.DefaultValue));
@@ -507,10 +491,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
         // Elegir edita y refresca el panel, que puede rehacer este desplegable (y «Cargar .cube…» abre un diálogo): va después
         // del evento.
-        if (!DispatcherQueue.TryEnqueue(() => ChooseLut(effectId, value)))
-        {
-            ChooseLut(effectId, value);
-        }
+        DispatcherQueue.RunAfterEvent(() => ChooseLut(effectId, value));
     }
 
     private void ChooseLut(string effectId, string? value)

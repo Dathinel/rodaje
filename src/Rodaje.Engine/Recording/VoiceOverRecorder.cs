@@ -20,7 +20,9 @@ public sealed record VoiceOverTake(string Path, long Frames, int SampleRate, Tim
 /// <remarks>
 /// La toma empieza exactamente en <c>start</c>: lo capturado antes se descarta y, si la primera muestra llega más tarde,
 /// el hueco se rellena con silencio. Una pérdida de muestras de Windows (discontinuidad) también se rellena, para no
-/// adelantar lo que sigue. Los paquetes llegan del hilo de captura; el resto, del que crea el grabador.
+/// adelantar lo que sigue. Los paquetes llegan del hilo de captura; el resto, del que crea el grabador. Un candado
+/// separa cada paquete del cierre: aunque la captura tarde en detenerse, nada se escribe en el WAV ya cerrado, y un error
+/// al escribir (disco lleno) no tumba el hilo de captura: se guarda y lo lanza <see cref="Finish"/>.
 /// </remarks>
 public sealed class VoiceOverRecorder : IDisposable
 {
@@ -31,6 +33,8 @@ public sealed class VoiceOverRecorder : IDisposable
     private readonly WaveFileWriter _writer;
     private readonly int _rate;
     private readonly float[] _silence = new float[4800];
+    private readonly Lock _gate = new();
+    private Exception? _failure;
     private bool _started;
     private long _expectedQpc;
     private long _frames;
@@ -66,21 +70,58 @@ public sealed class VoiceOverRecorder : IDisposable
     public void Begin() => _capture.StartCapture(OnPacket);
 
     /// <summary>Detiene la captura y cierra el WAV.</summary>
+    /// <exception cref="IOException">No se pudo escribir la toma (por ejemplo, el disco se llenó mientras se grababa).</exception>
     public VoiceOverTake Finish()
     {
-        ObjectDisposedException.ThrowIf(_finished, this);
+        lock (_gate)
+        {
+            ObjectDisposedException.ThrowIf(_finished, this);
+        }
+
+        // Fuera del candado: detener la captura espera a su hilo, que puede estar esperando el candado con un paquete.
         _capture.StopCapture();
-        _finished = true;
-        _writer.Complete();
-        return new VoiceOverTake(Path, _frames, _rate, Start);
+        Exception? failure;
+        lock (_gate)
+        {
+            _finished = true;
+            failure = _failure;
+        }
+
+        try
+        {
+            if (failure is null)
+            {
+                _writer.Complete();
+            }
+        }
+        catch (ExportException ex)
+        {
+            failure = ex;
+        }
+
+        if (failure is not null)
+        {
+            throw new IOException("No se pudo escribir la voz en off: " + failure.Message, failure);
+        }
+
+        return new VoiceOverTake(Path, Interlocked.Read(ref _frames), _rate, Start);
     }
 
     public void Dispose()
     {
-        if (!_finished)
+        bool stop;
+        lock (_gate)
+        {
+            stop = !_finished;
+        }
+
+        if (stop)
         {
             _capture.StopCapture();
-            _finished = true;
+            lock (_gate)
+            {
+                _finished = true;
+            }
         }
 
         _writer.Dispose();
@@ -89,11 +130,27 @@ public sealed class VoiceOverRecorder : IDisposable
 
     private void OnPacket(ReadOnlySpan<float> mono, long qpc, bool discontinuity)
     {
-        if (_finished)
+        lock (_gate)
         {
-            return;
-        }
+            if (_finished || _failure is not null)
+            {
+                return;
+            }
 
+            try
+            {
+                Append(mono, qpc, discontinuity);
+            }
+            catch (Exception ex) when (ex is IOException or ExportException or UnauthorizedAccessException)
+            {
+                // En el hilo de captura no hay a quién lanzarlo: se guarda para Finish y se deja de escribir.
+                _failure = ex;
+            }
+        }
+    }
+
+    private void Append(ReadOnlySpan<float> mono, long qpc, bool discontinuity)
+    {
         if (!_started)
         {
             if (_heardAt(qpc) is not { } heard)

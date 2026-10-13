@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services.Audio;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Theme;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Mixer;
@@ -94,6 +95,9 @@ internal sealed partial class StripView : UserControl
     private readonly ToggleButton _arm = new() { Content = "R" };
     private readonly ToggleButton _touch = new() { Content = "T" };
     private bool _updating;
+
+    /// <summary>Lo que muestra ahora el desplegable de salida: la mezcla (nulo) y cada bus por su id (ver <see cref="ComboBoxChoices"/>).</summary>
+    private ChoiceList<string?> _outputs = new();
     private string _insertSignature = "";
     private string _sendSignature = "";
 
@@ -137,13 +141,7 @@ internal sealed partial class StripView : UserControl
         {
             AutomationProperties.SetName(_output, "Salida");
             ToolTipService.SetToolTip(_output, "Adónde sale la pista: la mezcla o un bus.");
-            _output.SelectionChanged += (_, _) =>
-            {
-                if (!_updating && _output.SelectedIndex >= 0)
-                {
-                    host.SetOutput(Strip, _output.SelectedIndex == 0 ? null : host.Buses[_output.SelectedIndex - 1].Id);
-                }
-            };
+            _output.SelectionChanged += (_, _) => OnOutputSelected();
             Grid.SetRow(_output, 1);
             stack.Children.Add(_output);
         }
@@ -321,19 +319,31 @@ internal sealed partial class StripView : UserControl
             return;
         }
 
-        _output.Items.Clear();
-        _output.Items.Add("Mezcla");
-        int selected = 0;
-        for (int i = 0; i < _host.Buses.Count; i++)
+        // Antes se vaciaba y se volvía a llenar en cada refresco, también dentro de su propio SelectionChanged y con la lista
+        // abierta, lo que puede cerrar la app desde WinUI sin rastro (tarea 91). Ahora solo se rehace si cambiaron los buses.
+        // Una salida a un bus que ya no está se muestra como la mezcla, como antes.
+        (ChoiceList<string?> next, int selected) = StripOutputChoices.Build(_host.Buses, Strip.Output);
+        _outputs = ComboBoxChoices.Show(_output, _outputs, next, selected);
+    }
+
+    private void OnOutputSelected()
+    {
+        if (_updating || !_outputs.TryGet(_output.SelectedIndex, out string? busId))
         {
-            _output.Items.Add(_host.Buses[i].Name);
-            if (_host.Buses[i].Id == Strip.Output)
-            {
-                selected = i + 1;
-            }
+            return;
         }
 
-        _output.SelectedIndex = selected;
+        // Elegir una salida edita y el mezclador refresca esta tira, que puede rehacer este desplegable: va después del evento.
+        DispatcherQueue.RunAfterEvent(() => ChooseOutput(busId));
+    }
+
+    private void ChooseOutput(string? busId)
+    {
+        // Entre el evento y ahora pudo quitarse el bus elegido.
+        if (StripOutputChoices.StillThere(_host.Buses, busId))
+        {
+            _host.SetOutput(Strip, busId);
+        }
     }
 
     private void UpdateInserts()

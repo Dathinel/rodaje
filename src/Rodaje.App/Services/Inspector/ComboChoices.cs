@@ -29,6 +29,47 @@ public static class ComboChoices
     }
 
     /// <summary>
+    /// Muestra <paramref name="next"/> con <paramref name="selected"/> elegido en <paramref name="box"/> y devuelve lo que
+    /// muestra ahora: <paramref name="shown"/> si estaba abierto (no se toca nada) o no hacía falta rehacerlo. Es lo que hace
+    /// <c>ComboBoxChoices.Show</c> con un <c>ComboBox</c> de WinUI; aquí, sin WinUI, para probarlo con un desplegable falso.
+    /// </summary>
+    /// <param name="item">El elemento de cada posición; por omisión, su texto.</param>
+    public static ChoiceList<T> Show<T, TBox>(TBox box, ChoiceList<T> shown, ChoiceList<T> next, int selected, Func<int, object>? item = null)
+        where TBox : IChoiceBox
+    {
+        if (box is null)
+        {
+            throw new ArgumentNullException(nameof(box));
+        }
+
+        ComboUpdate update = Update(shown, next, box.IsDropDownOpen);
+        if (update == ComboUpdate.Keep)
+        {
+            return shown;
+        }
+
+        if (update == ComboUpdate.Rebuild)
+        {
+            box.SelectedIndex = -1;
+            box.ClearItems();
+            for (int i = 0; i < next.Count; i++)
+            {
+                box.AddItem(item?.Invoke(i) ?? next.Labels[i]);
+            }
+
+            shown = next;
+        }
+
+        selected = selected >= 0 && selected < shown.Count ? selected : -1;
+        if (box.SelectedIndex != selected)
+        {
+            box.SelectedIndex = selected;
+        }
+
+        return shown;
+    }
+
+    /// <summary>
     /// El elemento elegido en <paramref name="selectedIndex"/>; nulo si el índice no es de la lista (−1 al vaciarse, o uno
     /// viejo tras rehacerla).
     /// </summary>
@@ -38,6 +79,18 @@ public static class ComboChoices
         ArgumentNullException.ThrowIfNull(items);
         return selectedIndex >= 0 && selectedIndex < items.Count ? items[selectedIndex] : null;
     }
+}
+
+/// <summary>Lo que <see cref="ComboChoices.Show{T, TBox}"/> necesita de un desplegable (en la app, un <c>ComboBox</c> de WinUI).</summary>
+public interface IChoiceBox
+{
+    bool IsDropDownOpen { get; }
+
+    int SelectedIndex { get; set; }
+
+    void ClearItems();
+
+    void AddItem(object item);
 }
 
 /// <summary>Lo que hace la vista con un desplegable al refrescar (<see cref="ComboChoices.Update{T}"/>).</summary>
@@ -112,6 +165,22 @@ public sealed class ChoiceList<T>
 /// </remarks>
 public static class GraphParameterChoice
 {
+    /// <summary>
+    /// La lista del desplegable (el texto de cada parámetro animado y su nombre, en el orden de la vista) y el que se
+    /// muestra (ver <see cref="Choose"/>).
+    /// </summary>
+    public static (ChoiceList<string> List, int Selected) Build(IReadOnlyList<(string Name, string Label)> animated, string? remembered)
+    {
+        ArgumentNullException.ThrowIfNull(animated);
+        var list = new ChoiceList<string>();
+        foreach ((string name, string label) in animated)
+        {
+            list.Add(label, name);
+        }
+
+        return (list, Choose(list.Values, remembered).Selected);
+    }
+
     /// <summary>
     /// Los parámetros que se ofrecen (los animados, en el orden de la vista) y cuál se muestra: el recordado si sigue
     /// animado, si no el primero; −1 si no hay ninguno.

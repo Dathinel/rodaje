@@ -184,7 +184,9 @@ internal sealed class BufferedAudioSource : IAudioSampleSource, IDisposable
             Time? seek;
             lock (_gate)
             {
-                while (!_disposed && _pendingSeek is null && (_ended || _ringCount + ChunkFrames > _capacityFrames))
+                // Un seek o un Rewind pendiente también espera lugar: Rewind conserva lo ya decodificado y, con el anillo
+                // casi lleno, el bloque siguiente pisaría lo que todavía no sonó (el seek lo vacía, así que nunca espera).
+                while (!_disposed && ((_pendingSeek is null && _ended) || _ringCount + ChunkFrames > _capacityFrames))
                 {
                     Monitor.Wait(_gate);
                 }
