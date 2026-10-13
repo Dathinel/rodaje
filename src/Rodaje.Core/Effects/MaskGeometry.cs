@@ -249,10 +249,14 @@ public static class MaskGeometry
             maxY = Math.Max(maxY, p.Y);
         }
 
-        float width = Math.Max(maxX - minX, 1e-4f);
-        float height = Math.Max(maxY - minY, 1e-4f);
-        var center = new Vector2((minX + maxX) / 2, (minY + maxY) / 2);
-        List<Vector2> local = [.. stroke.Select(p => new Vector2((p.X - center.X) / width, (p.Y - center.Y) / height))];
+        // En double y acotado: en float, con un trazo muy fino (alto de unos 0,001), el redondeo del centro y del alto dejaba
+        // puntos a 0,50016 del centro, fuera de la caja (semilla de CsCheck 1ziwKZyYQFw3).
+        double width = Math.Max((double)maxX - minX, 1e-4);
+        double height = Math.Max((double)maxY - minY, 1e-4);
+        double centerX = ((double)minX + maxX) / 2, centerY = ((double)minY + maxY) / 2;
+        List<Vector2> local = [.. stroke.Select(p => new Vector2(
+            (float)Math.Clamp((p.X - centerX) / width, -0.5, 0.5),
+            (float)Math.Clamp((p.Y - centerY) / height, -0.5, 0.5)))];
         List<Vector2> simple = Simplify(local, tolerance);
         while (simple.Count > MaxPathPoints)
         {
@@ -260,7 +264,7 @@ public static class MaskGeometry
             simple = Simplify(local, tolerance);
         }
 
-        return (center.X, center.Y, width, height, [.. simple]);
+        return (centerX, centerY, width, height, [.. simple]);
     }
 
     /// <summary>
