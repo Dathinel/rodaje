@@ -153,7 +153,7 @@ internal sealed class SessionFuzzer
         {
             Act act = Table[_random.Next(Table.Length)];
             string sequenceId = _session.SequenceId;
-            HashSet<Time>? syncBefore = SyncOffsets();
+            Dictionary<(string, string), long>? syncBefore = PairOffsets();
             string before = Serialize();
             int countBefore = _session.History.Count;
             int redoBefore = _session.History.RedoCount;
@@ -175,9 +175,9 @@ internal sealed class SessionFuzzer
             _log.Append('\n');
             SyncTransport();
             Check(act, before, countBefore, redoBefore);
-            if (!changesSync && sequenceId == _session.SequenceId && syncBefore is not null && SyncBreak(syncBefore) is { ClipId: not null } broken)
+            if (!changesSync && sequenceId == _session.SequenceId && syncBefore is not null && SyncBreak(syncBefore) is { } broken)
             {
-                Fail($"«{act}» desincronizó «{broken.ClipId}» de «{broken.PartnerId}» en {broken.Offset.Ticks} ticks (cursor {_session.EditPosition.Ticks}).\nAntes:\n{Dump(ProjectSerializer.Deserialize(before).GetSequence(sequenceId))}");
+                Fail($"«{act}» desincronizó «{broken.A}» de «{broken.B}»: {broken.Before} → {broken.After} ticks (cursor {_session.EditPosition.Ticks}).\nAntes:\n{Dump(ProjectSerializer.Deserialize(before).GetSequence(sequenceId))}");
             }
 
             // Solo las últimas acciones interesan para reproducir: el registro no crece sin límite.
@@ -340,16 +340,55 @@ internal sealed class SessionFuzzer
 
     private void SyncTransport() => _session.UpdateTransport(_playback.Snapshot);
 
-    private HashSet<Time>? SyncOffsets() =>
-        _session.Project.FindSequence(_session.SequenceId) is { } sequence ? [.. Unlocked(sequence).Select(o => Abs(o.Offset))] : null;
+    /// <summary>
+    /// El desfase de cada pareja de enlazados del mismo medio, sin velocidad y en pistas sin bloquear: la diferencia entre
+    /// sus «inicio − entrada». Se mide por parejas y no con <see cref="LinkSync"/>, que mide contra un clip de referencia: al
+    /// quitar la referencia (borrar su pista, taparla) un desfase que ya había se mediría de otra forma y parecería nuevo.
+    /// </summary>
+    private Dictionary<(string, string), long>? PairOffsets()
+    {
+        if (_session.Project.FindSequence(_session.SequenceId) is not { } sequence)
+        {
+            return null;
+        }
 
-    private SyncOffset SyncBreak(HashSet<Time> before) =>
-        Unlocked(_session.Sequence).FirstOrDefault(o => !before.Contains(Abs(o.Offset)));
+        var result = new Dictionary<(string, string), long>();
+        IEnumerable<IGrouping<(string, string), Clip>> groups = sequence.AllTracks.Where(t => !t.Locked)
+            .SelectMany(t => t.Clips)
+            .Where(c => c.LinkId is not null && c.Generator is null && !c.IsCompound && c.Speed is null)
+            .GroupBy(c => (c.LinkId!, c.MediaId));
+        foreach (IGrouping<(string, string), Clip> group in groups)
+        {
+            List<Clip> clips = [.. group.OrderBy(c => c.Id, StringComparer.Ordinal)];
+            for (int i = 0; i < clips.Count; i++)
+            {
+                for (int j = i + 1; j < clips.Count; j++)
+                {
+                    result[(clips[i].Id, clips[j].Id)] = (clips[i].Start - clips[i].SourceIn).Ticks - (clips[j].Start - clips[j].SourceIn).Ticks;
+                }
+            }
+        }
 
-    private static IEnumerable<SyncOffset> Unlocked(Sequence sequence) =>
-        LinkSync.Find(sequence).Where(o => sequence.FindClip(o.ClipId) is { Track.Locked: false } && sequence.FindClip(o.PartnerId) is { Track.Locked: false });
+        return result;
+    }
 
-    private static Time Abs(Time t) => t < Time.Zero ? -t : t;
+    /// <summary>
+    /// Una pareja que ya estaba y cambió de desfase, o una nueva (las piezas de un corte, un clip recién puesto) con un
+    /// desfase que no tenía ninguna pareja antes.
+    /// </summary>
+    private (string A, string B, long Before, long After)? SyncBreak(Dictionary<(string, string), long> before)
+    {
+        var known = new HashSet<long>(before.Values.Select(Math.Abs)) { 0 };
+        foreach (((string a, string b), long offset) in PairOffsets() ?? [])
+        {
+            if (before.TryGetValue((a, b), out long old) ? old != offset : !known.Contains(Math.Abs(offset)))
+            {
+                return (a, b, before.GetValueOrDefault((a, b)), offset);
+            }
+        }
+
+        return null;
+    }
 
     private static string FirstDifference(string expected, string actual)
     {

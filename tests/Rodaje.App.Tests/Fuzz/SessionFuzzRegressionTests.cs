@@ -1,7 +1,10 @@
+using System.Numerics;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Tracking;
 using Rodaje.App.Tests.Support;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
+using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Serialization;
 using Rodaje.Core.Timing;
@@ -133,6 +136,41 @@ public class SessionFuzzRegressionTests
             session.Timeline.RippleMode = RippleMode.AllTracks;
             Assert.True(session.DeleteLeftOfPlayhead());
             Assert.Empty(LinkSync.Find(session.Sequence));
+        });
+    }
+
+    /// <summary>
+    /// Semillas 2844 y 9335: un seguimiento de un punto al que después se le cambia el tipo a esquinas (con «Opción del
+    /// efecto», o así en el archivo). Aplicarlo leía cuatro puntos donde había uno y lanzaba IndexOutOfRangeException o
+    /// ArgumentException (cerraba la app); ahora dice que hay que volver a seguir.
+    /// </summary>
+    [Theory]
+    [InlineData(TrackUse.Stabilize)]
+    [InlineData(TrackUse.Mask)]
+    [InlineData(TrackUse.BlurZone)]
+    [InlineData(TrackUse.FollowAll)]
+    public void SeguimientoConOtroTipoQueSusCuadros_NoSeAplicaNiLanza(TrackUse use)
+    {
+        using var directory = new TempDirectory();
+        UiThread.Run(async () =>
+        {
+            EditorSession session = await OpenAsync(directory.Path, audioFrom: 0);
+            SequenceEditCommand create = TrackEdits.Create(session.SequenceId, "v", PointTrackKind.Point, TrackEdits.DefaultPoints(PointTrackKind.Point, 16.0 / 9),
+                "Seguimiento", TrackEdits.Palette[0]);
+            Assert.True(session.Execute(create));
+            string trackId = create.CreatedIds[0];
+            Rational rate = session.Sequence.FrameRate;
+            var samples = new PointTrack([.. Enumerable.Range(0, 5).Select(i => Time.FromFrames(i, rate))],
+                [.. Enumerable.Range(0, 5).Select(i => new[] { new TrackSample(new Vector2(0.5f + (i * 0.01f), 0.5f), 1) })]);
+            Assert.True(session.Execute(TrackEdits.SetSamples(session.SequenceId, "v", trackId, samples, "Seguir")));
+            Assert.True(session.Execute(Edits.SetEffectOption(session.SequenceId, "v", trackId, BuiltInEffects.TrackOptions.Kind, "corners")));
+
+            Clip clip = session.Sequence.GetClip("v").Clip;
+            TrackApplication? application = TrackApply.Prepare(session.Project, session.Sequence, clip, trackId, use, Time.Zero, "a", autoCrop: true,
+                out string problem);
+
+            Assert.Null(application);
+            Assert.NotEmpty(problem);
         });
     }
 
