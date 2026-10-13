@@ -31,7 +31,10 @@ public sealed class TitleTextureLeakTests
     private static void OpenProjectAfterProject()
     {
         using GpuDevice gpu = GpuDevice.Create();
-        using var titles = new TitleRasterizer(gpu);
+        // Prioridad normal: con la de omisión (debajo de lo normal) y el runner de Windows saturado, el hilo de títulos casi
+        // no corría y la vuelta 11 no llegó en 60 s (CI de #139, 13-oct; la prueba entera tardó 3 min 35 s). Lo que se
+        // prueba aquí es qué queda en la caché al abrir otro proyecto, no la prioridad del hilo.
+        using var titles = new TitleRasterizer(gpu, new TitleRasterizerOptions { WorkerPriority = ThreadPriority.Normal });
         using var ready = new ManualResetEventSlim();
         titles.Changed += (_, _) => ready.Set();
         using var compositor = new Compositor(gpu, Width, Height) { Titles = titles };

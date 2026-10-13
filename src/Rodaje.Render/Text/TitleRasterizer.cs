@@ -22,6 +22,13 @@ public sealed record TitleRasterizerOptions
 
     /// <summary>Rasteriza lo que pide <see cref="TitleRasterizer.Prepare"/> en un hilo propio; sin él, solo bajo pedido.</summary>
     public bool BackgroundThread { get; init; } = true;
+
+    /// <summary>
+    /// Prioridad del hilo propio. Por omisión debajo de lo normal, para no quitarle CPU a la reproducción. Las pruebas que
+    /// esperan a cada título la suben: con el runner de Windows saturado de hilos normales, uno de prioridad baja solo
+    /// corre cuando el sistema lo rescata tras unos segundos sin turno, y un título tardaba más de un minuto en llegar.
+    /// </summary>
+    public ThreadPriority WorkerPriority { get; init; } = ThreadPriority.BelowNormal;
 }
 
 /// <summary>Una fuente pedida por un título que no está en el equipo: se dibuja con <see cref="UsedFamily"/>.</summary>
@@ -95,7 +102,7 @@ public sealed unsafe partial class TitleRasterizer : IGeneratedContentCache, IDi
 
         if (options.BackgroundThread)
         {
-            _worker = new Thread(Work) { IsBackground = true, Name = "Rodaje: títulos", Priority = ThreadPriority.BelowNormal };
+            _worker = new Thread(Work) { IsBackground = true, Name = "Rodaje: títulos", Priority = options.WorkerPriority };
             _worker.Start();
         }
     }
