@@ -276,9 +276,16 @@ public sealed class TimelineEffectsTests(ITestOutputHelper output)
         Assert.True(medianMs <= 0.3, $"Tick con 8 capas y 4 efectos: {medianMs:F3} ms de mediana.");
     }
 
+    /// <summary>
+    /// Ninguna evaluación reserva. El calentamiento recorre las mismas 10 000 posiciones (0 a 100 s) que la medida, así
+    /// cada tramo de las curvas (antes, entre y después de los puntos clave) ya se ejecutó una vez; y se miden hasta
+    /// <c>Batches</c> tandas exigiendo 0 en la menor: lo que el runtime reserve en el hilo una sola vez (subir de nivel
+    /// en el JIT, la cobertura) puede caer en una tanda, pero una reserva real de un efecto aparece en todas.
+    /// </summary>
     [Fact]
     public void Effect_evaluation_itself_reserves_nothing()
     {
+        const int Batches = 5;
         var clip = new Clip();
         clip.Effects.Add(Effect(BuiltInEffects.Transform, (BuiltInEffects.TransformParameters.X, 4)));
         clip.Effects.Add(Animated(BuiltInEffects.Color, C.Exposure));
@@ -288,13 +295,19 @@ public sealed class TimelineEffectsTests(ITestOutputHelper output)
         EffectPlan plan = EffectPlan.From(clip.Effects)!;
         var list = new EffectList();
         var content = new FakeEffectContent();
-        Evaluate(plan, list, content, 100);
+        Evaluate(plan, list, content, 10_000);
 
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        double sum = Evaluate(plan, list, content, 10_000);
-        long after = GC.GetAllocatedBytesForCurrentThread();
+        var batches = new List<long>(Batches);
+        double sum = 0;
+        while (batches.Count < Batches && (batches.Count == 0 || batches[^1] != 0))
+        {
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            sum = Evaluate(plan, list, content, 10_000);
+            batches.Add(GC.GetAllocatedBytesForCurrentThread() - before);
+        }
 
-        Assert.Equal(0, after - before);
+        output.WriteLine($"MEDIDA bytes_por_tanda = {string.Join(", ", batches)}");
+        Assert.True(batches.Min() == 0, $"Las {batches.Count} tandas de 10 000 evaluaciones reservaron {string.Join(", ", batches)} B.");
         Assert.True(sum > 0);
     }
 
