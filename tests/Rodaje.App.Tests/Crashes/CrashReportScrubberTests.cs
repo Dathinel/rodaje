@@ -36,7 +36,8 @@ public class CrashReportScrubberTests
     [InlineData(@"Datos en C:\Users\ana\AppData\Local\Rodaje\fallos", @"Datos en %LOCALAPPDATA%\Rodaje\fallos")]
     [InlineData(@"Ajustes c:\USERS\ANA\appdata\roaming\Rodaje\ajustes.json", @"Ajustes %APPDATA%\Rodaje\ajustes.json")]
     [InlineData(@"Perfil C:/Users/ana/AppData/Local/Temp/x.log", "Perfil %TEMP%/x.log")]
-    [InlineData(@"Escritorio C:\Users\ana\Desktop\notas.txt", @"Escritorio %USERPROFILE%\Desktop\notas.txt")]
+    [InlineData(@"Escritorio C:\Users\ana\Desktop\notas.txt", "Escritorio notas.txt")]
+    [InlineData(@"Perfil C:\Users\ana\ entero", @"Perfil %USERPROFILE%\ entero")]
     public void CarpetasDelUsuario_PasanASuVariable(string line, string expected) =>
         Assert.Equal(expected, Ana.Scrub(line));
 
@@ -56,25 +57,29 @@ public class CrashReportScrubberTests
     [InlineData(@"Ana dijo que la banana estaba en Ana\notas sin ruta")]
     [InlineData(@"Carpeta pública C:\Users\Public\Videos\muestras")]
     [InlineData(@"Instalado en C:\Program Files\Rodaje\Rodaje.exe")]
+    [InlineData(@"Módulo C:\Program Files (x86)\Común\x.dll y C:\WINDOWS\System32\d3d11.dll")]
+    [InlineData(@"Datos C:\ProgramData\Rodaje\catálogo.json, D:\a\_temp\x.cs:line 3")]
+    [InlineData(@"Fallos en %LOCALAPPDATA%\Rodaje\fallos\fallo 1.txt")]
+    [InlineData("Véase https://github.com/Dathinel/rodaje/issues y \\n en un JSON")]
     [InlineData("Código 0xC000027B: error «stowed» de WinRT.")]
     public void LoQueNoEsDelUsuario_QuedaIgual(string line) =>
         Assert.Equal(line, Ana.Scrub(line));
 
     [Theory]
-    [InlineData(@"Otro usuario C:\Users\anabel\notas.txt", @"Otro usuario %USERPROFILE%\notas.txt")]
+    [InlineData(@"Otro usuario C:\Users\anabel\AppData\notas.txt", @"Otro usuario %USERPROFILE%\AppData\notas.txt")]
     [InlineData(@"Nombre corto C:\Users\DANIEL~1\AppData\Local\Temp\x.log", @"Nombre corto %USERPROFILE%\AppData\Local\Temp\x.log")]
-    [InlineData(@"Con espacio D:\Users\Ana María\Escritorio\lista.txt", @"Con espacio %USERPROFILE%\Escritorio\lista.txt")]
+    [InlineData(@"Con espacio D:\Users\Ana María\AppData\Local\lista.txt", @"Con espacio %USERPROFILE%\AppData\Local\lista.txt")]
     [InlineData(@"Al final C:\Users\josé", "Al final %USERPROFILE%")]
-    [InlineData(@"Viejo C:\Documents and Settings\pepe\Escritorio", @"Viejo %USERPROFILE%\Escritorio")]
+    [InlineData(@"Viejo C:\Documents and Settings\pepe\Application Data", @"Viejo Application Data")]
     public void OtroPerfil_TambienSeTapa(string line, string expected) =>
         Assert.Equal(expected, Ana.Scrub(line));
 
     [Fact]
     public void ElNombreDentroDeOtroPerfil_NoSeCortaPorLaMitad()
     {
-        string text = Ana.Scrub(@"Perfil C:\Users\anabel\Documents y C:\Users\ana\Documents; banana");
+        string text = Ana.Scrub(@"Perfil C:\Users\anabel\AppData\x y C:\Users\ana\AppData\Local\y; banana");
 
-        Assert.Equal(@"Perfil %USERPROFILE%\Documents y %USERPROFILE%\Documents; banana", text);
+        Assert.Equal(@"Perfil %USERPROFILE%\AppData\x y %LOCALAPPDATA%\y; banana", text);
         Assert.DoesNotContain("bel", text, StringComparison.Ordinal);
     }
 
@@ -94,8 +99,10 @@ public class CrashReportScrubberTests
 
         string text = Ana.Scrub(line);
 
-        Assert.NotNull(text);
         Assert.True(watch.Elapsed < TimeSpan.FromSeconds(30), $"tardó {watch.Elapsed}");
+        Assert.True(text.Length <= CrashReportScrubber.MaxLineLength + 100, $"quedaron {text.Length} caracteres");
+        Assert.Contains("[recortado: ", text, StringComparison.Ordinal);
+        Assert.DoesNotContain(@"x y\", text, StringComparison.Ordinal);
     }
 
     [Fact]
