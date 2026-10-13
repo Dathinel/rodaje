@@ -59,11 +59,15 @@ public static class ExportRanges
             : settings.Container.Extension();
     }
 
-    /// <summary>Nombre que se propone: el del proyecto sin caracteres prohibidos, con la extensión de los ajustes.</summary>
+    /// <summary>
+    /// Nombre que se propone: el del proyecto sin caracteres prohibidos, con la extensión de los ajustes y sin ser un nombre
+    /// reservado de Windows.
+    /// </summary>
     public static string SuggestFileName(string projectName, ExportSettings settings)
     {
         string name = string.Concat((projectName ?? "").Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim().TrimEnd('.');
-        return (name.Length == 0 ? "Exportación" : name) + "." + Extension(settings);
+        // «CON.mp4» o «aux.mp4» serían un dispositivo en Windows, no un archivo: se propone «_CON.mp4».
+        return WindowsFileNames.AvoidReserved((name.Length == 0 ? "Exportación" : name) + "." + Extension(settings));
     }
 
     /// <summary>La ruta con la extensión que piden los ajustes (cambiar MP4 por MOV cambia el «.mp4» del final).</summary>

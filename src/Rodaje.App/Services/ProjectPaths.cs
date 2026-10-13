@@ -13,29 +13,16 @@ internal static class ProjectPaths
         string.Equals(Path.GetExtension(path), ProjectSerializer.FileExtension, StringComparison.OrdinalIgnoreCase);
 
     /// <summary>Resuelve las rutas relativas del proyecto recién leído contra la carpeta de su archivo.</summary>
-    public static void MakeAbsolute(Project project, string projectDirectory)
-    {
-        foreach (MediaRef media in project.Media)
-        {
-            media.Path = media.ResolvePath(projectDirectory);
-        }
-    }
+    /// <remarks>También las de los archivos sueltos (<c>file:</c>) de las LUT, del barrido y de las máscaras de imagen.</remarks>
+    public static void MakeAbsolute(Project project, string projectDirectory) =>
+        ProjectFilePaths.MakeAbsolute(project, projectDirectory);
 
     /// <summary>Copia para guardar en <paramref name="projectDirectory"/>, con las rutas relativas a esa carpeta cuando se puede.</summary>
-    public static Project ForSaving(Project project, string projectDirectory)
-    {
-        Project copy = project.Clone();
-        foreach (MediaRef media in copy.Media)
-        {
-            if (Path.IsPathFullyQualified(media.Path))
-            {
-                // En otra unidad, GetRelativePath devuelve la ruta absoluta tal cual.
-                media.Path = Path.GetRelativePath(projectDirectory, media.Path);
-            }
-        }
-
-        return copy;
-    }
+    /// <param name="project">El proyecto en memoria; no se modifica.</param>
+    /// <param name="projectDirectory">Carpeta donde se va a guardar.</param>
+    /// <param name="currentDirectory">Carpeta del archivo abierto hasta ahora (las referencias <c>file:</c> relativas lo son a ella), o <c>null</c>.</param>
+    public static Project ForSaving(Project project, string projectDirectory, string? currentDirectory = null) =>
+        ProjectFilePaths.ForSaving(project, projectDirectory, currentDirectory);
 
     /// <summary>El nombre del archivo con la extensión de proyecto, aunque se haya escrito sin ella.</summary>
     public static string WithProjectExtension(string path) =>
