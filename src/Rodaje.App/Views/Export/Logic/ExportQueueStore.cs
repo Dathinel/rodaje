@@ -101,6 +101,12 @@ public sealed class ExportQueueStore(string path)
     internal Action<int> Pause { get; init; } = Thread.Sleep;
 
     /// <summary>
+    /// Se llama al apartar una cola dañada justo antes de borrar el original, ya comparado, con su manejador abierto; las
+    /// pruebas lo usan para que otra instancia intente reemplazar el archivo en ese momento.
+    /// </summary>
+    internal Action? BeforeRemove { get; init; }
+
+    /// <summary>
     /// Lo que quedó de la última vez; vacío si no hay archivo o está dañado (entonces se aparta). Una entrada dañada se salta
     /// sola y se cuenta en <see cref="Skipped"/>: las demás se recuperan.
     /// </summary>
@@ -264,6 +270,7 @@ public sealed class ExportQueueStore(string path)
         {
             if (File.ReadAllBytes(Path).AsSpan().SequenceEqual(content))
             {
+                BeforeRemove?.Invoke();
                 File.Delete(Path);
             }
         }
