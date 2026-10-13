@@ -115,20 +115,37 @@ internal static class OfflineContent
 
         if (content is IAwaitableEffectContent awaitable)
         {
+            // Si el contenido se descarta en medio (Invalidate al instalar un paquete), la carga esperada queda huérfana o
+            // ya no está, y la siguiente TryGetLut pide otra: se espera esa nueva mientras siga sin terminar, dentro del tope.
+            long deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
             Task loaded = awaitable.WhenLutLoadedAsync(key);
-            try
+            while (true)
             {
-                if (!loaded.Wait(timeout, cancellationToken))
+                try
+                {
+                    long left = Math.Max(0, deadline - Environment.TickCount64);
+                    if (!loaded.Wait(TimeSpan.FromMilliseconds(left), cancellationToken))
+                    {
+                        return false;
+                    }
+                }
+                catch (AggregateException)
                 {
                     return false;
                 }
-            }
-            catch (AggregateException)
-            {
-                return false;
-            }
 
-            return content.TryGetLut(key, out _);
+                if (content.TryGetLut(key, out _))
+                {
+                    return true;
+                }
+
+                loaded = awaitable.WhenLutLoadedAsync(key);
+                if (loaded.IsCompleted)
+                {
+                    // Terminó sin LUT (falta o está dañada) o la carga nueva ya acabó: lo que haya ahora es la respuesta.
+                    return content.TryGetLut(key, out _);
+                }
+            }
         }
 
         using var changed = new SemaphoreSlim(0);
