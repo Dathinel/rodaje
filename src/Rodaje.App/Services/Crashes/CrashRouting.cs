@@ -124,7 +124,8 @@ public static class CrashRouting
 
 /// <summary>
 /// Dónde se enganchan las vías de excepción del proceso (<see cref="CrashRouting.Install"/>). Las pruebas lo cambian
-/// por uno que anota el orden sin tocar el proceso de pruebas.
+/// por uno que anota el orden sin tocar el proceso de pruebas. Es pública y no sellada a propósito: si fuera interna, el
+/// analizador de Rodaje.App (CA1852) pediría sellarla, porque las subclases de las pruebas están en otro ensamblado.
 /// </summary>
 public class CrashHooks
 {

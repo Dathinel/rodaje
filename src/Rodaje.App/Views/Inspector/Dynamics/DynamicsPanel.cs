@@ -34,7 +34,9 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
     private ChoiceList<DynamicsOwner> _targets = new();
     private readonly ClosedListRetry _targetsRetry = new();
     private ChoiceList<string?> _sidechains = new();
+    private readonly ClosedListRetry _sidechainsRetry = new();
     private ChoiceList<int> _presets = new();
+    private readonly ClosedListRetry _presetsRetry = new();
     private readonly ComboBox _targetBox = new() { HorizontalAlignment = HorizontalAlignment.Stretch, MinWidth = 200 };
     private readonly ComboBox _presetBox = new() { HorizontalAlignment = HorizontalAlignment.Stretch, MinWidth = 200 };
     private readonly ToggleSwitch _enabled = new() { OnContent = "Activado", OffContent = "Desactivado", MinWidth = 0 };
@@ -101,6 +103,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         _targetBox.SelectionChanged += (_, _) => OnTargetChosen();
         _targetBox.RetryWhenClosed(_targetsRetry, Refresh);
         _presetBox.SelectionChanged += (_, _) => OnPresetChosen();
+        _presetBox.RetryWhenClosed(_presetsRetry, Refresh);
         _enabled.Toggled += (_, _) => Run(e => e.SetEnabled(_enabled.IsOn));
         _add.Click += (_, _) => Run(e => e.Add());
         _remove.Click += (_, _) => Run(e => e.Remove());
@@ -121,6 +124,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
                 LaterForChosen(e => e.SetSidechain(key));
             }
         };
+        _sidechain.RetryWhenClosed(_sidechainsRetry, Refresh);
         IsVisibleChanged();
         RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => IsVisibleChanged());
     }
@@ -348,7 +352,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
             }
 
             return item;
-        });
+        }, retry: _presetsRetry);
         if (!has)
         {
             return;
@@ -376,7 +380,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         _limiterRows.Visibility = _limiter.IsOn ? Visibility.Visible : Visibility.Collapsed;
 
         (ChoiceList<string?> sidechains, int sidechain) = DynamicsChoices.Sidechains(editor.SidechainCandidates(), editor.Sidechain);
-        _sidechains = ComboBoxChoices.Show(_sidechain, _sidechains, sidechains, sidechain);
+        _sidechains = ComboBoxChoices.Show(_sidechain, _sidechains, sidechains, sidechain, retry: _sidechainsRetry);
         _sidechain.IsEnabled = editor.Owner?.Kind is DynamicsOwnerKind.Clip or DynamicsOwnerKind.Track;
         _listen.IsEnabled = true;
 

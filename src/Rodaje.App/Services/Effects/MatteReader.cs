@@ -32,6 +32,9 @@ internal sealed partial class MatteReader
     /// <summary>Para las pruebas: corre entre encontrar el lector de un archivo y tomar su candado.</summary>
     internal Action<string>? AfterLookup { get; set; }
 
+    /// <summary>Para las pruebas: corre al sacar un archivo de la lista, justo antes de tomar su candado para cerrarlo.</summary>
+    internal Action<string>? BeforeClose { get; set; }
+
     public bool TryGet(string path, double seconds, out MatteFrame? frame)
     {
         frame = null;
@@ -45,6 +48,7 @@ internal sealed partial class MatteReader
     {
         if (_sources.TryRemove(path, out Source? source))
         {
+            BeforeClose?.Invoke(path);
             source.Close();
         }
     }

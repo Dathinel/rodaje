@@ -38,6 +38,12 @@ public sealed class AudioLevelRing
     /// <summary>Bloques escritos desde el principio.</summary>
     public long Count => Volatile.Read(ref _count);
 
+    /// <summary>
+    /// Solo para las pruebas: <see cref="Measure"/> y <see cref="WeightedPower"/> lo llaman con el índice de cada entrada
+    /// entre leer su número de secuencia y copiar el bloque, para que el escritor pase justo ahí sin depender del reloj.
+    /// </summary>
+    internal Action<long>? BeforeCopy { get; set; }
+
     /// <summary>Publica un bloque. Solo desde el hilo escritor.</summary>
     public void Write(in LevelBlock block)
     {
@@ -78,6 +84,7 @@ public sealed class AudioLevelRing
         {
             ref Entry entry = ref _entries[index % _entries.Length];
             long before = Volatile.Read(ref entry.Sequence);
+            BeforeCopy?.Invoke(index);
             LevelBlock block = entry.Block;
             Interlocked.MemoryBarrier();
             long after = Volatile.Read(ref entry.Sequence);
@@ -155,6 +162,7 @@ public sealed class AudioLevelRing
         {
             ref Entry entry = ref _entries[index % _entries.Length];
             long before = Volatile.Read(ref entry.Sequence);
+            BeforeCopy?.Invoke(index);
             LevelBlock block = entry.Block;
             Interlocked.MemoryBarrier();
             if (before != index || Volatile.Read(ref entry.Sequence) != index)
