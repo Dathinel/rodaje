@@ -211,10 +211,13 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
             return;
         }
         CancellationTokenSource cts = CancellationTokenSource.CreateLinkedTokenSource(stop);
-        TaskCompletionSource registered = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        Task task = Task.Run(async () =>
+        // En un hilo propio y no en el pool (tarea 195): una función que bloquea su hilo (cargar un modelo, inferir,
+        // sintetizar) ocupaba un hilo del pool por llamada, y con varias a la vez y la CPU llena el pool no sumaba otros.
+        // Entonces este bucle, que lee y contesta con E/S asíncrona (sus continuaciones corren en el pool), no contestaba
+        // el «ping» ni salían los avances, y el vigilante del editor mataba un módulo sano. La tarea se crea sin arrancar
+        // para que esté en «active» antes de que pueda terminar y sacarse de ahí.
+        Task<Task> start = new(async () =>
         {
-            await registered.Task.ConfigureAwait(false);
             ModuleMessage reply;
             try
             {
@@ -243,10 +246,24 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
             active.TryRemove(invoke.Id, out _);
             cts.Dispose();
             await SendReplyAsync(channel, reply).ConfigureAwait(false);
-        }, CancellationToken.None);
-        active[invoke.Id] = (cts, task);
-        registered.SetResult();
+        }, CancellationToken.None, TaskCreationOptions.LongRunning);
+        active[invoke.Id] = (cts, start.Unwrap());
+        start.Start(TaskScheduler.Default);
     }
+
+    /// <summary>
+    /// Corre un trabajo que bloquea su hilo (inferencia, síntesis, revelado) en un hilo propio y no en el pool. Es lo que
+    /// usa un módulo en vez de <see cref="Task.Run(Func{Task})"/> para el trabajo largo: con la CPU llena el pool no suma
+    /// hilos, y si el trabajo lo ocupa, el bucle de <see cref="ModuleHost"/> no contesta el <c>ping</c> ni manda los
+    /// avances y el editor mata un módulo sano (tarea 195; antes, solo «RAW de cine» en la tarea 138).
+    /// </summary>
+    /// <remarks>Si <paramref name="cancellationToken"/> ya está cancelado, el trabajo no empieza.</remarks>
+    public static Task<T> RunBlockingAsync<T>(Func<T> work, CancellationToken cancellationToken = default) =>
+        Task.Factory.StartNew(work, cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+
+    /// <inheritdoc cref="RunBlockingAsync{T}(Func{T}, CancellationToken)"/>
+    public static Task RunBlockingAsync(Action work, CancellationToken cancellationToken = default) =>
+        Task.Factory.StartNew(work, cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
 
     /// <summary>
     /// Cancela una llamada que puede estar terminando: su tarea la saca de <c>active</c> y desecha su

@@ -71,8 +71,9 @@ internal sealed class VoiceFunctions(string? root) : IDisposable
         SpeechResult result;
         try
         {
-            // El avance se manda desde el hilo de la síntesis sin esperarlo.
-            result = await Task.Run(() => synth.Speak(request,
+            // El avance se manda desde el hilo de la síntesis sin esperarlo. La síntesis, en un hilo propio y no en el pool
+            // (tarea 195): bloquea segundos, y el bucle de ModuleHost necesita el pool para contestar el «ping».
+            result = await ModuleHost.RunBlockingAsync(() => synth.Speak(request,
                 (f, stage) => _ = call.ReportProgressAsync(f, stage, cancellationToken).AsTask(), cancellationToken), cancellationToken).ConfigureAwait(false);
         }
         finally
