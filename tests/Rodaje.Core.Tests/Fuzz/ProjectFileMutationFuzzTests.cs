@@ -263,6 +263,24 @@ public class ProjectFileMutationFuzzTests(ITestOutputHelper output)
         }
     }
 
+    /// <summary>
+    /// Una ruta de más de 32 767 caracteres abría y luego, en Windows, resolverla contra la carpeta del proyecto lanzaba
+    /// <see cref="PathTooLongException"/> en inglés (defecto hallado por este fuzz en la CI de Windows). Ahora la rechaza
+    /// el validador con un mensaje claro.
+    /// </summary>
+    [Theory]
+    [InlineData(30_001)]
+    [InlineData(33_000)]
+    [InlineData(10 * 1024 * 1024)]
+    public void OverlongMediaPath_IsRejected(int length)
+    {
+        JsonObject root = JsonNode.Parse(SeedFiles.Value[^1].Json)!.AsObject();
+        Objects(root["media"]).First()["path"] = new string('a', length);
+
+        var ex = Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Deserialize(root.ToJsonString()));
+        Assert.Contains(ex.Problems, p => p.Contains("más larga de lo que admite Windows", StringComparison.Ordinal));
+    }
+
     internal static readonly string[] OddPaths =
     [
         "", " ", ".", "..", "...", "\\", "/", "//", "\\\\", "\\\\?\\", "\\\\?\\C:\\", "\\\\.\\", "\\\\.\\nul", "\\\\servidor", "\\\\servidor\\recurso",
