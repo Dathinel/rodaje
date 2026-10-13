@@ -31,6 +31,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
     // Lo que muestran ahora los desplegables (ver ComboBoxChoices): Refresh corre en cada cuadro al reproducir y dentro de
     // los SelectionChanged; rehacerlos ahí o con la lista abierta cerraba la app desde WinUI.
     private ChoiceList<DynamicsOwner> _targets = new();
+    private readonly ClosedListRetry _targetsRetry = new();
     private ChoiceList<string?> _sidechains = new();
     private ChoiceList<int> _presets = new();
     private readonly ComboBox _targetBox = new() { HorizontalAlignment = HorizontalAlignment.Stretch, MinWidth = 200 };
@@ -97,6 +98,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         _detector.Items.Add("Pico");
         _detector.Items.Add("RMS");
         _targetBox.SelectionChanged += (_, _) => OnTargetChosen();
+        _targetBox.RetryWhenClosed(_targetsRetry, Refresh);
         _presetBox.SelectionChanged += (_, _) => OnPresetChosen();
         _enabled.Toggled += (_, _) => Run(e => e.SetEnabled(_enabled.IsOn));
         _add.Click += (_, _) => Run(e => e.Add());
@@ -306,7 +308,7 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
         _updating = true;
         try
         {
-            _targets = ComboBoxChoices.Show(_targetBox, _targets, targets, targets.IndexOf(_chosen));
+            _targets = ComboBoxChoices.Show(_targetBox, _targets, targets, targets.IndexOf(_chosen), retry: _targetsRetry);
             ShowEditor(editor, sequence);
         }
         finally
@@ -406,16 +408,19 @@ internal sealed partial class DynamicsPanel : UserControl, IEditorView
 
     private void OnTargetChosen()
     {
-        if (_updating || !_targets.TryGet(_targetBox.SelectedIndex, out DynamicsOwner chosen) || chosen == _chosen)
-        {
-            return;
-        }
-
-        _chosen = chosen;
-        _bypass.IsChecked = false;
-        _listen.IsChecked = false;
         // El refresco va después del evento: tocar el desplegable dentro de su propio SelectionChanged lo rompe.
-        DispatcherQueue.RunAfterEvent(Refresh);
+        DispatcherQueue.Choose(_targets, _targetBox.SelectedIndex, _updating, chosen =>
+        {
+            if (chosen == _chosen)
+            {
+                return null;
+            }
+
+            _chosen = chosen;
+            _bypass.IsChecked = false;
+            _listen.IsChecked = false;
+            return Refresh;
+        });
     }
 
     /// <summary>
