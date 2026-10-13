@@ -53,8 +53,8 @@ public class CrashReportHardeningTests
         using var dir = new TempDirectory();
         var reporter = new CrashReporter(dir.Path, "1.0.0+prueba", new SessionLog(), clock: () => Start);
 
-        reporter.Write(CrashKind.DispatcherCallback, Thrown("cuadro 120 fuera de rango (0x1F)"), fatal: false, out bool a);
-        reporter.Write(CrashKind.DispatcherCallback, Thrown("cuadro 9081 fuera de rango (0x2A)"), fatal: false, out bool b);
+        reporter.Write(CrashKind.DispatcherCallback, Thrown("cuadro 120 fuera de rango (pista v2)"), fatal: false, out bool a);
+        reporter.Write(CrashKind.DispatcherCallback, Thrown("cuadro 9081 fuera de rango (pista v31)"), fatal: false, out bool b);
 
         Assert.False(a);
         Assert.True(b);
