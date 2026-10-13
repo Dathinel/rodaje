@@ -521,7 +521,11 @@ internal sealed class SessionFuzzer
     }
 
     private void Fail(string message) =>
-        throw new XunitException($"Fuzz de la sesión: semilla {_seed}, paso {_step}. {message}\nAcciones:\n{_log}\nSelección: [{string.Join(", ", _session.SelectedClipIds)}]; secuencia «{_session.SequenceId}»:\n{Dump(_session.Sequence)}");
+        throw new XunitException($"Fuzz de la sesión: semilla {_seed}, paso {_step}. {message}\nAcciones:\n{_log}\nSelección: [{string.Join(", ", _session.SelectedClipIds)}]; secuencia «{_session.SequenceId}»:\n{DumpActive()}");
+
+    /// <summary>La secuencia activa, o el aviso de que ya no está (si no, el mensaje del fallo lanzaría otra excepción).</summary>
+    private string DumpActive() =>
+        _session.Project.FindSequence(_session.SequenceId) is { } sequence ? Dump(sequence) : "  (no está en el proyecto)\n";
 
     /// <summary>Las pistas y sus clips en una línea cada uno, para leer el fallo sin depurar.</summary>
     private static string Dump(Sequence sequence)
