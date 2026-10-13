@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
 using System.Text;
@@ -130,11 +131,22 @@ internal sealed class SessionFuzzer
     private bool _historyMoved;
     private int _step;
 
-    /// <summary>Lo que muestra <see cref="Current"/>.</summary>
-    private string? _current;
+    /// <summary>Dónde va (<see cref="Mark"/>), publicado para leerlo desde el hilo que vigila si la prueba se cuelga.</summary>
+    private Position? _position;
 
-    private SessionFuzzer(int seed, string directory)
+    /// <summary>Sube en cada <see cref="Mark"/>: lo que vigila <see cref="UiThread"/> para ver que el fuzz avanza.</summary>
+    private long _progress;
+
+    /// <summary>Pasos terminados y el más lento, publicados juntos para el mensaje de un cuelgue.</summary>
+    private Totals _totals = new(0, 0, 0);
+
+    private readonly long _started = Stopwatch.GetTimestamp();
+    private readonly Action<int, string>? _onMark;
+    private int _steps;
+
+    private SessionFuzzer(int seed, string directory, Action<int, string>? onMark)
     {
+        _onMark = onMark;
         _seed = seed;
         _random = new Random(seed);
         _directory = directory;
@@ -146,48 +158,113 @@ internal sealed class SessionFuzzer
     /// Corre <paramref name="steps"/> acciones con la semilla; falla con la semilla, el paso y las últimas acciones. Devuelve
     /// el recorrido entero (una línea por acción), para comprobar que una semilla fija sigue llegando a lo que probaba.
     /// </summary>
-    public static string Run(int seed, int steps)
+    public static string Run(int seed, int steps) => Run(seed, steps, UiThread.DefaultTimeout);
+
+    /// <summary>
+    /// Como <see cref="Run(int, int)"/>, con el tope contra cuelgues: falla si un tramo (la acción, sus comprobaciones o
+    /// un paso de deshacer todo) no termina en <paramref name="idle"/>, no si la semilla entera tarda. Así un runner cargado
+    /// que va lento no se confunde con un cuelgue, y un cuelgue dice paso, acción y tramo, cuánto llevaba ahí y a qué ritmo
+    /// iban los pasos anteriores (la semilla 9335 en la CI de Windows: 120 s «por el paso 240 de 300: Select», una acción
+    /// que no espera nada y que en Linux tarda menos de un milisegundo). <paramref name="onMark"/> corre en el hilo del fuzz
+    /// al empezar cada tramo, con el paso y el tramo, y <paramref name="waitSlice"/> sustituye la espera de la vigilancia
+    /// (ver <see cref="UiThread.Run(Func{Task}, Func{long}, TimeSpan, Func{Task, TimeSpan, bool})"/>): con los dos se prueba
+    /// la vigilancia sin depender del reloj.
+    /// </summary>
+    internal static string Run(int seed, int steps, TimeSpan idle, Action<int, string>? onMark = null, Func<Task, TimeSpan, bool>? waitSlice = null)
     {
         using var directory = new TempDirectory();
         string trace = "";
         SessionFuzzer? running = null;
         try
         {
-            UiThread.Run(async () =>
-            {
-                var fuzzer = new SessionFuzzer(seed, directory.Path);
-                Volatile.Write(ref running, fuzzer);
-                await fuzzer.RunAsync(steps);
-                trace = fuzzer._dropped.ToString() + fuzzer._log;
-            });
+            UiThread.Run(
+                async () =>
+                {
+                    var fuzzer = new SessionFuzzer(seed, directory.Path, onMark);
+                    Volatile.Write(ref running, fuzzer);
+                    await fuzzer.RunAsync(steps);
+                    trace = fuzzer._dropped.ToString() + fuzzer._log;
+                },
+                () => Volatile.Read(ref running) is { } fuzzer ? Interlocked.Read(ref fuzzer._progress) : -1,
+                idle,
+                waitSlice);
         }
         catch (TimeoutException ex)
         {
-            // El tope de UiThread no decía en qué acción se quedó (semilla 920 en la CI de Windows de #133: 120 s para algo
-            // que en Linux tarda medio segundo). Se lee desde fuera del hilo de la prueba, así que solo lo publicado aparte.
-            string where = Volatile.Read(ref running)?.Current ?? "antes de abrir el proyecto inicial";
-            throw new TimeoutException($"Semilla {seed}: {ex.Message} Iba por {where}.", ex);
+            // Se lee desde fuera del hilo del fuzz, así que solo lo publicado aparte.
+            string where = Volatile.Read(ref running)?.Describe() ?? "antes de abrir el proyecto inicial.";
+            throw new TimeoutException($"Semilla {seed}: {ex.Message} Iba por {where}", ex);
         }
 
         return trace;
     }
 
-    /// <summary>Paso y acción en curso («paso 12 de 300: Save»), publicado para leerlo desde otro hilo si la prueba se cuelga.</summary>
-    private string Current => Volatile.Read(ref _current) ?? "el proyecto inicial";
+    /// <summary>
+    /// Empieza un tramo: lo publica para el mensaje de un cuelgue, cuenta el avance para la vigilancia y lleva el tiempo de
+    /// los pasos. <paramref name="step"/> 0 es antes del primer paso; <c>_steps + 1</c>, deshacer y rehacer todo al final.
+    /// </summary>
+    private void Mark(int step, Act? act, string phase)
+    {
+        long now = Stopwatch.GetTimestamp();
+        Position? previous = _position;
+        if (previous is not null && previous.Step != step && previous.Step >= 1 && previous.Step <= _steps)
+        {
+            // Terminó el paso anterior.
+            Totals totals = _totals;
+            long spent = now - previous.StepStarted;
+            Volatile.Write(ref _totals, spent > totals.SlowestTicks
+                ? new Totals(totals.Done + 1, previous.Step, spent)
+                : totals with { Done = totals.Done + 1 });
+        }
+
+        long stepStarted = previous is not null && previous.Step == step ? previous.StepStarted : now;
+        Volatile.Write(ref _position, new Position(step, act, phase, stepStarted, now));
+        Interlocked.Increment(ref _progress);
+        _onMark?.Invoke(step, phase);
+    }
+
+    /// <summary>«el paso 240 de 300: Select (comprobar), en ese tramo desde hace 118.2 s; 239 pasos en 1.9 s, el más lento el 40 (26 ms).»</summary>
+    private string Describe()
+    {
+        Position? at = Volatile.Read(ref _position);
+        Totals totals = Volatile.Read(ref _totals);
+        long now = Stopwatch.GetTimestamp();
+        string where = at switch
+        {
+            null or { Step: 0 } => "el proyecto inicial",
+            { } p when p.Step > _steps => "deshacer y rehacer todo, al final",
+            { } p => FormattableString.Invariant($"el paso {p.Step} de {_steps}: {p.Act}"),
+        };
+        string phase = at is null ? "" : FormattableString.Invariant($" ({at.Phase}), en ese tramo desde hace {Seconds(now - at.PhaseStarted)} s");
+        string pace = totals.Done == 0
+            ? "ningún paso terminado"
+            : FormattableString.Invariant($"{totals.Done} pasos en {Seconds((at?.StepStarted ?? now) - _started)} s, el más lento el {totals.SlowestStep} ({totals.SlowestTicks * 1000 / Stopwatch.Frequency} ms)");
+        return $"{where}{phase}; {pace}.";
+
+        static string Seconds(long ticks) => (ticks / (double)Stopwatch.Frequency).ToString("0.0", CultureInfo.InvariantCulture);
+    }
+
+    /// <summary>Paso (0 antes del primero), acción y tramo en curso, y desde cuándo.</summary>
+    private sealed record Position(int Step, Act? Act, string Phase, long StepStarted, long PhaseStarted);
+
+    private sealed record Totals(int Done, int SlowestStep, long SlowestTicks);
 
     private async Task RunAsync(int steps)
     {
+        _steps = steps;
+        Mark(0, null, "abrir");
         await OpenInitialAsync();
         for (_step = 1; _step <= steps; _step++)
         {
             Act act = Table[_random.Next(Table.Length)];
+            Mark(_step, act, "preparar");
             string sequenceId = _session.SequenceId;
             Dictionary<(string, string), long>? syncBefore = PairOffsets();
             string before = Serialize();
             int countBefore = _session.History.Count;
             int redoBefore = _session.History.RedoCount;
             bool changesSync = SyncChangingActs.Contains(act);
-            Volatile.Write(ref _current, FormattableString.Invariant($"el paso {_step} de {steps}: {act}"));
+            Mark(_step, act, "acción");
             _log.Append(CultureInfo.InvariantCulture, $"{_step}. {act}");
             try
             {
@@ -203,8 +280,10 @@ internal sealed class SessionFuzzer
             }
 
             _log.Append('\n');
+            Mark(_step, act, "comprobar");
             SyncTransport();
             Check(act, before, countBefore, redoBefore);
+            Mark(_step, act, "sincronía");
             if (!changesSync && sequenceId == _session.SequenceId && syncBefore is not null && SyncBreak(syncBefore) is { } broken)
             {
                 Fail($"«{act}» desincronizó «{broken.A}» de «{broken.B}»: {broken.Before} → {broken.After} ticks (cursor {_session.EditPosition.Ticks}).\nAntes:\n{Dump(ProjectSerializer.Deserialize(before).GetSequence(sequenceId))}");
@@ -219,14 +298,18 @@ internal sealed class SessionFuzzer
         }
 
         // Al final, deshacer todo y rehacer todo recorre los estados guardados.
+        Mark(steps + 1, null, "deshacer todo");
         while (_session.Undo())
         {
             ExpectState("deshacer todo");
+            Mark(steps + 1, null, "deshacer todo");
         }
 
+        Mark(steps + 1, null, "rehacer todo");
         while (_session.Redo())
         {
             ExpectState("rehacer todo");
+            Mark(steps + 1, null, "rehacer todo");
         }
     }
 
@@ -338,6 +421,7 @@ internal sealed class SessionFuzzer
         _states.Add(now);
 
         // Deshacer exacto: lo que se acaba de hacer se deshace y se rehace byte a byte.
+        Mark(_step, act, "deshacer y rehacer");
         if (_session.Undo())
         {
             ExpectState($"deshacer «{act}»");
