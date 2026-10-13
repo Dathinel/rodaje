@@ -30,8 +30,8 @@ public readonly record struct VoiceOverTickState(long Ticks, int Remaining, bool
 }
 
 /// <summary>Cómo quedó la toma al cerrar el diálogo.</summary>
-/// <param name="Take">La toma, o nula si <c>Finish</c> falló.</param>
-/// <param name="Failure">El error al cerrar el WAV, o nulo.</param>
+/// <param name="Take">La toma, o nula si <c>Finish</c> o al soltar el grabador falló.</param>
+/// <param name="Failure">El primer error al cerrar el WAV o al soltar el grabador, o nulo.</param>
 public sealed record VoiceOverClosed(VoiceOverOutcome Outcome, VoiceOverTake? Take, IOException? Failure);
 
 /// <summary>
@@ -78,7 +78,9 @@ public static class VoiceOverSteps
 
     /// <summary>
     /// Cierra la toma: <paramref name="finish"/> (que puede lanzar <see cref="IOException"/>), <paramref name="dispose"/>
-    /// y, ya soltado el archivo, <paramref name="delete"/> del WAV si no va a la línea de tiempo.
+    /// y, ya soltado el archivo, <paramref name="delete"/> del WAV si no va a la línea de tiempo. Si
+    /// <paramref name="dispose"/> lanza (<see cref="IOException"/> o <see cref="UnauthorizedAccessException"/>), la
+    /// toma no entra, se avisa de ese error si no había otro y el WAV se borra igual.
     /// </summary>
     public static VoiceOverClosed Close(bool cancelled, string recorderPath, Func<VoiceOverTake> finish, Action dispose, Action<string> delete)
     {
@@ -96,7 +98,18 @@ public static class VoiceOverSteps
             failure = ex;
         }
 
-        dispose();
+        try
+        {
+            dispose();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Con el disco lleno, soltar el grabador vuelve a fallar al volcar el búfer. No escapa a la interfaz: se
+            // avisa (si Finish no había fallado ya) y el WAV se borra igual, porque ya no se puede fiar de él.
+            failure ??= ex as IOException ?? new IOException("No se pudo cerrar la voz en off: " + ex.Message, ex);
+            take = null;
+        }
+
         VoiceOverOutcome outcome = VoiceOverRecorder.Decide(cancelled, failure is not null, take?.Frames ?? 0);
         if (FileToDelete(outcome, recorderPath) is { } path)
         {

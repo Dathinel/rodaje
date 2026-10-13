@@ -28,8 +28,8 @@ public sealed class TimelineCloseDeadlineTests
 
     /// <summary>
     /// Tres decodificadores que no terminan de liberarse: el cierre los espera hasta el plazo común y no hasta el de cada
-    /// hilo (antes de la revisión, cambiar el plazo que se le pasa a cada hilo por el suyo propio dejaba verdes las demás
-    /// pruebas). Los tres siguen vivos y quedan en el registro; cuando vuelven, sus hilos terminan de liberarlos.
+    /// hilo (si a cada hilo se le pasara su propio plazo en vez del común, las demás pruebas del cierre seguirían en
+    /// verde). Los tres siguen vivos y quedan en el registro; cuando vuelven, sus hilos terminan de liberarlos.
     /// </summary>
     [Fact]
     public void Dispose_waits_the_common_deadline_and_not_each_threads_own_timeout()
