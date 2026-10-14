@@ -29,7 +29,8 @@ function Anotar([string] $ruta, [string] $cabecera, [string] $linea) {
 function Api([string] $ruta) {
     $r = gh api $ruta 2>&1
     if ($LASTEXITCODE -ne 0) { throw "gh api $ruta falló: $(($r | Out-String).Trim())" }
-    $r | ConvertFrom-Json
+    # PowerShell 5.1 devuelve una lista JSON como un solo objeto: ForEach-Object la desenrolla.
+    ($r -join "`n") | ConvertFrom-Json | ForEach-Object { $_ }
 }
 function Tareas-Abiertas {
     git -C (Join-Path $raiz '.proceso') fetch --quiet origin
