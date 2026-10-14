@@ -32,6 +32,12 @@ function Api([string] $ruta) {
     # PowerShell 5.1 devuelve una lista JSON como un solo objeto: ForEach-Object la desenrolla.
     ($r -join "`n") | ConvertFrom-Json | ForEach-Object { $_ }
 }
+# Las sesiones en la nube añaden un sufijo al nombre de la rama (claude/x-618hcu): vale la rama exacta o con sufijo.
+function De-La-Rama([string] $ref, [string] $rama) { $ref -eq $rama -or $ref -like "$rama-*" }
+function Ya-Trabajada([string] $rama) {
+    if (git -C $raiz ls-remote --heads origin $rama "$rama-*") { return $true }
+    [bool](@($abiertos) + @($cerrados) | Where-Object { De-La-Rama $_.head.ref $rama })
+}
 function Tareas-Abiertas {
     git -C (Join-Path $raiz '.proceso') fetch --quiet origin
     if ($LASTEXITCODE -ne 0) { throw 'git fetch de rodaje-proceso falló' }
@@ -63,12 +69,9 @@ try {
     while (-not $parada) {
         # 1. Sesiones en curso: con PR, útiles; sin PR pasado el plazo, cuentan como sesión sin PR útil.
         $abiertos = @(Api "repos/$Repo/pulls?state=open&per_page=100")
+        $cerrados = @(Api "repos/$Repo/pulls?state=closed&sort=updated&direction=desc&per_page=50")
         foreach ($s in @($estado.sesiones | Where-Object { $_.estado -eq 'en curso' })) {
-            $pr = $abiertos | Where-Object { $_.head.ref -eq $s.rama } | Select-Object -First 1
-            if (-not $pr) {
-                $cerrado = @(Api "repos/$Repo/pulls?state=closed&head=$($Repo.Split('/')[0]):$($s.rama)&per_page=1")
-                if ($cerrado) { $pr = $cerrado[0] }
-            }
+            $pr = @($abiertos) + @($cerrados) | Where-Object { De-La-Rama $_.head.ref $s.rama } | Select-Object -First 1
             if ($pr) { $s.estado = 'con PR'; $s.pr = $pr.number; $estado.seguidasSinPr = 0 }
             elseif ((Get-Date) -ge ([datetime]$s.lanzada).AddMinutes($MinutosSesion)) { $s.estado = 'sin PR'; $estado.seguidasSinPr++ }
             if ($s.estado -ne 'en curso' -and $s.pid) { Stop-Process -Id $s.pid -Force -ErrorAction SilentlyContinue }
@@ -113,7 +116,7 @@ try {
             foreach ($t in @(Tareas-Abiertas)) {
                 if ($enCurso.Count -ge $Simultaneas -or $lanzadas -ge $MaxSesiones) { break }
                 if ($hechas -contains $t.Numero -or -not $t.Rama) { continue }
-                if (git -C $raiz ls-remote --heads origin $t.Rama) { continue }
+                if (Ya-Trabajada $t.Rama) { continue }
                 if (@($t.Caminos | Where-Object { $ocupados -contains $_ }).Count) { continue }
                 & $powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'nube-sesion.ps1') -Tareas "$($t.Numero)" -Cola $colaTemporal | Out-Null
                 $prompt = Join-Path $raiz ".claude\nube-prompts\tarea-$($t.Numero).txt"
@@ -130,7 +133,7 @@ try {
         }
         $enCurso = @($estado.sesiones | Where-Object { $_.estado -eq 'en curso' })
         if (-not $enCurso.Count -and @($estado.sesiones).Count -ge $MaxSesiones) { $parada = "tope de $MaxSesiones sesiones"; break }
-        if (-not $enCurso.Count -and -not @(Tareas-Abiertas | Where-Object { @($estado.sesiones | ForEach-Object { [int]$_.tarea }) -notcontains $_.Numero -and -not (git -C $raiz ls-remote --heads origin $_.Rama) })) {
+        if (-not $enCurso.Count -and -not @(Tareas-Abiertas | Where-Object { @($estado.sesiones | ForEach-Object { [int]$_.tarea }) -notcontains $_.Numero -and -not (Ya-Trabajada $_.Rama) })) {
             $parada = 'no quedan tareas claude-nube abiertas'; break
         }
         if ((Get-Date) -ge $fin) { $parada = "$Horas h cumplidas"; break }
