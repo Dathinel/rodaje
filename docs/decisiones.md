@@ -448,4 +448,10 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
   - Aplica el tope diario contando las filas del día en `metricas.md`.
   - **Tipo `caza`:** con `Documento`, Gemini escribe pruebas de lo que el documento promete y cita, por prueba, la frase literal. Se omiten con `Skip` las pruebas sin cita que aparezca tal cual en el documento. Las que fallan sobre el código actual quedan como **defecto candidato**, con `Skip`, la cita y el fallo, y no se corrige nada. Implementado, sin corrida real todavía.
   - **Medido:** con el script anterior, la tarea 294 (pruebas de `SafeZonePreset`) costó 95 085 tokens en 148 s. Con este, 2 rondas, 162 285 tokens y 427 s: en la primera fallaron dos casos justo en el margen del 1 % por redondeo, y la segunda los corrigió. Cada reintento cuesta más o menos lo mismo que la ronda inicial.
+- **Lote (14 de octubre).** `build/generar-cola-caza.ps1` arma la cola de cazas, sin ningún modelo, a partir de los enlaces de `docs/arquitectura`. Deja fuera lo excluido, las interfaces, las clases con pruebas directas y los archivos grandes, y ordena por commits de arreglo de los últimos 30 días.
+  - `gemini-cola.ps1 -Lote` trabaja en un solo worktree y una sola rama, `gemini/lote-<fecha>`. Cada tarea corre en su propio proceso, con 1 reintento y 12 minutos como máximo, y hace su propio commit. Sin push ni PR.
+  - **Presupuestos:** 25 tareas, 4 000 000 de tokens y 7 h. Pausa fija de 120 s entre tareas.
+  - **Paradas inmediatas:** cuota, autenticación, menciones de suspensión o términos, tres fallos seguidos, o más de 200 000 tokens de media en las tres primeras tareas.
+  - **Continuidad y cierre:** el estado y el latido van en `.proceso/gemini/estado-lote.json`, sin repetir fuentes tras un corte. Mantiene el equipo despierto con `SetThreadExecutionState`, escribe `informe-noche.md` y borra las salidas de más de 7 días.
+  - Probado con respuestas guardadas y `GEMINI_COLA_SIN_AGY`, sin cuota.
 - **Consecuencia.** Una tarea crea un solo archivo, lo que basta para pruebas y documentación. Las correcciones en `src/` que toquen varios archivos siguen en manos de Claude.

@@ -13,7 +13,16 @@ param(
     [double] $MinutosPruebas = 10,
     [string] $RespuestaGuardada,
     [switch] $Publicar,
-    [switch] $Simular
+    [switch] $Simular,
+    # Lote (gemini-lote.ps1): un worktree y una rama para todas las tareas, con presupuestos y paradas.
+    [switch] $Lote,
+    [int] $MaxTareas = 25,
+    [long] $MaxTokens = 4000000,
+    [double] $Horas = 7,
+    [double] $MinutosTarea = 12,
+    [int] $PausaSegundos = 120,
+    [string] $WorktreeLote,
+    [string] $NumeroTarea
 )
 $ErrorActionPreference = 'Stop'
 $utf8 = New-Object Text.UTF8Encoding $false
@@ -30,7 +39,7 @@ $excluido = '(?i)(Serializ|Timing|Sync|Render|Engine|Install|Verif|LICENSE|Upstr
 # Lo generado se ejecuta en este equipo: nada de procesos, archivos, red, registro ni código nativo.
 $peligroso = '(?i)\b(Process\b|ProcessStartInfo|File\.|Directory\.|FileStream|FileInfo|DirectoryInfo|HttpClient|WebClient|WebRequest|Socket|TcpClient|Registry|DllImport|LibraryImport|Marshal\.|Environment\.(Exit|SetEnvironmentVariable|FailFast)|Assembly\.Load|AppDomain|unsafe|stackalloc|Thread\.Sleep)'
 
-function Leer-Tarea {
+function Leer-Tareas {
     $texto = [IO.File]::ReadAllText((Resolve-Path $Cola).Path, [Text.Encoding]::UTF8)
     foreach ($bloque in ($texto -split '(?m)^(?=## \d+\. )')) {
         if ($bloque -notmatch '^## (\d+)\. (.+)') { continue }
@@ -38,10 +47,11 @@ function Leer-Tarea {
         foreach ($campo in 'Estado', 'Agente', 'Tipo', 'Tema', 'Fuente', 'Documento', 'Destino', 'Criterio', 'Qué') {
             if ($bloque -match "(?m)^- \*\*${campo}:\*\* (.+?)\s*$") { $t[$campo] = $Matches[1].Trim().Trim('`') }
         }
-        if ($t.Agente -eq 'gemini-local' -and $t.Estado -like 'pendiente*') { return $t }
+        if ($t.Agente -eq 'gemini-local' -and $t.Estado -like 'pendiente*' -and (-not $NumeroTarea -or $t.Numero -eq $NumeroTarea)) { $t }
     }
-    return $null
 }
+
+function Leer-Tarea { Leer-Tareas | Select-Object -First 1 }
 
 function Comprobar-Ruta([string] $ruta, [string] $nombre) {
     $r = $ruta -replace '\\', '/'
@@ -95,8 +105,11 @@ function Pedir-Archivo([string] $instruccion, [string] $esquema, [string] $prefi
     if ($r.Agotado) { throw "agy no terminó en $MinutosAgy min; se cortó" }
     [IO.File]::WriteAllText((Join-Path $salida "$prefijo-salida.json"), $r.Salida, $utf8)
     [IO.File]::WriteAllText((Join-Path $salida "$prefijo-errores.txt"), $r.Errores, $utf8)
+    # Para las paradas del lote (cuota, autenticación, términos): lo que agy diga fuera del contenido.
+    $script:avisoAgy = (@($r.Errores -split "`n" | Select-Object -First 5) -join ' ').Trim()
     # El código 0 y SUCCESS no prueban nada: vale el contenido.
-    $json = $r.Salida | ConvertFrom-Json
+    try { $json = $r.Salida | ConvertFrom-Json } catch { $script:avisoAgy += ' ' + $r.Salida.Substring(0, [Math]::Min(400, $r.Salida.Length)); throw "agy no devolvió JSON: $script:avisoAgy" }
+    if ($json.error) { $script:avisoAgy += " $($json.error)" }
     $script:tokens += [int]$json.usage.total_tokens
     $out = $json.structured_output
     if (-not $out -or [string]::IsNullOrWhiteSpace($out.content)) { throw "agy no devolvió contenido (estado $($json.status)): $(($r.Errores -split "`n")[0])" }
@@ -159,9 +172,13 @@ function Marcar-Hecha([string] $archivo, [string] $numero, [string] $pr) {
 
 function Normalizar([string] $s) { ($s -replace '[\s`*_>#|-]+', ' ').Trim().ToLowerInvariant() }
 
+if ($Lote) { . (Join-Path $PSScriptRoot 'gemini-lote.ps1'); exit $script:codigoLote }
+
 # --- Tarea ---
-$hechasHoy = Contar-Hoy
-if ($hechasHoy -ge $TopeDiario) { Write-Host "Tope diario alcanzado ($hechasHoy de $TopeDiario en metricas.md)."; exit 2 }
+if (-not $WorktreeLote) {
+    $hechasHoy = Contar-Hoy
+    if ($hechasHoy -ge $TopeDiario) { Write-Host "Tope diario alcanzado ($hechasHoy de $TopeDiario en metricas.md)."; exit 2 }
+}
 $tarea = Leer-Tarea
 if (-not $tarea) { Write-Host 'No hay tareas gemini-local pendientes.'; exit 0 }
 $caza = $tarea.Tipo -eq 'caza'
@@ -174,11 +191,16 @@ if ($fuente -notmatch '^src/') { throw 'La fuente debe estar en src/' }
 if ($destino -notmatch '^tests/[^/]+/.+\.cs$') { throw 'El destino debe ser un .cs dentro de un proyecto de tests/' }
 $documento = if ($caza) { Comprobar-Ruta $tarea.Documento 'un documento' } else { $null }
 
-$rama = "gemini/$($tarea.Tema)"
-$worktree = Join-Path $repo ".claude\worktrees\gemini-$($tarea.Tema)"
+if ($WorktreeLote) {
+    $worktree = $WorktreeLote
+    $rama = git -C $worktree branch --show-current
+} else {
+    $rama = "gemini/$($tarea.Tema)"
+    $worktree = Join-Path $repo ".claude\worktrees\gemini-$($tarea.Tema)"
+}
 Write-Host "Tarea $($tarea.Numero) ($($tarea.Tipo)): $($tarea.Titulo)`nRama $rama -> $destino"
 if ($Simular) { exit 0 }
-if (Test-Path -LiteralPath $worktree) { throw "El worktree ya existe: $worktree" }
+if (-not $WorktreeLote -and (Test-Path -LiteralPath $worktree)) { throw "El worktree ya existe: $worktree" }
 
 $salida = Join-Path $repo ".claude\gemini-salidas\$(Get-Date -Format 'yyyyMMdd-HHmmss')-$($tarea.Tema)"
 New-Item -ItemType Directory -Force -Path $salida | Out-Null
@@ -189,10 +211,12 @@ $res = [ordered]@{ tarea = $tarea.Numero; tipo = $tarea.Tipo; rama = $rama; dest
 $creado = $false
 $terminado = $false
 try {
-    git -C $repo fetch --quiet origin
-    git -C $repo worktree add --quiet $worktree -b $rama origin/main
-    if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear el worktree' }
-    $creado = $true
+    if (-not $WorktreeLote) {
+        git -C $repo fetch --quiet origin
+        git -C $repo worktree add --quiet $worktree -b $rama origin/main
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudo crear el worktree' }
+        $creado = $true
+    }
     foreach ($r in @($fuente) + @($documento | Where-Object { $_ })) {
         if (-not (Test-Path -LiteralPath (Join-Path $worktree $r))) { throw "No existe: $r" }
     }
@@ -295,7 +319,12 @@ try {
         git -C $repo worktree remove --force $worktree 2>$null
         git -C $repo branch -D $rama --quiet 2>$null
     }
+    if ($WorktreeLote -and -not $terminado -and $destinoCompleto -and (Test-Path -LiteralPath $destinoCompleto)) {
+        Remove-Item -LiteralPath $destinoCompleto -Force
+    }
+    $res.agy = $script:avisoAgy
     [IO.File]::WriteAllText((Join-Path $salida 'resultado.json'), ($res | ConvertTo-Json -Depth 5), $utf8)
+    Write-Host "RESULTADO=$(Join-Path $salida 'resultado.json')"
     if (-not $RespuestaGuardada -and (Test-Path -LiteralPath $metricas)) {
         $fila = "| $(Get-Date -Format 'yyyy-MM-dd HH:mm') | $($tarea.Numero) $($tarea.Tipo) | $Modelo | $($res.segundos) | $($res.tokens) | $($res.rondas) rondas: $($res.desenlace) | | | |"
         Add-Content -LiteralPath $metricas -Value $fila -Encoding UTF8
