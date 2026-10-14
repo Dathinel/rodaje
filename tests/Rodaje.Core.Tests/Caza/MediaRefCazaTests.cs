@@ -5,7 +5,7 @@ using Xunit;
 
 public class MediaRefCazaTests
 {
-    [Fact]
+    [Hardened.WindowsOnlyFact("una ruta con unidad (C:) solo es absoluta en Windows")]
     public void ResolvePath_ResolvesWindowsPathWithLeadingBackslash()
     {
         var mediaRef = new MediaRef { Path = @"\Videos\a.mp4" };
