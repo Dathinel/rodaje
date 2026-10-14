@@ -454,4 +454,9 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
   - **Paradas inmediatas:** cuota, autenticación, menciones de suspensión o términos, tres fallos seguidos, o más de 200 000 tokens de media en las tres primeras tareas.
   - **Continuidad y cierre:** el estado y el latido van en `.proceso/gemini/estado-lote.json`, sin repetir fuentes tras un corte. Mantiene el equipo despierto con `SetThreadExecutionState`, escribe `informe-noche.md` y borra las salidas de más de 7 días.
   - Probado con respuestas guardadas y `GEMINI_COLA_SIN_AGY`, sin cuota.
+- **Primer lote (14 de octubre), medido:** 21 cazas contra `docs/arquitectura` en 130 min y 2 002 031 tokens (unos 95 000 por tarea). 16 salieron con commit y 5 fallaron. **0 defectos reales.**
+  - 7 candidatos, todos falsos: las pruebas suponían mecanismos que el documento no promete, como excepciones en un setter que se valida en otra capa o un `Advance` que avanza con el reloj en pausa.
+  - 33 afirmaciones sin cita literal, porque esos documentos describen estructura, no contratos.
+  - Lo útil fueron los 16 archivos de pruebas de caracterización (97 pruebas) de clases que no tenían ninguna.
+  - **Siguiente uso:** cobertura a partir del código fuente, o cazas contra documentos con contratos explícitos (formato de paquetes, protocolo de módulos), siempre con las exclusiones de arriba.
 - **Consecuencia.** Una tarea crea un solo archivo, lo que basta para pruebas y documentación. Las correcciones en `src/` que toquen varios archivos siguen en manos de Claude.
