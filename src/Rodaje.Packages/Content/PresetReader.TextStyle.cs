@@ -14,6 +14,7 @@ internal static partial class PresetReader
     public const int MaxFamilyLength = 128;
 
     private static readonly System.Buffers.SearchValues<char> HexDigits = System.Buffers.SearchValues.Create("0123456789abcdefABCDEF");
+    private static readonly System.Buffers.SearchValues<char> FeatureChars = System.Buffers.SearchValues.Create("abcdefghijklmnopqrstuvwxyz0123456789 ");
 
     public static TextStylePreset ReadTextStyle(Stream stream)
     {
@@ -77,8 +78,12 @@ internal static partial class PresetReader
                 _ => throw Fail("typography.kerning tiene que ser true o false."),
             };
             List<string> features = List(t, "features", MaxFeatures, (e, at) =>
-                e.ValueKind == JsonValueKind.String && IsFeature(e.GetString()!) ? e.GetString()!
-                    : throw Fail($"{at} tiene que ser una etiqueta OpenType de 4 caracteres (con «-» delante para apagarla)."));
+            {
+                string tag = e.ValueKind == JsonValueKind.String ? e.GetString()! : throw Fail($"{at} tiene que ser un texto.");
+                return FeatureProblem(tag) is { } problem
+                    ? throw Fail($"{at} tiene que ser una etiqueta OpenType de 4 caracteres [a-z0-9 ] (con «-» delante para apagarla): {problem}.")
+                    : tag;
+            });
             typography = new TextStyleTypography(kerning, Choice(t, "case", "typography.case", "none", "none", "upper", "lower", "smallCaps"),
                 features, Choice(t, "fit", "typography.fit", "none", "none", "shrink", "fill"));
         }
@@ -190,10 +195,21 @@ internal static partial class PresetReader
         return result;
     }
 
-    private static bool IsFeature(string tag)
+    private static string? FeatureProblem(string tag)
     {
-        ReadOnlySpan<char> body = tag.Length == 5 && tag[0] == '-' ? tag.AsSpan(1) : tag.AsSpan();
-        return body.Length == 4 && !body.ContainsAnyExceptInRange('!', '~');
+        ReadOnlySpan<char> body = tag.StartsWith('-') ? tag.AsSpan(1) : tag.AsSpan();
+        if (body.Length != 4)
+        {
+            return $"tiene {body.Length.ToString(CultureInfo.InvariantCulture)} sin contar el «-»";
+        }
+
+        if (body.ContainsAnyExcept(FeatureChars))
+        {
+            return "solo admite minúsculas, cifras y espacios";
+        }
+
+        // En OpenType el espacio solo rellena por el final.
+        return body[0] == ' ' || body.TrimEnd(' ').Contains(' ') ? "los espacios solo van al final, de relleno" : null;
     }
 
     private static TextStyleFont Font(JsonElement root)

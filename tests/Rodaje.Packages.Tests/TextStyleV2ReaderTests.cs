@@ -69,6 +69,12 @@ public sealed class TextStyleV2ReaderTests
     [InlineData(""", "extraStrokes": [ { "color": "#000000", "width": 50 } ]""", "extraStrokes[0].width")]
     [InlineData(""", "extraShadows": [ "sombra" ]""", "extraShadows[0] tiene que ser un objeto")]
     [InlineData(""", "typography": { "features": ["ligadura"] }""", "features[0]")]
+    [InlineData(""", "typography": { "features": ["--lig"] }""", "features[0] tiene que ser una etiqueta OpenType de 4 caracteres [a-z0-9 ] (con «-» delante para apagarla): solo admite")]
+    [InlineData(""", "typography": { "features": ["kern", "-lig"] }""", "features[1] tiene que ser una etiqueta OpenType de 4 caracteres [a-z0-9 ] (con «-» delante para apagarla): tiene 3")]
+    [InlineData(""", "typography": { "features": ["LIGA"] }""", "features[0] tiene que ser una etiqueta OpenType de 4 caracteres [a-z0-9 ] (con «-» delante para apagarla): solo admite")]
+    [InlineData(""", "typography": { "features": ["li_a"] }""", "solo admite minúsculas")]
+    [InlineData(""", "typography": { "features": [" cv1"] }""", "los espacios solo van al final")]
+    [InlineData(""", "typography": { "features": [7] }""", "features[0] tiene que ser un texto")]
     [InlineData(""", "typography": { "case": "titulo" }""", "typography.case")]
     [InlineData(""", "typography": { "kerning": 1 }""", "typography.kerning")]
     [InlineData(""", "path": { "kind": "circulo", "bend": 10 }""", "path.kind")]
@@ -80,4 +86,12 @@ public sealed class TextStyleV2ReaderTests
     [InlineData(""", "in": { "durationSeconds": 1, "curves": { "blur": [ { "t": 0, "value": 100 } ] } }""", "blur")]
     public void Valida_lo_nuevo(string extra, string expected) =>
         Assert.Contains(expected, Error(Minimal(extra)), StringComparison.Ordinal);
+
+    // #298: el documento pide etiquetas OpenType de 4 caracteres [a-z0-9 ], con «-» delante para apagarlas.
+    [Fact]
+    public void Acepta_etiquetas_validas_con_relleno_y_apagadas()
+    {
+        TextStylePreset style = ContentReaders.ReadTextStyle(Utf8(Minimal(""", "typography": { "features": ["cv1 ", "-ss01", "kern"] }""")));
+        Assert.Equal(["cv1 ", "-ss01", "kern"], style.Typography!.Features);
+    }
 }
