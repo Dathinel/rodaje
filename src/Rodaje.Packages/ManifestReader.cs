@@ -133,7 +133,9 @@ public static class ManifestReader
         }
 
         PackageKind kind = PackageKind.Content;
-        if (OptionalText(root, "kind", errors) is { } kindText)
+        // Sin «kind» (o null) es contenido; un texto vacío no es «content» ni «module».
+        if (root.TryGetProperty("kind", out JsonElement kindValue) && kindValue.ValueKind != JsonValueKind.Null
+            && Text(root, "kind", errors) is { } kindText)
         {
             switch (kindText)
             {

@@ -49,6 +49,7 @@ public sealed class ManifestReaderTests
     [InlineData("sound", ItemKind.Sound)]
     [InlineData("font", ItemKind.Font)]
     [InlineData("safe-zones", ItemKind.SafeZones)]
+    [InlineData("export-preset", ItemKind.ExportPreset)]
     public void Every_item_kind_round_trips(string text, ItemKind kind)
     {
         Assert.Equal(kind, ManifestReader.ParseItemKind(text));
@@ -318,6 +319,31 @@ public sealed class ManifestReaderTests
         Assert.False(ManifestReader.Read(Samples.Manifest(kind: "module", items: "[]")).IsValid);
         Assert.False(ManifestReader.Read(Samples.Manifest(items: """[{ "id": "m", "kind": "module", "name": "M" }]""")).IsValid);
         Assert.False(ManifestReader.Read(Samples.Manifest(kind: "plugin")).IsValid);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("\\u200E")]
+    public void An_empty_package_kind_is_not_content(string kind)
+    {
+        // formato-paquete.md: kind es «content» (si falta) o «module»; otro valor es un error, también uno vacío.
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(kind: kind));
+
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("kind", StringComparison.Ordinal));
+        Assert.True(ManifestReader.Read(Samples.Manifest().Replace("\"kind\": \"content\",", "\"kind\": null,", StringComparison.Ordinal)).IsValid);
+    }
+
+    [Fact]
+    public void Versions_up_to_256_characters_are_accepted()
+    {
+        // formato-paquete.md: la versión, como los demás textos sin largo propio, admite hasta 256 caracteres.
+        string Version(int length) => "1.0.0-" + new string('a', length - 6);
+
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(version: Version(ManifestReader.MaxShortText)));
+        Assert.True(result.IsValid, string.Join(" ", result.Errors));
+        Assert.Equal(ManifestReader.MaxShortText, result.Manifest!.Version.Text.Length);
+        Assert.False(ManifestReader.Read(Samples.Manifest(version: Version(ManifestReader.MaxShortText + 1))).IsValid);
     }
 
     [Fact]

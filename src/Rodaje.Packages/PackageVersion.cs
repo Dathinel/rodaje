@@ -31,7 +31,7 @@ public sealed record PackageVersion : IComparable<PackageVersion>
     public static bool TryParse(string? text, [System.Diagnostics.CodeAnalysis.NotNullWhen(true)] out PackageVersion? version)
     {
         version = null;
-        if (string.IsNullOrEmpty(text) || text.Length > 64)
+        if (string.IsNullOrEmpty(text) || text.Length > ManifestReader.MaxShortText)
         {
             return false;
         }
