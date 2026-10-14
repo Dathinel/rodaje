@@ -210,7 +210,8 @@ En la biblioteca (Audio) un sonido se escucha antes («Escuchar» en su menú), 
 | `container` | Obligatorio: el contenedor en minúsculas (`mp4`, `mov`, `mkv`, `webm`, `mxf`, `mpegts`, `m4a`…) |
 | `fastStart`, `chapters` | `true` o `false` (por defecto `true` y `false`) |
 | `video.codec` | Obligatorio con `video`: `h264`, `hevc`, `av1`, `vp9`, `prores`, `dnxhr`, `ffv1`… |
-| `video.profile`, `level`, `speedPreset` | Los del codificador (`hq`, `4444`, `dnxhr_hqx`, `high`…); minúsculas, dígitos y `_` |
+| `video.profile`, `speedPreset` | Los del codificador (`hq`, `4444`, `dnxhr_hqx`, `high`…); minúsculas, dígitos y `_` |
+| `video.level` | El del codificador (`4.1`, `5.2`, `high`…); letras, dígitos y punto, hasta 16 |
 | `video.bitDepth`, `chroma`, `alpha` | 8, 10, 12 o 16; `420`, `422` o `444`; `true` o `false` |
 | `video.width`, `height`, `fit` | De 16 a 16384 (sin ellos, el tamaño de la secuencia); `bars`, `crop` o `stretch` |
 | `video.frameRate` | Un número (25, 29.97, 23.976 y 59.94 se leen como 30000/1001 y compañía) o `"30000/1001"`; sin ella, la de la secuencia |
