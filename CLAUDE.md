@@ -17,7 +17,7 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 
 ## Para retomar (13-oct, 23:15)
 
-- **Todo en pausa por el autor (13-oct 23:10 UTC):** rutina de la nube desactivada (`RemoteTrigger update enabled:false`), pasada nocturna desactivada (`gh workflow enable nocturna.yml` para volver) y ningún agente local. De los PR de la nube #285 a #290 solo queda abierto #285 (toca `.github`: lo revisa el autor); #289 se unió el 14-oct con `buildevisar-pr.ps1` y la 291 a medias en `claude/dep-preroll-4k`. No reactivar nada sin que lo pida.
+- **Todo en pausa por el autor (13-oct 23:10 UTC):** rutina de la nube desactivada (`RemoteTrigger update enabled:false`), pasada nocturna desactivada (`gh workflow enable nocturna.yml` para volver) y ningún agente local. De los PR de la nube #285 a #290 solo queda abierto #285 (toca `.github`: lo revisa el autor); #289 se unió el 14-oct con `build/revisar-pr.ps1` y la 291 a medias en `claude/dep-preroll-4k`. No reactivar nada sin que lo pida.
 
 - **v1.0.0 publicada** (release `v1.0.0`, commit 8b1e4c1; la completa trae los 16 complementos). No se publica nada nuevo hasta que el autor lo pida.
 - **Ronda de depuración de la nube** hasta el 14-oct 05:00 UTC (rutina `trig_015zPXdY6meRLBGvkb5XEXMF`, cada hora). Al corte de las 19:30: 131 PR unidos y unos 85 defectos arreglados, entre ellos el cierre al elegir «escala» (#99; falta confirmarlo en Windows). La auditoría de los PR (cinco revisores con otro modelo) no encontró trampas, solo plazos subidos y pruebas `TiempoReal` que no corre ninguna CI: reglas nuevas en `.proceso/nube/README.md` y tareas 237 a 246.
