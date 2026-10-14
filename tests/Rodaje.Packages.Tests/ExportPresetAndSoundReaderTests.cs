@@ -125,6 +125,16 @@ public sealed class ExportPresetAndSoundReaderTests
     }
 
     [Fact]
+    public void La_cabecera_rechaza_el_wav_cortado_sin_leer_muestras()
+    {
+        byte[] good = Wave(48_000, 2, 16, 1, 100);
+        Assert.Equal(100, ContentReaders.ReadSoundInfo(new MemoryStream(good)).Frames);
+        Assert.Contains("cortado", SoundError(good[..^1]), StringComparison.Ordinal);
+        Assert.Contains("cortado", SoundError(good[..^10]), StringComparison.Ordinal);
+        Assert.Contains("cortado", SoundError(good[..48]), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Mil_wav_danados_solo_lanzan_package_content_exception()
     {
         var random = new Random(36);
