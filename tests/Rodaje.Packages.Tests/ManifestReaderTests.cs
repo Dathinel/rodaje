@@ -301,6 +301,18 @@ public sealed class ManifestReaderTests
     }
 
     [Fact]
+    public void Module_functions_are_limited_to_64_characters()
+    {
+        string Module(string function) => Samples.Manifest(id: "modulo-subtitulos", kind: "module", items: "[]",
+            extra: ",\n\"module\": { \"entry\": \"bin/modulo.exe\", \"protocol\": 1, \"functions\": [\"" + function + "\"] }");
+
+        Assert.True(ManifestReader.Read(Module(new string('f', 64))).IsValid);
+        ManifestResult result = ManifestReader.Read(Module(new string('f', 65)));
+        Assert.False(result.IsValid);
+        Assert.Contains(result.Errors, e => e.Contains("functions", StringComparison.Ordinal) && e.Contains("64", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void A_module_without_entry_is_invalid_and_items_cannot_be_modules()
     {
         Assert.False(ManifestReader.Read(Samples.Manifest(kind: "module", items: "[]")).IsValid);
