@@ -179,11 +179,13 @@ internal static partial class PresetReader
             v[i++] = n.GetDouble();
         }
 
-        if (v[0] < 0 || v[1] < 0 || v[2] <= 0 || v[3] <= 0 || v[0] + v[2] > 1 + FractionSlack || v[1] + v[3] > 1 + FractionSlack)
+        // El tamaño se mira ya recortado a la imagen: con x = 1 la holgura dejaría un ancho de 0.
+        double width = Math.Min(v[2], 1 - v[0]), height = Math.Min(v[3], 1 - v[1]);
+        if (v[0] < 0 || v[1] < 0 || width <= 0 || height <= 0 || v[0] + v[2] > 1 + FractionSlack || v[1] + v[3] > 1 + FractionSlack)
         {
             throw Fail($"{where}.rect se sale de la imagen: x e y desde 0, ancho y alto mayores que 0, y x + ancho e y + alto hasta 1.");
         }
 
-        return (v[0], v[1], Math.Min(v[2], 1 - v[0]), Math.Min(v[3], 1 - v[1]));
+        return (v[0], v[1], width, height);
     }
 }

@@ -494,6 +494,8 @@ internal static partial class PresetReader
                 throw Fail($"{at}.t queda fuera de 0 a durationSeconds.");
             }
 
+            // Se compara ya recortado: dentro de la holgura, dos claves podrían quedar en el mismo t.
+            time = Math.Clamp(time, 0, duration);
             if (keys.Count > 0 && time <= keys[^1].T)
             {
                 throw Fail($"{at}.t tiene que ser mayor que el de la clave anterior.");
@@ -540,7 +542,7 @@ internal static partial class PresetReader
                 ease = (c[0], c[1], c[2], c[3]);
             }
 
-            keys.Add(new PresetKey(Math.Clamp(time, 0, duration), value, interpolation) { Ease = ease });
+            keys.Add(new PresetKey(time, value, interpolation) { Ease = ease });
         }
 
         return keys;
