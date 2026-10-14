@@ -471,4 +471,20 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
     - El saldo se mira antes de lanzar y se para por debajo de USD 20.
     - Sus PR, en borrador, los juzga `build/revisar-pr.ps1`: con «unir» se unen con squash, y el resto queda para Daniel.
   - **Claude Code local:** lo que solo se comprueba en Windows, más la revisión y la unión de los PR de rutina con `build/revisar-pr.ps1` y squash.
+- **Bolsas de gasto independientes.**
+  - Gemini gasta la cuota de Antigravity (semanal y de 5 h).
+  - Las sesiones en la nube gastan el crédito, hasta que se acabe o venza; después, el plan.
+  - Claude Code local gasta los límites del plan.
+  - Ninguno gasta la bolsa de otro, así que pueden trabajar a la vez.
+- **Convivencia.**
+  - Un lote de Gemini se lanza sobre un `main` actualizado y después de unir lo pendiente.
+  - Gemini solo añade archivos nuevos en `tests/` para clases sin pruebas; la nube arregla `src/` y sus pruebas.
+  - Un conflicto entre carriles pasa a «revisar» y nunca se une solo.
+  - Los dos carriles pasan por `build/revisar-pr.ps1` y dejan los pendientes en el mismo resumen (`.proceso/nube/pendientes-revision.md`).
+  - `gemini-lote.ps1` y `nube-ciclo.ps1` siguen siendo scripts separados, sin un orquestador único.
+- **Ciclo automático (`build/nube-ciclo.ps1`).** No invoca ningún modelo y lo lanza Daniel a mano.
+  - Lanza hasta 3 sesiones a la vez sin cruzar caminos, como máximo 12 por pasada.
+  - Consulta por REST los PR de ramas `claude/` y les pasa `revisar-pr.ps1`. Une con squash, sin `--admin`, los de veredicto «unir», con los checks terminados, sin conflictos y con el mismo commit que se revisó, como máximo 10 por pasada.
+  - Anota las uniones (para poder revertir) y los pendientes.
+  - Se para con 3 sesiones seguidas sin PR, si falla `gh`, a las 6 h o al llegar a los topes. Cuenta sesiones, no dólares, porque el saldo no se puede leer desde la consola.
 - **Consecuencia.** Las tareas de la cola llevan `Agente` (`gemini-local` o `claude-nube`), y sin él son de la sesión local. Hay pocas tareas que se verifiquen solo en Linux, así que las sesiones en la nube sirven sobre todo para cazas contra documentos con contratos explícitos.
