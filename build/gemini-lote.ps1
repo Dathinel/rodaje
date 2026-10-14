@@ -2,6 +2,7 @@
 # Un worktree y una rama gemini/lote-<fecha> para todas las tareas; cada tarea corre en su propio proceso, con un commit
 # propio si sale bien. Sin push ni PR. Presupuestos de tareas, tokens y horas, y paradas inmediatas.
 $script:codigoLote = 0
+Write-Host "Cola del lote: $Cola"
 $estadoRuta = Join-Path $repo '.proceso\gemini\estado-lote.json'
 $informeRuta = Join-Path $repo '.proceso\gemini\informe-noche.md'
 $salidas = Join-Path $repo '.claude\gemini-salidas'

@@ -30,7 +30,10 @@ $utf8 = New-Object Text.UTF8Encoding $false
 # Raíz del repo principal aunque el script corra desde un worktree.
 $gitComun = git -C $PSScriptRoot rev-parse --path-format=absolute --git-common-dir
 $repo = Split-Path $gitComun
-if (-not $Cola) { $Cola = Join-Path $repo '.proceso\nube\cola.md' }
+if (-not $Cola) {
+    $colaCaza = Join-Path $repo '.proceso\gemini\cola-caza.md'
+    $Cola = if ($Lote -and (Test-Path -LiteralPath $colaCaza)) { $colaCaza } else { Join-Path $repo '.proceso\nube\cola.md' }
+}
 $metricas = Join-Path $repo '.proceso\gemini\metricas.md'
 $agy = Join-Path $env:LOCALAPPDATA 'agy\bin\agy.exe'
 
@@ -225,7 +228,8 @@ try {
     New-Item -ItemType Directory -Force -Path (Split-Path $destinoCompleto) | Out-Null
 
     $esquema = Join-Path $salida 'esquema.json'
-    $comun = "Archivo fuente: $fuente. Archivo destino: $destino. Criterio de aceptación: $($tarea.Criterio). " +
+    $comun = "Archivo fuente: $fuente. Archivo destino: $destino. La clase de pruebas debe llamarse exactamente " +
+        "$([IO.Path]::GetFileNameWithoutExtension($destino)), igual que el archivo destino sin extensión. Criterio de aceptación: $($tarea.Criterio). " +
         'Lee solo los archivos nombrados y, si hace falta para el estilo, una prueba vecina. Pruebas xUnit, nombres en inglés, sin comentarios ni dependencias nuevas, ' +
         'sin acceso a archivos, procesos ni red. Devuelve el archivo destino completo en el campo content. No escribas ni modifiques archivos, no ejecutes comandos y no leas URLs.'
     if ($caza) {
@@ -248,6 +252,7 @@ try {
             $instruccion = "El archivo $destino no pasa. Corrígelo y devuelve el archivo completo. Salida de dotnet test:`n$($prueba.Recorte)`n" +
                 $(if ($caza) { 'Solo corrige errores de compilación o advertencias; no cambies lo que las pruebas esperan. Mantén claims. ' } else { '' }) + $comun
         }
+        [IO.File]::WriteAllText((Join-Path $salida "ronda$ronda-instruccion.txt"), $instruccion, $utf8)
         $respuesta = Pedir-Archivo $instruccion $esquema "ronda$ronda"
         [IO.File]::WriteAllText($destinoCompleto, $respuesta.content, $utf8)
         if (-not (Test-Path -LiteralPath $destinoCompleto)) { throw 'El archivo no quedó escrito' }
