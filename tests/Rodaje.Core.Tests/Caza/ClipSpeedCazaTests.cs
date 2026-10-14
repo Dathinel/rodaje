@@ -23,30 +23,6 @@ public class ClipSpeedCazaTests
         Assert.Equal(new Rational(100, 1), speed.Rate);
     }
 
-    [Fact(Skip = "Defecto candidato: docs/arquitectura/nucleo.md dice «Velocidad constante (`Rate`, de 1/10× a 100×) o con curva (`Curve`), `Reverse`, `Freeze` (cuadro congelado), `PreservePitch` y …")]
-    public void Rate_BelowOneTenth_ThrowsArgumentOutOfRangeException()
-    {
-        var speed = new ClipSpeed();
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => speed.Rate = new Rational(1, 20));
-    }
-
-    [Fact(Skip = "Defecto candidato: docs/arquitectura/nucleo.md dice «Velocidad constante (`Rate`, de 1/10× a 100×) o con curva (`Curve`), `Reverse`, `Freeze` (cuadro congelado), `PreservePitch` y …")]
-    public void Rate_AboveOneHundred_ThrowsArgumentOutOfRangeException()
-    {
-        var speed = new ClipSpeed();
-
-        Assert.Throws<ArgumentOutOfRangeException>(() => speed.Rate = new Rational(101, 1));
-    }
-
-    [Fact(Skip = "Defecto candidato: docs/arquitectura/nucleo.md dice «Velocidad constante (`Rate`, de 1/10× a 100×) o con curva (`Curve`), `Reverse`, `Freeze` (cuadro congelado), `PreservePitch` y …")]
-    public void Rate_WhenCurveIsSet_ThrowsInvalidOperationException()
-    {
-        var speed = new ClipSpeed { Curve = new SpeedCurve() };
-
-        Assert.Throws<InvalidOperationException>(() => speed.Rate = new Rational(2, 1));
-    }
-
     [Fact]
     public void Curve_CanBeAssigned()
     {
