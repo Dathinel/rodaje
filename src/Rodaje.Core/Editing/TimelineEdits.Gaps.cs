@@ -77,15 +77,12 @@ public static partial class TimelineEdits
                 List<Track> before = [.. ctx.Sequence.AllTracks.Select(t => t.Clone())];
                 List<Marker> markers = ctx.Sequence.Markers.ConvertAll(m => m.Clone());
                 List<Region> regions = ctx.Sequence.Regions.ConvertAll(r => r.Clone());
-                var syncBefore = LinkSync.Find(ctx.Sequence).Select(o => o.Offset).ToHashSet();
+                // Par a par: un desfase nuevo del mismo tamaño que otro que ya había no puede pasar por viejo.
+                LinkSync.SyncSnapshot syncBefore = LinkSync.Snapshot(ctx.Sequence);
                 try
                 {
                     CloseGap(ctx, track.Id, gap.Start, scope);
-                    if (LinkSync.Find(ctx.Sequence).Any(o => !syncBefore.Contains(o.Offset)))
-                    {
-                        throw new EditException("Cerrar este hueco desincronizaría clips enlazados.");
-                    }
-
+                    LinkSync.EnsureNoNewDesync(ctx.Sequence, syncBefore, "Cerrar este hueco");
                     closed++;
                 }
                 catch (EditException)
