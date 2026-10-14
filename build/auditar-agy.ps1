@@ -32,7 +32,9 @@ New-Item -ItemType Directory -Force -Path $datos | Out-Null
 
 function Llamar-Agy([string] $instruccion, [string] $esquema) {
     for ($intento = 1; $intento -le 2; $intento++) {
-        $salida = & $agy -p $instruccion --add-dir $datos --sandbox --mode plan --output-format json --json-schema $esquema --print-timeout 20m --model $Modelo 2>&1 | Out-String
+        # agy solo deja leer dentro de su carpeta de trabajo: arranca en la de datos.
+        Push-Location -LiteralPath $datos
+        try { $salida = & $agy -p $instruccion --add-dir $datos --sandbox --mode plan --output-format json --json-schema $esquema --print-timeout 20m --model $Modelo 2>&1 | Out-String } finally { Pop-Location }
         $j = $null
         try { $j = ($salida.Substring([Math]::Max(0, $salida.IndexOf('{')))) | ConvertFrom-Json } catch { }
         $aviso = "$($j.error) $(if (-not $j) { $salida })"
