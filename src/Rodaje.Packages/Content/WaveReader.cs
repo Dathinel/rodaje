@@ -70,6 +70,7 @@ internal static class WaveReader
                 }
 
                 format = Format(fmt);
+                Skip(stream, size & 1);
             }
             else if (chunk[..4].SequenceEqual("data"u8))
             {
