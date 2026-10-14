@@ -148,11 +148,12 @@ public sealed record PackageVersion : IComparable<PackageVersion>
         string[] y = b.Split('.');
         for (int i = 0; i < Math.Min(x.Length, y.Length); i++)
         {
-            bool xNum = long.TryParse(x[i], NumberStyles.None, CultureInfo.InvariantCulture, out long xn);
-            bool yNum = long.TryParse(y[i], NumberStyles.None, CultureInfo.InvariantCulture, out long yn);
+            bool xNum = x[i].All(char.IsAsciiDigit);
+            bool yNum = y[i].All(char.IsAsciiDigit);
             int c = (xNum, yNum) switch
             {
-                (true, true) => xn.CompareTo(yn),
+                // Sin ceros a la izquierda, el número con más cifras es mayor; no cabe en long a partir de 19 cifras.
+                (true, true) => x[i].Length != y[i].Length ? x[i].Length.CompareTo(y[i].Length) : string.CompareOrdinal(x[i], y[i]),
                 (true, false) => -1,
                 (false, true) => 1,
                 _ => string.CompareOrdinal(x[i], y[i]),

@@ -11,6 +11,9 @@ public sealed class PackageVersionTests
     [InlineData("1.0.0-beta.2", "1.0.0-beta.11")]
     [InlineData("1.0.0-rc.1", "1.0.0")]
     [InlineData("0.9.9", "1.0.0")]
+    [InlineData("1.0.0-99999999999999999999", "1.0.0-100000000000000000000")]
+    [InlineData("1.0.0-9223372036854775807", "1.0.0-9223372036854775808")]
+    [InlineData("1.0.0-99999999999999999999", "1.0.0-alpha")]
     public void Semver_order(string lower, string higher)
     {
         PackageVersion a = PackageVersion.Parse(lower);

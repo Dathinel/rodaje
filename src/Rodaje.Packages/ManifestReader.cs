@@ -386,7 +386,7 @@ public static class ManifestReader
         }
 
         int protocol = Integer(module, "protocol", errors) ?? 0;
-        List<string> functions = Strings(module, "functions", errors, MaxShortText) ?? [];
+        List<string> functions = Strings(module, "functions", errors, Identifiers.MaxLength) ?? [];
         Models(module, errors);
         return entry is null ? null : new ModuleInfo(entry, protocol, functions);
     }
