@@ -23,7 +23,7 @@ $unionesRuta = Join-Path $nube 'uniones.md'
 $pendientesRuta = Join-Path $nube 'pendientes-revision.md'
 $intermitentesRuta = Join-Path $nube 'intermitentes.md'
 $powershell = (Get-Command powershell.exe).Source
-$conocidas = '(ExtremeProjectSessionTests|CpuExportTests|TimelineStressTests|ShutdownReportTests|CubeReaderTests)'
+$conocidas = '(ExtremeProjectSessionTests|CpuExportTests|TimelineStressTests|ShutdownReportTests|CubeReaderTests|StillExportFlowTests)'
 $prohibidos = '(?i)(build/|\.github/|CLAUDE\.md|LICENSE|TRADEMARK\.md|UpstreamAttribution|dependencia|\.csproj)'
 
 function Ahora { Get-Date -Format 'yyyy-MM-dd HH:mm' }
