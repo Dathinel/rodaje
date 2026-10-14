@@ -3,8 +3,16 @@
 param(
     [Parameter(Mandatory)] [int] $Pr,
     [string] $Repo = 'Dathinel/rodaje',
-    [int] $MaxLineas = 400
+    [int] $MaxLineas = 400,
+    [int] $MaxLineasPruebasNuevas = 3000
 )
+
+# Tope de líneas añadidas: más alto si el PR solo añade archivos nuevos bajo tests/ (sin modificar ni borrar nada).
+function Tope-Lineas($archivos, [int] $normal, [int] $soloPruebasNuevas) {
+    $todos = @($archivos)
+    if ($todos.Count -and -not @($todos | Where-Object { $_.status -ne 'added' -or $_.filename -notmatch '^tests/' }).Count) { return $soloPruebasNuevas }
+    $normal
+}
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $checks = 'Linux (Core, Packages, Playback)', 'Windows (solución completa)'
@@ -35,7 +43,9 @@ foreach ($a in $archivos) {
     elseif ($a -match '\.csproj$') { $revisar.Add("toca $a (posibles dependencias)") }
     elseif ($a -match $sensible) { $revisar.Add("toca un área sensible: $a") }
 }
-if ($d.additions -gt $MaxLineas) { $revisar.Add("$($d.additions) líneas añadidas, más de $MaxLineas") }
+$estados = gh api "repos/$Repo/pulls/$Pr/files?per_page=100" --paginate --jq '.[] | {filename, status}' | ForEach-Object { $_ | ConvertFrom-Json }
+$tope = Tope-Lineas $estados $MaxLineas $MaxLineasPruebasNuevas
+if ($d.additions -gt $tope) { $revisar.Add("$($d.additions) líneas añadidas, más de $tope") }
 
 # Reglas de las pruebas, sobre las líneas del diff de tests/.
 $archivo = ''

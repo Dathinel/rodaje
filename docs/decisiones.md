@@ -460,3 +460,31 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
   - Lo útil fueron los 16 archivos de pruebas de caracterización (97 pruebas) de clases que no tenían ninguna.
   - **Siguiente uso:** cobertura a partir del código fuente, o cazas contra documentos con contratos explícitos (formato de paquetes, protocolo de módulos), siempre con las exclusiones de arriba.
 - **Consecuencia.** Una tarea crea un solo archivo, lo que basta para pruebas y documentación. Las correcciones en `src/` que toquen varios archivos siguen en manos de Claude.
+
+## D-046. Tres carriles de trabajo: Gemini local, sesiones en la nube con crédito y Claude Code local (14 de octubre de 2026)
+
+- **Contexto.** El crédito de sesiones en la nube (USD 250, vence el 4 de noviembre) solo cubre las sesiones que se inician a mano, no las rutinas. Por eso la rutina de depuración gastaba los límites del plan. Medido: una sesión pequeña lanzada a mano bajó el crédito de 238 a 237 dólares y no movió ni la barra semanal (86 %) ni la de la sesión (2 %).
+- **Decisión.** El trabajo se reparte en tres carriles:
+  - **Gemini local (D-045):** pruebas de cobertura de un solo archivo. No gasta tokens de Claude y lo lanza Daniel a mano.
+  - **Sesiones en la nube con crédito:** defectos que se verifican en Linux (Core, Packages, Playback). Las lanzan a mano Daniel o Claude con `build/nube-sesion.ps1`, como máximo 3 a la vez y sin que dos toquen los mismos archivos, nunca como rutina.
+    - Cada sesión empieza comprobando en `origin/main` si la tarea sigue viva; si ya está resuelta, no abre PR.
+    - El saldo se mira antes de lanzar y se para por debajo de USD 20.
+    - Sus PR, en borrador, los juzga `build/revisar-pr.ps1`: con «unir» se unen con squash, y el resto queda para Daniel.
+  - **Claude Code local:** lo que solo se comprueba en Windows, más la revisión y la unión de los PR de rutina con `build/revisar-pr.ps1` y squash.
+- **Bolsas de gasto independientes.**
+  - Gemini gasta la cuota de Antigravity (semanal y de 5 h).
+  - Las sesiones en la nube gastan el crédito, hasta que se acabe o venza; después, el plan.
+  - Claude Code local gasta los límites del plan.
+  - Ninguno gasta la bolsa de otro, así que pueden trabajar a la vez.
+- **Convivencia.**
+  - Un lote de Gemini se lanza sobre un `main` actualizado y después de unir lo pendiente.
+  - Gemini solo añade archivos nuevos en `tests/` para clases sin pruebas; la nube arregla `src/` y sus pruebas.
+  - Un conflicto entre carriles pasa a «revisar» y nunca se une solo.
+  - Los dos carriles pasan por `build/revisar-pr.ps1` y dejan los pendientes en el mismo resumen (`.proceso/nube/pendientes-revision.md`).
+  - `gemini-lote.ps1` y `nube-ciclo.ps1` siguen siendo scripts separados, sin un orquestador único.
+- **Ciclo automático (`build/nube-ciclo.ps1`).** No invoca ningún modelo y lo lanza Daniel a mano.
+  - Lanza hasta 3 sesiones a la vez sin cruzar caminos, como máximo 12 por pasada.
+  - Consulta por REST los PR de ramas `claude/` y les pasa `revisar-pr.ps1`. Une con squash, sin `--admin`, los de veredicto «unir», con los checks terminados, sin conflictos y con el mismo commit que se revisó, como máximo 10 por pasada.
+  - Anota las uniones (para poder revertir) y los pendientes.
+  - Se para con 3 sesiones seguidas sin PR, si falla `gh`, a las 6 h o al llegar a los topes. Cuenta sesiones, no dólares, porque el saldo no se puede leer desde la consola.
+- **Consecuencia.** Las tareas de la cola llevan `Agente` (`gemini-local` o `claude-nube`), y sin él son de la sesión local. Hay pocas tareas que se verifiquen solo en Linux, así que las sesiones en la nube sirven sobre todo para cazas contra documentos con contratos explícitos.
