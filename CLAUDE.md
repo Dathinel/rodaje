@@ -15,13 +15,18 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 - **Complementos:** contenido en `Dathinel/rodaje-transiciones`, `-filtros`, `-fuentes`, `-titulos`, `-zonas`, `-camaras`, `-sonidos`, `-preajustes-pro` y `-360` (CC0/OFL); módulos en `Dathinel/modulo-*` (GPLv3, `build\empaquetar-modulo.ps1`); x264/x265 en `Dathinel/rodaje-codificadores-gpl` (GPL, `build\armar-codificadores-gpl.ps1`, D-034); descarga firmada desde `Dathinel/rodaje-catalogo` (release `v7`; `docs/descarga.md`).
 - **Decisiones:** `docs/decisiones.md` (D-001 a D-043). Un cambio de fondo que contradiga una decisión vigente se registra como decisión nueva.
 
-## Para retomar (13-oct, 23:15)
+## Para retomar (14-oct)
 
-- **Todo en pausa por el autor (13-oct 23:10 UTC):** rutina de la nube desactivada (`RemoteTrigger update enabled:false`), pasada nocturna desactivada (`gh workflow enable nocturna.yml` para volver) y ningún agente local. De los PR de la nube #285 a #290 solo queda abierto #285 (toca `.github`: lo revisa el autor); #289 se unió el 14-oct con `build/revisar-pr.ps1` y la 291 a medias en `claude/dep-preroll-4k`. No reactivar nada sin que lo pida.
-
-- **v1.0.0 publicada** (release `v1.0.0`, commit 8b1e4c1; la completa trae los 16 complementos). No se publica nada nuevo hasta que el autor lo pida.
-- **Ronda de depuración de la nube** hasta el 14-oct 05:00 UTC (rutina `trig_015zPXdY6meRLBGvkb5XEXMF`, cada hora). Al corte de las 19:30: 131 PR unidos y unos 85 defectos arreglados, entre ellos el cierre al elegir «escala» (#99; falta confirmarlo en Windows). La auditoría de los PR (cinco revisores con otro modelo) no encontró trampas, solo plazos subidos y pruebas `TiempoReal` que no corre ninguna CI: reglas nuevas en `.proceso/nube/README.md` y tareas 237 a 246.
-- **Al terminar la ronda:** añadir la sección «Cierre» a `.proceso/nube/informe-depuracion.md` (la rutina no lo hace porque el archivo ya existe), revisar los PR unidos después de #227 y desactivar la rutina o darle las tareas pendientes.
-- **Limpiar los worktrees** de `.claude\worktrees\` (unos 110; aprobado por el autor): antes de borrar cada uno, comprobar que no quede trabajo sin unir.
-- **Versiones (Daniel, 13-oct):** 1.0.1 = estabilidad, corrección de defectos y personalización en la app (primero la cola de depuración); 1.0.2 = complementos adicionales (tipos de paquete de la comunidad). Detalle en `.proceso/propuestas/v1.0.1-personalizacion.md`. La sesión local trabaja en paralelo con la nube: toma de la cola lo que solo se comprueba en Windows (237, 238, 239, 243, 244).
-- La nube une sus PR al pasar la CI (sin `--auto`: no hay protección de rama).
+- **v1.0.0 publicada** (release `v1.0.0`, commit 8b1e4c1). No se publica nada nuevo hasta que el autor lo pida. 1.0.1 = estabilidad, corrección de defectos y personalización; 1.0.2 = complementos adicionales.
+- **Tres carriles (D-045 a D-047):**
+  - Gemini local: `build/gemini-cola.ps1`, también con `-Lote`.
+  - Sesiones en la nube con crédito (vence el 4-nov): `build/nube-ciclo.ps1`, nunca como rutina.
+  - Claude Code local: lo que solo se comprueba en Windows.
+  - Los PR los juzga `build/revisar-pr.ps1` y se unen según D-046. `main` está protegido: exige la CI de Linux y Windows, y nunca se usa `--admin`.
+- **En pausa:** la rutina horaria de la nube y `nocturna.yml`.
+- **Pendiente:**
+  - Decisiones de Daniel: 317 a 320 (`formato-paquete.md` frente al código).
+  - Sesión local: 321 (fuzz cortado por reloj) y las pruebas a mano de `.proceso/para-daniel.md`, entre ellas el cierre al elegir «escala» (#99).
+  - Limpiar los worktrees viejos de `.claude/worktrees/`, comprobando antes cada uno.
+  - La 291, a medias en `claude/dep-preroll-4k`.
+- **Informe del último trabajo sin supervisión:** `.proceso/informe-autonomo.md`.
