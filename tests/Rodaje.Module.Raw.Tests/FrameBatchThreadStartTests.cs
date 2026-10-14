@@ -7,8 +7,10 @@ namespace Rodaje.Module.Raw.Tests;
 /// <see cref="Thread.Start()"/> espera a que el hilo nuevo arranque, y en la CI de Windows esa espera llegó a pasar de 10 s.
 /// Antes cada cuadro arrancaba su hilo desde un trabajo del pool; con la CPU llena, los hilos del pool esperaban esos
 /// arranques, el bucle de ModuleHost no contestaba el «ping» y el editor mataba el módulo («RAW de cine» dejó de responder,
-/// CinemaDngImportTests en la CI de Windows de #126 y #246). Sin reloj: la costura envuelve cada arranque y mira en qué
-/// hilo corre, así que un <c>Thread.Start</c> llevado al pool (aunque se espere desde el hilo que llama) cae.
+/// CinemaDngImportTests en la CI de Windows de #126 y #246). Sin reloj: la costura le pasa a la prueba cada hilo sin
+/// arrancar y es la prueba la que llama a <c>Thread.Start</c>, después de mirar en qué hilo está. Un arranque llevado al
+/// pool (aunque se espere desde el hilo que llama) cae: o la costura corre en el pool, o el pool no la ve (es por hilo) y
+/// los arranques no se cuentan.
 /// </summary>
 public class FrameBatchThreadStartTests
 {
@@ -32,12 +34,13 @@ public class FrameBatchThreadStartTests
 
         // Los cuadros esperan a que la prueba los suelte: ninguno termina mientras se cuentan los arranques.
         Task run = StartOnOwnThread(
-            start => () =>
+            thread =>
             {
-                // Aquí corre el Thread.Start de verdad: tiene que ser el hilo de la llamada, no uno del pool.
+                // El Thread.Start de verdad se hace aquí mismo: tiene que ser el hilo de la llamada, no uno del pool.
                 starts++;
-                elsewhere |= Thread.CurrentThread != caller || Thread.CurrentThread.IsThreadPoolThread;
-                start();
+                elsewhere |= Thread.CurrentThread != caller || Thread.CurrentThread.IsThreadPoolThread
+                    || (thread.ThreadState & ThreadState.Unstarted) == 0;
+                thread.Start();
             },
             () =>
             {
@@ -79,14 +82,14 @@ public class FrameBatchThreadStartTests
         using var release = new ManualResetEventSlim();
 
         Task run = StartOnOwnThread(
-            start => () =>
+            thread =>
             {
                 if (++attempts == failAt)
                 {
                     throw boom;
                 }
 
-                start();
+                thread.Start();
                 // Hasta que el hilo recién arrancado no tiene su cuadro no se arranca el siguiente: así cada hilo que
                 // arrancó está revelando cuando falla el arranque, sin depender del reparto del sistema.
                 Assert.True(developing.Wait(AntiHang));
@@ -140,9 +143,9 @@ public class FrameBatchThreadStartTests
         using var cts = new CancellationTokenSource();
 
         Task run = StartOnOwnThread(
-            start => () =>
+            thread =>
             {
-                start();
+                thread.Start();
                 Assert.True(developing.Wait(AntiHang));
             },
             () => FrameBatch.RunAsync(frames, threads, (_, ct) =>
@@ -174,9 +177,9 @@ public class FrameBatchThreadStartTests
 
     /// <summary>
     /// Llama a <paramref name="body"/> en un hilo propio, como el de una llamada de ModuleHost, con la costura puesta solo
-    /// para ese hilo, y devuelve la tarea de <c>RunAsync</c> cuando ese hilo ya volvió de la llamada.
+    /// para ese hilo (<paramref name="startWorker"/> arranca cada hilo de revelado), y devuelve la tarea de <c>RunAsync</c> cuando ese hilo ya volvió de la llamada.
     /// </summary>
-    private static Task StartOnOwnThread(Func<Action, Action> wrap, Func<Task> body)
+    private static Task StartOnOwnThread(Action<Thread> startWorker, Func<Task> body)
     {
         Task? run = null;
         ExceptionDispatchInfo? failure = null;
@@ -184,7 +187,7 @@ public class FrameBatchThreadStartTests
         {
             try
             {
-                FrameBatch.WrapWorkerStartForTests = wrap;
+                FrameBatch.StartWorkerForTests = startWorker;
                 run = body();
             }
 #pragma warning disable CA1031 // Se relanza en el hilo de la prueba.
@@ -195,7 +198,7 @@ public class FrameBatchThreadStartTests
             }
             finally
             {
-                FrameBatch.WrapWorkerStartForTests = null;
+                FrameBatch.StartWorkerForTests = null;
             }
         })
         { IsBackground = true };
