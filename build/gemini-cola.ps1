@@ -1,6 +1,7 @@
 ﻿# Toma la siguiente tarea «gemini-local» de la cola y la hace con agy, sin gastar tokens de Claude (D-045).
 # Gemini no escribe ni ejecuta nada: devuelve el archivo y este script lo escribe, lo prueba y hace el commit.
 # Uso: build\gemini-cola.ps1 [-Cola <cola.md>] [-Publicar] [-Simular]
+# -RespuestaGuardada <salida.json> reproduce una respuesta guardada de agy en vez de llamarlo (pruebas del script, sin cuota ni métricas).
 param(
     [string] $Cola,
     [string] $Modelo = 'gemini-3.8-flash-medium',
@@ -8,6 +9,9 @@ param(
     [int] $MaxBytes = 65536,
     [int] $MaxReintentos = 2,
     [int] $TopeDiario = 10,
+    [double] $MinutosAgy = 16,
+    [double] $MinutosPruebas = 10,
+    [string] $RespuestaGuardada,
     [switch] $Publicar,
     [switch] $Simular
 )
@@ -55,7 +59,7 @@ function Contar-Hoy {
 
 function Citar([string] $s) { '"' + ($s -replace '(\\*)"', '$1$1\"' -replace '(\\+)$', '$1$1') + '"' }
 
-function Ejecutar([string] $exe, [string[]] $argumentos, [string] $dir, [hashtable] $entorno = @{}) {
+function Ejecutar([string] $exe, [string[]] $argumentos, [string] $dir, [double] $minutos, [hashtable] $entorno = @{}) {
     $info = New-Object Diagnostics.ProcessStartInfo
     $info.FileName = $exe
     $info.Arguments = ($argumentos | ForEach-Object { Citar $_ }) -join ' '
@@ -70,14 +74,25 @@ function Ejecutar([string] $exe, [string[]] $argumentos, [string] $dir, [hashtab
     $p = [Diagnostics.Process]::Start($info)
     $p.StandardInput.Close()
     $err = $p.StandardError.ReadToEndAsync()
-    $out = $p.StandardOutput.ReadToEnd()
-    $p.WaitForExit()
-    [pscustomobject]@{ Codigo = $p.ExitCode; Salida = $out; Errores = $err.Result }
+    $out = $p.StandardOutput.ReadToEndAsync()
+    $agotado = -not $p.WaitForExit([int]($minutos * 60000))
+    if ($agotado) { & taskkill.exe /T /F /PID $p.Id 2>&1 | Out-Null; [void]$p.WaitForExit(15000) }
+    # Un nieto que sobreviva (servidor de compilación) puede dejar abiertas las tuberías: no se le espera más de 15 s.
+    [void][Threading.Tasks.Task]::WaitAll(@($out, $err), 15000)
+    [pscustomobject]@{ Codigo = $(if ($agotado) { -1 } else { $p.ExitCode }); Agotado = $agotado
+        Salida = $(if ($out.IsCompleted) { $out.Result } else { '' }); Errores = $(if ($err.IsCompleted) { $err.Result } else { '' }) }
 }
 
 function Pedir-Archivo([string] $instruccion, [string] $esquema, [string] $prefijo) {
-    $r = Ejecutar $agy @('-p', $instruccion, '--add-dir', $worktree, '--sandbox', '--mode', 'plan', '--output-format', 'json',
-        '--json-schema', $esquema, '--print-timeout', '15m', '--model', $Modelo, '--effort', $Esfuerzo) $worktree
+    if ($RespuestaGuardada) {
+        $r = [pscustomobject]@{ Codigo = 0; Agotado = $false; Salida = [IO.File]::ReadAllText($RespuestaGuardada, [Text.Encoding]::UTF8); Errores = '' }
+    } elseif ($env:GEMINI_COLA_SIN_AGY) {
+        throw 'GEMINI_COLA_SIN_AGY está puesta: no se llama a agy'
+    } else {
+        $r = Ejecutar $agy @('-p', $instruccion, '--add-dir', $worktree, '--sandbox', '--mode', 'plan', '--output-format', 'json',
+            '--json-schema', $esquema, '--print-timeout', '15m', '--model', $Modelo, '--effort', $Esfuerzo) $worktree $MinutosAgy
+    }
+    if ($r.Agotado) { throw "agy no terminó en $MinutosAgy min; se cortó" }
     [IO.File]::WriteAllText((Join-Path $salida "$prefijo-salida.json"), $r.Salida, $utf8)
     [IO.File]::WriteAllText((Join-Path $salida "$prefijo-errores.txt"), $r.Errores, $utf8)
     # El código 0 y SUCCESS no prueban nada: vale el contenido.
@@ -96,14 +111,20 @@ function Probar([string] $ronda) {
     $clase = [IO.Path]::GetFileNameWithoutExtension($destino)
     $trx = "$ronda.trx"
     $r = Ejecutar "$env:ComSpec" @('/c', 'build\dotnet-local.cmd', 'test', $proyecto, '--filter', "FullyQualifiedName~$clase",
-        '--logger', "trx;LogFileName=$trx", '--results-directory', $salida) $worktree `
+        '--blame-hang-timeout', '60s', '--logger', "trx;LogFileName=$trx", '--results-directory', $salida) $worktree $MinutosPruebas `
         @{ RODAJE_ENTORNO = (Join-Path $repo '.entorno'); DOTNET_CLI_UI_LANGUAGE = 'en'; VSLANG = '1033' }
     $texto = $r.Salida + $r.Errores
+    if ($r.Agotado) { $texto += "`nerror: las pruebas no terminaron en $MinutosPruebas min y se cortaron" }
     [IO.File]::WriteAllText((Join-Path $salida "$ronda-pruebas.txt"), $texto, $utf8)
     $fallos = @()
+    $ejecutadas = 0
+    $pasadas = 0
     $ruta = Join-Path $salida $trx
     if (Test-Path -LiteralPath $ruta) {
         [xml] $x = Get-Content -LiteralPath $ruta -Raw -Encoding UTF8
+        $contadores = $x.TestRun.ResultSummary.Counters
+        $ejecutadas = [int]$contadores.executed
+        $pasadas = [int]$contadores.passed
         foreach ($u in $x.TestRun.Results.UnitTestResult) {
             if ($u.outcome -eq 'Failed') {
                 $fallos += [pscustomobject]@{ Prueba = $u.testName; Mensaje = (($u.Output.ErrorInfo.Message + "`n" + $u.Output.ErrorInfo.StackTrace) -split "`n" | Select-Object -First 40) -join "`n" }
@@ -111,8 +132,12 @@ function Probar([string] $ronda) {
         }
     }
     $advertencias = @(($texto -split "`n") | Where-Object { $_ -match 'warning [A-Z]+\d+' -and $_ -match [regex]::Escape(($destino -replace '/', '\')) })
-    [pscustomobject]@{ Ok = ($r.Codigo -eq 0 -and $advertencias.Count -eq 0); Compila = (Test-Path -LiteralPath $ruta); Fallos = $fallos; Advertencias = $advertencias
-        Recorte = ((($texto -split "`n") | Where-Object { $_ -match 'error|warning|Failed|Assert|Expected|Actual|   at ' } | Select-Object -First 200) -join "`n") }
+    # Una clase con otro nombre, un archivo sin pruebas o todo con Skip dan cero ejecutadas: no es verde.
+    if ($ejecutadas -eq 0) { $texto += "`nerror: no se ejecutó ninguna prueba de la clase $clase (¿otro nombre de clase, sin pruebas o todas con Skip?)" }
+    $ok = -not $r.Agotado -and $r.Codigo -eq 0 -and $advertencias.Count -eq 0 -and $ejecutadas -gt 0 -and $pasadas -eq $ejecutadas
+    [pscustomobject]@{ Ok = $ok; Compila = (Test-Path -LiteralPath $ruta) -and -not $r.Agotado; Ejecutadas = $ejecutadas; Pasadas = $pasadas
+        Fallos = $fallos; Advertencias = $advertencias
+        Recorte = ((($texto -split "`n") | Where-Object { $_ -match 'error|warning|Failed|Assert|Expected|Actual|   at |hang|Blame' } | Select-Object -First 200) -join "`n") }
 }
 
 function Metodo([string] $prueba) { (($prueba -split '\(')[0] -split '\.')[-1] }
@@ -122,6 +147,14 @@ function Omitir([string] $codigo, [string] $metodo, [string] $motivo) {
     if ($m.Length -gt 180) { $m = $m.Substring(0, 180) + '…' }
     $patron = '\[(Fact|Theory)(\(\))?\]((?:\s*\[[^\]]*\])*\s*)(public\s+(?:async\s+)?[\w<>\[\]]+\s+' + [regex]::Escape($metodo) + '\s*\()'
     ([regex] $patron).Replace($codigo, { param($g) "[$($g.Groups[1].Value)(Skip = ""$m"")]$($g.Groups[3].Value)$($g.Groups[4].Value)" }, 1)
+}
+
+function Marcar-Hecha([string] $archivo, [string] $numero, [string] $pr) {
+    $texto = [IO.File]::ReadAllText($archivo, [Text.Encoding]::UTF8)
+    $patron = '(?m)(^## ' + $numero + '\. [^\r\n]*\r?\n(?:(?!^## )[^\r\n]*\r?\n)*?- \*\*Estado:\*\* )pendiente[^\r\n]*'
+    $nuevo = ([regex] $patron).Replace($texto, { param($g) $g.Groups[1].Value + "hecha ($pr, Gemini; pendiente de la revisión de Daniel)" }, 1)
+    if ($nuevo -eq $texto) { throw "No se pudo marcar como hecha la tarea $numero en la cola" }
+    [IO.File]::WriteAllText($archivo, $nuevo, $utf8)
 }
 
 function Normalizar([string] $s) { ($s -replace '[\s`*_>#|-]+', ' ').Trim().ToLowerInvariant() }
@@ -195,7 +228,7 @@ try {
         [IO.File]::WriteAllText($destinoCompleto, $respuesta.content, $utf8)
         if (-not (Test-Path -LiteralPath $destinoCompleto)) { throw 'El archivo no quedó escrito' }
         $prueba = Probar "ronda$ronda"
-        if ($caza) { if ($prueba.Compila -and $prueba.Advertencias.Count -eq 0) { break } }
+        if ($caza) { if ($prueba.Compila -and $prueba.Advertencias.Count -eq 0 -and $prueba.Ejecutadas -gt 0) { break } }
         elseif ($prueba.Ok) { break }
     }
 
@@ -222,7 +255,7 @@ try {
         }
         [IO.File]::WriteAllText($destinoCompleto, $codigo, $utf8)
         $final = Probar 'final'
-        if (-not $final.Ok) { throw 'Tras omitir los candidatos y las descartadas, las pruebas siguen sin pasar' }
+        if (-not $final.Ok) { throw "Ejecución final de la caza sin verde: $($final.Pasadas) de $($final.Ejecutadas) pruebas ejecutadas pasaron tras omitir candidatos y descartadas" }
         $res.desenlace = if ($res.candidatos.Count) { "$($res.candidatos.Count) defectos candidatos" } else { 'sin defectos' }
     } else {
         if (-not $prueba.Ok) { throw "Las pruebas no pasan tras $($res.rondas) rondas" }
@@ -241,7 +274,7 @@ try {
     if ($Publicar) {
         git -C $worktree push --quiet -u origin $rama
         if ($LASTEXITCODE -ne 0) { throw 'No se pudo hacer push' }
-        $cuerpo = "Escrito por Gemini ($Modelo) con ``build/gemini-cola.ps1`` (D-045); pendiente de la revisión de Claude.`n`n" +
+        $cuerpo = "Escrito por Gemini ($Modelo) con ``build/gemini-cola.ps1`` (D-045); pendiente de la revisión de Daniel.`n`n" +
             "- Tarea $($tarea.Numero) ($($tarea.Tipo)): $($res.desenlace), $($res.rondas) rondas, $($script:tokens) tokens.`n" +
             $(if ($res.candidatos.Count) { "- Defectos candidatos (omitidos con ``Skip``): " + (($res.candidatos | ForEach-Object { "``$($_.prueba)``" }) -join ', ') + "`n" } else { '' }) +
             $(if ($res.descartadas.Count) { "- Descartadas por no citar el documento: $($res.descartadas.Count)`n" } else { '' }) +
@@ -250,6 +283,7 @@ try {
         [IO.File]::WriteAllText($archivoCuerpo, $cuerpo, $utf8)
         $res.pr = (gh pr create --repo Dathinel/rodaje --base main --head $rama --draft --title "Pruebas: $($tarea.Titulo) (Gemini)" --body-file $archivoCuerpo)
         if ($LASTEXITCODE -ne 0) { throw 'No se pudo abrir el PR' }
+        Marcar-Hecha $Cola $tarea.Numero $res.pr
     }
 } catch {
     $res.motivo = $_.Exception.Message
@@ -262,7 +296,7 @@ try {
         git -C $repo branch -D $rama --quiet 2>$null
     }
     [IO.File]::WriteAllText((Join-Path $salida 'resultado.json'), ($res | ConvertTo-Json -Depth 5), $utf8)
-    if (Test-Path -LiteralPath $metricas) {
+    if (-not $RespuestaGuardada -and (Test-Path -LiteralPath $metricas)) {
         $fila = "| $(Get-Date -Format 'yyyy-MM-dd HH:mm') | $($tarea.Numero) $($tarea.Tipo) | $Modelo | $($res.segundos) | $($res.tokens) | $($res.rondas) rondas: $($res.desenlace) | | | |"
         Add-Content -LiteralPath $metricas -Value $fila -Encoding UTF8
     }
