@@ -59,7 +59,9 @@ function Esperar-Main {
             Start-Sleep -Seconds 180
             $runs = @((Api "repos/$Repo/actions/runs?head_sha=$sha&per_page=5").workflow_runs | Where-Object { $_.name -eq 'CI' })
         } while ((-not $runs -or @($runs | Where-Object { $_.status -ne 'completed' }).Count) -and (Get-Date) -lt $limite)
-        if (-not $runs -or $runs[0].conclusion -eq 'success') { return $true }
+        if (-not $runs) { $script:parada = "no apareció CI para main ($($sha.Substring(0,8))) en 75 min; uniones congeladas"; return $false }
+        if (@($runs | Where-Object { $_.status -ne 'completed' }).Count) { $script:parada = "la CI de main ($($sha.Substring(0,8))) no terminó en 75 min; uniones congeladas"; return $false }
+        if ($runs[0].conclusion -eq 'success') { return $true }
         $f = Pruebas-Fallidas $sha
         if ($f -and $f.Pruebas.Count -and -not @($f.Pruebas | Where-Object { $_ -notmatch $conocidas }).Count -and $vuelta -eq 0) {
             foreach ($p in $f.Pruebas) { Anotar $intermitentesRuta "| $(Ahora) | ``$p`` | main | $($f.Run) | relanzado por nube-continuo |" }
@@ -101,6 +103,12 @@ function Unir-Revisar($pr) {
     if ($v.veredicto -ne 'revisar') { return $false }
     if (@($v.motivos | Where-Object { $_ -notmatch '(líneas añadidas, más de|área sensible)' }).Count) { return $false }
     if (@($v.motivos | Where-Object { $_ -match $prohibidos }).Count) { return $false }
+    # Serialización, instalador, verificación y esquemas nunca se unen solos.
+    if (@($v.motivos | Where-Object { $_ -match '(?i)(Serializ|Install|instalador|Verif|schema/)' }).Count) {
+        $estado.agy += $clave
+        Anotar $pendientesRuta "- #$($pr.number) ``$($pr.head.sha.Substring(0,8))`` revisar: toca serialización, instalador, verificación o esquemas; nunca se une solo ($(Ahora))"
+        return $false
+    }
     if ($pr.body -notmatch '(?i)(fallan? sin el arreglo|sin el arreglo[^.\n]{0,80}fall)') {
         $estado.agy += $clave
         Anotar $pendientesRuta "- #$($pr.number) ``$($pr.head.sha.Substring(0,8))`` revisar: la descripción no dice que la prueba de regresión falle sin el arreglo ($(Ahora))"
@@ -138,6 +146,7 @@ function Escribir-Informe {
 $estado = [pscustomobject]@{ inicio = (Get-Date).ToString('o'); latido = ''; sesiones = 0; pasadas = 0; parada = ''; informe = (Get-Date).ToString('o'); reintentos = [pscustomobject]@{}; agy = @() }
 $fin = (Get-Date).AddHours($Horas)
 $script:parada = ''
+$vacias = 0
 Add-Type -Namespace NubeContinuo -Name Energia -MemberDefinition '[System.Runtime.InteropServices.DllImport("kernel32.dll")] public static extern uint SetThreadExecutionState(uint estado);'
 [void][NubeContinuo.Energia]::SetThreadExecutionState([uint32]2147483649)
 try {
@@ -156,7 +165,11 @@ try {
         $ciclo = Get-Content -LiteralPath (Join-Path $nube 'estado-ciclo.json') -Raw -Encoding UTF8 | ConvertFrom-Json
         $estado.sesiones += @($ciclo.sesiones).Count
         $estado.pasadas++
+        # Una pasada sin sesiones espera 10 min; tres seguidas paran el bucle (sin bucle apretado sobre la API).
+        if (@($ciclo.sesiones).Count -eq 0) { $vacias++ } else { $vacias = 0 }
         Guardar
+        if ($vacias -ge 3) { $script:parada = 'sin tareas nuevas que atender'; break }
+        if ($vacias -gt 0) { Start-Sleep -Seconds 600 }
         if ($ciclo.parada -match 'sin PR útil|^error') { $script:parada = "nube-ciclo: $($ciclo.parada)"; break }
         if ((Uniones-Hoy) -gt $antes -and -not (Esperar-Main)) { break }
 
