@@ -39,14 +39,15 @@ public class ExtremeProjectSessionTests
     /// dice en qué tramo estaba (las esperas al pool al abrir y guardar, o un paso síncrono) y el estado del pool. Otra vez
     /// (semilla 20261022, tarea 290) llevaba 5,4 s en «volver a leer», que tarda 2 ms, con el pool libre, y otra (semilla
     /// 20261014) 0,7 s en «guardar como»: los otros 10 y 14 s se fueron en tramos anteriores que no se veían. El mensaje
-    /// dice además cuánto duró cada tramo, la pausa y las colecciones del GC, la CPU del proceso y el estado del hilo.
+    /// dice además cuánto duró cada tramo, la memoria asignada, la pausa y las colecciones del GC, la CPU del proceso y el
+    /// estado del hilo. La semilla 20261018 (tarea 321) se cortó con «abrir» en 9,2 s y 9,3 s de pausa del GC del proceso:
+    /// ahora el caso se corta por no avanzar de tramo en 15 s sin contar el GC (<see cref="StallWatch"/>), no por reloj.
+    /// Abrir y guardar siguen yendo al disco: la sesión no tiene otra costura de archivos.
     /// </summary>
     [Fact]
     public Task ProyectosExtremos_SeEditanSinExcepciones() => OwnThread.Run(() =>
-    {
-        try
-        {
-            FuzzRunner.Run("proyecto con números extremos", 20261013, cases: 40, budget: TimeSpan.FromSeconds(10), minimumCases: 40, (seed, random) =>
+        StallWatch.RunCases("proyecto con números extremos", 20261013, cases: 40, budget: TimeSpan.FromSeconds(10), minimumCases: 40,
+            () => Phases.Progress, () => $"{Phases.Describe()} {UiThread.PoolState()}", StallWatch.Real(FuzzRunner.CaseTimeout), (seed, random) =>
             {
                 Phases.StartCase("preparar");
                 using var directory = new TempDirectory();
@@ -57,13 +58,7 @@ public class ExtremeProjectSessionTests
                 ProjectSerializer.Save(project, path);
                 UiThread.Run(() => EditAsync(random, directory.Path, path));
                 Mark("borrar la carpeta");
-            });
-        }
-        catch (XunitException ex) when (ex.Message.Contains("tardó más de", StringComparison.Ordinal))
-        {
-            throw new XunitException($"{ex.Message} {Phases.Describe()} {UiThread.PoolState()}");
-        }
-    });
+            }));
 
     private static void Mark(string phase) => Phases.Mark(phase);
 

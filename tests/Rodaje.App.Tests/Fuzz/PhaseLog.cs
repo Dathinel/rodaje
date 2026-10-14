@@ -18,6 +18,10 @@ internal sealed partial class PhaseLog
     private readonly List<Phase> _phases = [];
     private Sample _caseStart;
     private int[] _caseCollections = [0, 0, 0];
+    private long _progress;
+
+    /// <summary>Cuántos tramos se marcaron: el avance que mira la vigilancia contra cuelgues (<c>StallWatch</c>).</summary>
+    public long Progress => Interlocked.Read(ref _progress);
 
     /// <summary>Empieza un caso nuevo con su primer tramo.</summary>
     public void StartCase(string phase)
@@ -30,6 +34,8 @@ internal sealed partial class PhaseLog
             _caseCollections = Collections();
             _phases.Add(new Phase(phase, now));
         }
+
+        Interlocked.Increment(ref _progress);
     }
 
     /// <summary>Cierra el tramo en curso y abre <paramref name="phase"/>, en el hilo que llama.</summary>
@@ -40,6 +46,8 @@ internal sealed partial class PhaseLog
         {
             _phases.Add(new Phase(phase, now));
         }
+
+        Interlocked.Increment(ref _progress);
     }
 
     /// <summary>El tramo en curso y desde cuándo (para las comprobaciones).</summary>
@@ -105,11 +113,11 @@ internal sealed partial class PhaseLog
             AppendSteps(text, ref steps, stepsSeconds, slowest, slowestSeconds);
             stepsSeconds = 0;
             slowestSeconds = -1;
-            text.Append(Invariant($" «{phases[i].Name}» {Milliseconds(phases[i].Start, end)};"));
+            text.Append(Invariant($" «{phases[i].Name}» {Milliseconds(phases[i].Start, end)} ({Megabytes(phases[i].Start, end)} asignados en el proceso);"));
         }
 
         AppendSteps(text, ref steps, stepsSeconds, slowest, slowestSeconds);
-        text.Append(Invariant($" «{current.Name}» {Milliseconds(current.Start, now)} hasta ahora."));
+        text.Append(Invariant($" «{current.Name}» {Milliseconds(current.Start, now)} ({Megabytes(current.Start, now)} asignados) hasta ahora."));
         text.Append(Invariant($" GC en el caso ({Seconds(caseStart, now):F1} s): {(now.GcPause - caseStart.GcPause).TotalMilliseconds:0} ms de pausa (total del proceso {now.GcPause.TotalMilliseconds:0} ms), colecciones gen0/1/2 {Delta(collections, caseCollections)} (al empezar {string.Join('/', caseCollections)}, ahora {string.Join('/', collections)})"));
         text.Append(Invariant($"; en el tramo en curso, {(now.GcPause - current.Start.GcPause).TotalMilliseconds:0} ms de pausa y el proceso usó {(now.ProcessCpu - current.Start.ProcessCpu).TotalSeconds:0.00} s de CPU ({Environment.ProcessorCount} núcleos); GC {(System.Runtime.GCSettings.IsServerGC ? "de servidor" : "de estación")}, {System.Runtime.GCSettings.LatencyMode}."));
         text.Append(' ').Append(DescribeThread(current.Start));
@@ -177,14 +185,16 @@ internal sealed partial class PhaseLog
 
     private static string Milliseconds(Sample from, Sample to) => Invariant($"{Seconds(from, to) * 1000:0} ms");
 
+    private static string Megabytes(Sample from, Sample to) => Invariant($"{(to.Allocated - from.Allocated) / (1024.0 * 1024):0.0} MB");
+
     private static string Invariant(FormattableString text) => text.ToString(CultureInfo.InvariantCulture);
 
     private readonly record struct Phase(string Name, Sample Start);
 
-    /// <summary>Un instante: reloj, CPU y pausa del GC del proceso, y el hilo que lo tomó con su CPU (si se puede leer).</summary>
-    private readonly record struct Sample(long Ticks, TimeSpan ProcessCpu, TimeSpan GcPause, Thread? Thread, int? OsThreadId, TimeSpan? ThreadCpu)
+    /// <summary>Un instante: reloj, CPU, memoria asignada y pausa del GC del proceso, y el hilo que lo tomó con su CPU (si se puede leer).</summary>
+    private readonly record struct Sample(long Ticks, TimeSpan ProcessCpu, TimeSpan GcPause, long Allocated, Thread? Thread, int? OsThreadId, TimeSpan? ThreadCpu)
     {
-        public static Sample Take() => new(Stopwatch.GetTimestamp(), Environment.CpuUsage.TotalTime, GC.GetTotalPauseDuration(), Thread.CurrentThread, NativeThread.Id(), NativeThread.Cpu());
+        public static Sample Take() => new(Stopwatch.GetTimestamp(), Environment.CpuUsage.TotalTime, GC.GetTotalPauseDuration(), GC.GetTotalAllocatedBytes(), Thread.CurrentThread, NativeThread.Id(), NativeThread.Cpu());
     }
 
     /// <summary>El identificador del hilo en el sistema y su CPU, para compararlo con <see cref="ProcessThread"/>.</summary>
