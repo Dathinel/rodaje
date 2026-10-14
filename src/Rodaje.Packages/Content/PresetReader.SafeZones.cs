@@ -65,6 +65,11 @@ internal static partial class PresetReader
                 throw Fail($"{where}.label tiene que tener de 1 a {MaxZoneLabel} caracteres.");
             }
 
+            if (e.TryGetProperty("kind", out JsonElement k) && k.ValueKind != JsonValueKind.String)
+            {
+                throw Fail($"{where}.kind tiene que ser texto: interface o safe.");
+            }
+
             SafeZoneKind kind = String(e, "kind") switch
             {
                 null or "interface" => SafeZoneKind.Interface,

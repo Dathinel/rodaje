@@ -334,7 +334,20 @@ internal static partial class PresetReader
                 throw Fail($"{where} tiene que ser un objeto.");
             }
 
-            effects.Add(new PresetEffect(EffectType(e, "type", where), Numbers(e, "parameters", where + ".parameters"), Options(e, "options", where + ".options")));
+            string type = EffectType(e, "type", where);
+            Dictionary<string, double> parameters = Numbers(e, "parameters", where + ".parameters");
+            if (type == Transform)
+            {
+                foreach ((string parameter, double value) in parameters)
+                {
+                    if (TransformParameters.TryGetValue(parameter, out (double Min, double Max) range) && (value < range.Min || value > range.Max))
+                    {
+                        throw Fail($"{where}.parameters.{parameter} queda fuera de {range.Min.ToString(CultureInfo.InvariantCulture)} a {range.Max.ToString(CultureInfo.InvariantCulture)}.");
+                    }
+                }
+            }
+
+            effects.Add(new PresetEffect(type, parameters, Options(e, "options", where + ".options")));
         }
 
         return effects;
@@ -508,6 +521,11 @@ internal static partial class PresetReader
             if (value < range.Min || value > range.Max)
             {
                 throw Fail($"{at}.value queda fuera de {range.Min.ToString(CultureInfo.InvariantCulture)} a {range.Max.ToString(CultureInfo.InvariantCulture)}.");
+            }
+
+            if (k.TryGetProperty("interp", out JsonElement i) && i.ValueKind != JsonValueKind.String)
+            {
+                throw Fail($"{at}.interp tiene que ser texto: hold, linear, easeIn, easeOut, easeInOut, bezier, bounce o elastic.");
             }
 
             PresetInterpolation interpolation = String(k, "interp") switch
