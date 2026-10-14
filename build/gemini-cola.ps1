@@ -173,7 +173,8 @@ function Marcar-Hecha([string] $archivo, [string] $numero, [string] $pr) {
     [IO.File]::WriteAllText($archivo, $nuevo, $utf8)
 }
 
-function Normalizar([string] $s) { ($s -replace '[\s`*_>#|-]+', ' ').Trim().ToLowerInvariant() }
+# Solo quita sintaxis Markdown (enlaces [texto](ruta), comillas invertidas, negritas) y espacios: nada de comparación aproximada.
+function Normalizar([string] $s) { (($s -replace '!?\[([^\]]*)\]\([^)]*\)', '$1') -replace '[\s`*_>#|-]+', ' ').Trim().ToLowerInvariant() }
 
 if ($Lote) { . (Join-Path $PSScriptRoot 'gemini-lote.ps1'); exit $script:codigoLote }
 
