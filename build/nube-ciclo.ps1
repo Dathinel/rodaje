@@ -6,6 +6,7 @@ param(
     [int] $MaxUniones = 10,
     [int] $Simultaneas = 3,
     [double] $Horas = 6,
+    [int] $MaxSinPr = 3,
     [double] $MinutosConsulta = 3,
     [double] $MinutosSesion = 75,
     [string] $Repo = 'Dathinel/rodaje'
@@ -77,7 +78,7 @@ try {
             if ($s.estado -ne 'en curso' -and $s.pid) { Stop-Process -Id $s.pid -Force -ErrorAction SilentlyContinue }
         }
         Guardar
-        if ($estado.seguidasSinPr -ge 3) { $parada = '3 sesiones seguidas sin PR útil'; break }
+        if ($estado.seguidasSinPr -ge $MaxSinPr) { $parada = "$MaxSinPr sesiones seguidas sin PR útil"; break }
 
         # 2. Revisar y unir los PR de ramas claude/.
         foreach ($pr in @($abiertos | Where-Object { $_.head.ref -like 'claude/*' })) {
