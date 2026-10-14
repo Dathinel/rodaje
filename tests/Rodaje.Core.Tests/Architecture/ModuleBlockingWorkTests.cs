@@ -13,22 +13,16 @@ namespace Rodaje.Core.Tests.Architecture;
 /// </summary>
 public sealed partial class ModuleBlockingWorkTests
 {
-    public static TheoryData<string, int> Modules => new()
+    // No se fija el número de llamadas: añadir o quitar una legítima no debe romper la prueba (tarea 314).
+    public static TheoryData<string> Modules => new()
     {
-        // Preparar, inferir, escribir, detectar y reencuadrar.
-        { "modules/Rodaje.Module.Vision/Program.cs", 5 },
-        { "modules/Rodaje.Module.Voice/VoiceFunctions.cs", 1 },
+        "modules/Rodaje.Module.Vision/Program.cs",
+        "modules/Rodaje.Module.Voice/VoiceFunctions.cs",
     };
 
     [Theory]
     [MemberData(nameof(Modules))]
-    public void The_blocking_work_of_the_module_runs_off_the_pool(string file, int blockingCalls)
-    {
-        string code = Code(file);
-
-        Assert.Empty(PoolRegex().Matches(code));
-        Assert.Equal(blockingCalls, RunBlockingRegex().Count(code));
-    }
+    public void The_blocking_work_of_the_module_runs_off_the_pool(string file) => AssertRunsOffThePool(Code(file));
 
     [Fact]
     public void The_check_catches_the_code_before_task_195()
@@ -40,9 +34,32 @@ public sealed partial class ModuleBlockingWorkTests
         Assert.Equal(2, PoolRegex().Count(old));
         Assert.Equal(0, RunBlockingRegex().Count(old));
 
+        Assert.ThrowsAny<Exception>(() => AssertRunsOffThePool(old));
+
         string current = AsyncSafetyTests.Strip("result = await ModuleHost.RunBlockingAsync(() => synth.Speak(request, null, ct), ct); // no Task.Run(");
         Assert.Empty(PoolRegex().Matches(current));
         Assert.Equal(1, RunBlockingRegex().Count(current));
+        AssertRunsOffThePool(current);
+    }
+
+    [Fact]
+    public void The_check_does_not_depend_on_the_number_of_calls()
+    {
+        string more = AsyncSafetyTests.Strip("""
+            a = await ModuleHost.RunBlockingAsync(() => Prepare(frame), ct);
+            b = await ModuleHost.RunBlockingAsync(() => Infer(input), ct);
+            c = await ModuleHost.RunBlockingAsync(() => Write(output), ct);
+            """);
+        AssertRunsOffThePool(more);
+
+        string none = AsyncSafetyTests.Strip("a = Prepare(frame);");
+        Assert.ThrowsAny<Exception>(() => AssertRunsOffThePool(none));
+    }
+
+    private static void AssertRunsOffThePool(string code)
+    {
+        Assert.Empty(PoolRegex().Matches(code));
+        Assert.True(RunBlockingRegex().Count(code) >= 1, "el módulo no llama a ModuleHost.RunBlockingAsync");
     }
 
     private static string Code(string file)
