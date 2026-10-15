@@ -111,7 +111,7 @@ $archivos = @(git -C $raiz ls-files 'src/Rodaje.App/*.xaml' 'src/Rodaje.App/*.xa
 if (-not $archivos) { throw "No hay archivos para la zona $Area" }
 # El tope de tokens se cumple limitando el material de antemano: Gemini relee cada archivo varias veces.
 $acumulado = 0
-$archivos = @($archivos | Where-Object { $acumulado += (Get-Item -LiteralPath (Join-Path $raiz ($_ -replace '/', ''))).Length; $acumulado -le $MaxKB * 1KB })
+$archivos = @($archivos | Where-Object { $acumulado += (Get-Item -LiteralPath (Join-Path $raiz $_)).Length; $acumulado -le $MaxKB * 1KB })
 foreach ($a in $archivos) {
     $destino = Join-Path $datos (($a -replace '^src/Rodaje\.App/', '') -replace '[\\/]', '__')
     Copy-Item -LiteralPath (Join-Path $raiz ($a -replace '/', '\')) -Destination $destino
