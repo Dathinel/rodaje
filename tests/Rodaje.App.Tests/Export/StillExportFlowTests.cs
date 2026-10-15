@@ -91,6 +91,59 @@ public sealed class StillExportFlowTests
         }
     }
 
+    /// <summary>
+    /// El hilo de interfaz de la prueba: las continuaciones de <see cref="StillExportFlow"/> se encolan aquí y las ejecuta
+    /// <see cref="Pump"/> en el hilo de la prueba. Sin él, xUnit las lanzaba en un hilo nuevo que, en la CI de Windows
+    /// cargada, tardó más que el tope de la espera.
+    /// </summary>
+    private sealed class UiLoop : SynchronizationContext
+    {
+        private readonly Queue<(SendOrPostCallback Callback, object? State)> _queue = new();
+
+        public override void Post(SendOrPostCallback d, object? state)
+        {
+            lock (_queue)
+            {
+                _queue.Enqueue((d, state));
+            }
+        }
+
+        public override void Send(SendOrPostCallback d, object? state) => throw new NotSupportedException();
+
+        /// <summary>Lo que <paramref name="action"/> deja en marcha continúa en este contexto.</summary>
+        public T Run<T>(Func<T> action)
+        {
+            SynchronizationContext? previous = Current;
+            SetSynchronizationContext(this);
+            try
+            {
+                return action();
+            }
+            finally
+            {
+                SetSynchronizationContext(previous);
+            }
+        }
+
+        /// <summary>Ejecuta lo encolado, y lo que eso encole, hasta vaciar la cola.</summary>
+        public void Pump() => Run(() =>
+        {
+            while (true)
+            {
+                (SendOrPostCallback Callback, object? State) next;
+                lock (_queue)
+                {
+                    if (!_queue.TryDequeue(out next))
+                    {
+                        return 0;
+                    }
+                }
+
+                next.Callback(next.State);
+            }
+        });
+    }
+
     private static StillRequest Request() =>
         new(ExportTestData.Project(), "sec", Time.FromSeconds(0.5), @"C:\fotos\cuadro.png", new StillSettings());
 
@@ -175,11 +228,14 @@ public sealed class StillExportFlowTests
             h.Exporter.OnCancel = _ => new ExportException(ExportErrorCode.Canceled, "Cancelada.");
         }
 
-        Task run = h.Flow.StartAsync(null);
+        var ui = new UiLoop();
+        Task run = ui.Run(() => h.Flow.StartAsync(null));
         h.Last(Exporting).Action!.Run();
 
         Assert.True(h.Exporter.Calls[0].Token.IsCancellationRequested);
-        await run.WaitAsync(Wait);
+        ui.Pump();
+        Assert.True(run.IsCompleted, "La exportación cancelada no terminó al vaciar la cola del hilo de interfaz.");
+        await run;
 
         Assert.False(h.Flow.IsRunning);
         Assert.Equal([Exporting, Canceled], h.Titles());
