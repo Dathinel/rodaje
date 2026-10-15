@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Rodaje.Modules.Protocol;
 
 namespace Rodaje.Modules.Protocol.Tests;
@@ -108,23 +109,46 @@ public sealed class ShutdownReportTests
     public async Task Echo_module_exiting_with_0_after_shutdown_is_not_reported() =>
         Assert.Empty(await CloseEchoAsync("""{"codigo":0}""", expectedExit: 0));
 
+    /// <remarks>
+    /// Tarea 332: el cierre mataba el árbol de procesos en un hilo propio (<see cref="ModuleProcess.KillOffPool"/>), sin cota,
+    /// y en la CI de Windows <see cref="ModuleProcess.DisposeAsync"/> pasó de 60 s. Además, si la salida no se veía en
+    /// <see cref="ModuleProcess.ExitWait"/>, el cierre desechaba el proceso y <see cref="ModuleProcess.Exited"/> ya no
+    /// terminaba nunca. Ahora la muerte la da <see cref="ModuleProcess.CloseKill"/> (solo el proceso, en línea) y la salida se
+    /// espera en un <see cref="Process"/> propio. Matar el árbol en un hilo propio lo prueban <see cref="ProcessKillTests"/>
+    /// y <see cref="KillContinuationTests"/>.
+    /// </remarks>
     [Fact]
     public async Task Echo_module_that_has_to_be_killed_after_shutdown_is_reported()
     {
-        string line = Assert.Single(await CloseEchoAsync("""{"colgar":true}""", expectedExit: null));
+        ConcurrentQueue<string> lines = new();
+        ModuleProcess module = await ModuleProcess.StartAsync(Support.EchoExe).WaitAsync(Long);
+        using Process process = Process.GetProcessById(module.ProcessId);
+        int kills = 0;
+        module.Report = lines.Enqueue;
+        module.CloseKill = () =>
+        {
+            Interlocked.Increment(ref kills);
+            process.Kill();
+            return Task.CompletedTask;
+        };
+        await module.Client.InvokeAsync("al-cerrar", Support.Json("""{"colgar":true}""")).WaitAsync(Long);
+        await module.DisposeAsync().AsTask().WaitAsync(Long);
+
+        Assert.Equal(1, kills);
+        Assert.True(process.WaitForExit(Long), "el módulo colgado no murió");
+        string line = Assert.Single(lines);
         Assert.Contains("rodaje-eco", line, StringComparison.Ordinal);
         Assert.Contains("se mató", line, StringComparison.Ordinal);
     }
 
-    private static async Task<string[]> CloseEchoAsync(string onClose, int? expectedExit)
+    private static async Task<string[]> CloseEchoAsync(string onClose, int expectedExit)
     {
         ConcurrentQueue<string> lines = new();
         ModuleProcess module = await ModuleProcess.StartAsync(Support.EchoExe).WaitAsync(Long);
         module.Report = lines.Enqueue;
         await module.Client.InvokeAsync("al-cerrar", Support.Json(onClose)).WaitAsync(Long);
         await module.DisposeAsync().AsTask().WaitAsync(Long);
-        int exit = await module.Exited.WaitAsync(Long);
-        if (expectedExit is { } code) Assert.Equal(code, exit);
+        Assert.Equal(expectedExit, await module.Exited.WaitAsync(Long));
         return [.. lines];
     }
 }

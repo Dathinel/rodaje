@@ -235,6 +235,13 @@ public sealed class ModuleProcess : IAsyncDisposable
     internal Action<string> Report { get; set; } = static line => Trace.WriteLine(line);
 
     /// <summary>
+    /// Costura de pruebas: la muerte que pide el cierre de <see cref="DisposeAsync"/> a un módulo que no sale. Por omisión
+    /// (<c>null</c>), el árbol de procesos en un hilo propio (<see cref="KillOffPool"/>), cuya duración no tiene cota: con el
+    /// runner de Windows cargado pasó de 50 s (tarea 332).
+    /// </summary>
+    internal Func<Task>? CloseKill { get; set; }
+
+    /// <summary>
     /// Cierre ordenado: <see cref="ModuleClient.DisposeAsync"/> manda <c>shutdown</c> y espera a que el módulo cierre su
     /// lado de la tubería (o salga) antes de cerrar el del editor; luego se espera la salida y, si no llega en
     /// <see cref="ExitWait"/>, se mata el árbol de procesos. En total, a lo sumo <see cref="DisposeBudget"/> más lo que
@@ -247,7 +254,7 @@ public sealed class ModuleProcess : IAsyncDisposable
         ModuleClient client = Client;
         Process process = _process;
         await CloseAsync(client.DisposeAsync, () => client.ShutdownDelivered, _exited.Task,
-            () => KillOffPool(() => Kill(process), TaskScheduler.Default), ExitWait, client.Module.Id, Report).ConfigureAwait(false);
+            CloseKill ?? (() => KillOffPool(() => Kill(process), TaskScheduler.Default)), ExitWait, client.Module.Id, Report).ConfigureAwait(false);
         _process.Dispose();
     }
 
