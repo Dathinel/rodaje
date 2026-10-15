@@ -86,6 +86,12 @@ internal static class WaveReader
                     throw Fail("El WAV no trae muestras.");
                 }
 
+                // Sin leer muestras: si el archivo es más corto de lo que declara el bloque, está cortado.
+                if (stream.CanSeek && stream.Length - stream.Position < frames * frameBytes)
+                {
+                    throw Fail("El WAV está cortado: trae menos muestras de las que declara.");
+                }
+
                 var info = new SoundInfo(f.rate, f.channels, f.bits, f.isFloat, frames);
                 if (!samples)
                 {
