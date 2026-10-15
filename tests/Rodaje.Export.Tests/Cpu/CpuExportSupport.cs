@@ -1,3 +1,4 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
@@ -124,16 +125,37 @@ internal static class CpuExportEnvironment
         return output.ToArray();
     }
 
-    /// <summary>WAV float estéreo a 48 kHz con un tono de 440 Hz hecho por la fuente <c>sine</c> de lavfi.</summary>
+    /// <summary>
+    /// WAV float estéreo a 48 kHz con un tono de 440 Hz (amplitud 1/8, como la fuente <c>sine</c> de lavfi), escrito aquí
+    /// mismo: la entrada de la prueba no lanza otro <c>ffmpeg.exe</c> que pueda morir por su cuenta (tarea 330).
+    /// </summary>
     public static string SineWav(string path, double seconds)
     {
-        string duration = seconds.ToString("0.######", CultureInfo.InvariantCulture);
-        RunBinary(Ffmpeg.Path,
-        [
-            "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
-            "-f", "lavfi", "-i", $"sine=frequency=440:sample_rate=48000:duration={duration}",
-            "-ac", "2", "-c:a", "pcm_f32le", path,
-        ]);
+        const int rate = 48_000;
+        const int channels = 2;
+        int samples = checked((int)Math.Round(seconds * rate));
+        int dataBytes = checked(samples * channels * sizeof(float));
+        using var stream = new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.None);
+        using var writer = new BinaryWriter(stream, Encoding.ASCII);
+        writer.Write("RIFF"u8);
+        writer.Write(36 + dataBytes);
+        writer.Write("WAVEfmt "u8);
+        writer.Write(16);
+        writer.Write((short)3); // WAVE_FORMAT_IEEE_FLOAT
+        writer.Write((short)channels);
+        writer.Write(rate);
+        writer.Write(rate * channels * sizeof(float));
+        writer.Write((short)(channels * sizeof(float)));
+        writer.Write((short)32);
+        writer.Write("data"u8);
+        writer.Write(dataBytes);
+        for (int i = 0; i < samples; i++)
+        {
+            float value = (float)(Math.Sin(2 * Math.PI * 440 * i / rate) / 8);
+            writer.Write(value);
+            writer.Write(value);
+        }
+
         return path;
     }
 
@@ -199,8 +221,9 @@ internal static class SinkRuns
 }
 
 /// <summary>
-/// Cuadros reales de una fuente lavfi (<c>testsrc2</c> por defecto) en el formato pedido, generados una vez por
-/// <c>ffmpeg.exe</c> y guardados con un pitch más ancho que la fila para que el sink tenga que quitarlo.
+/// Cuadros en el formato pedido, de una fuente lavfi (<c>testsrc2</c> por defecto) generados una vez por <c>ffmpeg.exe</c>
+/// o, con <see cref="Synthetic"/>, hechos aquí mismo; se guardan con un pitch más ancho que la fila para que el sink tenga
+/// que quitarlo.
 /// </summary>
 internal sealed class LavfiFrames
 {
@@ -210,21 +233,18 @@ internal sealed class LavfiFrames
     private readonly int[] _pitches = new int[4];
 
     public LavfiFrames(ExportVideoFormat format, int distinct, string source = "testsrc2", int padding = 96)
+        : this(format, distinct, Lavfi(format, distinct, source), padding)
+    {
+    }
+
+    private LavfiFrames(ExportVideoFormat format, int distinct, byte[] raw, int padding)
     {
         Format = format;
         ExportPixelFormat pixels = format.PixelFormat;
         int frameBytes = checked((int)pixels.FrameBytes(format.Width, format.Height));
-        string size = string.Create(CultureInfo.InvariantCulture, $"{format.Width}x{format.Height}");
-        byte[] raw = CpuExportEnvironment.RunBinary(CpuExportEnvironment.Ffmpeg.Path,
-        [
-            "-hide_banner", "-nostdin", "-loglevel", "error",
-            "-f", "lavfi", "-i", $"{source}=size={size}:rate=30",
-            "-frames:v", distinct.ToString(CultureInfo.InvariantCulture),
-            "-pix_fmt", pixels.FfmpegName(), "-f", "rawvideo", "pipe:1",
-        ]);
         if (raw.Length != (long)frameBytes * distinct)
         {
-            throw new InvalidOperationException($"lavfi dio {raw.Length} bytes y se esperaban {(long)frameBytes * distinct}.");
+            throw new InvalidOperationException($"La fuente dio {raw.Length} bytes y se esperaban {(long)frameBytes * distinct}.");
         }
 
         int offset = 0;
@@ -254,6 +274,58 @@ internal sealed class LavfiFrames
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Cuadros distintos hechos aquí mismo, sin lanzar <c>ffmpeg.exe</c>: un degradado por plano que se corre con cada cuadro,
+    /// con las muestras de 10 bits dentro de su rango. Para las pruebas que no comparan con una imagen de referencia.
+    /// </summary>
+    public static LavfiFrames Synthetic(ExportVideoFormat format, int distinct, int padding = 96)
+    {
+        ExportPixelFormat pixels = format.PixelFormat;
+        int frameBytes = checked((int)pixels.FrameBytes(format.Width, format.Height));
+        int sampleBytes = pixels.BytesPerSample();
+        int bits = pixels.BitDepth();
+        var raw = new byte[(long)frameBytes * distinct];
+        int at = 0;
+        for (int frame = 0; frame < distinct; frame++)
+        {
+            for (int plane = 0; plane < pixels.PlaneCount(); plane++)
+            {
+                int samplesPerRow = pixels.RowBytes(plane, format.Width, format.Height) / sampleBytes;
+                int rows = pixels.PlaneSize(plane, format.Width, format.Height).Height;
+                for (int y = 0; y < rows; y++)
+                {
+                    for (int x = 0; x < samplesPerRow; x++)
+                    {
+                        int value = (x + (2 * y) + (7 * frame) + (50 * plane)) % (1 << Math.Min(bits, 8));
+                        if (sampleBytes == 1)
+                        {
+                            raw[at++] = (byte)value;
+                        }
+                        else
+                        {
+                            BinaryPrimitives.WriteUInt16LittleEndian(raw.AsSpan(at), (ushort)(value << (bits - 8)));
+                            at += 2;
+                        }
+                    }
+                }
+            }
+        }
+
+        return new LavfiFrames(format, distinct, raw, padding);
+    }
+
+    private static byte[] Lavfi(ExportVideoFormat format, int distinct, string source)
+    {
+        string size = string.Create(CultureInfo.InvariantCulture, $"{format.Width}x{format.Height}");
+        return CpuExportEnvironment.RunBinary(CpuExportEnvironment.Ffmpeg.Path,
+        [
+            "-hide_banner", "-nostdin", "-loglevel", "error",
+            "-f", "lavfi", "-i", $"{source}=size={size}:rate=30",
+            "-frames:v", distinct.ToString(CultureInfo.InvariantCulture),
+            "-pix_fmt", format.PixelFormat.FfmpegName(), "-f", "rawvideo", "pipe:1",
+        ]);
     }
 
     public ExportVideoFormat Format { get; }
