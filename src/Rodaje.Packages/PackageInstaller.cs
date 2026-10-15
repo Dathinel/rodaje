@@ -495,11 +495,6 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
                 continue;
             }
 
-            if (entry.Length > (1 << 20) && entry.CompressedLength > 0 && entry.Length / entry.CompressedLength > _limits.MaxCompressionRatio)
-            {
-                throw new PackageInstallException($"«{relative}» está comprimido de forma sospechosa.");
-            }
-
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             using Stream source = entry.Open();
             using var target = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None);
@@ -524,8 +519,8 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     }
 
     /// <summary>
-    /// Antes de escribir nada: número de entradas, tamaño descomprimido declarado, tasa de compresión del conjunto (muchas
-    /// entradas chicas muy comprimidas esquivan la de cada una) y espacio libre. <see cref="CopyLimited"/> asegura que
+    /// Antes de escribir nada: número de entradas, tamaño descomprimido declarado, tasa de compresión de cada entrada y del
+    /// conjunto (muchas entradas chicas muy comprimidas esquivan la de cada una) y espacio libre. <see cref="CopyLimited"/> asegura que
     /// ninguna entrada pase de lo que declara.
     /// </summary>
     private void CheckTotals(ZipArchive zip, long archiveBytes, string destination)
@@ -541,6 +536,11 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             if (entry.Length < 0 || entry.Length > _limits.MaxTotalBytes - total)
             {
                 throw new PackageInstallException($"El paquete descomprimido ocupa más de {FormatBytes(_limits.MaxTotalBytes)}.");
+            }
+
+            if (entry.Length > (1 << 20) && entry.CompressedLength > 0 && entry.Length / entry.CompressedLength > _limits.MaxCompressionRatio)
+            {
+                throw new PackageInstallException($"«{entry.FullName}» está comprimido de forma sospechosa.");
             }
 
             total += entry.Length;
