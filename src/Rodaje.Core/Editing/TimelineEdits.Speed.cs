@@ -60,6 +60,27 @@ public static partial class TimelineEdits
         });
     }
 
+    /// <summary>Cambia un punto de una rampa personalizada y mantiene intacto el tramo de material del clip.</summary>
+    public static void SetCurvePoint(EditContext ctx, string clipId, int index, SpeedPoint point, RippleScope scope = RippleScope.Track)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(point);
+        Clip clip = EditableSpeedGroup(ctx, clipId)[0].Clip;
+        if (clip.Speed?.Curve is not { } current)
+        {
+            throw new EditException("El clip no tiene una rampa de velocidad que editar.");
+        }
+
+        if ((uint)index >= (uint)current.Points.Count)
+        {
+            throw new EditException("El punto de la rampa ya no existe.");
+        }
+
+        SpeedCurve updated = current.Clone();
+        updated.Points[index] = point;
+        SetCurve(ctx, clipId, updated, scope);
+    }
+
     /// <summary>
     /// Invierte o endereza el clip y sus enlazados sin cambiar duración ni material.
     /// Los keyframes de sus efectos se reflejan en el tramo del origen, así la animación sigue igual en la
