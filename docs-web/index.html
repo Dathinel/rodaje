@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Rodaje es un editor de video nativo para Windows, rápido, por capas y privado.">
+  <title>Rodaje — Editor de video para Windows</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --fondo: #121212;
+      --superficie: #1d1d1d;
+      --texto: #f4f0eb;
+      --suave: #c8c1b8;
+      --acento: #e8833a;
+      --borde: #403b37;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: radial-gradient(circle at top, #2c2520, var(--fondo) 38rem);
+      color: var(--texto);
+      font-family: "Segoe UI", system-ui, sans-serif;
+      line-height: 1.5;
+    }
+
+    a { color: inherit; }
+
+    .contenedor {
+      width: min(70rem, calc(100% - 3rem));
+      margin: auto;
+    }
+
+    header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1.25rem 0;
+    }
+
+    .marca {
+      display: flex;
+      align-items: center;
+      gap: .65rem;
+      font-size: 1.25rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .marca img { width: 2rem; height: 2rem; }
+
+    .enlace-discreto { color: var(--suave); }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(16rem, .8fr);
+      align-items: center;
+      gap: 3rem;
+      padding: 5rem 0 4rem;
+    }
+
+    h1 {
+      max-width: 11ch;
+      margin: 0;
+      font-size: clamp(2.8rem, 8vw, 5.6rem);
+      line-height: .98;
+      letter-spacing: -.06em;
+    }
+
+    .introduccion {
+      max-width: 39rem;
+      margin: 1.5rem 0 2rem;
+      color: var(--suave);
+      font-size: 1.2rem;
+    }
+
+    .acciones { display: flex; flex-wrap: wrap; gap: .75rem; }
+
+    .boton {
+      display: inline-block;
+      border: 1px solid var(--borde);
+      border-radius: .45rem;
+      padding: .75rem 1rem;
+      font-weight: 700;
+      text-decoration: none;
+    }
+
+    .boton-principal { background: var(--acento); border-color: var(--acento); color: #24160c; }
+
+    .tarjeta-marca {
+      display: grid;
+      place-items: center;
+      min-height: 18rem;
+      border: 1px solid var(--borde);
+      border-radius: 1rem;
+      background: linear-gradient(145deg, #2b2724, var(--superficie));
+    }
+
+    .tarjeta-marca img { width: min(12rem, 60%); }
+
+    section { padding: 3rem 0; border-top: 1px solid var(--borde); }
+
+    h2 { margin-top: 0; font-size: 1.8rem; }
+
+    .caracteristicas {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 1rem;
+      padding: 0;
+      list-style: none;
+    }
+
+    .caracteristicas li {
+      padding: 1.25rem;
+      border: 1px solid var(--borde);
+      border-radius: .75rem;
+      background: var(--superficie);
+    }
+
+    .caracteristicas strong { display: block; margin-bottom: .4rem; }
+    .caracteristicas span { color: var(--suave); }
+
+    footer { padding: 2rem 0 3rem; color: var(--suave); font-size: .9rem; }
+
+    @media (max-width: 42rem) {
+      .hero { grid-template-columns: 1fr; padding-top: 3rem; }
+      .tarjeta-marca { min-height: 12rem; }
+      .caracteristicas { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="contenedor">
+    <header>
+      <a class="marca" href="./" aria-label="Inicio de Rodaje">
+        <img src="../assets/marca/rodaje-pequeno.svg" alt="">
+        <span>Rodaje</span>
+      </a>
+      <a class="enlace-discreto" href="https://github.com/Dathinel/rodaje">Ver el código</a>
+    </header>
+
+    <main>
+      <section class="hero">
+        <div>
+          <h1>El editor que sigue tu ritmo.</h1>
+          <p class="introduccion">Rodaje es un editor de video nativo para Windows: rápido, por capas y preciso. Funciona sin una suscripción y mantiene el trabajo y las herramientas de IA local en tu equipo.</p>
+          <div class="acciones">
+            <a class="boton boton-principal" href="https://github.com/Dathinel/rodaje/releases">Descargar Rodaje</a>
+            <a class="boton" href="https://github.com/Dathinel/rodaje-catalogo/releases">Explorar el catálogo</a>
+          </div>
+        </div>
+        <div class="tarjeta-marca">
+          <img src="../assets/marca/rodaje.svg" alt="Logotipo de Rodaje">
+        </div>
+      </section>
+
+      <section aria-labelledby="hecho-para-editar">
+        <h2 id="hecho-para-editar">Hecho para editar, no para esperar</h2>
+        <ul class="caracteristicas">
+          <li><strong>Edición por capas</strong><span>Corta, ajusta, anima y organiza con precisión de cuadro.</span></li>
+          <li><strong>Imagen y sonido</strong><span>Color, títulos, subtítulos, audio y exportación en un mismo flujo.</span></li>
+          <li><strong>Crece contigo</strong><span>Instala complementos y módulos desde un catálogo firmado.</span></li>
+        </ul>
+      </section>
+
+      <section aria-labelledby="elige-tu-forma">
+        <h2 id="elige-tu-forma">Elige cómo usarlo</h2>
+        <p>La página de <a href="https://github.com/Dathinel/rodaje/releases">Releases</a> ofrece instalador para tu usuario y una edición portable. Los complementos y módulos disponibles se publican en el <a href="https://github.com/Dathinel/rodaje-catalogo/releases">catálogo de Rodaje</a>.</p>
+      </section>
+    </main>
+
+    <footer>
+      <p>Rodaje se distribuye bajo GPLv3 con términos adicionales. El nombre y los logotipos de Rodaje pertenecen a Dathinel; consulta la <a href="../TRADEMARK.md">política de marca</a>.</p>
+      <p><a href="DNS.md">Instrucciones para configurar un dominio propio</a> · <a href="https://github.com/Dathinel/rodaje">GitHub</a></p>
+    </footer>
+  </div>
+</body>
+</html>
