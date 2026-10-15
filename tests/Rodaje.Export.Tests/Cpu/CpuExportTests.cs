@@ -6,10 +6,15 @@ namespace Rodaje.Export.Tests.Cpu;
 
 /// <summary>
 /// Exportaciones cortas de verdad con los codificadores que tiene un equipo sin GPU (el runner de Windows de la CI):
-/// argumentos de <see cref="FfmpegArguments.Build"/>, cuadros de lavfi por <see cref="FfmpegPipeSink"/>, audio de lavfi
-/// como WAV y el archivo comprobado con <see cref="ExportVerifier"/>. Solo se omiten si falta <c>ffmpeg.exe</c> o un
-/// codificador no está compilado.
+/// argumentos de <see cref="FfmpegArguments.Build"/>, cuadros por <see cref="FfmpegPipeSink"/>, audio como WAV y el
+/// archivo comprobado con <see cref="ExportVerifier"/>. Solo se omiten si falta <c>ffmpeg.exe</c> o un codificador no está
+/// compilado.
 /// </summary>
+/// <remarks>
+/// Los cuadros y el WAV de entrada se hacen en este proceso (<see cref="LavfiFrames.Synthetic"/>,
+/// <see cref="CpuExportEnvironment.SineWav"/>): antes los daba otro <c>ffmpeg.exe</c>, que en la CI murió alguna vez con
+/// código -1 y sin mensaje (terminado desde fuera) antes de que empezara la exportación (tarea 330).
+/// </remarks>
 public sealed class CpuExportTests(ITestOutputHelper output)
 {
     private const int Frames = 45;
@@ -34,7 +39,7 @@ public sealed class CpuExportTests(ITestOutputHelper output)
 
         using var scratch = new ExportScratch();
         ExportVideoFormat format = CpuExportEnvironment.Format(640, 360, pixels);
-        var source = new LavfiFrames(format, distinct: 15);
+        var source = LavfiFrames.Synthetic(format, distinct: 15);
         string wav = CpuExportEnvironment.SineWav(scratch.Combine("mezcla.rodaje-tmp.wav"), Frames / 30.0);
         string outputPath = scratch.Combine($"salida {video}.{container.Extension()}");
         var request = new ExportSinkRequest(outputPath, container, format, videoSpec, arguments.Video,
