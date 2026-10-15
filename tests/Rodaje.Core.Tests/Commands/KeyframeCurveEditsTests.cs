@@ -117,6 +117,98 @@ public sealed class KeyframeCurveEditsTests
         Assert.Throws<EditException>(() => EffectEdits.ReplaceKeyframes(ctx, Clip2, Fx, T.Scale, [new Keyframe(S(11), 1), new Keyframe(S(10), 2)]));
     }
 
+    [Fact]
+    public void SetKeyframesInterpolation_CambiaLaSeleccionEnUnSoloPaso()
+    {
+        Project project = Create();
+        var stack = new UndoStack(project);
+        string before = ProjectDump.Of(project);
+
+        stack.Execute(Edits.SetKeyframesInterpolation(SequenceId, Clip2, Fx, "opacity", [S(10), S(12)], Interpolation.Bezier));
+
+        Assert.All(Param(project, "opacity").Keyframes, key => Assert.Equal(Interpolation.Bezier, key.Interpolation));
+        Assert.Equal(1, stack.Count);
+        string after = ProjectDump.Of(project);
+        Assert.True(stack.Undo());
+        Assert.Equal(before, ProjectDump.Of(project));
+        Assert.True(stack.Redo());
+        Assert.Equal(after, ProjectDump.Of(project));
+    }
+
+    [Fact]
+    public void SetKeyframesInterpolation_SeleccionInvalida_NoModificaNada()
+    {
+        Project project = Create();
+        var stack = new UndoStack(project);
+        string before = ProjectDump.Of(project);
+
+        Assert.Throws<EditException>(() => stack.Execute(
+            Edits.SetKeyframesInterpolation(SequenceId, Clip2, Fx, "opacity", [S(10), S(99)], Interpolation.Hold)));
+
+        Assert.Equal(before, ProjectDump.Of(project));
+        Assert.Equal(0, stack.Count);
+    }
+
+    [Fact]
+    public void MoveKeyframes_ConservaElEspaciadoYLosAtributosDeLaSeleccion()
+    {
+        Project project = Create();
+        var stack = new UndoStack(project);
+        Parameter parameter = Param(project, "opacity");
+        string before = ProjectDump.Of(project);
+
+        stack.Execute(Edits.MoveKeyframes(SequenceId, Clip2, Fx, "opacity", [S(10), S(12)], S(1)));
+
+        Assert.Equal([S(11), S(13)], parameter.Keyframes.Select(key => key.Time));
+        Assert.Equal(Interpolation.EaseIn, parameter.Keyframes[1].Interpolation);
+        Assert.Equal(1, stack.Count);
+        string after = ProjectDump.Of(project);
+        Assert.True(stack.Undo());
+        Assert.Equal(before, ProjectDump.Of(project));
+        Assert.True(stack.Redo());
+        Assert.Equal(after, ProjectDump.Of(project));
+    }
+
+    [Fact]
+    public void MoveKeyframes_ColisionaConUnaClaveNoSeleccionada_NoModificaNada()
+    {
+        Project project = Create();
+        var stack = new UndoStack(project);
+        stack.Execute(Edits.SetKeyframe(SequenceId, Clip2, Fx, "opacity", S(14), 0.25));
+        string before = ProjectDump.Of(project);
+
+        Assert.Throws<EditException>(() => stack.Execute(
+            Edits.MoveKeyframes(SequenceId, Clip2, Fx, "opacity", [S(10), S(12)], S(2))));
+
+        Assert.Equal(before, ProjectDump.Of(project));
+        Assert.Equal(1, stack.Count);
+    }
+
+    [Fact]
+    public void Clipboard_PegaTiemposRelativosCurvasYValoresEnUnSoloPaso()
+    {
+        Project project = Create();
+        var stack = new UndoStack(project);
+        Parameter source = Param(project, "opacity");
+        stack.Execute(Edits.SetKeyframeEase(SequenceId, Clip2, Fx, "opacity", S(10), new BezierEase(0.2, 0.1, 0.8, 0.9)));
+        KeyframeClipboard clipboard = KeyframeClipboard.Copy(source, [S(10), S(12)]);
+        string before = ProjectDump.Of(project);
+        int undoStepsBeforePaste = stack.Count;
+
+        stack.Execute(Edits.PasteKeyframes(SequenceId, Clip2, Fx, "opacity", clipboard, S(12)));
+
+        Assert.Equal([S(10), S(12), S(14)], source.Keyframes.Select(key => key.Time));
+        Assert.Equal(0, source.Keyframes[1].Value);
+        Assert.Equal(1, source.Keyframes[2].Value);
+        Assert.Equal(new BezierEase(0.2, 0.1, 0.8, 0.9), source.Keyframes[1].Ease);
+        Assert.Equal(undoStepsBeforePaste + 1, stack.Count);
+        string after = ProjectDump.Of(project);
+        Assert.True(stack.Undo());
+        Assert.Equal(before, ProjectDump.Of(project));
+        Assert.True(stack.Redo());
+        Assert.Equal(after, ProjectDump.Of(project));
+    }
+
     [Theory]
     [InlineData(MotionPresets.KenBurns)]
     [InlineData(MotionPresets.SlowZoom)]

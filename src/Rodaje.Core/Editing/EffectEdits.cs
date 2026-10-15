@@ -300,6 +300,70 @@ public static class EffectEdits
         };
     }
 
+    /// <summary>Cambia la interpolaciÃ³n de varios keyframes como una sola ediciÃ³n validada.</summary>
+    public static void SetKeyframesInterpolation(
+        EditContext ctx,
+        string clipId,
+        string effectId,
+        string name,
+        IReadOnlyCollection<Time> at,
+        Interpolation interpolation)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(at);
+        EnsureDefined(interpolation);
+        Time[] selected = at.ToArray();
+        if (selected.Length == 0 || selected.Distinct().Count() != selected.Length)
+        {
+            throw new EditException("Selecciona uno o mÃ¡s keyframes distintos.");
+        }
+
+        Parameter parameter = FindParameter(FindEffect(EditableHost(ctx, clipId), effectId), name);
+        int[] indices = selected.Select(time => IndexAt(parameter, time, name)).ToArray();
+        foreach (int index in indices)
+        {
+            Keyframe key = parameter.Keyframes[index];
+            parameter.Keyframes[index] = key with
+            {
+                Interpolation = interpolation,
+                Ease = interpolation == Interpolation.Bezier ? key.Ease : null,
+            };
+        }
+    }
+
+    /// <summary>Pega keyframes relativos en el parÃ¡metro y conserva los que quedan fuera del intervalo pegado.</summary>
+    public static void PasteKeyframes(EditContext ctx, string clipId, string effectId, string name, KeyframeClipboard clipboard, Time at)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(clipboard);
+        Host host = EditableHost(ctx, clipId);
+        EffectInstance effect = FindEffect(host, effectId);
+        Parameter parameter = FindParameter(effect, name);
+        IReadOnlyList<Keyframe> pasted = clipboard.PasteAt(at);
+        foreach (Keyframe key in pasted)
+        {
+            EnsureFinite(key.Value, name);
+            EnsureDefined(key.Interpolation);
+            EnsureInside(host, key.Time);
+        }
+
+        HashSet<Time> replacing = pasted.Select(key => key.Time).ToHashSet();
+        List<Keyframe> merged = parameter.Keyframes.Where(key => !replacing.Contains(key.Time)).Concat(pasted)
+            .OrderBy(key => key.Time)
+            .Select(key => key with { Value = Limit(effect, name, key.Value), Ease = key.Ease?.Clamped() })
+            .ToList();
+        for (int index = 1; index < merged.Count; index++)
+        {
+            if (merged[index - 1].Time == merged[index].Time)
+            {
+                throw new EditException("El pegado crearÃ­a keyframes duplicados.");
+            }
+        }
+
+        parameter.Value = merged[0].Value;
+        parameter.Keyframes = merged;
+    }
+
     /// <summary>
     /// La curva de tiempo del keyframe de <paramref name="at"/> hacia el siguiente como Bézier con esos puntos de control
     /// (acotados a sus límites); nula la deja en «Suave».
@@ -391,6 +455,42 @@ public static class EffectEdits
         }
 
         keys[index] = keys[index] with { Time = to };
+    }
+
+    /// <summary>Mueve una selecciÃ³n conservando sus distancias, curvas y orden; no puede colisionar con otros keyframes.</summary>
+    public static void MoveKeyframes(EditContext ctx, string clipId, string effectId, string name, IReadOnlyCollection<Time> from, Time delta)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(from);
+        Time[] selectedTimes = from.ToArray();
+        if (selectedTimes.Length == 0 || selectedTimes.Distinct().Count() != selectedTimes.Length)
+        {
+            throw new EditException("Selecciona uno o mÃ¡s keyframes distintos.");
+        }
+
+        Host host = EditableHost(ctx, clipId);
+        Parameter parameter = FindParameter(FindEffect(host, effectId), name);
+        int[] indices = selectedTimes.Select(time => IndexAt(parameter, time, name)).ToArray();
+        HashSet<Time> selected = selectedTimes.ToHashSet();
+        Time[] destinations = selectedTimes.Select(time => time + delta).ToArray();
+        foreach (Time destination in destinations)
+        {
+            EnsureInside(host, destination);
+        }
+
+        HashSet<Time> destinationSet = destinations.ToHashSet();
+        if (destinationSet.Count != destinations.Length || parameter.Keyframes.Any(key => !selected.Contains(key.Time) && destinationSet.Contains(key.Time)))
+        {
+            throw new EditException("La selecciÃ³n no puede pasar sobre otros keyframes.");
+        }
+
+        for (int index = 0; index < indices.Length; index++)
+        {
+            Keyframe key = parameter.Keyframes[indices[index]];
+            parameter.Keyframes[indices[index]] = key with { Time = key.Time + delta };
+        }
+
+        parameter.Keyframes.Sort((left, right) => left.Time.CompareTo(right.Time));
     }
 
     private static void Upsert(Parameter parameter, Time at, double value, Interpolation? interpolation)
