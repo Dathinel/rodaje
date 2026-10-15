@@ -7,11 +7,7 @@ using static Rodaje.Core.Tests.Model.ModelSamples;
 
 namespace Rodaje.Core.Tests.Caza;
 
-/// <summary>
-/// Lo que promete «Qué significa cada campo» de <c>docs/formato-proyecto.md</c>, comprobado al leer y escribir un
-/// <c>.rodaje</c>. Cada prueba cita la frase. La de los separadores <c>/</c> y <c>\</c> no está: solo se comprueba en
-/// Windows.
-/// </summary>
+/// <summary>Contrato del formato y comprobación de lectura y escritura.</summary>
 public sealed class ProjectFormatFieldsContractTests
 {
     private static JsonObject Root() => JsonNode.Parse(ProjectSerializer.Serialize(ValidProject()))!.AsObject();
@@ -34,6 +30,55 @@ public sealed class ProjectFormatFieldsContractTests
         new(project, project.Sequences[0], new SequentialIdGenerator());
 
     // «`schemaVersion` es la versión del formato y hoy vale 13; es el primer dato que se lee»
+    private const long Second = 705_600_000;
+
+    private static JsonObject Base() => JsonNode.Parse($$"""
+        {
+          "schemaVersion": {{Project.CurrentSchemaVersion}}, "id": "p", "name": "P",
+          "media": [
+            { "id": "m", "path": "material/toma.mp4", "name": "toma", "duration": {{10 * Second}},
+              "hasVideo": true, "hasAudio": true, "frameRate": { "num": 30, "den": 1 },
+              "width": 1920, "height": 1080, "sampleRate": 48000, "audioChannels": 2 }
+          ],
+          "sequences": [
+            { "id": "s", "name": "S", "frameRate": { "num": 30, "den": 1 }, "width": 1920, "height": 1080, "sampleRate": 48000,
+              "videoTracks": [
+                { "id": "v1", "kind": "video", "name": "V1", "effects": [], "transitions": [],
+                  "clips": [
+                    { "id": "c1", "mediaId": "m", "sourceIn": 0, "sourceOut": {{Second}}, "start": 0, "linkId": null, "enabled": true, "effects": [] },
+                    { "id": "c2", "mediaId": "m", "sourceIn": {{Second}}, "sourceOut": {{2 * Second}}, "start": {{Second}}, "linkId": null, "enabled": true, "effects": [] }
+                  ] }
+              ],
+              "audioTracks": [
+                { "id": "a1", "kind": "audio", "name": "A1", "effects": [], "transitions": [], "clips": [] }
+              ],
+              "markers": [], "regions": [] }
+          ]
+        }
+        """)!.AsObject();
+
+    private static JsonObject Seq(JsonObject root) => root["sequences"]![0]!.AsObject();
+
+    private static JsonObject VideoTrack(JsonObject root) => Seq(root)["videoTracks"]![0]!.AsObject();
+
+    private static JsonObject Clip(JsonObject root, int index = 0) => VideoTrack(root)["clips"]![index]!.AsObject();
+
+    private static JsonObject Media(JsonObject root) => root["media"]![0]!.AsObject();
+
+    private static JsonObject Write(Project project) => JsonNode.Parse(ProjectSerializer.Serialize(project))!.AsObject();
+
+    private static JsonObject RoundTrip(JsonObject root) => Write(Read(root));
+
+    private static JsonObject Effect(string type, JsonObject? parameters = null, JsonObject? options = null) => new()
+    {
+        ["id"] = "e1",
+        ["type"] = type,
+        ["enabled"] = true,
+        ["parameters"] = parameters ?? new JsonObject(),
+        ["options"] = options ?? new JsonObject(),
+    };
+
+    // «`schemaVersion` es la versión del formato y hoy vale 13»
     [Fact]
     public void SchemaVersion_vale_13_y_va_primero()
     {
@@ -717,5 +762,712 @@ public sealed class ProjectFormatFieldsContractTests
         {
             Rejected(root);
         }
+    }
+
+    [Fact]
+    public void Formato323_SchemaVersion_hoy_vale_13()
+    {
+        Assert.Equal(13, Project.CurrentSchemaVersion);
+        Assert.Equal(13, (int)RoundTrip(Base())["schemaVersion"]!);
+    }
+
+    // «es el primer dato que se lee y decide cómo se interpreta el resto»
+    [Fact]
+    public void Formato323_SchemaVersion_es_lo_primero_del_archivo()
+    {
+        JsonObject written = RoundTrip(Base());
+        Assert.Equal("schemaVersion", written.First().Key);
+    }
+
+    // «`sequences` son las líneas de tiempo, que pueden ser varias»
+    [Fact]
+    public void Formato323_Puede_haber_varias_secuencias()
+    {
+        JsonObject root = Base();
+        JsonObject second = Seq(root).DeepClone().AsObject();
+        second["id"] = "s2";
+        second["width"] = 1080;
+        second["height"] = 1920;
+        foreach (JsonNode? t in second["videoTracks"]!.AsArray())
+        {
+            t!["id"] = t["id"]!.GetValue<string>() + "b";
+            foreach (JsonNode? c in t["clips"]!.AsArray())
+            {
+                c!["id"] = c["id"]!.GetValue<string>() + "b";
+            }
+        }
+
+        second["audioTracks"]![0]!["id"] = "a1b";
+        root["sequences"]!.AsArray().Add(second);
+
+        Assert.Equal(2, Read(root).Sequences.Count);
+    }
+
+    // «se prefiere relativa a la carpeta donde está el `.rodaje` … aunque se aceptan rutas absolutas. Se admiten tanto
+    // `/` como `\` como separador.»
+    [Theory]
+    [InlineData("material/toma.mp4")]
+    [InlineData(@"material\toma.mp4")]
+    [InlineData(@"C:\Videos\toma.mp4")]
+    [InlineData("C:/Videos/toma.mp4")]
+    public void Formato323_La_ruta_del_medio_admite_ambos_separadores_y_absolutas(string path)
+    {
+        JsonObject root = Base();
+        Media(root)["path"] = path;
+
+        Assert.Equal(path, (string)RoundTrip(root)["media"]![0]!["path"]!);
+    }
+
+    // «`frameRate` es la tasa de su video o `null` si no tiene (una imagen fija o un archivo de solo audio) … Los campos
+    // que no aplican valen 0.»
+    [Fact]
+    public void Formato323_Un_medio_de_solo_audio_tiene_frameRate_null_y_ceros()
+    {
+        JsonObject root = Base();
+        JsonObject media = Media(root);
+        media["hasVideo"] = false;
+        media["frameRate"] = null;
+        media["width"] = 0;
+        media["height"] = 0;
+        VideoTrack(root)["clips"] = new JsonArray();
+
+        JsonObject written = RoundTrip(root)["media"]![0]!.AsObject();
+
+        Assert.True(written.ContainsKey("frameRate"));
+        Assert.Null(written["frameRate"]);
+        Assert.Equal(0, (int)written["width"]!);
+        Assert.Equal(0, (int)written["height"]!);
+    }
+
+    // «Una pista tiene `id`, `kind` (que vale `"video"` o `"audio"` y debe coincidir con la lista en la que está)»
+    [Fact]
+    public void Formato323_El_kind_de_la_pista_debe_coincidir_con_su_lista()
+    {
+        JsonObject root = Base();
+        Seq(root)["audioTracks"]![0]!["kind"] = "video";
+
+        Rejected(root);
+    }
+
+    // «`kind` (que vale `"video"` o `"audio"`»
+    [Fact]
+    public void Formato323_El_kind_de_la_pista_solo_vale_video_o_audio()
+    {
+        JsonObject root = Base();
+        VideoTrack(root)["kind"] = "subtitles";
+
+        Rejected(root);
+    }
+
+    // «y tres interruptores: `muted` la silencia, `hidden` la oculta de la imagen y `locked` impide editarla»
+    [Fact]
+    public void Formato323_Los_interruptores_de_la_pista_se_conservan()
+    {
+        JsonObject root = Base();
+        VideoTrack(root)["muted"] = true;
+        VideoTrack(root)["hidden"] = true;
+        VideoTrack(root)["locked"] = true;
+
+        Track track = Read(root).Sequences[0].VideoTracks[0];
+
+        Assert.True(track.Muted);
+        Assert.True(track.Hidden);
+        Assert.True(track.Locked);
+    }
+
+    // «Su lista `clips` está ordenada por posición»
+    [Fact]
+    public void Formato323_Los_clips_de_una_pista_van_ordenados_por_posicion()
+    {
+        JsonObject root = Base();
+        JsonArray clips = VideoTrack(root)["clips"]!.AsArray();
+        JsonNode first = clips[0]!.DeepClone();
+        JsonNode second = clips[1]!.DeepClone();
+        VideoTrack(root)["clips"] = new JsonArray(second, first);
+
+        Rejected(root);
+    }
+
+    // «`markers` guarda los marcadores, cada uno con `id`, el instante `time` y un `name` que puede ir vacío, ordenados por
+    // tiempo»
+    [Fact]
+    public void Formato323_Los_marcadores_ordenados_por_tiempo_se_leen()
+    {
+        JsonObject ordered = Base();
+        Seq(ordered)["markers"] = JsonNode.Parse($$"""
+            [ { "id": "k1", "time": 0, "name": "" }, { "id": "k2", "time": {{Second}}, "name": "b" } ]
+            """);
+        Assert.Equal(2, Read(ordered).Sequences[0].Markers.Count);
+    }
+
+    // «`regions` guarda las regiones, tramos con nombre `[start, end)` que pueden solaparse, ordenadas por inicio»
+    [Fact]
+    public void Formato323_Las_regiones_pueden_solaparse()
+    {
+        JsonObject overlapping = Base();
+        Seq(overlapping)["regions"] = JsonNode.Parse($$"""
+            [ { "id": "r1", "start": 0, "end": {{2 * Second}}, "name": "a" },
+              { "id": "r2", "start": {{Second}}, "end": {{3 * Second}}, "name": "b" } ]
+            """);
+        Assert.Equal(2, Read(overlapping).Sequences[0].Regions.Count);
+    }
+
+    // «Los dos admiten `color` (`#RRGGBB`) y `note` (texto libre de hasta 2000 caracteres), que solo se escriben si
+    // tienen valor»
+    [Fact]
+    public void Formato323_Color_y_nota_de_marcadores_y_regiones_solo_se_escriben_con_valor()
+    {
+        JsonObject root = Base();
+        Seq(root)["markers"] = JsonNode.Parse($$"""
+            [ { "id": "k1", "time": 0, "name": "" },
+              { "id": "k2", "time": {{Second}}, "name": "", "color": "#FF8800", "note": "{{new string('n', 2000)}}" } ]
+            """);
+        Seq(root)["regions"] = JsonNode.Parse($$"""
+            [ { "id": "r1", "start": 0, "end": {{Second}}, "name": "" } ]
+            """);
+
+        JsonObject seq = Seq(RoundTrip(root));
+        JsonObject plain = seq["markers"]![0]!.AsObject();
+        JsonObject styled = seq["markers"]![1]!.AsObject();
+        JsonObject region = seq["regions"]![0]!.AsObject();
+
+        Assert.False(plain.ContainsKey("color"));
+        Assert.False(plain.ContainsKey("note"));
+        Assert.False(region.ContainsKey("color"));
+        Assert.False(region.ContainsKey("note"));
+        Assert.Equal("#FF8800", (string)styled["color"]!);
+        Assert.Equal(2000, ((string)styled["note"]!).Length);
+    }
+
+    // «`note` (texto libre de hasta 2000 caracteres)»
+    [Fact]
+    public void Formato323_Una_nota_de_mas_de_2000_caracteres_se_rechaza()
+    {
+        JsonObject root = Base();
+        Seq(root)["markers"] = JsonNode.Parse($$"""
+            [ { "id": "k1", "time": 0, "name": "", "note": "{{new string('n', 2001)}}" } ]
+            """);
+
+        Rejected(root);
+    }
+
+    // «`color` (`#RRGGBB`)»
+    [Fact]
+    public void Formato323_Un_color_de_marcador_que_no_es_RRGGBB_se_rechaza()
+    {
+        JsonObject root = Base();
+        Seq(root)["markers"] = JsonNode.Parse("""
+            [ { "id": "k1", "time": 0, "name": "", "color": "rojo" } ]
+            """);
+
+        Rejected(root);
+    }
+
+    // «Su duración es `sourceOut − sourceIn` y su final en la pista es `start + duración`. Estos dos valores no se guardan
+    // porque se calculan»
+    [Fact]
+    public void Formato323_La_duracion_y_el_final_del_clip_no_se_guardan()
+    {
+        JsonObject root = Base();
+        Rodaje.Core.Model.Clip clip = Read(root).Sequences[0].VideoTracks[0].Clips[1];
+        Assert.Equal(Time.FromTicks(Second), clip.Duration);
+        Assert.Equal(Time.FromTicks(2 * Second), clip.End);
+
+        JsonObject written = Clip(RoundTrip(root), 1);
+        Assert.False(written.ContainsKey("duration"));
+        Assert.False(written.ContainsKey("end"));
+    }
+
+    // «`enabled` permite apagar un clip sin borrarlo»
+    [Fact]
+    public void Formato323_Un_clip_apagado_se_conserva()
+    {
+        JsonObject root = Base();
+        Clip(root)["enabled"] = false;
+
+        Project project = Read(root);
+
+        Assert.Equal(2, project.Sequences[0].VideoTracks[0].Clips.Count);
+        Assert.False(project.Sequences[0].VideoTracks[0].Clips[0].Enabled);
+    }
+
+    // «El valor de `linkId` es un texto cualquiera que comparten los clips del grupo y no tiene que aparecer en ningún
+    // otro lugar.»
+    [Fact]
+    public void Formato323_El_linkId_es_un_texto_cualquiera()
+    {
+        JsonObject root = Base();
+        Clip(root)["linkId"] = "toma única ñ 42";
+        Seq(root)["audioTracks"]![0]!["clips"] = JsonNode.Parse($$"""
+            [ { "id": "c3", "mediaId": "m", "sourceIn": 0, "sourceOut": {{Second}}, "start": 0, "linkId": "toma única ñ 42", "enabled": true, "effects": [] } ]
+            """);
+
+        Project project = Read(root);
+
+        Assert.Equal("toma única ñ 42", project.Sequences[0].VideoTracks[0].Clips[0].LinkId);
+        Assert.Equal("toma única ñ 42", project.Sequences[0].AudioTracks[0].Clips[0].LinkId);
+    }
+
+    // «Los efectos de un clip están en `effects` y se aplican en el orden de la lista.»
+    [Fact]
+    public void Formato323_Los_efectos_conservan_el_orden_de_la_lista()
+    {
+        JsonObject root = Base();
+        JsonObject blur = Effect("rodaje.blur");
+        JsonObject color = Effect("rodaje.color");
+        color["id"] = "e2";
+        Clip(root)["effects"] = new JsonArray(blur, color);
+
+        JsonArray written = Clip(RoundTrip(root))["effects"]!.AsArray();
+
+        Assert.Equal("rodaje.blur", (string)written[0]!["type"]!);
+        Assert.Equal("rodaje.color", (string)written[1]!["type"]!);
+    }
+
+    // «Un programa no debe depender del orden de esas claves.»
+    [Fact]
+    public void Formato323_El_orden_de_las_claves_de_parameters_no_importa()
+    {
+        JsonObject ab = Base();
+        Clip(ab)["effects"] = new JsonArray(Effect("rodaje.transform", JsonNode.Parse("""
+            { "x": { "value": 5, "keyframes": [] }, "y": { "value": 7, "keyframes": [] } }
+            """)!.AsObject()));
+        JsonObject ba = Base();
+        Clip(ba)["effects"] = new JsonArray(Effect("rodaje.transform", JsonNode.Parse("""
+            { "y": { "value": 7, "keyframes": [] }, "x": { "value": 5, "keyframes": [] } }
+            """)!.AsObject()));
+
+        EffectInstance first = Read(ab).Sequences[0].VideoTracks[0].Clips[0].Effects[0];
+        EffectInstance second = Read(ba).Sequences[0].VideoTracks[0].Clips[0].Effects[0];
+
+        Assert.Equal(first.Parameters["x"].Value, second.Parameters["x"].Value);
+        Assert.Equal(first.Parameters["y"].Value, second.Parameters["y"].Value);
+    }
+
+    // «Cada keyframe tiene `time`, `value` e `interpolation` … si falta, vale `linear`.»
+    [Fact]
+    public void Formato323_Sin_interpolation_el_keyframe_es_linear()
+    {
+        JsonObject root = Base();
+        Clip(root)["effects"] = new JsonArray(Effect("rodaje.transform", JsonNode.Parse("""
+            { "x": { "value": 0, "keyframes": [ { "time": 0, "value": 1 } ] } }
+            """)!.AsObject()));
+
+        Keyframe keyframe = Read(root).Sequences[0].VideoTracks[0].Clips[0].Effects[0].Parameters["x"].Keyframes[0];
+
+        Assert.Equal(Interpolation.Linear, keyframe.Interpolation);
+    }
+
+    // «`hold` … `linear` … `easeIn` … `easeOut` … `easeInOut` … `bounce` … `elastic` … y `bezier`»
+    [Theory]
+    [InlineData("hold", Interpolation.Hold)]
+    [InlineData("linear", Interpolation.Linear)]
+    [InlineData("easeIn", Interpolation.EaseIn)]
+    [InlineData("easeOut", Interpolation.EaseOut)]
+    [InlineData("easeInOut", Interpolation.EaseInOut)]
+    [InlineData("bounce", Interpolation.Bounce)]
+    [InlineData("elastic", Interpolation.Elastic)]
+    [InlineData("bezier", Interpolation.Bezier)]
+    public void Formato323_Las_interpolaciones_tienen_su_nombre(string name, Interpolation expected)
+    {
+        JsonObject root = Base();
+        Clip(root)["effects"] = new JsonArray(Effect("rodaje.transform", JsonNode.Parse($$"""
+            { "x": { "value": 0, "keyframes": [ { "time": 0, "value": 1, "interpolation": "{{name}}" } ] } }
+            """)!.AsObject()));
+
+        JsonObject written = RoundTrip(root);
+        Keyframe keyframe = Read(written).Sequences[0].VideoTracks[0].Clips[0].Effects[0].Parameters["x"].Keyframes[0];
+
+        Assert.Equal(expected, keyframe.Interpolation);
+        Assert.Equal(name, (string)Clip(written)["effects"]![0]!["parameters"]!["x"]!["keyframes"]![0]!["interpolation"]!);
+    }
+
+    // «`ease`, los puntos de control `{x1, y1, x2, y2}` de esa curva como `cubic-bezier` de CSS (x de 0 a 1, y de −2 a 3»
+    [Theory]
+    [InlineData(-0.1, 0, 1, 1)]
+    [InlineData(0, 0, 1.1, 1)]
+    [InlineData(0, -2.1, 1, 1)]
+    [InlineData(0, 0, 1, 3.1)]
+    public void Formato323_Ease_fuera_de_rango_se_rechaza(double x1, double y1, double x2, double y2)
+    {
+        JsonObject root = Base();
+        Clip(root)["effects"] = new JsonArray(Effect("rodaje.transform", JsonNode.Parse($$"""
+            { "x": { "value": 0, "keyframes": [ { "time": 0, "value": 1, "interpolation": "bezier",
+              "ease": { "x1": {{x1}}, "y1": {{y1}}, "x2": {{x2}}, "y2": {{y2}} } } ] } }
+            """)!.AsObject()));
+
+        Rejected(root);
+    }
+
+    // «(x de 0 a 1, y de −2 a 3»
+    [Fact]
+    public void Formato323_Ease_en_los_extremos_del_rango_se_acepta()
+    {
+        JsonObject root = Base();
+        Clip(root)["effects"] = new JsonArray(Effect("rodaje.transform", JsonNode.Parse("""
+            { "x": { "value": 0, "keyframes": [ { "time": 0, "value": 1, "interpolation": "bezier",
+              "ease": { "x1": 0, "y1": -2, "x2": 1, "y2": 3 } } ] } }
+            """)!.AsObject()));
+
+        Assert.Single(Read(root).Sequences[0].VideoTracks[0].Clips[0].Effects);
+    }
+
+    // «Un tipo que no está en el registro … se conserva tal cual al guardar, con sus parámetros y opciones, pero no se
+    // aplica.»
+    [Fact]
+    public void Formato323_Un_tipo_desconocido_se_conserva_con_parametros_y_opciones()
+    {
+        JsonObject root = Base();
+        Clip(root)["effects"] = new JsonArray(Effect(
+            "otro.programa.efecto",
+            JsonNode.Parse("""{ "fuerza": { "value": 3.5, "keyframes": [ { "time": 0, "value": 1, "interpolation": "hold" } ] } }""")!.AsObject(),
+            JsonNode.Parse("""{ "modo": "raro", "x": "y" }""")!.AsObject()));
+
+        JsonObject effect = Clip(RoundTrip(root))["effects"]![0]!.AsObject();
+
+        Assert.Equal("otro.programa.efecto", (string)effect["type"]!);
+        Assert.Equal(3.5, (double)effect["parameters"]!["fuerza"]!["value"]!);
+        Assert.Single(effect["parameters"]!["fuerza"]!["keyframes"]!.AsArray());
+        Assert.Equal("raro", (string)effect["options"]!["modo"]!);
+        Assert.Equal("y", (string)effect["options"]!["x"]!);
+    }
+
+    // «En los tipos registrados, una opción definida debe tener un valor aceptado: uno de la lista en las de elección
+    // (`blendMode`, `direction`)»
+    [Fact]
+    public void Formato323_Una_opcion_de_eleccion_con_un_valor_fuera_de_la_lista_se_rechaza()
+    {
+        JsonObject root = Base();
+        Clip(root)["effects"] = new JsonArray(Effect("rodaje.blend", options: JsonNode.Parse("""{ "blendMode": "teñir" }""")!.AsObject()));
+
+        Rejected(root);
+    }
+
+    // «en las referencias (`lut`, `preset`, `source`), la forma `paquete@versión/elemento`, con paquete y elemento en
+    // minúsculas ASCII, dígitos, guiones y puntos, y una versión que empieza con un dígito»
+    [Theory]
+    [InlineData("rodaje-filtros@1.0.0/calido", true)]
+    [InlineData("rodaje.filtros@2/a-b.c", true)]
+    [InlineData("Rodaje-filtros@1.0.0/calido", false)]
+    [InlineData("rodaje-filtros@v1/calido", false)]
+    [InlineData("rodaje-filtros/calido", false)]
+    [InlineData("rodaje-filtros@1.0.0/Calido", false)]
+    public void Formato323_Una_referencia_tiene_la_forma_paquete_version_elemento(string reference, bool valid)
+    {
+        JsonObject root = Base();
+        Clip(root)["effects"] = new JsonArray(Effect("rodaje.blur", options: new JsonObject { ["source"] = reference }));
+
+        if (valid)
+        {
+            Assert.Equal(reference, Read(root).Sequences[0].VideoTracks[0].Clips[0].Effects[0].Options["source"]);
+        }
+        else
+        {
+            Rejected(root);
+        }
+    }
+
+    // «`lut` y `preset` admiten además el texto vacío, y `lut` también `file:` seguido de una ruta sin caracteres de
+    // control ni `" < > |`»
+    [Theory]
+    [InlineData("", true)]
+    [InlineData("file:luts/calido.cube", true)]
+    [InlineData(@"file:C:\LUTs\calido.cube", true)]
+    [InlineData("file:luts/ca|lido.cube", false)]
+    [InlineData("file:luts/<calido>.cube", false)]
+    [InlineData("file:luts/\"calido\".cube", false)]
+    public void Formato323_La_lut_admite_vacio_y_file(string lut, bool valid)
+    {
+        JsonObject root = Base();
+        Clip(root)["effects"] = new JsonArray(Effect("rodaje.color", options: new JsonObject { ["lut"] = lut }));
+
+        if (valid)
+        {
+            Assert.Equal(lut, Read(root).Sequences[0].VideoTracks[0].Clips[0].Effects[0].Options["lut"]);
+        }
+        else
+        {
+            Rejected(root);
+        }
+    }
+
+    // «Las de texto (`path`, `matte`, `matteStart`, `target`, `name`, `color`, las curvas) admiten hasta 16 384
+    // caracteres sin caracteres de control»
+    [Fact]
+    public void Formato323_Una_opcion_de_texto_admite_hasta_16384_caracteres()
+    {
+        JsonObject ok = Base();
+        Clip(ok)["effects"] = new JsonArray(Effect("rodaje.mask", options: new JsonObject { ["name"] = new string('a', 16_384) }));
+        Assert.Single(Read(ok).Sequences[0].VideoTracks[0].Clips[0].Effects);
+
+        JsonObject tooLong = Base();
+        Clip(tooLong)["effects"] = new JsonArray(Effect("rodaje.mask", options: new JsonObject { ["name"] = new string('a', 16_385) }));
+        Rejected(tooLong);
+
+        JsonObject control = Base();
+        Clip(control)["effects"] = new JsonArray(Effect("rodaje.mask", options: new JsonObject { ["name"] = "a\u0001b" }));
+        Rejected(control);
+    }
+
+    // «Las opciones que el tipo no define se conservan sin mirarlas.»
+    [Fact]
+    public void Formato323_Las_opciones_que_el_tipo_no_define_se_conservan()
+    {
+        JsonObject root = Base();
+        Clip(root)["effects"] = new JsonArray(Effect("rodaje.blur", options: new JsonObject { ["inventada"] = "a\u0001b" }));
+
+        JsonObject effect = Clip(RoundTrip(root))["effects"]![0]!.AsObject();
+
+        Assert.Equal("a\u0001b", (string)effect["options"]!["inventada"]!);
+    }
+
+    // «Una transición vive en la pista y une dos clips seguidos, sin hueco»
+    [Fact]
+    public void Formato323_Una_transicion_entre_clips_con_hueco_se_rechaza()
+    {
+        JsonObject root = Base();
+        Clip(root, 1)["start"] = 2 * Second;
+        VideoTrack(root)["transitions"] = JsonNode.Parse($$"""
+            [ { "id": "t1", "type": "rodaje.crossfade", "from": "c1", "to": "c2", "duration": {{Second / 2}}, "parameters": {}, "options": {} } ]
+            """);
+
+        Rejected(root);
+    }
+
+    // «`center` (por defecto, se omite)»
+    [Fact]
+    public void Formato323_La_alineacion_center_se_omite_al_escribir()
+    {
+        JsonObject root = Base();
+        VideoTrack(root)["transitions"] = JsonNode.Parse($$"""
+            [ { "id": "t1", "type": "rodaje.wipe", "from": "c1", "to": "c2", "duration": {{Second / 2}},
+                "parameters": { "angle": 90 }, "options": {}, "alignment": "center" } ]
+            """);
+
+        JsonObject transition = VideoTrack(RoundTrip(root))["transitions"]![0]!.AsObject();
+
+        Assert.False(transition.ContainsKey("alignment"));
+        Assert.Equal(90, (double)transition["parameters"]!["angle"]!);
+    }
+
+    // «`before` la pone toda antes (termina donde termina el clip que sale) y `after` toda después»
+    [Theory]
+    [InlineData("before")]
+    [InlineData("after")]
+    public void Formato323_Las_alineaciones_before_y_after_se_conservan(string alignment)
+    {
+        JsonObject root = Base();
+        VideoTrack(root)["transitions"] = JsonNode.Parse($$"""
+            [ { "id": "t1", "type": "rodaje.crossfade", "from": "c1", "to": "c2", "duration": {{Second / 2}},
+                "parameters": {}, "options": {}, "alignment": "{{alignment}}" } ]
+            """);
+
+        JsonObject transition = VideoTrack(RoundTrip(root))["transitions"]![0]!.AsObject();
+
+        Assert.Equal(alignment, (string)transition["alignment"]!);
+    }
+
+    // «`center` … pone la mitad antes del corte y la mitad después (un tick impar va después)»
+    [Fact]
+    public void Formato323_Centrada_el_tick_impar_va_despues()
+    {
+        JsonObject root = Base();
+        VideoTrack(root)["transitions"] = JsonNode.Parse("""
+            [ { "id": "t1", "type": "rodaje.crossfade", "from": "c1", "to": "c2", "duration": 11, "parameters": {}, "options": {} } ]
+            """);
+
+        TransitionInstance transition = Read(root).Sequences[0].VideoTracks[0].Transitions[0];
+
+        Assert.Equal(Time.FromTicks(5), transition.Before);
+        Assert.Equal(Time.FromTicks(6), transition.After);
+    }
+
+    // «La parte de antes cabe en el clip que sale y la de después en el que entra»
+    [Fact]
+    public void Formato323_Una_transicion_mas_larga_que_sus_clips_se_rechaza()
+    {
+        JsonObject root = Base();
+        VideoTrack(root)["transitions"] = JsonNode.Parse($$"""
+            [ { "id": "t1", "type": "rodaje.crossfade", "from": "c1", "to": "c2", "duration": {{Second + 2}},
+                "parameters": {}, "options": {}, "alignment": "after" } ]
+            """);
+
+        Rejected(root);
+    }
+
+    // «Un clip puede llevar `speed`; si no lo lleva (o es `null`) se reproduce a 1× … sin `speed`, un `duration` escrito se
+    // ignora.»
+    [Fact]
+    public void Formato323_Sin_speed_el_duration_escrito_se_ignora()
+    {
+        JsonObject root = Base();
+        Clip(root)["speed"] = null;
+        Clip(root)["duration"] = 3 * Second;
+
+        Rodaje.Core.Model.Clip clip = Read(root).Sequences[0].VideoTracks[0].Clips[0];
+
+        Assert.Null(clip.Speed);
+        Assert.Equal(Time.FromTicks(Second), clip.Duration);
+        Assert.False(Clip(RoundTrip(root)).ContainsKey("duration"));
+    }
+
+    // «Va solo en pistas de video, sin `speed`, y `mediaId` no se escribe.»
+    [Fact]
+    public void Formato323_Un_generador_no_escribe_mediaId()
+    {
+        JsonObject root = Base();
+        JsonObject clip = Clip(root);
+        clip.Remove("mediaId");
+        clip["generator"] = JsonNode.Parse("""
+            { "kind": "text", "text": "Hola",
+              "style": { "name": "x", "font": { "family": "Inter", "weight": 400, "italic": false },
+                         "size": 96, "reference": { "width": 1920, "height": 1080 }, "lineHeight": 1.1, "letterSpacing": 0,
+                         "align": "center", "fill": { "color": "#FFFFFF" } } }
+            """);
+
+        JsonObject written = Clip(RoundTrip(root));
+
+        Assert.False(written.ContainsKey("mediaId"));
+        Assert.True(written.ContainsKey("generator"));
+    }
+
+    // «Un rol es un texto de 1 a 32 caracteres con minúsculas ASCII, dígitos y guiones; uno desconocido se conserva.»
+    [Theory]
+    [InlineData("subtitles", true)]
+    [InlineData("rol-propio-2", true)]
+    [InlineData("a", true)]
+    [InlineData("abcdefghijklmnopqrstuvwxyz012345", true)]
+    [InlineData("", false)]
+    [InlineData("abcdefghijklmnopqrstuvwxyz0123456", false)]
+    [InlineData("Subtitles", false)]
+    [InlineData("rol_propio", false)]
+    public void Formato323_El_rol_de_la_pista(string role, bool valid)
+    {
+        JsonObject root = Base();
+        VideoTrack(root)["role"] = role;
+
+        if (valid)
+        {
+            Assert.Equal(role, (string)VideoTrack(RoundTrip(root))["role"]!);
+        }
+        else
+        {
+            Rejected(root);
+        }
+    }
+
+    // «Una secuencia nunca puede llegar a contenerse a sí misma, ni directa ni indirectamente: el archivo se rechaza.»
+    [Fact]
+    public void Formato323_Una_secuencia_que_se_contiene_a_si_misma_se_rechaza()
+    {
+        JsonObject root = Base();
+        JsonObject clip = Clip(root);
+        clip.Remove("mediaId");
+        clip["sequenceId"] = "s";
+
+        Rejected(root);
+    }
+
+    // «`clip.color` | Color de la etiqueta del clip, `#RRGGBB` (se guarda en mayúsculas).»
+    [Fact]
+    public void Formato323_El_color_del_clip_se_guarda_en_mayusculas()
+    {
+        JsonObject root = Base();
+        Clip(root)["color"] = "#a1b2c3";
+
+        Assert.Equal("#A1B2C3", (string)Clip(RoundTrip(root))["color"]!);
+    }
+
+    // «`track.height` | Alto de la pista en la línea de tiempo, en píxeles, de 24 a 320.»
+    [Theory]
+    [InlineData(24, true)]
+    [InlineData(320, true)]
+    [InlineData(23, false)]
+    [InlineData(321, false)]
+    public void Formato323_El_alto_de_la_pista_va_de_24_a_320(int height, bool valid)
+    {
+        JsonObject root = Base();
+        VideoTrack(root)["height"] = height;
+
+        if (valid)
+        {
+            Assert.Equal(height, (int)VideoTrack(RoundTrip(root))["height"]!);
+        }
+        else
+        {
+            Rejected(root);
+        }
+    }
+
+    // «`rodaje.speed` | Reservado y oculto (código 8): la velocidad es `speed` del clip (formato 4) y un efecto de este
+    // tipo se rechaza»
+    [Fact]
+    public void Formato323_Un_efecto_rodaje_speed_se_rechaza()
+    {
+        JsonObject root = Base();
+        Clip(root)["effects"] = new JsonArray(Effect("rodaje.speed"));
+
+        Rejected(root);
+    }
+
+    // «`text` | … Hasta 10 000 caracteres y 200 líneas»
+    [Theory]
+    [InlineData(10_000, 1, true)]
+    [InlineData(10_001, 1, false)]
+    [InlineData(0, 200, true)]
+    [InlineData(0, 201, false)]
+    public void Formato323_El_texto_de_un_titulo_tiene_topes(int chars, int lines, bool valid)
+    {
+        string text = new string('a', chars) + string.Concat(Enumerable.Repeat("\nb", lines - 1));
+        if (chars == 0)
+        {
+            text = "a" + text;
+        }
+
+        JsonObject root = Base();
+        JsonObject clip = Clip(root);
+        clip.Remove("mediaId");
+        clip["generator"] = new JsonObject
+        {
+            ["kind"] = "text",
+            ["text"] = text,
+            ["style"] = JsonNode.Parse("""
+                { "name": "x", "font": { "family": "Inter", "weight": 400, "italic": false },
+                  "size": 96, "reference": { "width": 1920, "height": 1080 }, "lineHeight": 1.1, "letterSpacing": 0,
+                  "align": "center", "fill": { "color": "#FFFFFF" } }
+                """),
+        };
+
+        if (valid)
+        {
+            Assert.Equal(text, Read(root).Sequences[0].VideoTracks[0].Clips[0].Generator!.Text);
+        }
+        else
+        {
+            Rejected(root);
+        }
+    }
+
+    // «los separadores de línea y de párrafo de Unicode (U+2028, U+2029) también cuentan como salto»
+    [Fact]
+    public void Formato323_Los_separadores_unicode_cuentan_como_salto()
+    {
+        string text = "a" + string.Concat(Enumerable.Repeat("\u2028b", 200));
+
+        JsonObject root = Base();
+        JsonObject clip = Clip(root);
+        clip.Remove("mediaId");
+        clip["generator"] = new JsonObject
+        {
+            ["kind"] = "text",
+            ["text"] = text,
+            ["style"] = JsonNode.Parse("""
+                { "name": "x", "font": { "family": "Inter", "weight": 400, "italic": false },
+                  "size": 96, "reference": { "width": 1920, "height": 1080 }, "lineHeight": 1.1, "letterSpacing": 0,
+                  "align": "center", "fill": { "color": "#FFFFFF" } }
+                """),
+        };
+
+        Rejected(root);
     }
 }
