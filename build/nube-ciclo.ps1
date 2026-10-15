@@ -106,7 +106,7 @@ try {
             }
             Guardar
         }
-        if ($estado.uniones -ge $MaxUniones) { $parada = "tope de $MaxUniones uniones"; break }
+        # Con el tope de uniones cumplido se siguen lanzando sesiones; los PR de «unir» pasan a pendientes.
 
         # 3. Lanzar sesiones nuevas si hay hueco, sin cruzar caminos con las que están en curso.
         $enCurso = @($estado.sesiones | Where-Object { $_.estado -eq 'en curso' })
