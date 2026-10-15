@@ -32,6 +32,9 @@ $datos = Join-Path $raiz ".claude\auditar-agy\$(Get-Date -Format 'yyyyMMdd-HHmms
 New-Item -ItemType Directory -Force -Path $datos | Out-Null
 
 function Llamar-Agy([string] $instruccion, [string] $esquema) {
+    # Gemini intentaba listar la carpeta con órdenes (prohibidas en plan): se le dan los nombres y solo puede leer y responder.
+    $nombres = @(Get-ChildItem -LiteralPath $datos -File | Where-Object { $_.Name -notin 'esquema.json', 'agy-errores.txt' } | ForEach-Object { $_.Name })
+    $instruccion += " Los archivos de esta carpeta son exactamente: $($nombres -join ', '). Usa solo la herramienta de leer archivos con esos nombres; no listes la carpeta ni ejecutes ninguna orden. Solo lee y responde."
     for ($intento = 1; $intento -le 2; $intento++) {
         # agy solo deja leer dentro de su carpeta de trabajo: arranca en la de datos.
         Push-Location -LiteralPath $datos
