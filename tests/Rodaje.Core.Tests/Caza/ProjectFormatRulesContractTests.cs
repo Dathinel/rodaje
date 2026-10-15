@@ -809,8 +809,9 @@ public sealed class ProjectFormatRulesContractTests
     [InlineData("busEffects")]
     [InlineData("masterEffects")]
     [InlineData("sends")]
-    public void Un_null_dentro_de_una_lista_se_rechaza(string list) =>
-        RejectedWithProblems(With(r =>
+    public void Un_null_dentro_de_una_lista_se_rechaza(string list)
+    {
+        JsonObject root = With(r =>
         {
             Clip1(r)["effects"] = new JsonArray(Effect("effect-1", BuiltInEffects.Transform, new JsonObject
             {
@@ -834,7 +835,17 @@ public sealed class ProjectFormatRulesContractTests
                 _ => throw new ArgumentOutOfRangeException(nameof(list)),
             };
             target.Add(null);
-        }));
+        });
+
+        if (list == "sends")
+        {
+            ProjectFormatException exception = Assert.Throws<ProjectFormatException>(() => Open(root));
+            Assert.Contains("Hay un elemento vacío (null) en la lista de envíos.", exception.Problems);
+            return;
+        }
+
+        RejectedWithProblems(root);
+    }
 
     [Fact]
     public void Un_null_en_las_opciones_de_un_efecto_se_rechaza() =>

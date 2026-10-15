@@ -349,6 +349,7 @@ public static class ProjectSerializer
             foreach (Track track in sequence.VideoTracks.Concat(sequence.AudioTracks).OfType<Track>())
             {
                 Check(track.Clips, "clips");
+                Check(track.Sends, "envíos");
                 CheckEffects(track.Effects);
                 foreach (Clip clip in track.Clips.OfType<Clip>())
                 {
