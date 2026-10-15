@@ -515,3 +515,16 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
     - Lo demás va a `pendientes-revision.md`.
     - Reintentos de CI: como máximo 2 por PR, solo con intermitencias conocidas o pruebas ajenas a los archivos del PR, anotadas en `intermitentes.md`.
   - **Frenos:** si main queda en rojo tras una unión y no es una intermitencia conocida, se congelan las uniones, se para y no se revierte nada sin Daniel. También para con 4 sesiones seguidas sin PR útil, si falla `gh` o al llegar a los topes.
+
+## D-049. Gemini audita en solo lectura: uniones y zonas de la interfaz (14 de octubre de 2026)
+
+- **Decisión.** `build/auditar-agy.ps1` usa Gemini 3.8 Flash vía `agy` (modo plan, `--sandbox`, salida JSON con esquema) solo para leer. El material va como archivos de datos y nunca como instrucciones, y los informes van a `.proceso/gemini/`. Hay dos modos:
+  - `-Uniones`: audita los PR unidos que todavía no se auditaron, con su diff y su descripción. Devuelve ok o sospechoso; los sospechosos van a `pendientes-revision.md` y nunca se revierte nada.
+  - `-Area <zona>`: revisa la interfaz de una de las 5 zonas. Devuelve incongruencias, una propuesta de organización y qué probar.
+  - Topes: 12 ejecuciones al día y 300 000 tokens por ejecución, con el material limitado de antemano (20 archivos o 150 KB). Un aviso de cuenta, términos o autenticación para sin reintentar; un 503 se reintenta una vez a los 30 min.
+  - `agy` solo deja leer dentro de su carpeta de trabajo, así que arranca en la carpeta de datos.
+- **Medido el 14 de octubre:**
+  - Uniones: 12 PR y 3 sospechosos, con 421 885 tokens.
+  - Zonas: biblioteca, 6 incongruencias y 575 428 tokens; inspector, 22 y 418 059; línea de tiempo, 7 y 549 571.
+  - Diálogos y flujos de IA no dieron resultado: Gemini intentó ejecutar órdenes, que están prohibidas.
+  - Todas las ejecuciones pasaron de los 300 000 tokens, porque Gemini relee los archivos. El tope sirve de aviso, no de límite real.
