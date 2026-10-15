@@ -3,6 +3,8 @@ using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.Tests.Support;
 using Rodaje.Engine.Timeline;
+using Rodaje.Media.Video;
+using Rodaje.Playback;
 using static Rodaje.Engine.Tests.Support.Seconds;
 using C = Rodaje.Core.Model.BuiltInEffects.CompressorParameters;
 
@@ -42,7 +44,8 @@ public sealed class TimelineStressTests
             MaxDecodersPerMedia = setup.Next(1, 4),
             AudioReadAhead = TimeSpan.FromMilliseconds(setup.Next(100, 400)),
         };
-        TimelineSession session = TimelineSessionTests.Open(b, backend, options);
+        var threads = new ThreadTrackingBackend(backend);
+        TimelineSession session = Open(b, threads, options);
         var failures = new System.Collections.Concurrent.ConcurrentQueue<string>();
         session.DecodeFailed += (_, e) => failures.Enqueue($"{e.MediaId} cuadro {e.FrameIndex}: {e.Error.GetType().Name}: {e.Error.Message}");
         int steps = Stress.Iterations(1500);
@@ -68,7 +71,7 @@ public sealed class TimelineStressTests
             ("audio", (random, stop) => AudioThread(backend, random, () => Volatile.Read(ref closed) != 0 || stop.IsCancellationRequested)),
             ("medidores", (random, stop) => MeterThread(session, random, () => Volatile.Read(ref closed) != 0 || stop.IsCancellationRequested)));
 
-        AssertReleased(seed, backend);
+        AssertReleased(seed, backend, threads);
         Assert.True(failures.IsEmpty, $"Semilla {seed}: fallaron cuadros sin que ningún decodificador fallara: {string.Join("; ", failures.Take(5))}");
     }
 
@@ -115,7 +118,8 @@ public sealed class TimelineStressTests
                 DecodeDelay = index => StressSeeds.SlowOrFast(seed, current, index),
             };
             TimelineBuilder b = Build(backend, new Random(StressSeeds.Seed(seed, round)));
-            TimelineSession session = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions { DecoderIdleTimeout = TimeSpan.FromMilliseconds(20) });
+            var threads = new ThreadTrackingBackend(backend);
+            TimelineSession session = Open(b, threads, new TimelineSessionOptions { DecoderIdleTimeout = TimeSpan.FromMilliseconds(20) });
             int operation = random.Next(4);
             switch (operation)
             {
@@ -149,7 +153,7 @@ public sealed class TimelineStressTests
             // cierre de un decodificador ocioso).
             Stress.WaitUntil(seed, $"cancelar los cuadros en curso tras la operación {operation} (vuelta {round})",
                 () => Volatile.Read(ref backend.DelaysInProgress) == 0);
-            AssertReleased(seed, backend);
+            AssertReleased(seed, backend, threads);
         }
     }
 
@@ -354,9 +358,60 @@ public sealed class TimelineStressTests
         }
     }
 
-    private static void AssertReleased(int seed, FakeTimelineBackend backend)
+    private static TimelineSession Open(TimelineBuilder builder, ThreadTrackingBackend backend, TimelineSessionOptions options) =>
+        new(builder.Project, builder.Sequence.Id, null, options with { ProjectDirectory = @"C:\proyecto" }, backend);
+
+    /// <summary>
+    /// Que no quede nada abierto, sin depender del reloj: <see cref="TimelineSession.Dispose"/> espera a cada hilo de
+    /// decodificación como mucho 5 s de reloj real y, si vencen, vuelve y el hilo cierra su decodificador al terminar lo que
+    /// tiene en cola. En la CI de Windows, con la máquina saturada (la corrida que falló tardó 46 s; aquí tarda menos de
+    /// uno), esos 5 s vencían y la prueba miraba los decodificadores antes de que sus hilos llegaran a cerrarlos. Se espera
+    /// a que terminen los hilos, que es lo que garantiza el cierre; si ya terminaron, se mira en el acto, como antes.
+    /// </summary>
+    private static void AssertReleased(int seed, FakeTimelineBackend backend, ThreadTrackingBackend threads)
     {
+        Stress.WaitUntil(seed, "terminar los hilos de decodificación", () => threads.Threads.All(t => !t.IsAlive), Stress.Stall);
         Stress.WaitUntil(seed, "soltar todos los cuadros", () => backend.Live.Value == 0, TimeSpan.FromSeconds(5));
         Assert.True(!backend.OpenVideos.Any(), $"Semilla {seed}: quedaron decodificadores abiertos: {string.Join(", ", backend.OpenVideos.Select(v => v.Path))}.");
+    }
+
+    /// <summary>El backend de la prueba, que además guarda cada hilo de decodificación que crea la sesión.</summary>
+    private sealed class ThreadTrackingBackend(FakeTimelineBackend inner) : IClipBackend
+    {
+        private readonly List<DecodeThread> _threads = [];
+
+        public IReadOnlyList<DecodeThread> Threads
+        {
+            get
+            {
+                lock (_threads)
+                {
+                    return [.. _threads];
+                }
+            }
+        }
+
+        public IClipVideo OpenVideo(string path, VideoDecoderOptions options) => inner.OpenVideo(path, options);
+
+        public IPcmSource OpenAudio(string path) => inner.OpenAudio(path);
+
+        public Rodaje.Audio.IAudioOutput OpenOutput(Rodaje.Audio.IAudioSampleSource source, Rodaje.Audio.AudioOutputOptions options) =>
+            inner.OpenOutput(source, options);
+
+        public IDecodeExecutor CreateExecutor()
+        {
+            IDecodeExecutor executor = inner.CreateExecutor();
+            if (executor is DecodeThread thread)
+            {
+                lock (_threads)
+                {
+                    _threads.Add(thread);
+                }
+            }
+
+            return executor;
+        }
+
+        public IKeyframeIndex? ReadKeyframes(string path) => inner.ReadKeyframes(path);
     }
 }
