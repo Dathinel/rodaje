@@ -339,9 +339,17 @@ public static class ProjectSerializer
             Check(sequence.AudioTracks, "pistas de audio");
             Check(sequence.Markers, "marcadores");
             Check(sequence.Regions, "regiones");
+            Check(sequence.AudioBuses, "buses");
+            CheckEffects(sequence.MasterEffects);
+            foreach (AudioBus bus in sequence.AudioBuses.OfType<AudioBus>())
+            {
+                CheckEffects(bus.Effects);
+            }
+
             foreach (Track track in sequence.VideoTracks.Concat(sequence.AudioTracks).OfType<Track>())
             {
                 Check(track.Clips, "clips");
+                Check(track.Sends, "envíos");
                 CheckEffects(track.Effects);
                 foreach (Clip clip in track.Clips.OfType<Clip>())
                 {
