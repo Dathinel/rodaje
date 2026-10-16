@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Format;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
@@ -46,7 +47,7 @@ internal static class VisionDialogs
         return (null, null, "Selecciona un clip de video.");
     }
 
-    public static async Task RemoveBackgroundAsync(EditorServices services)
+    public static async Task RemoveBackgroundAsync(EditorServices services, LongActionScope scope)
     {
         EditorSession session = services.Session;
         (Clip? clip, MediaRef? media, string? reason) = Target(session);
@@ -95,7 +96,7 @@ internal static class VisionDialogs
         panel.Children.Add(status);
         ContentDialog dialog = AnalysisUi.Dialog(root, RemoveBackgroundTitle, "Aplicar", panel);
 
-        using var cancel = new CancellationTokenSource();
+        using var cancel = CancellationTokenSource.CreateLinkedTokenSource(scope.Token);
         ModuleJob? job = null;
         MatteVideo? matte = null;
         Task work = Task.CompletedTask;
@@ -106,6 +107,7 @@ internal static class VisionDialogs
             progress.IsIndeterminate = view.IsIndeterminate;
             progress.Value = view.Progress;
             status.Text = view.Text;
+            scope.Report(view.IsIndeterminate ? null : view.Progress, view.Text);
         }
 
         timer.Tick += (_, _) => ShowActivity();
@@ -117,7 +119,7 @@ internal static class VisionDialogs
             await cancel.CancelAsync();
         }
 
-        await (cancel.IsCancellationRequested ? services.LongActions.ShowCancellingAsync(RemoveBackgroundTitle, work) : work);
+        await (cancel.IsCancellationRequested ? services.LongActions.ShowCancellingAsync(RemoveBackgroundTitle, work, scope) : work);
         if (answer != ContentDialogResult.Primary || matte is null)
         {
             Delete(matte?.Path);
@@ -168,7 +170,7 @@ internal static class VisionDialogs
         }
     }
 
-    public static async Task ReframeAsync(EditorServices services)
+    public static async Task ReframeAsync(EditorServices services, LongActionScope scope)
     {
         EditorSession session = services.Session;
         (Clip? clip, MediaRef? media, string? reason) = Target(session);
@@ -219,7 +221,7 @@ internal static class VisionDialogs
         panel.Children.Add(status);
         ContentDialog dialog = AnalysisUi.Dialog(root, ReframeTitle, "Aplicar", panel);
 
-        using var cancel = new CancellationTokenSource();
+        using var cancel = CancellationTokenSource.CreateLinkedTokenSource(scope.Token);
         ModuleJob? job = null;
         ReframePlan? plan = null;
         Task work = Task.CompletedTask;
@@ -230,6 +232,7 @@ internal static class VisionDialogs
             progress.IsIndeterminate = view.IsIndeterminate;
             progress.Value = view.Progress;
             status.Text = view.Text;
+            scope.Report(view.IsIndeterminate ? null : view.Progress, view.Text);
         }
 
         timer.Tick += (_, _) => ShowActivity();
@@ -241,7 +244,7 @@ internal static class VisionDialogs
             await cancel.CancelAsync();
         }
 
-        await (cancel.IsCancellationRequested ? services.LongActions.ShowCancellingAsync(ReframeTitle, work) : work);
+        await (cancel.IsCancellationRequested ? services.LongActions.ShowCancellingAsync(ReframeTitle, work, scope) : work);
         if (answer != ContentDialogResult.Primary || plan is null)
         {
             return;
