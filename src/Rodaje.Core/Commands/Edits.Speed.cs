@@ -53,6 +53,17 @@ public static partial class Edits
         return new("Cambiar curva de velocidad", sequenceId, ctx => TimelineEdits.SetCurve(ctx, clipId, copy, scope), ids, $"curve:{clipId}");
     }
 
+    /// <summary>Arrastra un punto de una rampa existente; el cambio conserva el material y se deshace como una unidad.</summary>
+    public static SequenceEditCommand SetCurvePoint(
+        string sequenceId,
+        string clipId,
+        int index,
+        SpeedPoint point,
+        RippleScope scope = RippleScope.Track,
+        IIdGenerator? ids = null) =>
+        new("Editar rampa de velocidad", sequenceId,
+            ctx => TimelineEdits.SetCurvePoint(ctx, clipId, index, point, scope), ids, $"curve-point:{clipId}:{index}");
+
     /// <summary>
     /// Pone la curva de un preajuste (<see cref="SpeedPresets"/>) en el clip y sus enlazados: es <see cref="SetCurve"/>
     /// con esa forma, así que la duración sale de su velocidad media y se funde con los cambios de curva del clip.

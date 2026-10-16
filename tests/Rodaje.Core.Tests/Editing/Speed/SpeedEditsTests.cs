@@ -2,6 +2,7 @@ using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Serialization;
+using Rodaje.Core.Tests.Commands;
 using Rodaje.Core.Tests.Editing.Trimming;
 using Rodaje.Core.Timing;
 using static Rodaje.Core.Tests.Editing.Trimming.TrimFixture;
@@ -31,6 +32,48 @@ public sealed class SpeedEditsTests
             Assert.Equal(F(10), clip.SourceIn);
             Assert.Equal(F(50), clip.SourceOut);
         }
+    }
+
+    [Fact]
+    public void SetCurvePoint_edits_a_custom_ramp_in_one_undo_step_without_losing_material()
+    {
+        var f = new TrimFixture().Add("v1", "c", "m1", 10, 50, 0);
+        var stack = new UndoStack(f.Project);
+        stack.Execute(Edits.ApplySpeedPreset("seq", "c", SpeedPreset.Hero));
+        string before = ProjectDump.Of(f.Project);
+        Time sourceIn = f.Clip("c").SourceIn;
+        Time sourceOut = f.Clip("c").SourceOut;
+        SpeedCurve original = f.Clip("c").Speed!.Curve!.Clone();
+        SpeedPoint point = original.Points[2] with { Hundredths = 35 };
+
+        stack.Execute(Edits.SetCurvePoint("seq", "c", 2, point));
+
+        Clip edited = f.Clip("c");
+        f.AssertValid();
+        Assert.Equal(sourceIn, edited.SourceIn);
+        Assert.Equal(sourceOut, edited.SourceOut);
+        Assert.Equal(point, edited.Speed!.Curve!.Points[2]);
+        Assert.Equal(2, stack.Count);
+        string after = ProjectDump.Of(f.Project);
+        Assert.True(stack.Undo());
+        Assert.Equal(before, ProjectDump.Of(f.Project));
+        Assert.True(stack.Redo());
+        Assert.Equal(after, ProjectDump.Of(f.Project));
+    }
+
+    [Fact]
+    public void SetCurvePoint_rejects_an_invalid_ramp_without_changing_the_project()
+    {
+        var f = new TrimFixture().Add("v1", "c", "m1", 10, 50, 0);
+        var stack = new UndoStack(f.Project);
+        stack.Execute(Edits.ApplySpeedPreset("seq", "c", SpeedPreset.Hero));
+        string before = ProjectDump.Of(f.Project);
+
+        Assert.Throws<EditException>(() => stack.Execute(
+            Edits.SetCurvePoint("seq", "c", 2, new SpeedPoint(0, 35))));
+
+        Assert.Equal(before, ProjectDump.Of(f.Project));
+        Assert.Equal(1, stack.Count);
     }
 
     [Fact]
