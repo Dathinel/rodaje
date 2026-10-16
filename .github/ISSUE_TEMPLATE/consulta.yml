@@ -1,0 +1,31 @@
+name: Pregunta o consulta de uso
+description: Dudas sobre cómo usar Rodaje, configuración de hardware o flujos de trabajo recomendados.
+title: "[Consulta] "
+labels: ["consulta"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Antes de preguntar, revisa la [Guía de usuario](https://github.com/Dathinel/rodaje/blob/main/docs/guia/README.md) y las [Preguntas frecuentes y solución de problemas](https://github.com/Dathinel/rodaje/blob/main/docs/guia/solucion-de-problemas.md).
+  - type: textarea
+    id: duda
+    attributes:
+      label: Cuál es tu duda o consulta
+      description: Describe qué quieres lograr o qué parte del flujo de trabajo no te queda clara.
+      placeholder: "¿Cómo puedo configurar una rampa de velocidad personalizada en un clip con audio enlazado?"
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Versión de Rodaje
+      description: Ayuda › Acerca de, o la versión instalada (por ejemplo, 1.0.1).
+    validations:
+      required: false
+  - type: input
+    id: hardware
+    attributes:
+      label: Sistema operativo y GPU (opcional)
+      description: Por ejemplo, «Windows 11 24H2, NVIDIA RTX 3050».
+    validations:
+      required: false
