@@ -194,6 +194,11 @@ public sealed class ExportDialogModel
         Changed?.Invoke(this, EventArgs.Empty);
     }
 
+    /// <summary>Guarda las opciones actuales para reabrir el diálogo después de cambiar el formato del proyecto.</summary>
+    public void RememberDraft() => ExportPresetLibrary.Remember(_preferences,
+        PresetId == ExportPresetLibrary.CustomId ? null : PresetId,
+        Settings with { Performance = Performance }, OutputPath);
+
     /// <summary>La exportación lista para la cola; recuerda los ajustes. <see cref="CanExport"/> debe ser cierto.</summary>
     public ExportRequest CreateRequest(Project projectCopy, string sequenceId, string? projectDirectory)
     {
