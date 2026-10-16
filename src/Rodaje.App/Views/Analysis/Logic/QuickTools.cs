@@ -21,6 +21,23 @@ public static class QuickTools
     public const string Reframe = "vision.reframe";
     public const string VoiceOver = "audio.voiceOver";
 
+    /// <summary>Herramientas de análisis del menú de clip que aplican al medio seleccionado.</summary>
+    public static IReadOnlyList<string> ContextMenuActionIds(bool hasAudio, bool hasVideo)
+    {
+        var ids = new List<string>(hasAudio && hasVideo ? 9 : 4);
+        if (hasAudio)
+        {
+            ids.AddRange(["analysis.silences", "analysis.beats", "analysis.ducking", "analysis.noise"]);
+        }
+
+        if (hasVideo)
+        {
+            ids.AddRange(["analysis.stabilize", "analysis.autocolor", "analysis.whitebalance", RemoveBackground, Reframe]);
+        }
+
+        return ids;
+    }
+
     public static IReadOnlyList<QuickTool> All { get; } =
     [
         new("analysis.silences", "Quitar silencios", "", "Corta las pausas del clip con sonido elegido."),
