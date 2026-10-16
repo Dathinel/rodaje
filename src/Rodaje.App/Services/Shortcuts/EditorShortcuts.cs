@@ -1,4 +1,5 @@
 using Rodaje.App.Services.Crashes;
+using Rodaje.Core.Model;
 
 namespace Rodaje.App.Services.Shortcuts;
 
@@ -32,6 +33,8 @@ public static class ActionIds
     public const string Reverse = "clip.reverse";
     public const string AddText = "clip.addText";
     public const string AddSubtitleTrack = "timeline.subtitleTrack";
+    public const string AddVideoTrack = "timeline.addVideoTrack";
+    public const string AddAudioTrack = "timeline.addAudioTrack";
 
     public const string TogglePlay = "playback.togglePlay";
     public const string PreviousFrame = "playback.previousFrame";
@@ -128,6 +131,8 @@ public static partial class EditorShortcuts
         new(ActionIds.ToggleSnapping, "Ajuste", ShortcutGroups.Timeline, ["N"], classic: ["F8"]) { Description = "Activa o quita el imán que pega los clips a bordes y al cursor." },
         new(ActionIds.ToggleAutoRipple, "Ripple automático", ShortcutGroups.Timeline, ["Ctrl+L"], agile: []) { ShortLabel = "Ripple", Description = "Al borrar o mover, corre lo que viene detrás para no dejar huecos." },
         new(ActionIds.AddSubtitleTrack, "Añadir pista de subtítulos", ShortcutGroups.Timeline, []) { ShortLabel = "Subtítulos", Description = "Crea encima de todas una pista para los subtítulos." },
+        new(ActionIds.AddVideoTrack, "Añadir pista de video", ShortcutGroups.Timeline, []) { ShortLabel = "Pista video", Description = "Añade una pista de video al final de la secuencia." },
+        new(ActionIds.AddAudioTrack, "Añadir pista de audio", ShortcutGroups.Timeline, []) { ShortLabel = "Pista audio", Description = "Añade una pista de audio al final de la secuencia." },
         new(ActionIds.ToggleMagneticMain, "Pista principal magnética", ShortcutGroups.Timeline, []) { ShortLabel = "Magnética", Description = "Mantiene los clips de la pista principal pegados unos a otros." },
 
         new(ActionIds.NormalTool, "Herramienta normal", ShortcutGroups.Tools, ["V"], agile: ["A"], classic: ["Ctrl+D"]) { ShortLabel = "Normal", Description = "Seleccionar, mover y recortar clips con el ratón." },
@@ -182,6 +187,8 @@ public static partial class EditorShortcuts
             router.Bind(ActionIds.Reverse, () => session.ToggleReverse()),
             router.Bind(ActionIds.AddText, () => session.AddTitleAtPlayhead()),
             router.Bind(ActionIds.AddSubtitleTrack, () => session.AddSubtitleTrack()),
+            router.Bind(ActionIds.AddVideoTrack, () => session.AddTrack(TrackKind.Video)),
+            router.Bind(ActionIds.AddAudioTrack, () => session.AddTrack(TrackKind.Audio)),
 
             router.Bind(ActionIds.TogglePlay, session.TogglePlayPause),
             router.Bind(ActionIds.PreviousFrame, () => session.StepFrames(-1)),

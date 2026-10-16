@@ -32,6 +32,31 @@ public sealed class TitleBarMenuTests
         Assert.DoesNotContain("analysis.silences", ItemsUnder(menu, "Editar"));
     }
 
+    [Fact]
+    public void SequenceMenuExposesProjectAndTimelineActions()
+    {
+        string root = RepositoryRoot();
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XElement menu = XDocument.Load(Path.Combine(root, "src", "Rodaje.App", "Shell", "TitleBar.xaml"))
+            .Descendants(xaml + "MenuBar").Single();
+
+        string[] sequenceActions =
+        [
+            "project.format", "timeline.addVideoTrack", "timeline.addAudioTrack", "clip.addText",
+            "timeline.subtitleTrack", "timeline.closeGaps", "edit.insertSource", "edit.overwriteSource",
+            "edit.replaceSource", "edit.fitToFillSource", "edit.superimposeSource",
+        ];
+        Assert.All(sequenceActions, id => Assert.Equal("Secuencia", ParentMenu(menu, id)));
+        Assert.All(sequenceActions, id => Assert.Single(menu.Descendants(), element =>
+            (string?)element.Attribute("Tag") == id && (string?)element.Attribute("Click") == "OnActionClick"));
+
+        string shortcuts = File.ReadAllText(Path.Combine(root, "src", "Rodaje.App", "Services", "Shortcuts", "EditorShortcuts.cs"));
+        Assert.Contains("AddVideoTrack", shortcuts, StringComparison.Ordinal);
+        Assert.Contains("AddAudioTrack", shortcuts, StringComparison.Ordinal);
+        Assert.Contains("AddSubtitleTrack", shortcuts, StringComparison.Ordinal);
+        Assert.Contains("PlayerActionIds.ProjectFormat", File.ReadAllText(Path.Combine(root, "src", "Rodaje.App", "Views", "Player", "PlayerView.Format.cs")), StringComparison.Ordinal);
+    }
+
     private static string? ParentMenu(XElement menu, string tag) => menu
         .Descendants()
         .SingleOrDefault(element => (string?)element.Attribute("Tag") == tag)

@@ -14,6 +14,15 @@ public sealed record SelectedEdge(string ClipId, TrimEdge Edge, bool Ripple);
 /// </summary>
 public sealed partial class EditorSession
 {
+    /// <summary>Añade una pista corriente al final de la secuencia.</summary>
+    public bool AddTrack(TrackKind kind)
+    {
+        VerifyAccess();
+        int index = kind == TrackKind.Video ? Sequence.VideoTracks.Count : Sequence.AudioTracks.Count;
+        string label = kind == TrackKind.Video ? "Video" : "Audio";
+        return Execute(Edits.AddTrack(SequenceId, kind, index, UniqueTrackName(label)));
+    }
+
     private SelectedEdge? _selectedEdge;
 
     /// <summary>El borde elegido con un clic (sin arrastrar); «,» y «.» lo recortan un cuadro.</summary>
