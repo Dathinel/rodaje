@@ -65,7 +65,8 @@
             <TextBlock Style="{StaticResource LabelTextStyle}" TextWrapping="Wrap" TextTrimming="None"
                        Text="Paquetes de contenido (transiciones, títulos, filtros, sonidos) y módulos de IA. Cada uno vive en su propio repositorio y algunos sirven también en los demás programas." />
             <Button Grid.Column="1" Content="Abrir carpeta" Click="OnOpenFolderClick" ToolTipService.ToolTip="Carpeta donde se instalan los complementos" />
-            <Button Grid.Column="2" Content="Actualizar" Click="OnRefreshClick" />
+            <Button Grid.Column="2" Content="Recargar archivos locales" Click="OnRefreshClick"
+                    ToolTipService.ToolTip="Vuelve a leer los complementos instalados en las carpetas locales." />
             <Button x:Name="InstallFileButton" Grid.Column="3" Style="{StaticResource AccentButtonStyle}" Content="Instalar desde archivo…" Click="OnInstallFileClick" />
         </Grid>
 
@@ -85,10 +86,32 @@
             <StackPanel Spacing="8" Padding="0,0,12,0">
                 <TextBlock Text="Contenido" Style="{StaticResource HeaderTextStyle}" Margin="0,4,0,2" />
                 <ItemsControl ItemsSource="{x:Bind ContentPackages}" ItemTemplate="{StaticResource PluginTemplate}" />
+                <Border x:Name="ContentEmptyState" Visibility="Collapsed" Background="{StaticResource ControlBrush}"
+                        BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Padding="16">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="No hay paquetes de contenido disponibles." Style="{StaticResource BodyTextStyle}" />
+                        <TextBlock Text="Comprueba la conexión o instala un complemento desde un archivo." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Instalar desde archivo…" Click="OnInstallFileClick" />
+                            <Button Content="Abrir carpeta" Click="OnOpenFolderClick" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
                 <TextBlock Text="Módulos de IA" Style="{StaticResource HeaderTextStyle}" Margin="0,8,0,2" />
                 <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Margin="0,0,0,4"
                            Text="Cada módulo es un programa aparte con sus modelos, que corre en tu equipo. Lo que propone se revisa antes de aplicarse y se deshace con Ctrl+Z." />
                 <ItemsControl ItemsSource="{x:Bind Modules}" ItemTemplate="{StaticResource PluginTemplate}" />
+                <Border x:Name="ModulesEmptyState" Visibility="Collapsed" Background="{StaticResource ControlBrush}"
+                        BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Padding="16">
+                    <StackPanel Spacing="8">
+                        <TextBlock Text="No hay módulos disponibles." Style="{StaticResource BodyTextStyle}" />
+                        <TextBlock Text="Comprueba la conexión o instala un complemento desde un archivo." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <Button Content="Instalar desde archivo…" Click="OnInstallFileClick" />
+                            <Button Content="Abrir carpeta" Click="OnOpenFolderClick" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
                 <StackPanel x:Name="ProblemsPanel" Spacing="4" Visibility="Collapsed" Margin="0,8,0,0">
                     <TextBlock Text="No se pudieron cargar" Style="{StaticResource HeaderTextStyle}" />
                     <ItemsControl ItemsSource="{x:Bind Problems}">

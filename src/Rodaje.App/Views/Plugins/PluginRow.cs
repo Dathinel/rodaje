@@ -80,7 +80,19 @@ internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader do
 
     public Visibility UninstallVisibility { get; } = entry.CanUninstall ? Visibility.Visible : Visibility.Collapsed;
 
-    public bool CanUninstallNow { get; } = !othersOpen;
+    public bool CanUninstallNow { get; private set; } = !othersOpen;
+
+    /// <summary>Actualiza el permiso al abrirse o cerrarse otra instancia sin reemplazar la fila.</summary>
+    public void UpdateCanUninstallNow(bool canUninstallNow)
+    {
+        if (CanUninstallNow == canUninstallNow)
+        {
+            return;
+        }
+
+        CanUninstallNow = canUninstallNow;
+        _notices.Raise(this, nameof(CanUninstallNow));
+    }
 
     public double StateOpacity { get; } = entry.IsInstalled ? 1 : 0.6;
 }
