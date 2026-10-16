@@ -247,6 +247,7 @@ public class EffectEditsTests
     public void SetKeyframeInterpolation_CambiaSoloEseTramo()
     {
         (Project project, UndoStack stack) = NewStack();
+        Assert.Equal("Cambiar interpolación", Edits.SetKeyframeInterpolation(SequenceId, Clip2, Fx, "opacity", S(10), Interpolation.Hold).Description);
         RoundTrip(stack, Edits.SetKeyframeInterpolation(SequenceId, Clip2, Fx, "opacity", S(10), Interpolation.Hold));
         Assert.Equal(0, Param(project, "opacity").Evaluate(S(11.9)));
         Assert.Equal(Interpolation.EaseIn, Param(project, "opacity").Keyframes[1].Interpolation);

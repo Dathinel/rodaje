@@ -109,7 +109,7 @@ public static partial class Edits
             ctx => EffectEdits.SetKeyframeInterpolation(ctx, clipId, effectId, name, at, interpolation),
             ids);
 
-    /// <summary>Cambia la interpolaciÃ³n de varios keyframes en un Ãºnico paso de deshacer.</summary>
+    /// <summary>Cambia la interpolación de varios keyframes en un único paso de deshacer.</summary>
     public static SequenceEditCommand SetKeyframesInterpolation(
         string sequenceId,
         string clipId,
@@ -120,11 +120,11 @@ public static partial class Edits
         IIdGenerator? ids = null)
     {
         Time[] times = at?.ToArray() ?? throw new ArgumentNullException(nameof(at));
-        return new("Cambiar interpolaciÃ³n", sequenceId,
+        return new("Cambiar interpolación", sequenceId,
             ctx => EffectEdits.SetKeyframesInterpolation(ctx, clipId, effectId, name, times, interpolation), ids);
     }
 
-    /// <summary>Pega una selecciÃ³n de keyframes en un punto del mismo parÃ¡metro, en un Ãºnico paso de deshacer.</summary>
+    /// <summary>Pega una selección de keyframes en un punto del mismo parámetro, en un único paso de deshacer.</summary>
     public static SequenceEditCommand PasteKeyframes(
         string sequenceId,
         string clipId,
@@ -187,7 +187,7 @@ public static partial class Edits
         IIdGenerator? ids = null) =>
         new("Mover keyframe", sequenceId, ctx => EffectEdits.MoveKeyframe(ctx, clipId, effectId, name, from, to), ids, mergeKey);
 
-    /// <summary>Mueve varios keyframes manteniendo sus distancias, en un Ãºnico paso de deshacer.</summary>
+    /// <summary>Mueve varios keyframes manteniendo sus distancias, en un único paso de deshacer.</summary>
     public static SequenceEditCommand MoveKeyframes(
         string sequenceId,
         string clipId,

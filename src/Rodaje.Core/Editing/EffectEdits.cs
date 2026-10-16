@@ -300,7 +300,7 @@ public static class EffectEdits
         };
     }
 
-    /// <summary>Cambia la interpolaciÃ³n de varios keyframes como una sola ediciÃ³n validada.</summary>
+    /// <summary>Cambia la interpolación de varios keyframes como una sola edición validada.</summary>
     public static void SetKeyframesInterpolation(
         EditContext ctx,
         string clipId,
@@ -315,7 +315,7 @@ public static class EffectEdits
         Time[] selected = at.ToArray();
         if (selected.Length == 0 || selected.Distinct().Count() != selected.Length)
         {
-            throw new EditException("Selecciona uno o mÃ¡s keyframes distintos.");
+            throw new EditException("Selecciona uno o más keyframes distintos.");
         }
 
         Parameter parameter = FindParameter(FindEffect(EditableHost(ctx, clipId), effectId), name);
@@ -331,7 +331,7 @@ public static class EffectEdits
         }
     }
 
-    /// <summary>Pega keyframes relativos en el parÃ¡metro y conserva los que quedan fuera del intervalo pegado.</summary>
+    /// <summary>Pega keyframes relativos en el parámetro y conserva los que quedan fuera del intervalo pegado.</summary>
     public static void PasteKeyframes(EditContext ctx, string clipId, string effectId, string name, KeyframeClipboard clipboard, Time at)
     {
         ArgumentNullException.ThrowIfNull(ctx);
@@ -356,7 +356,7 @@ public static class EffectEdits
         {
             if (merged[index - 1].Time == merged[index].Time)
             {
-                throw new EditException("El pegado crearÃ­a keyframes duplicados.");
+                throw new EditException("El pegado crearía keyframes duplicados.");
             }
         }
 
@@ -457,7 +457,7 @@ public static class EffectEdits
         keys[index] = keys[index] with { Time = to };
     }
 
-    /// <summary>Mueve una selecciÃ³n conservando sus distancias, curvas y orden; no puede colisionar con otros keyframes.</summary>
+    /// <summary>Mueve una selección conservando sus distancias, curvas y orden; no puede colisionar con otros keyframes.</summary>
     public static void MoveKeyframes(EditContext ctx, string clipId, string effectId, string name, IReadOnlyCollection<Time> from, Time delta)
     {
         ArgumentNullException.ThrowIfNull(ctx);
@@ -465,7 +465,7 @@ public static class EffectEdits
         Time[] selectedTimes = from.ToArray();
         if (selectedTimes.Length == 0 || selectedTimes.Distinct().Count() != selectedTimes.Length)
         {
-            throw new EditException("Selecciona uno o mÃ¡s keyframes distintos.");
+            throw new EditException("Selecciona uno o más keyframes distintos.");
         }
 
         Host host = EditableHost(ctx, clipId);
@@ -481,7 +481,7 @@ public static class EffectEdits
         HashSet<Time> destinationSet = destinations.ToHashSet();
         if (destinationSet.Count != destinations.Length || parameter.Keyframes.Any(key => !selected.Contains(key.Time) && destinationSet.Contains(key.Time)))
         {
-            throw new EditException("La selecciÃ³n no puede pasar sobre otros keyframes.");
+            throw new EditException("La selección no puede pasar sobre otros keyframes.");
         }
 
         for (int index = 0; index < indices.Length; index++)
