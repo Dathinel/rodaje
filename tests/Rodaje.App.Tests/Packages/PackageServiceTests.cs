@@ -156,7 +156,7 @@ public sealed class PackageServiceTests : IDisposable
         Assert.Equal(PackageOrigin.Own, transitions[^1].Origin);
         Assert.Equal("propios@0.0.0/mi-barrido", transitions[^1].Reference);
         Assert.All(transitions, t => Assert.Equal(ItemKind.Transition, t.Kind));
-        Assert.Equal(BuiltInEffects.Transform, effects[0].Reference);
+        Assert.DoesNotContain(effects, e => e.Reference == BuiltInEffects.Transform);
         Assert.All(effects, e => Assert.True(e.IsAvailable));
         Assert.Equal("Mis transiciones", LibraryElements.OwnTitle(LibraryCategory.Transitions));
         Assert.Empty(LibraryElements.For(LibraryCategory.Ai, service.Installed));
