@@ -379,7 +379,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     /// <summary>Las máscaras tienen su pestaña: aquí no se listan.</summary>
     private void OnEditTransformClick(object sender, RoutedEventArgs e) => _services?.Session.RequestPropertiesPanel();
 
-    private static bool Shows(EffectInstance effect) => effect.Type is not (BuiltInEffects.Mask or BuiltInEffects.Track or BuiltInEffects.Transform);
+    private static bool Shows(EffectInstance effect) => effect.Type is not (BuiltInEffects.Mask or BuiltInEffects.Track or BuiltInEffects.Transform or BuiltInEffects.Blend);
 
     private void BuildRows(string type, ParameterSpec.Context context)
     {

@@ -25,7 +25,7 @@ public static class EffectCatalog
     /// necesita el análisis (se pone desde «Estabilizar...» del menú del clip), ni las máscaras, que tienen su pestaña.
     /// </summary>
     public static IReadOnlyList<EffectDescriptor> For(TrackKind kind) =>
-        [.. All.Where(e => e.Kind == kind && e.IsRendered && e.Type is not (BuiltInEffects.Stabilize or BuiltInEffects.Mask or BuiltInEffects.Transform) && IsOffered(e.Type))];
+        [.. All.Where(e => e.Kind == kind && e.IsRendered && e.Type is not (BuiltInEffects.Stabilize or BuiltInEffects.Mask or BuiltInEffects.Transform or BuiltInEffects.Blend) && IsOffered(e.Type))];
 
     /// <summary>
     /// Funciones que activa un complemento instalado (<see cref="EffectFeatures"/>); las pone la ventana al cambiar lo
