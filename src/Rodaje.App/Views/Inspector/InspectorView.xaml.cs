@@ -103,7 +103,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     // Se mide con todos los nombres; si no caben, las pestañas pasan a ícono y solo la elegida conserva su nombre.
     private void UpdateTabLabels()
     {
-        if (TabStrip is null || TabBar.ActualWidth <= 0)
+        if (TabStrip is null || TabBar is null || TabBar.ActualWidth <= 0)
         {
             return;
         }
@@ -162,9 +162,20 @@ internal sealed partial class InspectorView : UserControl, IEditorView
 
     private void UpdateTabVisibility()
     {
+        // Checked de la pestaña inicial salta mientras se carga el XAML, antes de que existan el resto de pestañas y el panel.
+        if (TransitionPanel is null || TransitionTab is null)
+        {
+            return;
+        }
+
         bool transition = TransitionPanel.IsActive;
         foreach ((RadioButton tab, _) in Tabs)
         {
+            if (tab is null)
+            {
+                continue;
+            }
+
             string name = AutomationProperties.GetName(tab);
             tab.Visibility = transition
                 ? tab == TransitionTab ? Visibility.Visible : Visibility.Collapsed
