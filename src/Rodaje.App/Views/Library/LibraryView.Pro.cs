@@ -554,16 +554,15 @@ internal sealed partial class LibraryView
         }
 
         EditorSession session = _services.Session;
-        session.Notify(NotificationSeverity.Informational, "Sincronizando por sonido", $"{angles.Count} ángulos; tarda unos segundos por minuto de grabación.");
         List<(string MediaId, string Path, bool HasAudio)> inputs = [.. angles.Select(a => (a.Id, a.Path, session.Project.FindMedia(a.Id)?.HasAudio == true))];
-        IReadOnlyList<MulticamSync.AngleResult> results;
-        try
+        IReadOnlyList<MulticamSync.AngleResult> results = [];
+        bool ran = await _services.LongActions.RunAsync("multicam.sync", "Sincronización multicámara", async scope =>
         {
-            results = await Task.Run(() => MulticamSync.Run(inputs));
-        }
-        catch (Exception ex) when (ex is IOException or InvalidOperationException or Rodaje.Media.MediaException)
+            results = await Task.Run(() => MulticamSync.Run(inputs, progress: (done, total) =>
+                scope.Report((double)done / total, $"{done} de {total} pasos")));
+        });
+        if (!ran)
         {
-            session.Notify(NotificationSeverity.Warning, "No se pudo sincronizar", ex.Message);
             return;
         }
 

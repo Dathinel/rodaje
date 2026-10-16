@@ -18,10 +18,11 @@ internal static class MulticamSync
     /// <summary>El desfase hallado de un ángulo (dónde cae su 0 en el reloj del primero), o <c>null</c> si no se pudo.</summary>
     public sealed record AngleResult(string MediaId, Time? Offset, double Confidence);
 
-    public static IReadOnlyList<AngleResult> Run(IReadOnlyList<(string MediaId, string Path, bool HasAudio)> angles, double maxLagSeconds = 600)
+    public static IReadOnlyList<AngleResult> Run(IReadOnlyList<(string MediaId, string Path, bool HasAudio)> angles, double maxLagSeconds = 600, Action<int, int>? progress = null)
     {
         ArgumentNullException.ThrowIfNull(angles);
         var features = new Dictionary<string, SyncFeature>(StringComparer.Ordinal);
+        int completed = 0;
         foreach ((string id, string path, bool hasAudio) in angles)
         {
             if (hasAudio)
@@ -30,34 +31,38 @@ internal static class MulticamSync
                 Decode(path, Time.Zero, null, feature);
                 features[id] = feature;
             }
+
+            progress?.Invoke(++completed, angles.Count * 2);
         }
 
         (string referenceId, string referencePath, _) = angles.FirstOrDefault(a => features.ContainsKey(a.MediaId));
         var results = new List<AngleResult>();
+        int resolved = 0;
         foreach ((string id, string path, bool _) in angles)
         {
             if (id == referenceId)
             {
                 results.Add(new AngleResult(id, Time.Zero, 1));
-                continue;
             }
-
-            if (referenceId is null || !features.TryGetValue(id, out SyncFeature? other)
+            else if (referenceId is null || !features.TryGetValue(id, out SyncFeature? other)
                 || WaveformSync.Coarse(features[referenceId], other, maxLagSeconds) is not { } coarse
                 || !WaveformSync.RefineWindow(features[referenceId], other, coarse.Lag).HasValue
                 || coarse.Confidence < WaveformSync.MinConfidence)
             {
                 results.Add(new AngleResult(id, null, 0));
-                continue;
+            }
+            else
+            {
+                (long start, long length) = WaveformSync.RefineWindow(features[referenceId], other, coarse.Lag)!.Value;
+                int radius = WaveformSync.RefineBlocks * other.BlockLength;
+                float[] otherSegment = Mono(path, start, length);
+                long referenceStart = Math.Max(0, start + coarse.Lag - radius);
+                float[] referenceSegment = Mono(referencePath, referenceStart, length + (2L * radius));
+                (long lag, _) = WaveformSync.Refine(referenceSegment, referenceStart, otherSegment, start, coarse.Lag, radius);
+                results.Add(new AngleResult(id, Time.FromSamples(lag, Rate), coarse.Confidence));
             }
 
-            (long start, long length) = WaveformSync.RefineWindow(features[referenceId], other, coarse.Lag)!.Value;
-            int radius = WaveformSync.RefineBlocks * other.BlockLength;
-            float[] otherSegment = Mono(path, start, length);
-            long referenceStart = Math.Max(0, start + coarse.Lag - radius);
-            float[] referenceSegment = Mono(referencePath, referenceStart, length + (2L * radius));
-            (long lag, _) = WaveformSync.Refine(referenceSegment, referenceStart, otherSegment, start, coarse.Lag, radius);
-            results.Add(new AngleResult(id, Time.FromSamples(lag, Rate), coarse.Confidence));
+            progress?.Invoke(angles.Count + ++resolved, angles.Count * 2);
         }
 
         return results;

@@ -76,6 +76,7 @@
             <StackPanel Orientation="Horizontal" Spacing="12">
                 <StackPanel x:Name="BreadcrumbPanel" Orientation="Horizontal" VerticalAlignment="Center" Spacing="2" />
                 <StackPanel x:Name="SourcePanel" Orientation="Horizontal" VerticalAlignment="Center" Spacing="8" Visibility="Collapsed" />
+                <StackPanel x:Name="MulticamPanel" Orientation="Horizontal" VerticalAlignment="Center" Spacing="4" Visibility="Collapsed" />
             </StackPanel>
         </Border>
 
