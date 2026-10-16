@@ -25,6 +25,9 @@ internal static class VisionDialogs
     public const string RemoveBackgroundTitle = "Quitar fondo";
     public const string ReframeTitle = "Reencuadre automático";
 
+    internal static string ReframeFormatWarning(int width, int height) =>
+        string.Create(SpanishNumbers.Format, $"Atención: esta acción cambiará el formato del proyecto a {width}×{height}.");
+
     /// <summary>Formas del reencuadre: nombre, ancho y alto.</summary>
     public static IReadOnlyList<(string Label, int Width, int Height)> ReframeAspects { get; } =
         [("9:16 · vertical", 9, 16), ("1:1 · cuadrado", 1, 1), ("4:5 · retrato", 4, 5)];
@@ -202,6 +205,26 @@ internal static class VisionDialogs
         int current = ReframeAspects.ToList().FindIndex(a => a.Width * session.Sequence.Height == a.Height * session.Sequence.Width);
         aspect.SelectedIndex = Math.Max(0, current);
         panel.Children.Add(aspect);
+        var formatWarning = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        panel.Children.Add(formatWarning);
+        void UpdateFormatWarning()
+        {
+            (int ratioWidth, int ratioHeight) = ReframeAspects[Math.Max(0, aspect.SelectedIndex)];
+            Sequence sequence = session.Sequence;
+            if (ratioWidth * sequence.Height == ratioHeight * sequence.Width)
+            {
+                formatWarning.Text = "";
+                formatWarning.Visibility = Visibility.Collapsed;
+                return;
+            }
+
+            (int width, int height) = ProjectFormats.Reshape(new AspectChoice("", "", ratioWidth, ratioHeight), sequence.Width, sequence.Height);
+            formatWarning.Text = ReframeFormatWarning(width, height);
+            formatWarning.Visibility = Visibility.Visible;
+        }
+
+        aspect.SelectionChanged += (_, _) => UpdateFormatWarning();
+        UpdateFormatWarning();
         var subject = new ComboBox { Header = "Seguir", Width = AnalysisUi.PreviewWidth, SelectedIndex = 0 };
         subject.Items.Add("Rostros (YuNet)");
         subject.Items.Add("Personas de cuerpo entero (RT-DETRv2)");
