@@ -214,6 +214,7 @@ public static class MixerEdits
         double before = target.Evaluate(from);
         double after = target.Evaluate(to);
         List<Keyframe> keys = target.Keyframes;
+        Interpolation tail = keys.FindLast(k => k.Time <= to)?.Interpolation == Interpolation.Hold ? Interpolation.Hold : Interpolation.Linear;
         keys.RemoveAll(k => k.Time >= from && k.Time <= to);
         Upsert(keys, new Keyframe(from, definition.Clamp(before), Interpolation.Linear));
         foreach (AutomationPoint point in points)
@@ -224,7 +225,7 @@ public static class MixerEdits
             }
         }
 
-        Upsert(keys, new Keyframe(to, definition.Clamp(after), Interpolation.Linear));
+        Upsert(keys, new Keyframe(to, definition.Clamp(after), tail));
     }
 
     /// <summary>El parámetro del fader de la pista o el bus, creando <c>rodaje.audio</c> (y el parámetro) si faltan.</summary>
