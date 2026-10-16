@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml;
 using Rodaje.App.Views.Analysis;
+using Rodaje.App.Services;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Timeline;
@@ -29,7 +30,7 @@ internal sealed partial class TimelineView
 
         menu.Items.Add(new MenuFlyoutSeparator());
         var actions = AnalysisCommands.Menu.Concat(Vision.VisionCommands.Menu)
-            .Append((AnalysisCommands.ReduceNoise, "Reducir ruido…", QuickTools.All.Single(tool => tool.ActionId == AnalysisCommands.ReduceNoise).Glyph))
+            .Append((Id: AnalysisCommands.ReduceNoise, Label: "Reducir ruido…", Glyph: QuickTools.All.Single(tool => tool.ActionId == AnalysisCommands.ReduceNoise).Glyph))
             .ToDictionary(action => action.Id, StringComparer.Ordinal);
         bool noiseModule = services.Modules?.FindByFunction(NoiseReduction.Function) is not null;
         bool visionModule = services.Modules?.FindByFunction(Vision.VisionTools.RemoveBackgroundFunction) is not null;
