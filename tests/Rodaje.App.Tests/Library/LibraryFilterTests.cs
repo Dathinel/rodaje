@@ -76,6 +76,19 @@ public class LibraryFilterTests
     }
 
     [Fact]
+    public void BuscaCombinaTextoTipoFavoritosYEtiqueta()
+    {
+        var org = new LibraryOrganization();
+        org.SetFavorite("toma", true);
+        org.SetFavorite("cancion", true);
+        org.ToggleTag(["toma", "cancion"], "Viaje", true);
+
+        var query = new LibraryQuery(Text: "MONTAÑA", Kind: LibraryKind.Video, FavoritesOnly: true, Tag: "viaje");
+
+        Assert.Equal(["toma"], Ids(org, query));
+    }
+
+    [Fact]
     public void TextoPlegado_QuitaTildesYMayusculas()
     {
         Assert.Equal("arbol nino cafe ss", SearchText.Fold("Árbol NIÑO café ß"));
