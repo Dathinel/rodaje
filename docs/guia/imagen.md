@@ -4,11 +4,11 @@ Efectos, color, máscaras, croma y recorte. Todo se calcula en la GPU, se ve al 
 
 ## Dónde está cada cosa
 
-- **Propiedades** (panel derecho): la transformación del clip en secciones plegables: «Posición y tamaño» (X, Y, escala, ancho, alto, rotación y voltear), «Ancla e inclinación», «Opacidad y mezcla» (opacidad y modo de mezcla), «Desenfoque de movimiento», «Animaciones», «Gráfica» y «Audio». Ver [Transformar y animar](#transformar-y-animar).
-- **Filtros**: la pila de filtros del clip («Añadir filtro», el ojo para activar o desactivar, subir, bajar, quitar) y, debajo, los parámetros del filtro elegido.
-- **Máscaras**: su pestaña propia (recortar el clip o limitar un efecto a una zona).
-- **Seguimiento**: su pestaña propia; ver [Seguimiento](seguimiento.md).
-- Biblioteca › **Efectos** (transformar, viñeta, desenfoque, nitidez, recortar, croma, estabilizar…) y **Filtros** (Color y LUT, Ruedas de color, Curvas y los looks de los paquetes): doble clic o arrastrar al clip los aplica.
+- **Propiedades** (panel derecho): la transformación del clip en secciones plegables: «Posición y tamaño» (X, Y, escala, ancho, alto, rotación y voltear), «Ancla e inclinación», «Opacidad y mezcla» (opacidad y modo de mezcla), «Desenfoque de movimiento», «Animaciones», «Gráfica» y «Audio». Ver [Transformar y animar](#transformar-y-animar). Transformar y el Modo de mezcla se editan exclusivamente aquí; no se duplican en la pila de Filtros.
+- **Filtros**: la pila de filtros y efectos del clip («Añadir filtro», el ojo para activar o desactivar, subir, bajar, quitar) y, debajo, los parámetros del filtro elegido.
+- **Máscaras**: su pestaña propia (recortar el clip o limitar un efecto a una zona; incluye «Vincular a seguimiento…» para conectar con el rastreador).
+- **Seguimiento**: pestaña centralizada para todo el rastreo del clip (puntos, esquinas, regiones, máscaras y estabilización); ver [Seguimiento](seguimiento.md).
+- Biblioteca › **Efectos** (viñeta, desenfoque, nitidez, recortar, croma, estabilizar…) y **Filtros** (Color y LUT, Ruedas de color, Curvas y los looks de los paquetes): doble clic o arrastrar al clip los aplica.
 
 Cada parámetro va en una fila: etiqueta, deslizador, valor con unidad, rombo de keyframe y restablecer. Por debajo de 340 px de ancho el deslizador baja a una segunda línea. **Arrastra la etiqueta** a los lados para cambiar el valor (Mayús: fino; Ctrl: grueso); doble clic en ella lo restablece.
 
@@ -124,7 +124,7 @@ Con la pluma, Retroceso quita el último punto y Esc cancela. **Añadir** trae f
 - **Caja**: centro, ancho, alto y giro, con keyframes. Convertir un rectángulo o una elipse en Bézier (botón «A Bézier») conserva la forma.
 - **Borde**: borde suave, expansión (agranda o achica), esquinas redondeadas (rectángulo), grosor (pluma) e intensidad. Con puntos elegidos, **Borde ×** (Bézier) o **Grosor ×** (pluma) cambia solo ahí: borde variable.
 - **Forma animada** (Bézier y pluma): el rombo pone un keyframe de la forma en el cursor; las flechas van al anterior y al siguiente. Con la forma animada, editar puntos cambia el keyframe del cursor. «Quitar la animación» deja la forma del cursor.
-- **Seguimiento**: elige qué seguir (posición, escala, giro y, en una Bézier, cada punto con su zona) y pulsa **Adelante** o **Atrás** (o un cuadro con las flechas). La máscara sigue lo que tiene adentro desde el cuadro del cursor hasta el final o el inicio del clip; el cursor la acompaña y la barra de avisos muestra el avance con **Cancelar** (lo seguido hasta ahí queda). Todo es un paso del historial y los keyframes se pueden retocar después.
+- **Seguimiento**: pulsa «Vincular a seguimiento…» para abrir la pestaña **Seguimiento** con la máscara y su destino preseleccionados, o para enlazarla a un rastreo existente. Todo el proceso de análisis y ajuste se centraliza en un único lugar sin duplicación de controles.
 - **Vista en el visor**: **Imagen** (como se exporta), **Máscara** (en gris: blanco lo que se ve) o **Superpuesta** (lo que tapa, en rojo). Solo vista previa.
 
 La máscara de **Sujeto (Quitar fondo)** cambia sola en cada cuadro; su borde suave y la expansión no se le aplican. Para editarla a mano, «Añadir» › «Sujeto de «Quitar fondo» como Bézier».
@@ -139,11 +139,12 @@ Añade **Recortar**. Mientras el filtro está elegido con Filtros a la vista, el
 
 ## Modos de mezcla
 
-En Propiedades › Opacidad y mezcla: Normal, Sumar, Multiplicar, Trama, Superponer, Luz suave, Luz fuerte, Oscurecer, Aclarar, Diferencia, Exclusión, Sobreexponer color y Subexponer color.
+En **Propiedades › Opacidad y mezcla**: Normal, Sumar, Multiplicar, Trama, Superponer, Luz suave, Luz fuerte, Oscurecer, Aclarar, Diferencia, Exclusión, Sobreexponer color y Subexponer color. Se edita directamente en esta sección del clip; no se añade como filtro en la pila ni aparece duplicado.
 
-## Estabilizar
+## Estabilizar y funciones de IA (Acciones largas)
 
-Menú del clip › **Estabilizar...** (o Herramientas). Analiza el movimiento y muestra el resultado («Temblor: A → B px por cuadro² (N % menos). Acercamiento: N %»). Ajusta la intensidad y decide si recorta el borde automáticamente. Pone el filtro Estabilizar al principio de la pila.
+- **Estabilizar:** Menú contextual del clip › **Estabilizar...** o **Herramientas › Imagen › Estabilizar...**. Analiza el movimiento y muestra el resultado («Temblor: A → B px por cuadro² (N % menos). Acercamiento: N %»). Ajusta la intensidad y decide si recorta el borde automáticamente. Pone el filtro Estabilizar al principio de la pila.
+- **Quitar fondo y Reencuadre automático:** Disponibles en **Herramientas › Imagen** y en el menú contextual de clips con video. Ambas operaciones se ejecutan mediante el sistema de **Acciones largas** (`LongActions`): muestran progreso continuo con indicador animado y botón de cancelación inmediata limpia, sin congelar la interfaz. El diálogo de **Reencuadre automático** muestra con anticipación las dimensiones de proyecto que resultarán del formato seleccionado antes de aplicar.
 
 ## Zonas seguras
 
