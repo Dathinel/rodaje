@@ -113,7 +113,12 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         if (count != _instances)
         {
             _instances = count;
-            Refresh();
+            UpdateInstancesNote();
+            bool canUninstallNow = _instances <= 1;
+            foreach (PluginRow row in ContentPackages.Concat(Modules))
+            {
+                row.UpdateCanUninstallNow(canUninstallNow);
+            }
         }
     }
 
@@ -125,12 +130,9 @@ internal sealed partial class PluginsView : UserControl, IEditorView
         }
 
         PackageService packages = _services.Packages;
+        UpdateInstancesNote();
         bool othersOpen = _instances > 1;
-        InstancesNote.Visibility = othersOpen ? Visibility.Visible : Visibility.Collapsed;
-        InstancesText.Text = othersOpen
-            ? $"Hay {_instances} ventanas de Rodaje abiertas. {PackageService.OtherInstancesMessage} Instalar complementos nuevos sí se puede."
-            : "";
-        // Las filas viejas sueltan su suscripción a la descarga, que vive en la página: si no, cada vuelta dejaba otra.
+        // Cambios de paquetes o catálogo sí rehacen el contenido; el sondeo de instancias de CheckInstances conserva las filas.
         PropertyChangedRelay.Release(ContentPackages);
         PropertyChangedRelay.Release(Modules);
         foreach (PluginEntry entry in packages.Entries())
@@ -146,7 +148,18 @@ internal sealed partial class PluginsView : UserControl, IEditorView
             Problems.Add(new ProblemRow(problem));
         }
 
+        ContentEmptyState.Visibility = ContentPackages.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
+        ModulesEmptyState.Visibility = Modules.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         ProblemsPanel.Visibility = Problems.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void UpdateInstancesNote()
+    {
+        bool othersOpen = _instances > 1;
+        InstancesNote.Visibility = othersOpen ? Visibility.Visible : Visibility.Collapsed;
+        InstancesText.Text = othersOpen
+            ? $"Hay {_instances} ventanas de Rodaje abiertas. {PackageService.OtherInstancesMessage} Instalar complementos nuevos sí se puede."
+            : "";
     }
 
     private nint OwnerWindow() =>
@@ -291,7 +304,7 @@ internal sealed partial class PluginsView : UserControl, IEditorView
     {
         if (_services is not null)
         {
-            await RunBusyAsync("No se pudo actualizar la lista", () => _services.Packages.RefreshAsync());
+            await RunBusyAsync("No se pudieron recargar los archivos locales", () => _services.Packages.RefreshAsync());
         }
     }
 

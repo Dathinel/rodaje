@@ -27,6 +27,9 @@ internal sealed partial class RelayedPropertyChanged(INotifyPropertyChanged sour
     /// <summary>El <c>remove</c> del evento de la fila.</summary>
     public void Remove(PropertyChangedEventHandler? value) => _handlers -= value;
 
+    /// <summary>Publica un cambio propio de la fila junto con los cambios reenviados de la descarga.</summary>
+    public void Raise(object sender, string propertyName) => _handlers?.Invoke(sender, new PropertyChangedEventArgs(propertyName));
+
     /// <summary>Suelta la suscripción a la descarga y los manejadores; después no llega ningún aviso.</summary>
     public void Dispose()
     {

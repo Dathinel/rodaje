@@ -83,6 +83,20 @@ public sealed class PluginRowRelayLeakTests
     }
 
     [Fact]
+    public void A_row_can_publish_its_own_property_change_through_the_same_subscription()
+    {
+        var download = new CountingSource();
+        using var notices = new RelayedPropertyChanged(download, "Download");
+        var seen = new List<string?>();
+        notices.Add(this, (_, e) => seen.Add(e.PropertyName));
+
+        notices.Raise(this, "CanUninstallNow");
+        download.Raise("Percent");
+
+        Assert.Equal(["CanUninstallNow", "DownloadPercent"], seen);
+    }
+
+    [Fact]
     public void PluginRow_uses_the_relay_and_releases_it_on_dispose()
     {
         // PluginRow arrastra WinUI: se lee su código. Si su evento dejara de pasar por RelayedPropertyChanged o Dispose
@@ -112,6 +126,32 @@ public sealed class PluginRowRelayLeakTests
         }
 
         Assert.DoesNotMatch(@"\b(ContentPackages|Modules)\.Clear\(", source);
+    }
+
+    [Fact]
+    public void Instance_poll_updates_existing_rows_in_place()
+    {
+        string source = File.ReadAllText(Path.Combine(RepositoryRoot(), "src/Rodaje.App/Views/Plugins/PluginsView.xaml.cs"));
+        string poll = MethodBody(source, "CheckInstances");
+
+        Assert.Contains("row.UpdateCanUninstallNow(canUninstallNow);", poll, StringComparison.Ordinal);
+        Assert.DoesNotContain("Refresh();", poll, StringComparison.Ordinal);
+        string row = File.ReadAllText(Path.Combine(RepositoryRoot(), "src/Rodaje.App/Views/Plugins/PluginRow.cs"));
+        Assert.Contains("public void UpdateCanUninstallNow(bool canUninstallNow)", row, StringComparison.Ordinal);
+        Assert.Contains("_notices.Raise(this, nameof(CanUninstallNow));", row, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Plugin_lists_offer_guidance_when_empty_and_refresh_is_local()
+    {
+        string xaml = File.ReadAllText(Path.Combine(RepositoryRoot(), "src/Rodaje.App/Views/Plugins/PluginsView.xaml"));
+        Assert.Contains("x:Name=\"ContentEmptyState\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"ModulesEmptyState\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Recargar archivos locales\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Instalar desde archivo…\"", xaml, StringComparison.Ordinal);
+        string view = File.ReadAllText(Path.Combine(RepositoryRoot(), "src/Rodaje.App/Views/Plugins/PluginsView.xaml.cs"));
+        Assert.Contains("ContentEmptyState.Visibility = ContentPackages.Count == 0", view, StringComparison.Ordinal);
+        Assert.Contains("ModulesEmptyState.Visibility = Modules.Count == 0", view, StringComparison.Ordinal);
     }
 
     private static string MethodBody(string source, string method)
