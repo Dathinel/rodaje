@@ -168,6 +168,7 @@ public sealed class PlaybackScheduler : IDisposable
     public FramePresentation Tick()
     {
         DecodedFrame? released = null;
+        (long From, long To)? passed = null;
         FrameReadyEventArgs? ready = null;
         bool post;
         bool reachedEnd = false;
@@ -218,9 +219,10 @@ public sealed class PlaybackScheduler : IDisposable
 
                     // Al avanzar reproduciendo, lo que quedó atrás sale de la caché: si no, al tocarse al mostrarse
                     // sería más reciente que lo adelantado aún sin mostrar, y el LRU expulsaría lo adelantado.
+                    // Se borra fuera del candado porque la caché libera allí los cuadros que suelta.
                     if (running && released is not null && released.Index < frame.Index)
                     {
-                        _cache.RemoveRange(released.Index, frame.Index);
+                        passed = (released.Index, frame.Index);
                     }
 
                     _shown++;
@@ -252,6 +254,11 @@ public sealed class PlaybackScheduler : IDisposable
             }
 
             result = new FramePresentation(_current, target, sourceTime, exact);
+        }
+
+        if (passed is { } range)
+        {
+            _cache.RemoveRange(range.From, range.To);
         }
 
         released?.Dispose();
@@ -479,6 +486,7 @@ public sealed class PlaybackScheduler : IDisposable
         }
 
         DecodedFrame? discard = null;
+        List<DecodedFrame>? evicted = null;
         FrameReadyEventArgs? ready = null;
         DecodeFailedEventArgs? failed = null;
         bool post;
@@ -498,7 +506,7 @@ public sealed class PlaybackScheduler : IDisposable
             }
             else if (frame is not null)
             {
-                _cache.Add(frame);
+                _cache.Add(frame, ref evicted);
                 if (_seekTarget == job.Index)
                 {
                     _seekTarget = null;
@@ -521,6 +529,7 @@ public sealed class PlaybackScheduler : IDisposable
         }
 
         discard?.Dispose();
+        evicted?.ForEach(f => f.Dispose());
         if (ready is not null)
         {
             ExactFrameReady?.Invoke(this, ready);
