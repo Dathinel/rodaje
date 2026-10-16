@@ -110,7 +110,8 @@ public sealed class PackageLibraryTests : IDisposable
         File.WriteAllText(Path.Combine(locations.Own, "transiciones", "Música épica Ñandú.json"), """{ "kind": "transition" }""");
         File.WriteAllText(Path.Combine(locations.Own, "transiciones", "Plana.json"), """{ "kind": "transition" }""");
 
-        PackageManifest own = PackageLibrary.Scan(locations, "rodaje").Find(PackageLibrary.OwnPackageId)!.Manifest;
+        PackageScan scan = PackageLibrary.Scan(locations, "rodaje");
+        PackageManifest own = scan.Find(PackageLibrary.OwnPackageId)!.Manifest;
 
         Assert.Equal("m-sica-pica-and", PackageLibrary.LegacyIdentifier("Música épica Ñandú"));
         PackageItem item = own.FindItem("musica-epica-nandu", ItemKind.Transition)!;
@@ -119,6 +120,8 @@ public sealed class PackageLibraryTests : IDisposable
         Assert.Null(own.FindItem("m-sica-pica-and", ItemKind.Sound));
         Assert.Null(own.FindItem("plana")!.LegacyId);
         Assert.Equal("propios@0.0.0/musica-epica-nandu", own.ReferenceTo(item).ToString());
+        Assert.Equal("propios@0.0.0/musica-epica-nandu", scan.Canonical("propios@0.0.0/m-sica-pica-and", ItemKind.Transition));
+        Assert.Equal("propios@0.0.0/m-sica-pica-and", scan.Canonical("propios@0.0.0/m-sica-pica-and", ItemKind.Sound));
 
         using var store = new Rodaje.Packages.Content.PackageContentStore(PackageLibrary.Scan(locations, "rodaje"));
         foreach (string reference in new[] { "propios@0.0.0/m-sica-pica-and", "propios@0.0.0/otra-cosa" })
