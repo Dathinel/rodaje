@@ -45,7 +45,7 @@ Los medidores a la derecha del reproductor muestran el nivel. Para dejar la mezc
 
 ## 5. Un título
 
-1. Pon el cursor donde debe aparecer y pulsa **T** (o **Añadir texto** en Herramientas, o Editar › Añadir texto). Aparece un título de 5 s en una pista de video encima y se abre la pestaña **Texto**.
+1. Pon el cursor donde debe aparecer y pulsa **T** (o **Añadir texto** en la barra de herramientas rápidas, o **Secuencia › Añadir texto**). Aparece un título de 5 s en una pista de video encima y se abre la pestaña **Texto**.
 2. Escribe el texto en el cuadro; cada línea nueva es una línea del título.
 3. En **Estilo** elige fuente, grosor, tamaño, color, alineación. Abre **Borde**, **Sombra** o **Fondo** si lo necesitas. «Guardar como estilo» lo deja en la biblioteca (categoría Texto) para la próxima vez.
 4. En el visor, arrastra el título para moverlo y una esquina para escalarlo; el asa de arriba lo gira.

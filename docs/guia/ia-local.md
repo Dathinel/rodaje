@@ -28,7 +28,7 @@ Rodaje mira la GPU (VRAM propia y compartida, si es integrada), la RAM libre y l
 
 - **Antes de empezar**, cada diálogo dice cuánto tardará en este equipo y dónde corre («En este equipo: unos 40 s (GPU · Whisper large-v3-turbo)»). La primera vez es una estimación; después usa lo que tardó de verdad. Si la memoria no alcanza, lo avisa y ofrece la alternativa (por ejemplo, «Usar la calidad normal (MODNet)»).
 - **Medido en una RTX 3050 de 4 GB y 16 hilos** (12 s de voz, 3 s de video): subtítulos en 4,5 s con la GPU y 12,5 s sin ella (3 min de voz: 17,7 s con dos tramos a la vez en la GPU, frente a 29,6 con uno; en la CPU, 111 s frente a 167, con el mismo acierto); traducir tres subtítulos en 10 s (24 de 36 capas en la GPU) y 32 s en la CPU; quitar el fondo de 90 cuadros en 9,5 s (GPU) o 19 s (CPU). Con solo 2 GB de VRAM todo termina, pero la calidad alta va por la CPU: 15 cuadros en casi 4 minutos.
-- **Ver › Calidad de la IA:** «Automática (según el equipo)», «Rápida» (modelos menores y menos resolución) o «Máxima» (lo mejor que quepa, aunque tarde más).
+- **Herramientas › Calidad de la IA:** «Automática (según el equipo)», «Rápida» (modelos menores y menos resolución) o «Máxima» (lo mejor que quepa, aunque tarde más).
 - Sin GPU, o si la GPU falla a mitad, cada módulo pasa a la CPU solo: tarda más, pero termina.
 - La memoria de video se reparte: la vista previa se queda con 3/8 de la VRAM (como mucho 3 GB) y el resto es para la IA. Con hasta 8 GB corre un modelo pesado (más de 1 GB) a la vez; con 12 GB, dos; con 24, tres. Los demás esperan con «Esperando memoria de video» en Trabajos. En equipos con pocos hilos o 8 GB de RAM, los trabajos por CPU van de a uno («Esperando la CPU»).
 - Mientras corre un módulo en la GPU, la vista previa pasa a proxies.
@@ -36,11 +36,11 @@ Rodaje mira la GPU (VRAM propia y compartida, si es integrada), la RAM libre y l
 
 ## Dónde están
 
-- **Menú Herramientas (nivel superior):** Todo el conjunto de funciones de inteligencia artificial y automatización se encuentra centralizado: *Subtítulos automáticos...*, *Traducir pista...*, *Texto a voz...*, *Reducir ruido...*, *Bajar música bajo la voz...*, *Quitar silencios...*, *Detectar ritmo...*, *Quitar fondo...*, *Reencuadre automático...*, *Estabilizar...* y *Color automático*.
+- **Menú Herramientas:** Todo el conjunto de funciones de inteligencia artificial y automatización se encuentra organizado en submenús (*Audio*, *Imagen*, *Texto y voz* y *Calidad de la IA*): *Subtítulos automáticos...*, *Traducir pista...*, *Texto a voz...*, *Reducir ruido...*, *Bajar música bajo la voz...*, *Quitar silencios...*, *Detectar ritmo...*, *Quitar fondo...*, *Reencuadre automático...*, *Estabilizar...* y *Color automático*.
 - **Barra Herramientas rápida**, encima de la línea de tiempo: Botones de acceso directo con icono y estado (habilitado/atenuado según selección). Al ejecutarse, muestra el spinner animado de progreso (`LongActions`).
 - **Menú contextual del clip (clic derecho):** Acceso inmediato a las funciones aplicables al clip específico (por ejemplo, *Reducir ruido...* en clips de audio, o *Quitar fondo...* en video).
 - **Categoría Módulos de IA en la Biblioteca (riel izquierdo):** Muestra el estado de cada módulo, si está descargado, y permite administrarlos directamente.
-- **Preferencias (`Ctrl+,`):** En la pestaña *Rendimiento e IA* puedes ajustar los límites de memoria VRAM asignada a los modelos, concurrencia de procesamiento y calidad por omisión (*Automática*, *Rápida* o *Máxima*).
+- **Preferencias (`Ctrl+,`):** En la pestaña *Rendimiento* puedes configurar proxies y calidad de la vista previa, mientras que la calidad de procesamiento de los modelos se gestiona desde **Herramientas › Calidad de la IA** (*Automática*, *Rápida* o *Máxima*).
 
 Si falta el módulo, el botón lo dice: «Hace falta el módulo «Audio con IA». Instálalo desde Complementos.»
 
