@@ -21,6 +21,7 @@ namespace Rodaje.App.Views.Translate;
 internal static class TranslateDialog
 {
     public const string ActionId = "tools.translateTrack";
+    internal const string ClosingNotice = "Cerrar cancela la traducción.";
 
     private static string _lastTarget = "en";
 
@@ -118,7 +119,7 @@ internal static class TranslateDialog
                 TranslationLanguage to = Chosen(target, targets)!;
                 string? from = Chosen(source, sources) is { Code: not "auto" } s ? s.Code : null;
                 IReadOnlyList<SubtitleText> texts = session.Sequence.FindTrack(chosenTrack.TrackId) is { } t ? SubtitleTrackTranslation.Collect(t) : [];
-                status.Text = Fmt($"Traduciendo {texts.Count} textos al {to.Name.ToLower(CultureInfo.CurrentCulture)}… (sigue en Trabajos si cierras)");
+                status.Text = Fmt($"Traduciendo {texts.Count} textos al {to.Name.ToLower(CultureInfo.CurrentCulture)}… ({ClosingNotice})");
                 TrackTranslation result = await translator.TranslateAsync(texts, from, to.Code, "Traducir subtítulos", work.Token);
                 done = (chosenTrack.TrackId, to, result);
             }
