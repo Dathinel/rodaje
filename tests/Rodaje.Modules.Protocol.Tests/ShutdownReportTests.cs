@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using Rodaje.Modules.Protocol;
 
 namespace Rodaje.Modules.Protocol.Tests;
@@ -114,6 +115,29 @@ public sealed class ShutdownReportTests
         string line = Assert.Single(await CloseEchoAsync("""{"colgar":true}""", expectedExit: null));
         Assert.Contains("rodaje-eco", line, StringComparison.Ordinal);
         Assert.Contains("se mató", line, StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Tarea 364: si tras matarlo la salida no se veía en <see cref="ModuleProcess.ExitWait"/> (con el runner de Windows
+    /// cargado), <see cref="ModuleProcess.DisposeAsync"/> desechaba el proceso, que deja de vigilar su salida, y
+    /// <see cref="ModuleProcess.Exited"/> no terminaba nunca. Aquí la muerte del cierre no mata: el proceso muere después.
+    /// </summary>
+    [Fact]
+    public async Task Exited_completes_when_the_module_dies_after_the_close()
+    {
+        ConcurrentQueue<string> lines = new();
+        ModuleProcess module = await ModuleProcess.StartAsync(Support.EchoExe).WaitAsync(Long);
+        using Process process = Process.GetProcessById(module.ProcessId);
+        module.Report = lines.Enqueue;
+        module.CloseKill = () => Task.CompletedTask;
+        await module.Client.InvokeAsync("al-cerrar", Support.Json("""{"colgar":true}""")).WaitAsync(Long);
+        await module.DisposeAsync().AsTask().WaitAsync(Long);
+        Assert.False(module.Exited.IsCompleted);
+
+        process.Kill(entireProcessTree: true);
+
+        await module.Exited.WaitAsync(Support.CiBound);
+        Assert.Contains("no se lo vio salir", Assert.Single(lines), StringComparison.Ordinal);
     }
 
     private static async Task<string[]> CloseEchoAsync(string onClose, int? expectedExit)
