@@ -4,7 +4,7 @@ Los títulos son clips de texto que se dibujan sobre el visor y se editan en la 
 
 ## Añadir un título
 
-- **T** (o **Añadir texto** en Herramientas, o Editar › Añadir texto): pone un título de 5 s en el cursor, en la pista de video libre más alta (sin contar la principal, las bloqueadas ni las de subtítulos) o en una nueva «Texto», lo selecciona y abre la pestaña Texto.
+- **T** (o **Secuencia › Añadir texto**, o el botón Añadir texto en la barra de herramientas): pone un título de 5 s en el cursor, en la pista de video libre más alta (sin contar la principal, las bloqueadas ni las de subtítulos) o en una nueva «Texto», lo selecciona y abre la pestaña Texto.
 - Desde la biblioteca, categoría **Texto**: doble clic en un estilo cambia el estilo del título seleccionado o, si no hay, crea uno en el cursor; arrastrarlo a la línea de tiempo lo pone donde caiga.
 - El clip del título se mueve, corta y recorta como cualquier otro; no tiene tope de duración.
 
@@ -27,13 +27,13 @@ Los títulos son clips de texto que se dibujan sobre el visor y se editan en la 
 
 ## Subtítulos automáticos
 
-Necesita el módulo «Subtítulos automáticos» ([IA local](ia-local.md)). Selecciona el clip con voz y pulsa **Subtítulos automáticos** (Herramientas o menú del clip):
+Necesita el módulo «Subtítulos automáticos» ([IA local](ia-local.md)). Selecciona el clip con voz y pulsa **Subtítulos automáticos** (**Herramientas › Texto y voz › Subtítulos automáticos…** o en el menú contextual del clip):
 
 1. «Idioma de la voz»: Detectar el idioma, Español, Inglés o Portugués.
 2. Transcribe (en la GPU o en la CPU) y lista los subtítulos con sus tiempos; un clic lleva el cursor a cada uno. «Transcribir de nuevo» repite.
 3. **Aplicar** crea los clips en la pista de subtítulos más alta que esté libre o en una nueva «Subtítulos», con el estilo «Subtítulo» (blanco sobre fondo semitransparente), partidos a 42 caracteres por línea, dos líneas, de 1 a 7 s y cortando en pausas de 0,7 s. Aviso: «Se pusieron N subtítulos.» Ctrl+Z lo deshace todo.
 
-Para crear la pista antes: Editar › **Añadir pista de subtítulos**, o clic derecho en la cabecera de una pista de video › «Usar para subtítulos».
+Para crear la pista antes: **Secuencia › Añadir pista de subtítulos**, o clic derecho en la cabecera de una pista de video › «Usar para subtítulos».
 
 ## Por palabra
 
@@ -49,11 +49,11 @@ En la misma sección, **Resaltar la palabra que suena** pinta cada palabra en el
 
 ## Traducir
 
-Clic derecho en un subtítulo o Editar › **Traducir pista…** (módulo «Traducir subtítulos»): elige la pista, el idioma del original (o Detectar) y el destino entre 20 idiomas. Crea una pista nueva encima, «<pista> (<idioma>)», con los mismos tiempos; la original no cambia. Lo que no se pudo traducir conserva el original y se avisa.
+Clic derecho en un subtítulo o **Herramientas › Texto y voz › Traducir pista…** (módulo «Traducir subtítulos»): elige la pista, el idioma del original (o Detectar) y el destino entre 20 idiomas. El diálogo informa claramente de que cerrarlo cancela el trabajo de traducción en segundo plano. Crea una pista nueva encima, «<pista> (<idioma>)», con los mismos tiempos; la original no cambia. Lo que no se pudo traducir conserva el original y se avisa.
 
 ## Texto a voz
 
-**Texto a voz** (Herramientas, Editar o menú del clip) lee un texto con una de 34 voces en español, portugués o inglés y lo pone en una pista de audio; con un subtítulo seleccionado, «Usar el texto del clip seleccionado» lo toma. Detalle en [IA local](ia-local.md).
+**Texto a voz** (**Herramientas › Texto y voz › Texto a voz…**, barra de herramientas o menú del clip) lee un texto con una de 34 voces en español, portugués o inglés y lo pone en una pista de audio; con un subtítulo seleccionado, «Usar el texto del clip seleccionado» lo toma. Detalle en [IA local](ia-local.md).
 
 ## Estilos y fuentes de paquetes
 
