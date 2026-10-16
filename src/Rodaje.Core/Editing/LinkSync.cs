@@ -271,7 +271,8 @@ public static class LinkSync
         }
 
         EditContext.EnsureUnlocked(track);
-        if (clip.Speed is not null)
+        // A 1× sin curva ni reversa (aunque guarde un Offset) se mide como sin velocidad: también se puede sincronizar.
+        if (clip.Speed is { IsIdentity: false })
         {
             throw new EditException("Volver a sincronizar solo funciona con clips a velocidad normal: mueve el clip a mano.");
         }
