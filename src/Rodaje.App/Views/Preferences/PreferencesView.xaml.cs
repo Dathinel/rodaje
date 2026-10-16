@@ -30,7 +30,16 @@ internal sealed partial class PreferencesView : UserControl
         _model = new PreferencesViewModel(settings);
         VideoTracksBox.Value = _model.VideoTracks;
         AudioTracksBox.Value = _model.AudioTracks;
-        LinkedAudioBox.IsChecked = settings.LinkedAudioTracks.IsAll;
+        LinkedAudioTracksPanel.Children.Clear();
+        foreach (int number in Enumerable.Range(1, NewProjectTracks.Max))
+        {
+            LinkedAudioTracksPanel.Children.Add(new CheckBox
+            {
+                Content = $"Video {number}",
+                Tag = number,
+                IsChecked = _model.LinkedAudioVideoTracks.Contains(number),
+            });
+        }
         AutoProxiesBox.IsChecked = _model.GenerateProxies;
         GeneratedFolderBox.Text = _model.GeneratedMediaFolder;
         ProxyUsageBox.SelectedIndex = (int)_model.ProxyUsage;
@@ -48,7 +57,9 @@ internal sealed partial class PreferencesView : UserControl
         model.ProxyUsage = (ProxyUsage)Math.Max(0, ProxyUsageBox.SelectedIndex);
         model.PreviewQuality = (PreviewQuality)Math.Max(0, PreviewQualityBox.SelectedIndex);
         model.ShortcutPreset = (ShortcutPreset)Math.Max(0, ShortcutPresetBox.SelectedIndex);
-        model.Settings.LinkedAudioVideoTracks = LinkedAudioBox.IsChecked == true ? null : [];
+        model.SetLinkedAudioVideoTracks(LinkedAudioTracksPanel.Children.OfType<CheckBox>()
+            .Where(checkBox => checkBox.IsChecked == true)
+            .Select(checkBox => (int)checkBox.Tag));
         model.Settings.Normalize();
     }
 }

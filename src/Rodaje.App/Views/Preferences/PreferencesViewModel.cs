@@ -14,7 +14,18 @@ public sealed class PreferencesViewModel(AppSettings settings)
     public int AudioTracks { get => Settings.DefaultAudioTracks; set => Settings.DefaultAudioTracks = Math.Clamp(value, NewProjectTracks.Min, NewProjectTracks.Max); }
     public bool GenerateProxies { get => Settings.AutoProxies; set => Settings.AutoProxies = value; }
     public string GeneratedMediaFolder { get => Settings.GeneratedMediaFolder ?? ""; set => Settings.GeneratedMediaFolder = string.IsNullOrWhiteSpace(value) ? null : value; }
+    public IReadOnlyList<int> LinkedAudioVideoTracks => Settings.LinkedAudioTracks.IsAll
+        ? Enumerable.Range(1, NewProjectTracks.Max).ToArray()
+        : Settings.LinkedAudioTracks.ToSetting() ?? [];
     public ProxyUsage ProxyUsage { get => Settings.ProxyUsage; set => Settings.ProxyUsage = value; }
     public PreviewQuality PreviewQuality { get => Settings.PreviewQuality; set => Settings.PreviewQuality = value; }
     public ShortcutPreset ShortcutPreset { get => Settings.ShortcutPreset; set => Settings.ShortcutPreset = value; }
+
+    public void SetLinkedAudioVideoTracks(IEnumerable<int> videoTracks)
+    {
+        ArgumentNullException.ThrowIfNull(videoTracks);
+        int[] selected = [.. videoTracks.Where(track => track is >= 1 and <= NewProjectTracks.Max).Distinct().Order()];
+        Settings.LinkedAudioVideoTracks = selected.Length == NewProjectTracks.Max ? null : selected.ToList();
+        Settings.Normalize();
+    }
 }
