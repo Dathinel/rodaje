@@ -93,11 +93,18 @@
                 </MenuFlyoutSubItem>
             </MenuBarItem>
             <MenuBarItem Title="Ver">
-                <MenuFlyoutItem Text="Propiedades" Tag="inspector:Properties" Click="OnInspectorClick" />
-                <MenuFlyoutItem Text="Texto" Tag="inspector:Text" Click="OnInspectorClick" />
-                <MenuFlyoutItem Text="Filtros" Tag="inspector:Filters" Click="OnInspectorClick" />
-                <MenuFlyoutItem Text="Historial" Tag="inspector:History" Click="OnInspectorClick" />
-                <MenuFlyoutItem Text="Trabajos" Tag="inspector:Jobs" Click="OnInspectorClick" />
+                <MenuFlyoutSubItem Text="Paneles">
+                    <MenuFlyoutItem Text="Propiedades" Tag="inspector:Properties" Click="OnInspectorClick" />
+                    <MenuFlyoutItem Text="Texto" Tag="inspector:Text" Click="OnInspectorClick" />
+                    <MenuFlyoutItem Text="Velocidad" Tag="inspector:Speed" Click="OnInspectorClick" />
+                    <MenuFlyoutItem Text="Filtros" Tag="inspector:Filters" Click="OnInspectorClick" />
+                    <MenuFlyoutItem Text="Máscaras" Tag="inspector:Masks" Click="OnInspectorClick" />
+                    <MenuFlyoutItem Text="Seguimiento" Tag="inspector:Tracking" Click="OnInspectorClick" />
+                    <MenuFlyoutItem Text="Dinámica" Tag="inspector:Dynamics" Click="OnInspectorClick" />
+                    <MenuFlyoutItem Text="Transición" Tag="inspector:Transition" Click="OnInspectorClick" />
+                    <MenuFlyoutItem Text="Historial" Tag="inspector:History" Click="OnInspectorClick" />
+                    <MenuFlyoutItem Text="Trabajos" Tag="inspector:Jobs" Click="OnInspectorClick" />
+                </MenuFlyoutSubItem>
                 <MenuFlyoutSeparator />
                 <MenuFlyoutSubItem x:Name="WorkspaceMenu" Text="Espacio de trabajo" />
                 <MenuFlyoutItem Text="Mezclador" Tag="view.mixer" Click="OnActionClick" />
