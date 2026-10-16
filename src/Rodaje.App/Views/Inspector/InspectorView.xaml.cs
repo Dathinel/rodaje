@@ -52,6 +52,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         services.Session.TrackPanelRequested += (_, _) => Show(Tab.Tracking);
         DynamicsPanel.Attach(services);
         services.Session.DynamicsPanelRequested += (_, _) => Show(Tab.Dynamics);
+        services.Session.PropertiesPanelRequested += (_, _) => Show(Tab.Properties);
         ApplyTabs(services.Settings.Current.HiddenInspectorTabs, null);
     }
 

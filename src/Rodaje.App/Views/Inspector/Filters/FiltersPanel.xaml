@@ -29,6 +29,10 @@
                        Text="En los títulos solo se aplican desenfoque y nitidez: color, LUT y viñeta no los cambian en esta versión." />
             <inspector:InspectorSection x:Name="StackSection" Key="filtros-pila" Title="Filtros del clip">
                 <StackPanel>
+                    <Button x:Name="TransformHeaderButton" HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Margin="8,4"
+                            Content="Transformar    Editar en Clip  ›" Click="OnEditTransformClick" Visibility="Collapsed"
+                            AutomationProperties.Name="Editar transformación en Clip"
+                            ToolTipService.ToolTip="La transformación se edita en la pestaña Clip, sección «Transformar»." />
                     <Grid x:Name="AddRow" Padding="12,4,8,8" ColumnSpacing="4">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
