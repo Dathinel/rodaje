@@ -87,6 +87,37 @@ jobs:
 
       - uses: ./.github/actions/preparar-windows
 
+      # Los medios largos de la aceptación (16 y 10 minutos de 720p) se codifican aquí, solos en el runner y fuera de
+      # --blame-hang, y se guardan entre corridas: dentro de la solución, la primera prueba de deriva pagaba la
+      # codificación con todas las asambleas compitiendo por la CPU y pasaba los 15 minutos (tarea 290). La clave
+      # cambia con el generador; el nombre de cada archivo ya lleva el codificador y los parámetros.
+      - name: Restaurar los medios de aceptación
+        id: medios
+        uses: actions/cache/restore@v4
+        with:
+          path: TestResults/media-cache
+          key: medios-aceptacion-${{ runner.os }}-${{ hashFiles('tests/Rodaje.TestMedia/**/*.cs', 'build/preparar-entorno.ps1') }}
+
+      - name: Medios de aceptación
+        if: steps.medios.outputs.cache-hit != 'true'
+        shell: pwsh
+        timeout-minutes: 30
+        env:
+          VSTEST_CONNECTION_TIMEOUT: '300'
+        run: |
+          & .entorno\dotnet\dotnet.exe test tests\Rodaje.Acceptance.Tests\Rodaje.Acceptance.Tests.csproj --no-build `
+            --filter 'FullyQualifiedName~Rodaje.Acceptance.Tests.AcceptanceMediaTests' `
+            --logger 'console;verbosity=normal' --logger 'trx;LogFileName=MediosAceptacion.trx' --results-directory TestResults
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # Se guarda en cuanto están, sin esperar al resto: actions/cache solo guarda al final si el trabajo pasa entero.
+      - name: Guardar los medios de aceptación
+        if: steps.medios.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: TestResults/media-cache
+          key: ${{ steps.medios.outputs.cache-primary-key }}
+
       # Sin filtro: entran TiempoReal y Rendimiento. VSTEST_CONNECTION_TIMEOUT y --blame-hang, igual que en ci.yml.
       - name: Pruebas
         shell: pwsh
