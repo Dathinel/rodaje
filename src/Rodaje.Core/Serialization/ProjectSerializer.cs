@@ -145,7 +145,19 @@ public static class ProjectSerializer
                 problems);
         }
 
-        return project!;
+        // El color del clip se guarda en mayúsculas, como lo deja la edición, aunque el archivo lo traiga en minúsculas.
+        foreach (Sequence sequence in project!.Sequences)
+        {
+            foreach (Track track in sequence.VideoTracks.Concat(sequence.AudioTracks))
+            {
+                foreach (Clip clip in track.Clips)
+                {
+                    clip.Color = clip.Color?.ToUpperInvariant();
+                }
+            }
+        }
+
+        return project;
     }
 
     /// <summary>
