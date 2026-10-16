@@ -61,6 +61,13 @@
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Añadir texto" Tag="clip.addText" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Añadir pista de subtítulos" Tag="timeline.subtitleTrack" Click="OnActionClick" />
+                <MenuFlyoutSubItem Text="Edición de tres puntos">
+                    <MenuFlyoutItem Text="Insertar desde el origen…" Tag="edit.insertSource" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Sobrescribir desde el origen…" Tag="edit.overwriteSource" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Reemplazar desde el origen…" Tag="edit.replaceSource" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Ajustar a rellenar desde el origen…" Tag="edit.fitToFillSource" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Superponer desde el origen…" Tag="edit.superimposeSource" Click="OnActionClick" />
+                </MenuFlyoutSubItem>
                 <MenuFlyoutSubItem Text="Marcadores y regiones">
                     <MenuFlyoutItem Text="Panel de marcadores" Click="OnMarkersClick" />
                 </MenuFlyoutSubItem>

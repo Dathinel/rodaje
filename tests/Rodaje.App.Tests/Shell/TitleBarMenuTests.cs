@@ -6,6 +6,33 @@ namespace Rodaje.App.Tests.Shell;
 public sealed class TitleBarMenuTests
 {
     [Fact]
+    public void SequenceMenuEntriesInvokeTheirRegisteredActions()
+    {
+        string root = RepositoryRoot();
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XElement menu = XDocument.Load(Path.Combine(root, "src", "Rodaje.App", "Shell", "TitleBar.xaml"))
+            .Descendants(xaml + "MenuBar").Single();
+        (string Label, string Id)[] actions =
+        [
+            ("Insertar desde el origen…", "edit.insertSource"),
+            ("Sobrescribir desde el origen…", "edit.overwriteSource"),
+            ("Reemplazar desde el origen…", "edit.replaceSource"),
+            ("Ajustar a rellenar desde el origen…", "edit.fitToFillSource"),
+            ("Superponer desde el origen…", "edit.superimposeSource"),
+        ];
+
+        foreach ((string label, string id) in actions)
+        {
+            XElement entry = menu.Descendants(xaml + "MenuFlyoutItem")
+                .Single(item => (string?)item.Attribute("Tag") == id);
+            Assert.Equal(label, (string?)entry.Attribute("Text"));
+            Assert.Equal("OnActionClick", (string?)entry.Attribute("Click"));
+            Assert.Equal("Edición de tres puntos", entry.Ancestors(xaml + "MenuFlyoutSubItem").First().Attribute("Text")?.Value);
+            Assert.EndsWith("…", label, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void IntelligentToolsAreGroupedUnderToolsAndAwayFromEdit()
     {
         string root = RepositoryRoot();
