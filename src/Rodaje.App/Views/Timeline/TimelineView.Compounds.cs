@@ -1,8 +1,10 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
+using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Timeline;
@@ -100,8 +102,55 @@ internal sealed partial class TimelineView
         }
 
         RefreshSourcePanel();
-        ContextBar.Visibility = BreadcrumbPanel.Visibility == Visibility.Visible || SourcePanel.Visibility == Visibility.Visible
+        RefreshMulticamPanel();
+        ContextBar.Visibility = BreadcrumbPanel.Visibility == Visibility.Visible || SourcePanel.Visibility == Visibility.Visible || MulticamPanel.Visibility == Visibility.Visible
             ? Visibility.Visible
             : Visibility.Collapsed;
     }
-}
+
+    private void RefreshMulticamPanel()
+    {
+        if (Session is not { } session || session.MainTrack?.ClipAt(session.EditPosition) is not { } clip
+            || session.Multicams.FirstOrDefault(g => MulticamEdits.IndexOf(g, clip.MediaId) >= 0) is not { } group)
+        {
+            _multicamKey = null;
+            _multicamButtons.Clear();
+            MulticamPanel.Children.Clear();
+            MulticamPanel.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        string key = string.Join("|", group.Select(a => a.MediaId));
+        if (_multicamKey != key)
+        {
+            _multicamKey = key;
+            _multicamButtons.Clear();
+            MulticamPanel.Children.Clear();
+            MulticamPanel.Children.Add(new TextBlock { Text = "Multicámara", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 6, 0) });
+            for (int i = 0; i < group.Count; i++)
+            {
+                int angle = i;
+                string name = session.Project.FindMedia(group[i].MediaId)?.Name ?? $"Cámara {i + 1}";
+                var button = new ToggleButton
+                {
+                    Content = $"{i + 1} {name}",
+                    Style = (Style)Application.Current.Resources["ToolToggleButtonStyle"],
+                    MinWidth = 0,
+                    Padding = new Thickness(8, 0, 8, 0),
+                    Tag = i,
+                };
+                button.Click += (_, _) => SwitchAngle(angle);
+                _multicamButtons.Add(button);
+                MulticamPanel.Children.Add(button);
+            }
+        }
+
+        int active = MulticamEdits.IndexOf(group, clip.MediaId);
+        for (int i = 0; i < _multicamButtons.Count; i++)
+        {
+            _multicamButtons[i].IsChecked = i == active;
+            Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(_multicamButtons[i], $"Ángulo {i + 1}: {session.Project.FindMedia(group[i].MediaId)?.Name}; {(i == active ? "activo" : "inactivo")}");
+        }
+
+        MulticamPanel.Visibility = Visibility.Visible;
+    }}

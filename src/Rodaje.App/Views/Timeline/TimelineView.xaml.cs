@@ -50,6 +50,8 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     private double? _zoomAnchor;
     private Microsoft.UI.Dispatching.DispatcherQueueTimer? _zoomSettle;
     private bool _zoomAnimating;
+    private string? _multicamKey;
+    private readonly List<ToggleButton> _multicamButtons = [];
     private long _zoomAnimationStart;
     private ViewFrame _zoomFrom;
     private ViewFrame _zoomTo;
@@ -333,6 +335,10 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         }
 
         _renderer.RenderPlayhead(position);
+        RefreshMulticamPanel();
+        ContextBar.Visibility = BreadcrumbPanel.Visibility == Visibility.Visible || SourcePanel.Visibility == Visibility.Visible || MulticamPanel.Visibility == Visibility.Visible
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private void OnStateChanged(object? sender, PropertyChangedEventArgs e)
