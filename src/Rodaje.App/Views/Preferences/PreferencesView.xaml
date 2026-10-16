@@ -10,7 +10,8 @@
                     <NumberBox x:Name="VideoTracksBox" Header="Pistas de video" Minimum="1" Maximum="8" SpinButtonPlacementMode="Inline" />
                     <NumberBox x:Name="AudioTracksBox" Grid.Column="1" Header="Pistas de audio" Minimum="1" Maximum="8" SpinButtonPlacementMode="Inline" />
                 </Grid>
-                <CheckBox x:Name="LinkedAudioBox" Content="Separar el audio al importar clips de video" />
+                <TextBlock Text="Separar el audio de estas pistas de video al importar" FontWeight="SemiBold" />
+                <StackPanel x:Name="LinkedAudioTracksPanel" Spacing="4" />
                 <TextBlock Text="Carpeta de medios generados" FontWeight="SemiBold" />
                 <TextBox x:Name="GeneratedFolderBox" PlaceholderText="Junto al proyecto" />
             </StackPanel></ScrollViewer>

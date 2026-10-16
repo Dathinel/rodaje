@@ -39,4 +39,20 @@ public sealed class PreferencesViewModelTests
         Assert.Equal(NewProjectTracks.Max, model.VideoTracks);
         Assert.Equal(NewProjectTracks.Min, model.AudioTracks);
     }
+
+    [Fact]
+    public void Linked_audio_selection_preserves_each_video_track()
+    {
+        var settings = new AppSettings { LinkedAudioVideoTracks = [1, 3, 7] };
+        var model = new PreferencesViewModel(settings);
+
+        Assert.Equal([1, 3, 7], model.LinkedAudioVideoTracks);
+        model.SetLinkedAudioVideoTracks([2, 5]);
+        Assert.Equal([2, 5], settings.LinkedAudioVideoTracks);
+        Assert.Equal([2, 5], model.LinkedAudioVideoTracks);
+
+        model.SetLinkedAudioVideoTracks(Enumerable.Range(1, NewProjectTracks.Max));
+        Assert.Null(settings.LinkedAudioVideoTracks);
+        Assert.Equal(Enumerable.Range(1, NewProjectTracks.Max), model.LinkedAudioVideoTracks);
+    }
 }
