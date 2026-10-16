@@ -8,6 +8,7 @@ namespace Rodaje.App.Views.Inspector;
 internal sealed partial class InspectorView
 {
     private bool _tabsHooked;
+    private IReadOnlyCollection<string> _hiddenTabs = [];
 
     /// <summary>Nombre visible de la pestaña elegida («Propiedades», «Filtros»…).</summary>
     public string? CurrentTabName => TabButtons().FirstOrDefault(t => t.IsChecked == true) is { } tab ? AutomationProperties.GetName(tab) : null;
@@ -16,6 +17,7 @@ internal sealed partial class InspectorView
     public void ApplyTabs(IReadOnlyCollection<string> hidden, string? active)
     {
         ArgumentNullException.ThrowIfNull(hidden);
+        _hiddenTabs = hidden;
         RadioButton[] tabs = TabButtons();
         if (!_tabsHooked)
         {
@@ -46,6 +48,8 @@ internal sealed partial class InspectorView
         {
             tab.Visibility = Visibility.Collapsed;
         }
+
+        UpdateTabVisibility();
     }
 
     private RadioButton[] TabButtons() => [.. TabStrip.Children.OfType<RadioButton>()];
