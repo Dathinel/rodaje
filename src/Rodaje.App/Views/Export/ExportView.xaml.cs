@@ -246,17 +246,6 @@ internal sealed partial class ExportView : UserControl
         Fill(RangeBox, model.Ranges.Select(r => r.Label), model.RangeIndex);
         SummaryText.Text = Summary(model);
 
-        ShapePanel.Visibility = model.ShapeDiffers ? Visibility.Visible : Visibility.Collapsed;
-        if (model.ShapeDiffers && model.Settings.Video is { } video)
-        {
-            (int w, int h) = model.OutputSize;
-            ShapeText.Text = $"El proyecto es {ExportGeometry.AspectName(model.SequenceWidth, model.SequenceHeight)} ({model.SequenceWidth}×{model.SequenceHeight}) "
-                + $"y elegiste una salida {ExportGeometry.AspectName(w, h)} ({w}×{h}). ¿Cómo encaja la imagen?";
-            FitBars.IsChecked = video.Fit == ExportFit.Bars;
-            FitCrop.IsChecked = video.Fit == ExportFit.Crop;
-            FitStretch.IsChecked = video.Fit == ExportFit.Stretch;
-        }
-
         string? presetNote = model.PresetShapeNote;
         PresetShapeText.Text = presetNote ?? "";
         PresetShapePanel.Visibility = presetNote is null ? Visibility.Collapsed : Visibility.Visible;
@@ -282,6 +271,7 @@ internal sealed partial class ExportView : UserControl
         VideoSwitch.IsOn = s.Video is not null;
         VideoSwitch.IsEnabled = _videoCodecs.Count > 0 && s.Container.AllowsAudio();
         VideoGrid.Visibility = s.Video is null ? Visibility.Collapsed : Visibility.Visible;
+        FitBox.IsEnabled = false;
         if (s.Video is not { } video || model.VideoEncoder is not { } encoder)
         {
             return;
@@ -307,6 +297,7 @@ internal sealed partial class ExportView : UserControl
 
         Fill(SizeBox, _sizes.Select(z => z.Label), sizeIndex);
         Fill(FitBox, FitChoices.Select(f => f.Label), Array.FindIndex(FitChoices, f => f.Value == video.Fit));
+        FitBox.IsEnabled = model.ShapeDiffers;
         Fill(FrameRateBox, ExportGeometry.FrameRates.Select(f => f.Rate is null ? $"Como la secuencia ({ExportText.Number(model.FrameRate.ToDouble(), 3)})" : f.Label),
             IndexOf(ExportGeometry.FrameRates, f => f.Rate == video.FrameRate));
 
@@ -535,20 +526,19 @@ internal sealed partial class ExportView : UserControl
         }
     }
 
-    private void OnFitChecked(object sender, RoutedEventArgs e)
-    {
-        if (!_refreshing && sender is RadioButton { Tag: string tag } && Enum.TryParse(tag, out ExportFit fit))
-        {
-            UpdateVideo(v => v with { Fit = fit });
-        }
-    }
-
-    /// <summary>
-    /// El formato se cambia en la edición, no aquí: cierra Exportar y abre «Formato del proyecto» del reproductor. Al volver
-    /// a Exportar, la salida sigue al formato nuevo.
-    /// </summary>
+    /// <summary>Guarda el borrador actual antes de abrir el formato del proyecto para poder retomarlo al volver.</summary>
     private void OnChangeProjectFormatClick(object sender, RoutedEventArgs e)
     {
+        _model?.RememberDraft();
+        try
+        {
+            _services.Settings.SaveIfChanged();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            _services.Session.Notify(NotificationSeverity.Warning, "Preferencias de exportación", "No se pudo guardar el borrador de exportación: " + ex.Message);
+        }
+
         CloseRequested?.Invoke(this, EventArgs.Empty);
         DispatcherQueue.RunLater(() => _services.Shortcuts.Invoke(Views.Player.PlayerActionIds.ProjectFormat));
     }
