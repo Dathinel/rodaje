@@ -36,7 +36,7 @@
                                 ToolTipService.ToolTip="Calidad de la vista previa. Auto baja la resolución al reproducir si la GPU no llega y vuelve a completa en pausa; la exportación usa siempre la completa.">
                     <DropDownButton.Flyout>
                         <MenuFlyout Placement="BottomEdgeAlignedRight">
-                            <RadioMenuFlyoutItem x:Name="QualityAutoItem" Text="Automática" GroupName="PlayerQuality" Tag="Auto" Click="OnQualityClick" />
+                            <RadioMenuFlyoutItem x:Name="QualityAutoItem" Text="Auto" GroupName="PlayerQuality" Tag="Auto" Click="OnQualityClick" />
                             <RadioMenuFlyoutItem x:Name="QualityFullItem" Text="Completa" GroupName="PlayerQuality" Tag="Full" Click="OnQualityClick" />
                             <RadioMenuFlyoutItem x:Name="QualityHalfItem" Text="Mitad" GroupName="PlayerQuality" Tag="Half" Click="OnQualityClick" />
                             <RadioMenuFlyoutItem x:Name="QualityQuarterItem" Text="Cuarto" GroupName="PlayerQuality" Tag="Quarter" Click="OnQualityClick" />
