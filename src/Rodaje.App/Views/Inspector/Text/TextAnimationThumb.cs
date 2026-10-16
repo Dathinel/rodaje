@@ -125,7 +125,9 @@ internal sealed partial class TextAnimationThumb : Grid
 
         double cycle = animator.Duration + (2 * Hold);
         _time = (_time + seconds) % cycle;
-        double progress = Math.Clamp((_time - Hold) / animator.Duration, 0, 1);
+        double progress = animator.Duration <= 0 || _time < Hold
+            ? 1
+            : Math.Clamp((_time - Hold) / animator.Duration, 0, 1);
         for (int i = 0; i < _letters.Count; i++)
         {
             UnitPose pose = animator.Evaluate(progress, _delays.Length > 0 ? _delays[_groups[i]] : 0);
