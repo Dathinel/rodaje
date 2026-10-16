@@ -209,7 +209,8 @@ internal static class VisionDialogs
         panel.Children.Add(formatWarning);
         void UpdateFormatWarning()
         {
-            (int ratioWidth, int ratioHeight) = ReframeAspects[Math.Max(0, aspect.SelectedIndex)];
+            (int ratioWidth, int ratioHeight) = (ReframeAspects[Math.Max(0, aspect.SelectedIndex)].Width,
+                ReframeAspects[Math.Max(0, aspect.SelectedIndex)].Height);
             Sequence sequence = session.Sequence;
             if (ratioWidth * sequence.Height == ratioHeight * sequence.Width)
             {
