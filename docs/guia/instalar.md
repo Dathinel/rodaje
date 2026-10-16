@@ -56,6 +56,7 @@ Todo lo que no es tu proyecto vive en `%LOCALAPPDATA%\Rodaje` (escribe esa ruta 
 | `cache\` | Miniaturas, formas de onda y shaders compilados; se puede borrar |
 | `medios-generados\` | Audio sin ruido, voces, voz en off, revelados RAW y máscaras que crea la app |
 | `complementos\` | Paquetes, módulos de IA, modelos y tus elementos propios |
+| `Informes\` | Minivolcados locales (`.dmp`) generados automáticamente ante fallos críticos |
 | `cola-exportaciones.json` | La cola de exportación, para reanudarla si cierras la app |
 
 Para llevar Rodaje en una memoria USB con sus ajustes, define la variable de entorno `RODAJE_DATOS` con otra carpeta.

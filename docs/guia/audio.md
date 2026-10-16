@@ -64,7 +64,6 @@ Rodaje mide con EBU R128, el estándar que usan las plataformas y la televisión
   - **Multibanda voz:** tres bandas; frena el retumbe y las eses sin apagar la voz.
 - **Ecualizador a mano:** Filtros › Añadir filtro › **Ecualizador** (corte de graves hasta 500 Hz; estantes de graves y agudos; campanas de medios y presencia con frecuencia y ancho Q; ±18 dB).
 
-## Bajar música bajo la voz (ducking)
 ## Compresor (pestaña Dinámica)
 
 Abre la pestaña **Dinámica** del inspector: muestra el compresor del clip de audio seleccionado; arriba eliges otro: cualquier **pista** o la **mezcla**. También se abre con clic derecho en la cabecera de una pista (**Compresor de la pista…**), en los medidores (**Compresor de la mezcla…**) o con **Abrir en Dinámica** en Filtros.
@@ -75,9 +74,10 @@ Abre la pestaña **Dinámica** del inspector: muestra el compresor del clip de a
 - **Detector y sidechain:** pico o RMS (con su ventana), estéreo enlazado o por canal, **pasa altos del detector** (los graves no disparan la compresión), **anticipación** de 0 a 10 ms (el compresor ve el golpe antes de que suene; Rodaje compensa el retraso, todo sigue sincronizado) y **Sidechain**: otra pista dispara la compresión. Para que la música baje cuando habla la voz: compresor en la pista de música, sidechain «Pista Voz», umbral −30 dB, relación 10:1; con anticipación, la música ya bajó cuando empieza la palabra.
 - **Multibanda:** tres bandas con dos cruces; cada una con su umbral (respecto del general) y su ganancia. Sin compresión suman plano.
 - **Limitador:** limitador de pico verdadero al final, con techo (−1 dBTP de fábrica).
+
 ## Ducking: bajar la música bajo la voz
 
-Selecciona el clip de **música** y pulsa **Bajar música bajo la voz** en Herramientas (Editar › Bajar música bajo la voz..., o el menú del clip). El diálogo «Bajar música bajo la voz»:
+Selecciona el clip de **música** y pulsa **Bajar música bajo la voz** en **Herramientas › Audio › Bajar música bajo la voz…** (o en la barra de herramientas rápidas, o en el menú contextual del clip). El diálogo «Bajar música bajo la voz»:
 
 - «Voz en «pista»»: la pista con la voz, entre las que suenan debajo de la música.
 - Analiza la voz (con el módulo «Audio con IA» usa Silero; sin él, la energía del audio) y muestra «N tramos de voz; la música baja 12 dB en cada uno» con una barra de los tramos.
@@ -87,7 +87,7 @@ Selecciona el clip de **música** y pulsa **Bajar música bajo la voz** en Herra
 
 ## Voz en off
 
-**Grabar voz** en Herramientas, el micrófono de la cabecera de una pista de audio o su menú («Grabar voz en off aquí…»):
+**Grabar voz** en **Herramientas › Texto y voz › Grabar voz en off…**, el botón de la barra rápida, el micrófono de la cabecera de una pista de audio o su menú contextual («Grabar voz en off aquí…»):
 
 1. Elige el **micrófono**, la **pista** (nueva «Voz en off» o una existente) y si se silencia esa pista mientras grabas. Usa auriculares para que el micrófono no recoja lo que suena.
 2. **Grabar**: cuenta atrás de 3 s y graba desde el cursor mientras suena el resto del proyecto. **Detener** o Esc termina.
@@ -99,15 +99,15 @@ Para una voz sintética, **Texto a voz** (ver [IA local](ia-local.md)).
 
 ## Quitar silencios
 
-Selecciona el clip con sonido y pulsa **Quitar silencios** (Herramientas, Editar o el menú del clip). Una barra roja marca lo que se corta y el estado dice «N tramos; el clip pasa de X s a Y s». Ajusta «Umbral bajo el nivel de la voz» (−60 a −10 dB; −35 de fábrica), «Silencio más corto que se quita» (0,1–3 s) y «Margen que se deja a cada lado» (0–500 ms). **Cerrar los huecos (ripple)** viene marcado si el ripple automático está activo. **Quitar** corta el clip y sus enlazados.
+Selecciona el clip con sonido y pulsa **Quitar silencios** (**Herramientas › Audio › Quitar silencios…**, la barra rápida o el menú contextual del clip). Una barra roja marca lo que se corta y el estado dice «N tramos; el clip pasa de X s a Y s». Ajusta «Umbral bajo el nivel de la voz» (−60 a −10 dB; −35 de fábrica), «Silencio más corto que se quita» (0,1–3 s) y «Margen que se deja a cada lado» (0–500 ms). **Cerrar los huecos (ripple)** viene marcado si el ripple automático está activo. **Quitar** corta el clip y sus enlazados.
 
 ## Detectar ritmo
 
-Selecciona la música y pulsa **Detectar ritmo**. Muestra «Tempo: 120,0 BPM · N pulsos». «Poner un marcador en cada pulso» deja marcadores «Pulso» (para cortar a ritmo con el ajuste encendido); «Cortar el clip al ritmo» corta cada pulso, cada 2, cada 4 (compás) o cada 8.
+Selecciona la música y pulsa **Detectar ritmo** (**Herramientas › Audio › Detectar ritmo…**, la barra rápida o el menú contextual del clip). Muestra «Tempo: 120,0 BPM · N pulsos». «Poner un marcador en cada pulso» deja marcadores «Pulso» (para cortar a ritmo con el ajuste encendido); «Cortar el clip al ritmo» corta cada pulso, cada 2, cada 4 (compás) o cada 8.
 
 ## Reducir ruido
 
-Necesita el módulo «Audio con IA». Selecciona el clip con voz; el diálogo limpia la voz y deja escuchar «A: original» y «B: limpio»; «Cuánto ruido se quita» va de 6 a 48 dB (todo). Con menos intensidad queda algo del ambiente y la voz suena más natural. Al aplicar, el clip pasa a un WAV nuevo «<nombre> (sin ruido)»; el original no se toca. Límite: una hora por clip.
+Necesita el módulo «Audio con IA». Selecciona el clip con voz: puedes abrirlo de inmediato desde el menú contextual del clip (**Reducir ruido…**), desde **Herramientas › Audio › Reducir ruido…** o desde la barra rápida. El diálogo limpia la voz y deja escuchar «A: original» y «B: limpio»; «Cuánto ruido se quita» va de 6 a 48 dB (todo). Con menos intensidad queda algo del ambiente y la voz suena más natural. Al aplicar, el clip pasa a un WAV nuevo «<nombre> (sin ruido)»; el original no se toca. Límite: una hora por clip.
 
 ## Velocidad y tono
 

@@ -32,7 +32,7 @@ Los preajustes propios salen con el prefijo «Propio · ».
 
 ### Forma del proyecto
 
-La salida toma la forma de la secuencia y el lado corto del preajuste: «Web 4K» sobre un proyecto 9:16 sale 2160×3840. Si el preajuste es para otra forma, una nota ofrece «Cambiar el formato del proyecto», que cierra Exportar y abre el selector de formato del reproductor. Solo si en Avanzado eliges una resolución de otra forma aparecen las opciones de barras, recortar o estirar.
+La salida toma la forma de la secuencia y el lado corto del preajuste: «Web 4K» sobre un proyecto 9:16 sale 2160×3840. Si el preajuste es para otra forma, una nota ofrece «Cambiar el formato del proyecto», que cierra Exportar y abre el selector de formato del reproductor (también accesible en cualquier momento desde **Secuencia › Formato del proyecto…**). Solo si en Avanzado eliges una resolución de otra forma aparecen las opciones de barras, recortar o estirar.
 
 ### ¿Cómo exporto?
 
@@ -60,7 +60,7 @@ El botón **«Varias versiones...»** del pie abre «Exportar varias versiones»
 
 ![Trabajos con una exportación en curso](img/exportar-progreso.png)
 
-Panel derecho › pestaña **Trabajos** (o Ver › Trabajos), sección «Exportaciones»:
+Botón **Trabajos** en la barra de estado inferior (con un indicador giratorio `ProgressRing` cuando hay exportaciones activas) o desde el menú **Ver › Trabajos**, sección «Exportaciones»:
 
 - Una a la vez; dos si el equipo tiene 8 hilos y 6 GB de VRAM, o si una codifica en la GPU y la otra en la CPU (por ejemplo H.264 y un maestro ProRes, con 6 hilos y 3 GB), y ninguna pide alto rendimiento. Las demás esperan: «En cola · N.º», con «Empezar antes» y «Empezar después».
 - Cada trabajo muestra la miniatura del último cuadro, el estado («Preparando», «Midiendo la sonoridad», «Mezclando el audio», «Exportando», «Pasada 1 de 2», «Cerrando el archivo»), el porcentaje, los fps y el tiempo que queda. La X cancela.
