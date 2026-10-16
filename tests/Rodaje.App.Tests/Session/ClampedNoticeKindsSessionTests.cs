@@ -42,7 +42,7 @@ public class ClampedNoticeKindsSessionTests
             "Al abrir, la tasa de cuadros de 1 secuencia se llevó al rango de 1/5 a 1000 fps, " +
             "1 clip que pasaba del final de la línea de tiempo se recortó, " +
             "el clip «rápido.mp4», que pasaba del final de la línea de tiempo, se quitó " +
-            "y 2 valores de efecto (posición, ancla o giro) se acotaron al límite. Guarda el proyecto para conservar el cambio.",
+            "y 2 valores de efecto (posición, ancla o rotación) se acotaron al límite. Guarda el proyecto para conservar el cambio.",
             notice.Message);
         Assert.DoesNotContain('\n', notice.Message);
         Assert.Equal(["c1", "largo"], session.Sequence.VideoTracks[0].Clips.Select(c => c.Id));
@@ -79,7 +79,7 @@ public class ClampedNoticeKindsSessionTests
             "Al abrir, las tasas de cuadros de 2 secuencias se llevaron al rango de 1/5 a 1000 fps. Guarda el proyecto para conservar el cambio.",
             EditorSession.ClampedNotice(project, new ClampSummary(2, 0, [], 0)));
         Assert.Equal(
-            "Al abrir, 3 clips que pasaban del final de la línea de tiempo se recortaron y 1 valor de efecto (posición, ancla o giro) " +
+            "Al abrir, 3 clips que pasaban del final de la línea de tiempo se recortaron y 1 valor de efecto (posición, ancla o rotación) " +
             "se acotó al límite. Guarda el proyecto para conservar el cambio.",
             EditorSession.ClampedNotice(project, new ClampSummary(0, 3, [], 1)));
 
