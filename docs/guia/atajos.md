@@ -1,6 +1,6 @@
 # Atajos de teclado y ratón
 
-Rodaje trae tres estilos de teclado y todo se puede cambiar. El estilo se elige en el menú **Atajos** (Estilo Rodaje, Ágil o Clásico) y el panel se abre con **Atajos › Atajos de teclado...** o **Ctrl+Alt+K**.
+Rodaje trae tres estilos de teclado y todo se puede cambiar. El estilo se elige en **Archivo › Preferencias...** (pestaña **Teclado**) o en el propio editor de atajos, y el panel se abre con **Archivo › Atajos de teclado...** o **Ctrl+Alt+K**.
 
 - **Rodaje**: el de fábrica. Letras sueltas para lo frecuente (S corta, Q y W recortan, M marcador, N ajuste).
 - **Ágil**: cercano a los editores rápidos de escritorio (Ctrl+B corta, A herramienta normal, Ctrl+G compuesto).
@@ -15,7 +15,7 @@ En las tablas, «=» significa «igual que Rodaje».
 | Reproducir o pausar | Espacio | = | = |
 | Lanzadera hacia atrás (más rápido con cada pulsación) | J | = | = |
 | Lanzadera: detener | K | = | = |
-| Lanzadera hacia adelante (hasta ×8) | L | = | = |
+| Lanzadera hacia adelante (más rápido con cada pulsación) | L | = | = |
 | Cuadro anterior / siguiente | ← / → | = | Alt+← / Alt+→ |
 | Ir al inicio / al final | Inicio / Fin | = | = |
 | Reproductor en pantalla completa | F (o doble clic en el visor; Esc sale) | = | = |
@@ -28,19 +28,19 @@ En las tablas, «=» significa «igual que Rodaje».
 | Cortar en el cursor | S, Ctrl+B | Ctrl+B | S |
 | Cortar en todas las pistas | Ctrl+Mayús+B | = | Ctrl+Mayús+K |
 | Borrar | Supr, Retroceso | = | Supr |
-| Borrar a la izquierda / derecha del cursor (recortar hasta el cursor) | Q / W | = | Alt+[ / Alt+] |
+| Borrar a la izquierda / derecha del cursor | Q / W | = | Alt+[ / Alt+] |
 | Seleccionar todo | Ctrl+A | = | = |
 | Deshacer | Ctrl+Z | = | = |
 | Rehacer | Ctrl+Mayús+Z, Ctrl+Y | Ctrl+Mayús+Z | Ctrl+Y, Ctrl+Mayús+Z |
 | Añadir texto | T | = | = |
-| Transición por defecto en el corte | Ctrl+T | = | = |
+| Transición por defecto | Ctrl+T | = | = |
 | Velocidad del clip… | Ctrl+R | = | = |
 | Congelar cuadro | Mayús+R | = | = |
 | Más rápido / Más lento | Ctrl+Alt+. / Ctrl+Alt+, | = | = |
 | Marcar entrada / salida | I / O | = | = |
 | Quitar entrada y salida | Alt+X | = | Ctrl+Mayús+X |
-| Insertar desde el origen (con un borde elegido: recortarlo un cuadro a la izquierda) | , | = | = |
-| Sobrescribir desde el origen (con un borde elegido: recortarlo un cuadro a la derecha) | . | = | = |
+| Insertar desde el origen | , | = | = |
+| Sobrescribir desde el origen | . | = | = |
 | Reemplazar desde el origen | Mayús+. | = | = |
 | Ajustar a rellenar desde el origen | Ctrl+Mayús+. | = | = |
 | Superponer desde el origen | Mayús+, | = | = |
@@ -50,7 +50,7 @@ En las tablas, «=» significa «igual que Rodaje».
 | Crear clip compuesto | Alt+G | Ctrl+G | Alt+G |
 | Descomponer clip compuesto | Alt+Mayús+G | Ctrl+Mayús+G | Alt+Mayús+G |
 
-Sin tecla de fábrica (se asignan en el panel): Cerrar todos los huecos, Ir al hueco siguiente o anterior, Invertir, Formato del proyecto, Añadir pista de video, Añadir pista de audio, Añadir pista de subtítulos, Pista principal magnética, Fundido cruzado automático, Bloquear envolventes, Ignorar grupos, Salir del clip compuesto.
+Sin tecla de fábrica (se asignan en el panel): Cerrar todos los huecos, Ir al hueco siguiente, Ir al hueco anterior, Invertir, Formato del proyecto…, Añadir pista de video, Añadir pista de audio, Añadir pista de subtítulos, Pista principal magnética, Fundido cruzado automático, Bloquear envolventes, Ignorar grupos, Salir del clip compuesto.
 
 ## Línea de tiempo y herramientas
 
@@ -58,7 +58,7 @@ Sin tecla de fábrica (se asignan en el panel): Cerrar todos los huecos, Ir al h
 |---|---|---|---|
 | Añadir marcador | M | = | = |
 | Añadir región | R | (sin tecla) | R |
-| Ajuste (imán a bordes, cursor y marcadores) | N | = | F8 |
+| Ajuste | N | = | F8 |
 | Cambiar control de huecos | Ctrl+L | (sin tecla) | Ctrl+L |
 | Herramienta normal | V | A | Ctrl+D |
 | Herramienta de envolvente | E | (sin tecla) | E |
@@ -81,8 +81,8 @@ Sin tecla de fábrica (se asignan en el panel): Cerrar todos los huecos, Ir al h
 | Proyecto nuevo / Abrir proyecto | Ctrl+N / Ctrl+O | = | = |
 | Guardar / Guardar como | Ctrl+S / Ctrl+Mayús+S | = | = |
 | Importar medios | Ctrl+I | = | = |
-| Preferencias de la aplicación | Ctrl+, | = | = |
-| Historial del proyecto | Ctrl+H | = | = |
+| Preferencias | Ctrl+, | = | = |
+| Historial | Ctrl+H | = | = |
 | Exportar | Ctrl+E, Ctrl+M | Ctrl+E | Ctrl+M |
 | Exportar fotograma | Ctrl+Mayús+E | = | = |
 | Atajos de teclado | Ctrl+Alt+K | = | = |
@@ -110,7 +110,7 @@ Clic izquierdo y derecho son fijos: seleccionar y arrastrar (Ctrl suma a la sele
 
 ![Panel de atajos en modo avanzado, con el ratón y el editor de la tecla J](img/atajos-teclado.png)
 
-1. Abre **Atajos › Atajos de teclado...** y pasa a la pestaña **Avanzado** («Esencial» solo muestra los 18 más usados).
+1. Abre **Archivo › Atajos de teclado...** (o pulsa **Ctrl+Alt+K**) y pasa a la pestaña **Avanzado** («Esencial» solo muestra los 18 más usados).
 2. Busca la acción o la tecla («cortar», «Ctrl+S», «ñ»), pulsa **Cambiar…** y la combinación nueva. O activa **Teclado y ratón**, haz clic en una tecla del dibujo y rellena sus ocho combinaciones (sola, Ctrl, Mayús, Alt y mezclas).
 3. Si la combinación ya era de otra acción, elige **Intercambiar** o **Quitársela**. Todo se deshace desde la barra de avisos o con Ctrl+Z.
 4. Cada estilo guarda sus propios cambios (en `atajos.json`). **Restablecer** va por acción, por tecla, por botón del ratón o por estilo entero («Restablecer todo»).

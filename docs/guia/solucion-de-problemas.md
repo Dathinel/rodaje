@@ -13,7 +13,7 @@
 - Rodaje lee lo que FFmpeg LGPL puede abrir: MP4, MOV, MKV, WebM, AVI, MTS, WMV, 3GP, MP3, WAV, M4A, FLAC, imágenes y más. H.264 y HEVC se decodifican por GPU si la tuya puede; ProRes, DNxHD, AV1, VP9 y los demás, por CPU.
 - Al importar, si un archivo no se puede leer, el aviso «Un archivo no se importó» dice el motivo. Archivos dañados o con códecs raros: conviértelos antes a MP4 (H.264) o a ProRes.
 - **CinemaDNG** no se importa como video normal: Archivo › Importar CinemaDNG... (necesita el módulo «RAW de cine»).
-- **Va a saltos** con 4K, tasas altas o 10 bits: deja que Rodaje genere el proxy (Ver › Proxies en la vista previa › «Generar al importar los videos pesados», encendido de fábrica) o pídelo con clic derecho en el medio › Generar proxy. El porcentaje sale en la portada y en Trabajos. Si Trabajos dice «No se pueden generar: falta el ffmpeg.exe LGPL», reinstala.
+- **Va a saltos** con 4K, tasas altas o 10 bits: deja que Rodaje genere el proxy (**Archivo › Preferencias...** › pestaña **Rendimiento** › «Generar proxies al importar videos pesados», encendido de fábrica) o pídelo con clic derecho en el medio › Generar proxy. El porcentaje sale en la portada y en Trabajos. Si Trabajos dice «No se pueden generar: falta el ffmpeg.exe LGPL», reinstala.
 - **Reversa de un video de más de 1080p**: pide proxy obligatorio; el panel Velocidad muestra su estado.
 
 ## Faltan medios al abrir un proyecto
@@ -75,7 +75,7 @@ Si avisa «Autoguardado desactivado» (no pudo preparar la carpeta), guarda a ma
 
 **¿Puedo abrir dos ventanas?** Sí, abre `Rodaje.exe` otra vez. Mientras haya dos, Complementos no deja desinstalar ni actualizar.
 
-**¿Por qué el visor baja la calidad al reproducir?** «Auto» reduce la resolución de la vista previa cuando la GPU no llega (la cabecera dice «Auto · ½») y vuelve a completa en pausa. La exportación compone siempre a resolución completa. Se fija en Ver › Calidad de la vista previa.
+**¿Por qué el visor baja la calidad al reproducir?** «Auto» reduce la resolución de la vista previa cuando la GPU no llega (la cabecera dice «Auto · ½») y vuelve a completa en pausa. La exportación compone siempre a resolución completa. Se fija en el botón de calidad del visor o en **Archivo › Preferencias...** (pestaña **Rendimiento**).
 
 **¿Cómo quito Rodaje del todo?** Instalador: Configuración → Aplicaciones → Rodaje y contesta sí a borrar ajustes y complementos. Portable: borra la carpeta y `%LOCALAPPDATA%\Rodaje`.
 

@@ -154,4 +154,4 @@ Botón del visor: **Ninguno**, **Clásicos (acción y títulos)** (acción 93 %,
 
 ## Calidad de la vista previa
 
-Ver › **Calidad de la vista previa**: Automática, Completa, Mitad o Cuarto. En Automática, si la GPU no llega al reproducir, baja un escalón (la cabecera dice «Auto · ½») y vuelve a completa en pausa. **Proxies en la vista previa**: Automático, Siempre que haya o Nunca (originales), y «Generar al importar los videos pesados». Nada de esto afecta a la exportación.
+En el botón del visor o en **Archivo › Preferencias...** (pestaña **Rendimiento**), **Calidad de la vista previa**: Automática, Completa, Mitad o Cuarto. En Automática, si la GPU no llega al reproducir, baja un escalón (la cabecera dice «Auto · ½») y vuelve a completa en pausa. En Preferencias se configura además **Proxies en la vista previa**: Automático, Siempre que haya o Nunca (originales), y «Generar proxies al importar videos pesados». Nada de esto afecta a la exportación.

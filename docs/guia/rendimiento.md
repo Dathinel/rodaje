@@ -17,7 +17,7 @@ AMD e Intel se eligen por tabla y por la prueba de codificadores que hace el di�
 
 ## Formatos de cámara pesados
 
-ProRes, DNxHR, H.264 de 10 bits o 4:2:2 y HEVC 4:2:2 (Sony, Canon, Panasonic, DJI) no se decodifican por hardware en NVIDIA ni AMD. Rodaje los manda directamente a la CPU con todos los núcleos. En una RTX 3050 de portátil con 16 hilos, en 4K: ProRes 422 HQ a unos 26–33 cuadros por segundo, DNxHR HQ a 47–68, H.264 4:2:2 a 33–48 y HEVC 4:2:2 a 30–39 (antes de este cambio, 3–8). Es tiempo real justo para una capa: para editar suelto, los clips 4K generan proxies solos al importar (Ver › Proxies en la vista previa › «Generar al importar los videos pesados»).
+ProRes, DNxHR, H.264 de 10 bits o 4:2:2 y HEVC 4:2:2 (Sony, Canon, Panasonic, DJI) no se decodifican por hardware en NVIDIA ni AMD. Rodaje los manda directamente a la CPU con todos los núcleos. En una RTX 3050 de portátil con 16 hilos, en 4K: ProRes 422 HQ a unos 26–33 cuadros por segundo, DNxHR HQ a 47–68, H.264 4:2:2 a 33–48 y HEVC 4:2:2 a 30–39 (antes de este cambio, 3–8). Es tiempo real justo para una capa: para editar suelto, los clips 4K generan proxies solos al importar (**Archivo › Preferencias...** › pestaña **Rendimiento** › «Generar proxies al importar videos pesados»).
 
 ## Exportar
 
