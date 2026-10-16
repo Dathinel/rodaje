@@ -185,6 +185,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         TitleBar.Attach(_services);
         TitleBar.InspectorTabRequested += (_, tab) => Inspector.Show(tab);
+        TitleBar.MarkersPanelRequested += (_, _) => Library.ShowMarkers();
         TitleBar.ExitRequested += (_, _) => Close();
         Library.Attach(_services);
         Player.Attach(_services);
@@ -194,6 +195,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         JobsPanel.ActiveCountChanged += (_, active) => UpdateJobsButton(active);
         JobsPanel.Attach(_services);
         Timeline.Attach(_services);
+        Timeline.MarkerContextRequested += (_, id) => Library.ShowMarkers(id);
         Mixer.Attach(_services);
         Timeline.ClipVisuals = _visuals;
         Tools.Attach(_services);

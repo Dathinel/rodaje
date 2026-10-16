@@ -35,6 +35,8 @@ internal sealed partial class TitleBar : UserControl
     /// <summary>Se pidió una pestaña del panel derecho desde el menú Ver.</summary>
     public event EventHandler<InspectorView.Tab>? InspectorTabRequested;
 
+    public event EventHandler? MarkersPanelRequested;
+
     /// <summary>Se eligió Salir.</summary>
     public event EventHandler? ExitRequested;
 
@@ -121,6 +123,8 @@ internal sealed partial class TitleBar : UserControl
             _services.Session.Notify(NotificationSeverity.Informational, "No disponible", "Esta acción no está disponible en este momento.");
         }
     }
+
+    private void OnMarkersClick(object sender, RoutedEventArgs e) => MarkersPanelRequested?.Invoke(this, EventArgs.Empty);
 
     private void OnInspectorClick(object sender, RoutedEventArgs e)
     {

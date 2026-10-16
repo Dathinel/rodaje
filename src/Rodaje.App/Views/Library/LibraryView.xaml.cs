@@ -109,6 +109,13 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
     public ObservableCollection<ModuleItem> Modules { get; } = [];
 
+    public void ShowMarkers(string? editMarkerId = null)
+    {
+        _markersOpen = true;
+        UpdateVisibility();
+        if (editMarkerId is not null) MarkersView.EditMarker(editMarkerId);
+    }
+
     public void Attach(EditorServices services)
     {
         ArgumentNullException.ThrowIfNull(services);
