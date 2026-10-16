@@ -46,4 +46,4 @@ Elige qué hacer, a qué y **Aplicar**. El cuadro del cursor es la referencia: a
 - Lo mejor es una esquina con contraste en las dos direcciones. Un borde recto o una zona lisa se desliza.
 - Con desenfoque de movimiento fuerte, agranda el patrón.
 - Si el clip tiene un **Recortar**, los puntos están en la imagen recortada; la rotación del archivo se tiene en cuenta.
-- Para seguir con una máscara sin crear un seguimiento, la sección Seguimiento de la pestaña [Máscaras](imagen.md#máscaras) sigue la región que tiene adentro.
+- Para seguir una máscara, en la pestaña **Máscaras** pulsa **«Vincular a seguimiento…»**: te llevará directamente a esta pestaña con la máscara y su modo preseleccionados, centralizando todo el rastreo en un único panel.
