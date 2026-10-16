@@ -34,6 +34,8 @@ internal sealed partial class JobsPanel : UserControl, IEditorView
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private DispatcherQueueTimer? _lookup;
     private MediaSourceResolver? _resolver;
+    private int _activeModuleCount;
+    private int _activeExportCount;
 
     public JobsPanel()
     {
@@ -42,6 +44,8 @@ internal sealed partial class JobsPanel : UserControl, IEditorView
 
     /// <summary>Cambió cuántos trabajos hay en curso (para el título de la pestaña).</summary>
     public event EventHandler<int>? ActiveCountChanged;
+
+    public int ActiveCount => _jobs.ActiveCount + _activeModuleCount + _activeExportCount;
 
     public ObservableCollection<JobItem> Items { get; } = [];
 
@@ -54,7 +58,17 @@ internal sealed partial class JobsPanel : UserControl, IEditorView
         _lookup.Start();
         Connect(services);
         Modules.Attach(services);
+        Modules.ActiveCountChanged += (_, active) =>
+        {
+            _activeModuleCount = active;
+            PublishActiveCount();
+        };
         Exports.Attach(services);
+        Exports.ActiveCountChanged += (_, active) =>
+        {
+            _activeExportCount = active;
+            PublishActiveCount();
+        };
         Show();
         Bindings.Update();
     }
@@ -113,8 +127,10 @@ internal sealed partial class JobsPanel : UserControl, IEditorView
             1 => "1 en curso",
             _ => $"{active} en curso",
         };
-        ActiveCountChanged?.Invoke(this, active);
+        PublishActiveCount();
     }
+
+    private void PublishActiveCount() => ActiveCountChanged?.Invoke(this, ActiveCount);
 
     private void OnCancelClick(object sender, RoutedEventArgs e)
     {

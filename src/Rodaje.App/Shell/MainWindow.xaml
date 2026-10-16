@@ -15,6 +15,8 @@
     xmlns:timeline="using:Rodaje.App.Views.Timeline"
     xmlns:tools="using:Rodaje.App.Views.Tools"
     xmlns:mixer="using:Rodaje.App.Views.Mixer"
+    xmlns:history="using:Rodaje.App.Views.Inspector.History"
+    xmlns:jobs="using:Rodaje.App.Views.Inspector.Jobs"
     Title="Rodaje">
 
     <Grid x:Name="Root" Background="{StaticResource BackgroundBrush}" AllowDrop="True" DragOver="OnDragOver" Drop="OnDrop">
@@ -24,6 +26,7 @@
             <RowDefinition Height="*" MinHeight="240" />
             <RowDefinition Height="4" />
             <RowDefinition x:Name="TimelineRow" Height="300" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <shell:TitleBar x:Name="TitleBar" />
@@ -70,7 +73,33 @@
             <mixer:MixerView x:Name="Mixer" Grid.Row="1" Visibility="Collapsed" />
         </Grid>
 
-        <Grid x:Name="ModalLayer" Grid.RowSpan="5" Visibility="Collapsed" Background="{StaticResource ScrimBrush}">
+        <Border Grid.Row="5" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0" Padding="8,4">
+            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
+                <Button x:Name="HistoryButton" Content="Historial" ToolTipService.ToolTip="Historial del proyecto (Ctrl+H)">
+                    <Button.Flyout>
+                        <Flyout Placement="Top">
+                            <history:HistoryPanel x:Name="HistoryPanel" Width="360" Height="480" />
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+                <Button x:Name="JobsButton" ToolTipService.ToolTip="Trabajos en segundo plano">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <Grid Width="16" Height="16">
+                            <FontIcon Glyph="&#xE9F5;" FontSize="{StaticResource IconFontSize}" />
+                            <ProgressRing x:Name="JobsProgress" Width="16" Height="16" IsActive="False" Visibility="Collapsed" />
+                        </Grid>
+                        <TextBlock x:Name="JobsButtonText" Text="Trabajos" />
+                    </StackPanel>
+                    <Button.Flyout>
+                        <Flyout Placement="Top">
+                            <jobs:JobsPanel x:Name="JobsPanel" Width="360" Height="480" />
+                        </Flyout>
+                    </Button.Flyout>
+                </Button>
+            </StackPanel>
+        </Border>
+
+        <Grid x:Name="ModalLayer" Grid.RowSpan="6" Visibility="Collapsed" Background="{StaticResource ScrimBrush}">
             <Border x:Name="ModalFrame" Margin="48,56,48,40" MaxWidth="1100" Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}">
                 <Grid>
                     <Grid.RowDefinitions>
