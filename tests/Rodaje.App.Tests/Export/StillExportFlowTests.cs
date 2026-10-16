@@ -12,7 +12,7 @@ namespace Rodaje.App.Tests.Export;
 /// </summary>
 public sealed class StillExportFlowTests
 {
-    private const string Exporting = "Exportando fotograma...";
+    private const string Exporting = "Exportando fotograma…";
     private const string Canceled = "Fotograma cancelado";
     private const string Exported = "Fotograma exportado";
     private static readonly TimeSpan Wait = TimeSpan.FromSeconds(10);

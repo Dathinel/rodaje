@@ -185,7 +185,7 @@ public static class TrackingChoices
     public static readonly IReadOnlyList<(TrackUse Use, string Label)> Uses =
     [
         (TrackUse.FollowPosition, "Otro clip sigue la posición"),
-        (TrackUse.FollowAll, "Otro clip sigue posición, escala y giro"),
+        (TrackUse.FollowAll, "Otro clip sigue posición, escala y rotación"),
         (TrackUse.CornerPin, "Anclaje de esquinas en otro clip (pantalla, cartel)"),
         (TrackUse.Mask, "Una máscara de este clip sigue la forma"),
         (TrackUse.BlurZone, "Desenfocar la zona seguida (caras, matrículas)"),

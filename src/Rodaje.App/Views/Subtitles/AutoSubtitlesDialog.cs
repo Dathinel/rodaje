@@ -25,7 +25,7 @@ namespace Rodaje.App.Views.Subtitles;
 /// </summary>
 internal static class AutoSubtitlesDialog
 {
-    public const string Label = "Subtítulos automáticos...";
+    public const string Label = "Subtítulos automáticos…";
     public const string Glyph = "";
     private const string Title = "Subtítulos automáticos";
 

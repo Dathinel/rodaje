@@ -16,8 +16,8 @@ internal static partial class VisionCommands
 
     public static IReadOnlyList<(string Id, string Label, string Glyph)> Menu { get; } =
     [
-        (RemoveBackground, "Quitar fondo...", "\uE7A8"),
-        (Reframe, "Reencuadre automático...", "\uE7AD"),
+        (RemoveBackground, "Quitar fondo…", "\uE7A8"),
+        (Reframe, "Reencuadre automático…", "\uE7AD"),
         (Masks, "Máscaras", "\uE71C"),
     ];
 

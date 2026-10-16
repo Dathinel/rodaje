@@ -7,7 +7,7 @@ namespace Rodaje.App.Services;
 /// <summary>Estado del reproductor que publica el hilo de render; se reemplaza entero, así que se lee sin candado.</summary>
 public sealed record PlaybackSnapshot(Time Position, Time Duration, bool IsPlaying, long Frame, long FrameCount, string Status)
 {
-    public static readonly PlaybackSnapshot Empty = new(Time.Zero, Time.Zero, false, 0, 0, "Preparando el reproductor...");
+    public static readonly PlaybackSnapshot Empty = new(Time.Zero, Time.Zero, false, 0, 0, "Preparando el reproductor…");
 
     /// <summary>Refrescos en los que alguna capa no tenía su cuadro a tiempo, desde que se abrió la secuencia.</summary>
     public long FramesDropped { get; init; }

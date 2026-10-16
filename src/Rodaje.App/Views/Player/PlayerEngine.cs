@@ -965,7 +965,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     {
         if (_session is not { } s)
         {
-            PlaybackSnapshot empty = PlaybackSnapshot.Empty with { Status = _gpu is null ? "Preparando el reproductor..." : "Sin secuencia" };
+            PlaybackSnapshot empty = PlaybackSnapshot.Empty with { Status = _gpu is null ? "Preparando el reproductor…" : "Sin secuencia" };
             if (!empty.Equals(_snapshot))
             {
                 _snapshot = empty;

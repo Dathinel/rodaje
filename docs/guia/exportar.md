@@ -54,7 +54,7 @@ Las listas solo ofrecen lo que los codificadores de tu equipo pueden hacer en es
 
 ## Varias versiones de una vez
 
-El botón **«Varias versiones...»** del pie abre «Exportar varias versiones»: una casilla por preajuste (de fábrica y propios). Se guardan en la carpeta elegida con el nombre del preajuste al final («mi video - Vertical 9:16.mp4»), con el rango y el rendimiento de ahora. Un preajuste de otra forma que el proyecto (Vertical sobre 16:9) conserva su forma recortando al centro.
+El botón **«Varias versiones…»** del pie abre «Exportar varias versiones»: una casilla por preajuste (de fábrica y propios). Se guardan en la carpeta elegida con el nombre del preajuste al final («mi video - Vertical 9:16.mp4»), con el rango y el rendimiento de ahora. Un preajuste de otra forma que el proyecto (Vertical sobre 16:9) conserva su forma recortando al centro.
 
 ## La cola, en Trabajos
 

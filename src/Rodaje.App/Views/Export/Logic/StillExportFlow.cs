@@ -71,7 +71,7 @@ internal sealed partial class StillExportFlow : IDisposable
             // termina, se avisa de que hay que esperar: sin aviso, el atajo o «Exportar sin él» parecerían no hacer nada.
             if (current.IsCancellationRequested)
             {
-                _notify(new EditorNotification(NotificationSeverity.Informational, "Cancelando el fotograma...",
+                _notify(new EditorNotification(NotificationSeverity.Informational, "Cancelando el fotograma…",
                     "La exportación anterior aún se está deteniendo; vuelve a intentarlo cuando termine."));
             }
             else
@@ -134,7 +134,7 @@ internal sealed partial class StillExportFlow : IDisposable
 
     /// <summary>El indicador de «exportando»: un aviso con el botón para cancelar.</summary>
     private void NotifyExporting(CancellationTokenSource cancel) =>
-        _notify(new EditorNotification(NotificationSeverity.Informational, "Exportando fotograma...",
+        _notify(new EditorNotification(NotificationSeverity.Informational, "Exportando fotograma…",
             "Se guarda el cuadro del cursor; el atajo no lanza otro hasta que termine.",
             new NotificationAction("Cancelar", () =>
             {

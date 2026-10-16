@@ -102,7 +102,7 @@
                         <local:ParameterRow x:Name="SkewXRow" />
                         <local:ParameterRow x:Name="SkewYRow" />
                         <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="12,2,12,4" TextWrapping="Wrap" TextTrimming="None"
-                                   Text="Escala, giro e inclinación pivotan en el ancla. En el visor, arrastra la cruz del ancla: la imagen no se mueve." />
+                                   Text="Escala, rotación e inclinación pivotan en el ancla. En el visor, arrastra la cruz del ancla: la imagen no se mueve." />
                     </StackPanel>
                 </inspector:InspectorSection>
 

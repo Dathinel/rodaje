@@ -135,8 +135,8 @@ public sealed partial class EditorSession
         if (clamped.Values > 0)
         {
             parts.Add(clamped.Values == 1
-                ? "1 valor de efecto (posición, ancla o giro) se acotó al límite"
-                : $"{clamped.Values} valores de efecto (posición, ancla o giro) se acotaron al límite");
+                ? "1 valor de efecto (posición, ancla o rotación) se acotó al límite"
+                : $"{clamped.Values} valores de efecto (posición, ancla o rotación) se acotaron al límite");
         }
 
         string list = parts.Count == 1 ? parts[0] : string.Join(", ", parts.Take(parts.Count - 1)) + " y " + parts[^1];

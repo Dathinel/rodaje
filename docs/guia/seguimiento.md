@@ -12,9 +12,9 @@ Seguir algo que se mueve en un clip (una cara, un cartel, una pantalla, una matr
    | Tipo | Sigue | Para |
    |---|---|---|
    | Un punto | Posición | Un título o una pegatina que acompaña algo; estabilizar por un punto |
-   | Dos puntos | Posición, escala y giro | Algo que se acerca o gira |
+   | Dos puntos | Posición, escala y rotación | Algo que se acerca o gira |
    | Cuatro esquinas | Perspectiva | Reemplazar una pantalla, un cartel o un cuadro |
-   | Región | La caja entera (posición, escala y giro) | Superficies grandes con poca textura en las esquinas |
+   | Región | La caja entera (posición, escala y rotación) | Superficies grandes con poca textura en las esquinas |
 
 3. En el visor, arrastra cada punto (la cruz numerada) sobre algo con textura: una esquina, un borde con contraste, un logo. El **recuadro lleno** es el patrón que se busca y el **punteado**, dónde se busca en el cuadro siguiente; arrastra sus esquinas para cambiarlos. Un patrón más grande es más estable; una zona más grande aguanta movimientos más rápidos.
 4. **Adelante** o **Atrás** siguen hasta el final o el inicio del clip; las flechas, de a un cuadro. El cursor acompaña y los puntos se ven moverse. **Parar** deja lo seguido hasta ahí. Una corrida entera es un paso del historial.
@@ -33,7 +33,7 @@ Elige qué hacer, a qué y **Aplicar**. El cuadro del cursor es la referencia: a
 | Opción | Qué hace |
 |---|---|
 | Otro clip sigue la posición | El título, la pegatina o la imagen elegida (encima del clip) se mueve con el punto, donde está ahora |
-| … posición, escala y giro | Además crece y gira con los dos puntos (o con la caja) |
+| … posición, escala y rotación | Además crece y gira con los dos puntos (o con la caja) |
 | Anclaje de esquinas en otro clip | Las cuatro esquinas de un video o una imagen van a los cuatro puntos, con perspectiva: una pantalla reemplazada. Agrega el efecto **Anclaje de esquinas** con sus keyframes |
 | Una máscara de este clip sigue la forma | Una máscara nueva (elipse) o una existente se mueve, escala y gira; con cuatro esquinas, una Bézier también se deforma |
 | Desenfocar o pixelar la zona seguida | Agrega el desenfoque o el pixelado con una elipse suave que sigue a los puntos |

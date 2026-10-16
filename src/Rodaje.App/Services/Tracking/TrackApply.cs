@@ -93,7 +93,7 @@ public static class TrackApply
 
         if (!Supports(kind, use))
         {
-            problem = use == TrackUse.CornerPin ? "El anclaje de esquinas necesita un seguimiento de 4 esquinas o de región." : "Hace falta un seguimiento de dos puntos o más para seguir la escala y el giro.";
+            problem = use == TrackUse.CornerPin ? "El anclaje de esquinas necesita un seguimiento de 4 esquinas o de región." : "Hace falta un seguimiento de dos puntos o más para seguir la escala y la rotación.";
             return null;
         }
 
@@ -273,7 +273,7 @@ public static class TrackApply
         }
 
         string clipId = target.Id;
-        var command = new SequenceEditCommand(all ? "Seguir con otro clip (posición, escala y giro)" : "Seguir con otro clip", c.Sequence.Id, ctx =>
+        var command = new SequenceEditCommand(all ? "Seguir con otro clip (posición, escala y rotación)" : "Seguir con otro clip", c.Sequence.Id, ctx =>
         {
             Clip clip = ctx.Sequence.FindClip(clipId)!.Value.Clip;
             string id = EffectEdits.EnsureEffect(ctx, clipId, BuiltInEffects.Transform) ?? clip.Effects.First(e => e.Type == BuiltInEffects.Transform).Id;
