@@ -401,6 +401,7 @@ public class PanelComboChoiceTests
         Project project = VideoProject(out Sequence sequence, out Clip tracked);
         Assert.Equal(["plano.mp4 (V2)", "Hola (V2)"], TrackingChoices.Targets(project, sequence, tracked, TrackUse.FollowPosition, null).List.Labels);
         Assert.Equal(["Una máscara nueva (elipse)", "Máscara 1", "Cara"], TrackingChoices.Targets(project, sequence, tracked, TrackUse.Mask, null).List.Labels);
+        Assert.Equal(2, TrackingChoices.Targets(project, sequence, tracked, TrackUse.Mask, "k2").Selected);
         Assert.Equal(1, TrackingChoices.Targets(project, sequence, tracked, TrackUse.FollowAll, "titulo").Selected);
         Assert.Equal(0, TrackingChoices.Targets(project, sequence, tracked, TrackUse.FollowAll, "quitado").Selected);
 

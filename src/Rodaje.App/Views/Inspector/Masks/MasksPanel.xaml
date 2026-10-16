@@ -212,36 +212,11 @@
 
                 <inspector:InspectorSection x:Name="TrackSection" Key="mascara-seguimiento" Title="Seguimiento">
                     <StackPanel Padding="12,3,8,6" Spacing="6">
-                        <StackPanel Orientation="Horizontal" Spacing="10">
-                            <CheckBox x:Name="TrackPosition" Content="Posición" IsChecked="True" MinWidth="0" />
-                            <CheckBox x:Name="TrackScale" Content="Escala" IsChecked="True" MinWidth="0" />
-                            <CheckBox x:Name="TrackRotation" Content="Giro" IsChecked="True" MinWidth="0" />
-                            <CheckBox x:Name="TrackShape" Content="Puntos" MinWidth="0"
-                                      ToolTipService.ToolTip="Cada vértice sigue también el movimiento de su zona (deforma la Bézier)" />
-                        </StackPanel>
-                        <StackPanel x:Name="TrackButtons" Orientation="Horizontal" Spacing="4">
-                            <Button Height="30" Padding="8,0" Tag="back" Click="OnTrackClick"
-                                    AutomationProperties.Name="Seguir hacia atrás" ToolTipService.ToolTip="Seguir hacia atrás hasta el inicio del clip">
-                                <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE892;" FontSize="12" /><TextBlock Text="Atrás" /></StackPanel>
-                            </Button>
-                            <Button Style="{StaticResource ToolButtonStyle}" Width="32" Height="30" Tag="back1" Click="OnTrackClick" Content="&#xE76B;" FontSize="12"
-                                    AutomationProperties.Name="Seguir un cuadro hacia atrás" ToolTipService.ToolTip="Seguir un cuadro hacia atrás" />
-                            <Button Style="{StaticResource ToolButtonStyle}" Width="32" Height="30" Tag="forward1" Click="OnTrackClick" Content="&#xE76C;" FontSize="12"
-                                    AutomationProperties.Name="Seguir un cuadro hacia adelante" ToolTipService.ToolTip="Seguir un cuadro hacia adelante" />
-                            <Button Style="{StaticResource AccentButtonStyle}" Height="30" Padding="10,0" Tag="forward" Click="OnTrackClick"
-                                    AutomationProperties.Name="Seguir hacia adelante" ToolTipService.ToolTip="Seguir hacia adelante hasta el final del clip">
-                                <StackPanel Orientation="Horizontal" Spacing="6"><TextBlock Text="Adelante" /><FontIcon Glyph="&#xE893;" FontSize="12" /></StackPanel>
-                            </Button>
-                        </StackPanel>
-                        <Grid x:Name="TrackProgressRow" ColumnSpacing="8" Visibility="Collapsed">
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <ProgressBar x:Name="TrackProgress" Minimum="0" Maximum="1" VerticalAlignment="Center" />
-                            <Button Grid.Column="1" Content="Cancelar" Height="28" Click="OnTrackCancelClick" />
-                        </Grid>
-                        <TextBlock x:Name="TrackText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap"
+                                   Text="El movimiento se analiza en Seguimiento. Desde allí puedes aplicarlo a esta máscara, a otro clip o al propio video." />
+                        <Button x:Name="LinkTrackingButton" Height="30" HorizontalAlignment="Left" Click="OnLinkTrackingClick"
+                                Content="Vincular a seguimiento…" AutomationProperties.Name="Vincular máscara a seguimiento"
+                                ToolTipService.ToolTip="Abre Seguimiento con esta máscara como destino." />
                     </StackPanel>
                 </inspector:InspectorSection>
 

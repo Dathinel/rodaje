@@ -228,16 +228,21 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
 
     private void ShowUses(Clip clip, PointTrackKind kind)
     {
-        TrackUse? chosen = _uses.TryGet(UseBox.SelectedIndex, out TrackUse shown) ? shown : null;
+        TrackUse? requested = Session.RequestedTrackUse;
+        TrackUse? chosen = requested ?? (_uses.TryGet(UseBox.SelectedIndex, out TrackUse shown) ? shown : null);
         (ChoiceList<TrackUse> uses, int selected) = TrackingChoices.ForKind(kind, chosen);
         _uses = ComboBoxChoices.Show(UseBox, _uses, uses, selected, retry: _usesRetry);
-        ShowTargets(clip);
+        ShowTargets(clip, requested is null ? null : Session.RequestedTrackTargetId);
+        if (requested is not null)
+        {
+            Session.ClearTrackPanelRequest();
+        }
     }
 
-    private void ShowTargets(Clip clip)
+    private void ShowTargets(Clip clip, string? preferredTarget = null)
     {
         TrackUse use = _uses.TryGet(UseBox.SelectedIndex, out TrackUse picked) ? picked : TrackUse.FollowPosition;
-        string? chosen = _targets.TryGet(TargetBox.SelectedIndex, out string? shown) ? shown : null;
+        string? chosen = preferredTarget ?? (_targets.TryGet(TargetBox.SelectedIndex, out string? shown) ? shown : null);
         (ChoiceList<string?> targets, int selected) = TrackingChoices.Targets(Session.Project, Session.Sequence, clip, use, chosen);
         _targets = ComboBoxChoices.Show(TargetBox, _targets, targets, selected, retry: _targetsRetry);
         TargetBox.Visibility = _targets.Count > 0 ? Visibility.Visible : Visibility.Collapsed;

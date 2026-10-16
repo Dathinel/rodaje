@@ -1,6 +1,5 @@
 using System.Collections.ObjectModel;
 using System.Globalization;
-using System.Numerics;
 using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -11,7 +10,6 @@ using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
-using Rodaje.App.Services.Tracking;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Player;
 using Rodaje.Core.Commands;
@@ -80,12 +78,10 @@ internal sealed partial class MaskItem : IEquatable<MaskItem>
 
 /// <summary>
 /// La pestaña «Máscaras»: herramientas del visor, la lista de máscaras del clip y la elegida en secciones. Todo cambio es un
-/// comando deshacible; el seguimiento escribe sus keyframes en un solo paso mientras avanza.
+/// comando deshacible; el análisis del movimiento vive en la pestaña Seguimiento.
 /// </summary>
 internal sealed partial class MasksPanel : UserControl, IEditorView
 {
-    private const string TrackActionId = "mascaras.seguir";
-
     private static readonly string[] BoxNames = [M.X, M.Y, M.Width, M.Height, M.Rotation];
 
     private static readonly (string Name, string Value)[] ColorNames =
@@ -106,8 +102,6 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
     private Time _shownPosition;
     private bool _updating;
     private bool _weightGesture;
-    private string? _trackMerge;
-    private int _trackRuns;
 
     public MasksPanel()
     {
@@ -157,7 +151,6 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
             }
         };
         // Llega también desde los hilos de fondo que informan avance.
-        services.LongActions.Changed += (_, _) => DispatcherQueue.RunLater(ShowTracking);
         Refresh();
         Bindings.Update();
     }
@@ -335,8 +328,6 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         ShowWeight(spec.Shape, points, session.SelectedMaskVertices);
         ShowShapeKeys(clip, mask, vertices, at);
         TrackSection.Visibility = image ? Visibility.Collapsed : Visibility.Visible;
-        TrackShape.IsEnabled = vertices;
-        ShowTracking();
         ViewNormal.IsChecked = session.MaskView == MaskViewMode.None;
         ViewMatte.IsChecked = session.MaskView == MaskViewMode.Matte;
         ViewOverlay.IsChecked = session.MaskView == MaskViewMode.Overlay;
@@ -756,130 +747,12 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         }
     }
 
-    private void OnTrackCancelClick(object sender, RoutedEventArgs e) => _services?.LongActions.Cancel(TrackActionId);
-
-    private void ShowTracking()
+    private void OnLinkTrackingClick(object sender, RoutedEventArgs e)
     {
-        if (_services is null)
+        if (_services is not null && CurrentMask() is { } mask)
         {
-            return;
-        }
-
-        bool running = _services.LongActions.IsRunning(TrackActionId);
-        TrackProgressRow.Visibility = running ? Visibility.Visible : Visibility.Collapsed;
-        TrackButtons.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
-    }
-
-    private void OnTrackClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { Tag: string tag })
-        {
-            UiTask.Run(TrackAsync(forward: tag.StartsWith("forward", StringComparison.Ordinal), single: tag.EndsWith('1')));
+            _services.Session.ShowTrackPanelForMask(mask.Id);
         }
     }
 
-    /// <summary>
-    /// Sigue la máscara desde el cuadro del cursor con <see cref="RegionTracking"/> y escribe sus keyframes mientras avanza
-    /// (el cursor la acompaña); todo lo de una corrida se deshace en un paso. Cancelar deja lo seguido hasta ahí.
-    /// </summary>
-    private async Task TrackAsync(bool forward, bool single)
-    {
-        if (_services is null || _editor is null || CurrentClip() is not { } clip || CurrentMask() is not { } mask
-            || _services.Session.Project.FindMedia(clip.MediaId) is not { FrameRate: { } rate } media)
-        {
-            return;
-        }
-
-        EditorSession session = _services.Session;
-        if (clip.Speed is { Freeze: true } || !_editor.IsPlayheadInside(clip)
-            || MaskHandles.Find(session.Project, session.Sequence, clip, mask, session.Position) is not { } box)
-        {
-            session.Notify(NotificationSeverity.Informational, "Seguir la máscara", "Lleva el cursor sobre el clip (no un cuadro congelado) para seguir la máscara.");
-            return;
-        }
-
-        MaskTrackParts parts = (TrackPosition.IsChecked == true ? MaskTrackParts.Position : 0) | (TrackScale.IsChecked == true ? MaskTrackParts.Scale : 0)
-            | (TrackRotation.IsChecked == true ? MaskTrackParts.Rotation : 0) | (TrackShape.IsChecked == true && box.EditsVertices ? MaskTrackParts.Shape : 0);
-        if (parts == MaskTrackParts.None)
-        {
-            session.Notify(NotificationSeverity.Informational, "Seguir la máscara", "Elige qué seguir: posición, escala, giro o puntos.");
-            return;
-        }
-
-        Time start = _editor.KeyframeTimeAtPlayhead(clip);
-        Time frame = Time.FromFrames(1, rate);
-        Time limit = single ? (forward ? start + frame : start - frame) : forward ? clip.SourceOut - frame : clip.SourceIn;
-        EffectInstance? crop = clip.Effects.Find(e => e.Enabled && e.Type == BuiltInEffects.Crop);
-        MaskSpec spec = box.Mask;
-        MaskVertex[] vertices = box.Vertices;
-        (Vector2[] region, Vector2[] anchors) = MaskTracking.Start(spec, vertices, box.ImageWidth, box.ImageHeight);
-        var request = new TrackRequest(media.Path, start, limit, forward, region, (parts & MaskTrackParts.Shape) != 0 ? anchors : [],
-            t => crop is null ? CropRect.None : CropGeometry.Sanitize(CropGeometry.Evaluate(crop, t)));
-        var keys = new List<MaskTrackKey> { new(start, spec.X, spec.Y, spec.Width, spec.Height, spec.Rotation, vertices) };
-        string clipId = clip.Id, maskId = mask.Id;
-        _trackMerge = $"mascara-seguir|{maskId}|{++_trackRuns}";
-        int lost = 0, pending = 0;
-        double rotation = spec.Rotation;
-        float width = box.ImageWidth, height = box.ImageHeight;
-        TrackText.Text = "";
-        void Commit()
-        {
-            if (keys.Count > 1)
-            {
-                session.TryExecute(Edits.ApplyMaskTrack(session.SequenceId, clipId, maskId, keys, parts, _trackMerge));
-            }
-
-            pending = 0;
-        }
-
-        void Tracked(TrackedFrame tracked)
-        {
-            MaskTrackKey key = MaskTracking.Key(spec, vertices, tracked, width, height, rotation);
-            rotation = key.Rotation;
-            keys.Add(key);
-            lost += tracked.Lost ? 1 : 0;
-            if (++pending >= 6)
-            {
-                Commit();
-                if (session.Sequence.FindClip(clipId) is { } found)
-                {
-                    session.Seek(found.Clip.TimeMap.TimelineOf(tracked.Time));
-                }
-            }
-        }
-
-        var progress = new Progress<double>(p => TrackProgress.Value = p);
-        await _services.LongActions.RunAsync(TrackActionId, "Seguir la máscara", async scope =>
-        {
-            var both = new Progress<double>(p =>
-            {
-                ((IProgress<double>)progress).Report(p);
-                scope.Progress.Report(p);
-            });
-            try
-            {
-                await RegionTracking.RunAsync(request, f => DispatcherQueue.RunLater(() => Tracked(f)), both, scope.Token);
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or IOException or NotSupportedException or Rodaje.Media.MediaException)
-            {
-                session.Notify(NotificationSeverity.Warning, "Seguir la máscara", ex.Message);
-            }
-        }, canCancel: true);
-
-        Commit();
-        if (keys.Count > 1 && session.Sequence.FindClip(clipId) is { } done)
-        {
-            session.Seek(done.Clip.TimeMap.TimelineOf(keys[^1].Time));
-        }
-
-        session.BreakMerge();
-        int frames = keys.Count - 1;
-        TrackText.Text = frames == 0
-            ? "No había cuadros para seguir en esa dirección."
-            : $"Seguidos {frames} cuadros hacia {(forward ? "adelante" : "atrás")}" + (lost > 0 ? $"; en {lost} no había textura y la máscara se quedó quieta." : ".");
-        ShowTracking();
-    }
 }
