@@ -226,6 +226,8 @@ internal sealed partial class MarkersPanel : UserControl, IEditorView
         _session.Execute(item.IsRegion ? Edits.RemoveRegion(_session.SequenceId, item.Id) : Edits.RemoveMarker(_session.SequenceId, item.Id));
     }
 
+    public void EditMarker(string markerId) => UiTask.Run(EditAsync("m:" + markerId));
+
     private async Task EditAsync(string? key)
     {
         if (Find(key) is not { } item || _session is not { } session || DialogGate.IsOpen || XamlRoot is null)

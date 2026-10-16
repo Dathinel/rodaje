@@ -56,6 +56,9 @@
             <MenuBarItem Title="Secuencia">
                 <MenuFlyoutItem Text="Añadir texto" Tag="clip.addText" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Añadir pista de subtítulos" Tag="timeline.subtitleTrack" Click="OnActionClick" />
+                <MenuFlyoutSubItem Text="Marcadores y regiones">
+                    <MenuFlyoutItem Text="Panel de marcadores" Click="OnMarkersClick" />
+                </MenuFlyoutSubItem>
             </MenuBarItem>
             <MenuBarItem Title="Herramientas">
                 <MenuFlyoutSubItem Text="Audio">

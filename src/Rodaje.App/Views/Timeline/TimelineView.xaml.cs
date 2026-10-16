@@ -61,6 +61,8 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         Unloaded += OnUnloaded;
     }
 
+    public event EventHandler<string>? MarkerContextRequested;
+
     public EditorSession? Session { get; private set; }
 
     /// <summary>Miniaturas y formas de onda; sin proveedor se dibujan marcadores de posición.</summary>

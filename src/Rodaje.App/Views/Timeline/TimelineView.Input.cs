@@ -1,5 +1,6 @@
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
@@ -673,7 +674,14 @@ internal sealed partial class TimelineView
             .MinBy(m => Math.Abs(Viewport.TimeToX(m.Time) - x));
         if (marker is not null && point.Properties.IsRightButtonPressed)
         {
-            Session.Execute(Edits.RemoveMarker(Session.SequenceId, marker.Id));
+            var menu = new MenuFlyout();
+            var edit = new MenuFlyoutItem { Text = "Editar…" };
+            edit.Click += (_, _) => MarkerContextRequested?.Invoke(this, marker.Id);
+            var remove = new MenuFlyoutItem { Text = "Quitar" };
+            remove.Click += (_, _) => Session.Execute(Edits.RemoveMarker(Session.SequenceId, marker.Id));
+            menu.Items.Add(edit);
+            menu.Items.Add(remove);
+            menu.ShowAt(RulerCanvas, point.Position);
             return;
         }
 
