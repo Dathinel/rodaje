@@ -109,6 +109,33 @@ public static partial class Edits
             ctx => EffectEdits.SetKeyframeInterpolation(ctx, clipId, effectId, name, at, interpolation),
             ids);
 
+    /// <summary>Cambia la interpolación de varios keyframes en un único paso de deshacer.</summary>
+    public static SequenceEditCommand SetKeyframesInterpolation(
+        string sequenceId,
+        string clipId,
+        string effectId,
+        string name,
+        IReadOnlyCollection<Time> at,
+        Interpolation interpolation,
+        IIdGenerator? ids = null)
+    {
+        Time[] times = at?.ToArray() ?? throw new ArgumentNullException(nameof(at));
+        return new("Cambiar interpolación", sequenceId,
+            ctx => EffectEdits.SetKeyframesInterpolation(ctx, clipId, effectId, name, times, interpolation), ids);
+    }
+
+    /// <summary>Pega una selección de keyframes en un punto del mismo parámetro, en un único paso de deshacer.</summary>
+    public static SequenceEditCommand PasteKeyframes(
+        string sequenceId,
+        string clipId,
+        string effectId,
+        string name,
+        KeyframeClipboard clipboard,
+        Time at,
+        IIdGenerator? ids = null) =>
+        new("Pegar keyframes", sequenceId,
+            ctx => EffectEdits.PasteKeyframes(ctx, clipId, effectId, name, clipboard, at), ids);
+
     /// <summary>La curva Bézier del keyframe de <paramref name="at"/>; se funde con los cambios siguientes del mismo keyframe (un arrastre, un paso).</summary>
     public static SequenceEditCommand SetKeyframeEase(
         string sequenceId,
@@ -159,6 +186,20 @@ public static partial class Edits
         string mergeKey,
         IIdGenerator? ids = null) =>
         new("Mover keyframe", sequenceId, ctx => EffectEdits.MoveKeyframe(ctx, clipId, effectId, name, from, to), ids, mergeKey);
+
+    /// <summary>Mueve varios keyframes manteniendo sus distancias, en un único paso de deshacer.</summary>
+    public static SequenceEditCommand MoveKeyframes(
+        string sequenceId,
+        string clipId,
+        string effectId,
+        string name,
+        IReadOnlyCollection<Time> from,
+        Time delta,
+        IIdGenerator? ids = null)
+    {
+        Time[] times = from?.ToArray() ?? throw new ArgumentNullException(nameof(from));
+        return new("Mover keyframes", sequenceId, ctx => EffectEdits.MoveKeyframes(ctx, clipId, effectId, name, times, delta), ids);
+    }
 
     /// <summary>Sube o baja el volumen de cada clip o pista (valor y keyframes) en los dB de <paramref name="deltaDbByOwner"/>, en un solo paso.</summary>
     public static SequenceEditCommand ShiftGain(
