@@ -134,6 +134,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         Program.Metrics.Milestone("modulos");
         _longActions = new LongActionService(session);
         _longActions.Changed += (_, _) => _dispatcher.RunLater(ShowLongActions);
+        _longActions.Changed += (_, _) => _dispatcher.RunLater(() => UpdateJobsButton(JobsPanel.ActiveCount));
         _services = new EditorServices(session, _router, settings, engine, this)
         {
             Visuals = _visuals, Packages = packages, Content = content, Exports = _exports,
@@ -169,6 +170,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(_router.Bind(ActionIds.ShowShortcuts, () => ShowPage(ShellPage.Shortcuts)));
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
         _bindings.Add(_router.Bind(ActionIds.ShowMixer, ToggleMixer));
+        _bindings.Add(_router.Bind(ActionIds.ShowHistory, () => HistoryButton.Flyout.ShowAt(HistoryButton)));
         _bindings.Add(Views.Analysis.AnalysisCommands.Bind(_router, _services));
         _bindings.Add(Views.Timeline.TransitionCommands.Bind(_router, _services));
         _bindings.Add(Views.Voice.VoiceCommands.Bind(_router, _services));
@@ -185,6 +187,10 @@ internal sealed partial class MainWindow : Window, IShellHost
         Library.Attach(_services);
         Player.Attach(_services);
         Inspector.Attach(_services);
+        Inspector.GlobalPanelRequested += (_, tab) => ShowGlobalPanel(tab);
+        HistoryPanel.Attach(_services);
+        JobsPanel.ActiveCountChanged += (_, active) => UpdateJobsButton(active);
+        JobsPanel.Attach(_services);
         Timeline.Attach(_services);
         Mixer.Attach(_services);
         Timeline.ClipVisuals = _visuals;
@@ -470,7 +476,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private void OnExportStarted(ExportEntry entry)
     {
-        Inspector.Show(Views.Inspector.InspectorView.Tab.Jobs);
+        ShowGlobalPanel(Views.Inspector.InspectorView.Tab.Jobs);
         string mode = entry.Request.Settings.Performance == Rodaje.Export.ExportPerformance.Fastest ? "con alto rendimiento" : "en segundo plano";
         Session.Notify(NotificationSeverity.Informational, "Exportando",
             $"«{entry.Title}» se exporta {mode}; puedes seguir editando. El avance está en Trabajos.");
@@ -770,6 +776,26 @@ internal sealed partial class MainWindow : Window, IShellHost
             Notification.IsOpen = true;
             FrameworkElementAutomationPeer.FromElement(Notification)?.RaiseNotificationEvent(
                 AutomationNotificationKind.ActionCompleted, AutomationNotificationProcessing.ImportantMostRecent, current.Title + ": en marcha", "rodaje.avance");
+        }
+    }
+
+    private void UpdateJobsButton(int activeJobs)
+    {
+        int active = activeJobs + _longActions.Running.Count;
+        JobsButtonText.Text = active > 0 ? $"Trabajos ({active})" : "Trabajos";
+        JobsProgress.IsActive = active > 0;
+        JobsProgress.Visibility = active > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    private void ShowGlobalPanel(Views.Inspector.InspectorView.Tab tab)
+    {
+        if (tab == Views.Inspector.InspectorView.Tab.History)
+        {
+            HistoryButton.Flyout?.ShowAt(HistoryButton);
+        }
+        else if (tab == Views.Inspector.InspectorView.Tab.Jobs)
+        {
+            JobsButton.Flyout?.ShowAt(JobsButton);
         }
     }
 

@@ -18,6 +18,10 @@ internal sealed partial class ModuleJobsView : UserControl, IEditorView
     private readonly Dictionary<ModuleJob, Row> _rows = [];
     private ModuleJobList? _jobs;
 
+    public event EventHandler<int>? ActiveCountChanged;
+
+    public int ActiveCount => _jobs?.ActiveCount ?? 0;
+
     public ModuleJobsView()
     {
         var title = new TextBlock { Text = "Módulos de IA", Style = Resource<Style>("PanelTitleTextStyle"), VerticalAlignment = VerticalAlignment.Center };
@@ -41,7 +45,11 @@ internal sealed partial class ModuleJobsView : UserControl, IEditorView
         _jobs = services.Modules?.Jobs;
         if (_jobs is not null)
         {
-            _jobs.Changed += (_, _) => Show();
+            _jobs.Changed += (_, _) =>
+            {
+                Show();
+                ActiveCountChanged?.Invoke(this, _jobs.ActiveCount);
+            };
         }
     }
 
@@ -73,6 +81,7 @@ internal sealed partial class ModuleJobsView : UserControl, IEditorView
 
         Visibility = current.Count == 0 ? Visibility.Collapsed : Visibility.Visible;
         _clear.IsEnabled = current.Any(j => j.IsFinished);
+        ActiveCountChanged?.Invoke(this, jobs.ActiveCount);
     }
 
     private static T Resource<T>(string key) => (T)Application.Current.Resources[key];

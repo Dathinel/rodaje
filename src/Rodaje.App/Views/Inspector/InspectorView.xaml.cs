@@ -29,6 +29,8 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         Jobs,
     }
 
+    public event EventHandler<Tab>? GlobalPanelRequested;
+
     public void Attach(EditorServices services)
     {
         if (services.Content is EffectContent content)
@@ -50,14 +52,6 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         services.Session.TrackPanelRequested += (_, _) => Show(Tab.Tracking);
         DynamicsPanel.Attach(services);
         services.Session.DynamicsPanelRequested += (_, _) => Show(Tab.Dynamics);
-        HistoryPanel.Attach(services);
-        JobsPanel.ActiveCountChanged += (_, active) =>
-        {
-            JobsLabel.Text = active > 0 ? $"Trabajos ({active})" : "Trabajos";
-            ToolTipService.SetToolTip(JobsTab, JobsLabel.Text);
-            UpdateTabLabels();
-        };
-        JobsPanel.Attach(services);
         ApplyTabs(services.Settings.Current.HiddenInspectorTabs, null);
     }
 
@@ -67,6 +61,12 @@ internal sealed partial class InspectorView : UserControl, IEditorView
 
     public void Show(Tab tab)
     {
+        if (tab is Tab.History or Tab.Jobs)
+        {
+            GlobalPanelRequested?.Invoke(this, tab);
+            return;
+        }
+
         RadioButton button = tab switch
         {
             Tab.Text => TextTab,
@@ -75,8 +75,6 @@ internal sealed partial class InspectorView : UserControl, IEditorView
             Tab.Masks => MasksTab,
             Tab.Tracking => TrackingTab,
             Tab.Dynamics => DynamicsTab,
-            Tab.History => HistoryTab,
-            Tab.Jobs => JobsTab,
             _ => PropertiesTab,
         };
         button.IsChecked = true;
@@ -90,12 +88,12 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     }
 
     private (RadioButton Tab, TextBlock Label)[] Tabs =>
-        [(PropertiesTab, PropertiesLabel), (TextTab, TextLabel), (SpeedTab, SpeedLabel), (FiltersTab, FiltersLabel), (MasksTab, MasksLabel), (TrackingTab, TrackingLabel), (DynamicsTab, DynamicsLabel), (HistoryTab, HistoryLabel), (JobsTab, JobsLabel)];
+        [(PropertiesTab, PropertiesLabel), (TextTab, TextLabel), (SpeedTab, SpeedLabel), (FiltersTab, FiltersLabel), (MasksTab, MasksLabel), (TrackingTab, TrackingLabel), (DynamicsTab, DynamicsLabel)];
 
     // Se mide con todos los nombres; si no caben, las pestañas pasan a ícono y solo la elegida conserva su nombre.
     private void UpdateTabLabels()
     {
-        if (TabStrip is null || JobsLabel is null || TabBar.ActualWidth <= 0)
+        if (TabStrip is null || TabBar.ActualWidth <= 0)
         {
             return;
         }
@@ -120,7 +118,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     // Con una transición seleccionada, Propiedades muestra la transición.
     private void UpdateVisibility()
     {
-        if (PropertiesPanel is null || TransitionPanel is null || TextPanel is null || SpeedPanel is null || FiltersPanel is null || MasksPanel is null || TrackingPanel is null || DynamicsPanel is null || HistoryPanel is null || JobsPanel is null)
+        if (PropertiesPanel is null || TransitionPanel is null || TextPanel is null || SpeedPanel is null || FiltersPanel is null || MasksPanel is null || TrackingPanel is null || DynamicsPanel is null)
         {
             return;
         }
@@ -134,8 +132,6 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         MasksPanel.Visibility = Visible(MasksTab.IsChecked == true);
         TrackingPanel.Visibility = Visible(TrackingTab.IsChecked == true);
         DynamicsPanel.Visibility = Visible(DynamicsTab.IsChecked == true);
-        HistoryPanel.Visibility = Visible(HistoryTab.IsChecked == true);
-        JobsPanel.Visibility = Visible(JobsTab.IsChecked == true);
     }
 
     private static Visibility Visible(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;
