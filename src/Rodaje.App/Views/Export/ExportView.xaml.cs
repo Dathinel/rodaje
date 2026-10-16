@@ -864,11 +864,30 @@ internal sealed partial class ExportView : UserControl
         }
     }
 
-    private void OnRemovePresetClick(object sender, RoutedEventArgs e)
+    private void OnRemovePresetClick(object sender, RoutedEventArgs e) => UiTask.Run(OnRemovePresetClickAsync());
+
+    private async Task OnRemovePresetClickAsync()
     {
-        if (_model is { } model)
+        if (_model is not { } model || XamlRoot is not { } root || DialogGate.IsOpen
+            || ExportPresetLibrary.Find(_services.Settings.Current.Export, model.PresetId) is not { Origin: ExportPresetOrigin.User } preset)
         {
-            model.RemovePreset(model.PresetId);
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = root,
+            Title = "¿Quitar el preajuste?",
+            Content = $"Se quitará «{preset.Name}» de tus preajustes. No se puede deshacer.",
+            PrimaryButtonText = "Quitar preajuste",
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        if (await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary
+            && ReferenceEquals(_model, model) && model.PresetId == preset.Id)
+        {
+            model.RemovePreset(preset.Id);
         }
     }
 

@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Settings;
 
 namespace Rodaje.App.Shell;
@@ -45,15 +46,37 @@ internal sealed partial class TitleBar
             foreach (WorkspaceProfile own in settings.Workspaces)
             {
                 var item = new MenuFlyoutItem { Text = own.Name };
-                item.Click += (_, _) =>
-                {
-                    WorkspaceProfiles.Remove(settings, own.Id);
-                    UpdateWorkflowChecks();
-                };
+                item.Click += (_, _) => UiTask.Run(RemoveWorkspaceAsync(own));
                 remove.Items.Add(item);
             }
 
             WorkspaceMenu.Items.Add(remove);
+        }
+    }
+
+    private async Task RemoveWorkspaceAsync(WorkspaceProfile profile)
+    {
+        if (_services is not { } services || DialogGate.IsOpen || XamlRoot is not { } root
+            || !services.Settings.Current.Workspaces.Any(p => p.Id == profile.Id))
+        {
+            return;
+        }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = root,
+            Title = "¿Quitar el espacio de trabajo?",
+            Content = $"Se quitará «{profile.Name}» de tus espacios propios. No se puede deshacer.",
+            PrimaryButtonText = "Quitar espacio",
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        if (await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary
+            && services.Settings.Current.Workspaces.Any(p => p.Id == profile.Id))
+        {
+            WorkspaceProfiles.Remove(services.Settings.Current, profile.Id);
+            UpdateWorkflowChecks();
         }
     }
 

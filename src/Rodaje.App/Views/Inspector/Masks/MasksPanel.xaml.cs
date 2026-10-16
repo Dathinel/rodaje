@@ -730,12 +730,36 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         }
     }
 
-    private void OnClearKeysClick(object sender, RoutedEventArgs e)
+    private void OnClearKeysClick(object sender, RoutedEventArgs e) => UiTask.Run(OnClearKeysClickAsync());
+
+    private async Task OnClearKeysClickAsync()
     {
-        if (CurrentClip() is { } clip && _maskId is { } id)
+        if (CurrentClip() is not { } clip || _maskId is not { } id || _services is not { } services
+            || MaskShapeTrack.Parse(clip.Effects.Find(e => e.Id == id)?.Options.GetValueOrDefault(O.ShapeKeys)) is not { } track
+            || DialogGate.IsOpen || XamlRoot is not { } root)
         {
-            Run(Edits.ClearMaskShapeKeys(SequenceId, clip.Id, id, clip.ToEffectTime(_services!.Session.Position)));
+            return;
         }
+
+        var dialog = new ContentDialog
+        {
+            XamlRoot = root,
+            Title = "¿Quitar los keyframes de forma?",
+            Content = $"Se borrarán {KeyframeDialog.Count(track.Count)} y la máscara quedará fija en la forma del cursor. Se puede deshacer con Ctrl+Z.",
+            PrimaryButtonText = "Quitar keyframes",
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Close,
+            RequestedTheme = ElementTheme.Dark,
+        };
+        if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary
+            || _maskId != id || _clipId != clip.Id || services.Session.Sequence.FindClip(clip.Id) is not { } current
+            || current.Clip.Effects.Find(e => e.Id == id) is not { } mask
+            || MaskShapeTrack.Parse(mask.Options.GetValueOrDefault(O.ShapeKeys)) is not { Count: > 0 })
+        {
+            return;
+        }
+
+        Run(Edits.ClearMaskShapeKeys(SequenceId, clip.Id, id, current.Clip.ToEffectTime(services.Session.Position)));
     }
 
     private void OnViewClick(object sender, RoutedEventArgs e)
