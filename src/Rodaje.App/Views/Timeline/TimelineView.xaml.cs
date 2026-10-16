@@ -669,9 +669,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
 
     private (ToggleButton Button, string ActionId)[] ToggleButtons() =>
     [
-        (MagneticButton, ActionIds.ToggleMagneticMain),
         (SnappingButton, ActionIds.ToggleSnapping),
-        (AutoRippleButton, ActionIds.ToggleAutoRipple),
         (CrossfadeButton, TimelineActionIds.AutoCrossfade),
         (LockEnvelopesButton, TimelineActionIds.LockEnvelopes),
         (IgnoreGroupsButton, TimelineActionIds.IgnoreGroups),
@@ -723,6 +721,14 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         }
     }
 
+    private void OnGapBehaviorChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (Session is not null && GapBehaviorBox.SelectedIndex >= 0)
+        {
+            State.GapBehavior = (TimelineGapBehavior)GapBehaviorBox.SelectedIndex;
+        }
+    }
+
     private void UpdateToolbar()
     {
         if (Session is null)
@@ -741,12 +747,11 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         RippleToolButton.IsChecked = state.Tool == TimelineTool.Ripple;
         SlipToolButton.IsChecked = state.Tool == TimelineTool.Slip;
         RangeToolButton.IsChecked = state.Tool == TimelineTool.Range;
-        MagneticButton.IsChecked = state.MagneticMainTrack;
         SnappingButton.IsChecked = state.Snapping;
-        AutoRippleButton.IsChecked = state.AutoRipple;
         CrossfadeButton.IsChecked = state.AutoCrossfade;
         LockEnvelopesButton.IsChecked = state.LockEnvelopes;
         IgnoreGroupsButton.IsChecked = state.IgnoreGroups;
+        GapBehaviorBox.SelectedIndex = (int)state.GapBehavior;
         RippleModeBox.SelectedIndex = (int)state.RippleMode;
     }
 
@@ -763,7 +768,8 @@ internal sealed partial class TimelineView : UserControl, IEditorView
             ToolTipService.SetToolTip(button, Tip(registry, id));
         }
 
-        ToolTipService.SetToolTip(RippleModeBox, "Qué se corre con el ripple: solo las pistas de lo que se edita, todas, o también marcadores y regiones");
+        ToolTipService.SetToolTip(GapBehaviorBox, "Qué hacen Supr, el recorte y el arrastre si queda un hueco");
+        ToolTipService.SetToolTip(RippleModeBox, "Qué pistas, marcadores y regiones se desplazan cuando el modo activo usa ripple");
         ToolTipService.SetToolTip(ZoomSlider, "Zoom (Ctrl+rueda sobre las pistas)");
     }
 

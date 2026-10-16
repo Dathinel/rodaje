@@ -59,14 +59,14 @@ Sin tecla de fábrica (se asignan en el panel): Cerrar todos los huecos, Ir al h
 | Añadir marcador | M | = | = |
 | Añadir región | R | (sin tecla) | R |
 | Ajuste (imán a bordes, cursor y marcadores) | N | = | F8 |
-| Ripple automático | Ctrl+L | (sin tecla) | Ctrl+L |
+| Cambiar control de huecos | Ctrl+L | (sin tecla) | Ctrl+L |
 | Herramienta normal | V | A | Ctrl+D |
 | Herramienta de envolvente | E | (sin tecla) | E |
 | Herramienta de zoom | Z | (sin tecla) | Z |
 | Herramienta de roll | Y | Mayús+Y | N |
 | Herramienta de slide | U | Mayús+U | U |
 | Herramienta cuchilla | C | B | C |
-| Herramienta de ripple | B | (sin tecla) | B |
+| Recorte Ripple | B | (sin tecla) | B |
 | Herramienta de slip | D | (sin tecla) | Y |
 | Herramienta de rango | G | (sin tecla) | G |
 | Acercar | Ctrl++ (también en el numérico) | = | ↑ |

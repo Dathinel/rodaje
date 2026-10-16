@@ -190,9 +190,10 @@ public sealed class TimelinePreferences
     public void ApplyTo(TimelineState state)
     {
         ArgumentNullException.ThrowIfNull(state);
-        state.MagneticMainTrack = MagneticMainTrack;
+        state.GapBehavior = AutoRipple
+            ? TimelineGapBehavior.GlobalRipple
+            : MagneticMainTrack ? TimelineGapBehavior.MagneticMainTrack : TimelineGapBehavior.LeaveGaps;
         state.Snapping = Snapping;
-        state.AutoRipple = AutoRipple;
         state.RippleMode = RippleMode;
         state.AutoCrossfade = AutoCrossfade;
         state.LockEnvelopes = LockEnvelopes;

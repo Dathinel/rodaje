@@ -130,7 +130,7 @@ public static partial class EditorShortcuts
         new(ActionIds.AddMarker, "Añadir marcador", ShortcutGroups.Timeline, ["M"]) { ShortLabel = "Marcador", Description = "Deja una marca en el cursor para volver a ese punto." },
         new(ActionIds.AddRegion, "Añadir región", ShortcutGroups.Timeline, ["R"], agile: []) { ShortLabel = "Región", Description = "Marca un tramo de la secuencia con nombre." },
         new(ActionIds.ToggleSnapping, "Ajuste", ShortcutGroups.Timeline, ["N"], classic: ["F8"]) { Description = "Activa o quita el imán que pega los clips a bordes y al cursor." },
-        new(ActionIds.ToggleAutoRipple, "Ripple automático", ShortcutGroups.Timeline, ["Ctrl+L"], agile: []) { ShortLabel = "Ripple", Description = "Al borrar o mover, corre lo que viene detrás para no dejar huecos." },
+        new(ActionIds.ToggleAutoRipple, "Cambiar control de huecos", ShortcutGroups.Timeline, ["Ctrl+L"], agile: []) { ShortLabel = "Huecos", Description = "Avanza entre dejar huecos, imantar la pista principal y aplicar ripple global." },
         new(ActionIds.AddSubtitleTrack, "Añadir pista de subtítulos", ShortcutGroups.Timeline, []) { ShortLabel = "Subtítulos", Description = "Crea encima de todas una pista para los subtítulos." },
         new(ActionIds.ToggleMagneticMain, "Pista principal magnética", ShortcutGroups.Timeline, []) { ShortLabel = "Magnética", Description = "Mantiene los clips de la pista principal pegados unos a otros." },
 
@@ -140,7 +140,7 @@ public static partial class EditorShortcuts
         new(ActionIds.SlideTool, "Herramienta de slide", ShortcutGroups.Tools, ["U"], agile: ["Mayús+U"], classic: ["U"]) { ShortLabel = "Slide", Description = "Corre un clip entre sus vecinos, que se recortan (o Ctrl+Alt en el cuerpo)." },
         new(ActionIds.SelectionTool, "Herramienta de selección", ShortcutGroups.Tools, []) { ShortLabel = "Selección", Description = "Arrastra un recuadro para seleccionar varios clips." },
         new(ActionIds.BladeTool, "Herramienta cuchilla", ShortcutGroups.Tools, ["C"], agile: ["B"], classic: ["C"]) { ShortLabel = "Cuchilla", Description = "Un clic corta el clip en ese punto; con Mayús, todas las pistas." },
-        new(ActionIds.RippleTool, "Herramienta de ripple", ShortcutGroups.Tools, ["B"], agile: [], classic: ["B"]) { ShortLabel = "Ripple", Description = "Arrastra un borde: recorta y corre lo que sigue, sin dejar hueco." },
+        new(ActionIds.RippleTool, "Recorte Ripple", ShortcutGroups.Tools, ["B"], agile: [], classic: ["B"]) { ShortLabel = "Recorte", Description = "Arrastra un borde para recortarlo y correr lo que sigue." },
         new(ActionIds.SlipTool, "Herramienta de slip", ShortcutGroups.Tools, ["D"], agile: [], classic: ["Y"]) { ShortLabel = "Slip", Description = "Arrastra un clip para ver otra parte de su material sin moverlo." },
         new(ActionIds.RangeTool, "Herramienta de rango", ShortcutGroups.Tools, ["G"], agile: [], classic: ["G"]) { ShortLabel = "Rango", Description = "Arrastra para marcar la entrada y la salida, aunque pases sobre clips." },
         new(ActionIds.ZoomTool, "Herramienta de zoom", ShortcutGroups.Tools, ["Z"], agile: []) { ShortLabel = "Zoom", Description = "Haz clic o arrastra en la línea de tiempo para acercar ese tramo." },
@@ -196,8 +196,15 @@ public static partial class EditorShortcuts
             router.Bind(ActionIds.ZoomIn, timeline.ZoomIn),
             router.Bind(ActionIds.ZoomOut, timeline.ZoomOut),
             router.Bind(ActionIds.ToggleSnapping, () => timeline.Snapping = !timeline.Snapping),
-            router.Bind(ActionIds.ToggleAutoRipple, () => timeline.AutoRipple = !timeline.AutoRipple),
-            router.Bind(ActionIds.ToggleMagneticMain, () => timeline.MagneticMainTrack = !timeline.MagneticMainTrack),
+            router.Bind(ActionIds.ToggleAutoRipple, () => timeline.GapBehavior = timeline.GapBehavior switch
+            {
+                TimelineGapBehavior.LeaveGaps => TimelineGapBehavior.MagneticMainTrack,
+                TimelineGapBehavior.MagneticMainTrack => TimelineGapBehavior.GlobalRipple,
+                _ => TimelineGapBehavior.LeaveGaps,
+            }),
+            router.Bind(ActionIds.ToggleMagneticMain, () => timeline.GapBehavior = timeline.GapBehavior == TimelineGapBehavior.MagneticMainTrack
+                ? TimelineGapBehavior.LeaveGaps
+                : TimelineGapBehavior.MagneticMainTrack),
 
             router.Bind(ActionIds.NormalTool, () => timeline.Tool = TimelineTool.Normal),
             router.Bind(ActionIds.EnvelopeTool, () => timeline.Tool = TimelineTool.Envelope),
