@@ -53,8 +53,20 @@
                 <MenuFlyoutItem Text="Seleccionar todo" Tag="edit.selectAll" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Secuencia">
+                <MenuFlyoutItem Text="Formato del proyecto…" Tag="project.format" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Añadir pista de video" Tag="timeline.addVideoTrack" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Añadir pista de audio" Tag="timeline.addAudioTrack" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Añadir texto" Tag="clip.addText" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Añadir pista de subtítulos" Tag="timeline.subtitleTrack" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Cerrar todos los huecos" Tag="timeline.closeGaps" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Insertar desde el origen" Tag="edit.insertSource" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Sobrescribir desde el origen" Tag="edit.overwriteSource" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Reemplazar desde el origen" Tag="edit.replaceSource" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Ajustar a rellenar desde el origen" Tag="edit.fitToFillSource" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Superponer desde el origen" Tag="edit.superimposeSource" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Herramientas">
                 <MenuFlyoutSubItem Text="Audio">
