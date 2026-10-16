@@ -1,5 +1,8 @@
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml;
 using Rodaje.App.Views.Analysis;
+using Rodaje.App.Services;
+using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Timeline;
 
@@ -13,18 +16,34 @@ internal sealed partial class TimelineView
             return;
         }
 
-        menu.Items.Add(new MenuFlyoutSeparator());
-        foreach ((string id, string label, string glyph) in AnalysisCommands.Menu)
+        EditorSession session = services.Session;
+        string[] selection = [.. session.SelectedClipIds];
+        bool hasAudio = selection.Any(id => session.Sequence.FindClip(id) is { } found
+            && found.Clip.Generator is null && session.Project.FindMedia(found.Clip.MediaId) is { HasAudio: true });
+        bool hasVideo = selection.Any(id => session.Sequence.FindClip(id) is { } found
+            && found.Clip.Generator is null && session.Project.FindMedia(found.Clip.MediaId) is { HasVideo: true, FrameRate: not null });
+        IReadOnlyList<string> actionIds = QuickTools.ContextMenuActionIds(hasAudio, hasVideo);
+        if (actionIds.Count == 0)
         {
-            var item = new MenuFlyoutItem { Text = label, Icon = new FontIcon { Glyph = glyph } };
-            item.Click += (_, _) => services.Shortcuts.Invoke(id);
-            menu.Items.Add(item);
+            return;
         }
 
         menu.Items.Add(new MenuFlyoutSeparator());
-        foreach ((string id, string label, string glyph) in Vision.VisionCommands.Menu)
+        var actions = AnalysisCommands.Menu.Concat(Vision.VisionCommands.Menu)
+            .Append((Id: AnalysisCommands.ReduceNoise, Label: "Reducir ruido…", Glyph: QuickTools.All.Single(tool => tool.ActionId == AnalysisCommands.ReduceNoise).Glyph))
+            .ToDictionary(action => action.Id, StringComparer.Ordinal);
+        bool noiseModule = services.Modules?.FindByFunction(NoiseReduction.Function) is not null;
+        bool visionModule = services.Modules?.FindByFunction(Vision.VisionTools.RemoveBackgroundFunction) is not null;
+        foreach (string id in actionIds)
         {
-            var item = new MenuFlyoutItem { Text = label, Icon = new FontIcon { Glyph = glyph } };
+            (string _, string label, string glyph) = actions[id];
+            QuickToolState state = QuickTools.State(id, session.Project, session.Sequence, selection, noiseModule, visionModule);
+            var item = new MenuFlyoutItem { Text = label, Icon = new FontIcon { Glyph = glyph }, IsEnabled = state.Available };
+            if (!state.Available && state.Reason is { } reason)
+            {
+                ToolTipService.SetToolTip(item, reason);
+            }
+
             item.Click += (_, _) => services.Shortcuts.Invoke(id);
             menu.Items.Add(item);
         }
