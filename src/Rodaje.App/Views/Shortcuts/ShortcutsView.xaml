@@ -122,7 +122,7 @@
                 </StackPanel>
 
                 <StackPanel x:Name="AdvancedPanel" Spacing="16" Visibility="Collapsed">
-                    <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
+                    <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="12,0" TextWrapping="Wrap" TextTrimming="None"
                                Text="Pulsa «Cambiar» (o una tecla de la fila) y después la combinación nueva, o abre «Teclado y ratón» y haz clic en una tecla o un botón. Si ya era de otra acción, eliges entre intercambiarlas o quitársela, y puedes deshacerlo. La barra naranja marca lo que cambiaste; cada estilo guarda sus propios cambios." />
 
                     <Border x:Name="KeyboardPanel" Visibility="Collapsed" Padding="12" Background="{StaticResource BarBrush}"
