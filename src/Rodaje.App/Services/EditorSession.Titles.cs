@@ -68,6 +68,20 @@ public sealed partial class EditorSession
         return Execute(Edits.SetTitleStyle(SequenceId, clipId, style, null, _ids));
     }
 
+    /// <summary>Agrega una pista de video al final de las pistas de video.</summary>
+    public bool AddVideoTrack()
+    {
+        VerifyAccess();
+        return Execute(Edits.AddTrack(SequenceId, TrackKind.Video, Sequence.VideoTracks.Count, UniqueTrackName("Video"), _ids));
+    }
+
+    /// <summary>Agrega una pista de audio al final de las pistas de audio.</summary>
+    public bool AddAudioTrack()
+    {
+        VerifyAccess();
+        return Execute(Edits.AddTrack(SequenceId, TrackKind.Audio, Sequence.AudioTracks.Count, UniqueTrackName("Audio"), _ids));
+    }
+
     /// <summary>Agrega una pista de subtítulos encima de todas.</summary>
     public bool AddSubtitleTrack()
     {

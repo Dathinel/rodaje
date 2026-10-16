@@ -54,6 +54,11 @@
                 <MenuFlyoutItem Text="Seleccionar todo" Tag="edit.selectAll" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Secuencia">
+                <MenuFlyoutItem Text="Formato del proyecto…" Tag="project.format" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Añadir pista de video" Tag="timeline.videoTrack" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Añadir pista de audio" Tag="timeline.audioTrack" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Cerrar todos los huecos" Tag="timeline.closeGaps" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Añadir texto" Tag="clip.addText" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Añadir pista de subtítulos" Tag="timeline.subtitleTrack" Click="OnActionClick" />
                 <MenuFlyoutSubItem Text="Marcadores y regiones">

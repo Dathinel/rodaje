@@ -32,6 +32,19 @@ public sealed class TitleBarMenuTests
         Assert.DoesNotContain("analysis.silences", ItemsUnder(menu, "Editar"));
     }
 
+    [Fact]
+    public void SequenceMenuExposesProjectFormatTracksAndGapClosing()
+    {
+        string root = RepositoryRoot();
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XElement menu = XDocument.Load(Path.Combine(root, "src", "Rodaje.App", "Shell", "TitleBar.xaml"))
+            .Descendants(xaml + "MenuBar").Single();
+        string[] expected = ["project.format", "timeline.videoTrack", "timeline.audioTrack", "timeline.closeGaps"];
+
+        Assert.All(expected, id => Assert.Equal("Secuencia", ParentMenu(menu, id)));
+        Assert.Equal(expected, ItemsUnder(menu, "Secuencia").Take(expected.Length));
+    }
+
     private static string? ParentMenu(XElement menu, string tag) => menu
         .Descendants()
         .SingleOrDefault(element => (string?)element.Attribute("Tag") == tag)
