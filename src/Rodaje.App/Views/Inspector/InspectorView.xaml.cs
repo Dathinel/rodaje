@@ -103,7 +103,9 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     // Se mide con todos los nombres; si no caben, las pestañas pasan a ícono y solo la elegida conserva su nombre.
     private void UpdateTabLabels()
     {
-        if (TabStrip is null || TabBar is null || TabBar.ActualWidth <= 0)
+        // Mientras se carga el XAML, el Checked de la pestaña inicial llega antes que el resto de pestañas y nombres.
+        if (TabStrip is null || TabBar is null || TabBar.ActualWidth <= 0
+            || Tabs.Any(t => t.Tab is null || t.Label?.Parent is not Panel { Children.Count: > 0 }))
         {
             return;
         }
