@@ -69,6 +69,7 @@ public static class ActionIds
     public const string ShowPlugins = "view.plugins";
     public const string ShowMixer = "view.mixer";
     public const string ShowHistory = "view.history";
+    public const string ShowPreferences = "view.preferences";
 }
 
 /// <summary>Grupos de la página de atajos, en el orden en que se muestran.</summary>
@@ -100,6 +101,7 @@ public static partial class EditorShortcuts
         new(ActionIds.SaveAs, "Guardar como", ShortcutGroups.File, ["Ctrl+Mayús+S"]) { ShortLabel = "Guardar como", WorksInTextInput = true, Description = "Guarda una copia con otro nombre o en otra carpeta." },
         new(ActionIds.Import, "Importar medios", ShortcutGroups.File, ["Ctrl+I"]) { ShortLabel = "Importar", Description = "Trae videos, audios o imágenes a la biblioteca." },
         new(ActionIds.Export, "Exportar", ShortcutGroups.File, ["Ctrl+E", "Ctrl+M"], agile: ["Ctrl+E"], classic: ["Ctrl+M"]) { WorksInTextInput = true, Description = "Convierte el proyecto en un video terminado." },
+        new(ActionIds.ShowPreferences, "Preferencias", ShortcutGroups.File, ["Ctrl+,"]) { WorksInTextInput = true, Description = "Configura las preferencias de Rodaje." },
         new(ActionIds.ExportFrame, "Exportar fotograma", ShortcutGroups.File, ["Ctrl+Mayús+E"]) { ShortLabel = "Fotograma", Description = "Guarda como imagen PNG o JPEG el cuadro que está bajo el cursor." },
 
         new(ActionIds.Undo, "Deshacer", ShortcutGroups.Edit, ["Ctrl+Z"]) { Repeats = true, Description = "Vuelve atrás el último cambio." },

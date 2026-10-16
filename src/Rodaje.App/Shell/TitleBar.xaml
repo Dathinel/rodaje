@@ -38,7 +38,8 @@
                 <MenuFlyoutItem Text="Exportar fotograma..." Tag="file.exportFrame" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Exportar subtítulos..." Tag="file.exportSubtitles" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
-                <MenuFlyoutItem Text="Carpeta de medios generados..." Click="OnGeneratedFolderClick" />
+                <MenuFlyoutItem Text="Atajos de teclado..." Tag="view.shortcuts" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Preferencias..." Tag="view.preferences" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Salir" Click="OnExitClick" />
             </MenuBarItem>
@@ -95,35 +96,12 @@
                 <MenuFlyoutItem Text="Pantalla completa" Tag="view.playerFullScreen" Click="OnActionClick" />
                 <MenuFlyoutItem x:Name="SecondScreenItem" Text="Visor en otra pantalla" Tag="view.secondScreen" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
-                <MenuFlyoutSubItem Text="Proxies en la vista previa">
-                    <RadioMenuFlyoutItem x:Name="ProxyAuto" Text="Automático" GroupName="Proxies" Tag="Auto" Click="OnProxyClick" />
-                    <RadioMenuFlyoutItem x:Name="ProxyAlways" Text="Siempre que haya" GroupName="Proxies" Tag="Always" Click="OnProxyClick" />
-                    <RadioMenuFlyoutItem x:Name="ProxyNever" Text="Nunca (originales)" GroupName="Proxies" Tag="Never" Click="OnProxyClick" />
-                    <MenuFlyoutSeparator />
-                    <ToggleMenuFlyoutItem x:Name="AutoProxiesItem" Text="Generar al importar los videos pesados" Click="OnAutoProxiesClick" />
-                </MenuFlyoutSubItem>
-                <MenuFlyoutSubItem x:Name="NewVideoTracksMenu" Text="Pistas de video de un proyecto nuevo" />
-                <MenuFlyoutSubItem x:Name="NewAudioTracksMenu" Text="Pistas de audio de un proyecto nuevo" />
-                <MenuFlyoutSubItem x:Name="LinkedAudioMenu" Text="Pistas de video que traen su audio" />
-                <MenuFlyoutSubItem Text="Calidad de la vista previa">
-                    <RadioMenuFlyoutItem x:Name="QualityAuto" Text="Automática" GroupName="Quality" Tag="Auto" Click="OnQualityClick" />
-                    <RadioMenuFlyoutItem x:Name="QualityFull" Text="Completa" GroupName="Quality" Tag="Full" Click="OnQualityClick" />
-                    <RadioMenuFlyoutItem x:Name="QualityHalf" Text="Mitad" GroupName="Quality" Tag="Half" Click="OnQualityClick" />
-                    <RadioMenuFlyoutItem x:Name="QualityQuarter" Text="Cuarto" GroupName="Quality" Tag="Quarter" Click="OnQualityClick" />
-                </MenuFlyoutSubItem>
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Acercar" Tag="timeline.zoomIn" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Alejar" Tag="timeline.zoomOut" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Complementos">
                 <MenuFlyoutItem Text="Gestor de complementos..." Tag="view.plugins" Click="OnActionClick" />
-            </MenuBarItem>
-            <MenuBarItem Title="Atajos">
-                <MenuFlyoutItem Text="Atajos de teclado..." Tag="view.shortcuts" Click="OnActionClick" />
-                <MenuFlyoutSeparator />
-                <RadioMenuFlyoutItem x:Name="PresetRodaje" Text="Estilo Rodaje" GroupName="Preset" Tag="Rodaje" Click="OnPresetClick" />
-                <RadioMenuFlyoutItem x:Name="PresetAgile" Text="Estilo Ágil" GroupName="Preset" Tag="Agile" Click="OnPresetClick" />
-                <RadioMenuFlyoutItem x:Name="PresetClassic" Text="Estilo Clásico" GroupName="Preset" Tag="Classic" Click="OnPresetClick" />
             </MenuBarItem>
             <MenuBarItem Title="Ayuda">
                 <MenuFlyoutItem Text="Recorrido inicial" Tag="help.tour" Click="OnActionClick" />
