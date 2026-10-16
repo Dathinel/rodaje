@@ -50,7 +50,7 @@ En las tablas, «=» significa «igual que Rodaje».
 | Crear clip compuesto | Alt+G | Ctrl+G | Alt+G |
 | Descomponer clip compuesto | Alt+Mayús+G | Ctrl+Mayús+G | Alt+Mayús+G |
 
-Sin tecla de fábrica (se asignan en el panel): Cerrar todos los huecos, Ir al hueco siguiente o anterior, Invertir, Añadir pista de subtítulos, Pista principal magnética, Fundido cruzado automático, Bloquear envolventes, Ignorar grupos, Salir del clip compuesto.
+Sin tecla de fábrica (se asignan en el panel): Cerrar todos los huecos, Ir al hueco siguiente o anterior, Invertir, Formato del proyecto, Añadir pista de video, Añadir pista de audio, Añadir pista de subtítulos, Pista principal magnética, Fundido cruzado automático, Bloquear envolventes, Ignorar grupos, Salir del clip compuesto.
 
 ## Línea de tiempo y herramientas
 
@@ -82,6 +82,7 @@ Sin tecla de fábrica (se asignan en el panel): Cerrar todos los huecos, Ir al h
 | Guardar / Guardar como | Ctrl+S / Ctrl+Mayús+S | = | = |
 | Importar medios | Ctrl+I | = | = |
 | Preferencias de la aplicación | Ctrl+, | = | = |
+| Historial del proyecto | Ctrl+H | = | = |
 | Exportar | Ctrl+E, Ctrl+M | Ctrl+E | Ctrl+M |
 | Exportar fotograma | Ctrl+Mayús+E | = | = |
 | Atajos de teclado | Ctrl+Alt+K | = | = |

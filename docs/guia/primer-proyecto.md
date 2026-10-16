@@ -7,7 +7,7 @@ Diez minutos: importar un video, cortarlo, ponerle música, un título y sacarlo
 La ventana principal de Rodaje está organizada en cinco áreas ergonómicas:
 - **Biblioteca (panel izquierdo):** Organizada mediante un riel de categorías (Medios, Audio, Texto, Transiciones, Filtros, Efectos, Módulos de IA y Marcadores) con vista de cuadrícula o lista detallada.
 - **Reproductor y visor (centro):** Monitor de previsualización a pantalla completa o dividida, con controles de transporte y medidores de sonoridad estéreo / LUFS a la derecha.
-- **Inspector (panel derecho):** Pestañas contextuales que se adaptan al elemento seleccionado (*Propiedades / Transformar*, *Texto*, *Color y Filtros*, *Máscaras*, *Seguimiento*, *Transición* e *Historial*). Los trabajos en segundo plano se supervisan cómodamente desde el icono en la barra de estado inferior.
+- **Inspector (panel derecho):** Pestañas contextuales que se adaptan al elemento seleccionado (*Propiedades*, *Texto*, *Velocidad*, *Filtros*, *Máscaras*, *Seguimiento*, *Dinámica* y la pestaña contextual *Transición* al seleccionarla). El **Historial** (`Ctrl+H`) y los **Trabajos** en segundo plano se supervisan cómodamente desde la barra de estado inferior.
 - **Barra de herramientas:** Acceso rápido a herramientas de edición y automatizaciones de IA sobre la línea de tiempo.
 - **Línea de tiempo (área inferior):** Pistas de video y audio con pista principal magnética, miniaturas de película y envolventes de volumen.
 
@@ -30,7 +30,7 @@ Arrastra tus videos a la biblioteca, pulsa **Importar** o **Ctrl+I**. Cada medio
 - Selecciona el trozo que sobra (un clic) y pulsa **Supr**. En la pista principal, que es **magnética**, los clips de después se pegan para cerrar el hueco (cabecera «Principal · magnética»).
 - Para quitar el principio o el final de un clip sin seleccionar nada: cursor en el punto y **Q** (borra lo que queda a la izquierda) o **W** (a la derecha).
 - Arrastra los **bordes** de un clip para recortarlo; arrastra el **cuerpo** para moverlo o reordenarlo.
-- **Ctrl+Z** deshace cualquier paso; **Ctrl+Mayús+Z** rehace. La pestaña **Historial** del panel derecho lista todos los pasos y un clic vuelve a cualquiera.
+- **Ctrl+Z** deshace cualquier paso; **Ctrl+Mayús+Z** rehace. El botón **Historial** en la barra de estado inferior (`Ctrl+H`) lista todos los pasos y un clic vuelve a cualquiera.
 
 Si hay partes habladas con silencios, **Quitar silencios** en la barra de Herramientas los corta solos; ver [Audio](audio.md#quitar-silencios).
 

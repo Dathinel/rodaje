@@ -1,11 +1,11 @@
 # Edición
 
-Todo lo que pasa en la línea de tiempo. Los atajos son los del estilo Rodaje; los de Ágil y Clásico están en [Atajos](atajos.md). Cada operación es un paso del historial: **Ctrl+Z** la deshace, también las que hace la IA.
+Todo lo que pasa en la línea de tiempo. Los atajos son los del estilo Rodaje; los de Ágil y Clásico están en [Atajos](atajos.md). Cada operación es un paso del historial: **Ctrl+Z** la deshace, también las que hace la IA. El historial completo se consulta con **Ctrl+H** o desde el botón **Historial** de la barra de estado inferior.
 
 ## La línea de tiempo
 
 - **Barra de herramientas** (de izquierda a derecha): herramienta normal (V), envolvente (E), selección, zoom (Z), roll (Y), slide (U), cuchilla (C), ripple (B), slip (D) y rango (G), cada una con su marca junto al puntero; los interruptores **pista principal magnética**, **ajuste** (N), **ripple automático** (Ctrl+L) con su ámbito («Ripple: pistas afectadas», «todas las pistas» o «pistas, marcadores y regiones»), **fundido cruzado automático**, **bloquear envolventes** e **ignorar grupos**; las acciones cortar (S), recortar inicio (Q) y final (W), borrar (Supr), marcador (M), región (R), deshacer y rehacer; y el zoom.
-- **Pistas.** Cada cabecera tiene el nombre, ocultar o silenciar y bloquear. **Alto:** arrastra el borde de abajo de la cabecera (doble clic vuelve al de siempre) o elige Compacta, Normal, Alta o Muy alta en su menú; se guarda con el proyecto. La primera pista de video es la **principal**; las de audio muestran su volumen («Volumen 0,0 dB»). Clic derecho en una cabecera: añadir pista de subtítulos, usar una pista de video para subtítulos, grabar voz en off, ecualizador y compresor de la pista.
+- **Pistas.** Cada cabecera tiene el nombre, ocultar o silenciar y bloquear. **Alto:** arrastra el borde de abajo de la cabecera (doble clic vuelve al de siempre) o elige Compacta, Normal, Alta o Muy alta en su menú; se guarda con el proyecto. La primera pista de video es la **principal**; las de audio muestran su volumen («Volumen 0,0 dB»). Clic derecho en una cabecera: añadir pista de subtítulos, usar una pista de video para subtítulos, grabar voz en off, ecualizador y compresor de la pista. También puedes gestionar pistas desde el menú **Secuencia** (**Añadir pista de video**, **Añadir pista de audio** y **Añadir pista de subtítulos**).
 - **Clips.** Color por tipo, nombre, tira de película o forma de onda, rombos de keyframes, envolvente de volumen. Delante del nombre, un indicador de velocidad cuando no es 1× («2,0×», «◀ 0,5×», «❚❚ Congelado» o la mini curva).
 - **Zoom y desplazamiento.** Rueda desplaza en el tiempo, Mayús+rueda cambia de pistas, Ctrl+rueda hace zoom alrededor del puntero. Ctrl++ y Ctrl+- acercan y alejan; Mayús+Z ajusta todo a la ventana; Ctrl+Alt+Z hace zoom a la selección. El botón central arrastra la vista.
 
@@ -52,7 +52,7 @@ Clic selecciona; Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro 
 
 - **Agrupar (Ctrl+G)** junta los clips elegidos: un clic en uno elige el grupo entero y arrastrarlo mueve a todos, también si están en la misma pista. **Desagrupar (Ctrl+Mayús+G)** los suelta; los enlaces de audio y video siguen. Con **ignorar grupos** se mueve solo el clip agarrado.
 - **Color** (menú del clip): rojo, naranja, amarillo, verde, turquesa, azul, violeta, rosa o el de siempre. Tiñe el clip y su borde superior.
-- **Huecos:** «Cerrar todos los huecos de la pista» (menú del clip o de la cabecera) junta los clips de la pista; los huecos que desincronizarían clips enlazados de otras pistas se dejan y un aviso dice cuántos. «Ir al hueco siguiente / anterior» lleva el cursor al próximo tramo vacío (sin tecla de fábrica).
+- **Huecos:** «Cerrar todos los huecos» (en el menú **Secuencia** o con clic derecho en el clip o en la cabecera) junta los clips de la pista; los huecos que desincronizarían clips enlazados de otras pistas se dejan y un aviso dice cuántos. «Ir al hueco siguiente / anterior» lleva el cursor al próximo tramo vacío (sin tecla de fábrica).
 
 ## Pista principal magnética
 
@@ -64,16 +64,16 @@ Un video con sonido entra como dos clips enlazados que se mueven, cortan y recor
 
 **Aviso de desfase.** Si un clip enlazado queda corrido respecto de su pareja del mismo medio (por moverlo con ignorar grupos, o porque su pista estaba bloqueada al correr las demás), muestra a la derecha un aviso rojo con los cuadros: «+3», «−12». En su menú, **Volver a sincronizar** › «Mover a su lugar» o «Deslizar su contenido». Insertar, mover, cortar y cerrar huecos nunca desincronizan.
 
-**Multicámara.** Elige en la biblioteca dos o más tomas del mismo momento (Ctrl+clic) y, en su menú, **Crear multicámara con la selección**: Rodaje las sincroniza por el sonido (unos segundos por minuto de grabación) y pone la primera al final de la pista principal. Con el cursor sobre esa toma, **1** a **9** cortan al ángulo de ese número desde el cursor hasta el siguiente corte, también mientras se reproduce; el sonido sigue siendo el de la primera. En Ver › «Pistas de video que traen su audio» eliges qué pistas de video reciben su audio al soltar un medio.
+**Multicámara.** Elige en la biblioteca dos o más tomas del mismo momento (Ctrl+clic) y, en su menú, **Crear multicámara con la selección**: Rodaje las sincroniza por el sonido (unos segundos por minuto de grabación) y pone la primera al final de la pista principal. Con el cursor sobre esa toma, **1** a **9** cortan al ángulo de ese número desde el cursor hasta el siguiente corte, también mientras se reproduce; el sonido sigue siendo el de la primera. En **Preferencias (`Ctrl+,`) › General** eliges qué pistas de video reciben su audio al soltar un medio y cuántas pistas traen los proyectos nuevos.
 
 ## Edición de tres y cuatro puntos
 
 1. En la biblioteca, clic derecho en el medio › **Abrir en el visor de origen**. El reproductor pasa a mostrar solo ese medio; **Mayús+2** alterna entre origen y programa.
 2. **I** marca la entrada y **O** la salida (en el visor que se ve). **Alt+X** las quita. La barra de contexto bajo las herramientas muestra las marcas, los selectores V/A con su pista de destino y las marcas de la secuencia.
-3. **,** inserta y **.** sobrescribe el tramo en el cursor (o entre las marcas de la secuencia). La barra de contexto trae además:
-   - **Reemplazar (Mayús+.)**: cambia el clip bajo el cursor por el origen, en su lugar y con su duración; el cuadro del cursor del origen (o su entrada, si está marcada) queda en el cursor de la secuencia.
-   - **Ajustar a rellenar (Ctrl+Mayús+.)**: el tramo del origen llena el clip bajo el cursor (o las marcas de la secuencia) cambiando la velocidad.
-   - **Superponer (Mayús+,)**: la imagen va encima, en la primera pista de video libre (o en una nueva).
+3. **,** inserta y **.** sobrescribe el tramo en el cursor (o entre las marcas de la secuencia). También accesibles desde el menú **Secuencia** (**Insertar desde el origen**, **Sobrescribir desde el origen**). La barra de contexto y el menú Secuencia traen además:
+   - **Reemplazar (Mayús+.)**: cambia el clip bajo el cursor por el origen, en su lugar y con su duración; el cuadro del cursor del origen (o su entrada, si está marcada) queda en el cursor de la secuencia (**Secuencia › Reemplazar desde el origen**).
+   - **Ajustar a rellenar (Ctrl+Mayús+.)**: el tramo del origen llena el clip bajo el cursor (o las marcas de la secuencia) cambiando la velocidad (**Secuencia › Ajustar a rellenar desde el origen**).
+   - **Superponer (Mayús+,)**: la imagen va encima, en la primera pista de video libre o en una nueva (**Secuencia › Superponer desde el origen**).
 4. Con cuatro puntos de distinta duración pregunta **Ajustar velocidad** o **Recortar**.
 
 ## Clips compuestos
@@ -99,7 +99,7 @@ Pestaña **Velocidad** del panel derecho (Ctrl+R la abre con el clip seleccionad
 - Arrástrala al **corte** entre dos clips pegados (cae en el más cercano). Dura 0,5 s; arrastra la manija de afuera para cambiar la duración. Si el corte ya tenía una, cambia el tipo y conserva la duración. Las de audio van solo en pistas de audio.
 - **Ctrl+T** pone la **transición por defecto** en el corte del clip seleccionado (al final; si no tiene vecino, al principio) o, sin selección, en el corte más cercano al cursor. En pistas de audio pone el fundido de audio por defecto. Para cambiarla: selecciona una transición y, en el menú ⋯, **Usar como transición por defecto** (guarda tipo, duración, alineación y curva).
 - Con **fundido cruzado automático** encendido, cada corte sin transición de la pista principal muestra un símbolo: un clic crea un fundido de 0,5 s.
-- Con la transición seleccionada, Propiedades muestra arriba su **vista previa animada** (un clic la pausa) y debajo:
+- Con la transición seleccionada en la línea de tiempo, el Inspector activa su pestaña propia **Transición** (ocultando temporalmente las pestañas de clip). Muestra arriba su **vista previa animada** (un clic la pausa) y debajo:
   - **Tipo** y **Duración**. En el menú ⋯, **Esta duración en toda la pista** o **en todas las transiciones** (cada una se acorta si no cabe), en un paso.
   - **Alineación**: al final del clip que sale, centrada o al inicio del que entra. Alineada a un lado, solo se arrastra la manija de afuera.
   - **Dirección**: una rueda (arrastra; con Mayús, sin pasos de 15°) y atajos de 0°, 90°, 180° y 270°; en Empujar, cuatro flechas.
@@ -108,6 +108,7 @@ Pestaña **Velocidad** del panel derecho (Ctrl+R la abre con el clip seleccionad
   - **Desenfoque de movimiento** en las que mueven la imagen (empujar, deslizar, giro, rebote): 50 % es el obturador de cine.
   - **Curva del avance**: Lineal, Suave, Entrada, Salida, Rebote, Elástico o **Bézier**, con manejadores en la gráfica. El punto de la gráfica sigue a la vista previa. La misma curva vale para el cruce de audio.
   - «Quitar transición» deja el corte seco. Supr también la quita.
+  Al deseleccionar la transición, el inspector vuelve automáticamente a las pestañas del clip.
 - **Guardar como transición…** (menú ⋯ de Propiedades) convierte los keyframes de transformación de un clip en una transición propia.
 
 ## Marcadores y regiones
@@ -137,8 +138,9 @@ Pestaña **Velocidad** del panel derecho (Ctrl+R la abre con el clip seleccionad
 ## Proyecto, guardado y recuperación
 
 - **Ctrl+N** nuevo (pregunta «¿Guardar los cambios?» si hay), **Ctrl+O** abrir, **Ctrl+S** guardar, **Ctrl+Mayús+S** guardar como. El `.rodaje` es JSON legible; los medios se referencian por ruta.
+- **Guardado atómico y copias `.bak`:** cada guardado escribe primero en un archivo temporal seguro y crea una copia de respaldo `.bak` previa en la misma carpeta del proyecto. Se evitan pérdidas o corrupciones de proyecto ante cortes repentinos o bloqueos de sincronizadores en la nube (como OneDrive).
 - **Plantillas:** Archivo › Proyecto nuevo desde plantilla (Horizontal 16:9 1080p y 4K, Vertical 9:16, Cuadrado 1:1, Retrato 4:5, más las tuyas) y Guardar como plantilla...
-- **Autoguardado:** copias en `%LOCALAPPDATA%\Rodaje\Autoguardado` tras 5 s sin cambios y como mucho cada 2 min (10 por sesión). Tras un cierre inesperado, al abrir Rodaje avisa «Hay una copia de «X» del … con cambios sin guardar» con **Recuperar**, que la guarda como «X (recuperado).rodaje».
-- **Formato del proyecto:** botón de la cabecera del reproductor (16:9, 9:16, 1:1, 4:5, 4:3, 21:9 o Personalizado), cuadros por segundo (23,976 a 60) y «Resolución y más opciones…» (720p a 4K o ancho y alto propios de 16 a 8192, pares).
+- **Autoguardado:** copias en `%LOCALAPPDATA%\Rodaje\Autoguardado` tras 5 s sin cambios y como mucho cada 2 min (10 por sesión). Tras un cierre inesperado, al abrir Rodaje avisa «Hay una copia de «X» del … con cambios sin guardar» con **Recuperar**, que la valida y guarda como «X (recuperado).rodaje».
+- **Formato del proyecto:** menú **Secuencia › Formato del proyecto…** o el botón de la cabecera del reproductor (16:9, 9:16, 1:1, 4:5, 4:3, 21:9 o Personalizado), cuadros por segundo (23,976 a 60) y «Resolución y más opciones…» (720p a 4K o ancho y alto propios de 16 a 8192, pares).
 - **Espacios de trabajo:** Ver › Espacio de trabajo: Edición, Color (panel derecho ancho en Filtros), Audio (línea de tiempo alta) y los tuyos («Guardar la distribución actual como...»).
 - **Pantalla completa:** F o doble clic en el visor; mover el ratón muestra los controles; Esc sale. **Visor en otra pantalla** (Ver) abre el visor a pantalla completa en el monitor más grande donde no está el editor.
