@@ -17,8 +17,8 @@ internal static partial class SubtitleFileCommands
 {
     public const string ImportId = "file.importSubtitles";
     public const string ExportId = "file.exportSubtitles";
-    public const string ImportLabel = "Importar subtítulos...";
-    public const string ExportLabel = "Exportar subtítulos...";
+    public const string ImportLabel = "Importar subtítulos…";
+    public const string ExportLabel = "Exportar subtítulos…";
 
     private static readonly (string Name, string Spec) Both = ("Subtítulos (SRT, WebVTT)", "*.srt;*.vtt");
     private static readonly (string Name, string Spec) Srt = ("SubRip (*.srt)", "*.srt");

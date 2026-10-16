@@ -11,7 +11,7 @@ namespace Rodaje.App.Views.Translate;
 internal static class TranslateCommands
 {
     public const string TranslateTrack = TranslateDialog.ActionId;
-    public const string Label = "Traducir pista...";
+    public const string Label = "Traducir pista…";
     public const string Glyph = "";
 
     public static IDisposable Bind(ShortcutRouter router, EditorServices services)

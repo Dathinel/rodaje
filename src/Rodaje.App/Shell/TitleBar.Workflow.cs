@@ -37,7 +37,7 @@ internal sealed partial class TitleBar
         }
 
         WorkspaceMenu.Items.Add(new MenuFlyoutSeparator());
-        var save = new MenuFlyoutItem { Text = "Guardar la distribución actual como..." };
+        var save = new MenuFlyoutItem { Text = "Guardar la distribución actual como…" };
         save.Click += (_, _) => SaveWorkspaceRequested?.Invoke(this, EventArgs.Empty);
         WorkspaceMenu.Items.Add(save);
         if (settings.Workspaces.Count > 0)

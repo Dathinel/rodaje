@@ -288,7 +288,7 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
             {
                 "x" or "y" => "posición",
                 "scale" => "tamaño",
-                "rotation" => "giro",
+                "rotation" => "rotación",
                 "opacity" => "opacidad",
                 _ => name,
             };

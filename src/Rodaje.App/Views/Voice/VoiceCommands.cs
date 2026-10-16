@@ -9,7 +9,7 @@ namespace Rodaje.App.Views.Voice;
 internal static partial class VoiceCommands
 {
     public const string TextToSpeech = "voice.textToSpeech";
-    public const string Label = "Texto a voz...";
+    public const string Label = "Texto a voz…";
 
     /// <summary>«Grabar voz en off…»: en la barra de herramientas y, con su pista, en la cabecera de cada pista de audio.</summary>
     public const string VoiceOver = "audio.voiceOver";

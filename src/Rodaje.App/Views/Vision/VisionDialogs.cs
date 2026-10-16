@@ -133,7 +133,7 @@ internal static class VisionDialogs
         if (Apply(services, proposal))
         {
             (services.Content as EffectContent)?.ForgetMatte(matte.Path);
-            session.Notify(NotificationSeverity.Success, RemoveBackgroundTitle, "Listo: la máscara está en la pestaña Máscaras (invertir, intensidad).");
+            session.Notify(NotificationSeverity.Success, RemoveBackgroundTitle, "Listo: la máscara está en la pestaña Máscaras (invertir, opacidad).");
         }
         else
         {

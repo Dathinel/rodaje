@@ -35,7 +35,7 @@
                 <DropDownButton.Flyout>
                     <MenuFlyout Placement="BottomEdgeAlignedRight">
                         <MenuFlyoutItem Text="Un punto (posición)" Tag="point" Click="OnNewClick" />
-                        <MenuFlyoutItem Text="Dos puntos (posición, escala y giro)" Tag="two" Click="OnNewClick" />
+                        <MenuFlyoutItem Text="Dos puntos (posición, escala y rotación)" Tag="two" Click="OnNewClick" />
                         <MenuFlyoutItem Text="Cuatro esquinas (perspectiva)" Tag="corners" Click="OnNewClick" />
                         <MenuFlyoutItem Text="Región (una caja que se mueve entera)" Tag="region" Click="OnNewClick" />
                     </MenuFlyout>

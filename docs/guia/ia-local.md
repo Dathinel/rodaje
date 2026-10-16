@@ -60,7 +60,7 @@ Mientras una acción corre, su botón gira con el porcentaje y la barra de aviso
 
 **Bajar música bajo la voz** (ducking). Ver [Audio](audio.md#bajar-música-bajo-la-voz-ducking). Con «Audio con IA» instalado detecta la voz con Silero; sin él, por la energía del audio.
 
-**Quitar fondo.** Calidad «Normal · personas, rápido (MODNet)» o «Alta · bordes finos y objetos, lento (BiRefNet)». «Empezar» analiza y «Aplicar» deja una máscara de imagen sobre el clip (un video en escala de grises en medios generados). Se ajusta en la pestaña Máscaras (invertir, intensidad).
+**Quitar fondo.** Calidad «Normal · personas, rápido (MODNet)» o «Alta · bordes finos y objetos, lento (BiRefNet)». «Empezar» analiza y «Aplicar» deja una máscara de imagen sobre el clip (un video en escala de grises en medios generados). Se ajusta en la pestaña Máscaras (invertir, opacidad).
 
 **Reencuadre automático.** Formato «9:16 · vertical», «1:1 · cuadrado» o «4:5 · retrato»; «Seguir» rostros (YuNet) o personas de cuerpo entero (RT-DETRv2); «Suavidad». «Analizar» deja keyframes de posición y escala que siguen al sujeto y, si hace falta, cambia el formato de la secuencia.
 

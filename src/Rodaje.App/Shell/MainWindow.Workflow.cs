@@ -48,7 +48,7 @@ internal sealed partial class MainWindow
             _bindings.Add(_router.Bind(id, () => ApplyWorkspace(profile.Id)));
         }
 
-        registry.Register(new ShortcutAction(WatchedFoldersActionId, "Carpetas vigiladas...", ShortcutGroups.File, []));
+        registry.Register(new ShortcutAction(WatchedFoldersActionId, "Carpetas vigiladas…", ShortcutGroups.File, []));
         _bindings.Add(_router.Bind(WatchedFoldersActionId, () => UiTask.Run(EditWatchedFoldersAsync())));
         StartWatchingFolders();
         AttachOnboarding();
@@ -142,7 +142,7 @@ internal sealed partial class MainWindow
         }
 
         Fill();
-        var add = new Button { Content = "Añadir carpeta..." };
+        var add = new Button { Content = "Añadir carpeta…" };
         add.Click += (_, _) =>
         {
             if (Views.Relink.FolderDialog.Pick(_hwnd, "Carpeta que vigilar", s.LastMediaFolder) is { } picked)

@@ -19,10 +19,10 @@ internal static partial class AnalysisCommands
 
     public static IReadOnlyList<(string Id, string Label, string Glyph)> Menu { get; } =
     [
-        (RemoveSilences, "Quitar silencios...", ""),
-        (DetectBeats, "Detectar ritmo...", ""),
-        (Ducking, "Bajar música bajo la voz...", ""),
-        (Stabilize, "Estabilizar...", ""),
+        (RemoveSilences, "Quitar silencios…", ""),
+        (DetectBeats, "Detectar ritmo…", ""),
+        (Ducking, "Bajar música bajo la voz…", ""),
+        (Stabilize, "Estabilizar…", ""),
         (AutoColor, "Color automático", ""),
         (WhiteBalance, "Balance de blancos automático", ""),
     ];

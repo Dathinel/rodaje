@@ -42,7 +42,7 @@
                 <StackPanel Orientation="Horizontal" Spacing="2">
                     <ToggleButton x:Name="SelectTool" Style="{StaticResource MaskToolStyle}" Tag="Select" Click="OnToolClick" Content="&#xE8B0;"
                                   FontFamily="{StaticResource IconFontFamily}" AutomationProperties.Name="Elegir y editar"
-                                  ToolTipService.ToolTip="Elegir y editar (V): mover, tamaño, giro, puntos y manejadores" />
+                                  ToolTipService.ToolTip="Elegir y editar (V): mover, tamaño, rotación, puntos y manejadores" />
                     <ToggleButton x:Name="RectangleTool" Style="{StaticResource MaskToolStyle}" Tag="Rectangle" Click="OnToolClick" Content="&#xE739;"
                                   FontFamily="{StaticResource IconFontFamily}" AutomationProperties.Name="Rectángulo"
                                   ToolTipService.ToolTip="Rectángulo (R): arrastra en el visor; con Mayús, cuadrado" />
