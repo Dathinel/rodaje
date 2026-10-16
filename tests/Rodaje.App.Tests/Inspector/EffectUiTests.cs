@@ -94,7 +94,7 @@ public class EffectUiTests
 
         Assert.Equal(TitleStyles.BuiltInReference, Assert.Single(LibraryElements.BuiltIn(LibraryCategory.Text)).Reference);
         Assert.Equal(
-            [BuiltInEffects.Vignette, BuiltInEffects.Blur, BuiltInEffects.Sharpen, BuiltInEffects.Blend,
+            [BuiltInEffects.Vignette, BuiltInEffects.Blur, BuiltInEffects.Sharpen,
                 BuiltInEffects.Crop, BuiltInEffects.Pixelate, BuiltInEffects.CornerPin, BuiltInEffects.ChromaKey, BuiltInEffects.Grain, BuiltInEffects.Glow, BuiltInEffects.ChromaticAberration,
                 BuiltInEffects.Denoise, BuiltInEffects.Mirror, BuiltInEffects.LensDistortion],
             LibraryElements.BuiltIn(LibraryCategory.Effects).Select(e => e.Reference));
