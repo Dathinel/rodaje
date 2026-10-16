@@ -102,6 +102,16 @@ public sealed class EditingSectionContractTests
         Assert.Equal("AAAABBBB··CCCC", Render());
     }
 
+    [Fact]
+    public void Trim_que_deja_duracion_cero_falla_sin_modificar_el_clip()
+    {
+        Clip clip = Get("B");
+
+        Assert.Throws<EditException>(() => TimelineEdits.Trim(_ctx, "B", TrimEdge.In, S(6)));
+
+        Assert.Equal((S(4), S(10), S(0), S(6)), (clip.Start, clip.End, clip.SourceIn, clip.SourceOut));
+    }
+
     // «`RippleTrim` final de B, −2 s (corre lo de después) | `AAAABBBBBBCCCC` | `AAAABBBBCCCC`»
     [Fact]
     public void RippleTrim_final_de_B_menos_2_corre_lo_de_despues()
