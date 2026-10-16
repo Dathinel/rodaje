@@ -73,7 +73,7 @@ internal static partial class StillExportCommand
             long frame = position.ToFrames(rate);
             string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
             string name = string.Concat(string.Create(SpanishNumbers.Format, $"{session.ProjectName} - cuadro {frame}").Split(Path.GetInvalidFileNameChars()));
-            string? path = FileDialogs.Save(_owner, "Exportar cuadro", name + ".png", "png",
+            string? path = FileDialogs.Save(_owner, "Exportar fotograma", name + ".png", "png",
                 projectFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
                 ("Imagen PNG (*.png)", "*.png"), ("Imagen JPEG (*.jpg)", "*.jpg;*.jpeg"));
             if (path is null)
