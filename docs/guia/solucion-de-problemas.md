@@ -45,14 +45,15 @@ Si cerraste Rodaje con exportaciones pendientes, al abrir pregunta «Reanudar» 
 
 ## Rodaje se cerró de golpe
 
-Al volver a abrir: «Hay una copia de «X» del dd/MM/yyyy a las HH:mm con cambios sin guardar» con **Recuperar**, que la guarda como «X (recuperado).rodaje». El autoguardado va a `%LOCALAPPDATA%\Rodaje\Autoguardado`. Si avisa «Autoguardado desactivado» (no pudo preparar la carpeta), guarda a mano con Ctrl+S.
+Al volver a abrir: «Hay una copia de «X» del dd/MM/yyyy a las HH:mm con cambios sin guardar» con **Recuperar**, que la guarda como «X (recuperado).rodaje». El autoguardado reside en `%LOCALAPPDATA%\Rodaje\Autoguardado`. Además, cada guardado manual genera automáticamente una copia de respaldo `.bak` previa en la misma carpeta del proyecto para blindar el archivo `.rodaje` ante cortes eléctricos.
 
-Con carpetas sincronizadas (OneDrive) guardar puede fallar porque el servicio bloquea el archivo; el proyecto anterior queda intacto. Guarda fuera de la carpeta sincronizada o reintenta.
+Si avisa «Autoguardado desactivado» (no pudo preparar la carpeta), guarda a mano con `Ctrl+S`. Con carpetas sincronizadas en la nube (OneDrive, Google Drive), guardar puede fallar si el servicio bloquea temporalmente el archivo; el proyecto anterior permanece intacto. Guarda fuera de la carpeta sincronizada o reintenta.
 
-## Dónde están los registros
+## Dónde están los registros y volcados de error
 
-- **`app\rodaje-error.txt`**, junto al ejecutable real: con el instalador, `%LOCALAPPDATA%\Programs\Rodaje\app\rodaje-error.txt`; con el portable, dentro de la carpeta `app` (oculta) junto a `Rodaje.exe`. Cada error inesperado se añade con su fecha. El aviso «Algo falló» de la barra lo nombra.
-- **`TestResults\`** solo existe si compilas desde el código.
+- **`app\rodaje-error.txt`**, junto al ejecutable real: con el instalador, `%LOCALAPPDATA%\Programs\Rodaje\app\rodaje-error.txt`; con el portable, dentro de la carpeta `app` (oculta) junto a `Rodaje.exe`. Cada error inesperado se añade con su fecha y traza técnica.
+- **Minivolcados de memoria (`.dmp`):** Si la aplicación sufre un cierre abrupto crítico, se genera un archivo de volcado local en `%LOCALAPPDATA%\Rodaje\Informes\` para facilitar el diagnóstico exacto sin recopilar contraseñas ni archivos personales.
+- **`TestResults\`** solo existe si compilas desde el código fuente y ejecutas la suite de pruebas.
 - No hay telemetría ni registros en la nube: nada sale del equipo.
 
 ## Cómo informar un fallo

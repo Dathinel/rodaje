@@ -5,76 +5,82 @@
 <h1 align="center">Rodaje</h1>
 
 <p align="center">
-  Editor de video nativo para Windows: rápido, por capas, con la comodidad de los editores móviles y la precisión de uno profesional.<br>
-  Compilado de antemano con Native AOT: no necesita .NET ni nada instalado aparte. Con instalador o portable.
+  Editor de video nativo para Windows: rápido, por capas, con la comodidad de los editores modernos y la precisión de uno profesional.<br>
+  Compilado de antemano con Native AOT: sin dependencias pesadas externas ni necesidad de instalar .NET.
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licencia-GPLv3-E8833A?style=flat-square&labelColor=1D1D1D" alt="Licencia GPLv3"></a>
-  <a href="https://github.com/Dathinel/rodaje/releases"><img src="https://img.shields.io/badge/versi%C3%B3n-1.0.0-E8833A?style=flat-square&labelColor=1D1D1D" alt="Versión 1.0.0"></a>
+  <a href="https://github.com/Dathinel/rodaje/releases"><img src="https://img.shields.io/badge/versi%C3%B3n-1.0.1--dev-E8833A?style=flat-square&labelColor=1D1D1D" alt="Versión 1.0.1"></a>
   <img src="https://img.shields.io/badge/Windows-x64-E8833A?style=flat-square&labelColor=1D1D1D" alt="Windows x64">
   <img src="https://img.shields.io/badge/.NET-10-E8833A?style=flat-square&labelColor=1D1D1D&logo=dotnet&logoColor=white" alt=".NET 10">
   <a href="https://github.com/Dathinel/rodaje/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Dathinel/rodaje/ci.yml?branch=main&style=flat-square&labelColor=1D1D1D&label=CI" alt="Estado de la CI"></a>
 </p>
 
-## Qué hace
+## Qué es y qué hace
 
-- **Edición por capas** al cuadro exacto: cortar, recortar, ripple, roll, slip, slide, insertar y sobrescribir, edición de tres y cuatro puntos, clips compuestos, marcadores, audio y video enlazados, reemplazar y volver a enlazar medios. Todo se deshace con Ctrl+Z; autoguardado y recuperación tras un cierre inesperado.
-- **Velocidad y reversa:** constante o por curva, congelar cuadro y reversa exacta, con el tono del audio conservado.
-- **Imagen en la GPU:** corrección de color con ruedas y curvas, comparación antes/después, LUT `.cube`, croma, máscaras, recorte con proporción, desenfoque, nitidez, viñeta, modos de mezcla, transformación con keyframes y transiciones.
-- **Títulos y subtítulos** editables sobre el visor, con plantillas; escritos a mano o generados por la IA, que guarda el tiempo de cada palabra para corregir, dividir y unir.
-- **Audio:** volumen por clip y mezcla con LUFS, ecualizador, compresor, ducking y voz en off.
-- **Exportación:** MP4, MOV, MKV y WebM; H.264 y HEVC por GPU, AV1, VP9 y ProRes; AAC, Opus y PCM; normalización a LUFS, capítulos, formatos verticales y verificación del archivo final. Varias versiones a la vez y una cola que sobrevive a cerrar la app.
-- **IA local por módulos:** subtítulos (Whisper), traducción, texto a voz, reducción de ruido, silencios y ritmo, estabilización, color automático, quitar el fondo, reencuadre automático e importación de CinemaDNG. Todo corre en el equipo: nada se envía a internet.
-- **Complementos:** transiciones, filtros y módulos se instalan y actualizan desde la app, con un catálogo firmado y la huella de cada archivo verificada.
-- **Atajos configurables** de teclado y ratón, con tres estilos de partida.
-- **Flujo de trabajo:** proxies automáticos, espacios de trabajo, pantalla completa y segunda pantalla, carpetas vigiladas, zonas seguras de redes sociales y un recorrido inicial.
+Rodaje es un editor de video no lineal (NLE) de alto rendimiento enfocado en la agilidad de montaje y el respeto a los recursos del sistema:
 
-## Descargar
+- **Montaje al fotograma exacto:** Cortar (S), recortar (Q/W), ripple, roll, slip, slide, edición de 3 y 4 puntos, clips compuestos y pista principal magnética. Todo cambio tiene soporte multinivel de deshacer (`Ctrl+Z`).
+- **Aceleración por GPU:** Composición completa y corrección de color en Direct3D 11 con ruedas de 3 vías, curvas, tablas LUT `.cube`, máscaras bezier, transformaciones animadas con fotogramas clave y transiciones fluidas.
+- **Títulos y subtítulos vectoriales:** Creación de rótulos sobre el visor con estilos configurables, plantillas y subtitulado automático local por IA con marca de tiempo precisa palabra por palabra.
+- **Audio profesional:** Medición de sonoridad LUFS en tiempo real (EBU R128), ducking inteligente (bajar música bajo la voz), ecualización, compresor y grabación directa de voz en off.
+- **IA local sin nube:** Subtitulado con Whisper, traducción, texto a voz, reducción de ruido neuronal, eliminación de silencios y reencuadre vertical. Todo se ejecuta en tu hardware: nada sale de tu equipo.
+- **Exportación flexible y fiable:** Salida a MP4, MOV, MKV y WebM (H.264/HEVC por GPU, AV1, VP9, ProRes), cola persistente en segundo plano y verificación automática con `ffprobe`.
 
-Última versión en [Releases](https://github.com/Dathinel/rodaje/releases):
+## Cómo se usa
 
-- **Instalador** (`Rodaje-<versión>-instalador.exe`): por usuario, sin permisos de administrador. Crea el acceso en Inicio y abre los `.rodaje`.
-- **Portable** (`-portable.zip`): descomprime y abre `Rodaje.exe`. No toca el registro; para quitarlo, borra la carpeta.
-- **Completo** (`-completo.zip`): el portable con complementos, módulos y modelos de IA.
+1. **Crear o abrir:** Al iniciar, elige una plantilla (16:9 horizontal, 9:16 vertical para redes) o pulsa `Ctrl+N`.
+2. **Importar medios:** Arrastra videos, fotos o canciones a la biblioteca o pulsa `Ctrl+I`.
+3. **Editar en la línea de tiempo:** Arrastra clips a las pistas. Corta con `S`, elimina el sobrante con `Supr`, o recorta rápidamente con `Q` y `W`.
+4. **Ajustar propiedades:** Selecciona un clip para modificar volumen, color, velocidad o efectos en el panel derecho contextual.
+5. **Exportar:** Pulsa `Ctrl+E`, elige tu resolución y códec, y pulsa **Exportar**.
 
-**Requisitos:** Windows 10 versión 2004 (19041) o posterior, u 11, de 64 bits (x64), con una GPU con DirectX 11. La decodificación por hardware (H.264 y HEVC) acelera la edición; sin ella se decodifica en la CPU.
+Consulta la [Guía de inicio paso a paso](docs/guia/primer-proyecto.md) para un tutorial completo de 10 minutos.
 
-## Compilar
+## Cómo se compila y prueba
 
-El entorno (SDK de .NET 10 y FFmpeg LGPL, con versiones y huellas fijadas) se descarga dentro del proyecto, en `.entorno\`; no se instala nada fuera de la carpeta. Native AOT necesita Visual Studio Build Tools con la carga de C++.
+El entorno de compilación (SDK de .NET 10 y bibliotecas LGPL de FFmpeg) se descarga automáticamente de forma aislada en `.entorno\`; no se instala nada en el sistema global.
 
-| Para | Haz |
+### Requisitos
+- Windows 10 (versión 19041 o posterior) o Windows 11 de 64 bits (x64).
+- Visual Studio Build Tools 2022 con la carga «Desarrollo para el escritorio con C++» (necesario únicamente para la publicación con Native AOT).
+- Tarjeta gráfica con soporte para DirectX 11.
+
+### Pasos rápidos
+
+| Tarea | Comando / Acción |
 |---|---|
-| Compilar y abrir el editor | Doble clic en `Rodaje.bat` (la primera vez prepara el entorno y publica en `dist\Rodaje\`) |
-| Correr las pruebas | Doble clic en `Probar.bat`; `Probar.bat cobertura`, `aot` o `aceptacion` para las variantes |
-| Cualquier comando de `dotnet` | `build\dotnet-local.cmd <argumentos>` |
-| Armar instalador, zip y notas | `build\distribuir.ps1` |
+| **Compilar y abrir el editor** | Doble clic en `Rodaje.bat` (prepara el entorno en el primer inicio y publica en `dist\Rodaje\`) |
+| **Correr toda la suite de pruebas** | Doble clic en `Probar.bat` (más de 5 000 pruebas automatizadas) |
+| **Medir cobertura de código** | `Probar.bat cobertura` (Core ≥ 99 %, Export ≥ 90 %) |
+| **Comandos de dotnet** | `build\dotnet-local.cmd <argumentos>` (ejemplo: `build\dotnet-local.cmd test`) |
+| **Generar instalador y paquetes** | `powershell -ExecutionPolicy Bypass -File build\distribuir.ps1` |
 
-Variables de entorno opcionales en [docs/variables-entorno.md](docs/variables-entorno.md).
+## Cifras y evidencias técnicas
 
-## Evidencias
+Medidas en banco de pruebas estándar (AMD Ryzen 7 7435HS, NVIDIA RTX 3050 Laptop GPU, Windows 11):
 
-Medido en un Ryzen 7 7435HS con RTX 3050 Laptop:
-
-| Prueba | Resultado |
-|---|---|
-| Pruebas automáticas | Más de 5 000, en Windows y en Linux (núcleo, paquetes y reproducción) en cada cambio |
-| Arranque | Ventana visible en **50 ms** en caliente y **215 ms** en frío |
-| Salto exacto al cuadro | **2 864 de 2 864** saltos aleatorios en el cuadro exacto, en H.264 y HEVC, por GPU y por software |
-| Sincronía audio/video | **0 cuadros de error en 10 minutos** |
-| Exportación | 1 min 1080p de dos capas con efectos a H.264 por GPU en **9 s** (~200 fps) |
-| Formatos | **37 de 37** casos de la matriz con la respuesta esperada: 33 de video y audio de punta a punta, con seek exacto y exportación verificada, y las imágenes rechazadas con su motivo ([docs/formatos.md](docs/formatos.md)) |
-| Native AOT | **0 advertencias** |
+| Métrica / Prueba | Cifra comprobada | Evidencia |
+|---|---|---|
+| **Arranque en frío (Native AOT)** | **215 ms** (interfaz completa usable en ~750 ms) | [Arranque y distribución](docs/arranque-y-distribucion.md) |
+| **Arranque en caliente** | **50 ms** hasta ventana visible | [Arranque y distribución](docs/arranque-y-distribucion.md) |
+| **Precisión de salto de fotograma** | **2 864 de 2 864** saltos aleatorios en el cuadro exacto | `tests/Rodaje.Media.Tests/VideoDecoderAccuracyTests.cs` |
+| **Sincronía audiovisual** | **0 cuadros de deriva** en reproducción de 10 minutos | Pruebas de integración de reloj WASAPI / D3D11 |
+| **Velocidad de exportación** | 1 min 1080p con 2 capas y efectos a H.264 en **9 segundos** (~200 fps) | Exportador GPU NVENC con buffer de cuadro directo |
+| **Matriz de compatibilidad de formatos** | **37 de 37** formatos de video/audio/imagen validados | [Matriz de formatos](docs/formatos.md) |
+| **Suite de pruebas automáticas** | **Más de 5 000 pruebas** verdes en Windows y Linux | CI de GitHub Actions (`ci.yml`) |
+| **Advertencias de compilación AOT** | **0 advertencias** (AOT y recortador limpios) | Compilación estricta con Native AOT |
 
 ## Documentación
 
-- **[Guía de usuario](docs/guia/README.md):** [instalar](docs/guia/instalar.md), [tu primer proyecto](docs/guia/primer-proyecto.md), [edición](docs/guia/edicion.md), [imagen](docs/guia/imagen.md), [audio](docs/guia/audio.md), [títulos y subtítulos](docs/guia/titulos-y-subtitulos.md), [IA local](docs/guia/ia-local.md), [exportar](docs/guia/exportar.md), [complementos](docs/guia/complementos.md), [atajos](docs/guia/atajos.md) y [solución de problemas](docs/guia/solucion-de-problemas.md).
-- **Para contribuir:** [CONTRIBUTING.md](CONTRIBUTING.md) (entorno, pruebas, estilo, DCO y pull requests) y [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
-- **Cómo está hecho:** índice completo en [docs/README.md](docs/README.md): arquitectura por capas, formatos `.rodaje` y `.paquete`, protocolo de módulos, distribución, decisiones y fondo legal.
+- **[Guía de usuario completa](docs/guia/README.md):** [Instalación](docs/guia/instalar.md), [Primer proyecto](docs/guia/primer-proyecto.md), [Edición](docs/guia/edicion.md), [Color e imagen](docs/guia/imagen.md), [Audio](docs/guia/audio.md), [Títulos y subtítulos](docs/guia/titulos-y-subtitulos.md), [IA local](docs/guia/ia-local.md), [Exportación](docs/guia/exportar.md), [Atajos](docs/guia/atajos.md) y [Solución de problemas](docs/guia/solucion-de-problemas.md).
+- **[Historial de cambios](CHANGELOG.md):** Novedades de la versión 1.0.1 y versiones previas.
+- **[Cómo contribuir](CONTRIBUTING.md):** Entorno de trabajo, convención de commits, firma DCO y flujo de pull requests.
+- **[Arquitectura interna](docs/README.md):** Documentación técnica detallada de cada capa (`Core`, `Media`, `Engine`, `Audio`, `Playback`, `Render`, `Export`, `App`).
 
 ## Licencia
 
-[GNU GPLv3 con términos adicionales](LICENSE) (Sección 7): puedes usar, estudiar, modificar, redistribuir y vender Rodaje con el código fuente bajo la misma licencia, conservando el crédito visible en la interfaz y en las páginas de descarga o venta. Los complementos que se conectan por las interfaces públicas pueden llevar la licencia que elija su autor. El nombre «Rodaje» y sus logotipos no se licencian con el código ([TRADEMARK.md](TRADEMARK.md)).
+Publicado bajo licencia [GNU General Public License v3.0 con términos adicionales](LICENSE) (Sección 7): código abierto para estudiar, modificar y redistribuir con crédito conservado. Los complementos que interactúan mediante las interfaces públicas pueden conservar la licencia que defina su autor.
 
-Licencias de terceros en [LICENCIAS.md](LICENCIAS.md) y [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt). Seguridad en [SECURITY.md](SECURITY.md); contribuciones en [CONTRIBUTING.md](CONTRIBUTING.md).
+Marcas y logotipos sujetos a [TRADEMARK.md](TRADEMARK.md). Avisos de terceros en [THIRD-PARTY-NOTICES.txt](THIRD-PARTY-NOTICES.txt).

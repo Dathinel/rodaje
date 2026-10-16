@@ -4,13 +4,18 @@ Diez minutos: importar un video, cortarlo, ponerle música, un título y sacarlo
 
 ![La ventana de Rodaje: biblioteca, reproductor, panel derecho, herramientas y línea de tiempo](img/herramientas.png)
 
-La ventana tiene cinco zonas: la **biblioteca** a la izquierda (con un riel de categorías: Medios, Audio, Texto, Efectos, Transiciones, Filtros, Módulos de IA y Marcadores), el **reproductor** en el centro con los medidores de audio, el **panel derecho** (Propiedades, Texto, Velocidad, Filtros, Máscaras, Historial y Trabajos), la barra de **Herramientas** y la **línea de tiempo** abajo.
+La ventana principal de Rodaje está organizada en cinco áreas ergonómicas:
+- **Biblioteca (panel izquierdo):** Organizada mediante un riel de categorías (Medios, Audio, Texto, Transiciones, Filtros, Efectos, Módulos de IA y Marcadores) con vista de cuadrícula o lista detallada.
+- **Reproductor y visor (centro):** Monitor de previsualización a pantalla completa o dividida, con controles de transporte y medidores de sonoridad estéreo / LUFS a la derecha.
+- **Inspector (panel derecho):** Pestañas contextuales que se adaptan al elemento seleccionado (*Propiedades / Transformar*, *Texto*, *Color y Filtros*, *Máscaras*, *Seguimiento*, *Transición* e *Historial*). Los trabajos en segundo plano se supervisan cómodamente desde el icono en la barra de estado inferior.
+- **Barra de herramientas:** Acceso rápido a herramientas de edición y automatizaciones de IA sobre la línea de tiempo.
+- **Línea de tiempo (área inferior):** Pistas de video y audio con pista principal magnética, miniaturas de película y envolventes de volumen.
 
 ## 1. Elige el formato
 
-Un proyecto nuevo es 16:9 a 1920×1080 y 30 fps. Si vas a publicar en vertical, cámbialo ahora: en la cabecera del reproductor pulsa el botón del formato («16:9 · 1080p») y elige **9:16 Vertical · videos cortos**. También puedes empezar desde **Archivo › Proyecto nuevo desde plantilla › Vertical 9:16 (videos cortos)**.
+Un proyecto nuevo inicia en 16:9 (1920×1080 a 30 fps). Para crear contenido en vertical (TikTok, Reels, Shorts), pulsa en el selector de formato en la cabecera del reproductor («16:9 · 1080p») o entra en **Secuencia › Formato del proyecto...** y elige **9:16 Vertical · videos cortos**. También puedes iniciar desde **Archivo › Proyecto nuevo desde plantilla › Vertical 9:16 (videos cortos)**.
 
-En «Ajustar clips» decide qué pasa con los clips que no tienen esa forma: **Encajar** (entero, con barras), **Rellenar** (llena el cuadro, lo que sobra queda fuera) o **Mantener tamaño**. Se puede cambiar después y un solo Ctrl+Z lo deshace.
+En «Ajustar clips» decide cómo responder ante medios con distinta proporción de aspecto: **Encajar** (completo con barras protectoras), **Rellenar** (expande hasta llenar el cuadro recortando sobrantes) o **Mantener tamaño**. Todo cambio puede revertirse con `Ctrl+Z`.
 
 ## 2. Importa
 

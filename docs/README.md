@@ -1,35 +1,63 @@
-# Documentación de Rodaje
+# Índice de documentación de Rodaje
 
-Cómo está hecho Rodaje, sus formatos y su fondo legal. Para usarlo está la [guía de usuario](guia/README.md); para compilarlo y contribuir, [CONTRIBUTING.md](../CONTRIBUTING.md).
+Mapa completo de la documentación técnica, manuales de usuario, arquitectura, formatos y marco legal de Rodaje.
 
-## Arquitectura
+---
 
-- [Arquitectura por capas](arquitectura/README.md): mapa de los proyectos de `src/`, reglas comunes, scripts y pruebas.
-  - [Núcleo](arquitectura/nucleo.md): tiempo exacto, modelo del proyecto, operaciones de edición y deshacer.
-  - [Medios](arquitectura/medios.md): FFmpeg, decodificación por GPU, salto exacto al cuadro y proxies.
-  - [Audio](arquitectura/audio.md): salida WASAPI, reloj maestro, velocidad y mezcla.
-  - [Reproducción](arquitectura/reproduccion.md): qué cuadro se muestra en cada refresco.
-  - [Motor](arquitectura/motor.md): varias capas, decodificadores, memoria de video y mezcla.
-  - [Render](arquitectura/render.md): composición en Direct3D 11, color y geometría.
-  - [Exportación](arquitectura/exportacion.md): orquestación, codificación y verificación.
-  - [App](arquitectura/app.md) y [vistas](arquitectura/app-vistas.md): la interfaz WinUI 3.
-- [Arranque y distribución](arranque-y-distribucion.md): tiempos de arranque, lanzador, instalador y zip.
+## 1. Guía de usuario y manuales prácticos
 
-## Formatos y extensiones
+Para editores, creadores de contenido y usuarios finales. Todos los manuales están actualizados con la interfaz moderna de Rodaje 1.0.1:
 
-- [Formatos compatibles](formatos.md): qué video, audio e imágenes abre Rodaje y cómo responde cada herramienta de IA, medido con la matriz de formatos.
-- [Formato de proyecto `.rodaje`](formato-proyecto.md), con su [esquema JSON](../schema/rodaje-proyecto.v13.schema.json).
-- [Formato `.paquete`](formato-paquete.md): complementos de contenido y módulos.
-- [Protocolo de módulos](protocolo-modulos.md): cómo escribir un módulo de IA en cualquier lenguaje.
-- [Descarga de complementos](descarga.md): catálogo firmado, índice y claves.
-- [Variables de entorno](variables-entorno.md) que leen la app, las pruebas y los scripts.
+- **[Guía de inicio rápido](guia/README.md):** Visión global del flujo de trabajo y catálogo de capítulos.
+- **[Instalación y requisitos](guia/instalar.md):** Instalador, versión portable y versión completa con modelos de IA; requisitos de Windows y GPU DirectX 11.
+- **[Tu primer proyecto paso a paso](guia/primer-proyecto.md):** Importar, cortar, música bajo voz, rotulación y exportación a video vertical para redes en 10 minutos.
+- **[Edición en la línea de tiempo](guia/edicion.md):** Operaciones al cuadro exacto, cortes (S), recorte ripple (Q/W), pista principal magnética, clips compuestos y edición de 3/4 puntos.
+- **[Color, efectos e imagen](guia/imagen.md):** Corrección con ruedas de 3 vías, curvas, tablas LUT `.cube`, máscaras bezier, transformaciones animadas y modos de mezcla en GPU.
+- **[Seguimiento de movimiento (Tracking)](guia/seguimiento.md):** Rastreo de puntos, esquinas y áreas aplicable a títulos, máscaras o estabilización.
+- **[Audio y mezcla](guia/audio.md):** Volumen por clip, curvas de envolvente, ducking inteligente, ecualización, compresor y voz en off con sonoridad LUFS.
+- **[Títulos y subtítulos](guia/titulos-y-subtitulos.md):** Generador de títulos vectoriales, subtitulado automático local con Whisper palabra a palabra y traducción.
+- **[Inteligencia artificial local](guia/ia-local.md):** Módulos locales de IA (transcripción, eliminación de ruido, reencuadre vertical, quitar fondo) sin enviar datos a internet.
+- **[Exportación y renderizado](guia/exportar.md):** Preajustes de salida, exportación multipropósito, códecs acelerados por hardware y cola persistente.
+- **[Rendimiento y aceleración gráfica](guia/rendimiento.md):** Optimización para GPU NVIDIA, AMD, Intel y perfiles de proxy para equipos modestos.
+- **[Gestor de complementos](guia/complementos.md):** Instalación, actualización y verificación de firmas de paquetes modulares `.paquete`.
+- **[Atajos de teclado y ratón](guia/atajos.md):** Lista completa de atajos para los tres estilos predefinidos (Rodaje, Ágil, Clásico).
+- **[Solución de problemas y preguntas frecuentes](guia/solucion-de-problemas.md):** Diagnóstico ante fallos de inicio, códecs atípicos, volcados `.dmp` y recuperación de autoguardado.
 
-## Decisiones y legal
+---
 
-- [Decisiones de diseño](decisiones.md) (D-001 a D-040).
-- [Fondo legal](legal.md) y [pendientes legales antes de publicar](pendientes-legales.md).
-- [Contribuciones externas](contribuciones.md).
-- [Configuración de FFmpeg](ffmpeg-configure.txt) de la compilación LGPL que se distribuye, y los [crates de Rust](crates-ffmpeg.md) que rav1e y librsvg meten en sus DLL.
-- [Contribuciones externas](contribuciones.md) (fondo legal: DCO 1.1) y [cómo contribuir](../CONTRIBUTING.md).
-- [Configuración de FFmpeg](ffmpeg-configure.txt) de la compilación LGPL que se distribuye.
-- En la raíz: [LICENSE](../LICENSE), [TRADEMARK.md](../TRADEMARK.md), [LICENCIAS.md](../LICENCIAS.md) y [THIRD-PARTY-NOTICES.txt](../THIRD-PARTY-NOTICES.txt).
+## 2. Arquitectura interna y diseño de capas
+
+Detalle de ingeniería de cada subsistema en `src/` (diseño sin dependencias circulares y Native AOT):
+
+- **[Arquitectura por capas](arquitectura/README.md):** Filosofía de diseño, reglas de aislamiento entre capas, pruebas y directrices de compilación.
+  - **[Capa Núcleo (`Rodaje.Core`)](arquitectura/nucleo.md):** Aritmética de tiempo racional (`RationalTime`), modelo de datos inmutable, árbol de pistas y pila multinivel de deshacer (`UndoStack`).
+  - **[Capa Medios (`Rodaje.Media`)](arquitectura/medios.md):** Integración con FFmpeg LGPL, decodificación por hardware (D3D11VA), lectura de fotogramas al cuadro exacto y generador de proxies.
+  - **[Capa Audio (`Rodaje.Audio`)](arquitectura/audio.md):** Motor de sonido WASAPI de baja latencia, reloj maestro de sincronía audiovisual, cambio de velocidad con preservación de tono y mezcla por buses.
+  - **[Capa Reproducción (`Rodaje.Playback`)](arquitectura/reproduccion.md):** Planificador de fotogramas, bucle de sincronización con la tasa de refresco del monitor y gestión de pausas.
+  - **[Capa Motor (`Rodaje.Engine`)](arquitectura/motor.md):** Sesión de línea de tiempo (`TimelineSession`), presupuesto de VRAM, decodificadores dinámicos y pre-roll multicapa.
+  - **[Capa Render (`Rodaje.Render`)](arquitectura/render.md):** Composición acelerada en Direct3D 11, pipeline de color lineal / Rec.709, shaders HLSL, renderizado de máscaras y transformaciones geométricas.
+  - **[Capa Exportación (`Rodaje.Export`)](arquitectura/exportacion.md):** Coordinador de exportación por tuberías, codificadores por GPU (NVENC/AMF/QSV/MF) y software, y verificación con `ffprobe`.
+  - **[Capa Aplicación (`Rodaje.App`)](arquitectura/app.md) y [Vistas](arquitectura/app-vistas.md):** Interfaz gráfica WinUI 3, desacoplamiento de lógica en `Logic/`, diseño de controles y enlace de datos.
+- **[Arranque y distribución](arranque-y-distribucion.md):** Medición de arranques en frío (215 ms) y caliente (50 ms), recortador AOT, empaquetado portable e instalador.
+
+---
+
+## 3. Formatos, protocolos y extensibilidad
+
+- **[Matriz de formatos compatibles](formatos.md):** 37 combinaciones de contenedores, códecs de video, audio e imágenes verificadas de punta a punta.
+- **[Formato de proyecto `.rodaje`](formato-proyecto.md):** Especificación del archivo JSON de proyecto, marcas de tiempo en ticks racionales y [esquema JSON](../schema/rodaje-proyecto.v13.schema.json).
+- **[Formato modular `.paquete`](formato-paquete.md):** Empaquetado zip para plantillas, filtros, transiciones, tablas LUT y módulos ejecutables.
+- **[Protocolo de módulos de IA](protocolo-modulos.md):** Comunicación interproceso mediante tuberías nombradas y memoria compartida para integrar modelos en cualquier lenguaje.
+- **[Descarga y seguridad del catálogo](descarga.md):** Infraestructura de catálogo firmado mediante claves criptográficas para distribución segura de complementos.
+- **[Variables de entorno](variables-entorno.md):** Opciones de depuración, carpetas de datos personalizadas y ajustes de laboratorio.
+
+---
+
+## 4. Decisiones de diseño y marco legal
+
+- **[Decisiones de diseño (D-001 a D-049)](decisiones.md):** Bitácora oficial de decisiones técnicas, elecciones de arquitectura y compromisos de estabilidad.
+- **[Marco legal y licencias](legal.md):** Justificación de la licencia GPLv3, compatibilidad con FFmpeg LGPL y directrices de marcas.
+- **[Guía para contribuir](../CONTRIBUTING.md):** Convención de commits, flujo de Pull Requests y Developer Certificate of Origin ([DCO 1.1](DCO.txt)).
+- **[Configuración de compilación de FFmpeg](ffmpeg-configure.txt):** Opciones exactas de compilación LGPL sin componentes privativos ni no libres.
+- **[Crates de Rust en dependencias](crates-ffmpeg.md):** Auditoría de dependencias estáticas incluidas en bibliotecas auxiliares (rav1e, librsvg).
+- **Textos de licencia en la raíz:** [LICENSE](../LICENSE), [TRADEMARK.md](../TRADEMARK.md), [LICENCIAS.md](../LICENCIAS.md) y [THIRD-PARTY-NOTICES.txt](../THIRD-PARTY-NOTICES.txt).

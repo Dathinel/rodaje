@@ -36,10 +36,11 @@ Rodaje mira la GPU (VRAM propia y compartida, si es integrada), la RAM libre y l
 
 ## Dónde están
 
-- Barra **Herramientas**, encima de la línea de tiempo: Quitar silencios, Detectar ritmo, Bajar música bajo la voz, Reducir ruido, Estabilizar, Color automático, Balance de blancos automático, Quitar fondo, Reencuadre automático, Subtítulos automáticos, Texto a voz, Añadir texto y Grabar voz. Cada botón actúa sobre lo seleccionado; si no aplica, se ve atenuado y su ayuda explica por qué.
-- Menú **Editar**: Quitar silencios..., Detectar ritmo..., Bajar música bajo la voz..., Reducir ruido..., Texto a voz..., Traducir pista...
-- **Menú contextual del clip**: todo lo anterior más Estabilizar..., Color automático, Balance de blancos automático, Quitar fondo..., Reencuadre automático..., Subtítulos automáticos... y Traducir pista...
-- Categoría **Módulos de IA** de la biblioteca (riel izquierdo): los módulos y si están instalados.
+- **Menú Herramientas (nivel superior):** Todo el conjunto de funciones de inteligencia artificial y automatización se encuentra centralizado: *Subtítulos automáticos...*, *Traducir pista...*, *Texto a voz...*, *Reducir ruido...*, *Bajar música bajo la voz...*, *Quitar silencios...*, *Detectar ritmo...*, *Quitar fondo...*, *Reencuadre automático...*, *Estabilizar...* y *Color automático*.
+- **Barra Herramientas rápida**, encima de la línea de tiempo: Botones de acceso directo con icono y estado (habilitado/atenuado según selección). Al ejecutarse, muestra el spinner animado de progreso (`LongActions`).
+- **Menú contextual del clip (clic derecho):** Acceso inmediato a las funciones aplicables al clip específico (por ejemplo, *Reducir ruido...* en clips de audio, o *Quitar fondo...* en video).
+- **Categoría Módulos de IA en la Biblioteca (riel izquierdo):** Muestra el estado de cada módulo, si está descargado, y permite administrarlos directamente.
+- **Preferencias (`Ctrl+,`):** En la pestaña *Rendimiento e IA* puedes ajustar los límites de memoria VRAM asignada a los modelos, concurrencia de procesamiento y calidad por omisión (*Automática*, *Rápida* o *Máxima*).
 
 Si falta el módulo, el botón lo dice: «Hace falta el módulo «Audio con IA». Instálalo desde Complementos.»
 
