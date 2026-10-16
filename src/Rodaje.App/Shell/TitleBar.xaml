@@ -51,16 +51,37 @@
                 <MenuFlyoutItem Text="Recortar el final hasta el cursor" Tag="edit.trimEnd" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Borrar" Tag="edit.delete" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Seleccionar todo" Tag="edit.selectAll" Click="OnActionClick" />
-                <MenuFlyoutSeparator />
+            </MenuBarItem>
+            <MenuBarItem Title="Secuencia">
                 <MenuFlyoutItem Text="Añadir texto" Tag="clip.addText" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Añadir pista de subtítulos" Tag="timeline.subtitleTrack" Click="OnActionClick" />
+            </MenuBarItem>
+            <MenuBarItem Title="Herramientas">
+                <MenuFlyoutSubItem Text="Audio">
+                    <MenuFlyoutItem Text="Quitar silencios..." Tag="analysis.silences" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Detectar ritmo..." Tag="analysis.beats" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Bajar música bajo la voz..." Tag="analysis.ducking" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Reducir ruido..." Tag="analysis.noise" Click="OnActionClick" />
+                </MenuFlyoutSubItem>
+                <MenuFlyoutSubItem Text="Imagen">
+                    <MenuFlyoutItem Text="Estabilizar..." Tag="analysis.stabilize" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Color automático..." Tag="analysis.autocolor" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Balance de blancos automático..." Tag="analysis.whitebalance" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Quitar fondo..." Tag="vision.removeBackground" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Reencuadre automático..." Tag="vision.reframe" Click="OnActionClick" />
+                </MenuFlyoutSubItem>
+                <MenuFlyoutSubItem Text="Texto y voz">
+                    <MenuFlyoutItem Text="Subtítulos automáticos..." Tag="tools.autoSubtitles" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Traducir pista..." Tag="tools.translateTrack" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Texto a voz..." Tag="voice.textToSpeech" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Grabar voz en off..." Tag="audio.voiceOver" Click="OnActionClick" />
+                </MenuFlyoutSubItem>
                 <MenuFlyoutSeparator />
-                <MenuFlyoutItem Text="Quitar silencios..." Tag="analysis.silences" Click="OnActionClick" />
-                <MenuFlyoutItem Text="Detectar ritmo..." Tag="analysis.beats" Click="OnActionClick" />
-                <MenuFlyoutItem Text="Bajar música bajo la voz..." Tag="analysis.ducking" Click="OnActionClick" />
-                <MenuFlyoutItem Text="Reducir ruido..." Tag="analysis.noise" Click="OnActionClick" />
-                <MenuFlyoutItem Text="Texto a voz..." Tag="voice.textToSpeech" Click="OnActionClick" />
-                <MenuFlyoutItem Text="Traducir pista..." Tag="tools.translateTrack" Click="OnActionClick" />
+                <MenuFlyoutSubItem Text="Calidad de la IA">
+                    <RadioMenuFlyoutItem x:Name="AiQualityAuto" Text="Automática (según el equipo)" GroupName="AiQuality" Tag="Auto" Click="OnAiQualityClick" />
+                    <RadioMenuFlyoutItem x:Name="AiQualityFast" Text="Rápida" GroupName="AiQuality" Tag="Fast" Click="OnAiQualityClick" />
+                    <RadioMenuFlyoutItem x:Name="AiQualityMax" Text="Máxima" GroupName="AiQuality" Tag="Max" Click="OnAiQualityClick" />
+                </MenuFlyoutSubItem>
             </MenuBarItem>
             <MenuBarItem Title="Ver">
                 <MenuFlyoutItem Text="Propiedades" Tag="inspector:Properties" Click="OnInspectorClick" />
@@ -89,11 +110,6 @@
                     <RadioMenuFlyoutItem x:Name="QualityFull" Text="Completa" GroupName="Quality" Tag="Full" Click="OnQualityClick" />
                     <RadioMenuFlyoutItem x:Name="QualityHalf" Text="Mitad" GroupName="Quality" Tag="Half" Click="OnQualityClick" />
                     <RadioMenuFlyoutItem x:Name="QualityQuarter" Text="Cuarto" GroupName="Quality" Tag="Quarter" Click="OnQualityClick" />
-                </MenuFlyoutSubItem>
-                <MenuFlyoutSubItem Text="Calidad de la IA">
-                    <RadioMenuFlyoutItem x:Name="AiQualityAuto" Text="Automática (según el equipo)" GroupName="AiQuality" Tag="Auto" Click="OnAiQualityClick" />
-                    <RadioMenuFlyoutItem x:Name="AiQualityFast" Text="Rápida" GroupName="AiQuality" Tag="Fast" Click="OnAiQualityClick" />
-                    <RadioMenuFlyoutItem x:Name="AiQualityMax" Text="Máxima" GroupName="AiQuality" Tag="Max" Click="OnAiQualityClick" />
                 </MenuFlyoutSubItem>
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Acercar" Tag="timeline.zoomIn" Click="OnActionClick" />
