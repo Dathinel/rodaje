@@ -35,14 +35,18 @@
                 <ToggleButton x:Name="SlipToolButton" Style="{StaticResource ToolToggleButtonStyle}" FontFamily="{StaticResource MonoFontFamily}" FontWeight="Bold" Content="«»" Click="OnToolClick" />
                 <ToggleButton x:Name="RangeToolButton" Style="{StaticResource ToolToggleButtonStyle}" FontFamily="{StaticResource MonoFontFamily}" FontWeight="Bold" Content="[·]" Click="OnToolClick" />
                 <Rectangle Style="{StaticResource ToolbarSeparatorStyle}" />
-                <ToggleButton x:Name="MagneticButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE840;" Click="OnToggleClick" />
                 <ToggleButton x:Name="SnappingButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE71B;" Click="OnToggleClick" />
-                <ToggleButton x:Name="AutoRippleButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE8AB;" Click="OnToggleClick" />
+                <ComboBox x:Name="GapBehaviorBox" Width="184" Height="28" MinHeight="0" Padding="8,0,0,0" FontSize="{StaticResource BodyFontSize}" VerticalAlignment="Center"
+                          SelectionChanged="OnGapBehaviorChanged" ToolTipService.ToolTip="Cómo responden Supr, el recorte y el arrastre cuando queda un hueco">
+                    <ComboBoxItem Content="Dejar huecos" />
+                    <ComboBoxItem Content="Pista principal magnética" />
+                    <ComboBoxItem Content="Ripple global" />
+                </ComboBox>
                 <ComboBox x:Name="RippleModeBox" Width="196" Height="28" MinHeight="0" Padding="8,0,0,0" FontSize="{StaticResource BodyFontSize}" VerticalAlignment="Center"
                           SelectionChanged="OnRippleModeChanged">
-                    <ComboBoxItem Content="Ripple: pistas afectadas" />
-                    <ComboBoxItem Content="Ripple: todas las pistas" />
-                    <ComboBoxItem Content="Ripple: pistas, marcadores y regiones" />
+                    <ComboBoxItem Content="Ámbito: pistas afectadas" />
+                    <ComboBoxItem Content="Ámbito: todas las pistas" />
+                    <ComboBoxItem Content="Ámbito: pistas, marcadores y regiones" />
                 </ComboBox>
                 <ToggleButton x:Name="CrossfadeButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE895;" Click="OnToggleClick" />
                 <ToggleButton x:Name="LockEnvelopesButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE72E;" Click="OnToggleClick" />

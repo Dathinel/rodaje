@@ -4,7 +4,7 @@ Todo lo que pasa en la línea de tiempo. Los atajos son los del estilo Rodaje; l
 
 ## La línea de tiempo
 
-- **Barra de herramientas** (de izquierda a derecha): herramienta normal (V), envolvente (E), selección, zoom (Z), roll (Y), slide (U), cuchilla (C), ripple (B), slip (D) y rango (G), cada una con su marca junto al puntero; los interruptores **pista principal magnética**, **ajuste** (N), **ripple automático** (Ctrl+L) con su ámbito («Ripple: pistas afectadas», «todas las pistas» o «pistas, marcadores y regiones»), **fundido cruzado automático**, **bloquear envolventes** e **ignorar grupos**; las acciones cortar (S), recortar inicio (Q) y final (W), borrar (Supr), marcador (M), región (R), deshacer y rehacer; y el zoom.
+- **Barra de herramientas** (de izquierda a derecha): herramienta normal (V), envolvente (E), selección, zoom (Z), roll (Y), slide (U), cuchilla (C), **Recorte Ripple** (B), slip (D) y rango (G), cada una con su marca junto al puntero; el selector de huecos (**Dejar huecos**, **Pista principal magnética** o **Ripple global**), **ajuste** (N) y el ámbito del ripple (pistas afectadas, todas las pistas o todas las pistas con marcadores y regiones); **fundido cruzado automático**, **bloquear envolventes** e **ignorar grupos**; las acciones cortar (S), recortar inicio (Q) y final (W), borrar (Supr), marcador (M), región (R), deshacer y rehacer; y el zoom.
 - **Pistas.** Cada cabecera tiene el nombre, ocultar o silenciar y bloquear. **Alto:** arrastra el borde de abajo de la cabecera (doble clic vuelve al de siempre) o elige Compacta, Normal, Alta o Muy alta en su menú; se guarda con el proyecto. La primera pista de video es la **principal**; las de audio muestran su volumen («Volumen 0,0 dB»). Clic derecho en una cabecera: añadir pista de subtítulos, usar una pista de video para subtítulos, grabar voz en off, ecualizador y compresor de la pista. También puedes gestionar pistas desde el menú **Secuencia** (**Añadir pista de video**, **Añadir pista de audio** y **Añadir pista de subtítulos**).
 - **Clips.** Color por tipo, nombre, tira de película o forma de onda, rombos de keyframes, envolvente de volumen. Delante del nombre, un indicador de velocidad cuando no es 1× («2,0×», «◀ 0,5×», «❚❚ Congelado» o la mini curva).
 - **Zoom y desplazamiento.** Rueda desplaza en el tiempo, Mayús+rueda cambia de pistas, Ctrl+rueda hace zoom alrededor del puntero. Ctrl++ y Ctrl+- acercan y alejan; Mayús+Z ajusta todo a la ventana; Ctrl+Alt+Z hace zoom a la selección. El botón central arrastra la vista.
@@ -20,27 +20,27 @@ Clic selecciona; Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro 
 | Cortar en el cursor | S (o Ctrl+B): corta los clips seleccionados o el de la principal bajo el cursor |
 | Cortar en todas las pistas | Ctrl+Mayús+B |
 | Recortar hasta el cursor | Q borra lo que queda a la izquierda del cursor; W, lo de la derecha |
-| Borrar | Supr o Retroceso. En la pista principal magnética o con ripple automático, lo de después se corre para cerrar el hueco; en las demás pistas, queda el hueco |
+| Borrar | Supr o Retroceso. El selector de huecos determina si se deja un espacio, solo se imanta la pista principal o se corre lo que sigue con ripple global |
 
 ## Herramientas
 
 | Herramienta | Qué hace |
 |---|---|
 | Cuchilla (C) | Un clic corta el clip y sus enlazados en ese cuadro (se pega al cursor y a los marcadores con el ajuste). Con Mayús, corta todas las pistas. |
-| Ripple (B) | Arrastrar un borde recorta y corre lo que sigue, aunque el ripple automático esté apagado. |
+| Recorte Ripple (B) | Arrastrar un borde recorta y corre lo que sigue, independientemente del selector de huecos. |
 | Slip (D) | Arrastrar un clip muestra otra parte de su material sin moverlo ni cambiar su duración (como Alt + arrastrar). |
 | Rango (G) | Arrastrar marca la entrada y la salida de la secuencia, aunque pases sobre clips; un clic las quita. Sirve para las ediciones de tres puntos y para R (región). |
 
 ## Edición con el teclado
 
 - **J, K, L**: lanzadera hacia atrás, detener y hacia adelante; cada pulsación dobla la velocidad hasta ×8.
-- **Elegir un borde:** un clic (sin arrastrar) en el borde de un clip lo marca con una línea. **,** y **.** lo recortan un cuadro a la izquierda o a la derecha (con la herramienta de ripple, o en la principal magnética, corre lo que sigue). Sin borde elegido, **,** y **.** insertan y sobrescriben desde el origen.
+- **Elegir un borde:** un clic (sin arrastrar) en el borde de un clip lo marca con una línea. **,** y **.** lo recortan un cuadro a la izquierda o a la derecha (con **Recorte Ripple**, ripple global o en la pista principal magnética, corre lo que sigue). Sin borde elegido, **,** y **.** insertan y sobrescriben desde el origen.
 - **Alt+← / Alt+→** corre la selección un cuadro (con sus enlazados y su grupo), sin pisar nada; mantenla para seguir. Los empujones seguidos son un paso del historial.
 
 ## Mover, recortar, slip, roll y slide
 
-- **Mover:** arrastra el cuerpo. No pisa nada en pistas libres; con **ajuste** (N) se pega a bordes, cursor, marcadores y regiones. Alt al arrastrar ignora el ajuste. En la principal magnética lo **reordena**: sacarlo cierra el hueco y meterlo lo abre, también en las pistas de sus enlazados.
-- **Recortar:** arrastra un borde. Un globo muestra el resultado. En la principal magnética o con ripple automático es un **recorte ripple**: lo de después se corre.
+- **Mover:** arrastra el cuerpo. No pisa nada en pistas libres; con **ajuste** (N) se pega a bordes, cursor, marcadores y regiones. Alt al arrastrar ignora el ajuste. En la principal magnética lo **reordena**: sacarlo cierra el hueco y meterlo lo abre, también en las pistas de sus enlazados; con ripple global se corre el contenido de todas las pistas según el ámbito.
+- **Recortar:** arrastra un borde. Un globo muestra el resultado. **Recorte Ripple** siempre corre lo que sigue; el selector de huecos controla el comportamiento del resto de las ediciones.
 - **Slip:** Alt + arrastrar el cuerpo mueve el contenido dentro del clip sin cambiar su sitio ni su duración.
 - **Estirar (velocidad):** Alt + arrastrar un borde cambia la velocidad para que el mismo material dure lo arrastrado (de 0,1× a 100×). Ver [Velocidad](#velocidad-y-reversa).
 - **Roll:** con la herramienta de roll (Y; Mayús+Y en Ágil, N en Clásico), o con **Ctrl+Alt** sobre un borde, se arrastra un corte entre dos clips pegados: uno crece lo que el otro pierde y nada más se corre. Agarrar el borde de entrada (o la mitad izquierda del clip) mueve el corte con el anterior.
@@ -54,9 +54,9 @@ Clic selecciona; Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro 
 - **Color** (menú del clip): rojo, naranja, amarillo, verde, turquesa, azul, violeta, rosa o el de siempre. Tiñe el clip y su borde superior.
 - **Huecos:** «Cerrar todos los huecos» (en el menú **Secuencia** o con clic derecho en el clip o en la cabecera) junta los clips de la pista; los huecos que desincronizarían clips enlazados de otras pistas se dejan y un aviso dice cuántos. «Ir al hueco siguiente / anterior» lleva el cursor al próximo tramo vacío (sin tecla de fábrica).
 
-## Pista principal magnética
+## Control de huecos
 
-El interruptor del imán (de fábrica, encendido) mantiene los clips de la pista principal pegados unos a otros: cortar, borrar y mover nunca dejan huecos. La cabecera dice «Principal · magnética» o «Principal · libre». Al soltar un medio en ella se **inserta** en el corte más cercano; en las demás pistas **sobrescribe** lo que haya (con Ctrl, inserta).
+El selector de la barra indica cómo responderán las ediciones que pueden dejar huecos: **Dejar huecos** no corre los clips posteriores; **Pista principal magnética** mantiene sus clips pegados; **Ripple global** corre lo posterior en todas las pistas. El ámbito de ripple elige si se desplazan las pistas afectadas, todas las pistas o también los marcadores y regiones. **Ctrl+L** avanza entre esos tres modos. Al soltar un medio en la pista principal se **inserta** en el corte más cercano; en las demás pistas **sobrescribe** lo que haya (con Ctrl, inserta).
 
 ## Audio y video enlazados
 

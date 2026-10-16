@@ -42,6 +42,14 @@ public enum RippleMode
     AllTracksAndMarkers,
 }
 
+/// <summary>Qué hace la edición cuando quitar o mover clips abre un hueco.</summary>
+public enum TimelineGapBehavior
+{
+    LeaveGaps,
+    MagneticMainTrack,
+    GlobalRipple,
+}
+
 /// <summary>Opciones de la línea de tiempo que no son parte del proyecto: herramienta, interruptores y zoom.</summary>
 public sealed partial class TimelineState : ObservableObject
 {
@@ -89,6 +97,34 @@ public sealed partial class TimelineState : ObservableObject
     {
         get => _rippleMode;
         set => SetProperty(ref _rippleMode, value);
+    }
+
+    /// <summary>El único modo de control de huecos visible en la línea de tiempo.</summary>
+    public TimelineGapBehavior GapBehavior
+    {
+        get => AutoRipple ? TimelineGapBehavior.GlobalRipple
+            : MagneticMainTrack ? TimelineGapBehavior.MagneticMainTrack
+            : TimelineGapBehavior.LeaveGaps;
+        set
+        {
+            switch (value)
+            {
+                case TimelineGapBehavior.LeaveGaps:
+                    MagneticMainTrack = false;
+                    AutoRipple = false;
+                    break;
+                case TimelineGapBehavior.MagneticMainTrack:
+                    MagneticMainTrack = true;
+                    AutoRipple = false;
+                    break;
+                case TimelineGapBehavior.GlobalRipple:
+                    MagneticMainTrack = false;
+                    AutoRipple = true;
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException(nameof(value));
+            }
+        }
     }
 
     public bool AutoCrossfade
