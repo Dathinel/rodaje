@@ -226,7 +226,7 @@
                     <TextBlock x:Name="FolderPathText" Grid.Column="1" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
                 </Grid>
 
-                <GridView x:Name="FolderGrid" Grid.Row="2" Padding="8,8,8,0" MaxHeight="148" SelectionMode="None" IsItemClickEnabled="True"
+                <GridView x:Name="FolderGrid" Grid.Row="2" Padding="8,8,8,0" SelectionMode="None" IsItemClickEnabled="True"
                           ItemClick="OnFolderClick" ContextRequested="OnFolderContextRequested" AllowDrop="True" DragOver="OnFolderDragOver" Drop="OnFolderDrop"
                           ItemsSource="{x:Bind Folders}" ItemTemplate="{StaticResource FolderTileTemplate}" Visibility="Collapsed" />
 
@@ -310,7 +310,7 @@
                 </HyperlinkButton>
                 <StackPanel x:Name="OwnPanel" Grid.Row="1" Padding="8,0,8,8" Spacing="4" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
                     <TextBlock x:Name="OwnTitle" Text="Mis transiciones" Style="{StaticResource PanelTitleTextStyle}" Margin="0,8,0,0" />
-                    <GridView SelectionMode="None" CanDragItems="True" DragItemsStarting="OnElementDragStarting" MaxHeight="260"
+                    <GridView SelectionMode="None" CanDragItems="True" DragItemsStarting="OnElementDragStarting"
                               IsDoubleTapEnabled="True" DoubleTapped="OnElementDoubleTapped" ContextRequested="OnElementContextRequested"
                               ItemsSource="{x:Bind OwnElements}" ItemTemplate="{StaticResource ElementTileTemplate}" />
                 </StackPanel>

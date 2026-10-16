@@ -63,7 +63,7 @@
             </ListView.ItemTemplate>
         </ListView>
 
-        <ScrollViewer Grid.Row="3" MaxHeight="420" HorizontalScrollMode="Disabled" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
+        <ScrollViewer Grid.Row="3" HorizontalScrollMode="Disabled" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
             <StackPanel>
                 <local:ModuleJobsView x:Name="Modules" />
                 <export:ExportJobsView x:Name="Exports" />
