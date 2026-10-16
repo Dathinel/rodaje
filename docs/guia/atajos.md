@@ -81,10 +81,11 @@ Sin tecla de fábrica (se asignan en el panel): Cerrar todos los huecos, Ir al h
 | Proyecto nuevo / Abrir proyecto | Ctrl+N / Ctrl+O | = | = |
 | Guardar / Guardar como | Ctrl+S / Ctrl+Mayús+S | = | = |
 | Importar medios | Ctrl+I | = | = |
+| Preferencias de la aplicación | Ctrl+, | = | = |
 | Exportar | Ctrl+E, Ctrl+M | Ctrl+E | Ctrl+M |
 | Exportar fotograma | Ctrl+Mayús+E | = | = |
 | Atajos de teclado | Ctrl+Alt+K | = | = |
-| Esc | Sale de pantalla completa; si no, cierra la página abierta (Exportar, Atajos, Complementos); si no, cancela el arrastre en curso | = | = |
+| Esc | Sale de pantalla completa; si no, cierra la página abierta (Exportar, Atajos, Complementos, Preferencias); si no, cancela el arrastre en curso | = | = |
 
 ## Ratón
 

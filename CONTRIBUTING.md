@@ -117,41 +117,71 @@ Las largas y las de hardware (NVENC, dispositivo de audio, clips de minutos) se 
 - **Dependencias.** Están fijadas en `packages.lock.json`; si añades o cambias una, actualiza el lockfile (`--locked-mode` falla a propósito si no) y las licencias (ver [Reglas legales](#reglas-legales)).
 - **Documentación.** Si cambias cómo funciona algo, actualiza el documento de su capa en `docs/arquitectura/` y, si lo ve el usuario, la [guía](docs/guia/README.md). Tono de producto, frases cortas, cifras y pruebas como evidencia.
 
-## Commits
+## Convención de commits
 
-- Un commit por tarea terminada, pequeño y con un propósito claro. No mezcles una reorganización con un cambio de lógica.
-- Mensaje en español: primera línea corta que diga **qué cambia** (y el área delante, si ayuda); el porqué en el cuerpo si no es obvio. Ejemplos reales del historial:
+El historial de Git de Rodaje es la documentación principal de los cambios del proyecto. Seguimos una convención estricta:
 
-  ```
-  Subtítulos automáticos: una transcripción fallida o cancelada no deja aplicar la anterior
-  Icono de Rodaje en el exe, la ventana, la barra de título, Acerca de, el armazón y el instalador
-  ```
+- **Un commit por tarea atómica:** Un cambio lógico, autocontenido y pequeño. Nunca mezcles una refactorización de código con un cambio de lógica o corrección de defectos.
+- **Idioma y redacción:** Mensajes redactados en español claro, en modo imperativo o declarativo directo.
+- **Estructura del mensaje:**
+  - **Primera línea (resumen):** Máximo 72 caracteres. Formato sugerido: `Área: qué cambia en presente`.
+    - Áreas comunes: `Motor:`, `Audio:`, `Render:`, `Export:`, `App:`, `Núcleo:`, `Medios:`, `Pruebas:`, `Docs:`, `IA:`.
+    - Si cierra o atiende una tarea o issue concreto, puede incluir la referencia: `(tarea 341)` o `(#123)`.
+  - **Cuerpo (opcional pero recomendado):** Separado por una línea en blanco. Explica el **porqué** del cambio, el problema que existía antes y el enfoque técnico adoptado. Si hay consideraciones de rendimiento o concurrencia, descríbelas aquí.
+  - **Pie de firma (DCO obligatorio):** La última línea debe contener `Signed-off-by:` (ver siguiente sección).
 
-- Cada commit lleva la firma del DCO (abajo).
+Ejemplos reales del historial:
+```text
+Motor: el pre-roll de un medio que cambia de pista no deja sin cuadros a la capa que lo muestra (tarea 291) (#335)
+
+Con 4 pistas 4K HEVC solo caben 6 decodificadores en el presupuesto de VRAM, uno
+por medio. Continuing solo comparte hacia atrás si el clip pasó por el tramo durante
+el pre-roll (PassedLately).
+
+Signed-off-by: Nombre <correo@ejemplo.com>
+```
+
+```text
+Pruebas: opciones de sesión del motor y límites de presupuesto VRAM
+
+Cubre límites de presupuesto VRAM, validación del caché/pre-roll y cotas de
+pre-roll en TimelineSessionOptions.
+
+Signed-off-by: Nombre <correo@ejemplo.com>
+```
 
 ## Firma (DCO)
 
 Cada commit de una contribución debe llevar la firma del [Developer Certificate of Origin 1.1](docs/DCO.txt) (https://developercertificate.org/). Al firmar certificas que tienes derecho a aportar ese código bajo la licencia del proyecto. Es una línea al final del mensaje:
 
-```
+```text
 Signed-off-by: Tu Nombre <tu-correo@ejemplo.com>
 ```
 
-Git la añade con `-s`:
+Git la añade automáticamente con el modificador `-s`:
 
+```bash
+git commit -s -m "Núcleo: corrige el recorte de clips al inicio de la pista"
 ```
-git commit -s -m "Corrige el recorte de clips al inicio de la pista"
-```
 
-El nombre y el correo deben ser reales y coincidir con los del autor del commit. Un PR con commits sin firmar no se puede unir hasta que se firmen; si lo olvidaste, `git rebase --signoff origin/main` firma los de tu rama.
+El nombre y el correo deben ser reales y coincidir con los del autor del commit. Un PR con commits sin firmar no se puede unir hasta que se firmen; si lo olvidaste, `git rebase --signoff origin/main` firma los commits de tu rama.
 
-## Abrir un pull request
+## Convención de Pull Requests
 
-1. Haz un *fork* y crea una rama desde `main` con un nombre que diga qué hace (`recorte-inicio-pista`).
-2. Trabaja con commits firmados (`-s`). Corre `Probar.bat` antes de subir; si tocaste `src\Rodaje.App`, también `Rodaje.bat` (publica con AOT y exige cero advertencias).
-3. Abre el PR contra `main`. La [plantilla](.github/pull_request_template.md) pide qué cambia, por qué, cómo se probó y si cambia algo que ve el usuario. Enlaza el issue si lo hay.
-4. La CI corre sola. El mantenedor revisa la lógica, las pruebas, los nombres y la documentación; puede pedir cambios. Mantén el PR acotado: uno por tema.
-5. Al unirlo se conserva tu autoría en el historial.
+1. **Apertura y ramas:**
+   - Haz un *fork* del repositorio y crea una rama descriptiva desde `main` (`area/descripcion-corta`, por ejemplo `export/nearest-aac` o `docs/guia-actualizada`).
+   - Abre el PR como **Borrador (Draft)** mientras se completan las pruebas o la revisión.
+   - Un solo tema por PR. No agrupes cambios no relacionados.
+2. **Plantilla de PR:**
+   - Completa todas las secciones de la [plantilla](.github/pull_request_template.md): *Qué cambia*, *Por qué*, *Cómo se probó* y marca la *Lista de comprobación*.
+3. **Criterios de aceptación para unir (Merge Checklist):**
+   - **CI en verde total:** Los flujos de integración continua en GitHub Actions (`ci.yml`: Windows solución completa y Linux para Core/Packages/Playback) deben pasar al 100%.
+   - **Cero advertencias de compilación:** Tanto en compilación estándar como en publicación Native AOT.
+   - **Zonas protegidas intocadas:** Un PR estándar **no debe modificar** archivos de infraestructura (`build/`, `.github/`), licencias (`LICENSE`, `TRADEMARK.md`), dependencias (`packages.lock.json`), ni autoría (`UpstreamAttribution.cs`). Los cambios en estas zonas requieren PRs independientes de revisión especial.
+   - **Integridad de pruebas:** Las pruebas no deben debilitar aserciones ni usar `[Skip]` para esconder defectos.
+4. **Estrategia de unión:**
+   - Se unen mediante **Squash and Merge** conservando el mensaje descriptivo y la atribución del autor en el commit resultante sobre `main`.
+   - **Nunca se utiliza `--admin`** para saltar comprobaciones obligatorias ni protecciones de rama.
 
 ## Reglas legales
 
