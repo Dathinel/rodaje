@@ -1,5 +1,6 @@
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 
@@ -26,31 +27,18 @@ internal static partial class VisionCommands
         ArgumentNullException.ThrowIfNull(services);
         IDisposable[] bindings =
         [
-            router.Bind(RemoveBackground, () => Run(services.Session, VisionDialogs.RemoveBackgroundTitle, () => VisionDialogs.RemoveBackgroundAsync(services))),
-            router.Bind(Reframe, () => Run(services.Session, VisionDialogs.ReframeTitle, () => VisionDialogs.ReframeAsync(services))),
+            router.Bind(RemoveBackground, () => Run(services, RemoveBackground, VisionDialogs.RemoveBackgroundTitle,
+                scope => VisionDialogs.RemoveBackgroundAsync(services, scope))),
+            router.Bind(Reframe, () => Run(services, Reframe, VisionDialogs.ReframeTitle,
+                scope => VisionDialogs.ReframeAsync(services, scope))),
             router.Bind(Masks, services.Session.ShowMaskPanel),
             router.Bind(Tracking, services.Session.ShowTrackPanel),
         ];
         return new Bindings(bindings);
     }
 
-    private static void Run(EditorSession session, string title, Func<Task> show) => UiTask.Run(RunAsync(session, title, show));
-
-    private static async Task RunAsync(EditorSession session, string title, Func<Task> show)
-    {
-        try
-        {
-            await show();
-        }
-#pragma warning disable CA1031 // Un fallo del diálogo no debe cerrar la app: se avisa.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            // Ya se avisa aquí: el informe queda en fallos\ sin un segundo aviso.
-            UiTask.Report(ex, notify: false);
-            session.Notify(NotificationSeverity.Error, title, ex.Message);
-        }
-    }
+    private static void Run(EditorServices services, string id, string title, Func<LongActionScope, Task> work) =>
+        UiTask.Run(services.LongActions.RunAsync(id, title, work, canCancel: true));
 
     private sealed partial class Bindings(IDisposable[] items) : IDisposable
     {
