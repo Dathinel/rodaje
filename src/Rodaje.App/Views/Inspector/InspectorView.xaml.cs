@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Shell;
@@ -25,6 +26,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         Masks,
         Tracking,
         Dynamics,
+        Transition,
         History,
         Jobs,
     }
@@ -39,7 +41,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         }
 
         PropertiesPanel.Attach(services);
-        TransitionPanel.ActiveChanged += (_, _) => UpdateVisibility();
+        TransitionPanel.ActiveChanged += (_, _) => OnTransitionActiveChanged();
         TransitionPanel.Attach(services);
         TextPanel.Attach(services);
         services.Session.TextPanelRequested += (_, _) => Show(Tab.Text);
@@ -68,6 +70,11 @@ internal sealed partial class InspectorView : UserControl, IEditorView
             return;
         }
 
+        if (TransitionPanel.IsActive && tab is not (Tab.Transition or Tab.History or Tab.Jobs))
+        {
+            tab = Tab.Transition;
+        }
+
         RadioButton button = tab switch
         {
             Tab.Text => TextTab,
@@ -76,6 +83,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
             Tab.Masks => MasksTab,
             Tab.Tracking => TrackingTab,
             Tab.Dynamics => DynamicsTab,
+            Tab.Transition => TransitionTab,
             _ => PropertiesTab,
         };
         button.IsChecked = true;
@@ -83,13 +91,14 @@ internal sealed partial class InspectorView : UserControl, IEditorView
 
     private void OnTabChecked(object sender, RoutedEventArgs e)
     {
+        UpdateTabVisibility();
         UpdateVisibility();
         UpdateTabLabels();
         (sender as UIElement)?.StartBringIntoView();
     }
 
     private (RadioButton Tab, TextBlock Label)[] Tabs =>
-        [(PropertiesTab, PropertiesLabel), (TextTab, TextLabel), (SpeedTab, SpeedLabel), (FiltersTab, FiltersLabel), (MasksTab, MasksLabel), (TrackingTab, TrackingLabel), (DynamicsTab, DynamicsLabel)];
+        [(PropertiesTab, PropertiesLabel), (TextTab, TextLabel), (SpeedTab, SpeedLabel), (FiltersTab, FiltersLabel), (MasksTab, MasksLabel), (TrackingTab, TrackingLabel), (DynamicsTab, DynamicsLabel), (TransitionTab, TransitionLabel)];
 
     // Se mide con todos los nombres; si no caben, las pestañas pasan a ícono y solo la elegida conserva su nombre.
     private void UpdateTabLabels()
@@ -125,14 +134,42 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         }
 
         bool properties = PropertiesTab.IsChecked == true;
+        bool transition = TransitionTab.IsChecked == true && TransitionPanel.IsActive;
         PropertiesPanel.Visibility = Visible(properties && !TransitionPanel.IsActive);
-        TransitionPanel.Visibility = Visible(properties && TransitionPanel.IsActive);
+        TransitionPanel.Visibility = Visible(transition);
         TextPanel.Visibility = Visible(TextTab.IsChecked == true);
         SpeedPanel.Visibility = Visible(SpeedTab.IsChecked == true);
         FiltersPanel.Visibility = Visible(FiltersTab.IsChecked == true);
         MasksPanel.Visibility = Visible(MasksTab.IsChecked == true);
         TrackingPanel.Visibility = Visible(TrackingTab.IsChecked == true);
         DynamicsPanel.Visibility = Visible(DynamicsTab.IsChecked == true);
+    }
+
+    private void OnTransitionActiveChanged()
+    {
+        if (TransitionPanel.IsActive)
+        {
+            Show(Tab.Transition);
+        }
+        else if (TransitionTab.IsChecked == true)
+        {
+            Show(Tab.Properties);
+        }
+
+        UpdateTabVisibility();
+        UpdateVisibility();
+    }
+
+    private void UpdateTabVisibility()
+    {
+        bool transition = TransitionPanel.IsActive;
+        foreach ((RadioButton tab, _) in Tabs)
+        {
+            string name = AutomationProperties.GetName(tab);
+            tab.Visibility = transition
+                ? tab == TransitionTab ? Visibility.Visible : Visibility.Collapsed
+                : tab == TransitionTab || (_hiddenTabs.Contains(name) && tab.IsChecked != true) ? Visibility.Collapsed : Visibility.Visible;
+        }
     }
 
     private static Visibility Visible(bool visible) => visible ? Visibility.Visible : Visibility.Collapsed;

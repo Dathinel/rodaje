@@ -82,6 +82,13 @@
                         <TextBlock x:Name="DynamicsLabel" Text="Dinámica" />
                     </StackPanel>
                 </RadioButton>
+                <RadioButton x:Name="TransitionTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
+                             ToolTipService.ToolTip="Transición" AutomationProperties.Name="Transición" Visibility="Collapsed">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE8D6;" FontSize="{StaticResource IconFontSize}" Visibility="Collapsed" />
+                        <TextBlock x:Name="TransitionLabel" Text="Transición" />
+                    </StackPanel>
+                </RadioButton>
             </StackPanel>
             </ScrollViewer>
         </Border>
