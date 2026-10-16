@@ -145,6 +145,22 @@
                 <TextBlock Grid.Row="2" Text="{x:Bind Source}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
             </Grid>
         </DataTemplate>
+
+        <DataTemplate x:Key="SoundTileTemplate" x:DataType="local:ElementItem">
+            <Grid Width="176" Height="64" Padding="8" ColumnSpacing="8" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
+                  BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" ToolTipService.ToolTip="{x:Bind Tooltip}">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <StackPanel VerticalAlignment="Center" Spacing="2">
+                    <TextBlock Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}" />
+                    <TextBlock Text="{x:Bind Source}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                </StackPanel>
+                <Button Grid.Column="1" Style="{StaticResource ToolButtonStyle}" Content="&#xE768;" Click="OnSoundPreviewClick" DoubleTapped="OnSoundPreviewDoubleTapped"
+                        AutomationProperties.Name="Escuchar" ToolTipService.ToolTip="Escuchar o detener la preescucha" />
+            </Grid>
+        </DataTemplate>
     </UserControl.Resources>
 
     <Grid Background="{StaticResource PanelBrush}">
@@ -278,20 +294,26 @@
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
-                    <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <TextBlock x:Name="EmptyAudioText" Grid.Row="0" Style="{StaticResource PlaceholderTextStyle}" Margin="16,12"
                            Text="Importa música o efectos de sonido, o instala un paquete desde Complementos."
                            TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed" />
-                <GridView x:Name="AudioGrid" Grid.Row="1" Padding="8" SelectionMode="Single" IsDoubleTapEnabled="True"
-                          CanDragItems="True" DragItemsStarting="OnMediaDragStarting" DoubleTapped="OnMediaDoubleTapped"
-                          ContextRequested="OnMediaContextRequested"
-                          ItemsSource="{x:Bind AudioMedia}" ItemTemplate="{StaticResource MediaTileTemplate}" />
-                <StackPanel x:Name="SoundsPanel" Grid.Row="2" Padding="8,0,8,8" Spacing="4">
-                    <TextBlock Text="Sonidos de paquetes" Style="{StaticResource CaptionTextStyle}" />
-                    <GridView SelectionMode="None" CanDragItems="True" DragItemsStarting="OnElementDragStarting"
-                              ItemsSource="{x:Bind Sounds}" ItemTemplate="{StaticResource ElementTileTemplate}" />
-                </StackPanel>
+                <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Auto">
+                    <StackPanel>
+                        <GridView x:Name="AudioGrid" Padding="8" SelectionMode="Single" IsDoubleTapEnabled="True"
+                                  CanDragItems="True" DragItemsStarting="OnMediaDragStarting" DoubleTapped="OnMediaDoubleTapped"
+                                  ContextRequested="OnMediaContextRequested" ScrollViewer.VerticalScrollMode="Disabled"
+                                  ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                  ItemsSource="{x:Bind AudioMedia}" ItemTemplate="{StaticResource MediaTileTemplate}" />
+                        <StackPanel x:Name="SoundsPanel" Padding="8,0,8,8" Spacing="4">
+                            <TextBlock Text="Sonidos de paquetes" Style="{StaticResource CaptionTextStyle}" />
+                            <GridView x:Name="SoundsGrid" SelectionMode="None" IsDoubleTapEnabled="True" CanDragItems="True"
+                                      DragItemsStarting="OnElementDragStarting" DoubleTapped="OnElementDoubleTapped" ContextRequested="OnElementContextRequested"
+                                      ScrollViewer.VerticalScrollMode="Disabled" ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                                      ItemsSource="{x:Bind Sounds}" ItemTemplate="{StaticResource SoundTileTemplate}" />
+                        </StackPanel>
+                    </StackPanel>
+                </ScrollViewer>
             </Grid>
 
             <Grid x:Name="ElementsPanel" Grid.Row="1" Visibility="Collapsed">

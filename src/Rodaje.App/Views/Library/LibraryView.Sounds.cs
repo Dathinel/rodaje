@@ -1,7 +1,11 @@
+using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Input;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Voice;
+using Rodaje.App.Views.Library.Logic;
 using Rodaje.Packages;
 using Rodaje.Packages.Content;
 
@@ -17,9 +21,27 @@ internal sealed partial class LibraryView
     private void AddSoundItems(MenuFlyout menu, LibraryElement element)
     {
         bool playing = _soundPlaying == element.Reference && _soundPreview is { IsPlaying: true };
-        menu.Items.Add(MenuItem(playing ? "Detener" : "Escuchar", playing ? "" : "", (_, _) => ToggleSoundPreview(element)));
+        (string text, string glyph) = LibrarySoundCommands.Preview(playing);
+        menu.Items.Add(MenuItem(text, glyph, (_, _) => ToggleSoundPreview(element)));
         menu.Items.Add(MenuItem("Añadir en el cursor", "", (_, _) => AddSoundAtCursor(element)));
     }
+
+    private void OnSoundPreviewClick(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { DataContext: ElementItem item } button || item.Element.Kind != ItemKind.Sound)
+        {
+            return;
+        }
+
+        ToggleSoundPreview(item.Element);
+        bool playing = _soundPlaying == item.Element.Reference && _soundPreview is { IsPlaying: true };
+        (string text, string glyph) = LibrarySoundCommands.Preview(playing);
+        button.Content = glyph;
+        AutomationProperties.SetName(button, text);
+        ToolTipService.SetToolTip(button, text);
+    }
+
+    private void OnSoundPreviewDoubleTapped(object sender, DoubleTappedRoutedEventArgs e) => e.Handled = true;
 
     private void ToggleSoundPreview(LibraryElement element)
     {

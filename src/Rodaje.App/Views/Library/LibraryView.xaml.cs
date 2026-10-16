@@ -15,6 +15,7 @@ using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector;
+using Rodaje.App.Views.Library.Logic;
 using Rodaje.App.Views.Plugins;
 using Rodaje.App.Views.Shared;
 using Rodaje.Core.Editing;
@@ -493,7 +494,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             e.Data.SetData(TitleDrag.DragFormat, item.Element.Reference);
         }
 
-        if (item.Element.Kind == ItemKind.Sound)
+        if (LibrarySoundCommands.InsertsAtCursorOnDoubleTap(item.Element.Kind))
         {
             e.Data.SetData(SoundDrag.DragFormat, item.Element.Reference);
         }
