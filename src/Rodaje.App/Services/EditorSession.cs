@@ -94,6 +94,10 @@ public sealed partial class EditorSession : ObservableObject
 
     public event EventHandler? SelectionChanged;
 
+    public event EventHandler? PropertiesPanelRequested;
+
+    public void RequestPropertiesPanel() => PropertiesPanelRequested?.Invoke(this, EventArgs.Empty);
+
     /// <summary>Cambió la posición, la duración o el estado de reproducción que publica el reproductor.</summary>
     public event EventHandler? TransportChanged;
 

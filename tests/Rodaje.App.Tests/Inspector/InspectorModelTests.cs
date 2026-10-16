@@ -151,10 +151,11 @@ public class EffectCatalogTests
     public void Video_OfreceLosFiltrosQueAplicaElMotor_YAudioSuVolumen()
     {
         Assert.Equal(
-            ["Transformar", "Color y LUT", "Viñeta", "Desenfoque", "Nitidez", "Modo de mezcla", "Recortar", "Pixelar", "Anclaje de esquinas", "Croma (fondo verde)",
+            ["Color y LUT", "Viñeta", "Desenfoque", "Nitidez", "Modo de mezcla", "Recortar", "Pixelar", "Anclaje de esquinas", "Croma (fondo verde)",
                 "Ruedas de color", "Curvas", "Grano de película", "Resplandor", "Aberración cromática", "Reducción de ruido",
                 "Espejo y pantalla dividida", "Distorsión de lente", "Corrección secundaria (HSL)"],
             EffectCatalog.For(TrackKind.Video).Select(e => e.Name));
+        Assert.DoesNotContain(EffectCatalog.For(TrackKind.Video), e => e.Type == BuiltInEffects.Transform);
         Assert.Equal([BuiltInEffects.Audio, BuiltInEffects.Equalizer, BuiltInEffects.Compressor, BuiltInEffects.Gate, BuiltInEffects.DeEsser, BuiltInEffects.Reverb,
             BuiltInEffects.Delay, BuiltInEffects.Saturation, BuiltInEffects.GraphicEqualizer, BuiltInEffects.PitchShift, BuiltInEffects.Limiter],
             EffectCatalog.For(TrackKind.Audio).Select(e => e.Type));

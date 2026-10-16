@@ -252,6 +252,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         _clipId = clip.Id;
         _shownPosition = session.Position;
         ClipTitle.Text = ClipLabels.Name(session.Project, clip, "Clip");
+        TransformHeaderButton.Visibility = clip.Effects.Any(effect => effect.Type == BuiltInEffects.Transform)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
         ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
         TitleNote.Visibility = clip.Generator is null ? Visibility.Collapsed : Visibility.Visible;
         if (_kind != track.Kind || _addable.Count == 0)
@@ -374,7 +377,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     }
 
     /// <summary>Las máscaras tienen su pestaña: aquí no se listan.</summary>
-    private static bool Shows(EffectInstance effect) => effect.Type is not (BuiltInEffects.Mask or BuiltInEffects.Track);
+    private void OnEditTransformClick(object sender, RoutedEventArgs e) => _services?.Session.RequestPropertiesPanel();
+
+    private static bool Shows(EffectInstance effect) => effect.Type is not (BuiltInEffects.Mask or BuiltInEffects.Track or BuiltInEffects.Transform);
 
     private void BuildRows(string type, ParameterSpec.Context context)
     {
