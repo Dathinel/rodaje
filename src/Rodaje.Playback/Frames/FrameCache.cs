@@ -49,8 +49,17 @@ public sealed class FrameCache : IDisposable
     /// <remarks>Nunca expulsa el cuadro recién agregado, aunque por sí solo supere el presupuesto.</remarks>
     public bool Add(DecodedFrame frame)
     {
+        List<DecodedFrame>? released = null;
+        bool added = Add(frame, ref released);
+        released?.ForEach(f => f.Dispose());
+        return added;
+    }
+
+    /// <summary>Como <see cref="Add(DecodedFrame)"/>, pero deja en <paramref name="released"/> lo que hay que liberar
+    /// para que el llamador lo libere fuera de sus propios candados.</summary>
+    internal bool Add(DecodedFrame frame, ref List<DecodedFrame>? released)
+    {
         ArgumentNullException.ThrowIfNull(frame);
-        List<DecodedFrame>? evicted = null;
         bool added;
         lock (_gate)
         {
@@ -63,17 +72,16 @@ public sealed class FrameCache : IDisposable
                 {
                     DecodedFrame oldest = _recency.Last!.Value;
                     RemoveNode(_recency.Last);
-                    (evicted ??= []).Add(oldest);
+                    (released ??= []).Add(oldest);
                 }
             }
         }
 
         if (!added)
         {
-            frame.Dispose();
+            (released ??= []).Add(frame);
         }
 
-        evicted?.ForEach(f => f.Dispose());
         return added;
     }
 
