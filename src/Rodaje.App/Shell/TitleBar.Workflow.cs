@@ -24,7 +24,6 @@ internal sealed partial class TitleBar
         }
 
         AppSettings settings = _services.Settings.Current;
-        AutoProxiesItem.IsChecked = settings.AutoProxies;
         AiQualityAuto.IsChecked = settings.AiQuality == Rodaje.Media.Ai.AiQuality.Auto;
         AiQualityFast.IsChecked = settings.AiQuality == Rodaje.Media.Ai.AiQuality.Fast;
         AiQualityMax.IsChecked = settings.AiQuality == Rodaje.Media.Ai.AiQuality.Max;
@@ -66,11 +65,4 @@ internal sealed partial class TitleBar
         }
     }
 
-    private void OnAutoProxiesClick(object sender, RoutedEventArgs e)
-    {
-        if (_services is not null)
-        {
-            _services.Settings.Current.AutoProxies = AutoProxiesItem.IsChecked;
-        }
-    }
 }

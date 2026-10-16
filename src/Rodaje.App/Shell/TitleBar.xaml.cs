@@ -48,9 +48,6 @@ internal sealed partial class TitleBar : UserControl
         Session.TransportChanged += (_, _) => UpdateStats();
         Session.HistoryChanged += (_, _) => UpdateUndoText();
         services.ShortcutRegistry.Changed += (_, _) => UpdateAccelerators();
-        BuildTrackCountMenu(NewVideoTracksMenu, "Tracks", isVideo: true);
-        BuildTrackCountMenu(NewAudioTracksMenu, "AudioTracks", isVideo: false);
-        BuildLinkedAudioMenu();
         LoadTemplates();
         UpdateAccelerators();
         UpdateUndoText();
@@ -114,23 +111,7 @@ internal sealed partial class TitleBar : UserControl
             return;
         }
 
-        ShortcutPreset preset = _services.ShortcutRegistry.Preset;
-        PresetRodaje.IsChecked = preset == ShortcutPreset.Rodaje;
-        PresetAgile.IsChecked = preset == ShortcutPreset.Agile;
-        PresetClassic.IsChecked = preset == ShortcutPreset.Classic;
-        ProxyUsage proxies = _services.Settings.Current.ProxyUsage;
-        ProxyAuto.IsChecked = proxies == ProxyUsage.Auto;
-        ProxyAlways.IsChecked = proxies == ProxyUsage.Always;
-        ProxyNever.IsChecked = proxies == ProxyUsage.Never;
-        UpdateTrackCountChecks(NewVideoTracksMenu, _services.Settings.Current.NewProjectTracks.Video);
-        UpdateTrackCountChecks(NewAudioTracksMenu, _services.Settings.Current.NewProjectTracks.Audio);
-        UpdateLinkedAudioChecks();
-        PreviewQuality quality = _services.Settings.Current.PreviewQuality;
-        QualityAuto.IsChecked = quality == PreviewQuality.Auto;
-        QualityFull.IsChecked = quality == PreviewQuality.Full;
-        QualityHalf.IsChecked = quality == PreviewQuality.Half;
-        QualityQuarter.IsChecked = quality == PreviewQuality.Quarter;
-        UpdateWorkflowChecks();
+        // Las preferencias persistentes se editan desde Archivo > Preferencias.
     }
 
     private void OnActionClick(object sender, RoutedEventArgs e)
@@ -147,122 +128,6 @@ internal sealed partial class TitleBar : UserControl
         {
             InspectorTabRequested?.Invoke(this, tab);
         }
-    }
-
-    private void OnPresetClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { Tag: string tag } && _services is not null && Enum.TryParse(tag, out ShortcutPreset preset))
-        {
-            _services.ShortcutRegistry.Preset = preset;
-            _services.Settings.Current.ShortcutPreset = preset;
-        }
-    }
-
-    private void OnProxyClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is FrameworkElement { Tag: string tag } && _services is not null && Enum.TryParse(tag, out ProxyUsage usage))
-        {
-            _services.Settings.Current.ProxyUsage = usage;
-            _services.Player.SetProxyUsage(usage);
-        }
-    }
-
-    private void BuildTrackCountMenu(MenuFlyoutSubItem menu, string group, bool isVideo)
-    {
-        menu.Items.Clear();
-        for (int count = NewProjectTracks.Min; count <= NewProjectTracks.Max; count++)
-        {
-            var item = new RadioMenuFlyoutItem { Text = count.ToString(Rodaje.App.Services.Format.SpanishNumbers.Format), GroupName = group, Tag = count };
-            item.Click += isVideo ? OnVideoTracksClick : OnAudioTracksClick;
-            menu.Items.Add(item);
-        }
-    }
-
-    private static void UpdateTrackCountChecks(MenuFlyoutSubItem menu, int selected)
-    {
-        foreach (MenuFlyoutItemBase item in menu.Items)
-        {
-            if (item is RadioMenuFlyoutItem { Tag: int count } radio)
-            {
-                radio.IsChecked = count == selected;
-            }
-        }
-    }
-
-    private void OnVideoTracksClick(object sender, RoutedEventArgs e) => SetNewProjectTracks(sender, video: true);
-
-    private void OnAudioTracksClick(object sender, RoutedEventArgs e) => SetNewProjectTracks(sender, video: false);
-
-    private void SetNewProjectTracks(object sender, bool video)
-    {
-        if (sender is not FrameworkElement { Tag: int count } || _services is null)
-        {
-            return;
-        }
-
-        AppSettings settings = _services.Settings.Current;
-        if (video)
-        {
-            settings.DefaultVideoTracks = count;
-        }
-        else
-        {
-            settings.DefaultAudioTracks = count;
-        }
-
-        settings.Normalize();
-        _services.Session.NewProjectTracks = settings.NewProjectTracks;
-        _services.Settings.SaveIfChanged();
-    }
-
-    /// <summary>«Todas» y una casilla por pista de video (1 a 8): de cuáles sale el audio al importar o soltar un medio.</summary>
-    private void BuildLinkedAudioMenu()
-    {
-        LinkedAudioMenu.Items.Clear();
-        var all = new ToggleMenuFlyoutItem { Text = "Todas", Tag = "all" };
-        all.Click += OnLinkedAudioClick;
-        LinkedAudioMenu.Items.Add(all);
-        LinkedAudioMenu.Items.Add(new MenuFlyoutSeparator());
-        for (int number = 1; number <= NewProjectTracks.Max; number++)
-        {
-            var item = new ToggleMenuFlyoutItem { Text = string.Create(Rodaje.App.Services.Format.SpanishNumbers.Format, $"Video {number}"), Tag = number };
-            item.Click += OnLinkedAudioClick;
-            LinkedAudioMenu.Items.Add(item);
-        }
-    }
-
-    private void UpdateLinkedAudioChecks()
-    {
-        if (_services is null)
-        {
-            return;
-        }
-
-        LinkedAudioTracks rule = _services.Settings.Current.LinkedAudioTracks;
-        foreach (MenuFlyoutItemBase item in LinkedAudioMenu.Items)
-        {
-            if (item is ToggleMenuFlyoutItem toggle)
-            {
-                toggle.IsChecked = toggle.Tag is int number ? rule.AllowsNumber(number) : rule.IsAll;
-            }
-        }
-    }
-
-    private void OnLinkedAudioClick(object sender, RoutedEventArgs e)
-    {
-        if (sender is not FrameworkElement element || _services is null)
-        {
-            return;
-        }
-
-        AppSettings settings = _services.Settings.Current;
-        int knownTracks = Math.Max(NewProjectTracks.Max, _services.Session.Sequence.VideoTracks.Count);
-        LinkedAudioTracks next = element.Tag is int number ? settings.LinkedAudioTracks.Toggle(number, knownTracks) : LinkedAudioTracks.All;
-        settings.LinkedAudioVideoTracks = next.ToSetting();
-        settings.Normalize();
-        _services.Session.LinkedAudioTracks = settings.LinkedAudioTracks;
-        _services.Settings.SaveIfChanged();
-        UpdateLinkedAudioChecks();
     }
 
     private void LoadTemplates()

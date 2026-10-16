@@ -21,6 +21,7 @@ using Rodaje.App.Views.Export;
 using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Player;
 using Rodaje.App.Views.Plugins;
+using Rodaje.App.Views.Preferences;
 using Rodaje.App.Views.Shortcuts;
 using Rodaje.Engine.Timeline;
 using Windows.ApplicationModel.DataTransfer;
@@ -168,6 +169,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(_router.Bind(ActionIds.Export, () => ShowPage(ShellPage.Export)));
         _bindings.Add(Views.Export.StillExportCommand.Bind(_router, _services, _hwnd));
         _bindings.Add(_router.Bind(ActionIds.ShowShortcuts, () => ShowPage(ShellPage.Shortcuts)));
+        _bindings.Add(_router.Bind(ActionIds.ShowPreferences, ShowPreferences));
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
         _bindings.Add(_router.Bind(ActionIds.ShowMixer, ToggleMixer));
         _bindings.Add(_router.Bind(ActionIds.ShowHistory, () => HistoryButton.Flyout.ShowAt(HistoryButton)));
@@ -333,6 +335,34 @@ internal sealed partial class MainWindow : Window, IShellHost
     internal ShortcutRouter Router => _router;
 
     internal KeyboardShortcutHost Keyboard => _keyboard;
+
+    private void ShowPreferences() => UiTask.Run(ShowPreferencesAsync());
+
+    private async Task ShowPreferencesAsync()
+    {
+        var view = new PreferencesView();
+        view.Attach(_settings.Current);
+        var dialog = new ContentDialog
+        {
+            XamlRoot = Root.XamlRoot,
+            Title = "Preferencias",
+            Content = view,
+            PrimaryButtonText = "Guardar",
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Primary,
+        };
+        if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary)
+        {
+            return;
+        }
+
+        view.Apply();
+        _services.Session.NewProjectTracks = _settings.Current.NewProjectTracks;
+        _services.Session.LinkedAudioTracks = _settings.Current.LinkedAudioTracks;
+        _services.Player.SetProxyUsage(_settings.Current.ProxyUsage);
+        _router.Registry.Preset = _settings.Current.ShortcutPreset;
+        _settings.SaveIfChanged();
+    }
 
     internal nint Hwnd => _hwnd;
 
