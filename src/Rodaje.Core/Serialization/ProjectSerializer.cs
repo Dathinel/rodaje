@@ -254,7 +254,14 @@ public static class ProjectSerializer
         string json;
         try
         {
-            json = File.ReadAllText(path, Utf8NoBom);
+            // Sin seguir la marca BOM: File.ReadAllText abriría también un archivo UTF-16 o UTF-32 con la suya.
+            ReadOnlySpan<byte> bytes = File.ReadAllBytes(path);
+            if (bytes.StartsWith(Encoding.UTF8.Preamble))
+            {
+                bytes = bytes[Encoding.UTF8.Preamble.Length..];
+            }
+
+            json = Utf8NoBom.GetString(bytes);
         }
         catch (DecoderFallbackException ex)
         {
