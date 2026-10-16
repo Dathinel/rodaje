@@ -54,7 +54,7 @@ Sin conexión, la página lo dice («Ahora no se pudo consultar el catálogo: �
 - **LUT**: en Filtros del inspector, el filtro Color y LUT ofrece las LUT de los paquetes y «Cargar .cube…».
 - **Estilos de texto**: en la categoría Texto de la biblioteca; doble clic cambia el estilo del título seleccionado.
 - **Zonas seguras**: en el menú de zonas del reproductor, debajo de las de fábrica.
-- **Sonidos**: en la categoría Sonidos de la biblioteca; se escuchan al pasar, se añaden con doble clic o arrastrándolos.
+- **Sonidos**: en Audio › Sonidos de paquetes de la biblioteca; el botón de preescucha o el menú permiten escuchar y detenerlos, el doble clic los añade en el cursor y también puedes arrastrarlos a la línea de tiempo.
 - **Preajustes de exportación y codificadores**: aparecen en el diálogo de exportar.
 - **Video 360**: el efecto de reencuadre aparece en Filtros con el complemento instalado.
 - **Fuentes**: quedan disponibles en la pestaña Texto. Si abres un proyecto que usa una fuente de un paquete que no tienes, el panel Texto lo avisa.
