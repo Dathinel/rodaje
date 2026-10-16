@@ -276,16 +276,20 @@
 
             <Grid x:Name="AudioPanel" Grid.Row="1" Visibility="Collapsed">
                 <Grid.RowDefinitions>
-                    <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                    <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <GridView x:Name="AudioGrid" Padding="8" SelectionMode="Single" IsDoubleTapEnabled="True"
+                <TextBlock x:Name="EmptyAudioText" Grid.Row="0" Style="{StaticResource PlaceholderTextStyle}" Margin="16,12"
+                           Text="Importa música o efectos de sonido, o instala un paquete desde Complementos."
+                           TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed" />
+                <GridView x:Name="AudioGrid" Grid.Row="1" Padding="8" SelectionMode="Single" IsDoubleTapEnabled="True"
                           CanDragItems="True" DragItemsStarting="OnMediaDragStarting" DoubleTapped="OnMediaDoubleTapped"
                           ContextRequested="OnMediaContextRequested"
                           ItemsSource="{x:Bind AudioMedia}" ItemTemplate="{StaticResource MediaTileTemplate}" />
-                <StackPanel x:Name="SoundsPanel" Grid.Row="1" Padding="8,0,8,8" Spacing="4">
+                <StackPanel x:Name="SoundsPanel" Grid.Row="2" Padding="8,0,8,8" Spacing="4">
                     <TextBlock Text="Sonidos de paquetes" Style="{StaticResource CaptionTextStyle}" />
-                    <GridView SelectionMode="None" CanDragItems="True" DragItemsStarting="OnElementDragStarting" MaxHeight="220"
+                    <GridView SelectionMode="None" CanDragItems="True" DragItemsStarting="OnElementDragStarting"
                               ItemsSource="{x:Bind Sounds}" ItemTemplate="{StaticResource ElementTileTemplate}" />
                 </StackPanel>
             </Grid>

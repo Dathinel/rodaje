@@ -274,6 +274,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         NewFolderButton.Visibility = media && library ? Visibility.Visible : Visibility.Collapsed;
         AudioPanel.Visibility = audio && (AudioMedia.Count > 0 || Sounds.Count > 0) ? Visibility.Visible : Visibility.Collapsed;
         AudioGrid.Visibility = AudioMedia.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        EmptyAudioText.Visibility = AudioMedia.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         SoundsPanel.Visibility = Sounds.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ElementsPanel.Visibility = elements && Elements.Count + OwnElements.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         OwnPanel.Visibility = OwnElements.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
