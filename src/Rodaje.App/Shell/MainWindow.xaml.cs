@@ -268,7 +268,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         LibrarySplitter.Resized += (_, size) => settings.Current.LibraryWidth = size;
         InspectorSplitter.Resized += (_, size) => settings.Current.InspectorWidth = size;
-        MainArea.SizeChanged += (_, _) => FitSidePanels();
+        Root.SizeChanged += (_, e) => FitSidePanels(e.NewSize.Width);
         TimelineSplitter.Resized += (_, size) => settings.Current.TimelineHeight = size;
         // Un aviso abierto empuja la página modal hacia abajo en lugar de taparle la cabecera.
         Notification.SizeChanged += (_, e) => ModalFrame.Margin = new Thickness(48, 56 + e.NewSize.Height, 48, 40);
@@ -486,6 +486,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
         Player.SetFullScreen(fullScreen);
+        FitSidePanels();
         if (fullScreen)
         {
             ShowHint(Services.Onboarding.OnboardingGuide.FirstFullScreen);
@@ -600,48 +601,32 @@ internal sealed partial class MainWindow : Window, IShellHost
         {
             presenter.Maximize();
         }
+
+        FitSidePanels(width);
     }
 
     /// <summary>
     /// Con la ventana estrecha los paneles laterales ceden (primero la biblioteca, luego el panel derecho) para que el
     /// reproductor conserve su mínimo y nada quede fuera de la ventana; al ensancharla vuelven a los anchos elegidos.
     /// </summary>
-    private void FitSidePanels()
+    private void FitSidePanels(double? availableWidth = null)
     {
-        if (_playerFullScreen || MainArea.ActualWidth <= 0)
+        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        double winWidth = dpi > 0 ? AppWindow.Size.Width * 96.0 / dpi : AppWindow.Size.Width;
+        double width = availableWidth > 0 ? availableWidth.Value : (winWidth > 0 ? winWidth : Root.ActualWidth);
+        if (_playerFullScreen || width <= 0)
         {
             return;
         }
 
-        const double LibraryMin = 220;
-        const double InspectorMin = 240;
         AppSettings s = _settings.Current;
-        double room = MainArea.ActualWidth - MainArea.ColumnDefinitions[1].ActualWidth - MainArea.ColumnDefinitions[3].ActualWidth
-            - MainArea.ColumnDefinitions[2].MinWidth;
-        double library = s.LibraryWidth;
-        double inspector = s.InspectorWidth;
-        double excess = library + inspector - room;
-        if (excess > 0)
-        {
-            double cut = Math.Min(excess, Math.Max(0, library - LibraryMin));
-            library -= cut;
-            excess -= cut;
-        }
-
-        if (excess > 0)
-        {
-            inspector = Math.Max(InspectorMin, inspector - excess);
-        }
-
-        if (LibraryColumn.Width.Value != library)
-        {
-            LibraryColumn.Width = new GridLength(library);
-        }
-
-        if (InspectorColumn.Width.Value != inspector)
-        {
-            InspectorColumn.Width = new GridLength(inspector);
-        }
+        var (library, inspector) = SidePanelLayout.Fit(width, s.LibraryWidth, s.InspectorWidth);
+        Library.Visibility = LibrarySplitter.Visibility = library > 0 ? Visibility.Visible : Visibility.Collapsed;
+        Inspector.Visibility = InspectorSplitter.Visibility = inspector > 0 ? Visibility.Visible : Visibility.Collapsed;
+        MainArea.ColumnDefinitions[1].Width = new GridLength(library > 0 ? 4 : 0);
+        MainArea.ColumnDefinitions[3].Width = new GridLength(inspector > 0 ? 4 : 0);
+        LibraryColumn.Width = new GridLength(library);
+        InspectorColumn.Width = new GridLength(inspector);
     }
 
     private void SaveLayout()
@@ -963,8 +948,6 @@ internal sealed partial class MainWindow : Window, IShellHost
         if (wasFullScreen)
         {
             // Los paneles recién restaurados todavía no pasaron por el diseño: se guardan los tamaños de antes.
-            _settings.Current.LibraryWidth = _layoutBeforeFullScreen.Library.Value;
-            _settings.Current.InspectorWidth = _layoutBeforeFullScreen.Inspector.Value;
             _settings.Current.TimelineHeight = _layoutBeforeFullScreen.Timeline.Value;
         }
         try

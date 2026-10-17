@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <Compile Include="..\..\src\Rodaje.App\Shell\SidePanelLayout.cs" Link="Shell\SidePanelLayout.cs" />
   </ItemGroup>
 
   <!--
