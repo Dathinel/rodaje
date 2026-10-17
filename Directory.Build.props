@@ -10,7 +10,7 @@
     <Authors>Dathinel</Authors>
     <Product>Rodaje</Product>
     <!-- Versión única: el exe, el lanzador, «Acerca de», el catálogo (minApp) y los nombres de build\distribuir.ps1 -->
-    <Version>1.0.0</Version>
+    <Version>1.0.1</Version>
     <FileVersion>$(Version).0</FileVersion>
     <Copyright>Copyright (C) 2026 Dathinel</Copyright>
     <!-- GPLv3 con términos adicionales de la Sección 7 (atribución) y permiso para complementos: ver LICENSE (D-032) -->
@@ -19,7 +19,7 @@
     <!-- Ninguna telemetría ni restauración desde orígenes no declarados -->
     <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
   </PropertyGroup>
-  <!-- InformationalVersion = 1.0.0+<commit>; sin git (zip de fuentes) queda 1.0.0. RODAJE_COMMIT lo fija desde fuera. -->
+  <!-- InformationalVersion = 1.0.1+<commit>; sin git (zip de fuentes) queda 1.0.1. RODAJE_COMMIT lo fija desde fuera. -->
   <Target Name="RodajeCommit" BeforeTargets="AddSourceRevisionToInformationalVersion;GetAssemblyVersion;GenerateAssemblyInfo" Condition="'$(SourceRevisionId)' == ''">
     <PropertyGroup Condition="'$(RODAJE_COMMIT)' != ''"><SourceRevisionId>$(RODAJE_COMMIT)</SourceRevisionId></PropertyGroup>
     <Exec Condition="'$(SourceRevisionId)' == ''" Command="git rev-parse --short=12 HEAD" WorkingDirectory="$(MSBuildThisFileDirectory)" ConsoleToMSBuild="true" IgnoreExitCode="true" StandardOutputImportance="low" StandardErrorImportance="low" EchoOff="true">

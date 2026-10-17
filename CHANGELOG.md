@@ -6,7 +6,7 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ---
 
-## [1.0.1] - En desarrollo (18-oct-2026)
+## [1.0.1] - 2026-10-16
 
 Esta versión se centra en la estabilidad integral del motor de edición, la prevención de bloqueos ante fallos de hardware o archivos dañados, la compatibilidad hacia atrás del formato de proyecto, el blindaje de pruebas y la reorganización limpia de la interfaz (menús, preferencias y paneles contextuales).
 
@@ -14,13 +14,20 @@ Esta versión se centra en la estabilidad integral del motor de edición, la pre
 - **Menú Secuencia y Formato del proyecto:** Nuevo menú de nivel superior para ajustar propiedades de la secuencia activa, resolución y tasa de fotogramas sin depender de atajos ocultos.
 - **Ventana de Preferencias (`Ctrl+,`):** Diálogo centralizado para configurar carpetas de trabajo, caché de previsualización, límites de VRAM y comportamiento de autoguardado.
 - **Acceso rápido a Reducción de ruido:** Integración directa en el menú contextual de clips de audio y en la barra de herramientas.
-- **Diagnóstico local de incidencias:** Generación automática de minivolcados de memoria (`.dmp`) en `%LOCALAPPDATA%\Rodaje\Informes` ante cierres imprevistos sin telemetría externa.
+- **Diagnóstico local de incidencias:** Informe de fallo en `%LOCALAPPDATA%\Rodaje\fallos\` ante cierres imprevistos, sin telemetría externa; al volver a abrir, la app avisa y deja copiar el informe.
+- **Edición de tres puntos en el menú Secuencia:** Insertar, Sobrescribir, Reemplazar, Ajustar a rellenar y Superponer desde el origen; además, Añadir pista de video y de audio y Cerrar todos los huecos.
+- **Pestaña Transición en el inspector** y Seguimiento fuera de Máscaras.
+- **Preescucha de sonidos en la biblioteca:** botón de reproducir en cada sonido y doble clic para añadirlo.
 - **Batería de pruebas de contrato:** Nuevas pruebas exhaustivas para límites de VRAM y caché de fotogramas (`TimelineSessionOptions`), búfer circular de dinámica (`DynamicsMeterRing`), tasas AAC de Media Foundation y analizador atómico de progreso en exportaciones FFmpeg.
 
 ### Cambiado
 - **Reorganización del menú Editar y Herramientas:** Las funciones de inteligencia artificial (transcripción, subtitulado, traducción, reencuadre) pasan a un espacio coherente sin sobrecargar la edición básica.
 - **Gestión de tareas en segundo plano (`LongActions`):** Las acciones pesadas (quitar fondo, traducción, proxies) muestran estado visible, spinner de avance y soporte de cancelación inmediata sin congelar la interfaz WinUI.
 - **Pista magnética y cierre de huecos:** El cierre de huecos ahora opera par a par protegiendo estrictamente la sincronía entre pistas de video y audio enlazado.
+- **Diálogos de IA en un solo paso:** en Quitar fondo, Reencuadre, Estabilizar, Reducir ruido y Subtítulos automáticos, «Aplicar» está siempre activo: lanza el análisis, muestra el progreso y aplica al terminar.
+- **Quitar silencios con IA:** usa la detección de voz (Silero VAD) cuando el módulo Audio con IA está instalado y dice qué método usó; sin módulo, mide el volumen.
+- **Carpetas de los diálogos:** abrir, guardar y exportar empiezan en la carpeta del proyecto o en la última usada, y la recuerdan entre sesiones.
+- **Un solo control de huecos** en la línea de tiempo y glosario unificado en toda la interfaz (fotograma, rotación, «…»).
 - **Avisos de adaptación de proyectos antiguos:** Mensajes descriptivos en español cuando un proyecto de la versión 1.0.0 contiene parámetros normalizados al abrirse.
 
 ### Corregido
@@ -28,6 +35,8 @@ Esta versión se centra en la estabilidad integral del motor de edición, la pre
 - **Fuga de identificadores (`Event` / `Thread`):** Corrección en el ciclo de vida de hilos secundarios y descriptores Win32 al abrir y cerrar proyectos repetidamente.
 - **Guardado seguro y atómico:** Escritura mediante archivo temporal y generación de respaldo `.bak` previo para impedir archivos `.rodaje` corruptos ante cortes de alimentación.
 - **Tolerancia a archivos WAV corruptos:** Manejo seguro de archivos de audio truncados o con encabezados inconsistentes sin abortar el motor de sonido.
+- **Desinstalar y cancelar:** cancelar ya no desinstala el módulo ni avisa «desinstalado».
+- **Cabeceras de pista** que tapaban la barra de herramientas al desplazar la línea de tiempo, **panel de Trabajos** encima de los diálogos y **barra de las pestañas del inspector** que tapaba sus nombres.
 - **Rutas largas en exportación:** Soporte completo para rutas UNC y carpetas con longitud superior a `MAX_PATH` (260 caracteres) en Windows.
 - **Validación en listas del mezclador:** Corrección ante entradas nulas en listas de buses de audio y efectos maestros, reportando el elemento exacto.
 
