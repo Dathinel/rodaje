@@ -2,6 +2,7 @@ using Microsoft.UI;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -62,7 +63,8 @@ internal static partial class SubtitleFileCommands
     private static async Task ImportAsync(EditorServices services)
     {
         IReadOnlyList<string> picked = FileDialogs.Open(Owner(services), "Importar subtítulos", multiple: false,
-            services.Settings.Current.LastMediaFolder, Both, FileDialogs.AllFilter);
+            FileDialogFolderPolicy.OpenFolder(services.Settings.Current), Both, FileDialogs.AllFilter);
+        FileDialogFolderPolicy.RememberOpen(services.Settings.Current, picked.Count > 0 ? picked[0] : null);
         if (picked.Count == 0)
         {
             return;

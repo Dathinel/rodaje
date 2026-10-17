@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Modules;
+using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
 using Rodaje.App.Views.Shared;
@@ -36,7 +37,8 @@ internal static class CinemaDngDialog
 
         nint owner = root.ContentIslandEnvironment is { } environment ? Win32Interop.GetWindowFromWindowId(environment.AppWindowId) : 0;
         IReadOnlyList<string> picked = FileDialogs.Open(owner, "Elige un cuadro de la carpeta CinemaDNG", multiple: false,
-            services.Settings.Current.LastMediaFolder, ("CinemaDNG", "*.dng"), FileDialogs.AllFilter);
+            FileDialogFolderPolicy.OpenFolder(services.Settings.Current), ("CinemaDNG", "*.dng"), FileDialogs.AllFilter);
+        FileDialogFolderPolicy.RememberOpen(services.Settings.Current, picked.Count > 0 ? picked[0] : null);
         if (picked.Count == 0)
         {
             return;

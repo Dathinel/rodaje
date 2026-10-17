@@ -23,11 +23,26 @@ public sealed partial class AppSettings
     /// <summary>Última carpeta de la que se importaron medios.</summary>
     public string? LastMediaFolder { get; set; }
 
+    /// <summary>Última carpeta usada por un diálogo de abrir.</summary>
+    public string? LastOpenFolder { get; set; }
+
     /// <summary>Carpeta para los medios que genera Rodaje; <c>null</c> para <c>Nombre.medios</c> junto al proyecto (D-034).</summary>
     public string? GeneratedMediaFolder { get; set; }
 
     /// <summary>Última carpeta donde se abrió o guardó un proyecto.</summary>
     public string? LastProjectFolder { get; set; }
+
+    /// <summary>Última carpeta elegida al guardar un proyecto.</summary>
+    public string? LastProjectSaveFolder { get; set; }
+
+    /// <summary>Última carpeta elegida al exportar un fotograma.</summary>
+    public string? LastStillExportFolder { get; set; }
+
+    /// <summary>Última carpeta elegida al guardar un preajuste de exportación.</summary>
+    public string? LastExportPresetFolder { get; set; }
+
+    /// <summary>Última carpeta elegida al exportar los atajos.</summary>
+    public string? LastShortcutExportFolder { get; set; }
 
     public List<string> RecentProjects { get; set; } = [];
 

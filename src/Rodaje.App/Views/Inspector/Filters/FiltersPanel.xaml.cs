@@ -7,6 +7,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector.Properties;
@@ -540,10 +541,16 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     private string? PickCube()
     {
         nint owner = XamlRoot?.ContentIslandEnvironment is { } environment ? Win32Interop.GetWindowFromWindowId(environment.AppWindowId) : 0;
-        string? folder = _services?.Session.FilePath is { } project ? Path.GetDirectoryName(project) : null;
+        string? folder = _services is { } services
+            ? FileDialogFolderPolicy.OpenFolder(services.Settings.Current)
+            : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
         try
         {
             IReadOnlyList<string> picked = FileDialogs.Open(owner, "Cargar LUT", multiple: false, folder, ("Tablas de color", "*.cube"), FileDialogs.AllFilter);
+            if (_services is { } current && picked.Count > 0)
+            {
+                FileDialogFolderPolicy.RememberOpen(current.Settings.Current, picked[0]);
+            }
             return picked.Count > 0 ? picked[0] : null;
         }
         catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException)

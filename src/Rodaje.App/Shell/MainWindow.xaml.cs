@@ -101,8 +101,9 @@ internal sealed partial class MainWindow : Window, IShellHost
         _router = new ShortcutRouter(registry);
         Program.Metrics.Milestone("atajos");
 
-        var dialogs = new ShellDialogs(this, _hwnd, settings);
-        var session = new EditorSession(engine, prober, dialogs,
+        EditorSession? session = null;
+        var dialogs = new ShellDialogs(this, _hwnd, settings, () => session?.FilePath);
+        session = new EditorSession(engine, prober, dialogs,
             newProjectTracks: settings.Current.NewProjectTracks)
         {
             LinkedAudioTracks = settings.Current.LinkedAudioTracks,

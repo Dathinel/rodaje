@@ -10,6 +10,7 @@ using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
 using VirtualKey = Windows.System.VirtualKey;
@@ -289,10 +290,15 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
     {
         try
         {
-            if (FileDialogs.Save(Owner(), "Exportar atajos", "atajos-rodaje.json", "json", null, JsonFilter) is not { } path)
+            string? projectFolder = _services?.Session.FilePath is { } projectFile ? System.IO.Path.GetDirectoryName(projectFile) : null;
+            if (FileDialogs.Save(Owner(), "Exportar atajos", "atajos-rodaje.json", "json",
+                FileDialogFolderPolicy.SaveFolder(_services!.Settings.Current, SaveDialogKind.Shortcuts, projectFolder), JsonFilter) is not { } path)
             {
                 return;
             }
+
+            FileDialogFolderPolicy.RememberSave(_services.Settings.Current, SaveDialogKind.Shortcuts, path);
+            _services.Settings.SaveIfChanged();
 
             ShortcutStore.Export(Registry, path);
             ShowNotice($"Atajos exportados a {System.IO.Path.GetFileName(path)}", new NotificationAction("Abrir", () => Open(path)));
@@ -308,7 +314,9 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         IReadOnlyList<string> picked;
         try
         {
-            picked = FileDialogs.Open(Owner(), "Importar atajos", multiple: false, null, JsonFilter, FileDialogs.AllFilter);
+            picked = FileDialogs.Open(Owner(), "Importar atajos", multiple: false,
+                FileDialogFolderPolicy.OpenFolder(_services!.Settings.Current), JsonFilter, FileDialogs.AllFilter);
+            FileDialogFolderPolicy.RememberOpen(_services.Settings.Current, picked.Count > 0 ? picked[0] : null);
         }
         catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException)
         {

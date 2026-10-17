@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Packages;
+using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Plugins.Logic;
 using Rodaje.Packages;
@@ -177,7 +178,9 @@ internal sealed partial class PluginsView : UserControl, IEditorView
 
         await RunBusyAsync("No se pudo instalar", async () =>
         {
-            IReadOnlyList<string> picked = FileDialogs.Open(OwnerWindow(), "Instalar complemento", multiple: true, null, PackageFilter, FileDialogs.AllFilter);
+            IReadOnlyList<string> picked = FileDialogs.Open(OwnerWindow(), "Instalar complemento", multiple: true,
+                FileDialogFolderPolicy.OpenFolder(_services.Settings.Current), PackageFilter, FileDialogs.AllFilter);
+            FileDialogFolderPolicy.RememberOpen(_services.Settings.Current, picked.Count > 0 ? picked[0] : null);
             foreach (string path in picked)
             {
                 await PluginActions.InstallAsync(_services, path);

@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Relink;
+using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
 using Rodaje.Core.Editing;
@@ -253,7 +254,8 @@ internal static class RelinkDialog
                 ? [($"Archivos {extension}", "*" + extension), FileDialogs.MediaFilter, FileDialogs.AllFilter]
                 : [FileDialogs.MediaFilter, FileDialogs.AllFilter];
             IReadOnlyList<string> picked = FileDialogs.Open(hwnd, $"Buscar «{name}»", multiple: false,
-                row.StartFolder ?? services.Settings.Current.LastMediaFolder, filters);
+                FileDialogFolderPolicy.OpenFolder(services.Settings.Current), filters);
+            FileDialogFolderPolicy.RememberOpen(services.Settings.Current, picked.Count > 0 ? picked[0] : null);
             if (picked.Count == 0)
             {
                 return;

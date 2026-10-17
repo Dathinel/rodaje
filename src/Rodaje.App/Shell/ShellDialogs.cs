@@ -6,7 +6,7 @@ using Rodaje.App.Services.Settings;
 namespace Rodaje.App.Shell;
 
 /// <summary>Las preguntas del editor con diálogos reales: ContentDialog de WinUI y los de archivos de Windows.</summary>
-internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore settings) : IEditorDialogs
+internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore settings, Func<string?> currentProjectPath) : IEditorDialogs
 {
     public async Task<UnsavedChangesChoice> AskSaveChangesAsync(string projectName)
     {
@@ -58,7 +58,7 @@ internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore setti
     public Task<string?> PickProjectToOpenAsync()
     {
         IReadOnlyList<string> picked = FileDialogs.Open(hwnd, "Abrir proyecto", multiple: false,
-            settings.Current.LastProjectFolder, FileDialogs.ProjectFilter, FileDialogs.AllFilter);
+            FileDialogFolderPolicy.OpenFolder(settings.Current), FileDialogs.ProjectFilter, FileDialogs.AllFilter);
         string? path = picked.Count > 0 ? picked[0] : null;
         Remember(path, project: true);
         return Task.FromResult(path);
@@ -67,20 +67,22 @@ internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore setti
     public Task<string?> PickProjectSavePathAsync(string suggestedFileName)
     {
         string? path = FileDialogs.Save(hwnd, "Guardar proyecto", suggestedFileName, "rodaje",
-            settings.Current.LastProjectFolder, FileDialogs.ProjectFilter);
-        Remember(path, project: true);
+            FileDialogFolderPolicy.SaveFolder(settings.Current, SaveDialogKind.Project,
+                currentProjectPath() is { } project ? Path.GetDirectoryName(project) : null), FileDialogs.ProjectFilter);
+        FileDialogFolderPolicy.RememberSave(settings.Current, SaveDialogKind.Project, path);
+        Remember(path, project: true, updateOpen: false);
         return Task.FromResult(path);
     }
 
     public Task<IReadOnlyList<string>> PickMediaFilesAsync()
     {
         IReadOnlyList<string> picked = FileDialogs.Open(hwnd, "Importar medios", multiple: true,
-            settings.Current.LastMediaFolder, FileDialogs.MediaFilter, FileDialogs.AllFilter);
+            FileDialogFolderPolicy.OpenFolder(settings.Current), FileDialogs.MediaFilter, FileDialogs.AllFilter);
         Remember(picked.Count > 0 ? picked[0] : null, project: false);
         return Task.FromResult(picked);
     }
 
-    private void Remember(string? path, bool project)
+    private void Remember(string? path, bool project, bool updateOpen = true)
     {
         if (path is null || Path.GetDirectoryName(path) is not { } folder)
         {
@@ -94,6 +96,11 @@ internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore setti
         else
         {
             settings.Current.LastMediaFolder = folder;
+        }
+
+        if (updateOpen)
+        {
+            FileDialogFolderPolicy.RememberOpen(settings.Current, path);
         }
     }
 }
