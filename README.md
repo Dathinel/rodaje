@@ -21,7 +21,7 @@
 
 La última versión es la **[1.0.1](https://github.com/Dathinel/rodaje/releases/latest)** (16-oct-2026). Hay tres descargas: el **instalador** (recomendado, por usuario y sin permisos de administrador), el **portable** (descomprimir y abrir) y el **completo** (portable con los complementos y los módulos de IA ya dentro). Detalle en [Instalar Rodaje](docs/guia/instalar.md).
 
-Lo nuevo de la 1.0.1: interfaz reorganizada (menús Herramientas y Secuencia, Preferencias con `Ctrl+,`, inspector con pestañas Clip, Transición y Seguimiento), funciones de IA que se aplican con un solo clic, «Quitar silencios» con detección de voz y muchas correcciones de estabilidad. Todo en el [historial de cambios](CHANGELOG.md).
+Lo nuevo de la 1.0.1: interfaz reorganizada (menús Herramientas y Secuencia, Preferencias con `Ctrl+,`, inspector con pestañas Propiedades, Transición y Seguimiento), funciones de IA que se aplican con un solo clic, «Quitar silencios» con detección de voz y muchas correcciones de estabilidad. Todo en el [historial de cambios](CHANGELOG.md).
 
 ## Qué es y qué hace
 
