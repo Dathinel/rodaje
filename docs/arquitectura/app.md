@@ -40,7 +40,7 @@ flowchart LR
 
 ## Fallos (`Services/Crashes`)
 
-Ningún cierre sin rastro. `CrashReporter` (sin WinUI, lo prueban `tests/Rodaje.App.Tests/Crashes`) escribe cada informe en `%LOCALAPPDATA%\Rodaje\fallos\<fecha>.txt` antes de salir: la vía, la pila, la versión (`1.0.0+commit`), Windows, la GPU y las últimas 200 líneas de `SessionLog`. Los errores que la app sobrevive van a `<fecha>-recuperado.txt`; se guardan por separado los 30 fatales y los 30 recuperados más recientes (una ráfaga de recuperados no borra el fatal que espera su aviso) y los 3 minivolcados. `rodaje-error.txt` junto al exe se sigue escribiendo (lo miran la autoprueba y los scripts de `build\`).
+Ningún cierre sin rastro. `CrashReporter` (sin WinUI, lo prueban `tests/Rodaje.App.Tests/Crashes`) escribe cada informe en `%LOCALAPPDATA%\Rodaje\fallos\<fecha>.txt` antes de salir: la vía, la pila, la versión (`1.0.1+commit`), Windows, la GPU y las últimas 200 líneas de `SessionLog`. Los errores que la app sobrevive van a `<fecha>-recuperado.txt`; se guardan por separado los 30 fatales y los 30 recuperados más recientes (una ráfaga de recuperados no borra el fatal que espera su aviso) y los 3 minivolcados. `rodaje-error.txt` junto al exe se sigue escribiendo (lo miran la autoprueba y los scripts de `build\`).
 
 | Vía | Dónde se engancha | ¿Se cierra? |
 |---|---|---|
