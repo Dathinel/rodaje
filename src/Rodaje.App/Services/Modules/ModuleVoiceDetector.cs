@@ -34,6 +34,13 @@ public sealed class ModuleVoiceDetector : IVoiceActivityDetector
 
     public string Name => _modules.FindByFunction(Function) is { } module ? $"{module.Name}: voz con Silero VAD" : _fallback.Name;
 
+    /// <summary>Método que puede usarse con esta frecuencia de muestreo.</summary>
+    public string MethodName(int sampleRate) => _modules.FindByFunction(Function) is { } module && sampleRate % ModelRate == 0
+        ? $"{module.Name}: voz con Silero VAD"
+        : _fallback.Name;
+
+    public bool UsesModuleAt(int sampleRate) => _modules.FindByFunction(Function) is not null && sampleRate % ModelRate == 0;
+
     /// <summary>El módulo está instalado (la próxima sesión lo usará).</summary>
     public bool UsesModule => _modules.FindByFunction(Function) is not null;
 
@@ -57,6 +64,8 @@ public sealed class ModuleVoiceDetector : IVoiceActivityDetector
         public int SampleRate => sampleRate;
 
         public int Channels => channels;
+
+        public string MethodName { get; private set; } = $"{module.Name}: voz con Silero VAD";
 
         private long Samples => ((long)(_blocks.Count - 1) * BlockSamples) + _filled;
 
@@ -96,6 +105,7 @@ public sealed class ModuleVoiceDetector : IVoiceActivityDetector
             long samples = _blocks.Count == 0 ? 0 : Samples;
             if (samples < WindowSamples)
             {
+                MethodName = owner._fallback.Name;
                 return await baseline.FinishAsync(cancellationToken).ConfigureAwait(false);
             }
 
@@ -107,6 +117,7 @@ public sealed class ModuleVoiceDetector : IVoiceActivityDetector
             {
                 // El aviso lo da el ModuleManager; el análisis sigue con el detector de energía.
                 cancellationToken.ThrowIfCancellationRequested();
+                MethodName = owner._fallback.Name;
                 return await baseline.FinishAsync(cancellationToken).ConfigureAwait(false);
             }
         }

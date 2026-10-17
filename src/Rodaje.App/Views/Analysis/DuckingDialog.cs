@@ -54,6 +54,7 @@ internal static class DuckingDialog
         var options = new DuckingOptions();
         List<TimeRange> voice = [];
         List<GainPoint> plan = [];
+        string method = Detector.Name;
         bool ready = false;
         Slider? reduction = null, anticipation = null, release = null;
         double origin = music.Start.ToSeconds();
@@ -69,7 +70,7 @@ internal static class DuckingDialog
             plan = DuckingPlanner.Plan(voice, options);
             IEnumerable<TimeRange> ducked = plan.Chunk(4).Where(c => c.Length == 4).Select(c => new TimeRange(c[0].Time - origin, c[3].Time - origin));
             AnalysisUi.DrawRanges(preview, length, ducked, ThemeResources.Color("VoiceMarkColor"));
-            status.Text = string.Create(SpanishNumbers.Format, $"{voice.Count} tramos de voz; la música baja {-options.ReductionDb:0} dB en cada uno.");
+            status.Text = string.Create(SpanishNumbers.Format, $"{voice.Count} tramos de voz; la música baja {-options.ReductionDb:0} dB en cada uno. Detección: {method}.");
         }
 
         reduction = AnalysisUi.Slider(panel, "Cuánto baja la música", -30, -3, options.ReductionDb, 1, AnalysisUi.Db, Refresh);
@@ -129,6 +130,7 @@ internal static class DuckingDialog
                     // Con el módulo de IA, aquí puede arrancar (hasta 30 s en frío): la barra se mueve sin porcentaje.
                     progress.IsIndeterminate = true;
                     IReadOnlyList<TimeRange> ranges = await detection.FinishAsync(token);
+                    method = detection.MethodName;
                     progress.IsIndeterminate = false;
                     foreach (TimeRange r in ranges)
                     {

@@ -1,9 +1,11 @@
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.Analysis;
+using Rodaje.Analysis.Ducking;
 using Rodaje.Analysis.Silence;
 using Rodaje.App.Services;
 using Rodaje.App.Services.LongActions;
+using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
@@ -19,6 +21,8 @@ namespace Rodaje.App.Views.Analysis;
 /// </summary>
 internal static class SilenceDialog
 {
+    internal static IVoiceActivityDetector Detector { get; set; } = new EnergyVoiceDetector();
+
     public static async Task ShowAsync(EditorServices services, LongActionScope? scope = null)
     {
         EditorSession session = services.Session;
@@ -36,32 +40,42 @@ internal static class SilenceDialog
         panel.Children.Add(progress);
         panel.Children.Add(preview);
 
+        bool useVad = Detector is ModuleVoiceDetector moduleDetector && moduleDetector.UsesModuleAt(ClipAudioSource.SampleRate);
+        string method = useVad ? ((ModuleVoiceDetector)Detector).MethodName(ClipAudioSource.SampleRate) : "Energía del nivel de audio";
+        (Time sourceIn, Time sourceOut) = ClipAudioMap.SourceWindow(clip);
+        double duration = (sourceOut - sourceIn).ToSeconds();
         var envelope = new LevelEnvelope(ClipAudioSource.SampleRate, ClipAudioSource.Channels);
+        IReadOnlyList<TimeRange>? voice = null;
         SilenceAnalysis? result = null;
         bool ready = false;
         var options = new SilenceOptions();
         Slider? threshold = null, minimum = null, margin = null;
         void Refresh()
         {
-            if (!ready || threshold is null || minimum is null || margin is null)
+            if (!ready || (!useVad && threshold is null) || minimum is null || margin is null)
             {
                 return;
             }
 
             options = options with
             {
-                ThresholdDb = threshold.Value,
+                ThresholdDb = threshold?.Value ?? options.ThresholdDb,
                 MinimumSilence = minimum.Value,
                 PaddingBefore = margin.Value,
                 PaddingAfter = margin.Value,
             };
-            result = SilenceDetector.Detect(envelope, options);
+            result = voice is null
+                ? SilenceDetector.Detect(envelope, options)
+                : SilenceDetector.DetectFromVoice(voice, duration, options);
             AnalysisUi.DrawRanges(preview, result.Duration, result.Cuts, ThemeResources.Color("CutMarkColor"));
             status.Text = string.Create(SpanishNumbers.Format,
-                $"{result.Cuts.Count} tramos; el clip pasa de {AnalysisUi.Sec(result.Duration)} a {AnalysisUi.Sec(result.Duration - result.CutSeconds)}.");
+                $"{result.Cuts.Count} tramos; el clip pasa de {AnalysisUi.Sec(result.Duration)} a {AnalysisUi.Sec(result.Duration - result.CutSeconds)}. Detección: {method}.");
         }
 
-        threshold = AnalysisUi.Slider(panel, "Umbral bajo el nivel de la voz", -60, -10, options.ThresholdDb, 1, AnalysisUi.Db, Refresh);
+        if (!useVad)
+        {
+            threshold = AnalysisUi.Slider(panel, "Umbral bajo el nivel de la voz", -60, -10, options.ThresholdDb, 1, AnalysisUi.Db, Refresh);
+        }
         minimum = AnalysisUi.Slider(panel, "Silencio más corto que se quita", 0.1, 3, options.MinimumSilence, 0.05, AnalysisUi.Sec, Refresh);
         margin = AnalysisUi.Slider(panel, "Margen que se deja a cada lado", 0, 0.5, options.PaddingBefore, 0.01, AnalysisUi.Ms, Refresh);
         var ripple = new CheckBox { Content = "Cerrar los huecos (ripple)", IsChecked = session.Timeline.AutoRipple };
@@ -93,7 +107,17 @@ internal static class SilenceDialog
         {
             try
             {
-                await ClipAudioSource.AnalyzeAsync(session, clip, envelope, new Progress<double>(p => scope?.Report(progress.Value = p, "Analizando el audio…")), cancel.Token);
+                if (useVad)
+                {
+                    IVoiceActivitySession detection = Detector.Begin(ClipAudioSource.SampleRate, ClipAudioSource.Channels);
+                    await ClipAudioSource.AnalyzeAsync(session, clip, detection, new Progress<double>(p => scope?.Report(progress.Value = p, "Analizando el audio…")), cancel.Token);
+                    voice = await detection.FinishAsync(cancel.Token);
+                    method = detection.MethodName;
+                }
+                else
+                {
+                    await ClipAudioSource.AnalyzeAsync(session, clip, envelope, new Progress<double>(p => scope?.Report(progress.Value = p, "Analizando el audio…")), cancel.Token);
+                }
                 progress.Visibility = Visibility.Collapsed;
                 ready = true;
                 Refresh();
