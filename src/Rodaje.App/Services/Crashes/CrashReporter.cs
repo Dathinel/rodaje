@@ -34,7 +34,7 @@ public enum CrashKind
 }
 
 /// <summary>
-/// Escribe los informes de fallo en <c>%LOCALAPPDATA%\Rodaje\fallos\</c>: la vía, la pila, la versión (<c>1.0.0+commit</c>),
+/// Escribe los informes de fallo en <c>%LOCALAPPDATA%\Rodaje\fallos\</c>: la vía, la pila, la versión (<c>1.0.1+commit</c>),
 /// la GPU y las últimas líneas del <see cref="SessionLog"/>. Sin WinUI, para poder probar cada vía. Los fatales se llaman
 /// <c>&lt;fecha&gt;.txt</c> y los que la app sobrevivió <c>&lt;fecha&gt;-recuperado.txt</c> (uno por firma cada
 /// <see cref="BurstWindow"/>); al siguiente arranque se

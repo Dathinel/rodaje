@@ -1,6 +1,6 @@
 # Rodaje
 
-Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0.0. Repositorio público `Dathinel/rodaje`, GPLv3 con términos adicionales de atribución y permiso para complementos (D-032); marca en `TRADEMARK.md`. Las notas de trabajo y los pendientes no van en este repositorio: viven en `.proceso\` (privado e ignorado), si está clonado.
+Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0.1. Repositorio público `Dathinel/rodaje`, GPLv3 con términos adicionales de atribución y permiso para complementos (D-032); marca en `TRADEMARK.md`. Las notas de trabajo y los pendientes no van en este repositorio: viven en `.proceso\` (privado e ignorado), si está clonado.
 
 ## Cómo se trabaja aquí
 
@@ -15,9 +15,9 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 - **Complementos:** contenido en `Dathinel/rodaje-transiciones`, `-filtros`, `-fuentes`, `-titulos`, `-zonas`, `-camaras`, `-sonidos`, `-preajustes-pro` y `-360` (CC0/OFL); módulos en `Dathinel/modulo-*` (GPLv3, `build\empaquetar-modulo.ps1`); x264/x265 en `Dathinel/rodaje-codificadores-gpl` (GPL, `build\armar-codificadores-gpl.ps1`, D-034); descarga firmada desde `Dathinel/rodaje-catalogo` (release `v7`; `docs/descarga.md`).
 - **Decisiones:** `docs/decisiones.md` (D-001 a D-043). Un cambio de fondo que contradiga una decisión vigente se registra como decisión nueva.
 
-## Para retomar (14-oct)
+## Para retomar (16-oct)
 
-- **v1.0.0 publicada** (release `v1.0.0`, commit 8b1e4c1). No se publica nada nuevo hasta que el autor lo pida. 1.0.1 = estabilidad, corrección de defectos y personalización; 1.0.2 = complementos adicionales.
+- **v1.0.1 publicada** (release `v1.0.1`, commit 11c44eb, 16-oct-2026; antes `v1.0.0`, commit 8b1e4c1). No se publica nada nuevo hasta que el autor lo pida. 1.0.2 = complementos adicionales y los detalles visuales que quedaron de la 1.0.1.
 - **Tres carriles (D-045 a D-047):**
   - Gemini local: `build/gemini-cola.ps1`, también con `-Lote`.
   - Sesiones en la nube con crédito (vence el 4-nov): `build/nube-ciclo.ps1`, nunca como rutina.
