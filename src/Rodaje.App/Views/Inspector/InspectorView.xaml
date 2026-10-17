@@ -30,7 +30,7 @@
 
         <Border x:Name="TabBar" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1">
             <!-- Si ni con íconos caben (panel muy estrecho), la tira se desplaza en horizontal: ninguna pestaña queda cortada. -->
-            <ScrollViewer x:Name="TabScroller" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled"
+            <ScrollViewer x:Name="TabScroller" Padding="0,0,0,8" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled"
                           VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled" ZoomMode="Disabled">
             <StackPanel x:Name="TabStrip" Orientation="Horizontal">
                 <RadioButton x:Name="PropertiesTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" IsChecked="True" Checked="OnTabChecked"
