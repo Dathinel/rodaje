@@ -1,10 +1,10 @@
-﻿using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml;
 using Rodaje.App.Shell;
 using Rodaje.Render.Scopes;
 
 namespace Rodaje.App.Views.Player;
 
-/// <summary>El botÃ³n de monitores de la cabecera abre el panel junto al visor; lo elegido queda en <c>ajustes.json</c>.</summary>
+/// <summary>El botón de monitores de la cabecera abre el panel junto al visor; lo elegido queda en <c>ajustes.json</c>.</summary>
 internal sealed partial class PlayerView
 {
     private void AttachScopes(EditorServices services)
@@ -23,7 +23,7 @@ internal sealed partial class PlayerView
 
     private void OnScopesClick(object sender, RoutedEventArgs e) => ShowScopes(ScopesButton.IsChecked == true);
 
-    /// <summary>Abre o cierra el panel; la mediciÃ³n en la GPU solo corre con el panel abierto.</summary>
+    /// <summary>Abre o cierra el panel; la medición en la GPU solo corre con el panel abierto.</summary>
     internal void ShowScopes(bool show, bool save = true)
     {
         ScopesButton.IsChecked = show;
