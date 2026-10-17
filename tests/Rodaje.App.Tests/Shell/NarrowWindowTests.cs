@@ -44,6 +44,31 @@ public sealed class NarrowWindowTests
         Assert.DoesNotContain(quality.Ancestors(), e => e.Descendants().Any(t => (string?)t.Attribute("Text") == "Reproductor") && e.Name.LocalName == "StackPanel");
     }
 
+    [Fact]
+    public void MainWindowSidePanelColumnsAllowCompleteCollapse()
+    {
+        XElement main = Load("Shell/MainWindow.xaml");
+        XElement libraryCol = Named(main, "LibraryColumn");
+        XElement inspectorCol = Named(main, "InspectorColumn");
+
+        // En WinUI una columna con MinWidth > 0 no baja de ese mínimo aunque su contenido esté Collapsed;
+        // deben permitir llegar a 0 para no dejar franjas residuales al plegarse en ventana estrecha.
+        double libraryMin = (double?)libraryCol.Attribute("MinWidth") ?? 0;
+        double inspectorMin = (double?)inspectorCol.Attribute("MinWidth") ?? 0;
+        Assert.True(libraryMin <= 0);
+        Assert.True(inspectorMin <= 0);
+    }
+
+    [Theory]
+    [InlineData(700, 315, 532, 315, 0)]
+    [InlineData(700, 410, 480, 376, 0)]
+    [InlineData(540, 315, 532, 0, 0)]
+    public void NarrowWindowCollapsesWithCustomSavedWidths(double width, double library, double inspector, double expectedLibrary, double expectedInspector)
+    {
+        var actual = SidePanelLayout.Fit(width, library, inspector);
+        Assert.Equal((expectedLibrary, expectedInspector), actual);
+    }
+
     private static XElement Named(XElement root, string name) => root.Descendants().Single(e =>
         (string?)e.Attribute(XName.Get("Name", "http://schemas.microsoft.com/winfx/2006/xaml")) == name);
 

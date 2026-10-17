@@ -268,7 +268,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         LibrarySplitter.Resized += (_, size) => settings.Current.LibraryWidth = size;
         InspectorSplitter.Resized += (_, size) => settings.Current.InspectorWidth = size;
-        MainArea.SizeChanged += (_, _) => FitSidePanels();
+        Root.SizeChanged += (_, e) => FitSidePanels(e.NewSize.Width);
         TimelineSplitter.Resized += (_, size) => settings.Current.TimelineHeight = size;
         // Un aviso abierto empuja la página modal hacia abajo en lugar de taparle la cabecera.
         Notification.SizeChanged += (_, e) => ModalFrame.Margin = new Thickness(48, 56 + e.NewSize.Height, 48, 40);
@@ -601,21 +601,26 @@ internal sealed partial class MainWindow : Window, IShellHost
         {
             presenter.Maximize();
         }
+
+        FitSidePanels(width);
     }
 
     /// <summary>
     /// Con la ventana estrecha los paneles laterales ceden (primero la biblioteca, luego el panel derecho) para que el
     /// reproductor conserve su mínimo y nada quede fuera de la ventana; al ensancharla vuelven a los anchos elegidos.
     /// </summary>
-    private void FitSidePanels()
+    private void FitSidePanels(double? availableWidth = null)
     {
-        if (_playerFullScreen || MainArea.ActualWidth <= 0)
+        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        double winWidth = dpi > 0 ? AppWindow.Size.Width * 96.0 / dpi : AppWindow.Size.Width;
+        double width = availableWidth > 0 ? availableWidth.Value : (winWidth > 0 ? winWidth : Root.ActualWidth);
+        if (_playerFullScreen || width <= 0)
         {
             return;
         }
 
         AppSettings s = _settings.Current;
-        var (library, inspector) = SidePanelLayout.Fit(MainArea.ActualWidth, s.LibraryWidth, s.InspectorWidth);
+        var (library, inspector) = SidePanelLayout.Fit(width, s.LibraryWidth, s.InspectorWidth);
         Library.Visibility = LibrarySplitter.Visibility = library > 0 ? Visibility.Visible : Visibility.Collapsed;
         Inspector.Visibility = InspectorSplitter.Visibility = inspector > 0 ? Visibility.Visible : Visibility.Collapsed;
         MainArea.ColumnDefinitions[1].Width = new GridLength(library > 0 ? 4 : 0);

@@ -46,11 +46,11 @@
 
         <Grid x:Name="MainArea" Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="LibraryColumn" Width="320" />
+                <ColumnDefinition x:Name="LibraryColumn" Width="320" MinWidth="0" />
                 <ColumnDefinition Width="4" />
                 <ColumnDefinition Width="*" MinWidth="320" />
                 <ColumnDefinition Width="4" />
-                <ColumnDefinition x:Name="InspectorColumn" Width="320" />
+                <ColumnDefinition x:Name="InspectorColumn" Width="320" MinWidth="0" />
             </Grid.ColumnDefinitions>
 
             <library:LibraryView x:Name="Library" />
