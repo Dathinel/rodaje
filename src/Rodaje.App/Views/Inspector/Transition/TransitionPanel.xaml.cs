@@ -10,6 +10,7 @@ using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector.Properties;
@@ -693,11 +694,12 @@ internal sealed partial class TransitionPanel : UserControl, IEditorView
         }
 
         nint owner = XamlRoot?.ContentIslandEnvironment is { } environment ? Win32Interop.GetWindowFromWindowId(environment.AppWindowId) : 0;
-        string? folder = _services.Session.FilePath is { } project ? System.IO.Path.GetDirectoryName(project) : null;
+        string folder = FileDialogFolderPolicy.OpenFolder(_services.Settings.Current);
         try
         {
             IReadOnlyList<string> picked = FileDialogs.Open(owner, "Imagen de la disolución por luma", multiple: false, folder,
                 ("Imágenes", "*.png;*.jpg;*.jpeg;*.bmp;*.tif;*.tiff;*.webp"), FileDialogs.AllFilter);
+            FileDialogFolderPolicy.RememberOpen(_services.Settings.Current, picked.Count > 0 ? picked[0] : null);
             if (picked.Count > 0)
             {
                 editor.SetOption(id, Tr.LumaOptions.Image, LutReference.ForFile(picked[0]));

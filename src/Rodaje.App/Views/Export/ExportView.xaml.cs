@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Timing;
@@ -517,10 +518,15 @@ internal sealed partial class ExportView : UserControl
         }
 
         string extension = ExportRanges.Extension(model.Settings);
+        EditorSession session = _services.Session;
+        string? projectFolder = session.FilePath is { } projectFile ? Path.GetDirectoryName(projectFile) : null;
         string? path = FileDialogs.Save(_hwnd, "Exportar como", Path.GetFileName(model.OutputPath), extension,
-            Path.GetDirectoryName(model.OutputPath), ($"{ExportChoices.ContainerName(model.Settings.Container)} (*.{extension})", "*." + extension));
+            FileDialogFolderPolicy.SaveFolder(_services.Settings.Current, SaveDialogKind.Export, projectFolder),
+            ($"{ExportChoices.ContainerName(model.Settings.Container)} (*.{extension})", "*." + extension));
         if (path is not null)
         {
+            FileDialogFolderPolicy.RememberSave(_services.Settings.Current, SaveDialogKind.Export, path);
+            _services.Settings.SaveIfChanged();
             model.SetOutputPath(path);
             PathBox.Text = model.OutputPath;
         }
@@ -820,8 +826,10 @@ internal sealed partial class ExportView : UserControl
             return;
         }
 
-        IReadOnlyList<string> picked = FileDialogs.Open(_hwnd, "Importar preajuste", multiple: false, null,
+        IReadOnlyList<string> picked = FileDialogs.Open(_hwnd, "Importar preajuste", multiple: false,
+            FileDialogFolderPolicy.OpenFolder(_services.Settings.Current),
             ("Preajustes de Rodaje", "*" + ExportPresetLibrary.FileExtension));
+        FileDialogFolderPolicy.RememberOpen(_services.Settings.Current, picked.Count > 0 ? picked[0] : null);
         if (picked.Count == 0)
         {
             return;
@@ -847,12 +855,17 @@ internal sealed partial class ExportView : UserControl
         }
 
         string suggested = Path.ChangeExtension(ExportRanges.SuggestFileName(preset.Name, model.Settings), ExportPresetLibrary.FileExtension);
-        string? path = FileDialogs.Save(_hwnd, "Guardar preajuste", suggested, ExportPresetLibrary.FileExtension.TrimStart('.'), null,
+        string? projectFolder = _services.Session.FilePath is { } projectFile ? Path.GetDirectoryName(projectFile) : null;
+        string? path = FileDialogs.Save(_hwnd, "Guardar preajuste", suggested, ExportPresetLibrary.FileExtension.TrimStart('.'),
+            FileDialogFolderPolicy.SaveFolder(_services.Settings.Current, SaveDialogKind.ExportPreset, projectFolder),
             ("Preajustes de Rodaje", "*" + ExportPresetLibrary.FileExtension));
         if (path is null)
         {
             return;
         }
+
+        FileDialogFolderPolicy.RememberSave(_services.Settings.Current, SaveDialogKind.ExportPreset, path);
+        _services.Settings.SaveIfChanged();
 
         try
         {

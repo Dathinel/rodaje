@@ -1,5 +1,6 @@
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Services.Titles;
@@ -74,12 +75,15 @@ internal static partial class StillExportCommand
             string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
             string name = string.Concat(string.Create(SpanishNumbers.Format, $"{session.ProjectName} - cuadro {frame}").Split(Path.GetInvalidFileNameChars()));
             string? path = FileDialogs.Save(_owner, "Exportar fotograma", name + ".png", "png",
-                projectFolder ?? Environment.GetFolderPath(Environment.SpecialFolder.MyPictures),
+                FileDialogFolderPolicy.SaveFolder(_services.Settings.Current, SaveDialogKind.Still, projectFolder),
                 ("Imagen PNG (*.png)", "*.png"), ("Imagen JPEG (*.jpg)", "*.jpg;*.jpeg"));
             if (path is null)
             {
                 return null;
             }
+
+            FileDialogFolderPolicy.RememberSave(_services.Settings.Current, SaveDialogKind.Still, path);
+            _services.Settings.SaveIfChanged();
 
             // «foto.bmp» no sale como un PNG con nombre BMP: se le añade «.png» («foto.bmp.png»).
             StillFormat format = StillSettings.FormatFor(path);
