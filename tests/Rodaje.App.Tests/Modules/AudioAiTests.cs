@@ -154,6 +154,7 @@ public sealed class AudioAiTests : IDisposable
         await using ModuleManager manager = new(new ModuleManagerOptions());
         var detector = new ModuleVoiceDetector(manager, new EnergyVoiceDetector());
         Assert.False(detector.UsesModule);
+        Assert.Equal("Energía en la banda de voz", detector.MethodName(48_000));
         IVoiceActivitySession session = detector.Begin(48_000, 2);
         session.Push(Speech(4, 1, 3));
         TimeRange r = Assert.Single(await session.FinishAsync());
@@ -173,9 +174,11 @@ public sealed class AudioAiTests : IDisposable
         manager.Failed += (_, f) => failures.Add(f);
         var detector = new ModuleVoiceDetector(manager, new EnergyVoiceDetector());
         Assert.True(detector.UsesModule);
+        Assert.Contains("Silero VAD", detector.MethodName(48_000));
         IVoiceActivitySession session = detector.Begin(48_000, 2);
         session.Push(Speech(4, 1, 3));
         TimeRange r = Assert.Single(await session.FinishAsync());
+        Assert.Equal("Energía en la banda de voz", session.MethodName);
         Assert.InRange(r.Start, 0.9, 1.1);
         Assert.Single(failures);
     }
@@ -200,6 +203,7 @@ public sealed class AudioAiTests : IDisposable
         IVoiceActivitySession session = detector.Begin(48_000, 2);
         session.Push(stereo);
         IReadOnlyList<TimeRange> ranges = await session.FinishAsync();
+        Assert.Contains("Silero VAD", session.MethodName);
         Assert.Empty(failures.Select(f => f.Message));
         Assert.NotEmpty(ranges);
         // La voz va de 3 a 15 s (antes, silencio digital): nada antes y la mayor parte después.

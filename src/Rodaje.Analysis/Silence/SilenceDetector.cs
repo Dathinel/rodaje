@@ -42,6 +42,48 @@ public sealed record SilenceAnalysis(
 /// </summary>
 public static class SilenceDetector
 {
+    /// <summary>Obtiene las pausas como complemento de los tramos de voz devueltos por un detector de actividad vocal.</summary>
+    public static SilenceAnalysis DetectFromVoice(IEnumerable<TimeRange> voice, double duration, SilenceOptions? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(voice);
+        ArgumentOutOfRangeException.ThrowIfNegative(duration);
+        options ??= new SilenceOptions();
+
+        List<TimeRange> speech = TimeRange.Merge(voice
+            .Where(r => r.End > 0 && r.Start < duration)
+            .Select(r => new TimeRange(Math.Max(0, r.Start), Math.Min(duration, r.End))));
+        var silences = new List<TimeRange>();
+        double at = 0;
+        foreach (TimeRange range in speech)
+        {
+            if (range.Start > at)
+            {
+                silences.Add(new(at, range.Start));
+            }
+
+            at = Math.Max(at, range.End);
+        }
+
+        if (at < duration)
+        {
+            silences.Add(new(at, duration));
+        }
+
+        List<TimeRange> kept = [.. silences.Where(s => s.Duration >= options.MinimumSilence)];
+        var cuts = new List<TimeRange>(kept.Count);
+        foreach (TimeRange silence in kept)
+        {
+            double start = silence.Start <= 0 ? 0 : silence.Start + options.PaddingBefore;
+            double end = silence.End >= duration ? duration : silence.End - options.PaddingAfter;
+            if (end > start)
+            {
+                cuts.Add(new(start, end));
+            }
+        }
+
+        return new(kept, cuts, double.NaN, double.NaN, duration);
+    }
+
     public static SilenceAnalysis Detect(LevelEnvelope envelope, SilenceOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(envelope);

@@ -71,6 +71,22 @@ public sealed class SilenceTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Voice_ranges_are_inverted_to_silences_with_minimum_and_margins()
+    {
+        SilenceAnalysis result = SilenceDetector.DetectFromVoice(
+            [new TimeRange(1, 2), new TimeRange(2.2, 4)],
+            5,
+            new SilenceOptions { MinimumSilence = 0.4, PaddingBefore = 0.1, PaddingAfter = 0.2 });
+
+        Assert.Equal(2, result.Silences.Count);
+        Assert.Equal(new TimeRange(0, 1), result.Silences[0]);
+        Assert.Equal(new TimeRange(4, 5), result.Silences[1]);
+        Assert.Equal(2, result.Cuts.Count);
+        Assert.Equal(new TimeRange(0, 0.8), result.Cuts[0]);
+        Assert.Equal(new TimeRange(4.1, 5), result.Cuts[1]);
+    }
+
+    [Fact]
     public void Leading_and_trailing_silence_is_cut_to_the_edge_and_all_silence_is_one_cut()
     {
         var random = new Random(3);

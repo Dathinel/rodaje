@@ -44,8 +44,10 @@ internal static partial class AnalysisCommands
         ];
         if (services.Modules is { } modules)
         {
-            // Con modulo-audio-ia instalado, el ducking busca la voz con Silero; si no, con la energía, como antes.
-            DuckingDialog.Detector = new Services.Modules.ModuleVoiceDetector(modules, new Rodaje.Analysis.Ducking.EnergyVoiceDetector());
+            // El VAD de módulo se comparte entre silencios y ducking; los dos conservan la energía como respaldo.
+            var detector = new Services.Modules.ModuleVoiceDetector(modules, new Rodaje.Analysis.Ducking.EnergyVoiceDetector());
+            DuckingDialog.Detector = detector;
+            SilenceDialog.Detector = detector;
         }
 
         return new Bindings(bindings);

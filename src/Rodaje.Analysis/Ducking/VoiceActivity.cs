@@ -4,8 +4,7 @@ using Rodaje.Analysis.Silence;
 namespace Rodaje.Analysis.Ducking;
 
 /// <summary>
-/// Detector de voz intercambiable: hoy el de energía en la banda de voz; cuando exista el módulo VAD (Silero, fase 7 I),
-/// otra implementación lo llama por el protocolo de módulos sin que cambie el ducking.
+/// Detector de voz intercambiable: energía en la banda de voz o el módulo VAD (Silero), sin cambiar el ducking.
 /// </summary>
 public interface IVoiceActivityDetector
 {
@@ -17,6 +16,9 @@ public interface IVoiceActivityDetector
 /// <summary>Recibe el audio de una pasada y devuelve los tramos con voz (s desde el inicio de ese audio).</summary>
 public interface IVoiceActivitySession : IAudioAnalyzer
 {
+    /// <summary>Método que produjo el resultado final (puede ser energía si el módulo VAD falló).</summary>
+    string MethodName { get; }
+
     Task<IReadOnlyList<TimeRange>> FinishAsync(CancellationToken cancellationToken = default);
 }
 
@@ -108,6 +110,8 @@ public sealed class EnergyVoiceDetector(VoiceOptions? options = null) : IVoiceAc
         public int SampleRate { get; }
 
         public int Channels { get; }
+
+        public string MethodName => "Energía en la banda de voz";
 
         public void Push(ReadOnlySpan<float> interleaved)
         {
