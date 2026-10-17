@@ -626,8 +626,21 @@ internal static partial class SelfTestRun
     {
         SelectFirstClip(window);
         await Task.Delay(200);
-        (bool stabilize, _) = window.QuickTools.Describe("analysis.stabilize");
+        (bool stabilize, string stabilizeTip) = window.QuickTools.Describe("analysis.stabilize");
         (bool subtitles, string tip) = window.QuickTools.Describe(Views.Analysis.QuickTools.AutoSubtitles);
+        // El exe se puede autoprobar sin el medio opcional de TestResults\media-cache. En ese caso la barra debe
+        // explicar por qué no aplica, pero no se pueden probar sus acciones sobre un clip inexistente.
+        if (!stabilize && stabilizeTip.Contains("Selecciona un clip de video", StringComparison.Ordinal))
+        {
+            if (subtitles || !tip.Contains("Selecciona un clip con voz", StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException($"La barra no explica que falta un clip compatible (estabilizar {stabilize}, subtítulos {subtitles}).");
+            }
+
+            await CaptureAsync(window, "herramientas-sin-clip");
+            return;
+        }
+
         if (!stabilize || tip.Contains("Próximamente", StringComparison.Ordinal) || (!subtitles && !tip.Contains("módulo", StringComparison.Ordinal)))
         {
             throw new InvalidOperationException($"La barra de herramientas no sigue a la selección (estabilizar {stabilize}, subtítulos {subtitles}).");
