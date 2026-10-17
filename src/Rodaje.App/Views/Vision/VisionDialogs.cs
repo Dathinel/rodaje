@@ -88,13 +88,11 @@ internal static class VisionDialogs
             () => quality.SelectedIndex = 0);
         Estimate();
         quality.SelectionChanged += (_, _) => Estimate();
-        var start = new Button { Content = "Empezar" };
-        panel.Children.Add(start);
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
         var progress = new ProgressBar { Maximum = 1, Width = AnalysisUi.PreviewWidth, Visibility = Visibility.Collapsed };
         panel.Children.Add(progress);
         panel.Children.Add(status);
-        ContentDialog dialog = AnalysisUi.Dialog(root, RemoveBackgroundTitle, "Aplicar", panel);
+        ContentDialog dialog = AnalysisUi.Dialog(root, RemoveBackgroundTitle, "Aplicar", panel, AnalysisApplyPhase.NeedsAnalysis);
 
         using var cancel = CancellationTokenSource.CreateLinkedTokenSource(scope.Token);
         ModuleJob? job = null;
@@ -111,7 +109,13 @@ internal static class VisionDialogs
         }
 
         timer.Tick += (_, _) => ShowActivity();
-        start.Click += (_, _) => work = Run();
+        dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(AnalyzeBeforeApply(args));
+        async Task AnalyzeBeforeApply(ContentDialogButtonClickEventArgs args)
+        {
+            ContentDialogButtonClickDeferral deferral = args.GetDeferral();
+            try { if (matte is null) { work = Run(); await work; } args.Cancel = matte is null; }
+            finally { deferral.Complete(); }
+        }
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();
         if (answer != ContentDialogResult.Primary)
@@ -142,7 +146,6 @@ internal static class VisionDialogs
 
         async Task Run()
         {
-            start.IsEnabled = false;
             quality.IsEnabled = false;
             progress.Visibility = Visibility.Visible;
             ShowActivity();
@@ -213,13 +216,11 @@ internal static class VisionDialogs
         Slider? smooth = null;
         smooth = AnalysisUi.Slider(panel, "Suavidad", 0, 1, smoothing, 0.05, v => string.Create(SpanishNumbers.Format, $"{v * 100:0} %"),
             () => smoothing = smooth!.Value);
-        var start = new Button { Content = "Analizar" };
-        panel.Children.Add(start);
         var progress = new ProgressBar { Maximum = 1, Width = AnalysisUi.PreviewWidth, Visibility = Visibility.Collapsed };
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
         panel.Children.Add(progress);
         panel.Children.Add(status);
-        ContentDialog dialog = AnalysisUi.Dialog(root, ReframeTitle, "Aplicar", panel);
+        ContentDialog dialog = AnalysisUi.Dialog(root, ReframeTitle, "Aplicar", panel, AnalysisApplyPhase.NeedsAnalysis);
 
         using var cancel = CancellationTokenSource.CreateLinkedTokenSource(scope.Token);
         ModuleJob? job = null;
@@ -236,7 +237,13 @@ internal static class VisionDialogs
         }
 
         timer.Tick += (_, _) => ShowActivity();
-        start.Click += (_, _) => work = Run();
+        dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(AnalyzeBeforeApply(args));
+        async Task AnalyzeBeforeApply(ContentDialogButtonClickEventArgs args)
+        {
+            ContentDialogButtonClickDeferral deferral = args.GetDeferral();
+            try { if (plan is null) { work = Run(); await work; } args.Cancel = plan is null; }
+            finally { deferral.Complete(); }
+        }
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();
         if (answer != ContentDialogResult.Primary)
@@ -270,7 +277,6 @@ internal static class VisionDialogs
 
         async Task Run()
         {
-            start.IsEnabled = false;
             aspect.IsEnabled = false;
             subject.IsEnabled = false;
             progress.Visibility = Visibility.Visible;

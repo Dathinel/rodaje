@@ -123,7 +123,7 @@ internal static class NoiseReductionDialog
             }
         };
 
-        ContentDialog dialog = AnalysisUi.Dialog(root, Title, "Aplicar", panel);
+        ContentDialog dialog = AnalysisUi.Dialog(root, Title, "Aplicar", panel, AnalysisApplyPhase.NeedsAnalysis);
         using var cancel = new CancellationTokenSource();
         ModuleJob? job = null;
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
@@ -144,6 +144,13 @@ internal static class NoiseReductionDialog
             $"Reducir ruido de «{media.Name}»", cancel.Token, j => job = j);
         CleanAudio? clean = null;
         Task ready = Prepare();
+        dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(WaitForReady(args));
+        async Task WaitForReady(ContentDialogButtonClickEventArgs args)
+        {
+            ContentDialogButtonClickDeferral deferral = args.GetDeferral();
+            try { await ready; args.Cancel = clean is null; }
+            finally { deferral.Complete(); }
+        }
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();
         preview.Close();
