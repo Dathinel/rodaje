@@ -402,6 +402,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     public void ShowPage(ShellPage page)
     {
+        JobsButton.Flyout?.Hide();
         UserControl view;
         if (page == ShellPage.Shortcuts)
         {
