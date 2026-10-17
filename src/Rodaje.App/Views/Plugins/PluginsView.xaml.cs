@@ -8,6 +8,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Plugins.Logic;
 using Rodaje.Packages;
 
 namespace Rodaje.App.Views.Plugins;
@@ -291,11 +292,12 @@ internal sealed partial class PluginsView : UserControl, IEditorView
             Title = $"¿Desinstalar «{row.Name}»?",
             Content = "Los proyectos que usan sus elementos siguen abriendo; esos elementos se muestran como «falta el paquete» hasta que lo vuelvas a instalar.",
             PrimaryButtonText = "Desinstalar",
-            CloseButtonText = "Cancelar",
-            DefaultButton = ContentDialogButton.Close,
+            SecondaryButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Secondary,
             RequestedTheme = ElementTheme.Dark,
         };
-        return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
+        ContentDialogResult? result = await DialogGate.ShowAsync(dialog);
+        return PluginUninstallDecision.IsConfirmed(result?.ToString());
     }
 
     private void OnRefreshClick(object sender, RoutedEventArgs e) => UiTask.Run(OnRefreshClickAsync(sender, e));
