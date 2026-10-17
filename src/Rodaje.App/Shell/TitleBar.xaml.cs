@@ -28,8 +28,15 @@ internal sealed partial class TitleBar : UserControl
         UpstreamCredit.Content = UpstreamAttribution.ShortCredit;
         ToolTipService.SetToolTip(UpstreamCredit, UpstreamAttribution.Notice);
         AutomationProperties.SetName(UpstreamCredit, UpstreamAttribution.Notice);
-        // Con poco ancho, las cifras de GPU ceden su sitio al nombre del proyecto; el crédito upstream se queda siempre.
-        SizeChanged += (_, e) => StatsText.Visibility = e.NewSize.Width < 1500 ? Visibility.Collapsed : Visibility.Visible;
+        SizeChanged += (_, e) =>
+        {
+            bool narrow = e.NewSize.Width < 1100;
+            StatsText.Visibility = e.NewSize.Width < 1500 ? Visibility.Collapsed : Visibility.Visible;
+            CreditArea.Visibility = Brand.Visibility = ExportButton.Visibility = ProjectInfo.Visibility =
+                narrow ? Visibility.Collapsed : Visibility.Visible;
+            ProjectColumn.Width = narrow ? new GridLength(24) : new GridLength(1, GridUnitType.Star);
+            MenuColumn.Width = narrow ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
+        };
     }
 
     /// <summary>Se pidió una pestaña del panel derecho desde el menú Ver.</summary>

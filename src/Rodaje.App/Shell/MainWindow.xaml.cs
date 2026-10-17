@@ -486,6 +486,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
         Player.SetFullScreen(fullScreen);
+        FitSidePanels();
         if (fullScreen)
         {
             ShowHint(Services.Onboarding.OnboardingGuide.FirstFullScreen);
@@ -613,35 +614,14 @@ internal sealed partial class MainWindow : Window, IShellHost
             return;
         }
 
-        const double LibraryMin = 220;
-        const double InspectorMin = 240;
         AppSettings s = _settings.Current;
-        double room = MainArea.ActualWidth - MainArea.ColumnDefinitions[1].ActualWidth - MainArea.ColumnDefinitions[3].ActualWidth
-            - MainArea.ColumnDefinitions[2].MinWidth;
-        double library = s.LibraryWidth;
-        double inspector = s.InspectorWidth;
-        double excess = library + inspector - room;
-        if (excess > 0)
-        {
-            double cut = Math.Min(excess, Math.Max(0, library - LibraryMin));
-            library -= cut;
-            excess -= cut;
-        }
-
-        if (excess > 0)
-        {
-            inspector = Math.Max(InspectorMin, inspector - excess);
-        }
-
-        if (LibraryColumn.Width.Value != library)
-        {
-            LibraryColumn.Width = new GridLength(library);
-        }
-
-        if (InspectorColumn.Width.Value != inspector)
-        {
-            InspectorColumn.Width = new GridLength(inspector);
-        }
+        var (library, inspector) = SidePanelLayout.Fit(MainArea.ActualWidth, s.LibraryWidth, s.InspectorWidth);
+        Library.Visibility = LibrarySplitter.Visibility = library > 0 ? Visibility.Visible : Visibility.Collapsed;
+        Inspector.Visibility = InspectorSplitter.Visibility = inspector > 0 ? Visibility.Visible : Visibility.Collapsed;
+        MainArea.ColumnDefinitions[1].Width = new GridLength(library > 0 ? 4 : 0);
+        MainArea.ColumnDefinitions[3].Width = new GridLength(inspector > 0 ? 4 : 0);
+        LibraryColumn.Width = new GridLength(library);
+        InspectorColumn.Width = new GridLength(inspector);
     }
 
     private void SaveLayout()
@@ -963,8 +943,6 @@ internal sealed partial class MainWindow : Window, IShellHost
         if (wasFullScreen)
         {
             // Los paneles recién restaurados todavía no pasaron por el diseño: se guardan los tamaños de antes.
-            _settings.Current.LibraryWidth = _layoutBeforeFullScreen.Library.Value;
-            _settings.Current.InspectorWidth = _layoutBeforeFullScreen.Inspector.Value;
             _settings.Current.TimelineHeight = _layoutBeforeFullScreen.Timeline.Value;
         }
         try

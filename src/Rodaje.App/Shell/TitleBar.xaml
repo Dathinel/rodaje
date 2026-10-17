@@ -9,19 +9,21 @@
     <Grid Background="{StaticResource BackgroundBrush}" Height="40">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition x:Name="MenuColumn" Width="Auto" />
+            <ColumnDefinition x:Name="ProjectColumn" Width="*" />
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition x:Name="CaptionInset" x:FieldModifier="internal" Width="138" />
         </Grid.ColumnDefinitions>
 
-        <StackPanel Margin="12,0,8,0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <StackPanel x:Name="Brand" Margin="12,0,8,0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
             <local:AppLogo Width="18" Height="18" />
             <TextBlock Text="Rodaje" FontWeight="SemiBold" FontSize="{StaticResource TitleFontSize}" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
         </StackPanel>
 
-        <MenuBar x:Name="Menu" Grid.Column="1" VerticalAlignment="Center">
+        <ScrollViewer Grid.Column="1" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled" ZoomMode="Disabled">
+        <MenuBar x:Name="Menu" VerticalAlignment="Center">
             <MenuBarItem Title="Archivo">
                 <MenuFlyoutItem Text="Proyecto nuevo" Tag="file.new" Click="OnActionClick" />
                 <MenuFlyoutSubItem x:Name="TemplatesMenu" Text="Proyecto nuevo desde plantilla" />
@@ -133,10 +135,11 @@
                 <MenuFlyoutItem Text="Repositorio oficial" Click="OnUpstreamClick" />
             </MenuBarItem>
         </MenuBar>
+        </ScrollViewer>
 
         <Border x:Name="DragRegion" x:FieldModifier="internal" Grid.Column="2" Background="Transparent">
             <!-- En el centro y sin cortarse por los lados: con poco ancho, el nombre se acorta con puntos suspensivos. -->
-            <Grid ColumnSpacing="8" Margin="8,0">
+            <Grid x:Name="ProjectInfo" ColumnSpacing="8" Margin="8,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -147,8 +150,8 @@
             </Grid>
         </Border>
 
-        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Spacing="12" Margin="0,0,12,0">
-            <!-- Crédito upstream obligatorio (LICENSE, términos adicionales 1 y 3): siempre visible y con enlace. -->
+        <StackPanel x:Name="CreditArea" Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Spacing="12" Margin="0,0,12,0">
+            <!-- Crédito upstream obligatorio (LICENSE, términos adicionales 1 y 3): con enlace; en ventanas estrechas sigue accesible en Ayuda > Acerca de. -->
             <HyperlinkButton x:Name="UpstreamCredit" x:FieldModifier="internal" Padding="4,2" FontSize="{StaticResource CaptionFontSize}" Foreground="{StaticResource TextMutedBrush}" Click="OnUpstreamClick" />
             <TextBlock x:Name="StatsText" MaxWidth="220" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" />
         </StackPanel>
