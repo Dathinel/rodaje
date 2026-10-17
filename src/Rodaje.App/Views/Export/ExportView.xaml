@@ -47,7 +47,8 @@
             </ScrollViewer>
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="1" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollMode="Enabled" VerticalScrollBarVisibility="Auto">
             <Grid Padding="20,12,20,16" ColumnSpacing="28">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
