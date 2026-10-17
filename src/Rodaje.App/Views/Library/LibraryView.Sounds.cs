@@ -1,3 +1,4 @@
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
@@ -16,6 +17,8 @@ internal sealed partial class LibraryView
 {
     private VoicePreviewPlayer? _soundPreview;
     private string? _soundPlaying;
+    private Button? _soundPreviewButton;
+    private DispatcherQueueTimer? _soundPreviewTimer;
 
     /// <summary>«Escuchar» o «Detener» y «Añadir en el cursor» en el menú de un sonido.</summary>
     private void AddSoundItems(MenuFlyout menu, LibraryElement element)
@@ -35,10 +38,12 @@ internal sealed partial class LibraryView
 
         ToggleSoundPreview(item.Element);
         bool playing = _soundPlaying == item.Element.Reference && _soundPreview is { IsPlaying: true };
-        (string text, string glyph) = LibrarySoundCommands.Preview(playing);
-        button.Content = glyph;
-        AutomationProperties.SetName(button, text);
-        ToolTipService.SetToolTip(button, text);
+        _soundPreviewButton = playing ? button : null;
+        SetSoundPreviewButton(button, playing);
+        if (playing)
+        {
+            StartSoundPreviewTimer();
+        }
     }
 
     private void OnSoundPreviewDoubleTapped(object sender, DoubleTappedRoutedEventArgs e) => e.Handled = true;
@@ -55,8 +60,18 @@ internal sealed partial class LibraryView
         {
             _soundPreview.Stop();
             _soundPlaying = null;
+            StopSoundPreviewTimer();
             return;
         }
+
+        _soundPreview.Stop();
+        _soundPlaying = null;
+        if (_soundPreviewButton is { } previousButton)
+        {
+            SetSoundPreviewButton(previousButton, false);
+            _soundPreviewButton = null;
+        }
+        StopSoundPreviewTimer();
 
         if (SoundDrag.Resolve(services.Packages.Installed, element.Reference, out string? problem) is not { } sound)
         {
@@ -77,8 +92,45 @@ internal sealed partial class LibraryView
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or PackageContentException)
         {
+            _soundPreview.Stop();
+            _soundPlaying = null;
             services.Session.Notify(NotificationSeverity.Warning, "No se puede escuchar", ex.Message);
         }
+    }
+
+    private void StartSoundPreviewTimer()
+    {
+        _soundPreviewTimer ??= DispatcherQueue.CreateTimer();
+        _soundPreviewTimer.Interval = TimeSpan.FromMilliseconds(100);
+        _soundPreviewTimer.Tick -= OnSoundPreviewTimerTick;
+        _soundPreviewTimer.Tick += OnSoundPreviewTimerTick;
+        _soundPreviewTimer.Start();
+    }
+
+    private void StopSoundPreviewTimer() => _soundPreviewTimer?.Stop();
+
+    private void OnSoundPreviewTimerTick(DispatcherQueueTimer timer, object args)
+    {
+        if (_soundPreview is { IsPlaying: true })
+        {
+            return;
+        }
+
+        timer.Stop();
+        _soundPlaying = null;
+        if (_soundPreviewButton is { } button)
+        {
+            SetSoundPreviewButton(button, false);
+            _soundPreviewButton = null;
+        }
+    }
+
+    private static void SetSoundPreviewButton(Button button, bool playing)
+    {
+        (string text, string glyph) = LibrarySoundCommands.Preview(playing);
+        button.Content = glyph;
+        AutomationProperties.SetName(button, text);
+        ToolTipService.SetToolTip(button, text);
     }
 
     /// <summary>En el cursor, en la primera pista de audio libre o en una nueva.</summary>
