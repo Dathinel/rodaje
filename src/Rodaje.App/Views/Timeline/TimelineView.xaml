@@ -104,7 +104,9 @@
                     PointerPressed="OnRulerPointerPressed" PointerMoved="OnRulerPointerMoved" PointerReleased="OnRulerPointerReleased"
                     PointerCaptureLost="OnRulerPointerCaptureLost" PointerWheelChanged="OnWheel" />
 
-            <Canvas x:Name="HeadersCanvas" Grid.Row="1" Background="{StaticResource BarBrush}" PointerWheelChanged="OnWheel" />
+            <Grid x:Name="HeadersViewport" Grid.Row="1" Background="{StaticResource BarBrush}" PointerWheelChanged="OnWheel">
+                <Canvas x:Name="HeadersCanvas" Background="Transparent" />
+            </Grid>
 
             <Grid x:Name="LanesHost" Grid.Row="1" Grid.Column="1" Background="{StaticResource BackgroundBrush}" AllowDrop="True"
                   PointerPressed="OnLanesPointerPressed" PointerMoved="OnLanesPointerMoved" PointerReleased="OnLanesPointerReleased"

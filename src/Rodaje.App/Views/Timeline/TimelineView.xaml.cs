@@ -155,7 +155,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
 
         LanesHost.SizeChanged += (_, _) => OnLanesResized();
         RulerCanvas.SizeChanged += (_, _) => ClipToBounds(RulerCanvas);
-        HeadersCanvas.SizeChanged += (_, _) => ClipToBounds(HeadersCanvas);
+        HeadersViewport.SizeChanged += (_, _) => ClipToBounds(HeadersViewport);
         PlayheadLayer.SizeChanged += (_, _) => ClipToBounds(PlayheadLayer);
 
         foreach (ButtonBase button in ToolButtons().Select(b => (ButtonBase)b.Button)
