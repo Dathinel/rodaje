@@ -52,7 +52,7 @@ Si avisa «Autoguardado desactivado» (no pudo preparar la carpeta), guarda a ma
 ## Dónde están los registros y volcados de error
 
 - **`app\rodaje-error.txt`**, junto al ejecutable real: con el instalador, `%LOCALAPPDATA%\Programs\Rodaje\app\rodaje-error.txt`; con el portable, dentro de la carpeta `app` (oculta) junto a `Rodaje.exe`. Cada error inesperado se añade con su fecha y traza técnica.
-- **Minivolcados de memoria (`.dmp`):** Si la aplicación sufre un cierre abrupto crítico, se genera un archivo de volcado local en `%LOCALAPPDATA%\Rodaje\Informes\` para facilitar el diagnóstico exacto sin recopilar contraseñas ni archivos personales.
+- **Informes de fallo:** Si la aplicación se cierra de forma inesperada, deja un informe en `%LOCALAPPDATA%\Rodaje\fallos\` para facilitar el diagnóstico, sin recopilar contraseñas ni archivos personales. Al volver a abrirla, avisa y permite copiar el informe.
 - **`TestResults\`** solo existe si compilas desde el código fuente y ejecutas la suite de pruebas.
 - No hay telemetría ni registros en la nube: nada sale del equipo.
 
