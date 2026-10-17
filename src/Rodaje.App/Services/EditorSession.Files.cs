@@ -188,11 +188,15 @@ public sealed partial class EditorSession
     /// del historial. Un archivo que ya estaba en la biblioteca no se repite: se devuelve su medio. Lo que no entra se
     /// avisa con el motivo.
     /// </summary>
-    /// <remarks>Si la secuencia está vacía, toma la tasa y el tamaño del primer video.</remarks>
-    public async Task<ImportResult> ImportMediaAsync(IEnumerable<string> paths)
+    /// <remarks>
+    /// Si la secuencia está vacía, toma la tasa y el tamaño del primer video. Cancelar impide iniciar análisis pendientes
+    /// y descarta el lote; espera a que terminen los análisis síncronos que ya estaban en curso.
+    /// </remarks>
+    public async Task<ImportResult> ImportMediaAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
     {
         VerifyAccess();
         ArgumentNullException.ThrowIfNull(paths);
+        cancellationToken.ThrowIfCancellationRequested();
         string[] files = [.. paths.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase)];
         if (files.Length == 0)
         {
@@ -204,7 +208,22 @@ public sealed partial class EditorSession
         MediaProbeResult[] probes;
         try
         {
-            probes = await Task.WhenAll(files.Select(f => Task.Run(() => _prober.Probe(f))));
+            // Limita las lecturas simultáneas del disco sin bloquear hilos del pool mientras esperan su turno.
+            int concurrency = Math.Clamp(Environment.ProcessorCount, 2, 8);
+            using var slots = new SemaphoreSlim(concurrency, concurrency);
+            probes = await Task.WhenAll(files.Select(async file =>
+            {
+                await slots.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    return await Task.Run(() => _prober.Probe(file), cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    slots.Release();
+                }
+            }));
+            cancellationToken.ThrowIfCancellationRequested();
         }
         finally
         {
