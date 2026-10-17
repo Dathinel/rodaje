@@ -13,7 +13,7 @@ internal static class AnalysisUi
 {
     public const double PreviewWidth = 460;
 
-    public static ContentDialog Dialog(XamlRoot root, string title, string primary, UIElement content) => new()
+    public static ContentDialog Dialog(XamlRoot root, string title, string primary, UIElement content, AnalysisApplyPhase initialPhase = AnalysisApplyPhase.Blocked) => new()
     {
         XamlRoot = root,
         Title = title,
@@ -21,7 +21,7 @@ internal static class AnalysisUi
         PrimaryButtonText = primary,
         CloseButtonText = "Cancelar",
         DefaultButton = ContentDialogButton.Primary,
-        IsPrimaryButtonEnabled = false,
+        IsPrimaryButtonEnabled = AnalysisApplyState.IsEnabled(initialPhase),
         RequestedTheme = ElementTheme.Dark,
     };
 

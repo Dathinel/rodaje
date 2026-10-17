@@ -61,9 +61,16 @@ internal static class StabilizeDialog
         crop.Unchecked += (_, _) => Refresh();
         panel.Children.Add(crop);
 
-        ContentDialog dialog = AnalysisUi.Dialog(root, "Estabilizar", "Estabilizar", panel);
+        ContentDialog dialog = AnalysisUi.Dialog(root, "Estabilizar", "Aplicar", panel, AnalysisApplyPhase.NeedsAnalysis);
         using var cancel = new CancellationTokenSource();
-        Task work = Analyze();
+        Task work = Task.CompletedTask;
+        dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(AnalyzeBeforeApply(args));
+        async Task AnalyzeBeforeApply(ContentDialogButtonClickEventArgs args)
+        {
+            ContentDialogButtonClickDeferral deferral = args.GetDeferral();
+            try { if (analysis is null) { work = Analyze(); await work; } args.Cancel = analysis is null; }
+            finally { deferral.Complete(); }
+        }
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         await cancel.CancelAsync();
         try

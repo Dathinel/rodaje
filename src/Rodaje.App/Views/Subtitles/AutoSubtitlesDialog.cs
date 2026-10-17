@@ -104,7 +104,7 @@ internal static class AutoSubtitlesDialog
             Opacity = 0.7,
         });
 
-        ContentDialog dialog = AnalysisUi.Dialog(root, Title, "Aplicar", panel);
+        ContentDialog dialog = AnalysisUi.Dialog(root, Title, "Aplicar", panel, AnalysisApplyPhase.NeedsAnalysis);
         using var cancel = new CancellationTokenSource();
         ModuleJob? job = null;
         // La propuesta se descarta al empezar cada transcripción: si la nueva falla o se cancela, no queda la anterior.
@@ -139,7 +139,7 @@ internal static class AutoSubtitlesDialog
             draft.Begin();
             Show(draft.Cues);
             again.IsEnabled = false;
-            dialog.IsPrimaryButtonEnabled = false;
+            dialog.IsPrimaryButtonEnabled = true;
             progress.Visibility = Visibility.Visible;
             string wanted = Selected();
             job = null;
@@ -186,7 +186,7 @@ internal static class AutoSubtitlesDialog
                 }
 
                 again.IsEnabled = draft.CanTranscribe(Selected());
-                dialog.IsPrimaryButtonEnabled = draft.CanApply;
+                dialog.IsPrimaryButtonEnabled = true;
             }
         }
 
@@ -203,6 +203,13 @@ internal static class AutoSubtitlesDialog
         };
 
         current = Transcribe();
+        dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(WaitForTranscription(args));
+        async Task WaitForTranscription(ContentDialogButtonClickEventArgs args)
+        {
+            ContentDialogButtonClickDeferral deferral = args.GetDeferral();
+            try { await current; args.Cancel = !draft.CanApply; }
+            finally { deferral.Complete(); }
+        }
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();
         if (answer != ContentDialogResult.Primary || draft.Running)
