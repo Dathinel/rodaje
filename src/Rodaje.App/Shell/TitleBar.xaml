@@ -116,6 +116,11 @@
                 </MenuFlyoutSubItem>
                 <MenuFlyoutSeparator />
                 <MenuFlyoutSubItem x:Name="WorkspaceMenu" Text="Espacio de trabajo" />
+                <MenuFlyoutSubItem Text="Distribución">
+                    <MenuFlyoutItem Text="Equilibrada" Tag="view.layoutBalanced" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Más visor" Tag="view.layoutMoreViewer" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Más línea de tiempo" Tag="view.layoutMoreTimeline" Click="OnActionClick" />
+                </MenuFlyoutSubItem>
                 <MenuFlyoutItem Text="Mezclador" Tag="view.mixer" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Pantalla completa" Tag="view.playerFullScreen" Click="OnActionClick" />
                 <MenuFlyoutItem x:Name="SecondScreenItem" Text="Visor en otra pantalla" Tag="view.secondScreen" Click="OnActionClick" />

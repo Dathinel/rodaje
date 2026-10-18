@@ -248,6 +248,36 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         Refresh();
     }
 
+    private void ShowSequence(Sequence sequence)
+    {
+        SequenceTitle.Text = $"Secuencia «{sequence.Name}»";
+        IReadOnlyList<(string Label, string Value)> rows = SequenceSummary.Describe(sequence);
+        if (SequenceRows.Children.Count != rows.Count * 2)
+        {
+            SequenceRows.Children.Clear();
+            SequenceRows.RowDefinitions.Clear();
+            for (int i = 0; i < rows.Count; i++)
+            {
+                SequenceRows.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                var label = new TextBlock { Style = (Style)Application.Current.Resources["LabelTextStyle"] };
+                var value = new TextBlock { Style = (Style)Application.Current.Resources["BodyTextStyle"], TextWrapping = TextWrapping.Wrap };
+                Grid.SetRow(label, i);
+                Grid.SetRow(value, i);
+                Grid.SetColumn(value, 1);
+                SequenceRows.Children.Add(label);
+                SequenceRows.Children.Add(value);
+            }
+        }
+
+        for (int i = 0; i < rows.Count; i++)
+        {
+            ((TextBlock)SequenceRows.Children[2 * i]).Text = rows[i].Label;
+            ((TextBlock)SequenceRows.Children[(2 * i) + 1]).Text = rows[i].Value;
+        }
+    }
+
+    private void OnSequenceFormatClick(object sender, RoutedEventArgs e) => _services?.Shortcuts.Invoke(Player.PlayerActionIds.ProjectFormat);
+
     private void Refresh()
     {
         if (_editor is not { } editor)
@@ -280,10 +310,16 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         bool any = video is not null || audio is not null;
         _emptyText ??= EmptyText.Text;
         EmptyText.Text = !any && selected > 1 ? "Los clips seleccionados no tienen propiedades en común." : _emptyText;
-        EmptyText.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
+        EmptyText.Visibility = any || selected == 0 ? Visibility.Collapsed : Visibility.Visible;
+        SequenceInfo.Visibility = !any && selected == 0 ? Visibility.Visible : Visibility.Collapsed;
         Body.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         if (!any)
         {
+            if (selected == 0)
+            {
+                ShowSequence(session.Sequence);
+            }
+
             return;
         }
 

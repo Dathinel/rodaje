@@ -536,3 +536,12 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
 - **Por qué.** Los generadores de títulos no representan archivos de la biblioteca. Mantener el medio y reutilizar el pipeline común evita otro compositor y sirve por igual a vista previa y exportación.
 
 - **Ampliación de D-050 (18 de octubre de 2026; decisión provisional, Daniel puede cambiarla).** Se guarda en formato 13 si la biblioteca no contiene ninguna imagen fija, para conservar la apertura en Rodaje 1.0.1. Solo los proyectos con alguna foto se escriben en formato 14; en memoria se mantiene la versión actual.
+
+## D-051. Distribución de la línea de tiempo y rueda como en Resolve (18 de octubre de 2026)
+
+- **Contexto.** Con la línea de tiempo fija en 300 px y la fila de herramientas encima, a 1366×728 se veía una sola pista y ningún clip; el separador de 4 px no se encontraba, el zoom no se ajustaba al contenido y la rueda desplazaba en el tiempo, al revés que Resolve, CapCut y Final Cut. Sustituye la parte de D-033 sobre la barra de herramientas rápidas.
+- **Decisión (de Claude, provisional; Daniel puede cambiarla).**
+  - El alto de la línea de tiempo es el 42 % de la ventana, nunca menos de lo que deja ver tres pistas, y se guarda como proporción (`ajustes.json` versión 4 pasa el alto viejo a su proporción). Separador de 8 px con pestaña; doble clic y Ver › Distribución: «Equilibrada» (42 %), «Más visor» (30 %) y «Más línea de tiempo» (55 %).
+  - El zoom se ajusta a toda la secuencia al abrir un proyecto y con su primer clip; Mayús+Z es «Ajustar a la secuencia».
+  - Estilo Rodaje: la rueda baja por las pistas (o desplaza en el tiempo si se ven todas), Mayús+rueda desplaza en el tiempo, Ctrl+rueda hace zoom y Alt+rueda cambia el alto de la pista. Clásico sigue como Premiere.
+  - Las herramientas rápidas pasan a un botón «Herramientas ▾» en la barra de la línea de tiempo, con los mismos grupos que el menú y la misma ayuda.

@@ -2,8 +2,11 @@ using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Analysis;
 
-/// <summary>Una herramienta de la barra rápida: la acción que lanza (la misma de los menús), su nombre, ícono y qué hace.</summary>
-public sealed record QuickTool(string ActionId, string Label, string Glyph, string Help);
+/// <summary>
+/// Una herramienta rápida: la acción que lanza (la misma de los menús), su nombre, ícono, qué hace y su grupo (el mismo
+/// submenú de Herramientas).
+/// </summary>
+public sealed record QuickTool(string ActionId, string Label, string Glyph, string Help, string Group);
 
 /// <summary>Si la herramienta aplica a lo seleccionado y, si no, por qué (se dice en la ayuda y al pulsarla).</summary>
 public readonly record struct QuickToolState(bool Available, string? Reason);
@@ -40,19 +43,19 @@ public static class QuickTools
 
     public static IReadOnlyList<QuickTool> All { get; } =
     [
-        new("analysis.silences", "Quitar silencios", "", "Corta las pausas del clip con sonido elegido."),
-        new("analysis.beats", "Detectar ritmo", "", "Pone marcadores en los pulsos de la música elegida."),
-        new("analysis.ducking", "Bajar música bajo la voz", "", "Baja la música elegida mientras suena la voz de otra pista."),
-        new("analysis.noise", "Reducir ruido", "", "Limpia el ruido de fondo de la voz (módulo «Audio con IA»)."),
-        new("analysis.stabilize", "Estabilizar", "", "Quita el temblor del video elegido."),
-        new("analysis.autocolor", "Color automático", "", "Corrige exposición y contraste del video elegido."),
-        new("analysis.whitebalance", "Balance de blancos automático", "", "Neutraliza el tono del video elegido."),
-        new(RemoveBackground, "Quitar fondo", "\uE7A8", "Recorta a la persona del video elegido y vuelve transparente el fondo (módulo «Visión con IA»)."),
-        new(Reframe, "Reencuadre automático", "\uE7AD", "Sigue al sujeto con un recorte 9:16, 1:1 o 4:5 que se mueve suave (módulo «Visión con IA»)."),
-        new(AutoSubtitles, "Subtítulos automáticos", "", "Escribe los subtítulos a partir de la voz."),
-        new(TextToSpeech, "Texto a voz", "", "Lee un texto en voz alta y lo pone en una pista de audio."),
-        new(AddText, "Añadir texto", "", "Un título de 5 s en el cursor."),
-        new(VoiceOver, "Grabar voz", "", "Graba tu voz desde el cursor mientras suena el resto."),
+        new("analysis.silences", "Quitar silencios", "", "Corta las pausas del clip con sonido elegido.", "Audio"),
+        new("analysis.beats", "Detectar ritmo", "", "Pone marcadores en los pulsos de la música elegida.", "Audio"),
+        new("analysis.ducking", "Bajar música bajo la voz", "", "Baja la música elegida mientras suena la voz de otra pista.", "Audio"),
+        new("analysis.noise", "Reducir ruido", "", "Limpia el ruido de fondo de la voz (módulo «Audio con IA»).", "Audio"),
+        new("analysis.stabilize", "Estabilizar", "", "Quita el temblor del video elegido.", "Imagen"),
+        new("analysis.autocolor", "Color automático", "", "Corrige exposición y contraste del video elegido.", "Imagen"),
+        new("analysis.whitebalance", "Balance de blancos automático", "", "Neutraliza el tono del video elegido.", "Imagen"),
+        new(RemoveBackground, "Quitar fondo", "\uE7A8", "Recorta a la persona del video elegido y vuelve transparente el fondo (módulo «Visión con IA»).", "Imagen"),
+        new(Reframe, "Reencuadre automático", "\uE7AD", "Sigue al sujeto con un recorte 9:16, 1:1 o 4:5 que se mueve suave (módulo «Visión con IA»).", "Imagen"),
+        new(AutoSubtitles, "Subtítulos automáticos", "", "Escribe los subtítulos a partir de la voz.", "Texto y voz"),
+        new(TextToSpeech, "Texto a voz", "", "Lee un texto en voz alta y lo pone en una pista de audio.", "Texto y voz"),
+        new(AddText, "Añadir texto", "", "Un título de 5 s en el cursor.", "Texto y voz"),
+        new(VoiceOver, "Grabar voz", "", "Graba tu voz desde el cursor mientras suena el resto.", "Texto y voz"),
     ];
 
     /// <param name="noiseModule">Si está instalado el módulo que limpia el ruido.</param>

@@ -8,7 +8,7 @@ namespace Rodaje.App.Views.Timeline;
 public readonly record struct ViewFrame(double PixelsPerSecond, double ScrollX);
 
 /// <summary>
-/// Encuadres de «Ajustar a la ventana» (toda la secuencia visible) y «Zoom a la selección» (los clips elegidos llenan la
+/// Encuadres de «Ajustar a la secuencia» (toda la secuencia visible) y «Zoom a la selección» (los clips elegidos llenan la
 /// vista). Solo calcula: la vista los aplica, con la animación de <see cref="ZoomAnimation"/>.
 /// </summary>
 public static class ZoomFit
@@ -26,6 +26,12 @@ public static class ZoomFit
         viewport.FitTo(duration);
         return new ViewFrame(viewport.PixelsPerSecond, viewport.ScrollX);
     }
+
+    /// <summary>
+    /// Si una edición deja con contenido una secuencia que estaba vacía (el primer clip): entonces el zoom se ajusta solo
+    /// a toda la secuencia, como al abrir un proyecto.
+    /// </summary>
+    public static bool FitsAfterEdit(Time durationBefore, Time durationAfter) => durationBefore <= Time.Zero && durationAfter > Time.Zero;
 
     /// <summary>
     /// El tramo centrado, ocupando el ancho menos <see cref="SelectionMarginFraction"/> a cada lado. El zoom no pasa de

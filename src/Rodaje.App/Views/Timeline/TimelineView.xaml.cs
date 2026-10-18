@@ -56,6 +56,9 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     private ViewFrame _zoomFrom;
     private ViewFrame _zoomTo;
     private ViewFrame _zoomLast;
+    private Time _shownDuration;
+    private bool _fitPending;
+    private ViewFrame? _fitted;
 
     public TimelineView()
     {
@@ -94,6 +97,9 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     }
 
     internal TimelineRenderer? Renderer => _renderer;
+
+    /// <summary>El desplegable de herramientas rápidas de la barra, para la autoprueba.</summary>
+    internal Tools.ToolsBar QuickToolsMenu => QuickToolsBar;
 
     internal EditorServices? Services => _services;
 
@@ -150,6 +156,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         Viewport.PixelsPerSecond = State.PixelsPerSecond;
 
         RegisterActions(services);
+        QuickToolsBar.Attach(services);
         Views.Shortcuts.MouseShortcutHost.Attach(this, MouseContext.Timeline, services);
         services.ShortcutRegistry.Changed += (_, _) => UpdateTooltips();
         Session.ProjectOpened += (_, _) => OnProjectOpened();
@@ -281,6 +288,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _renderer!.Layout = layout;
         _headers!.Update(layout, State.MagneticMainTrack, HeadersCanvas.ActualWidth > 0 ? HeadersCanvas.ActualWidth : 172);
         _headers.RefreshGains(track => EnvelopeEdits.TrackGainDb(track, session.ProgramPosition), layout);
+        _shownDuration = session.Sequence.Duration;
         int clips = session.Sequence.AllTracks.Sum(t => t.Clips.Count);
         SummaryText.Text = string.Create(CultureInfo.InvariantCulture, $"{clips} clip{(clips == 1 ? "" : "s")} · {Timecode.Format(session.Sequence.Duration)}");
         Invalidate(content: true);
@@ -295,6 +303,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _headers!.ScrollY = 0;
         RebuildLayout();
         RefreshContextBar();
+        FitToSequence();
     }
 
     private void OnProjectEdited(object? sender, ProjectEditedEventArgs e)
@@ -310,8 +319,38 @@ internal sealed partial class TimelineView : UserControl, IEditorView
             AbortPointerGesture();
         }
 
+        bool fit = ZoomFit.FitsAfterEdit(_shownDuration, Session!.Sequence.Duration);
         RebuildLayout();
         RefreshContextBar();
+        if (fit)
+        {
+            FitToSequence();
+        }
+    }
+
+    /// <summary>
+    /// Toda la secuencia a la vista, sin animación (al abrir un proyecto o con su primer clip); si las pistas todavía no
+    /// tienen ancho, al tenerlo. Una secuencia vacía deja el zoom como estaba.
+    /// </summary>
+    private void FitToSequence()
+    {
+        Time duration = Session!.Sequence.Duration;
+        _fitPending = duration > Time.Zero && Viewport.Width <= 0;
+        if (duration <= Time.Zero || _fitPending)
+        {
+            return;
+        }
+
+        StopZoomAnimation();
+        ViewFrame frame = ZoomFit.Whole(duration, Viewport.Width);
+        Viewport.PixelsPerSecond = frame.PixelsPerSecond;
+        Viewport.ScrollX = frame.ScrollX;
+        _syncingZoom = true;
+        State.PixelsPerSecond = Viewport.PixelsPerSecond;
+        _syncingZoom = false;
+        SyncZoomSlider();
+        _fitted = new ViewFrame(Viewport.PixelsPerSecond, Viewport.ScrollX);
+        Invalidate();
     }
 
     private void OnSelectionChanged()
@@ -454,6 +493,12 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         Viewport.Width = LanesHost.ActualWidth;
         _renderer!.LanesHeight = LanesHost.ActualHeight;
         Viewport.ClampScroll(Session!.Sequence.Duration);
+        // Ajustada sola y sin tocar después: al cambiar el ancho sigue mostrando toda la secuencia.
+        if (_fitPending || _fitted == new ViewFrame(Viewport.PixelsPerSecond, Viewport.ScrollX))
+        {
+            FitToSequence();
+        }
+
         Invalidate();
     }
 
@@ -578,7 +623,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         }
     }
 
-    /// <summary>«Ajustar a la ventana»: toda la secuencia visible, con una animación corta.</summary>
+    /// <summary>«Ajustar a la secuencia»: toda la secuencia visible, con una animación corta.</summary>
     private void ZoomToFit() => AnimateZoom(ZoomFit.Whole(Session!.Sequence.Duration, Viewport.Width));
 
     /// <summary>«Zoom a la selección»: los clips seleccionados (o el tramo marcado) llenan la vista.</summary>

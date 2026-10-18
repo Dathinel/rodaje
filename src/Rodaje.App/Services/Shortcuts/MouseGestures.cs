@@ -30,6 +30,7 @@ public static class MouseGestures
     public const string Frames = "mouse.frames";
     public const string ViewerZoom = "mouse.viewerZoom";
     public const string Pan = "mouse.pan";
+    public const string TrackHeight = "mouse.trackHeight";
 
     public static IReadOnlyList<MouseGesture> All { get; } =
     [
@@ -38,12 +39,32 @@ public static class MouseGestures
         new(ScrollTracks, "Desplazar las pistas", "Pistas", MouseGestureKind.Axis, "Sube o baja por las pistas.", MouseContext.Timeline),
         new(Frames, "Recorrer cuadros", "Cuadros", MouseGestureKind.Axis, "Cada paso mueve el cursor un cuadro: arriba atrás, abajo adelante.", MouseContext.Timeline, MouseContext.Viewer),
         new(ViewerZoom, "Zoom del visor", "Zoom visor", MouseGestureKind.Axis, "Pasa entre Ajustar, 50 % y 100 %.", MouseContext.Viewer),
+        new(TrackHeight, "Alto de las pistas", "Alto", MouseGestureKind.Axis, "Arriba agranda y abajo achica la pista bajo el puntero.", MouseContext.Timeline),
         new(Pan, "Arrastrar la vista", "Arrastrar", MouseGestureKind.Drag, "Mientras lo mantienes, mueve la línea de tiempo con el ratón.", MouseContext.Timeline),
     ];
 
     public static MouseGesture? Find(string? id) => id is null ? null : All.FirstOrDefault(g => g.Id == id);
 
     public static bool IsGesture(string? id) => Find(id) is not null;
+
+    /// <summary>
+    /// Lo que hace de verdad la rueda en la línea de tiempo: sobre las cabeceras, desplazar en el tiempo pasa a bajar por
+    /// las pistas; sobre las pistas, si todas se ven, bajar por ellas no haría nada y pasa a desplazar en el tiempo.
+    /// </summary>
+    public static string? EffectiveTimelineWheel(string? gesture, bool overHeaders, bool tilt, bool allTracksVisible)
+    {
+        if (tilt)
+        {
+            return gesture;
+        }
+
+        return gesture switch
+        {
+            ScrollTime when overHeaders => ScrollTracks,
+            ScrollTracks when allTracksVisible && !overHeaders => ScrollTime,
+            _ => gesture,
+        };
+    }
 
     /// <summary>
     /// Lo que hace siempre un botón que no se reasigna, o <c>null</c> si se puede cambiar. Izquierdo y derecho son para
@@ -107,12 +128,13 @@ public static class MouseDefaults
 
         return new()
         {
+            // Como Resolve, CapCut y Final Cut: la rueda baja por las pistas y Mayús la lleva al tiempo.
             [(ShortcutPreset.Rodaje, MouseContext.Timeline)] = Side(frames, new()
             {
-                [wheel] = MouseGestures.ScrollTime,
+                [wheel] = MouseGestures.ScrollTracks,
                 [W(ctrl)] = MouseGestures.Zoom,
-                [W(shift)] = MouseGestures.ScrollTracks,
-                [W(alt)] = MouseGestures.Frames,
+                [W(shift)] = MouseGestures.ScrollTime,
+                [W(alt)] = MouseGestures.TrackHeight,
                 [tilt] = MouseGestures.ScrollTime,
                 [middle] = MouseGestures.Pan,
             }),

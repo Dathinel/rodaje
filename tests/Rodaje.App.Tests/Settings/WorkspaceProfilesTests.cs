@@ -12,7 +12,7 @@ public class WorkspaceProfilesTests
 
         WorkspaceProfiles.Apply(settings, WorkspaceProfiles.Find(settings, "fabrica.color")!);
         Assert.Equal(480, settings.InspectorWidth);
-        Assert.Equal(220, settings.TimelineHeight);
+        Assert.Equal(TimelineProportion.MoreViewer, settings.TimelineShare);
         Assert.Contains("Texto", settings.HiddenInspectorTabs);
         Assert.Equal("fabrica.color", settings.Workspace);
 
@@ -25,7 +25,7 @@ public class WorkspaceProfilesTests
     public void Propios_SeGuardanReemplazanPorNombreYSeQuitan()
     {
         var settings = new AppSettings();
-        var current = new WorkspaceProfile { LibraryWidth = 300, InspectorWidth = 500, TimelineHeight = 350, InspectorTab = "Texto", HiddenInspectorTabs = ["Máscaras"] };
+        var current = new WorkspaceProfile { LibraryWidth = 300, InspectorWidth = 500, TimelineShare = 0.5, InspectorTab = "Texto", HiddenInspectorTabs = ["Máscaras"] };
         WorkspaceProfile saved = WorkspaceProfiles.SaveCurrent(settings, " Subtítulos ", current);
         Assert.Equal("Subtítulos", saved.Name);
         Assert.Equal(saved.Id, settings.Workspace);
@@ -49,7 +49,7 @@ public class WorkspaceProfilesTests
             Workspace = "no.existe",
             Workspaces =
             [
-                new() { Id = "propio.a", Name = "A", InspectorWidth = 5000, TimelineHeight = double.NaN },
+                new() { Id = "propio.a", Name = "A", InspectorWidth = 5000, TimelineShare = double.NaN },
                 new() { Id = "propio.a", Name = "Repetido" },
                 new() { Id = "fabrica.color", Name = "Tapa uno de fábrica" },
                 new() { Id = "", Name = "Sin id" },
@@ -58,7 +58,18 @@ public class WorkspaceProfilesTests
         settings.Normalize();
         WorkspaceProfile only = Assert.Single(settings.Workspaces);
         Assert.Equal(900, only.InspectorWidth);
-        Assert.Equal(AppSettings.DefaultTimelineHeight, only.TimelineHeight);
+        Assert.Equal(TimelineProportion.Balanced, only.TimelineShare);
         Assert.Null(settings.Workspace);
+    }
+
+    [Fact]
+    public void UnEspacioPropioViejo_PasaSuAltoAProporcion()
+    {
+        var settings = new AppSettings { Workspaces = [new() { Id = "propio.v", Name = "Viejo", TimelineHeight = 450 }] };
+        settings.Normalize();
+
+        WorkspaceProfile own = Assert.Single(settings.Workspaces);
+        Assert.Equal(0.5, own.TimelineShare, 3);
+        Assert.Null(own.TimelineHeight);
     }
 }

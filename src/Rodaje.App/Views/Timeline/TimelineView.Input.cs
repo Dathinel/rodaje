@@ -21,7 +21,7 @@ internal sealed partial class TimelineView
 {
     private const double DragThreshold = 4;
     private const double WheelStep = 1.2;
-    private const double EdgeScrollZone = 24;
+    private const double TrackHeightStep = 8;
 
     private static readonly InputCursor ArrowCursor = InputSystemCursor.Create(InputSystemCursorShape.Arrow);
     private static readonly InputCursor ResizeCursor = InputSystemCursor.Create(InputSystemCursorShape.SizeWestEast);
@@ -46,6 +46,8 @@ internal sealed partial class TimelineView
     private string? _dropMediaId;
     private Pointer? _captured;
     private UIElement? _captureOwner;
+    private Point _edgePoint;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _edgeTimer;
 
     private enum PointerMode
     {
@@ -286,7 +288,7 @@ internal sealed partial class TimelineView
 
                 return;
             case PointerMode.DraggingClip:
-                EdgeScroll(p.X);
+                FollowEdges(p);
                 ContinueClipDrag(p, layout);
                 if (_drag?.Drag.Operation is DragOperation.Roll or DragOperation.Slide)
                 {
@@ -570,15 +572,67 @@ internal sealed partial class TimelineView
         Invalidate();
     }
 
-    /// <summary>Al arrastrar cerca de un borde, la vista se corre sola.</summary>
+    /// <summary>Al arrastrar cerca del borde izquierdo o derecho, la vista se corre sola (un paso por movimiento).</summary>
     private void EdgeScroll(double x)
     {
-        double step = x < EdgeScrollZone ? x - EdgeScrollZone : x > Viewport.Width - EdgeScrollZone ? x - (Viewport.Width - EdgeScrollZone) : 0;
+        double step = AutoScroll.Step(x, Viewport.Width);
         if (step != 0)
         {
-            Viewport.ScrollX += step * 0.5;
+            Viewport.ScrollX += step;
             Viewport.ClampScroll(Session!.Sequence.Duration + Viewport.PixelsToDuration(Viewport.Width));
         }
+    }
+
+    /// <summary>
+    /// Un clip arrastrado cerca de cualquier borde de las pistas corre la vista en ese sentido, también con el ratón
+    /// quieto: un temporizador sigue mientras el puntero esté en la franja del borde.
+    /// </summary>
+    private void FollowEdges(Point p)
+    {
+        _edgePoint = p;
+        if (ScrollTowardEdges(p) && _edgeTimer is not { IsRunning: true })
+        {
+            if (_edgeTimer is null)
+            {
+                _edgeTimer = DispatcherQueue.CreateTimer();
+                _edgeTimer.Interval = TimeSpan.FromMilliseconds(16);
+                _edgeTimer.Tick += (_, _) => OnEdgeTimer();
+            }
+
+            _edgeTimer.Start();
+        }
+    }
+
+    private void OnEdgeTimer()
+    {
+        if (_mode != PointerMode.DraggingClip || Session is null || _renderer?.Layout is not { } layout || !ScrollTowardEdges(_edgePoint))
+        {
+            _edgeTimer?.Stop();
+            return;
+        }
+
+        ContinueClipDrag(_edgePoint, layout);
+        Invalidate();
+    }
+
+    /// <summary>Un paso de desplazamiento hacia el borde cercano a <paramref name="p"/>; <c>false</c> si no está cerca de ninguno.</summary>
+    private bool ScrollTowardEdges(Point p)
+    {
+        TimelineRenderer renderer = _renderer!;
+        double dx = AutoScroll.Step(p.X, Viewport.Width);
+        double dy = AutoScroll.Step(p.Y, renderer.LanesHeight);
+        if (dx != 0)
+        {
+            Viewport.ScrollX += dx;
+            Viewport.ClampScroll(Session!.Sequence.Duration + Viewport.PixelsToDuration(Viewport.Width));
+        }
+
+        if (dy != 0)
+        {
+            SetScrollY(renderer.ScrollY + dy);
+        }
+
+        return dx != 0 || dy != 0;
     }
 
     private void UpdateCursor(TimelineHit? hit, TransitionHitKind transition = TransitionHitKind.None)
@@ -631,19 +685,21 @@ internal sealed partial class TimelineView
         int signed = tilt ? delta : -delta;
         string? gesture = Views.Shortcuts.MouseShortcutHost.Resolve(
             _services!.ShortcutRegistry, MouseContext.Timeline, tilt ? MouseInput.Tilt : MouseInput.Wheel, e.KeyModifiers);
-        if (gesture == MouseGestures.ScrollTime && ReferenceEquals(sender, HeadersCanvas) && !tilt)
-        {
-            gesture = MouseGestures.ScrollTracks;
-        }
+        bool overHeaders = ReferenceEquals(sender, HeadersViewport);
+        bool allTracksVisible = (_renderer.Layout?.TotalHeight ?? 0) <= _renderer.LanesHeight;
+        gesture = MouseGestures.EffectiveTimelineWheel(gesture, overHeaders, tilt, allTracksVisible);
 
         switch (gesture)
         {
             case MouseGestures.Zoom:
-                double anchor = ReferenceEquals(sender, HeadersCanvas) ? Viewport.Width / 2 : Math.Clamp(point.Position.X, 0, Viewport.Width);
+                double anchor = overHeaders ? Viewport.Width / 2 : Math.Clamp(point.Position.X, 0, Viewport.Width);
                 ZoomAt(anchor, Math.Pow(WheelStep, -signed / 120.0));
                 return;
             case MouseGestures.ScrollTracks:
                 SetScrollY(_renderer.ScrollY + (signed * 0.5));
+                return;
+            case MouseGestures.TrackHeight:
+                ResizeTrackAt(point.Position.Y, -signed);
                 return;
             case MouseGestures.Frames:
                 Views.Shortcuts.MouseShortcutHost.StepFrames(_services.Shortcuts, Views.Shortcuts.MouseShortcutHost.Steps(point.Properties));
@@ -657,6 +713,22 @@ internal sealed partial class TimelineView
 
         Viewport.ClampScroll(Session.Sequence.Duration);
         Invalidate();
+    }
+
+    /// <summary>Alt+rueda: la pista bajo el puntero crece o se achica 8 px por paso; los pasos seguidos son un solo deshacer.</summary>
+    private void ResizeTrackAt(double y, int delta)
+    {
+        EditorSession session = Session!;
+        if (_renderer!.Layout?.RowStrictlyAt(ContentY(y)) is not { } row)
+        {
+            return;
+        }
+
+        int height = (int)Math.Round(row.Height + (Math.Sign(delta) * TrackHeightStep));
+        if (height != (int)row.Height)
+        {
+            session.Execute(Edits.SetTrackHeight(session.SequenceId, row.TrackId, Math.Clamp(height, Track.MinHeight, Track.MaxHeight)));
+        }
     }
 
     private void OnRulerPointerPressed(object sender, PointerRoutedEventArgs e)
@@ -829,6 +901,11 @@ internal sealed partial class TimelineView
         }
 
         e.Handled = true;
+        if (_renderer is not null && Session is not null)
+        {
+            ScrollTowardEdges(e.GetPosition(LanesHost));
+        }
+
         DropPlan? plan = PlanDrop(e);
         e.AcceptedOperation = plan is null && _dropMediaId is not null ? DataPackageOperation.None : DataPackageOperation.Copy;
         if (plan is not null)

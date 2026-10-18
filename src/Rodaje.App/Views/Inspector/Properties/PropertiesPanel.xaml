@@ -14,6 +14,23 @@
         <TextBlock x:Name="EmptyText" Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center" Margin="24,0"
                    Text="Selecciona un clip en la línea de tiempo para ver y animar sus propiedades." />
 
+        <!-- Sin nada seleccionado: el formato y el contenido de la secuencia (SequenceSummary). -->
+        <ScrollViewer x:Name="SequenceInfo" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+            <StackPanel Padding="12,8,12,12" Spacing="8">
+                <TextBlock x:Name="SequenceTitle" Style="{StaticResource PanelTitleTextStyle}" TextTrimming="CharacterEllipsis" />
+                <Grid x:Name="SequenceRows" ColumnSpacing="12" RowSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                </Grid>
+                <Button x:Name="SequenceFormatButton" Content="Formato del proyecto…" Click="OnSequenceFormatClick" Margin="0,4,0,0"
+                        ToolTipService.ToolTip="Cambia la proporción, la resolución y los cuadros por segundo de la secuencia" />
+                <TextBlock Style="{StaticResource PlaceholderTextStyle}" TextWrapping="Wrap" Margin="0,8,0,0"
+                           Text="Selecciona un clip en la línea de tiempo para ver y animar sus propiedades." />
+            </StackPanel>
+        </ScrollViewer>
+
         <ScrollViewer x:Name="Body" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
             <StackPanel Padding="0,0,0,12">
                 <Grid Height="36" Padding="12,0,8,0" ColumnSpacing="8">

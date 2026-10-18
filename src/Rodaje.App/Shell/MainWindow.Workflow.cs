@@ -48,6 +48,9 @@ internal sealed partial class MainWindow
             _bindings.Add(_router.Bind(id, () => ApplyWorkspace(profile.Id)));
         }
 
+        _bindings.Add(_router.Bind(ActionIds.LayoutBalanced, () => SetTimelineShare(TimelineProportion.Balanced)));
+        _bindings.Add(_router.Bind(ActionIds.LayoutMoreViewer, () => SetTimelineShare(TimelineProportion.MoreViewer)));
+        _bindings.Add(_router.Bind(ActionIds.LayoutMoreTimeline, () => SetTimelineShare(TimelineProportion.MoreTimeline)));
         registry.Register(new ShortcutAction(WatchedFoldersActionId, "Carpetas vigiladas…", ShortcutGroups.File, []));
         _bindings.Add(_router.Bind(WatchedFoldersActionId, () => UiTask.Run(EditWatchedFoldersAsync())));
         StartWatchingFolders();
@@ -189,7 +192,7 @@ internal sealed partial class MainWindow
 
         WorkspaceProfiles.Apply(_settings.Current, profile);
         AppSettings s = _settings.Current;
-        TimelineRow.Height = new GridLength(s.TimelineHeight);
+        ApplyTimelineShare();
         LibraryColumn.Width = new GridLength(s.LibraryWidth);
         InspectorColumn.Width = new GridLength(s.InspectorWidth);
         FitSidePanels();
@@ -228,7 +231,7 @@ internal sealed partial class MainWindow
         AppSettings s = _settings.Current;
         var current = new WorkspaceProfile
         {
-            LibraryWidth = s.LibraryWidth, InspectorWidth = s.InspectorWidth, TimelineHeight = TimelineRow.ActualHeight,
+            LibraryWidth = s.LibraryWidth, InspectorWidth = s.InspectorWidth, TimelineShare = s.TimelineShare,
             InspectorTab = Inspector.CurrentTabName, HiddenInspectorTabs = [.. s.HiddenInspectorTabs],
         };
         WorkspaceProfile saved = WorkspaceProfiles.SaveCurrent(s, name.Text, current);
