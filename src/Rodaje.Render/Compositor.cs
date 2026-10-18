@@ -100,7 +100,7 @@ public sealed unsafe partial class Compositor : IDisposable
         Format = format;
         MipLevels = 1 + (int)Math.Log2(Math.Max(width, height));
         _views = new PlaneViewCache(_device, time);
-        _pool = new RenderTargetPool(_device, poolCapBytes ?? PoolCapFor(gpu.DedicatedVideoMemory));
+        _pool = new RenderTargetPool(_device, _context, poolCapBytes ?? PoolCapFor(gpu.DedicatedVideoMemory));
         _luts = new LutTextures(_device);
         _pipeline = new QuadPipeline(_device, _context);
         try

@@ -239,7 +239,9 @@ public sealed class MixerTests(ITestOutputHelper output) : IDisposable
         for (int n = 0; done < preview.Length / 2; n++)
         {
             int frames = Math.Min(sizes[n % sizes.Length], (preview.Length / 2) - done);
-            WaitFor(() => mixer.BufferedFrames >= frames);
+            WaitFor(() => mixer.BufferedFrames >= frames || mixer.Errors > 0,
+                () => $"lectura {n}: {mixer.BufferedFrames} de {frames} cuadros listos, {mixer.Errors} errores, {mixer.Underruns} faltas");
+            Assert.Equal(0, mixer.Errors);
             Assert.Equal(frames, mixer.Read(preview.AsSpan(2 * done, 2 * frames)));
             done += frames;
             if (n is 25 or 110)
@@ -376,12 +378,16 @@ public sealed class MixerTests(ITestOutputHelper output) : IDisposable
         return all;
     }
 
-    private static void WaitFor(Func<bool> condition)
+    private static void WaitFor(Func<bool> condition, Func<string>? state = null)
     {
         var watch = System.Diagnostics.Stopwatch.StartNew();
         while (!condition())
         {
-            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), "La mezcla no llegó a tiempo.");
+            if (watch.Elapsed >= TimeSpan.FromSeconds(10))
+            {
+                Assert.Fail($"La mezcla no llegó a tiempo. {state?.Invoke()}");
+            }
+
             Thread.Sleep(1);
         }
     }
