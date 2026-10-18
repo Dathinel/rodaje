@@ -18,6 +18,8 @@ internal sealed partial class TimelineView
         (ClipAttributeKinds.Transform, "Transformación"),
         (ClipAttributeKinds.Speed, "Velocidad"),
         (ClipAttributeKinds.Volume, "Volumen"),
+        (ClipAttributeKinds.Text, "Estilo del texto"),
+        (ClipAttributeKinds.Shadow, "Sombras"),
     ];
 
     /// <summary>Abre el menú del clip en <paramref name="p"/>; la selección ya incluye el clip pulsado.</summary>
