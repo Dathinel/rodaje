@@ -78,7 +78,7 @@ internal static class SilenceDialog
         }
         minimum = AnalysisUi.Slider(panel, "Silencio más corto que se quita", 0.1, 3, options.MinimumSilence, 0.05, AnalysisUi.Sec, Refresh);
         margin = AnalysisUi.Slider(panel, "Margen que se deja a cada lado", 0, 0.5, options.PaddingBefore, 0.01, AnalysisUi.Ms, Refresh);
-        var ripple = new CheckBox { Content = "Cerrar los huecos (ripple)", IsChecked = session.Timeline.AutoRipple };
+        var ripple = new CheckBox { Content = "Cerrar los huecos (ripple)", IsChecked = true };
         panel.Children.Add(ripple);
 
         ContentDialog dialog = AnalysisUi.Dialog(root, "Quitar silencios", "Quitar", panel);
