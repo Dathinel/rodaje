@@ -23,7 +23,7 @@ public class FormatV5Tests
         Project project = ProjectSerializer.Deserialize(Example);
 
         // Al guardar se escribe la versión actual; el resto del archivo no cambia.
-        string saved = Example.Replace("\"schemaVersion\": 5", "\"schemaVersion\": 14", StringComparison.Ordinal);
+        string saved = Example.Replace("\"schemaVersion\": 5", "\"schemaVersion\": 13", StringComparison.Ordinal);
         Assert.Equal(saved, ProjectSerializer.Serialize(project) + "\n");
         Assert.Equal(saved, ProjectSerializer.Serialize(project.Clone()) + "\n");
 
@@ -99,7 +99,7 @@ public class FormatV5Tests
 
         Assert.All(project.Sequences[0].AllTracks.SelectMany(t => t.Clips), c => Assert.Null(c.Generator));
         Assert.All(project.Sequences[0].AllTracks, t => Assert.Null(t.Role));
-        Assert.Equal(v4.Replace("\"schemaVersion\": 4", "\"schemaVersion\": 14", StringComparison.Ordinal), ProjectSerializer.Serialize(project) + "\n");
+        Assert.Equal(v4.Replace("\"schemaVersion\": 4", "\"schemaVersion\": 13", StringComparison.Ordinal), ProjectSerializer.Serialize(project) + "\n");
     }
 
     [Fact]

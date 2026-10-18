@@ -55,4 +55,39 @@ public sealed class StillImageTests
         decoder.Dispose();
         Assert.False(pixels.IsDisposed);
     }
+    [FfmpegLibraryFact]
+    public void Jpeg_exif_orientation_six_rotates_the_display_clockwise()
+    {
+        using var image = new StillImageFile("jpg", orientation6: true);
+        MediaInfo info = MediaProbe.Probe(image.Path);
+        Assert.Equal(90, info.Video!.Rotation);
+        Assert.Equal(StillImageFile.Height, info.Video.DisplayWidth);
+        Assert.Equal(StillImageFile.Width, info.Video.DisplayHeight);
+        using var decoder = VideoDecoder.Open(image.Path);
+        Assert.Equal(90, decoder.Stream.Rotation);
+    }
+
+    [FfmpegLibraryTheory]
+    [InlineData("rgba64be")]
+    [InlineData("pal8")]
+    public void Png_high_depth_and_palette_keep_transparency(string format)
+    {
+        using var image = new StillImageFile(pixelFormat: format);
+        Assert.Null(MediaSupport.Classify(image.Path, out var info));
+        Assert.True(info!.IsStillImage);
+        using var decoder = VideoDecoder.Open(image.Path);
+        using var frame = decoder.GetFrame(0);
+        Assert.NotNull(frame);
+        Assert.Contains(format == "pal8" ? "pal8" : "rgba64", info.Video!.PixelFormat);
+    }
+
+    [FfmpegLibraryTheory]
+    [InlineData("gif")]
+    [InlineData("mp4")]
+    public void One_frame_non_image_containers_are_rejected(string extension)
+    {
+        using var image = new StillImageFile(extension);
+        Assert.Contains("un cuadro", MediaSupport.Classify(image.Path, out var info)!);
+        Assert.False(info!.IsStillImage);
+    }
 }

@@ -42,6 +42,11 @@ internal static class ClipVideoSource
     {
         MediaRef media = session.Project.FindMedia(clip.MediaId)
             ?? throw new InvalidOperationException("El clip usa un medio que ya no está en el proyecto.");
+        if (media.IsStillImage)
+        {
+            throw new NotSupportedException("El seguimiento necesita un video; esta es una imagen fija");
+        }
+
         string path = media.Path;
         (Time sourceIn, Time sourceOut) = ClipAudioMap.SourceWindow(clip);
         return Task.Run(() => Motion(path, sourceIn, sourceOut, store, progress, cancellationToken), cancellationToken);
@@ -52,6 +57,11 @@ internal static class ClipVideoSource
     {
         MediaRef media = session.Project.FindMedia(clip.MediaId)
             ?? throw new InvalidOperationException("El clip usa un medio que ya no está en el proyecto.");
+        if (media.IsStillImage)
+        {
+            throw new NotSupportedException("El seguimiento necesita un video; esta es una imagen fija");
+        }
+
         string path = media.Path;
         (Time sourceIn, Time sourceOut) = ClipAudioMap.SourceWindow(clip);
         return Task.Run(() =>
@@ -79,6 +89,11 @@ internal static class ClipVideoSource
         IProgress<double>? progress, CancellationToken cancellationToken)
     {
         using VideoDecoder decoder = VideoDecoder.Open(path, new VideoDecoderOptions { AllowHardwareDecoding = false });
+        if (decoder.Info.IsStillImage)
+        {
+            throw new NotSupportedException("El seguimiento necesita un video; esta es una imagen fija");
+        }
+
         VideoStreamInfo stream = decoder.Stream;
         Rational rate = decoder.FrameRate;
         long first = Math.Max(0, sourceIn.ToFrames(rate));

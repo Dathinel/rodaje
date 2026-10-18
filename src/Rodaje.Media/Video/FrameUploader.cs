@@ -21,7 +21,9 @@ internal sealed unsafe class FrameUploader : IDisposable
 
     public D3D11TexturePayload UploadImage(GpuDevice device, AVFrame* frame)
     {
-        AVFrame* source = Convert(frame, AVPixelFormat.AV_PIX_FMT_BGRA);
+        double scale = Math.Min(1.0, 8192.0 / Math.Max(frame->width, frame->height));
+        AVFrame* source = Convert(frame, AVPixelFormat.AV_PIX_FMT_BGRA,
+            Math.Max(1, (int)Math.Round(frame->width * scale)), Math.Max(1, (int)Math.Round(frame->height * scale)));
         try
         {
             // El filtro bilineal debe interpolar color premultiplicado: el RGB oculto por alfa cero no crea halos.
@@ -284,10 +286,12 @@ internal sealed unsafe class FrameUploader : IDisposable
         return jpeg ? color with { FullRange = false } : color;
     }
 
-    private AVFrame* Convert(AVFrame* frame, AVPixelFormat target)
+    private AVFrame* Convert(AVFrame* frame, AVPixelFormat target, int width = 0, int height = 0)
     {
+        width = width == 0 ? frame->width : width;
+        height = height == 0 ? frame->height : height;
         _scaler = ffmpeg.sws_getCachedContext(_scaler, frame->width, frame->height, (AVPixelFormat)frame->format,
-            frame->width, frame->height, target, (int)SwsFlags.SWS_BICUBIC, null, null, null);
+            width, height, target, (int)SwsFlags.SWS_BICUBIC, null, null, null);
         if (_scaler == null)
         {
             throw new MediaException($"swscale no puede convertir {Interop.Av.PixelFormatName((AVPixelFormat)frame->format)} a {Interop.Av.PixelFormatName(target)}.");
@@ -295,8 +299,8 @@ internal sealed unsafe class FrameUploader : IDisposable
 
         ffmpeg.av_frame_unref(_converted);
         _converted->format = (int)target;
-        _converted->width = frame->width;
-        _converted->height = frame->height;
+        _converted->width = width;
+        _converted->height = height;
         Interop.Av.Check(ffmpeg.av_frame_get_buffer(_converted, 0), "av_frame_get_buffer");
         Interop.Av.Check(ffmpeg.sws_scale(_scaler, frame->data, frame->linesize, 0, frame->height, _converted->data, _converted->linesize),
             "sws_scale");

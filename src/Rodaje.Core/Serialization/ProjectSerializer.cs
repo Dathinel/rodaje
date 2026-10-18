@@ -33,7 +33,15 @@ public static class ProjectSerializer
         ArgumentNullException.ThrowIfNull(project);
         try
         {
-            return JsonSerializer.Serialize(project, ProjectJson.WriteInfo);
+            var document = new Project
+            {
+                SchemaVersion = project.Media.Any(media => media.IsStillImage) ? 14 : 13,
+                Id = project.Id,
+                Name = project.Name,
+                Media = project.Media,
+                Sequences = project.Sequences,
+            };
+            return JsonSerializer.Serialize(document, ProjectJson.WriteInfo);
         }
         catch (JsonException ex)
         {

@@ -4,6 +4,8 @@ Un proyecto de Rodaje se guarda en un archivo con extensión `.rodaje`. Es texto
 
 El archivo nunca contiene video, audio ni imágenes. Solo guarda dónde están los archivos de origen y cómo se usan, de modo que editar jamás modifica el material original y un proyecto pesa unos pocos kilobytes.
 
+Por compatibilidad con Rodaje 1.0.1, el guardado usa `schemaVersion: 13` cuando la biblioteca no contiene ninguna imagen fija. Solo se escribe formato 14 si hay al menos un medio con `isStillImage: true`, aunque no se use en un clip. Es una ampliación provisional de D-050; Daniel puede cambiarla. La lectura migra ambas versiones al modelo actual en memoria.
+
 ## Unidades: el tiempo en ticks
 
 Todos los tiempos del archivo, sean posiciones o duraciones, son enteros que cuentan *ticks*. Un segundo tiene exactamente 705 600 000 ticks. El número no es caprichoso: es divisible entre la duración de un cuadro a 24, 25, 30, 48, 50, 60, 90, 100 y 120 cuadros por segundo, también en las variantes NTSC que multiplican la tasa por 1000/1001 (23,976, 29,97 y 59,94 fps), y entre la duración de una muestra de audio a 8, 16, 22,05, 24, 32, 44,1, 48, 88,2, 96 y 192 kHz. Gracias a eso, el inicio de cada cuadro y de cada muestra cae siempre en un tick entero, y sumar o restar posiciones no acumula el error de redondeo que aparece cuando el tiempo se guarda como segundos en un número decimal. Por ejemplo, a 29,97 fps un cuadro dura 705 600 000 × 1001 / 30 000 = 23 543 520 ticks exactos.

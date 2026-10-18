@@ -11,11 +11,13 @@ namespace Rodaje.Render.Tests;
 public sealed class StillImageTests
 {
     [HardwareTheory]
-    [InlineData(false)]
-    [InlineData(true)]
-    public void Png_alpha_composes_over_the_lower_track_with_and_without_effects(bool effects)
+    [InlineData(false, null)]
+    [InlineData(true, null)]
+    [InlineData(false, "rgba64be")]
+    [InlineData(false, "pal8")]
+    public void Png_alpha_composes_over_the_lower_track_with_and_without_effects(bool effects, string? pixelFormat)
     {
-        using var image = new StillImageFile();
+        using var image = new StillImageFile(pixelFormat: pixelFormat);
         using var background = new StillImageFile(blue: true);
         using var gpu = GpuDevice.TryCreate(out _)!;
         using var front = VideoDecoder.Open(image.Path, new VideoDecoderOptions { Device = gpu });
@@ -81,5 +83,18 @@ public sealed class StillImageTests
         using var compositor = new Compositor(gpu, StillImageFile.Width, StillImageFile.Height);
         compositor.RenderStrict(composition);
         AssertPixel(compositor.ReadbackRgba(), 21, 64, 191);
+    }
+    [HardwareTheory]
+    [InlineData(10000, 100)]
+    [InlineData(100, 10000)]
+    public void Oversized_images_are_scaled_before_upload(int width, int height)
+    {
+        using var image = new StillImageFile(width: width, height: height);
+        using var gpu = GpuDevice.TryCreate(out _)!;
+        using var decoder = VideoDecoder.Open(image.Path, new VideoDecoderOptions { Device = gpu });
+        using var frame = decoder.GetFrame(0)!;
+        var payload = Assert.IsType<D3D11TexturePayload>(frame.Payload);
+        Assert.Equal(width > height ? 8192 : 82, payload.Width);
+        Assert.Equal(height > width ? 8192 : 82, payload.Height);
     }
 }
