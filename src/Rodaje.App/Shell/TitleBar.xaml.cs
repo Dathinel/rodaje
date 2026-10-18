@@ -75,8 +75,10 @@ internal sealed partial class TitleBar : UserControl
         string gpu = _services.Player.DeviceDescription;
         long dropped = _services.Session.Transport.FramesDropped;
         string frames = dropped == 0 ? "sin cuadros perdidos" : string.Create(CultureInfo.InvariantCulture, $"{dropped} cuadros perdidos");
-        StatsText.Text = gpu.Length == 0 ? "" : $"{gpu} · {frames}";
-        ToolTipService.SetToolTip(StatsText, StatsText.Text.Length == 0 ? null : StatsText.Text);
+        string shortGpu = GpuNameFormatter.Abbreviate(gpu);
+        StatsText.Text = shortGpu.Length == 0 ? "" : $"{shortGpu} · {frames}";
+        string fullStats = gpu.Length == 0 ? "" : $"{gpu} · {frames}";
+        ToolTipService.SetToolTip(StatsText, fullStats.Length == 0 ? null : fullStats);
     }
 
     private void UpdateUndoText()
