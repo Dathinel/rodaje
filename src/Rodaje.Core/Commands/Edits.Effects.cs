@@ -60,6 +60,39 @@ public static partial class Edits
             ids,
             ParameterKey("param", clipId, effectId, name, at));
 
+    /// <summary>
+    /// Cambia un parámetro en varios clips a la vez (el inspector con varios seleccionados), cada uno en su instante del
+    /// origen; al que no tiene el efecto se le agrega. Es un solo paso, que se funde con el siguiente del mismo parámetro
+    /// en los mismos clips.
+    /// </summary>
+    public static SequenceEditCommand SetParameterOnClips(
+        string sequenceId,
+        IEnumerable<(string ClipId, Time At)> targets,
+        string effectType,
+        string name,
+        double value,
+        string? description = null,
+        IIdGenerator? ids = null)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        (string ClipId, Time At)[] points = [.. targets];
+        return new(
+            description ?? "Cambiar parámetro",
+            sequenceId,
+            ctx =>
+            {
+                foreach ((string clipId, Time at) in points)
+                {
+                    Clip clip = ctx.Sequence.GetClip(clipId).Clip;
+                    string effectId = EffectEdits.EnsureEffect(ctx, clipId, effectType)
+                        ?? (clip.Effects.Find(e => e.Type == effectType && e.Enabled) ?? clip.Effects.Find(e => e.Type == effectType))!.Id;
+                    EffectEdits.SetParameter(ctx, clipId, effectId, name, value, at);
+                }
+            },
+            ids,
+            $"params:{effectType}:{name}:" + string.Join(',', points.Select(p => p.ClipId)));
+    }
+
     /// <summary>Crea el keyframe en <paramref name="at"/> o cambia el que ya hay ahí.</summary>
     public static SequenceEditCommand SetKeyframe(
         string sequenceId,

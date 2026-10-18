@@ -410,7 +410,7 @@ internal sealed partial class TimelineView
                 _ => alt ? DragOperation.Slip : DragOperation.Move,
             }, clip.Id),
         };
-        var drag = new ClipDrag(session.Project, session.SequenceId, clipId, operation, _pressTime, Options(), session.ProgramPosition);
+        var drag = new ClipDrag(session.Project, session.SequenceId, clipId, operation, _pressTime, Options(), session.ProgramPosition, selection: session.SelectedClipIds);
         _drag = new ClipDragSession(session, drag);
         _drag.Begin();
         _mode = PointerMode.DraggingClip;

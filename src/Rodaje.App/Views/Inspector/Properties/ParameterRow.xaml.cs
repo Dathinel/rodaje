@@ -112,7 +112,8 @@ internal sealed partial class ParameterRow : UserControl
 
     /// <param name="state">Estado en el cursor.</param>
     /// <param name="playheadInside">El cursor está dentro del clip: solo ahí se ponen keyframes.</param>
-    public void Show(ParameterState state, bool playheadInside)
+    /// <param name="mixed">Varios clips con valores distintos: el número queda en «—» hasta que se toca.</param>
+    public void Show(ParameterState state, bool playheadInside, bool mixed = false)
     {
         ArgumentNullException.ThrowIfNull(state);
         ParameterSpec spec = Spec;
@@ -125,8 +126,10 @@ internal sealed partial class ParameterRow : UserControl
 
         if (ValueBox.FocusState == FocusState.Unfocused)
         {
-            ValueBox.Value = spec.ToBox(state.Value);
+            ValueBox.Value = mixed ? double.NaN : spec.ToBox(state.Value);
         }
+
+        ValueBox.PlaceholderText = mixed ? "—" : "";
 
         bool editable = !state.IsAnimated || playheadInside;
         ValueSlider.IsEnabled = editable;

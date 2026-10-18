@@ -59,6 +59,38 @@ public sealed class ClipPropertyEditor
             : null;
     }
 
+    /// <summary>
+    /// A qué clips va cada parte del panel con la selección de ahora: los de video seleccionados y el audio (los de audio
+    /// seleccionados y el enlazado de cada video). Si se mezclan clips de video y de audio, solo queda lo común: el
+    /// audio, y solo si todos los de video tienen el suyo.
+    /// </summary>
+    public (IReadOnlyList<Clip> Video, IReadOnlyList<Clip> Audio) Targets()
+    {
+        List<Clip> video = Selected(TrackKind.Video);
+        List<Clip> audio = Selected(TrackKind.Audio);
+        List<Clip?> linked = video.ConvertAll(v => (Clip?)Session.Sequence.GetLinkGroup(v.Id).Find(g => g.Track.Kind == TrackKind.Audio).Clip);
+        List<Clip> sound = [.. audio.Concat(linked.OfType<Clip>()).Distinct()];
+        if (video.Count > 0 && audio.Count > 0)
+        {
+            return ([], linked.Contains(null) ? [] : sound);
+        }
+
+        return (video, sound);
+    }
+
+    /// <summary>El parámetro no vale lo mismo en todos los clips en el cursor: el inspector lo muestra como «—».</summary>
+    public bool IsMixed(IReadOnlyList<Clip> clips, string effectType, string name, double defaultValue)
+    {
+        ArgumentNullException.ThrowIfNull(clips);
+        if (clips.Count < 2)
+        {
+            return false;
+        }
+
+        double first = Read(clips[0], effectType, name, defaultValue).Value;
+        return clips.Skip(1).Any(c => Math.Abs(Read(c, effectType, name, defaultValue).Value - first) >= 1e-6);
+    }
+
     public bool IsPlayheadInside(Clip clip)
     {
         ArgumentNullException.ThrowIfNull(clip);
@@ -128,9 +160,32 @@ public sealed class ClipPropertyEditor
         _drag = new Drag(clip.Id, effectType, effectId, name, description, KeyframeTimeAtPlayhead(clip), IsPlayheadInside(clip), needsEffect);
     }
 
+    /// <summary>Empieza un arrastre del parámetro en todos los clips: cada cambio los pone a todos en el mismo valor.</summary>
+    public void BeginChange(IReadOnlyList<Clip> clips, string effectType, string name, string description)
+    {
+        ArgumentNullException.ThrowIfNull(clips);
+        if (clips.Count < 2)
+        {
+            BeginChange(clips[0], effectType, name, description);
+            return;
+        }
+
+        EndChange();
+        Session.BreakMerge();
+        _drag = new Drag(clips[0].Id, effectType, null, name, description, KeyframeTimeAtPlayhead(clips[0]), IsPlayheadInside(clips[0]), false)
+        {
+            Targets = [.. clips.Select(c => new Target(c.Id, KeyframeTimeAtPlayhead(c), IsPlayheadInside(c)))],
+        };
+    }
+
     /// <summary>Aplica el valor del arrastre en curso; <c>false</c> si no se pudo (y la sesión ya avisó).</summary>
     public bool Change(double value)
     {
+        if (_drag is { Failed: false, Targets: { } targets } many)
+        {
+            return ChangeMany(many, targets, value);
+        }
+
         if (_drag is not { Failed: false } drag || Session.Sequence.FindClip(drag.ClipId) is not { } found)
         {
             return false;
@@ -162,6 +217,42 @@ public sealed class ClipPropertyEditor
         return done;
     }
 
+    // Un clip animado solo cambia con el cursor dentro, en su keyframe más cercano; uno fijo, en su valor fijo.
+    private bool ChangeMany(Drag drag, IReadOnlyList<Target> targets, double value)
+    {
+        var points = new List<(string ClipId, Time At)>();
+        foreach (Target target in targets)
+        {
+            if (Session.Sequence.FindClip(target.ClipId) is not { } found)
+            {
+                continue;
+            }
+
+            Time at = target.SourceTime;
+            if (FindEffect(found.Clip, drag.EffectType) is { } effect && effect.Parameters.TryGetValue(drag.Name, out Parameter? parameter)
+                && parameter.Keyframes.Count > 0)
+            {
+                if (!target.Inside)
+                {
+                    continue;
+                }
+
+                at = KeyframeNear(found.Clip, parameter.Keyframes, at)?.Time ?? at;
+            }
+
+            points.Add((target.ClipId, at));
+        }
+
+        if (points.Count == 0)
+        {
+            return false;
+        }
+
+        bool done = Session.Execute(Edits.SetParameterOnClips(Session.SequenceId, points, drag.EffectType, drag.Name, value, drag.Description));
+        drag.Failed = !done;
+        return done;
+    }
+
     public void EndChange()
     {
         if (_drag is not { } drag)
@@ -184,6 +275,20 @@ public sealed class ClipPropertyEditor
     public bool SetValue(Clip clip, string effectType, string name, double value, string description, string? effectId = null)
     {
         BeginChange(clip, effectType, name, description, effectId);
+        try
+        {
+            return Change(value);
+        }
+        finally
+        {
+            EndChange();
+        }
+    }
+
+    /// <summary>Un cambio suelto en todos los clips, en un solo paso.</summary>
+    public bool SetValue(IReadOnlyList<Clip> clips, string effectType, string name, double value, string description)
+    {
+        BeginChange(clips, effectType, name, description);
         try
         {
             return Change(value);
@@ -354,6 +459,21 @@ public sealed class ClipPropertyEditor
         return parameter.Evaluate(at);
     }
 
+    private List<Clip> Selected(TrackKind kind)
+    {
+        Sequence sequence = Session.Sequence;
+        var clips = new List<Clip>();
+        foreach (string id in Session.SelectedClipIds)
+        {
+            if (sequence.FindClip(id) is { } found && found.Track.Kind == kind)
+            {
+                clips.Add(found.Clip);
+            }
+        }
+
+        return clips;
+    }
+
     private Clip? FirstSelected(TrackKind kind)
     {
         Sequence sequence = Session.Sequence;
@@ -443,5 +563,10 @@ public sealed class ClipPropertyEditor
     private sealed record Drag(string ClipId, string EffectType, string? EffectId, string Name, string Description, Time SourceTime, bool Inside, bool Grouped)
     {
         public bool Failed { get; set; }
+
+        /// <summary>Con varios clips: todos, cada uno con su instante del origen.</summary>
+        public IReadOnlyList<Target>? Targets { get; init; }
     }
+
+    private sealed record Target(string ClipId, Time SourceTime, bool Inside);
 }

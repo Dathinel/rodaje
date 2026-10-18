@@ -111,13 +111,23 @@ public static partial class TimelineEdits
 
     /// <summary>
     /// Mueve los clips (con sus enlazados y sus grupos) <paramref name="delta"/> en el tiempo, sin cambiar de pista ni
-    /// pisar nada: es el empujón cuadro a cuadro del teclado y el arrastre de un grupo.
+    /// pisar nada: es el empujón cuadro a cuadro del teclado.
     /// </summary>
-    public static void MoveClips(EditContext ctx, IEnumerable<string> clipIds, Time delta)
+    public static void MoveClips(EditContext ctx, IEnumerable<string> clipIds, Time delta) =>
+        MoveClips(ctx, clipIds, delta, TrackKind.Video, 0);
+
+    /// <summary>
+    /// Mueve los clips juntos: todos <paramref name="delta"/> en el tiempo y los de las pistas de <paramref name="kind"/>,
+    /// además, <paramref name="trackOffset"/> pistas de ese tipo (los demás quedan en la suya, como los enlazados de un
+    /// clip que cambia de pista). Nada se pisa: si algo no cabe, no se mueve ninguno. Es el arrastre de una selección; con
+    /// <paramref name="alone"/>, solo los clips pedidos, sin enlazados ni grupos (ignorar grupos).
+    /// </summary>
+    public static void MoveClips(EditContext ctx, IEnumerable<string> clipIds, Time delta, TrackKind kind, int trackOffset, bool alone = false)
     {
         ArgumentNullException.ThrowIfNull(ctx);
-        List<(Track Track, Clip Clip)> moving = GroupClosure(ctx, TrackOps.ExpandSelection(ctx, clipIds));
+        List<(Track Track, Clip Clip)> moving = Moving(ctx, clipIds, alone);
         var set = new HashSet<Clip>(moving.Select(m => m.Clip));
+        var moves = new List<(Track From, Track To, Clip Clip)>(moving.Count);
         foreach ((Track track, Clip clip) in moving)
         {
             EditContext.EnsureUnlocked(track);
@@ -125,24 +135,102 @@ public static partial class TimelineEdits
             {
                 throw new EditException($"El clip «{clip.Id}» quedaría antes del inicio de la línea de tiempo.");
             }
+
+            Track to = track.Kind == kind && trackOffset != 0 ? ShiftedTrack(ctx.Sequence, track, trackOffset) : track;
+            EditContext.EnsureUnlocked(to);
+            moves.Add((track, to, clip));
         }
 
-        foreach ((Track track, Clip clip) in moving)
+        foreach ((_, Track to, Clip clip) in moves)
         {
-            TrackOps.EnsureFree(track, clip.Start + delta, clip.End + delta, set);
+            TrackOps.EnsureFree(to, clip.Start + delta, clip.End + delta, set);
         }
 
-        foreach ((_, Clip clip) in moving)
+        foreach ((Track from, Track to, Clip clip) in moves)
         {
             clip.Start += delta;
+            if (from != to)
+            {
+                from.Clips.Remove(clip);
+                TrackOps.AddClipSorted(to, clip);
+            }
         }
 
-        foreach (Track track in moving.Select(m => m.Track).Distinct())
+        foreach (Track track in moves.Select(m => m.From).Distinct())
         {
             track.SortClips();
         }
 
         ctx.EnsureValid();
+    }
+
+    /// <summary>
+    /// Pista principal magnética: los clips de la selección que están en ella van juntos, en su orden, a la posición
+    /// <paramref name="index"/> entre los demás, y la pista queda sin huecos (los enlazados se corren con su clip). El
+    /// resto de la selección se corre lo mismo que el primero del bloque.
+    /// </summary>
+    public static void MoveClipsOnMainTrack(EditContext ctx, IEnumerable<string> clipIds, string mainTrackId, int index, bool alone = false)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        List<(Track Track, Clip Clip)> moving = Moving(ctx, clipIds, alone);
+        Track main = TrimmingSupport.ResolveTrack(ctx, mainTrackId);
+        var set = new HashSet<Clip>(moving.Select(m => m.Clip));
+        List<Clip> block = main.Clips.FindAll(set.Contains);
+        if (block.Count == 0)
+        {
+            throw new EditException("Ninguno de esos clips está en la pista principal.");
+        }
+
+        List<Clip> rest = main.Clips.FindAll(c => !set.Contains(c));
+        if (index < 0 || index > rest.Count)
+        {
+            throw new EditException($"La posición {index} no existe: el bloque debe quedar entre la 0 y la {rest.Count}.");
+        }
+
+        List<Clip> order = [.. rest.Take(index), .. block, .. rest.Skip(index)];
+        Clip anchor = block[0];
+        Time before = anchor.Start;
+        for (int i = 0; i < order.Count; i++)
+        {
+            if (main.Clips[i] != order[i])
+            {
+                ReorderOnMainTrack(ctx, order[i].Id, i);
+            }
+        }
+
+        var mainLinks = new HashSet<string>(main.Clips.Select(c => c.LinkId).OfType<string>(), StringComparer.Ordinal);
+        string[] others = [.. moving
+            .Where(m => m.Track != main && (m.Clip.LinkId is not { } link || !mainLinks.Contains(link)))
+            .Select(m => m.Clip.Id)];
+        Time delta = anchor.Start - before;
+        if (others.Length > 0 && delta != Time.Zero)
+        {
+            MoveClips(ctx, others, delta, TrackKind.Video, 0, alone: true);
+        }
+
+        ctx.EnsureValid();
+    }
+
+    private static List<(Track Track, Clip Clip)> Moving(EditContext ctx, IEnumerable<string> clipIds, bool alone)
+    {
+        ArgumentNullException.ThrowIfNull(clipIds);
+        if (!alone)
+        {
+            return GroupClosure(ctx, TrackOps.ExpandSelection(ctx, clipIds));
+        }
+
+        List<(Track Track, Clip Clip)> moving = [.. clipIds.Distinct(StringComparer.Ordinal).Select(id => ctx.Sequence.FindClip(id)
+            ?? throw new EditException($"No existe el clip «{id}» en la secuencia."))];
+        return moving.Count > 0 ? moving : throw new EditException("No hay ningún clip seleccionado.");
+    }
+
+    private static Track ShiftedTrack(Sequence sequence, Track track, int offset)
+    {
+        List<Track> tracks = track.Kind == TrackKind.Video ? sequence.VideoTracks : sequence.AudioTracks;
+        int index = tracks.IndexOf(track) + offset;
+        return index >= 0 && index < tracks.Count
+            ? tracks[index]
+            : throw new EditException($"No hay otra pista de {TrackOps.KindName(track.Kind)} hacia ese lado para «{track.Name}».");
     }
 
     /// <summary>Cambia el alto de la pista (<c>null</c>: el de siempre). Es solo vista: vale también en una pista bloqueada.</summary>
