@@ -138,6 +138,7 @@ internal sealed partial class TimelineView
         }
 
         TakeKeyboardFocus(FocusState.Pointer);
+        _headers?.Select(null);
         PointerPoint point = e.GetCurrentPoint(LanesHost);
         PointerPointProperties props = point.Properties;
         Point p = point.Position;

@@ -21,7 +21,8 @@ public static class TimelinePlanning
     /// <summary>
     /// Un medio soltado en <paramref name="position"/> sobre <paramref name="row"/>. En la pista magnética se inserta en
     /// el corte más cercano, con su sonido enlazado en la primera pista de audio; en las demás pistas tapa lo que haya
-    /// (o lo corre, con <paramref name="insert"/>). El sonido solo se enlaza si la pista de video lo trae según
+    /// (o lo corre, con <paramref name="insert"/>) y el sonido va a la primera pista de audio libre en ese tramo o, si no
+    /// hay, a una nueva al final del audio (<see cref="TimelineEdits.LinkedAudioTrack"/>). El sonido solo se enlaza si la pista de video lo trae según
     /// <see cref="DragOptions.LinkedAudio"/>; si no, el medio entra sin clip de audio. Un medio sin imagen sobre una
     /// pista de video va a la última de audio (música). <c>null</c> si no tiene dónde ir.
     /// </summary>
@@ -86,9 +87,10 @@ public static class TimelinePlanning
         }
         else if (track.Kind == TrackKind.Video && linkAudio)
         {
-            Time end = at + duration;
-            linked = sequence.AudioTracks.FirstOrDefault(t => !t.Locked && !t.Clips.Exists(c => c.Start < end && c.End > at))?.Id;
+            linked = TimelineEdits.FreeAudioTrack(sequence, at, at + duration)?.Id;
         }
+
+        bool newAudioTrack = linkAudio && linked is null && !magnetic && track.Kind == TrackKind.Video;
 
         string trackId = track.Id;
         string sequenceId = sequence.Id;
@@ -98,6 +100,7 @@ public static class TimelinePlanning
         return new DropPlan(
             magnetic
                 ? () => MagneticEdits.InsertMedia(sequenceId, mediaId, duration, trackId, place, linked, scope, ids, sourceIn)
+                : newAudioTrack ? () => Edits.InsertMediaWithLinkedAudio(sequenceId, mediaId, sourceIn, sourceOut, trackId, place, mode, ids)
                 : () => Edits.InsertMedia(sequenceId, mediaId, sourceIn, sourceOut, trackId, place, mode, linked, ids),
             trackId,
             linked,

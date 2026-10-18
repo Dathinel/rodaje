@@ -169,4 +169,25 @@ public class ViewportAndLayoutTests
         Assert.Null(layout.RowStrictlyAt(layout.Rows[1].Bottom + 1));
         Assert.Same(layout.Rows[2], layout.Find(sequence.AudioTracks[0].Id));
     }
+
+    [Fact]
+    public void ArrastrarUnaCabeceraSoloLaLlevaEntreLasDeSuTipoYNuncaBajoLaPrincipal()
+    {
+        Sequence sequence = ProjectFactory.CreateDefault("p", new SequentialIdGenerator()).Sequences[0];
+        sequence.VideoTracks.Add(new Track { Id = "v3", Kind = TrackKind.Video, Name = "Video 3" });
+        TrackLayout layout = TrackLayout.Build(sequence, sequence.VideoTracks[0]);
+        TrackRow top = layout.Rows[0];
+        TrackRow main = layout.Find(sequence.VideoTracks[0].Id)!;
+        string v2 = sequence.VideoTracks[1].Id;
+
+        Assert.Equal(2, layout.IndexInKind("v3"));
+        Assert.Equal(0, layout.IndexInKind(main.TrackId));
+        Assert.Equal((2, top.Top - (TrackLayout.RowGap / 2)), layout.ReorderSlot(v2, top.Top + 1));
+        Assert.Equal(1, layout.ReorderSlot("v3", main.Bottom + 200)!.Value.Index);
+
+        string a1 = sequence.AudioTracks[0].Id;
+        TrackRow lastAudio = layout.Rows[^1];
+        Assert.Equal(1, layout.ReorderSlot(a1, lastAudio.Bottom)!.Value.Index);
+        Assert.Equal(0, layout.ReorderSlot(a1, -100)!.Value.Index);
+    }
 }
