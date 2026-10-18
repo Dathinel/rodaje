@@ -257,8 +257,8 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
         EditorSession session = editor.Session;
         (IReadOnlyList<Clip> videos, IReadOnlyList<Clip> audios) = editor.Targets();
-        Clip? video = videos.FirstOrDefault();
-        Clip? audio = audios.FirstOrDefault();
+        Clip? video = videos.Count > 0 ? videos[0] : null;
+        Clip? audio = audios.Count > 0 ? audios[0] : null;
         List<string> videoIds = [.. videos.Select(c => c.Id)];
         List<string> audioIds = [.. audios.Select(c => c.Id)];
         if (!videoIds.SequenceEqual(_videoClipIds))
