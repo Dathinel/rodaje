@@ -7,10 +7,13 @@ namespace Rodaje.Core.Serialization;
 
 /// <summary>
 /// Lee y escribe proyectos en el formato <c>.rodaje</c>: JSON en UTF-8 descrito en
-/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v13.schema.json</c>.
+/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v14.schema.json</c>.
 /// </summary>
 public static class ProjectSerializer
 {
+    /// <summary>Tamaño máximo de un archivo de proyecto al abrirlo (uno real con miles de clips pesa unos pocos MB).</summary>
+    public const long MaxProjectFileBytes = 256L << 20;
+
     /// <summary>Extensión de los archivos de proyecto, con el punto.</summary>
     public const string FileExtension = ".rodaje";
 
@@ -274,6 +277,12 @@ public static class ProjectSerializer
         string json;
         try
         {
+            if (new FileInfo(path).Length > MaxProjectFileBytes)
+            {
+                throw new ProjectFormatException(
+                    $"No se pudo abrir «{Path.GetFileName(path)}»: pesa más de {MaxProjectFileBytes >> 20} MB, demasiado para ser un proyecto de Rodaje.");
+            }
+
             // Sin seguir la marca BOM: File.ReadAllText abriría también un archivo UTF-16 o UTF-32 con la suya.
             ReadOnlySpan<byte> bytes = File.ReadAllBytes(path);
             if (bytes.StartsWith(Encoding.UTF8.Preamble))
