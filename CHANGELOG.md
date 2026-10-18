@@ -6,6 +6,32 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ---
 
+## [Sin publicar]
+
+Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video real para Instagram.
+
+### Añadido
+- **Imágenes fijas como clips:** PNG, JPEG, WebP, BMP y TIFF, también con transparencia. Duración inicial configurable en Preferencias (5 s por defecto) y recorte libre. Respeta la orientación EXIF y reduce a 8192 px las imágenes más grandes (#430, #431, #434).
+- **Efecto Ken Burns** para fotos, con 4 preajustes en el menú del clip: acercar, alejar y desplazar a la izquierda o a la derecha (#434).
+- **Captura de fotograma rápida:** botón de cámara en el visor y `Ctrl+Mayús+C`. Guarda en la carpeta `Capturas` del proyecto sin diálogo y ofrece añadirla a la biblioteca (#434).
+- **Pistas:** eliminar desde el menú de la cabecera o con Supr, y reordenar arrastrando la cabecera o con Subir y Bajar pista (#437).
+- **Selección múltiple:** los clips seleccionados se mueven juntos, y posición, escala, rotación, opacidad, volumen y fundidos se editan a la vez en el inspector; los valores distintos se muestran como «—» (#436).
+
+### Cambiado
+- **Video encima de otro:** su sonido va a la primera pista de audio libre, o a una nueva, sin tener que separarlo (#437).
+- **Quitar silencios** cierra los huecos por defecto (#435).
+- **Pegar atributos** copia también el estilo del texto y de los subtítulos (fuente, tamaño, color, contorno, fondo, animaciones) y las sombras, pero no las palabras (#435).
+- **Ventanas estrechas:** el inspector se pliega por debajo de 788 px de ancho y la biblioteca por debajo de 544. Las pestañas del inspector se desplazan y la barra de título se compacta (#428).
+- **Marcadores juntos en la regla:** sus nombres se recortan en lugar de pisarse. El nombre de la GPU se abrevia en la barra de título (#432).
+- **Formato de proyecto 14,** solo si el proyecto contiene fotos. Sin fotos se sigue guardando en el 13, que abre la 1.0.1 (D-050).
+
+### Corregido
+- **Exportación:** las últimas filas podían salir negras en algunos equipos. Las texturas intermedias del render se reutilizaban sin limpiar (#433).
+- **Importación masiva:** ahora tiene un límite de análisis simultáneos y una ruta repetida ya no se analiza dos veces (#425).
+- **Automatización del mezclador:** la de tipo «tocar» respeta una curva Mantener tras el retorno (#389).
+- **Instalador:** ya no sale incompleto si la carpeta de la app estaba oculta (#427).
+- **Paneles con desbordes:** Exportar › Avanzado, Complementos y Biblioteca (#429).
+
 ## [1.0.1] - 2026-10-16
 
 Esta versión se centra en la estabilidad integral del motor de edición, la prevención de bloqueos ante fallos de hardware o archivos dañados, la compatibilidad hacia atrás del formato de proyecto, el blindaje de pruebas y la reorganización limpia de la interfaz (menús, preferencias y paneles contextuales).
