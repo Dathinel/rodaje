@@ -28,6 +28,9 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     private ParameterRow? _dragRow;
     private string? _videoClipId;
     private string? _audioClipId;
+    private IReadOnlyList<string> _videoClipIds = [];
+    private IReadOnlyList<string> _audioClipIds = [];
+    private string? _emptyText;
     private (int Width, int Height) _transformRange;
     private double _audioRange = -1;
     private Time _shownPosition;
@@ -253,22 +256,30 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
 
         EditorSession session = editor.Session;
-        Clip? video = editor.VideoTarget();
-        Clip? audio = editor.AudioTarget();
-        if (video?.Id != _videoClipId)
+        (IReadOnlyList<Clip> videos, IReadOnlyList<Clip> audios) = editor.Targets();
+        Clip? video = videos.Count > 0 ? videos[0] : null;
+        Clip? audio = audios.Count > 0 ? audios[0] : null;
+        List<string> videoIds = [.. videos.Select(c => c.Id)];
+        List<string> audioIds = [.. audios.Select(c => c.Id)];
+        if (!videoIds.SequenceEqual(_videoClipIds))
         {
             FinishChanges(_videoRows);
         }
 
-        if (audio?.Id != _audioClipId)
+        if (!audioIds.SequenceEqual(_audioClipIds))
         {
             FinishChanges(_audioRows);
         }
 
         _videoClipId = video?.Id;
         _audioClipId = audio?.Id;
+        _videoClipIds = videoIds;
+        _audioClipIds = audioIds;
         _shownPosition = session.Position;
+        int selected = session.SelectedClipIds.Count(id => session.Sequence.FindClip(id) is not null);
         bool any = video is not null || audio is not null;
+        _emptyText ??= EmptyText.Text;
+        EmptyText.Text = !any && selected > 1 ? "Los clips seleccionados no tienen propiedades en común." : _emptyText;
         EmptyText.Visibility = any ? Visibility.Collapsed : Visibility.Visible;
         Body.Visibility = any ? Visibility.Visible : Visibility.Collapsed;
         if (!any)
@@ -277,7 +288,9 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         }
 
         Clip titled = (video ?? audio)!;
-        ClipTitle.Text = ClipLabels.Name(session.Project, titled);
+        ClipTitle.Text = selected > 1
+            ? selected.ToString(CultureInfo.InvariantCulture) + " clips seleccionados"
+            : ClipLabels.Name(session.Project, titled);
         ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
         Visibility videoVisible = video is null ? Visibility.Collapsed : Visibility.Visible;
         PlacementSection.Visibility = videoVisible;
@@ -293,16 +306,16 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
         if (video is not null)
         {
-            ShowVideo(editor, video);
+            ShowVideo(editor, video, videos);
         }
 
         if (audio is not null)
         {
-            ShowAudio(editor, audio);
+            ShowAudio(editor, audio, audios);
         }
     }
 
-    private void ShowVideo(ClipPropertyEditor editor, Clip clip)
+    private void ShowVideo(ClipPropertyEditor editor, Clip clip, IReadOnlyList<Clip> clips)
     {
         Sequence sequence = editor.Session.Sequence;
         if (_transformRange != (sequence.Width, sequence.Height))
@@ -353,7 +366,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
                 animated.Add(row);
             }
 
-            row.Show(state, inside);
+            row.Show(state, inside, editor.IsMixed(clips, row.Spec.EffectType, row.Spec.Name, row.Spec.DefaultValue));
         }
 
         KeyframeTotal.Text = KeyframeText(placementKeyframes + opacityKeyframes + shapeKeyframes);
@@ -497,13 +510,13 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private void OnMotionBlurToggled(object sender, RoutedEventArgs e)
     {
-        if (_updatingTransform || _editor is not { } editor || ClipFor(ShutterRow) is not { } clip)
+        if (_updatingTransform || _editor is not { } editor || ClipsFor(ShutterRow) is not { Count: > 0 } clips)
         {
             return;
         }
 
         bool on = MotionBlurSwitch.IsOn;
-        editor.SetValue(clip, BuiltInEffects.Transform, BuiltInEffects.TransformParameters.ShutterAngle, on ? 180 : 0,
+        editor.SetValue(clips, BuiltInEffects.Transform, BuiltInEffects.TransformParameters.ShutterAngle, on ? 180 : 0,
             on ? "Activar el desenfoque de movimiento" : "Quitar el desenfoque de movimiento");
     }
 
@@ -516,7 +529,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     private static string Number(double value) =>
         Math.Round(value, 1).ToString("0.#", CultureInfo.InvariantCulture).Replace('.', ',').Replace('-', '\u2212');
 
-    private void ShowAudio(ClipPropertyEditor editor, Clip clip)
+    private void ShowAudio(ClipPropertyEditor editor, Clip clip, IReadOnlyList<Clip> clips)
     {
         double seconds = clip.Duration.ToSeconds();
         if (Math.Abs(_audioRange - seconds) > 1e-6)
@@ -540,7 +553,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
                 gain = row.Spec.ToDisplay(state.Value);
             }
 
-            row.Show(state, inside);
+            row.Show(state, inside, editor.IsMixed(clips, row.Spec.EffectType, row.Spec.Name, row.Spec.DefaultValue));
         }
 
         AudioSection.KeyframeSummary = KeyframeText(keyframes);
@@ -569,9 +582,17 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         return id is not null && _editor?.Session.Sequence.FindClip(id) is { } found ? found.Clip : null;
     }
 
+    /// <summary>Los clips que edita la fila: todos los seleccionados de su parte del panel.</summary>
+    private List<Clip> ClipsFor(ParameterRow row)
+    {
+        IReadOnlyList<string> ids = Array.IndexOf(_videoRows, row) >= 0 ? _videoClipIds : _audioClipIds;
+        Sequence? sequence = _editor?.Session.Sequence;
+        return sequence is null ? [] : [.. ids.Select(sequence.FindClip).OfType<(Track Track, Clip Clip)>().Select(f => f.Clip)];
+    }
+
     private void OnRowChanging(object? sender, double value)
     {
-        if (sender is not ParameterRow row || _editor is not { } editor || ClipFor(row) is not { } clip)
+        if (sender is not ParameterRow row || _editor is not { } editor || ClipsFor(row) is not { Count: > 0 } clips)
         {
             return;
         }
@@ -584,7 +605,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         if (!ReferenceEquals(_dragRow, row) || !editor.IsDragging)
         {
             _dragRow = row;
-            editor.BeginChange(clip, row.Spec.EffectType, row.Spec.Name, row.Spec.Description);
+            editor.BeginChange(clips, row.Spec.EffectType, row.Spec.Name, row.Spec.Description);
         }
 
         editor.Change(value);
@@ -604,9 +625,9 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private void OnRowCommitted(object? sender, double value)
     {
-        if (sender is ParameterRow row && _editor is { } editor && ClipFor(row) is { } clip)
+        if (sender is ParameterRow row && _editor is { } editor && ClipsFor(row) is { Count: > 0 } clips)
         {
-            editor.SetValue(clip, row.Spec.EffectType, row.Spec.Name, value, row.Spec.Description);
+            editor.SetValue(clips, row.Spec.EffectType, row.Spec.Name, value, row.Spec.Description);
         }
     }
 

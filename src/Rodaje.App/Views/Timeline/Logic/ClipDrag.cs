@@ -101,8 +101,10 @@ public sealed class ClipDrag
     private readonly SnapPoints _snaps;
     private readonly HashSet<string> _group;
 
-    /// <summary>El clip está en un grupo (y no se ignoran): se mueve con todo el grupo, en su pista.</summary>
-    private readonly bool _grouped;
+    /// <summary>
+    /// Se mueve con otros clips que no son sus enlazados (su grupo o la selección): todos con el mismo desplazamiento.
+    /// </summary>
+    private readonly bool _together;
 
     // Estirar una curva se calcula desde el estado del inicio del gesto: encadenar pasos de un cuadro redondearía los
     // puntos a centésimas una y otra vez.
@@ -110,7 +112,9 @@ public sealed class ClipDrag
     private readonly Time _originSource;
     private readonly (int Low, int High) _originCurveRange;
 
-    public ClipDrag(Project project, string sequenceId, string clipId, DragOperation operation, Time grab, DragOptions options, Time? playhead, IIdGenerator? ids = null)
+    // Si la selección de la línea de tiempo incluye al clip, moverlo arrastra a toda.
+    public ClipDrag(Project project, string sequenceId, string clipId, DragOperation operation, Time grab, DragOptions options, Time? playhead, IIdGenerator? ids = null,
+        IReadOnlyCollection<string>? selection = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(options);
@@ -129,10 +133,13 @@ public sealed class ClipDrag
         _originIn = clip.SourceIn;
         _slipRate = SlipRate(clip);
         _frameRate = sequence.FrameRate;
-        List<(Track Track, Clip Clip)> members = options.IgnoreGroups ? [(track, clip)]
-            : operation == DragOperation.Move && clip.GroupId is not null ? [.. TimelineEdits.ExpandWithGroups(sequence, [clipId])]
+        bool multi = operation == DragOperation.Move && selection is { Count: > 1 } && selection.Contains(clipId);
+        List<(Track Track, Clip Clip)> members = options.IgnoreGroups
+            ? multi ? [.. selection!.Select(sequence.FindClip).OfType<(Track Track, Clip Clip)>()] : [(track, clip)]
+            : operation == DragOperation.Move && (multi || clip.GroupId is not null) ? [.. TimelineEdits.ExpandWithGroups(sequence, multi ? selection! : [clipId])]
             : sequence.GetLinkGroup(clipId);
-        _grouped = !options.IgnoreGroups && clip.GroupId is not null;
+        HashSet<string> linked = [.. sequence.GetLinkGroup(clipId).Select(m => m.Clip.Id)];
+        _together = operation == DragOperation.Move && members.Exists(m => !linked.Contains(m.Clip.Id));
         _group = [.. members.Select(m => m.Clip.Id)];
         _minStart = clip.Start - members.Min(m => m.Clip.Start);
         _snaps = options.Snapping ? SnapPoints.Collect(sequence, _group, playhead) : SnapPoints.Empty;
@@ -236,14 +243,13 @@ public sealed class ClipDrag
             desired = Time.Max(desired + correction, _minStart);
         }
 
-        Track target = row is { } r && r.Kind == _kind && !_grouped ? r.Track : track;
-        string? magnetic = _options.MagneticTrackId;
-        if (_grouped && (magnetic is null || track.Id != magnetic))
+        if (_together)
         {
-            Time groupDelta = desired - clip.Start;
-            Func<ICommand>? moveGroup = groupDelta == Time.Zero ? null : () => Edits.MoveClips(_sequenceId, [_clipId], groupDelta, _ids);
-            return new DragPlan(moveGroup, true, desired, desired + duration, track.Id, guide, null);
+            return PlanTogether(sequence, track, clip, desired, guide, row);
         }
+
+        Track target = row is { } r && r.Kind == _kind ? r.Track : track;
+        string? magnetic = _options.MagneticTrackId;
 
         bool fromMain = magnetic is not null && _originTrackId == magnetic;
         bool toMain = magnetic is not null && target.Id == magnetic;
@@ -307,6 +313,42 @@ public sealed class ClipDrag
         return group.Exists(g => g.Track.Kind == TrackKind.Audio
             && g.Track.Clips.Exists(c => !members.Contains(c) && c.Start < g.Clip.End + delta && c.End > g.Clip.Start + delta));
     }
+
+    /// <summary>
+    /// Mover varios: el mismo desplazamiento para todos, con el ajuste del agarrado. Cambian de pista si caben todos (si
+    /// no, solo en el tiempo); si alguno está en la pista principal magnética, los de ella se reordenan como un bloque.
+    /// </summary>
+    private DragPlan PlanTogether(Sequence sequence, Track track, Clip clip, Time desired, Time? guide, TrackRow? row)
+    {
+        Time duration = clip.Duration;
+        Time delta = desired - clip.Start;
+        bool alone = _options.IgnoreGroups;
+        if (_options.MagneticTrackId is { } magnetic && sequence.FindTrack(magnetic) is { } main && main.Clips.Exists(c => _group.Contains(c.Id)))
+        {
+            List<Clip> block = main.Clips.FindAll(c => _group.Contains(c.Id));
+            List<Clip> others = main.Clips.FindAll(c => !_group.Contains(c.Id));
+            Clip anchor = track == main ? clip : block[0];
+            Time origin = main.Clips[0].Start;
+            (int index, Time boundary) = MagneticSlot(others, origin, anchor.Start + delta, anchor.Duration);
+            List<Clip> order = [.. others.Take(index), .. block, .. others.Skip(index)];
+            Func<ICommand>? reorder = order.SequenceEqual(main.Clips)
+                ? null
+                : () => Edits.MoveClipsOnMainTrack(_sequenceId, _group, magnetic, index, alone, _ids);
+            return new DragPlan(reorder, true, desired, desired + duration, track.Id, null, boundary);
+        }
+
+        int offset = row is { } r && r.Kind == _kind && r.Track != track ? KindIndex(sequence, r.Track) - KindIndex(sequence, track) : 0;
+        if (delta == Time.Zero && offset == 0)
+        {
+            return new DragPlan(null, true, desired, desired + duration, track.Id, guide, null);
+        }
+
+        string ghostTrack = offset == 0 ? track.Id : row!.Track.Id;
+        return new DragPlan(() => Edits.MoveClips(_sequenceId, _group, delta, _kind, offset, alone, _ids), true, desired, desired + duration, ghostTrack, guide, null);
+    }
+
+    private static int KindIndex(Sequence sequence, Track track) =>
+        (track.Kind == TrackKind.Video ? sequence.VideoTracks : sequence.AudioTracks).IndexOf(track);
 
     /// <summary>Saca el clip de la pista magnética a otra y cierra el hueco que deja, con sus enlazados.</summary>
     private SequenceEditCommand LeaveMagneticTrack(string targetTrackId, Time start)
