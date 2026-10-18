@@ -12,8 +12,12 @@
                 </Grid>
                 <TextBlock Text="Separar el audio de estas pistas de video al importar" FontWeight="SemiBold" />
                 <StackPanel x:Name="LinkedAudioTracksPanel" Spacing="4" />
+                <TextBlock Text="Duración por defecto de imágenes fijas" FontWeight="SemiBold" />
+                <NumberBox x:Name="StillImageDurationBox" Header="Segundos" Minimum="1" Maximum="60" SpinButtonPlacementMode="Inline" />
                 <TextBlock Text="Carpeta de medios generados" FontWeight="SemiBold" />
                 <TextBox x:Name="GeneratedFolderBox" PlaceholderText="Junto al proyecto" />
+                <TextBlock Text="Carpeta de capturas de fotogramas" FontWeight="SemiBold" />
+                <TextBox x:Name="StillCaptureFolderBox" PlaceholderText="Carpeta «Capturas» junto al proyecto" />
             </StackPanel></ScrollViewer>
         </TabViewItem>
         <TabViewItem Header="Rendimiento" IsClosable="False"><StackPanel Spacing="16" Padding="12">

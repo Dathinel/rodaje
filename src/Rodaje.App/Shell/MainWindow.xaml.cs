@@ -58,6 +58,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     private readonly InstanceRegistry _instance = InstanceRegistry.Register(InstanceRegistry.DefaultDirectory);
     private ShortcutsView? _shortcutsView;
     private NotificationAction? _notificationAction;
+    private NotificationAction? _notificationSecondaryAction;
     private readonly LongActionService _longActions;
 
     // La barra de avisos muestra el avance de una acción larga hasta que llega un aviso; al cerrarse ese aviso vuelve al avance.
@@ -707,6 +708,10 @@ internal sealed partial class MainWindow : Window, IShellHost
         NotificationButton.Content = notification.Action?.Text;
         NotificationButton.Visibility = notification.Action is null ? Visibility.Collapsed : Visibility.Visible;
         AutomationProperties.SetName(NotificationButton, notification.Action?.Text ?? "");
+        _notificationSecondaryAction = notification.SecondaryAction;
+        NotificationSecondaryButton.Content = notification.SecondaryAction?.Text;
+        NotificationSecondaryButton.Visibility = notification.SecondaryAction is null ? Visibility.Collapsed : Visibility.Visible;
+        AutomationProperties.SetName(NotificationSecondaryButton, notification.SecondaryAction?.Text ?? "");
         Notification.IsOpen = true;
         FrameworkElementAutomationPeer.FromElement(Notification)?.RaiseNotificationEvent(
             AutomationNotificationKind.ActionCompleted, AutomationNotificationProcessing.ImportantMostRecent, notification.Message, "rodaje.aviso");
@@ -714,7 +719,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         if (notification.Severity is NotificationSeverity.Informational or NotificationSeverity.Success)
         {
             // Con botón dura más: da tiempo a leerlo y a decidir si se deshace.
-            _notificationTimer.Interval = TimeSpan.FromSeconds(notification.Action is null ? 6 : 10);
+            _notificationTimer.Interval = TimeSpan.FromSeconds(notification.Action is null && notification.SecondaryAction is null ? 6 : 10);
             _notificationTimer.Start();
         }
     }
@@ -734,6 +739,17 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         NotificationAction? action = _notificationAction;
         _notificationAction = null;
+        _notificationSecondaryAction = null;
+        _notificationTimer.Stop();
+        Notification.IsOpen = false;
+        action?.Run();
+    }
+
+    private void OnNotificationSecondaryButtonClick(object sender, RoutedEventArgs e)
+    {
+        NotificationAction? action = _notificationSecondaryAction;
+        _notificationAction = null;
+        _notificationSecondaryAction = null;
         _notificationTimer.Stop();
         Notification.IsOpen = false;
         action?.Run();
@@ -778,6 +794,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         bool fresh = started || !_showingProgress;
         _showingProgress = true;
         _notificationAction = null;
+        _notificationSecondaryAction = null;
+        NotificationSecondaryButton.Visibility = Visibility.Collapsed;
         _notificationTimer.Stop();
         Notification.Severity = InfoBarSeverity.Informational;
         Notification.Title = current.Title;

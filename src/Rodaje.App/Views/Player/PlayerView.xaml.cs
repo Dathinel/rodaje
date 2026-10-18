@@ -226,6 +226,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         SetToolTip(PreviousFrameButton, "Cuadro anterior", ActionIds.PreviousFrame);
         SetToolTip(PlayButton, "Reproducir o pausar", ActionIds.TogglePlay);
         SetToolTip(NextFrameButton, "Cuadro siguiente", ActionIds.NextFrame);
+        SetToolTip(CaptureButton, "Capturar fotograma", ActionIds.CaptureFrame);
         SetToolTip(FullScreenButton, "Pantalla completa (Esc o doble clic para salir)", PlayerActionIds.FullScreen);
         SetToolTip(SafeAreasButton, SafeZonesToolTip(), PlayerActionIds.SafeAreas);
     }
@@ -298,6 +299,8 @@ internal sealed partial class PlayerView : UserControl, IEditorView
             _ => _previewDivisor switch { 2 => "Auto · ½", 4 => "Auto · ¼", _ => "Auto" },
         };
     }
+
+    private void OnCaptureClick(object sender, RoutedEventArgs e) => _shortcuts?.Invoke(ActionIds.CaptureFrame);
 
     private void OnFullScreenClick(object sender, RoutedEventArgs e) => _shortcuts?.Invoke(PlayerActionIds.FullScreen);
 

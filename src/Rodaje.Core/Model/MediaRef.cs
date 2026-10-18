@@ -19,8 +19,12 @@ public sealed class MediaRef
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
     public bool IsStillImage { get; set; }
 
-    /// <summary>Duración inicial de una foto; punto común para la futura preferencia.</summary>
-    public static readonly Time DefaultStillImageDuration = Time.FromSeconds(5);
+    public const double DefaultStillImageDurationSeconds = 5;
+    public const double MinStillImageDurationSeconds = 1;
+    public const double MaxStillImageDurationSeconds = 60;
+
+    /// <summary>Duración por defecto de una foto (1–60 s); configurable desde Preferencias.</summary>
+    public static Time DefaultStillImageDuration { get; set; } = Time.FromSeconds(DefaultStillImageDurationSeconds);
 
     [System.Text.Json.Serialization.JsonIgnore]
     public Time InitialClipDuration => IsStillImage ? DefaultStillImageDuration : Duration;

@@ -193,10 +193,11 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
 
         _clipId = clip?.Id;
         bool title = clip?.Generator is not null;
-        EmptyText.Text = title ? ClipLabels.NoMaterial : EmptyHint;
-        EmptyText.Visibility = clip is null || title ? Visibility.Visible : Visibility.Collapsed;
-        Body.Visibility = clip is null || title ? Visibility.Collapsed : Visibility.Visible;
-        if (clip is null || title)
+        bool isStill = clip is not null && editor.Session.Project.FindMedia(clip.MediaId)?.IsStillImage == true;
+        EmptyText.Text = title ? ClipLabels.NoMaterial : (isStill ? "No aplica a imágenes fijas." : EmptyHint);
+        EmptyText.Visibility = clip is null || title || isStill ? Visibility.Visible : Visibility.Collapsed;
+        Body.Visibility = clip is null || title || isStill ? Visibility.Collapsed : Visibility.Visible;
+        if (clip is null || title || isStill)
         {
             return;
         }

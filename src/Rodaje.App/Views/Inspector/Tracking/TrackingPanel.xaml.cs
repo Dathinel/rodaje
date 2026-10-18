@@ -124,7 +124,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         foreach (string id in _services.Session.SelectedClipIds)
         {
             if (_services.Session.Sequence.FindClip(id) is { Track.Kind: TrackKind.Video } found && found.Clip.Generator is null && !found.Clip.IsCompound
-                && _services.Session.Project.FindMedia(found.Clip.MediaId) is { Width: > 0 })
+                && _services.Session.Project.FindMedia(found.Clip.MediaId) is { Width: > 0 } media && !media.IsStillImage)
             {
                 return found.Clip;
             }
@@ -146,6 +146,12 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         {
             _clipId = null;
             Items.Clear();
+            bool isStillSelected = _services.Session.SelectedClipIds.Any(id =>
+                _services.Session.Sequence.FindClip(id) is { } found
+                && _services.Session.Project.FindMedia(found.Clip.MediaId)?.IsStillImage == true);
+            EmptyText.Text = isStillSelected
+                ? "No aplica a imágenes fijas."
+                : "Selecciona un clip de video y lleva el cursor sobre él para seguir un punto, dos, cuatro esquinas o una región.";
             EmptyText.Visibility = Visibility.Visible;
             Header.Visibility = Visibility.Collapsed;
             Details.Visibility = Visibility.Collapsed;

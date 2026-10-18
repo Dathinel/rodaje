@@ -40,7 +40,8 @@ internal static partial class StillExportCommand
     {
         private readonly EditorServices _services;
         private readonly nint _owner;
-        private readonly IDisposable _binding;
+        private readonly IDisposable _exportBinding;
+        private readonly IDisposable _captureBinding;
         private readonly StillExportFlow _flow;
         private bool _disposed;
 
@@ -49,8 +50,9 @@ internal static partial class StillExportCommand
             _services = services;
             _owner = owner;
             _flow = new StillExportFlow(Ask, ExportAsync,
-                n => _services.Session.Notify(n.Severity, n.Title, n.Message, n.Action));
-            _binding = router.Bind(ActionIds.ExportFrame, () => UiTask.Run(_flow.StartAsync(request: null)));
+                n => _services.Session.Notify(n.Severity, n.Title, n.Message, n.Action, n.SecondaryAction));
+            _exportBinding = router.Bind(ActionIds.ExportFrame, () => UiTask.Run(_flow.StartAsync(request: null)));
+            _captureBinding = router.Bind(ActionIds.CaptureFrame, () => UiTask.Run(CaptureFrameAsync()));
         }
 
         public void Dispose()
@@ -61,8 +63,54 @@ internal static partial class StillExportCommand
             }
 
             _disposed = true;
-            _binding.Dispose();
+            _exportBinding.Dispose();
+            _captureBinding.Dispose();
             _flow.Dispose();
+        }
+
+        private Task CaptureFrameAsync()
+        {
+            EditorSession session = _services.Session;
+            Rational rate = session.Project.Sequences.FirstOrDefault(s => s.Id == session.SequenceId)?.FrameRate ?? Rational.Fps30;
+            Time position = session.Position;
+            string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
+            string folder = Logic.StillCaptureNaming.ResolveCaptureFolder(_services.Settings.Current, session.FilePath);
+            try
+            {
+                Directory.CreateDirectory(folder);
+            }
+            catch (Exception ex)
+            {
+                _services.Session.Notify(NotificationSeverity.Error, "No se pudo crear la carpeta de capturas", ex.Message);
+                return Task.CompletedTask;
+            }
+
+            string fileName = Logic.StillCaptureNaming.FormatFileName(session.ProjectName, position, rate);
+            string path = Path.Combine(folder, fileName);
+            var request = new StillRequest(session.Project.Clone(), session.SequenceId, position, path,
+                new StillSettings { Format = StillFormat.Png }) { ProjectDirectory = projectFolder };
+
+            return _flow.CaptureAsync(request, result =>
+            {
+                _services.Session.Notify(
+                    NotificationSeverity.Success,
+                    "Captura guardada",
+                    $"Fotograma guardado en «{Path.GetFileName(result.OutputPath)}».",
+                    new NotificationAction("Abrir carpeta", () =>
+                    {
+                        try
+                        {
+                            using var _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select,\"{result.OutputPath}\"") { UseShellExecute = false });
+                        }
+                        catch
+                        {
+                        }
+                    }),
+                    new NotificationAction("Añadir a la biblioteca", () =>
+                    {
+                        UiTask.Run(_services.Session.ImportMediaAsync([result.OutputPath]));
+                    }));
+            });
         }
 
         /// <summary>Abre el diálogo de guardar; <c>null</c> si se cancela.</summary>

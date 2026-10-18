@@ -38,6 +38,9 @@ public sealed partial class AppSettings
     /// <summary>Última carpeta elegida al exportar un fotograma.</summary>
     public string? LastStillExportFolder { get; set; }
 
+    /// <summary>Carpeta para las capturas directas de fotogramas; <c>null</c> para «Capturas» junto al proyecto.</summary>
+    public string? StillCaptureFolder { get; set; }
+
     /// <summary>Última carpeta elegida al guardar un preajuste de exportación.</summary>
     public string? LastExportPresetFolder { get; set; }
 
@@ -100,6 +103,9 @@ public sealed partial class AppSettings
     /// <summary>Pistas de audio que trae un proyecto nuevo (1–8).</summary>
     public int DefaultAudioTracks { get; set; } = NewProjectTracks.Default.Audio;
 
+    /// <summary>Duración por defecto de las imágenes fijas al añadirlas (1–60 s).</summary>
+    public double StillImageDurationSeconds { get; set; } = Rodaje.Core.Model.MediaRef.DefaultStillImageDurationSeconds;
+
     /// <summary>
     /// Números de las pistas de video (1 = «Video 1») de las que sale el audio de un medio a su propia pista al
     /// importarlo o soltarlo; <c>null</c> para todas (lo de siempre).
@@ -150,6 +156,8 @@ public sealed partial class AppSettings
         WindowHeight = WindowHeight == 0 ? 0 : Clamp(WindowHeight, 560, 10000, 0);
         DefaultVideoTracks = Math.Clamp(DefaultVideoTracks, NewProjectTracks.Min, NewProjectTracks.Max);
         DefaultAudioTracks = Math.Clamp(DefaultAudioTracks, NewProjectTracks.Min, NewProjectTracks.Max);
+        StillImageDurationSeconds = Clamp(StillImageDurationSeconds, Rodaje.Core.Model.MediaRef.MinStillImageDurationSeconds, Rodaje.Core.Model.MediaRef.MaxStillImageDurationSeconds, Rodaje.Core.Model.MediaRef.DefaultStillImageDurationSeconds);
+        Rodaje.Core.Model.MediaRef.DefaultStillImageDuration = Rodaje.Core.Timing.Time.FromSeconds(StillImageDurationSeconds);
         LinkedAudioVideoTracks = LinkedAudioTracks.ToSetting();
         MeterDecayDbPerSecond = Clamp(MeterDecayDbPerSecond, 3, 120, 20);
         RecentProjects = [.. (RecentProjects ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Take(MaxRecentProjects)];

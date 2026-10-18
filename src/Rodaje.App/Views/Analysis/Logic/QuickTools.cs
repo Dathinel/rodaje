@@ -68,6 +68,9 @@ public static class QuickTools
         Clip? audio = selection.Select(id => sequence.FindClip(id)?.Clip).FirstOrDefault(c => c is not null && HasAudio(c));
         bool video = selection.Any(id => sequence.FindClip(id) is { } f && f.Clip.Generator is null
             && project.FindMedia(f.Clip.MediaId) is { HasVideo: true, FrameRate: not null });
+        bool stillSelected = selection.Any(id => sequence.FindClip(id) is { } f
+            && project.FindMedia(f.Clip.MediaId)?.IsStillImage == true);
+        string videoMissing = stillSelected ? "No aplica a imágenes fijas." : "Selecciona un clip de video.";
         return actionId switch
         {
             "analysis.silences" => audio is null ? No("Selecciona un clip con sonido.") : Yes,
@@ -80,8 +83,8 @@ public static class QuickTools
                 No("Selecciona un clip con voz en una pista de audio (o un video con su audio enlazado)."),
             "analysis.noise" when !noiseModule => No("Hace falta el módulo «Audio con IA». Instálalo desde Complementos › Módulos de IA."),
             "analysis.noise" => Yes,
-            "analysis.stabilize" or "analysis.autocolor" or "analysis.whitebalance" => video ? Yes : No("Selecciona un clip de video."),
-            RemoveBackground or Reframe when !video => No("Selecciona un clip de video."),
+            "analysis.stabilize" or "analysis.autocolor" or "analysis.whitebalance" => video ? Yes : No(videoMissing),
+            RemoveBackground or Reframe when !video => No(videoMissing),
             RemoveBackground or Reframe when !visionModule => No("Hace falta el módulo «Visión con IA». Instálalo desde Complementos › Módulos de IA."),
             AutoSubtitles when Subtitles.AutoSubtitles.TargetClip(sequence, selection, HasAudio) is null =>
                 No("Selecciona un clip con voz (un video con sonido o un clip de audio)."),

@@ -30,6 +30,7 @@ public sealed class SettingsStore
     public string? Load()
     {
         Current = new AppSettings();
+        Current.Normalize();
         if (!File.Exists(Path))
         {
             return null;

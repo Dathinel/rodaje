@@ -211,6 +211,10 @@ public sealed class KeyframeCurveEditsTests
 
     [Theory]
     [InlineData(MotionPresets.KenBurns)]
+    [InlineData(MotionPresets.KenBurnsZoomIn)]
+    [InlineData(MotionPresets.KenBurnsZoomOut)]
+    [InlineData(MotionPresets.KenBurnsPanLeft)]
+    [InlineData(MotionPresets.KenBurnsPanRight)]
     [InlineData(MotionPresets.SlowZoom)]
     [InlineData(MotionPresets.SlideIn)]
     [InlineData(MotionPresets.SlideOut)]

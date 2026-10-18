@@ -42,6 +42,8 @@ internal sealed partial class PreferencesView : UserControl
         }
         AutoProxiesBox.IsChecked = _model.GenerateProxies;
         GeneratedFolderBox.Text = _model.GeneratedMediaFolder;
+        StillImageDurationBox.Value = _model.StillImageDurationSeconds;
+        StillCaptureFolderBox.Text = _model.StillCaptureFolder;
         ProxyUsageBox.SelectedIndex = (int)_model.ProxyUsage;
         PreviewQualityBox.SelectedIndex = (int)_model.PreviewQuality;
         ShortcutPresetBox.SelectedIndex = (int)_model.ShortcutPreset;
@@ -52,6 +54,8 @@ internal sealed partial class PreferencesView : UserControl
         if (_model is not { } model) return;
         model.VideoTracks = double.IsFinite(VideoTracksBox.Value) ? (int)VideoTracksBox.Value : NewProjectTracks.Default.Video;
         model.AudioTracks = double.IsFinite(AudioTracksBox.Value) ? (int)AudioTracksBox.Value : NewProjectTracks.Default.Audio;
+        model.StillImageDurationSeconds = double.IsFinite(StillImageDurationBox.Value) ? StillImageDurationBox.Value : Rodaje.Core.Model.MediaRef.DefaultStillImageDurationSeconds;
+        model.StillCaptureFolder = StillCaptureFolderBox.Text;
         model.GenerateProxies = AutoProxiesBox.IsChecked == true;
         model.GeneratedMediaFolder = GeneratedFolderBox.Text;
         model.ProxyUsage = (ProxyUsage)Math.Max(0, ProxyUsageBox.SelectedIndex);

@@ -12,8 +12,10 @@ public sealed class PreferencesViewModel(AppSettings settings)
 
     public int VideoTracks { get => Settings.DefaultVideoTracks; set => Settings.DefaultVideoTracks = Math.Clamp(value, NewProjectTracks.Min, NewProjectTracks.Max); }
     public int AudioTracks { get => Settings.DefaultAudioTracks; set => Settings.DefaultAudioTracks = Math.Clamp(value, NewProjectTracks.Min, NewProjectTracks.Max); }
+    public double StillImageDurationSeconds { get => Settings.StillImageDurationSeconds; set { Settings.StillImageDurationSeconds = Math.Clamp(value, Rodaje.Core.Model.MediaRef.MinStillImageDurationSeconds, Rodaje.Core.Model.MediaRef.MaxStillImageDurationSeconds); Rodaje.Core.Model.MediaRef.DefaultStillImageDuration = Rodaje.Core.Timing.Time.FromSeconds(Settings.StillImageDurationSeconds); } }
     public bool GenerateProxies { get => Settings.AutoProxies; set => Settings.AutoProxies = value; }
     public string GeneratedMediaFolder { get => Settings.GeneratedMediaFolder ?? ""; set => Settings.GeneratedMediaFolder = string.IsNullOrWhiteSpace(value) ? null : value; }
+    public string StillCaptureFolder { get => Settings.StillCaptureFolder ?? ""; set => Settings.StillCaptureFolder = string.IsNullOrWhiteSpace(value) ? null : value; }
     public IReadOnlyList<int> LinkedAudioVideoTracks => Settings.LinkedAudioTracks.IsAll
         ? Enumerable.Range(1, NewProjectTracks.Max).ToArray()
         : Settings.LinkedAudioTracks.ToSetting() ?? [];
