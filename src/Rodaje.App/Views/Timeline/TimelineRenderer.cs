@@ -501,8 +501,10 @@ internal sealed class TimelineRenderer
             Label(ref names, region.Name, x0 + 4, -1, _brushes.Text);
         }
 
-        foreach (Marker marker in scene.Sequence.Markers)
+        List<Marker> sortedMarkers = [.. scene.Sequence.Markers.OrderBy(m => m.Time)];
+        for (int i = 0; i < sortedMarkers.Count; i++)
         {
+            Marker marker = sortedMarkers[i];
             if (marker.Time < from || marker.Time > to)
             {
                 continue;
@@ -520,9 +522,20 @@ internal sealed class TimelineRenderer
 
             Path flag = Pooled(_markerFlags, _rulerContent, flags++, () => new Path { Data = MarkerGeometry() });
             flag.Fill = color?.Solid ?? _brushes.Keyframe;
+            flag.IsHitTestVisible = true;
             Canvas.SetLeft(flag, x);
             Canvas.SetTop(flag, 0);
-            Label(ref names, marker.Name, x + 8, -1, color?.Solid ?? _brushes.Keyframe);
+            ToolTipService.SetToolTip(flag, string.IsNullOrEmpty(marker.Name) ? null : marker.Name);
+
+            double? nextX = i + 1 < sortedMarkers.Count
+                ? Math.Round((sortedMarkers[i + 1].Time.ToSeconds() * pps) - _windowLeft)
+                : null;
+            double available = MarkerLabelLayout.AvailableWidth(x, nextX);
+            string? text = MarkerLabelLayout.Truncate(marker.Name, available);
+            if (text is not null)
+            {
+                Label(ref names, text, x + 8, -1, color?.Solid ?? _brushes.Keyframe);
+            }
         }
 
         HideFrom(_regionBands, bands);

@@ -153,7 +153,7 @@
         <StackPanel x:Name="CreditArea" Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Spacing="12" Margin="0,0,12,0">
             <!-- Crédito upstream obligatorio (LICENSE, términos adicionales 1 y 3): con enlace; en ventanas estrechas sigue accesible en Ayuda > Acerca de. -->
             <HyperlinkButton x:Name="UpstreamCredit" x:FieldModifier="internal" Padding="4,2" FontSize="{StaticResource CaptionFontSize}" Foreground="{StaticResource TextMutedBrush}" Click="OnUpstreamClick" />
-            <TextBlock x:Name="StatsText" MaxWidth="220" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" />
+            <TextBlock x:Name="StatsText" MaxWidth="280" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" />
         </StackPanel>
 
         <Button x:Name="ExportButton" x:FieldModifier="internal" Grid.Column="4" Content="EXPORTAR" Margin="0,0,12,0"
