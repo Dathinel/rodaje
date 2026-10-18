@@ -9,9 +9,10 @@ public sealed partial class AppSettings
 {
     /// <summary>
     /// 2: el panel derecho pasa a 380 px por defecto para que sus pestañas quepan con nombre. 3: los márgenes seguros se
-    /// apagan una vez (se confundían con guías de recorte de la secuencia vertical).
+    /// apagan una vez (se confundían con guías de recorte de la secuencia vertical). 4: el alto de la línea de tiempo pasa
+    /// a guardarse como proporción de la ventana (<see cref="TimelineShare"/>).
     /// </summary>
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     public const double DefaultLibraryWidth = 280;
 
@@ -54,7 +55,12 @@ public sealed partial class AppSettings
 
     public double InspectorWidth { get; set; } = DefaultInspectorWidth;
 
-    public double TimelineHeight { get; set; } = 300;
+    /// <summary>Alto de la línea de tiempo como parte del alto de la ventana (<see cref="TimelineProportion"/>).</summary>
+    public double TimelineShare { get; set; } = TimelineProportion.Balanced;
+
+    /// <summary>El alto en píxeles de los ajustes de antes de la versión 4; solo se lee para pasarlo a <see cref="TimelineShare"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? TimelineHeight { get; set; }
 
     /// <summary>Tamaño de la ventana en píxeles independientes del DPI; 0 para el de fábrica.</summary>
     public double WindowWidth { get; set; }
@@ -146,12 +152,19 @@ public sealed partial class AppSettings
         if (Version < 3)
         {
             ShowSafeAreas = false;
-            Version = CurrentVersion;
         }
+
+        if (Version < 4)
+        {
+            TimelineShare = TimelineProportion.FromLegacyHeight(TimelineHeight, WindowHeight);
+        }
+
+        Version = Math.Max(Version, CurrentVersion);
+        TimelineHeight = null;
 
         LibraryWidth = Clamp(LibraryWidth, 220, 900, DefaultLibraryWidth);
         InspectorWidth = Clamp(InspectorWidth, 240, 900, DefaultInspectorWidth);
-        TimelineHeight = Clamp(TimelineHeight, 160, 1400, 300);
+        TimelineShare = TimelineProportion.Normalize(TimelineShare);
         WindowWidth = WindowWidth == 0 ? 0 : Clamp(WindowWidth, 800, 10000, 0);
         WindowHeight = WindowHeight == 0 ? 0 : Clamp(WindowHeight, 560, 10000, 0);
         DefaultVideoTracks = Math.Clamp(DefaultVideoTracks, NewProjectTracks.Min, NewProjectTracks.Max);

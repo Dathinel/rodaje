@@ -200,7 +200,6 @@ internal sealed partial class MainWindow : Window, IShellHost
         Timeline.MarkerContextRequested += (_, id) => Library.ShowMarkers(id);
         Mixer.Attach(_services);
         Timeline.ClipVisuals = _visuals;
-        Tools.Attach(_services);
         AttachWorkflow();
         Program.Metrics.Milestone("vistas_unidas");
 
@@ -269,8 +268,14 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         LibrarySplitter.Resized += (_, size) => settings.Current.LibraryWidth = size;
         InspectorSplitter.Resized += (_, size) => settings.Current.InspectorWidth = size;
-        Root.SizeChanged += (_, e) => FitSidePanels(e.NewSize.Width);
-        TimelineSplitter.Resized += (_, size) => settings.Current.TimelineHeight = size;
+        Root.SizeChanged += (_, e) =>
+        {
+            FitSidePanels(e.NewSize.Width);
+            ApplyTimelineShare();
+        };
+        TimelineSplitter.MinSize = TimelineProportion.MinHeight;
+        TimelineSplitter.Resized += (_, size) => settings.Current.TimelineShare = TimelineProportion.ShareOf(size, Root.ActualHeight);
+        TimelineSplitter.DoubleClicked += (_, _) => SetTimelineShare(TimelineProportion.Toggle(settings.Current.TimelineShare));
         // Un aviso abierto empuja la página modal hacia abajo en lugar de taparle la cabecera.
         Notification.SizeChanged += (_, e) => ModalFrame.Margin = new Thickness(48, 56 + e.NewSize.Height, 48, 40);
         Activated += OnActivated;
@@ -395,8 +400,8 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     internal PluginsView? PluginsPage => _pluginsView;
 
-    /// <summary>La barra de herramientas rápidas, para la autoprueba.</summary>
-    internal Views.Tools.ToolsBar QuickTools => Tools;
+    /// <summary>El desplegable de herramientas rápidas, para la autoprueba.</summary>
+    internal Views.Tools.ToolsBar QuickTools => Timeline.QuickToolsMenu;
 
     internal ExportJobList Exports => _exports;
 
@@ -478,9 +483,9 @@ internal sealed partial class MainWindow : Window, IShellHost
         var splitter = new GridLength(fullScreen ? 0 : 4);
         MainArea.ColumnDefinitions[1].Width = splitter;
         MainArea.ColumnDefinitions[3].Width = splitter;
-        Root.RowDefinitions[3].Height = splitter;
+        Root.RowDefinitions[3].Height = new GridLength(fullScreen ? 0 : 8);
         Visibility chrome = fullScreen ? Visibility.Collapsed : Visibility.Visible;
-        foreach (UIElement element in new UIElement[] { TitleBar, Library, LibrarySplitter, Inspector, InspectorSplitter, TimelineSplitter, Tools, Timeline })
+        foreach (UIElement element in new UIElement[] { TitleBar, Library, LibrarySplitter, Inspector, InspectorSplitter, TimelineSplitter, Timeline })
         {
             element.Visibility = chrome;
         }
@@ -593,10 +598,11 @@ internal sealed partial class MainWindow : Window, IShellHost
         AppSettings s = _settings.Current;
         LibraryColumn.Width = new GridLength(s.LibraryWidth);
         InspectorColumn.Width = new GridLength(s.InspectorWidth);
-        TimelineRow.Height = new GridLength(s.TimelineHeight);
         uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
         double width = s.WindowWidth > 0 ? s.WindowWidth : 1440;
         double height = s.WindowHeight > 0 ? s.WindowHeight : 900;
+        // Hasta el primer diseño no se sabe el alto de las demás filas: se estima y SizeChanged lo corrige.
+        TimelineRow.Height = new GridLength(TimelineProportion.Height(s.TimelineShare, height, 100));
         AppWindow.Resize(new SizeInt32((int)(width * dpi / 96), (int)(height * dpi / 96)));
         if (s.WindowMaximized && AppWindow.Presenter is OverlappedPresenter presenter)
         {
@@ -630,6 +636,41 @@ internal sealed partial class MainWindow : Window, IShellHost
         InspectorColumn.Width = new GridLength(inspector);
     }
 
+    /// <summary>
+    /// El alto de la línea de tiempo sale de su proporción del alto de la ventana (<see cref="TimelineProportion"/>), así
+    /// se adapta al cambiar el tamaño; no con el visor a pantalla completa ni con el mezclador, que tienen su propio alto.
+    /// </summary>
+    private void ApplyTimelineShare()
+    {
+        if (_playerFullScreen || Mixer.Visibility == Visibility.Visible || Root.ActualHeight <= 0)
+        {
+            return;
+        }
+
+        double others = 0;
+        for (int i = 0; i < Root.RowDefinitions.Count; i++)
+        {
+            if (i != 2 && i != 4)
+            {
+                others += Root.RowDefinitions[i].ActualHeight;
+            }
+        }
+
+        TimelineRow.Height = new GridLength(TimelineProportion.Height(_settings.Current.TimelineShare, Root.ActualHeight, others));
+    }
+
+    /// <summary>Ver › Distribución y el doble clic en el separador.</summary>
+    internal void SetTimelineShare(double share)
+    {
+        if (_playerFullScreen)
+        {
+            SetPlayerFullScreen(false);
+        }
+
+        _settings.Current.TimelineShare = TimelineProportion.Normalize(share);
+        ApplyTimelineShare();
+    }
+
     private void SaveLayout()
     {
         AppSettings s = _settings.Current;
@@ -642,8 +683,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             s.WindowHeight = AppWindow.Size.Height * 96.0 / dpi;
         }
 
-        // Los anchos de los paneles laterales se guardan al soltar su separador: aquí se verían los recortados por FitSidePanels.
-        s.TimelineHeight = _timelineBeforeMixer ?? TimelineRow.ActualHeight;
+        // Los anchos de los paneles laterales y la proporción de la línea de tiempo se guardan al soltar su separador.
         s.ShortcutPreset = _router.Registry.Preset;
     }
 
@@ -963,11 +1003,6 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         SaveLayout();
-        if (wasFullScreen)
-        {
-            // Los paneles recién restaurados todavía no pasaron por el diseño: se guardan los tamaños de antes.
-            _settings.Current.TimelineHeight = _layoutBeforeFullScreen.Timeline.Value;
-        }
         try
         {
             _settings.Save();
@@ -1012,7 +1047,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     /// <summary>
     /// El mezclador ocupa el lugar de la línea de tiempo, con alto para sus faders (al menos 520 px si la ventana deja 240
-    /// al visor); otra vez vuelve a la línea de tiempo con el alto que tenía.
+    /// al visor); otra vez vuelve a la línea de tiempo con su proporción.
     /// </summary>
     internal void ToggleMixer()
     {
@@ -1021,16 +1056,12 @@ internal sealed partial class MainWindow : Window, IShellHost
         Timeline.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
         if (show)
         {
-            _timelineBeforeMixer = TimelineRow.ActualHeight;
             double room = Root.ActualHeight - 240 - 80;
             TimelineRow.Height = new GridLength(Math.Max(TimelineRow.ActualHeight, Math.Min(520, room)));
         }
-        else if (_timelineBeforeMixer is { } height)
+        else
         {
-            TimelineRow.Height = new GridLength(height);
-            _timelineBeforeMixer = null;
+            ApplyTimelineShare();
         }
     }
-
-    private double? _timelineBeforeMixer;
 }

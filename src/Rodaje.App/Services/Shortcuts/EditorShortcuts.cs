@@ -72,6 +72,9 @@ public static class ActionIds
     public const string ShowPlugins = "view.plugins";
     public const string ShowMixer = "view.mixer";
     public const string ShowHistory = "view.history";
+    public const string LayoutBalanced = "view.layoutBalanced";
+    public const string LayoutMoreViewer = "view.layoutMoreViewer";
+    public const string LayoutMoreTimeline = "view.layoutMoreTimeline";
     public const string ShowPreferences = "view.preferences";
 }
 
@@ -153,11 +156,14 @@ public static partial class EditorShortcuts
 
         new(ActionIds.ZoomIn, "Acercar", ShortcutGroups.View, ["Ctrl++", "Ctrl+Num +"], classic: ["↑"]) { Repeats = true, Description = "Agranda la línea de tiempo para ver más detalle." },
         new(ActionIds.ZoomOut, "Alejar", ShortcutGroups.View, ["Ctrl+-", "Ctrl+Num -"], classic: ["↓"]) { Repeats = true, Description = "Achica la línea de tiempo para ver más tiempo a la vez." },
-        new(ActionIds.ZoomToFit, "Ajustar a la ventana", ShortcutGroups.View, ["Mayús+Z"]) { ShortLabel = "Ver todo", Description = "Ajusta el zoom para que todo el proyecto quepa en la vista." },
+        new(ActionIds.ZoomToFit, "Ajustar a la secuencia", ShortcutGroups.View, ["Mayús+Z"]) { ShortLabel = "Ver todo", Description = "Ajusta el zoom para que toda la secuencia quepa en la vista." },
         new(ActionIds.ZoomToSelection, "Zoom a la selección", ShortcutGroups.View, ["Ctrl+Alt+Z"]) { ShortLabel = "Ver selección", Description = "Acerca hasta que los clips seleccionados o el tramo marcado llenen la vista." },
         new(ActionIds.ShowShortcuts, "Atajos de teclado", ShortcutGroups.View, ["Ctrl+Alt+K"]) { ShortLabel = "Atajos", Description = "Abre esta página para ver y cambiar las teclas." },
         new(ActionIds.ShowPlugins, "Complementos", ShortcutGroups.View, []) { Description = "Abre el gestor de paquetes y módulos de IA." },
         new(ActionIds.ShowMixer, "Mezclador", ShortcutGroups.View, ["Alt+M"]) { Description = "Cambia la línea de tiempo por el mezclador de pistas y buses; otra vez vuelve." },
+        new(ActionIds.LayoutBalanced, "Distribución equilibrada", ShortcutGroups.View, []) { ShortLabel = "Equilibrada", Description = "La línea de tiempo ocupa el 42 % del alto de la ventana." },
+        new(ActionIds.LayoutMoreViewer, "Más visor", ShortcutGroups.View, []) { Description = "La línea de tiempo baja al 30 % del alto y el visor crece." },
+        new(ActionIds.LayoutMoreTimeline, "Más línea de tiempo", ShortcutGroups.View, []) { ShortLabel = "Más línea", Description = "La línea de tiempo sube al 55 % del alto para ver más pistas." },
     ];
 
     /// <summary>

@@ -41,7 +41,7 @@ internal static unsafe partial class StartupSplash
         {
             _library = settings.LibraryWidth;
             _inspector = settings.InspectorWidth;
-            _timeline = settings.TimelineHeight;
+            _timeline = TimelineProportion.Height(settings.TimelineShare, settings.WindowHeight > 0 ? settings.WindowHeight : 900, 100);
             nint instance = GetModuleHandleW(null);
             _panelBrush = CreateSolidBrush(PanelColor);
             _logoSize = (int)(LogoSize * GetDpiForSystem() / 96.0);

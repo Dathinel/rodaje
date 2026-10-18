@@ -71,7 +71,7 @@ Sin tecla de fábrica (se asignan en el panel): Cerrar todos los huecos, Ir al h
 | Herramienta de rango | G | (sin tecla) | G |
 | Acercar | Ctrl++ (también en el numérico) | = | ↑ |
 | Alejar | Ctrl+- | = | ↓ |
-| Ajustar a la ventana | Mayús+Z | = | = |
+| Ajustar a la secuencia | Mayús+Z | = | = |
 | Zoom a la selección | Ctrl+Alt+Z | = | = |
 
 ## Archivo y vista
@@ -96,10 +96,10 @@ Clic izquierdo y derecho son fijos: seleccionar y arrastrar (Ctrl suma a la sele
 
 | Parte | Rodaje | Ágil | Clásico |
 |---|---|---|---|
-| Rueda | Desplazar en el tiempo | = | Zoom |
+| Rueda | Desplazar las pistas (con todas a la vista, en el tiempo) | Desplazar en el tiempo | Zoom |
 | Ctrl+rueda | Zoom alrededor del puntero | = | Desplazar en el tiempo |
-| Mayús+rueda | Desplazar las pistas | = | = |
-| Alt+rueda | Recorrer cuadros | Desplazar las pistas | Recorrer cuadros |
+| Mayús+rueda | Desplazar en el tiempo | Desplazar las pistas | Desplazar las pistas |
+| Alt+rueda | Alto de la pista bajo el puntero | Desplazar las pistas | Recorrer cuadros |
 | Inclinar rueda | Desplazar en el tiempo | = | = |
 | Botón central | Arrastrar la vista | = | = |
 | Laterales atrás / adelante | Cuadro anterior / siguiente | Deshacer / Rehacer | Cuadro anterior / siguiente |
