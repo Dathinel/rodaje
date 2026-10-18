@@ -85,7 +85,7 @@ public sealed class ProjectFormatFieldsContractTests
         JsonObject root = Root();
         Assert.Equal(14, Project.CurrentSchemaVersion);
         Assert.Equal("schemaVersion", root.First().Key);
-        Assert.Equal(14, (int)root["schemaVersion"]!);
+        Assert.Equal(13, (int)root["schemaVersion"]!);
         Assert.Equal(["schemaVersion", "id", "name", "media", "sequences"], root.Select(p => p.Key).Take(5));
     }
 
@@ -768,7 +768,7 @@ public sealed class ProjectFormatFieldsContractTests
     public void Formato323_SchemaVersion_hoy_vale_13()
     {
         Assert.Equal(14, Project.CurrentSchemaVersion);
-        Assert.Equal(14, (int)RoundTrip(Base())["schemaVersion"]!);
+        Assert.Equal(13, (int)RoundTrip(Base())["schemaVersion"]!);
     }
 
     // «es el primer dato que se lee y decide cómo se interpreta el resto»

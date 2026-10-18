@@ -1,5 +1,8 @@
 using Rodaje.App.Services;
+using Rodaje.App.Services.Tracking;
 using Rodaje.App.Tests.Support;
+using Rodaje.App.Views.Analysis;
+using Rodaje.App.Views.Library;
 using Rodaje.App.Views.Timeline;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -19,8 +22,12 @@ public sealed class StillImageTests
         await session.OpenFilesAsync([image.Path]);
         MediaRef media = Assert.Single(session.Project.Media);
         Assert.True(media.IsStillImage);
+        Assert.Equal("Imagen", MediaDetails.DurationText(media));
         Clip clip = Assert.Single(session.Sequence.VideoTracks[0].Clips);
         Assert.Equal(Time.FromSeconds(5), clip.Duration);
+        await Assert.ThrowsAsync<NotSupportedException>(() => ClipVideoSource.AnalyzeColorAsync(session, clip, null, CancellationToken.None));
+        await Assert.ThrowsAsync<NotSupportedException>(() => ClipVideoSource.AnalyzeMotionAsync(session, clip,
+            new StabilizationStore(Path.GetTempPath()), null, CancellationToken.None));
         Assert.True(session.OpenSource(media.Id));
         var loaded = playback.Loads[^1];
         Assert.Equal(Time.FromSeconds(5), loaded.Project.GetSequence(loaded.SequenceId).Duration);
@@ -38,5 +45,30 @@ public sealed class StillImageTests
         Assert.NotNull(trim.Build);
         Assert.True(session.Execute(trim.Build()));
         Assert.Equal(Time.FromSeconds(20), dropped.Duration);
+        dropped.Start = Time.FromSeconds(10);
+        var trimStart = new ClipDrag(session.Project, session.SequenceId, dropped.Id, DragOperation.TrimStart, dropped.Start,
+            new DragOptions { Snapping = false }, null);
+        DragPlan extended = trimStart.Update(session.Project, Time.FromSeconds(7), row);
+        Assert.NotNull(extended.Build);
+        Assert.True(session.Execute(extended.Build()));
+        Assert.Equal(Time.FromSeconds(-3), dropped.SourceIn);
     });
+
+    [FfmpegLibraryFact]
+    public void Tracking_and_motion_reject_photos_before_reading_luma()
+    {
+        using var image = new StillImageFile();
+        const string message = "El seguimiento necesita un video; esta es una imagen fija";
+        Assert.Equal(message, Assert.Throws<NotSupportedException>(() => new FrameWalk(image.Path)).Message);
+        string directory = Directory.CreateTempSubdirectory("rodaje-foto-motion-").FullName;
+        try
+        {
+            Assert.Equal(message, Assert.Throws<NotSupportedException>(() => ClipVideoSource.Motion(image.Path, Time.Zero,
+                Time.FromSeconds(5), new StabilizationStore(directory), null, CancellationToken.None)).Message);
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
 }

@@ -45,6 +45,11 @@ public static class MediaSupport
             return "el formato de esta imagen fija todavía no es compatible; usa PNG, JPEG, WebP, BMP o TIFF";
         }
 
+        if (info.Video is { FrameCount: <= 1 } && !info.HasAudio)
+        {
+            return "el medio solo tiene un cuadro y no es un formato de imagen fija compatible";
+        }
+
         return info.Duration > Time.Zero ? null : "no tiene duración";
     }
 }

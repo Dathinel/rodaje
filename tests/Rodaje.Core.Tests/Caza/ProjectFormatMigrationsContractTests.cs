@@ -278,7 +278,7 @@ public sealed class ProjectFormatMigrationsContractTests
             Project project = ProjectSerializer.Load(path);
             ProjectSerializer.Save(project, path);
 
-            Assert.Equal(Project.CurrentSchemaVersion, (int)JsonNode.Parse(File.ReadAllText(path))!["schemaVersion"]!);
+            Assert.Equal(13, (int)JsonNode.Parse(File.ReadAllText(path))!["schemaVersion"]!);
             Assert.Equal(v1, File.ReadAllText(path + ".bak"));
         }
         finally

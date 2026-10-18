@@ -23,6 +23,12 @@ public sealed partial class FrameWalk : IDisposable
     public FrameWalk(string mediaPath)
     {
         _decoder = VideoDecoder.Open(mediaPath, new VideoDecoderOptions { AllowHardwareDecoding = false });
+        if (_decoder.Info.IsStillImage)
+        {
+            _decoder.Dispose();
+            throw new NotSupportedException("El seguimiento necesita un video; esta es una imagen fija");
+        }
+
         Rate = _decoder.FrameRate;
         Rotation = _decoder.Stream.Rotation;
     }

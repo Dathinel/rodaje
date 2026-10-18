@@ -57,7 +57,7 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed, Subclip? su
     /// <summary>Algún clip lo usa (no se puede quitar del proyecto).</summary>
     public bool IsUsed { get; set; } = isUsed;
 
-    public string DurationText { get; } = Timecode.Format(subclip?.Duration ?? media.Duration);
+    public string DurationText { get; } = MediaDetails.DurationText(media, subclip);
 
     public string Detail { get; } = media.HasVideo
         ? string.Create(CultureInfo.InvariantCulture, $"{media.Width}×{media.Height}")
