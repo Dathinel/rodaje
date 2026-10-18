@@ -36,11 +36,14 @@
             <InfoBar.ActionButton>
                 <Button x:Name="NotificationButton" Visibility="Collapsed" Click="OnNotificationButtonClick" />
             </InfoBar.ActionButton>
-            <!-- Una acción larga en marcha (LongActionService): avance con porcentaje, o indeterminado si no se sabe. -->
-            <StackPanel x:Name="NotificationProgress" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12" Visibility="Collapsed">
-                <ProgressBar x:Name="NotificationProgressBar" Width="280" Maximum="1" VerticalAlignment="Center"
-                             AutomationProperties.Name="Avance" />
-                <TextBlock x:Name="NotificationProgressText" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button x:Name="NotificationSecondaryButton" Visibility="Collapsed" Click="OnNotificationSecondaryButtonClick" />
+                <!-- Una acción larga en marcha (LongActionService): avance con porcentaje, o indeterminado si no se sabe. -->
+                <StackPanel x:Name="NotificationProgress" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12" Visibility="Collapsed">
+                    <ProgressBar x:Name="NotificationProgressBar" Width="280" Maximum="1" VerticalAlignment="Center"
+                                 AutomationProperties.Name="Avance" />
+                    <TextBlock x:Name="NotificationProgressText" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+                </StackPanel>
             </StackPanel>
         </InfoBar>
 

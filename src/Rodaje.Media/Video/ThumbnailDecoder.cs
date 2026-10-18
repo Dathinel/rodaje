@@ -365,7 +365,7 @@ public sealed unsafe class ThumbnailDecoder : IDisposable
                         270 => (y, scaledWidth - 1 - x),
                         _ => (x, y),
                     };
-                    dst[(ty * width) + tx] = row[x] | 0xFF000000u;
+                    dst[(ty * width) + tx] = IsStill ? row[x] : (row[x] | 0xFF000000u);
                 }
             }
         }

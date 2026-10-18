@@ -591,7 +591,18 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
         _menuTarget = item;
         _replaceItem.IsEnabled = ReplaceTargetClip() is not null;
-        _proxyItem.IsEnabled = item.HasVideo;
+        if (item.IsStillImage)
+        {
+            _proxyItem.IsEnabled = false;
+            _proxyItem.Text = "Generar proxy (no aplica a imágenes fijas)";
+            ToolTipService.SetToolTip(_proxyItem, "No aplica a imágenes fijas.");
+        }
+        else
+        {
+            _proxyItem.IsEnabled = item.HasVideo;
+            _proxyItem.Text = "Generar proxy";
+            ToolTipService.SetToolTip(_proxyItem, null);
+        }
         _removeItem.IsEnabled = !item.IsUsed;
         _removeItem.Text = item.IsUsed ? "Quitar del proyecto (está en uso)" : "Quitar del proyecto";
         bool favorite = _organization.IsFavorite(item.Id);

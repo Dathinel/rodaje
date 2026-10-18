@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Packages;
+using Rodaje.App.Views.Shared;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.Presentation;
@@ -53,6 +54,8 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed, Subclip? su
     public string Path { get; } = media.Path;
 
     public bool HasVideo { get; } = media.HasVideo;
+
+    public bool IsStillImage { get; } = media.IsStillImage;
 
     /// <summary>Algún clip lo usa (no se puede quitar del proyecto).</summary>
     public bool IsUsed { get; set; } = isUsed;
@@ -194,8 +197,12 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed, Subclip? su
     /// <summary>Instante de la portada: un poco después del inicio, donde casi nunca hay negro.</summary>
     public Time CoverTime { get; } = (subclip?.In ?? Time.Zero) + Time.FromSeconds(Math.Min(1.0, (subclip?.Duration ?? media.Duration).ToSeconds() * 0.2));
 
-    /// <summary>Glifo de Segoe Fluent Icons: video o nota musical.</summary>
-    public string Glyph { get; } = media.HasVideo ? "\uE714" : "\uE8D6";
+    /// <summary>Glifo de Segoe Fluent Icons: foto, video o nota musical.</summary>
+    public string Glyph { get; } = media.IsStillImage ? "\uEB9F" : (media.HasVideo ? "\uE714" : "\uE8D6");
+
+    public ImageSource? Checkerboard => IsStillImage ? CheckerboardPattern.Instance : null;
+
+    public Visibility CheckerboardVisibility => IsStillImage && _thumbnail is not null ? Visibility.Visible : Visibility.Collapsed;
 
     public ImageSource? Thumbnail
     {
@@ -206,6 +213,7 @@ internal sealed partial class MediaItem(MediaRef media, bool isUsed, Subclip? su
             {
                 OnPropertyChanged(nameof(GlyphVisibility));
                 OnPropertyChanged(nameof(Displayed));
+                OnPropertyChanged(nameof(CheckerboardVisibility));
             }
         }
     }

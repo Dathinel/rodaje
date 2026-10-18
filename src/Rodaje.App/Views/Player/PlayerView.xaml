@@ -72,6 +72,8 @@
                 <ToggleButton x:Name="ScopesButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE9D2;"
                               FontFamily="{StaticResource IconFontFamily}" Click="OnScopesClick" AutomationProperties.Name="Monitores de imagen"
                               ToolTipService.ToolTip="Monitores de imagen: forma de onda, desfile RGB, vectorscopio e histograma" />
+                <Button x:Name="CaptureButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE722;" Click="OnCaptureClick"
+                        AutomationProperties.Name="Capturar fotograma" />
                 <Button x:Name="FullScreenButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE740;" Click="OnFullScreenClick" />
             </StackPanel>
             </ScrollViewer>

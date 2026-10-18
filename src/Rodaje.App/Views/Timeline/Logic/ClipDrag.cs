@@ -420,7 +420,7 @@ public sealed class ClipDrag
     /// </summary>
     private DragPlan PlanStretch(Project project, Sequence sequence, Track track, Clip clip, Time offset)
     {
-        if (Blocked(sequence, track, clip) is { } blocked)
+        if (Blocked(project, sequence, track, clip) is { } blocked)
         {
             return blocked;
         }
@@ -522,7 +522,7 @@ public sealed class ClipDrag
 
     private DragPlan PlanSlip(Project project, Sequence sequence, Track track, Clip clip, Time offset)
     {
-        if (Blocked(sequence, track, clip) is { } blocked)
+        if (Blocked(project, sequence, track, clip) is { } blocked)
         {
             return blocked;
         }
@@ -660,17 +660,28 @@ public sealed class ClipDrag
         clip.IsCompound ? CompoundOps.SourceLimit(project, clip) : project.FindMedia(clip.MediaId)?.Duration ?? clip.SourceOut;
 
     /// <summary>
-    /// Slip y Alt + borde no se aplican a un título (no tiene material ni velocidad): el gesto queda quieto y el globo lo
+    /// Slip y Alt + borde no se aplican a un título (no tiene material ni velocidad) ni a una foto: el gesto queda quieto y el globo lo
     /// explica.
     /// </summary>
-    private DragPlan? Blocked(Sequence sequence, Track track, Clip clip)
+    private DragPlan? Blocked(Project project, Sequence sequence, Track track, Clip clip)
     {
         bool title = _options.IgnoreGroups
             ? clip.Generator is not null
             : sequence.GetLinkGroup(clip.Id).Exists(m => m.Clip.Generator is not null);
-        return title
-            ? new DragPlan(null, true, clip.Start, clip.End, track.Id, null, null, (clip.Start, ClipLabels.NoMaterial))
-            : null;
+        if (title)
+        {
+            return new DragPlan(null, true, clip.Start, clip.End, track.Id, null, null, (clip.Start, ClipLabels.NoMaterial));
+        }
+
+        bool still = _options.IgnoreGroups
+            ? project.FindMedia(clip.MediaId)?.IsStillImage == true
+            : sequence.GetLinkGroup(clip.Id).Exists(m => project.FindMedia(m.Clip.MediaId)?.IsStillImage == true);
+        if (still)
+        {
+            return new DragPlan(null, true, clip.Start, clip.End, track.Id, null, null, (clip.Start, "No aplica a imágenes fijas."));
+        }
+
+        return null;
     }
 
     /// <summary>Margen de un título: su origen virtual no tiene principio ni final (lo acota la extensión del núcleo).</summary>

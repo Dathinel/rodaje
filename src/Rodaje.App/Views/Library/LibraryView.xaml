@@ -27,6 +27,7 @@
                         PointerMoved="OnTilePointerMoved" PointerExited="OnTilePointerExited">
                     <Grid>
                         <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconHeroFontSize}" Foreground="{StaticResource TextMutedBrush}" Visibility="{x:Bind GlyphVisibility, Mode=OneWay}" />
+                        <Image Source="{x:Bind Checkerboard, Mode=OneWay}" Visibility="{x:Bind CheckerboardVisibility, Mode=OneWay}" Stretch="UniformToFill" />
                         <Image Source="{x:Bind Displayed, Mode=OneWay}" Stretch="UniformToFill" />
                         <Border Background="{StaticResource ScrimBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4"
                                 HorizontalAlignment="Left" VerticalAlignment="Bottom" Visibility="{x:Bind SubclipVisibility}">

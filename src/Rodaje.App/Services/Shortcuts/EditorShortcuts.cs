@@ -40,6 +40,7 @@ public static class ActionIds
     public const string NextFrame = "playback.nextFrame";
     public const string GoToStart = "playback.start";
     public const string GoToEnd = "playback.end";
+    public const string CaptureFrame = "playback.captureFrame";
 
     // Las registra el reproductor; aquí para que la vista esencial de la página de atajos las nombre.
     public const string ShuttleReverse = "playback.shuttleReverse";
@@ -128,6 +129,7 @@ public static partial class EditorShortcuts
         new(ActionIds.NextFrame, "Cuadro siguiente", ShortcutGroups.Playback, ["→"], classic: ["Alt+→"]) { ShortLabel = "Cuadro adelante", Repeats = true, Description = "Avanza una imagen; mantenla para seguir avanzando." },
         new(ActionIds.GoToStart, "Ir al inicio", ShortcutGroups.Playback, ["Inicio"]) { ShortLabel = "Inicio", Description = "Lleva el cursor al principio de la secuencia." },
         new(ActionIds.GoToEnd, "Ir al final", ShortcutGroups.Playback, ["Fin"]) { ShortLabel = "Final", Description = "Lleva el cursor al final del último clip." },
+        new(ActionIds.CaptureFrame, "Capturar fotograma", ShortcutGroups.Playback, ["Ctrl+Mayús+C"]) { ShortLabel = "Captura", Description = "Guarda de inmediato el fotograma actual como imagen PNG." },
 
         new(ActionIds.AddMarker, "Añadir marcador", ShortcutGroups.Timeline, ["M"]) { ShortLabel = "Marcador", Description = "Deja una marca en el cursor para volver a ese punto." },
         new(ActionIds.AddRegion, "Añadir región", ShortcutGroups.Timeline, ["R"], agile: []) { ShortLabel = "Región", Description = "Marca un tramo de la secuencia con nombre." },
