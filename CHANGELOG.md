@@ -38,7 +38,7 @@ Esta versión se centra en la estabilidad integral del motor de edición, la pre
 
 ### Añadido
 - **Menú Secuencia y Formato del proyecto:** Nuevo menú de nivel superior para ajustar propiedades de la secuencia activa, resolución y tasa de fotogramas sin depender de atajos ocultos.
-- **Ventana de Preferencias (`Ctrl+,`):** Diálogo centralizado para configurar carpetas de trabajo, caché de previsualización, límites de VRAM y comportamiento de autoguardado.
+- **Ventana de Preferencias (`Ctrl+,`):** Diálogo centralizado para configurar las pistas de los proyectos nuevos, las carpetas de medios generados y de capturas, los proxies, la calidad de la vista previa y el estilo de teclado.
 - **Acceso rápido a Reducción de ruido:** Integración directa en el menú contextual de clips de audio y en la barra de herramientas.
 - **Diagnóstico local de incidencias:** Informe de fallo en `%LOCALAPPDATA%\Rodaje\fallos\` ante cierres imprevistos, sin telemetría externa; al volver a abrir, la app avisa y deja copiar el informe.
 - **Edición de tres puntos en el menú Secuencia:** Insertar, Sobrescribir, Reemplazar, Ajustar a rellenar y Superponer desde el origen; además, Añadir pista de video y de audio y Cerrar todos los huecos.

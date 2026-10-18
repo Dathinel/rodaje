@@ -123,8 +123,7 @@
                 </MenuFlyoutSubItem>
                 <MenuFlyoutItem Text="Mezclador" Tag="view.mixer" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Pantalla completa" Tag="view.playerFullScreen" Click="OnActionClick" />
-                <MenuFlyoutItem x:Name="SecondScreenItem" Text="Visor en otra pantalla" Tag="view.secondScreen" Click="OnActionClick" />
-                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Visor en otra pantalla" Tag="view.secondScreen" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Acercar" Tag="timeline.zoomIn" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Alejar" Tag="timeline.zoomOut" Click="OnActionClick" />

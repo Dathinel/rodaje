@@ -10,7 +10,7 @@
                     <NumberBox x:Name="VideoTracksBox" Header="Pistas de video" Minimum="1" Maximum="8" SpinButtonPlacementMode="Inline" />
                     <NumberBox x:Name="AudioTracksBox" Grid.Column="1" Header="Pistas de audio" Minimum="1" Maximum="8" SpinButtonPlacementMode="Inline" />
                 </Grid>
-                <TextBlock Text="Separar el audio de estas pistas de video al importar" FontWeight="SemiBold" />
+                <TextBlock Text="Traer también el audio de los medios que caigan en estas pistas de video" FontWeight="SemiBold" />
                 <StackPanel x:Name="LinkedAudioTracksPanel" Spacing="4" />
                 <TextBlock Text="Duración por defecto de imágenes fijas" FontWeight="SemiBold" />
                 <NumberBox x:Name="StillImageDurationBox" Header="Segundos" Minimum="1" Maximum="60" SpinButtonPlacementMode="Inline" />
