@@ -17,4 +17,7 @@ public enum FramePixelFormat
 
     /// <summary>Tres planos de 16 bits con el dato en los 10 bits bajos (solo en CPU).</summary>
     Yuv420P10,
+
+    /// <summary>BGRA de 8 bits premultiplicado, para imágenes fijas.</summary>
+    Bgra8,
 }

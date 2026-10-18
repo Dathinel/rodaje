@@ -32,6 +32,7 @@ public sealed class WatchedFolderScanner
     {
         ".mp4", ".mkv", ".mov", ".m4v", ".webm", ".avi", ".mts", ".m2ts", ".ts", ".wmv", ".flv", ".3gp",
         ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus",
+        ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff",
     };
 
     private readonly Dictionary<string, long> _sizes = new(StringComparer.OrdinalIgnoreCase);

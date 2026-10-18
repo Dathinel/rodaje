@@ -83,9 +83,9 @@ public sealed class ProjectFormatFieldsContractTests
     public void SchemaVersion_vale_13_y_va_primero()
     {
         JsonObject root = Root();
-        Assert.Equal(13, Project.CurrentSchemaVersion);
+        Assert.Equal(14, Project.CurrentSchemaVersion);
         Assert.Equal("schemaVersion", root.First().Key);
-        Assert.Equal(13, (int)root["schemaVersion"]!);
+        Assert.Equal(14, (int)root["schemaVersion"]!);
         Assert.Equal(["schemaVersion", "id", "name", "media", "sequences"], root.Select(p => p.Key).Take(5));
     }
 
@@ -767,8 +767,8 @@ public sealed class ProjectFormatFieldsContractTests
     [Fact]
     public void Formato323_SchemaVersion_hoy_vale_13()
     {
-        Assert.Equal(13, Project.CurrentSchemaVersion);
-        Assert.Equal(13, (int)RoundTrip(Base())["schemaVersion"]!);
+        Assert.Equal(14, Project.CurrentSchemaVersion);
+        Assert.Equal(14, (int)RoundTrip(Base())["schemaVersion"]!);
     }
 
     // «es el primer dato que se lee y decide cómo se interpreta el resto»
@@ -1091,10 +1091,10 @@ public sealed class ProjectFormatFieldsContractTests
     public void Formato323_Ease_fuera_de_rango_se_rechaza(double x1, double y1, double x2, double y2)
     {
         JsonObject root = Base();
-        Clip(root)["effects"] = new JsonArray(Effect("rodaje.transform", JsonNode.Parse($$"""
+        Clip(root)["effects"] = new JsonArray(Effect("rodaje.transform", JsonNode.Parse(FormattableString.Invariant($$"""
             { "x": { "value": 0, "keyframes": [ { "time": 0, "value": 1, "interpolation": "bezier",
               "ease": { "x1": {{x1}}, "y1": {{y1}}, "x2": {{x2}}, "y2": {{y2}} } } ] } }
-            """)!.AsObject()));
+            """))!.AsObject()));
 
         Rejected(root);
     }

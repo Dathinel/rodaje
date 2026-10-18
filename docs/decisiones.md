@@ -528,3 +528,9 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
   - Zonas: biblioteca, 6 incongruencias y 575 428 tokens; inspector, 22 y 418 059; línea de tiempo, 7 y 549 571.
   - Diálogos y flujos de IA no dieron resultado: Gemini intentó ejecutar órdenes, que están prohibidas.
   - Todas las ejecuciones pasaron de los 300 000 tokens, porque Gemini relee los archivos. El tope sirve de aviso, no de límite real.
+
+## D-050. Imágenes fijas como medios de duración libre y formato 14 (18 de octubre de 2026)
+
+- **Decisión.** PNG, JPEG, WebP, BMP y TIFF entran como `MediaRef.IsStillImage`, con duración propia cero, sin tasa de cuadros ni audio. Los clips reciben 5 s desde `DefaultStillImageDuration`, preparado para Preferencias, y su origen virtual admite recortes sin límite de material. El formato 14 guarda el indicador; 13 → 14 conserva los medios anteriores como estaban.
+- **Motor.** La foto sigue el carril de video con sus transformaciones, efectos, máscaras, transiciones y keyframes en tiempo del origen virtual. Solo pide el cuadro 0; `VideoDecoder` lo decodifica y retiene una vez por lector abierto. La subida BGRA conserva el alfa y premultiplica el color una sola vez para filtrar sin halos; los shaders lo desmultiplican al aplicar efectos y componen sobre las pistas inferiores. No se generan ni usan proxies de video para fotos.
+- **Por qué.** Los generadores de títulos no representan archivos de la biblioteca. Mantener el medio y reutilizar el pipeline común evita otro compositor y sirve por igual a vista previa y exportación.

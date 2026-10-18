@@ -131,11 +131,18 @@ public static unsafe class MediaProbe
             MediaTags.Read(format->streams[videoIndex]->metadata, tags);
         }
 
+        string container = Marshal.PtrToStringUTF8((nint)format->iformat->name) ?? "";
+        if (video is { FrameCount: <= 1 } image && audio is null && MediaSupport.IsStillImageFormat(container, image.Codec))
+        {
+            video = image with { FrameCount = 1, Duration = Time.FromFrames(1, image.FrameRate) };
+            duration = Time.Zero;
+        }
+
         return new MediaInfo
         {
             Tags = MediaTags.Parse(tags),
             Path = path,
-            ContainerFormat = Marshal.PtrToStringUTF8((nint)format->iformat->name) ?? "",
+            ContainerFormat = container,
             Duration = duration,
             ContainerStartTime = containerStart,
             Video = video,

@@ -5,7 +5,7 @@ using DXGI_FORMAT = TerraFX.Interop.DirectX.DXGI_FORMAT;
 
 namespace Rodaje.Media.Video;
 
-/// <summary>Sube un cuadro decodificado en la CPU a una textura NV12 o P010, como las de D3D11VA.</summary>
+/// <summary>Sube video de CPU a NV12/P010, o una imagen fija a BGRA premultiplicado con alfa.</summary>
 /// <remarks>
 /// Así el renderizador tiene un solo camino de muestreo. La textura se redondea a dimensiones pares
 /// (requisito de NV12) repitiendo la última columna o fila. 4:2:0 y 4:2:2 planos se empaquetan directamente, en
@@ -18,6 +18,35 @@ internal sealed unsafe class FrameUploader : IDisposable
 
     public static bool CanUpload(GpuDevice device, AVFrame* frame) =>
         TargetIsTenBit(frame) ? device.SupportsP010Textures : device.SupportsNv12Textures;
+
+    public D3D11TexturePayload UploadImage(GpuDevice device, AVFrame* frame)
+    {
+        AVFrame* source = Convert(frame, AVPixelFormat.AV_PIX_FMT_BGRA);
+        try
+        {
+            // El filtro bilineal debe interpolar color premultiplicado: el RGB oculto por alfa cero no crea halos.
+            for (int y = 0; y < source->height; y++)
+            {
+                byte* row = source->data[0] + ((long)y * source->linesize[0]);
+                for (int x = 0; x < source->width; x++)
+                {
+                    byte* pixel = row + (x * 4);
+                    for (int c = 0; c < 3; c++)
+                    {
+                        pixel[c] = (byte)((pixel[c] * pixel[3] + 127) / 255);
+                    }
+                }
+            }
+
+            var texture = device.CreateTexture(DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM,
+                (uint)source->width, (uint)source->height, source->data[0], (uint)source->linesize[0]);
+            return D3D11TexturePayload.FromOwnedTexture(device, texture, source->width, source->height, VideoColor.Bt709Limited);
+        }
+        finally
+        {
+            ffmpeg.av_frame_unref(source);
+        }
+    }
 
     /// <summary>Sube el cuadro; <paramref name="color"/> dice cómo leer sus muestras y se ajusta si hay conversión.</summary>
     public D3D11TexturePayload Upload(GpuDevice device, AVFrame* frame, VideoColor color)

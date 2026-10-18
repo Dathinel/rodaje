@@ -215,7 +215,7 @@ public class CompoundTests
         Project read = ProjectSerializer.Deserialize(json);
 
         Assert.Contains("\"sequenceId\"", json, StringComparison.Ordinal);
-        Assert.Contains("\"schemaVersion\": 13", json, StringComparison.Ordinal);
+        Assert.Contains("\"schemaVersion\": 14", json, StringComparison.Ordinal);
         Assert.Equal(json, ProjectSerializer.Serialize(read));
     }
 

@@ -8,13 +8,13 @@ namespace Rodaje.Core.Editing;
 /// medio que falta o para actualizar el medio al volver a enlazarlo.
 /// </summary>
 public sealed record RelinkProbe(
-    Time Duration, bool HasVideo, bool HasAudio, Rational? FrameRate, int Width, int Height, int SampleRate, int AudioChannels)
+    Time Duration, bool HasVideo, bool HasAudio, Rational? FrameRate, int Width, int Height, int SampleRate, int AudioChannels, bool IsStillImage = false)
 {
     /// <summary>Los datos que el proyecto guarda de <paramref name="media"/>.</summary>
     public static RelinkProbe Of(MediaRef media)
     {
         ArgumentNullException.ThrowIfNull(media);
-        return new(media.Duration, media.HasVideo, media.HasAudio, media.FrameRate, media.Width, media.Height, media.SampleRate, media.AudioChannels);
+        return new(media.Duration, media.HasVideo, media.HasAudio, media.FrameRate, media.Width, media.Height, media.SampleRate, media.AudioChannels, media.IsStillImage);
     }
 
     /// <summary>Copia estos datos en el medio; la ruta, el nombre y el identificador no cambian.</summary>
@@ -22,6 +22,7 @@ public sealed record RelinkProbe(
     {
         ArgumentNullException.ThrowIfNull(media);
         media.Duration = Duration;
+        media.IsStillImage = IsStillImage;
         media.HasVideo = HasVideo;
         media.HasAudio = HasAudio;
         media.FrameRate = FrameRate;
@@ -38,7 +39,7 @@ public sealed record RelinkProbe(
     public bool Matches(RelinkProbe expected, Time durationTolerance)
     {
         ArgumentNullException.ThrowIfNull(expected);
-        if (HasVideo != expected.HasVideo || HasAudio != expected.HasAudio)
+        if (IsStillImage != expected.IsStillImage || HasVideo != expected.HasVideo || HasAudio != expected.HasAudio)
         {
             return false;
         }
@@ -95,7 +96,7 @@ public static class MediaRelinkEdits
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(media);
         ArgumentNullException.ThrowIfNull(probe);
-        if (probe.Duration <= Time.Zero)
+        if (!probe.IsStillImage && probe.Duration <= Time.Zero)
         {
             return "El archivo no tiene duración.";
         }
@@ -122,7 +123,7 @@ public static class MediaRelinkEdits
             }
         }
 
-        return probe.Duration < used
+        return !probe.IsStillImage && probe.Duration < used
             ? $"El archivo dura {probe.Duration.ToSeconds():0.##} s y los clips de «{media.Name}» usan hasta el segundo {used.ToSeconds():0.##}."
             : null;
     }

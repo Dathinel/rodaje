@@ -16,6 +16,8 @@ flowchart LR
 
 ## Cómo compone
 
+Las fotos llegan como texturas BGRA de 8 bits premultiplicadas. Las vistas se guardan en `PlaneViewCache`; el shader selecciona muestreo RGB mediante `range.x < 0`, conserva el alfa de la textura, desmultiplica el color para los efectos y lo premultiplica al mezclar. Desde ese muestreo usan las mismas transformaciones, máscaras, efectos y transiciones que los planos de video, también en exportación.
+
 - **Sin copias.** Los cuadros de D3D11VA son capas de un `Texture2DArray` del pool del decodificador, en el mismo dispositivo. [`PlaneViewCache`](../../src/Rodaje.Render/PlaneViewCache.cs) crea vistas de luma (R) y croma (RG) por textura y capa, y las suelta cuando su decodificador se cerró o tras 2 s sin uso (como mucho 512), porque una vista retiene el pool.
 - **Color.** `SampleRgb` aplica el rango y la matriz del cuadro:
   - [`YuvRange`](../../src/Rodaje.Render/YuvRange.cs) corrige que P010 leído como R16_UNORM devuelva código·64/65535;

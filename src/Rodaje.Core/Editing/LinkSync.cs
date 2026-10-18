@@ -296,7 +296,7 @@ public static class LinkSync
             MediaRef media = ctx.MediaOf(clip);
             Time sourceIn = clip.SourceIn - sync.Offset;
             Time sourceOut = clip.SourceOut - sync.Offset;
-            if (sourceIn < Time.Zero || sourceOut > media.Duration)
+            if (sourceIn < Time.Zero || (!media.IsStillImage && sourceOut > media.Duration))
             {
                 throw new EditException($"No hay material suficiente en «{media.Name}» para deslizarlo a su lugar: muévelo en vez de deslizarlo.");
             }

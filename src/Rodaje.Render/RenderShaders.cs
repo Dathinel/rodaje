@@ -27,7 +27,7 @@ internal static class RenderShaders
             float4 perPixelY;
         };
 
-        Texture2DArray<float> lumaPlane : register(t0);
+        Texture2DArray<float4> lumaPlane : register(t0);
         Texture2DArray<float2> chromaPlane : register(t1);
         SamplerState linearClamp : register(s0);
 
@@ -44,12 +44,31 @@ internal static class RenderShaders
         float3 SampleRgb(float2 uv)
         {
             uv += (limits.xy - limits.zw) * (1.0 / 512.0);
-            float y = lumaPlane.SampleLevel(linearClamp, float3(min(uv, limits.xy), 0), 0) * range.x + range.y;
-            float2 c = chromaPlane.SampleLevel(linearClamp, float3(min(uv, limits.zw), 0), 0) * range.z + range.w;
-            return saturate(float3(
-                y + toRgb.x * c.y,
-                y - toRgb.y * c.x - toRgb.z * c.y,
-                y + toRgb.w * c.x));
+            float4 pixel = lumaPlane.SampleLevel(linearClamp, float3(min(uv, limits.xy), 0), 0);
+            float3 rgb = pixel.a > 0 ? pixel.rgb / pixel.a : 0;
+            [branch] if (range.x >= 0)
+            {
+                float y = pixel.r * range.x + range.y;
+                float2 c = chromaPlane.SampleLevel(linearClamp, float3(min(uv, limits.zw), 0), 0) * range.z + range.w;
+                rgb = saturate(float3(
+                    y + toRgb.x * c.y,
+                    y - toRgb.y * c.x - toRgb.z * c.y,
+                    y + toRgb.w * c.x));
+            }
+
+            return rgb;
+        }
+
+        float SourceAlpha(float2 uv)
+        {
+            float alpha = 1;
+            [branch] if (range.x < 0)
+            {
+                uv += (limits.xy - limits.zw) * (1.0 / 512.0);
+                alpha = lumaPlane.SampleLevel(linearClamp, float3(min(uv, limits.xy), 0), 0).a;
+            }
+
+            return alpha;
         }
 
         // uv y local desde SV_Position y no interpoladas: WARP recorta en el viewport el cuadrilátero que se sale y los
@@ -99,7 +118,7 @@ internal static class RenderShaders
         {
             i = Exact(i);
             float3 rgb = SampleRgb(i.uv);
-            float alpha = shape.x * EdgeCoverage(i.local);
+            float alpha = shape.x * EdgeCoverage(i.local) * SourceAlpha(i.uv);
             return float4(rgb * alpha, alpha);
         }
 

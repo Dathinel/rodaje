@@ -12,7 +12,7 @@ public sealed record MediaInfo
     /// <summary>Nombre del contenedor según FFmpeg, por ejemplo <c>mov,mp4,m4a,3gp,3g2,mj2</c>.</summary>
     public required string ContainerFormat { get; init; }
 
-    /// <summary>Duración contada desde el origen del medio (el primer cuadro de video, o la primera muestra de audio).</summary>
+    /// <summary>Duración desde el origen del medio; cero en una imagen fija, que no tiene duración propia.</summary>
     public required Time Duration { get; init; }
 
     /// <summary><c>start_time</c> del contenedor; la reproducción lo normaliza a cero.</summary>
@@ -25,6 +25,10 @@ public sealed record MediaInfo
     /// <summary>Fecha de grabación y cámara, si el archivo las trae.</summary>
     public MediaTags Tags { get; init; } = MediaTags.None;
 
+    /// <summary>Archivo de imagen admitido, sin animación ni audio; su cuadro se reutiliza durante todo el clip.</summary>
+    public bool IsStillImage => Video is { FrameCount: <= 1 } video && !HasAudio
+        && MediaSupport.IsStillImageFormat(ContainerFormat, video.Codec);
+
     public bool HasVideo => Video is not null;
 
     public bool HasAudio => Audio is not null;
@@ -36,10 +40,11 @@ public sealed record MediaInfo
     public void ApplyTo(MediaRef media)
     {
         ArgumentNullException.ThrowIfNull(media);
-        media.Duration = Duration;
+        media.Duration = IsStillImage ? Time.Zero : Duration;
+        media.IsStillImage = IsStillImage;
         media.HasVideo = HasVideo;
         media.HasAudio = HasAudio;
-        media.FrameRate = Video?.FrameRate;
+        media.FrameRate = IsStillImage ? null : Video?.FrameRate;
         media.Width = Video?.DisplayWidth ?? 0;
         media.Height = Video?.DisplayHeight ?? 0;
         media.SampleRate = Audio?.SampleRate ?? 0;
