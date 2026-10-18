@@ -343,10 +343,9 @@ public sealed class ClipDrag
         Time high = Time.FromTicks(long.MaxValue / 4);
         foreach ((Track t, Clip c) in members)
         {
-            Time mediaDuration = c.IsCompound ? CompoundOps.SourceLimit(project, c) : project.FindMedia(c.MediaId)?.Duration ?? c.SourceOut;
             if (edge == TrimEdge.In)
             {
-                low = Time.Max(low, -Room(c, TrimEdge.In, mediaDuration));
+                low = Time.Max(low, -Room(project, c, TrimEdge.In));
                 high = Time.Min(high, c.Duration - frame);
                 if (!ripple)
                 {
@@ -360,7 +359,7 @@ public sealed class ClipDrag
             else
             {
                 low = Time.Max(low, frame - c.Duration);
-                high = Time.Min(high, Room(c, TrimEdge.Out, mediaDuration));
+                high = Time.Min(high, Room(project, c, TrimEdge.Out));
                 if (!ripple && Next(t, c) is { } next)
                 {
                     high = Time.Min(high, next.Start - c.End);
@@ -563,10 +562,10 @@ public sealed class ClipDrag
         foreach ((Track t, Clip c) in Members(sequence, track, clip))
         {
             low = Time.Max(low, frame - c.Duration);
-            high = Time.Min(high, Room(c, TrimEdge.Out, MediaDuration(project, c)));
+            high = Time.Min(high, Room(project, c, TrimEdge.Out));
             if (Next(t, c) is { } next && next.Start == c.End)
             {
-                low = Time.Max(low, -Room(next, TrimEdge.In, MediaDuration(project, next)));
+                low = Time.Max(low, -Room(project, next, TrimEdge.In));
                 high = Time.Min(high, next.Duration - frame);
             }
             else if (Next(t, c) is { } gap)
@@ -612,7 +611,7 @@ public sealed class ClipDrag
             if (previous is not null && previous.End == c.Start)
             {
                 low = Time.Max(low, frame - previous.Duration);
-                high = Time.Min(high, Room(previous, TrimEdge.Out, MediaDuration(project, previous)));
+                high = Time.Min(high, Room(project, previous, TrimEdge.Out));
             }
             else
             {
@@ -622,7 +621,7 @@ public sealed class ClipDrag
             Clip? next = Next(t, c);
             if (next is not null && next.Start == c.End)
             {
-                low = Time.Max(low, -Room(next, TrimEdge.In, MediaDuration(project, next)));
+                low = Time.Max(low, -Room(project, next, TrimEdge.In));
                 high = Time.Min(high, next.Duration - frame);
             }
             else if (next is not null)
@@ -653,6 +652,9 @@ public sealed class ClipDrag
             : () => Edits.Slide(_sequenceId, _clipId, d, _ids);
         return new DragPlan(build, true, clip.Start + delta, clip.End + delta, track.Id, guide, null, balloon);
     }
+
+    private static Time Room(Project project, Clip clip, TrimEdge edge) =>
+        project.FindMedia(clip.MediaId)?.IsStillImage == true ? GeneratorRoom : Room(clip, edge, MediaDuration(project, clip));
 
     private static Time MediaDuration(Project project, Clip clip) =>
         clip.IsCompound ? CompoundOps.SourceLimit(project, clip) : project.FindMedia(clip.MediaId)?.Duration ?? clip.SourceOut;

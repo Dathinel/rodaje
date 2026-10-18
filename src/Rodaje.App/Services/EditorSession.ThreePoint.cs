@@ -210,7 +210,7 @@ public sealed partial class EditorSession
     }
 
     /// <summary>La duración de lo que muestra el reproductor: el medio del origen o la secuencia.</summary>
-    private Time PlaybackDuration => IsSourceActive && SourceMedia is { } media ? media.Duration : Sequence.Duration;
+    private Time PlaybackDuration => IsSourceActive && SourceMedia is { } media ? media.InitialClipDuration : Sequence.Duration;
 
     private string PlaybackSequenceId => IsSourceActive ? SourceSequenceId : SequenceId;
 
@@ -242,7 +242,7 @@ public sealed partial class EditorSession
             }
             else
             {
-                SourceOut = Time.Min(media.Duration, at + Time.FromFrames(1, rate));
+                SourceOut = Time.Min(media.InitialClipDuration, at + Time.FromFrames(1, rate));
             }
         }
         else
@@ -291,7 +291,7 @@ public sealed partial class EditorSession
     }
 
     private static Clip SourceClip(MediaRef media, string kind) =>
-        new() { Id = $"{SourceSequenceId}-{kind}-clip", MediaId = media.Id, SourceIn = Time.Zero, SourceOut = media.Duration, Start = Time.Zero };
+        new() { Id = $"{SourceSequenceId}-{kind}-clip", MediaId = media.Id, SourceIn = Time.Zero, SourceOut = media.InitialClipDuration, Start = Time.Zero };
 
     /// <summary>Al cambiar de proyecto o de secuencia vuelve el programa; el origen se olvida si su medio ya no está.</summary>
     private void ResetSource(bool forget)

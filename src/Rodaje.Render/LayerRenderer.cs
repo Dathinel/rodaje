@@ -120,7 +120,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     public D3D11TexturePayload? Usable(LayerFrame layer)
     {
         if (layer.Frame.Payload is not D3D11TexturePayload payload || payload.IsReleased
-            || payload.PixelFormat is not (FramePixelFormat.Nv12 or FramePixelFormat.P010))
+            || payload.PixelFormat is not (FramePixelFormat.Nv12 or FramePixelFormat.P010 or FramePixelFormat.Bgra8))
         {
             return null;
         }
@@ -607,6 +607,10 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         QuadConstants constants = PlacedQuad(placement, VideoLayout.Crop(VideoLayout.Corners(geometry.Rotation, uMax, vMax), geometry.Crop), opacity,
             sequenceWidth, sequenceHeight, pixelScale);
         constants.Range = new(range.LumaScale, range.LumaBias, range.ChromaScale, range.ChromaBias);
+        if (payload.PixelFormat == FramePixelFormat.Bgra8)
+        {
+            constants.Range = new(-1, 0, 0, 0);
+        }
         constants.ToRgb = new(toRgb.RedFromCr, toRgb.GreenFromCb, toRgb.GreenFromCr, toRgb.BlueFromCb);
         constants.Limits = new(
             (payload.Width - 0.5f) / payload.CodedWidth,

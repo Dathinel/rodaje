@@ -24,9 +24,14 @@ public static partial class ModelValidator
         foreach (MediaRef media in project.Media)
         {
             checkId(media.Id, "un medio");
-            if (media.Duration <= Time.Zero)
+            if (!media.IsStillImage && media.Duration <= Time.Zero)
             {
                 errors.Add($"El medio «{media.Id}» tiene una duración no positiva.");
+            }
+
+            if (media.IsStillImage && (media.Duration != Time.Zero || !media.HasVideo || media.HasAudio || media.FrameRate is not null))
+            {
+                errors.Add($"La imagen fija «{media.Id}» debe tener duración cero, imagen, sin audio ni tasa de cuadros.");
             }
 
             // Una ruta más larga de lo que admite Windows no se rechaza (la v1.0.0 la guardaba): el medio queda sin archivo.
@@ -157,7 +162,7 @@ public static partial class ModelValidator
                 }
                 else
                 {
-                    if (clip.SourceOut > media.Duration)
+                    if (!media.IsStillImage && clip.SourceOut > media.Duration)
                     {
                         errors.Add($"{where} termina en {clip.SourceOut} y el medio solo dura {media.Duration}.");
                     }
@@ -174,7 +179,7 @@ public static partial class ModelValidator
                 }
 
                 // Un generador tiene un origen virtual sin límites: recortar su inicio puede dejar el punto de entrada negativo.
-                if (clip.SourceIn < Time.Zero && clip.Generator is null)
+                if (clip.SourceIn < Time.Zero && clip.Generator is null && media?.IsStillImage != true)
                 {
                     errors.Add($"{where} tiene un punto de entrada negativo.");
                 }

@@ -41,7 +41,7 @@ public static class TimelinePlanning
         ArgumentNullException.ThrowIfNull(sequence);
         ArgumentNullException.ThrowIfNull(media);
         ArgumentNullException.ThrowIfNull(options);
-        if (row is null || media.Duration <= Time.Zero)
+        if (row is null || media.InitialClipDuration <= Time.Zero)
         {
             return null;
         }
@@ -62,7 +62,7 @@ public static class TimelinePlanning
         }
 
         // Un subclip trae su tramo; un medio entra entero.
-        (Time sourceIn, Time sourceOut) = range is { } r && r.Out > r.In && r.In >= Time.Zero && r.Out <= media.Duration ? r : (Time.Zero, media.Duration);
+        (Time sourceIn, Time sourceOut) = range is { } r && r.Out > r.In && r.In >= Time.Zero && (media.IsStillImage || r.Out <= media.Duration) ? r : (Time.Zero, media.InitialClipDuration);
         Time duration = sourceOut - sourceIn;
         Time at = position.SnapToFrame(sequence.FrameRate);
         if (options.Snapping)

@@ -5,7 +5,7 @@ using static Rodaje.Render.RenderException;
 
 namespace Rodaje.Render;
 
-/// <summary>Vistas Y y UV de una capa de textura NV12 o P010.</summary>
+/// <summary>Vistas de una capa NV12/P010 o BGRA; en BGRA solo se muestrea la primera.</summary>
 internal readonly unsafe struct PlaneViews(ID3D11ShaderResourceView* luma, ID3D11ShaderResourceView* chroma)
 {
     public ID3D11ShaderResourceView* Luma { get; } = luma;
@@ -41,7 +41,7 @@ internal sealed unsafe class PlaneViewCache(ID3D11Device* device, TimeProvider? 
     /// <summary>Vistas para <paramref name="payload"/>; <paramref name="owned"/> indica que quien llama debe liberarlas.</summary>
     public PlaneViews Get(D3D11TexturePayload payload, out bool owned)
     {
-        if (!payload.IsDecoderSurface)
+        if (!payload.IsDecoderSurface && payload.PixelFormat != FramePixelFormat.Bgra8)
         {
             owned = true;
             return Create(payload);
@@ -116,6 +116,7 @@ internal sealed unsafe class PlaneViewCache(ID3D11Device* device, TimeProvider? 
     public void Dispose() => Clear();
     private static (DXGI_FORMAT Luma, DXGI_FORMAT Chroma) PlaneFormats(FramePixelFormat format) => format switch
     {
+        FramePixelFormat.Bgra8 => (DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM),
         FramePixelFormat.P010 => (DXGI_FORMAT.DXGI_FORMAT_R16_UNORM, DXGI_FORMAT.DXGI_FORMAT_R16G16_UNORM),
         _ => (DXGI_FORMAT.DXGI_FORMAT_R8_UNORM, DXGI_FORMAT.DXGI_FORMAT_R8G8_UNORM),
     };

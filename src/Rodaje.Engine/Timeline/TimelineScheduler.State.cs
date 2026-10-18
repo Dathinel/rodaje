@@ -91,6 +91,8 @@ internal sealed partial class TimelineScheduler
 
     private sealed class MediaState(int id, SourceKey key, Rational frameRate, int displayWidth, int displayHeight)
     {
+        public bool IsStillImage { get; init; }
+
         public int Id { get; } = id;
 
         public SourceKey Key { get; } = key;

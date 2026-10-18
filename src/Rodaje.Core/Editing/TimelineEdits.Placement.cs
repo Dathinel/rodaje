@@ -343,7 +343,7 @@ public static partial class TimelineEdits
             throw new EditException("El punto de salida tiene que ir después del punto de entrada.");
         }
 
-        if (sourceOut > media.Duration)
+        if (!media.IsStillImage && sourceOut > media.Duration)
         {
             throw new EditException(
                 $"El punto de salida ({sourceOut}) pasa el final de «{media.Name}», que dura {media.Duration}.");

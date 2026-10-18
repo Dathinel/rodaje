@@ -344,8 +344,8 @@ public sealed partial class EditorSession
             return false;
         }
 
-        Time from = sourceIn is { } a && a >= Time.Zero && a < media.Duration ? a : Time.Zero;
-        Time to = sourceOut is { } b && b > from && b <= media.Duration ? b : media.Duration;
+        Time from = sourceIn is { } a && a >= Time.Zero && (media.IsStillImage || a < media.Duration) ? a : Time.Zero;
+        Time to = sourceOut is { } b && b > from && (media.IsStillImage || b <= media.Duration) ? b : media.InitialClipDuration;
 
         Sequence sequence = Sequence;
         string? videoTrack = media.HasVideo ? sequence.VideoTracks.FirstOrDefault()?.Id : null;
@@ -502,7 +502,7 @@ public sealed partial class EditorSession
     private bool AdoptFormatIfEmpty(MediaInfo info)
     {
         Sequence sequence = Sequence;
-        if (info.Video is not { } video || KeepsTemplateFormat || Project.Media.Count > 0 || sequence.AllTracks.Any(t => t.Clips.Count > 0))
+        if (info.IsStillImage || info.Video is not { } video || KeepsTemplateFormat || Project.Media.Count > 0 || sequence.AllTracks.Any(t => t.Clips.Count > 0))
         {
             return false;
         }

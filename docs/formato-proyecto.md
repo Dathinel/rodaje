@@ -1,6 +1,6 @@
 # Formato de proyecto `.rodaje`
 
-Un proyecto de Rodaje se guarda en un archivo con extensión `.rodaje`. Es texto JSON en UTF-8, sin marca BOM, indentado con dos espacios y con saltos de línea LF. Se eligió JSON legible y no un formato binario por dos razones: el proyecto es el trabajo de quien edita y debe poder abrirse, revisarse e incluso repararse con un editor de texto, y otros programas (un editor de audio, herramientas en Python) deben poder leer y escribir el mismo proyecto sin depender del código de Rodaje. Por eso este documento describe el formato completo, con sus reglas, y junto a él se publica un esquema JSON en `schema/rodaje-proyecto.v13.schema.json` (los de las versiones 1 a 10 se conservan para los archivos viejos) que cualquier validador del estándar draft 2020-12 entiende.
+Un proyecto de Rodaje se guarda en un archivo con extensión `.rodaje`. Es texto JSON en UTF-8, sin marca BOM, indentado con dos espacios y con saltos de línea LF. Se eligió JSON legible y no un formato binario por dos razones: el proyecto es el trabajo de quien edita y debe poder abrirse, revisarse e incluso repararse con un editor de texto, y otros programas (un editor de audio, herramientas en Python) deben poder leer y escribir el mismo proyecto sin depender del código de Rodaje. Por eso este documento describe el formato completo, con sus reglas, y junto a él se publica un esquema JSON en `schema/rodaje-proyecto.v14.schema.json` (los de las versiones 1 a 13 se conservan para los archivos viejos) que cualquier validador del estándar draft 2020-12 entiende.
 
 El archivo nunca contiene video, audio ni imágenes. Solo guarda dónde están los archivos de origen y cómo se usan, de modo que editar jamás modifica el material original y un proyecto pesa unos pocos kilobytes.
 
@@ -18,7 +18,7 @@ El siguiente archivo es un proyecto real y válido. Tiene una toma de video de 1
 
 ```json
 {
-  "schemaVersion": 13,
+  "schemaVersion": 14,
   "id": "project-6c1f0a2e",
   "name": "Paseo en bicicleta",
   "media": [
@@ -42,7 +42,8 @@ El siguiente archivo es un proyecto real y válido. Tiene una toma de video de 1
       "id": "media-2",
       "path": "fotos/montaña.jpg",
       "name": "montaña",
-      "duration": 2540160000000,
+      "duration": 0,
+      "isStillImage": true,
       "hasVideo": true,
       "hasAudio": false,
       "frameRate": null,
@@ -192,7 +193,7 @@ Leído en voz alta, el ejemplo dice lo siguiente. La toma dura 300 cuadros a 29,
 
 ## Qué significa cada campo
 
-La raíz del archivo es el proyecto. `schemaVersion` es la versión del formato y hoy vale 13; es el primer dato que se lee y decide cómo se interpreta el resto. `id` identifica al proyecto y `name` es el nombre que ve quien edita. `media` es la biblioteca de medios y `sequences` son las líneas de tiempo, que pueden ser varias, por ejemplo una horizontal y otra vertical del mismo material.
+La raíz del archivo es el proyecto. `schemaVersion` es la versión del formato y hoy vale 14; es el primer dato que se lee y decide cómo se interpreta el resto. `id` identifica al proyecto y `name` es el nombre que ve quien edita. `media` es la biblioteca de medios y `sequences` son las líneas de tiempo, que pueden ser varias, por ejemplo una horizontal y otra vertical del mismo material.
 
 Cada medio describe un archivo de origen. `path` es su ruta; se prefiere relativa a la carpeta donde está el `.rodaje`, para que el proyecto se pueda mover junto con su material a otro PC, aunque se aceptan rutas absolutas. Se admiten tanto `/` como `\` como separador. `name` es el nombre visible, `duration` la duración total del archivo en ticks, `hasVideo` y `hasAudio` dicen qué contiene, `frameRate` es la tasa de su video o `null` si no tiene (una imagen fija o un archivo de solo audio), `width` y `height` son las dimensiones de la imagen en píxeles y `sampleRate` y `audioChannels` describen su sonido. Los campos que no aplican valen 0.
 
@@ -427,3 +428,5 @@ Al volver a guardar, Rodaje siempre escribe la versión actual, así que un proy
 Un corte de luz a mitad de una escritura puede dejar un archivo cortado. Por eso Rodaje nunca escribe directamente sobre el proyecto. Primero escribe el contenido completo en un archivo temporal con el mismo nombre y la terminación `.tmp` (`Mi proyecto.rodaje.tmp`), en la misma carpeta, y le pide al sistema que lo lleve físicamente al disco antes de seguir. Solo entonces lo cambia por el proyecto. Si el proyecto ya existía, el cambio se hace con una operación de reemplazo de Windows que deja la versión anterior como `Mi proyecto.rodaje.bak`; si no existía, el temporal simplemente se renombra. Se corte cuando se corte, en disco queda la versión anterior completa o la nueva completa, nunca una mezcla.
 
 Si alguna vez un proyecto no abre porque está dañado, la copia `.bak` contiene el guardado anterior: basta con hacer una copia de ella, quitarle la terminación `.bak` y abrirla. Un `.tmp` que quede en la carpeta es el resto de un guardado interrumpido; no hace falta borrarlo, porque el siguiente guardado lo reemplaza. Otros programas que escriban archivos `.rodaje` deberían seguir el mismo procedimiento.
+
+En el formato 14, `MediaRef.isStillImage` distingue PNG, JPEG, WebP, BMP y TIFF de los videos. Su `duration` vale 0, `frameRate` es nulo y no tienen audio. Sus clips empiezan con 5 s por defecto; `sourceIn` y `sourceOut` describen un origen virtual sin límite de material (también permite entrada negativa al alargar por la izquierda). Los keyframes siguen ese tiempo virtual, pero la imagen siempre es el cuadro 0. La migración 13 → 14 solo cambia la versión: los medios anteriores conservan sus metadatos y el indicador nuevo vale falso.

@@ -187,7 +187,7 @@ public sealed class PlaybackScheduler : IDisposable
             }
 
             Time sourceTime = Timing.ToSource(Timing.Clamp(position));
-            long target = sourceTime.ToFrames(Timing.FrameRate);
+            long target = Timing.FrameAt(position);
             post = MoveWindow(target);
 
             if (_current?.Index != target)
@@ -241,7 +241,7 @@ public sealed class PlaybackScheduler : IDisposable
                 _late++;
             }
 
-            if (running && _current is not null)
+            if (running && _current is not null && !Timing.IsStillImage)
             {
                 Time offset = sourceTime - _current.Pts;
                 _maxOffset = Time.Max(_maxOffset, offset < Time.Zero ? -offset : offset);

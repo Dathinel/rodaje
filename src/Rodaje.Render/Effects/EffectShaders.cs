@@ -369,6 +369,7 @@ internal static class EffectShaders
             else
             {
                 rgb = SampleRgb(i.uv);
+                sourceAlpha = SourceAlpha(i.uv);
             }
         #if ADVANCED
             [branch] if (extra.x > 0.5)

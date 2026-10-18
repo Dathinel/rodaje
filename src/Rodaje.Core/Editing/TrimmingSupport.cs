@@ -91,7 +91,7 @@ internal static class TrimmingSupport
             }
 
             // Un generador no tiene archivo: su origen virtual no tiene principio ni final.
-            if (plan.Clip.Generator is null)
+            if (plan.Clip.Generator is null && (plan.Clip.IsCompound || !ctx.MediaOf(plan.Clip).IsStillImage))
             {
                 if (map.SourceIn < Time.Zero)
                 {

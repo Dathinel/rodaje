@@ -39,6 +39,7 @@ public sealed unsafe class D3D11TexturePayload : IDisposable
         {
             DXGI_FORMAT.DXGI_FORMAT_NV12 => FramePixelFormat.Nv12,
             DXGI_FORMAT.DXGI_FORMAT_P010 => FramePixelFormat.P010,
+            DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM => FramePixelFormat.Bgra8,
             _ => FramePixelFormat.Other,
         };
         CodedWidth = (int)desc.Width;
@@ -55,7 +56,7 @@ public sealed unsafe class D3D11TexturePayload : IDisposable
 
     public int ArraySlice { get; }
 
-    /// <summary>Valor de <c>DXGI_FORMAT</c>: 103 (NV12) o 104 (P010).</summary>
+    /// <summary>Valor de <c>DXGI_FORMAT</c>: 103 (NV12), 104 (P010) o 87 (BGRA).</summary>
     public int DxgiFormat { get; }
 
     public FramePixelFormat PixelFormat { get; }

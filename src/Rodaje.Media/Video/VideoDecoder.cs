@@ -62,6 +62,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private AVFrame* _held;
     private AVFrame* _pending;
     private FrameUploader? _uploader;
+    private DecodedFrame? _stillFrame;
     private DecoderSurfacePool? _surfacePool;
 
     private bool _hasHeld;
@@ -198,6 +199,15 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
         try
         {
+            if (Info.IsStillImage)
+            {
+                frameIndex = 0;
+                if (_stillFrame is { } cached && cached.TryRetain())
+                {
+                    return cached;
+                }
+            }
+
             if (_codec == null)
             {
                 ReopenCodec();
@@ -271,6 +281,8 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
     public void Dispose()
     {
+        _stillFrame?.Dispose();
+        _stillFrame = null;
         if (_format == null)
         {
             return;
@@ -1003,9 +1015,9 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
                 payload = texture;
                 sizeBytes = TextureBytes(texture);
             }
-            else if (_device is not null && _uploader is not null && FrameUploader.CanUpload(_device, clone))
+            else if (_device is not null && _uploader is not null && (Info.IsStillImage || FrameUploader.CanUpload(_device, clone)))
             {
-                D3D11TexturePayload texture = _uploader.Upload(_device, clone, color);
+                D3D11TexturePayload texture = Info.IsStillImage ? _uploader.UploadImage(_device, clone) : _uploader.Upload(_device, clone, color);
                 payload = texture;
                 sizeBytes = TextureBytes(texture);
             }
@@ -1029,11 +1041,18 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
         Time pts = Time.FromFrames(frameIndex, FrameRate);
         Time next = Time.FromFrames(frameIndex + 1, FrameRate);
-        return new DecodedFrame(frameIndex, pts, next - pts, payload, sizeBytes);
+        var result = new DecodedFrame(frameIndex, pts, next - pts, payload, sizeBytes);
+        if (Info.IsStillImage)
+        {
+            result.TryRetain();
+            _stillFrame = result;
+        }
+
+        return result;
     }
 
     private static long TextureBytes(D3D11TexturePayload texture) =>
-        (long)texture.CodedWidth * texture.CodedHeight * (texture.PixelFormat == FramePixelFormat.P010 ? 2 : 1) * 3 / 2;
+        (long)texture.CodedWidth * texture.CodedHeight * (texture.PixelFormat == FramePixelFormat.Bgra8 ? 8 : texture.PixelFormat == FramePixelFormat.P010 ? 6 : 3) / 2;
 }
 
 /// <summary>Contadores acumulados de un <see cref="VideoDecoder"/>.</summary>
