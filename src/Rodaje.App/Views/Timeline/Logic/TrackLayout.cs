@@ -98,4 +98,45 @@ public sealed class TrackLayout
     public TrackRow? RowStrictlyAt(double y) => _rows.Find(r => y >= r.Top && y < r.Bottom);
 
     public TrackRow? Find(string trackId) => _rows.Find(r => r.TrackId == trackId);
+
+    /// <summary>La posición de la pista en la lista de su tipo (en video, 0 es la principal, la de más abajo).</summary>
+    public int IndexInKind(string trackId)
+    {
+        if (Find(trackId) is not { } row)
+        {
+            return -1;
+        }
+
+        List<TrackRow> kind = _rows.FindAll(r => r.Kind == row.Kind);
+        int shown = kind.IndexOf(row);
+        return row.Kind == TrackKind.Video ? kind.Count - 1 - shown : shown;
+    }
+
+    /// <summary>
+    /// Adónde iría la pista arrastrada con el puntero en <paramref name="y"/>: su posición nueva en la lista de su tipo y
+    /// la y de la línea que lo indica. Solo entre las de su tipo y nunca por debajo de la principal.
+    /// </summary>
+    public (int Index, double LineY)? ReorderSlot(string trackId, double y)
+    {
+        if (Find(trackId) is not { } row)
+        {
+            return null;
+        }
+
+        List<TrackRow> others = _rows.FindAll(r => r.Kind == row.Kind && r != row);
+        if (others.Count == 0)
+        {
+            return null;
+        }
+
+        int slot = others.Count(r => (r.Top + r.Bottom) / 2 < y);
+        if (others[^1].IsMain)
+        {
+            slot = Math.Min(slot, others.Count - 1);
+        }
+
+        double lineY = slot == 0 ? others[0].Top - (RowGap / 2) : others[slot - 1].Bottom + (RowGap / 2);
+        int index = row.Kind == TrackKind.Video ? others.Count - slot : slot;
+        return (index, lineY);
+    }
 }

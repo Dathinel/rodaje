@@ -290,10 +290,22 @@ public sealed class ClipDrag
 
         string? destination = target == track ? null : target.Id;
         Time start = desired;
+        bool relocate = destination is not null && target.Kind == TrackKind.Video && clip.LinkId is not null && !_options.IgnoreGroups;
         Func<ICommand> move = _options.IgnoreGroups && clip.LinkId is not null
             ? () => Solo("Mover clip", _sequenceId, _clipId, ctx => TimelineEdits.Move(ctx, _clipId, start, destination, PlacementMode.Strict), $"move-solo:{_clipId}", _ids)
-            : () => Edits.Move(_sequenceId, _clipId, start, destination, PlacementMode.Strict, _ids);
-        return new DragPlan(move, true, desired, desired + duration, target.Id, guide, null);
+            : () => Edits.Move(_sequenceId, _clipId, start, destination, PlacementMode.Strict, _ids, relocate);
+
+        // Si el sonido tiene que cambiar de pista, solo al soltar: en vivo se quedaría en la nueva aunque el clip volviera.
+        bool live = !relocate || !LinkedAudioCollides(sequence, clip, start - clip.Start);
+        return new DragPlan(move, live, desired, desired + duration, target.Id, guide, null);
+    }
+
+    private static bool LinkedAudioCollides(Sequence sequence, Clip clip, Time delta)
+    {
+        List<(Track Track, Clip Clip)> group = sequence.GetLinkGroup(clip.Id);
+        var members = new HashSet<Clip>(group.Select(g => g.Clip));
+        return group.Exists(g => g.Track.Kind == TrackKind.Audio
+            && g.Track.Clips.Exists(c => !members.Contains(c) && c.Start < g.Clip.End + delta && c.End > g.Clip.Start + delta));
     }
 
     /// <summary>Saca el clip de la pista magnética a otra y cierra el hueco que deja, con sus enlazados.</summary>
@@ -318,7 +330,7 @@ public sealed class ClipDrag
 
             try
             {
-                TimelineEdits.Move(ctx, _clipId, start, targetTrackId, PlacementMode.Strict);
+                TimelineEdits.Move(ctx, _clipId, start, targetTrackId, PlacementMode.Strict, relocateLinkedAudio: true);
             }
             finally
             {

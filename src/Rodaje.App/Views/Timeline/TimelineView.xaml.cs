@@ -118,6 +118,11 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _headers.HeightChanging += OnTrackHeightChanging;
         _headers.HeightCommitted += _ => OnTrackGainCommitted("");
         _headers.CloseGapsRequested += trackId => Session?.CloseAllGaps([trackId]);
+        _headers.TrackSelected += OnTrackHeaderSelected;
+        _headers.DeleteRequested += DeleteTrack;
+        _headers.StepRequested += (trackId, up) => Session?.StepTrack(trackId, up);
+        _headers.ReorderRequested += (trackId, index) => Session?.ReorderTrack(trackId, index);
+        _headers.CanStep = (trackId, up) => Session is { } s && Rodaje.Core.Editing.TimelineEdits.CanStepTrack(s.Sequence, trackId, up);
         _headers.SubtitleTrackRequested += () => Session?.AddSubtitleTrack();
         _headers.SubtitleRoleRequested += (trackId, subtitles) => Session?.SetSubtitleRole(trackId, subtitles);
         _headers.VoiceOverRequested += trackId => Voice.VoiceCommands.RecordVoiceOver(services, trackId);
@@ -309,7 +314,40 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         RefreshContextBar();
     }
 
-    private void OnSelectionChanged() => Invalidate(content: true);
+    private void OnSelectionChanged()
+    {
+        if (Session is { } session && (session.SelectedClipIds.Count > 0 || session.SelectedTransitionId is not null))
+        {
+            _headers?.Select(null);
+        }
+
+        Invalidate(content: true);
+    }
+
+    private void OnTrackHeaderSelected(string trackId)
+    {
+        TakeKeyboardFocus(FocusState.Pointer);
+        Session?.ClearSelection();
+        _headers?.Select(trackId);
+    }
+
+    private void DeleteTrack(string trackId)
+    {
+        if (Session is { } session)
+        {
+            UiTask.Run(session.DeleteTrackAsync(trackId));
+        }
+    }
+
+    /// <summary>
+    /// Supr con una cabecera seleccionada, la línea de tiempo con el foco y ningún clip ni transición: eliminar esa pista
+    /// (no la principal). Con el foco en otro panel, Supr no borra una pista que se tocó hace rato.
+    /// </summary>
+    private bool CanDeleteSelectedTrack() =>
+        FocusState != FocusState.Unfocused && Session is { } session && _headers?.SelectedTrackId is { } trackId
+        && session.SelectedClipIds.Count == 0 && session.SelectedTransitionId is null
+        && session.Sequence.FindTrack(trackId) is { Locked: false } track
+        && !Rodaje.Core.Editing.TimelineEdits.IsMainTrack(session.Sequence, track);
 
     private void OnVisualsChanged(object? sender, ClipVisualsChangedEventArgs e) =>
         DispatcherQueue.RunLater(() => Invalidate(content: true));
@@ -514,6 +552,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         router.Bind(ActionIds.AddRegion, AddRegion);
         router.Bind(ActionIds.ZoomToFit, ZoomToFit);
         router.Bind(ActionIds.ZoomToSelection, ZoomToSelection, () => Session is not null && SelectionSpan() is not null);
+        router.Bind(ActionIds.Delete, () => DeleteTrack(_headers!.SelectedTrackId!), CanDeleteSelectedTrack);
         RegisterCompoundActions(services);
         RegisterProActions(services);
         RegisterThreePointActions(services);

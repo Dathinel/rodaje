@@ -63,11 +63,12 @@ public static partial class Edits
         Time newStart,
         string? targetTrackId = null,
         PlacementMode mode = PlacementMode.Strict,
-        IIdGenerator? ids = null) =>
+        IIdGenerator? ids = null,
+        bool relocateLinkedAudio = false) =>
         new(
             "Mover clip",
             sequenceId,
-            ctx => TimelineEdits.Move(ctx, clipId, newStart, targetTrackId, mode),
+            ctx => TimelineEdits.Move(ctx, clipId, newStart, targetTrackId, mode, relocateLinkedAudio),
             ids,
             mode == PlacementMode.Strict ? $"move:{clipId}" : null);
 
@@ -87,6 +88,23 @@ public static partial class Edits
             PlacementDescription(mode),
             sequenceId,
             ctx => TimelineEdits.InsertMedia(ctx, mediaId, sourceIn, sourceOut, trackId, at, mode, linkedTrackId),
+            ids);
+
+    /// <summary>Coloca un medio en una pista de video con su sonido en la primera pista de audio libre en ese tramo o en una nueva.</summary>
+    /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: los clips creados, el de video primero.</remarks>
+    public static SequenceEditCommand InsertMediaWithLinkedAudio(
+        string sequenceId,
+        string mediaId,
+        Time sourceIn,
+        Time sourceOut,
+        string trackId,
+        Time at,
+        PlacementMode mode,
+        IIdGenerator? ids = null) =>
+        new(
+            PlacementDescription(mode),
+            sequenceId,
+            ctx => TimelineEdits.InsertMediaWithLinkedAudio(ctx, mediaId, sourceIn, sourceOut, trackId, at, mode),
             ids);
 
     /// <summary>Inserta un fragmento de un medio corriendo a la derecha lo que había desde <paramref name="at"/>.</summary>
@@ -168,6 +186,18 @@ public static partial class Edits
     /// <summary>Cambia la posición de la pista dentro de la lista de su tipo.</summary>
     public static SequenceEditCommand MoveTrack(string sequenceId, string trackId, int newIndex, IIdGenerator? ids = null) =>
         new("Mover pista", sequenceId, ctx => TimelineEdits.MoveTrack(ctx, trackId, newIndex), ids);
+
+    /// <summary>Elimina la pista con sus clips; la principal no se elimina.</summary>
+    public static SequenceEditCommand DeleteTrack(string sequenceId, string trackId, IIdGenerator? ids = null) =>
+        new("Eliminar pista", sequenceId, ctx => TimelineEdits.DeleteTrack(ctx, trackId), ids);
+
+    /// <summary>Lleva la pista a otra posición de su tipo sin mover la principal.</summary>
+    public static SequenceEditCommand ReorderTrack(string sequenceId, string trackId, int newIndex, IIdGenerator? ids = null) =>
+        new("Mover pista", sequenceId, ctx => TimelineEdits.ReorderTrack(ctx, trackId, newIndex), ids);
+
+    /// <summary>Sube o baja la pista un lugar en la línea de tiempo.</summary>
+    public static SequenceEditCommand StepTrack(string sequenceId, string trackId, bool up, IIdGenerator? ids = null) =>
+        new(up ? "Subir pista" : "Bajar pista", sequenceId, ctx => TimelineEdits.StepTrack(ctx, trackId, up), ids);
 
     /// <summary>Cambia el silencio, el bloqueo, la visibilidad o el nombre de una pista; lo que va en <c>null</c> no cambia.</summary>
     public static SequenceEditCommand SetTrackState(
