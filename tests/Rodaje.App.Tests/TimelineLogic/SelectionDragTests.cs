@@ -132,4 +132,24 @@ public class SelectionDragTests
         Assert.Equal("muda@30-34", Layout(session, session.Sequence.VideoTracks[1]));
         Assert.Equal("a@0-10 b@10-20 c@20-25", Layout(session, session.MainTrack!));
     });
+
+    [Fact]
+    public void DragShadow_DibujaFantasmasParaTodosLosMiembrosDelGrupo() => UiThread.Run(async () =>
+    {
+        EditorSession session = await Timeline();
+        Clip c = Named(session, "c");
+        Clip muda = Named(session, "muda");
+        session.Select([c.Id, muda.Id]);
+
+        ClipDragSession drag = Start(session, c, 22, Options(session, magnetic: false));
+        DragPlan plan = drag.Move(S(25), Row(session, session.MainTrack!));
+
+        Assert.NotNull(plan.Ghosts);
+        Assert.True(plan.Ghosts.Count >= 2);
+        // c se movió de 20-25 con delta +3 a 23-28 (o según offset de grab)
+        // c: grab en 22, move a 25 => delta = +3. c estaba en 20 => 23 a 28
+        // muda: estaba en 30 => 33 a 37 en VideoTrack[1]
+        Assert.Contains(plan.Ghosts, g => g.TrackId == session.MainTrack!.Id && g.Start == S(23) && g.End == S(28));
+        Assert.Contains(plan.Ghosts, g => g.TrackId == session.Sequence.VideoTracks[1].Id && g.Start == S(33) && g.End == S(37));
+    });
 }

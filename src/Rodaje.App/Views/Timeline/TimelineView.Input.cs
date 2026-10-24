@@ -94,6 +94,7 @@ internal sealed partial class TimelineView
     {
         _overlay.Ghost = null;
         _overlay.LinkedGhost = null;
+        _overlay.ExtraGhosts = null;
         _overlay.InsertLine = null;
         _overlay.SnapGuide = null;
         _overlay.Balloon = null;
@@ -523,8 +524,11 @@ internal sealed partial class TimelineView
         }
 
         DragPlan plan = _drag.Move(Viewport.XToTime(p.X), layout.RowAt(ContentY(p.Y)));
-        bool showGhost = !plan.IsLive || plan.InsertAt is not null;
+        bool showGhost = !plan.IsLive || plan.InsertAt is not null || plan.Ghosts is { Count: > 1 };
         _overlay.Ghost = showGhost ? (plan.GhostTrackId, plan.GhostStart, plan.GhostEnd) : null;
+        _overlay.ExtraGhosts = showGhost && plan.Ghosts is { Count: > 1 }
+            ? plan.Ghosts.Where(g => !(g.TrackId == plan.GhostTrackId && g.Start == plan.GhostStart && g.End == plan.GhostEnd)).ToList()
+            : null;
         _overlay.InsertLine = plan.InsertAt is { } at ? (plan.GhostTrackId, at) : null;
         _overlay.SnapGuide = plan.SnapGuide;
         _overlay.Balloon = plan.Balloon is { } balloon ? (plan.GhostTrackId, balloon.At, balloon.Text) : null;

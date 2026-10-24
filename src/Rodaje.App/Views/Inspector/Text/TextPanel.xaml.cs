@@ -32,6 +32,12 @@ internal sealed partial class TextPanel : UserControl, IEditorView
     private TextBlock? _sourceText;
     private Button? _reapplyButton;
     private PackageScan? _stylesScan;
+    private ComboBox? _fontBox;
+    private ComboBox? _weightBox;
+    private NumberBox? _sizeNumber;
+    private TextBox? _fillHex;
+    private TextBox? _strokeHex;
+    private TextBox? _shadowHex;
 
     public TextPanel()
     {
@@ -70,7 +76,8 @@ internal sealed partial class TextPanel : UserControl, IEditorView
             return;
         }
 
-        Clip? clip = editor.Target();
+        IReadOnlyList<Clip> targets = editor.Targets();
+        Clip? clip = targets.Count > 0 ? targets[0] : null;
         if (clip?.Id != _clipId)
         {
             editor.EndTyping();
@@ -86,14 +93,20 @@ internal sealed partial class TextPanel : UserControl, IEditorView
             return;
         }
 
+        bool multi = targets.Count > 1;
         _updating = true;
         try
         {
-            ClipTitle.Text = ClipLabels.TitleName(generator);
+            ClipTitle.Text = multi ? $"{targets.Count} clips seleccionados" : ClipLabels.TitleName(generator);
             ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
 
             // Mientras se escribe no se pisa lo que hay en el campo (el cursor saltaría al principio).
-            if (changedClip || ContentBox.FocusState == FocusState.Unfocused)
+            ContentBox.IsEnabled = !multi;
+            if (multi)
+            {
+                ContentBox.Text = "—";
+            }
+            else if (changedClip || ContentBox.FocusState == FocusState.Unfocused)
             {
                 if (ContentBox.Text != generator.Text)
                 {
@@ -117,10 +130,53 @@ internal sealed partial class TextPanel : UserControl, IEditorView
             ShadowSection.Summary = style.Shadow is null ? "Sin sombra" : style.Shadow.Color;
             BackgroundSection.Summary = style.Background is null ? "Sin fondo" : style.Background.Color;
             RefreshPro(generator, style);
+
+            if (multi)
+            {
+                ApplyMixedIndicators(targets);
+            }
         }
         finally
         {
             _updating = false;
+        }
+    }
+
+    private void ApplyMixedIndicators(IReadOnlyList<Clip> targets)
+    {
+        var styles = targets.Select(c => c.Generator?.Style ?? TitleStyles.Default()).ToList();
+
+        if (_fontBox is not null && styles.Select(s => s.Font.Family).Distinct().Count() > 1)
+        {
+            _fontBox.SelectedItem = null;
+            _fontBox.Text = "—";
+        }
+
+        if (_weightBox is not null && styles.Select(s => s.Font.Weight).Distinct().Count() > 1)
+        {
+            _weightBox.SelectedIndex = -1;
+            _weightBox.PlaceholderText = "—";
+        }
+
+        if (_sizeNumber is not null && styles.Select(s => s.Size).Distinct().Count() > 1)
+        {
+            _sizeNumber.Value = double.NaN;
+            _sizeNumber.PlaceholderText = "—";
+        }
+
+        if (_fillHex is not null && styles.Select(s => s.Fill.Color).Distinct().Count() > 1)
+        {
+            _fillHex.Text = "—";
+        }
+
+        if (_strokeHex is not null && styles.Select(s => s.Stroke?.Color ?? "").Distinct().Count() > 1)
+        {
+            _strokeHex.Text = "—";
+        }
+
+        if (_shadowHex is not null && styles.Select(s => s.Shadow?.Color ?? "").Distinct().Count() > 1)
+        {
+            _shadowHex.Text = "—";
         }
     }
 

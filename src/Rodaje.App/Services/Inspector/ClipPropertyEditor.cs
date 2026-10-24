@@ -79,7 +79,7 @@ public sealed class ClipPropertyEditor
     }
 
     /// <summary>El parámetro no vale lo mismo en todos los clips en el cursor: el inspector lo muestra como «—».</summary>
-    public bool IsMixed(IReadOnlyList<Clip> clips, string effectType, string name, double defaultValue)
+    public bool IsMixed(IReadOnlyList<Clip> clips, string effectType, string name, double defaultValue = 0)
     {
         ArgumentNullException.ThrowIfNull(clips);
         if (clips.Count < 2)
@@ -89,6 +89,19 @@ public sealed class ClipPropertyEditor
 
         double first = Read(clips[0], effectType, name, defaultValue).Value;
         return clips.Skip(1).Any(c => Math.Abs(Read(c, effectType, name, defaultValue).Value - first) >= 1e-6);
+    }
+
+    /// <summary>El parámetro no vale lo mismo en los efectos indicados: el inspector lo muestra como «—».</summary>
+    public bool IsMixed(IReadOnlyList<(Clip Clip, string? EffectId)> targets, string effectType, string name, double defaultValue = 0)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        if (targets.Count < 2)
+        {
+            return false;
+        }
+
+        double first = Read(targets[0].Clip, effectType, name, defaultValue, targets[0].EffectId).Value;
+        return targets.Skip(1).Any(t => Math.Abs(Read(t.Clip, effectType, name, defaultValue, t.EffectId).Value - first) >= 1e-6);
     }
 
     public bool IsPlayheadInside(Clip clip)
@@ -160,22 +173,34 @@ public sealed class ClipPropertyEditor
         _drag = new Drag(clip.Id, effectType, effectId, name, description, KeyframeTimeAtPlayhead(clip), IsPlayheadInside(clip), needsEffect);
     }
 
-    /// <summary>Empieza un arrastre del parámetro en todos los clips: cada cambio los pone a todos en el mismo valor.</summary>
-    public void BeginChange(IReadOnlyList<Clip> clips, string effectType, string name, string description)
+    /// <summary>Empieza un arrastre del parámetro en los efectos indicados de cada clip.</summary>
+    public void BeginChange(IReadOnlyList<(Clip Clip, string? EffectId)> targets, string effectType, string name, string description)
     {
-        ArgumentNullException.ThrowIfNull(clips);
-        if (clips.Count < 2)
+        ArgumentNullException.ThrowIfNull(targets);
+        if (targets.Count == 0)
         {
-            BeginChange(clips[0], effectType, name, description);
+            return;
+        }
+
+        if (targets.Count == 1)
+        {
+            BeginChange(targets[0].Clip, effectType, name, description, targets[0].EffectId);
             return;
         }
 
         EndChange();
         Session.BreakMerge();
-        _drag = new Drag(clips[0].Id, effectType, null, name, description, KeyframeTimeAtPlayhead(clips[0]), IsPlayheadInside(clips[0]), false)
+        _drag = new Drag(targets[0].Clip.Id, effectType, targets[0].EffectId, name, description, KeyframeTimeAtPlayhead(targets[0].Clip), IsPlayheadInside(targets[0].Clip), false)
         {
-            Targets = [.. clips.Select(c => new Target(c.Id, KeyframeTimeAtPlayhead(c), IsPlayheadInside(c)))],
+            Targets = [.. targets.Select(t => new Target(t.Clip.Id, t.EffectId, KeyframeTimeAtPlayhead(t.Clip), IsPlayheadInside(t.Clip)))],
         };
+    }
+
+    /// <summary>Empieza un arrastre del parámetro en todos los clips: cada cambio los pone a todos en el mismo valor.</summary>
+    public void BeginChange(IReadOnlyList<Clip> clips, string effectType, string name, string description)
+    {
+        ArgumentNullException.ThrowIfNull(clips);
+        BeginChange(clips.Select(c => (c, (string?)null)).ToList(), effectType, name, description);
     }
 
     /// <summary>Aplica el valor del arrastre en curso; <c>false</c> si no se pudo (y la sesión ya avisó).</summary>
@@ -220,7 +245,7 @@ public sealed class ClipPropertyEditor
     // Un clip animado solo cambia con el cursor dentro, en su keyframe más cercano; uno fijo, en su valor fijo.
     private bool ChangeMany(Drag drag, IReadOnlyList<Target> targets, double value)
     {
-        var points = new List<(string ClipId, Time At)>();
+        var points = new List<(string ClipId, string? EffectId, Time At)>();
         foreach (Target target in targets)
         {
             if (Session.Sequence.FindClip(target.ClipId) is not { } found)
@@ -229,7 +254,7 @@ public sealed class ClipPropertyEditor
             }
 
             Time at = target.SourceTime;
-            if (FindEffect(found.Clip, drag.EffectType) is { } effect && effect.Parameters.TryGetValue(drag.Name, out Parameter? parameter)
+            if (FindEffect(found.Clip, drag.EffectType, target.EffectId) is { } effect && effect.Parameters.TryGetValue(drag.Name, out Parameter? parameter)
                 && parameter.Keyframes.Count > 0)
             {
                 if (!target.Inside)
@@ -240,7 +265,7 @@ public sealed class ClipPropertyEditor
                 at = KeyframeNear(found.Clip, parameter.Keyframes, at)?.Time ?? at;
             }
 
-            points.Add((target.ClipId, at));
+            points.Add((target.ClipId, target.EffectId, at));
         }
 
         if (points.Count == 0)
@@ -285,10 +310,10 @@ public sealed class ClipPropertyEditor
         }
     }
 
-    /// <summary>Un cambio suelto en todos los clips, en un solo paso.</summary>
-    public bool SetValue(IReadOnlyList<Clip> clips, string effectType, string name, double value, string description)
+    /// <summary>Un cambio suelto en varios efectos indicados, en un solo paso.</summary>
+    public bool SetValue(IReadOnlyList<(Clip Clip, string? EffectId)> targets, string effectType, string name, double value, string description)
     {
-        BeginChange(clips, effectType, name, description);
+        BeginChange(targets, effectType, name, description);
         try
         {
             return Change(value);
@@ -298,6 +323,10 @@ public sealed class ClipPropertyEditor
             EndChange();
         }
     }
+
+    /// <summary>Un cambio suelto en todos los clips, en un solo paso.</summary>
+    public bool SetValue(IReadOnlyList<Clip> clips, string effectType, string name, double value, string description) =>
+        SetValue(clips.Select(c => (c, (string?)null)).ToList(), effectType, name, value, description);
 
     /// <summary>El rombo: quita el keyframe del cursor o crea uno con el valor que se ve.</summary>
     public bool ToggleKeyframe(Clip clip, string effectType, string name, double defaultValue, string? effectId = null)
@@ -329,12 +358,49 @@ public sealed class ClipPropertyEditor
         }
     }
 
+    /// <summary>Algún parámetro de la lista tiene keyframes o un valor distinto del de fábrica en alguno de los clips.</summary>
+    public static bool CanReset(IEnumerable<(Clip Clip, string? EffectId)> targets, string effectType,
+        IEnumerable<(string Name, double DefaultValue)> parameters)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        ArgumentNullException.ThrowIfNull(parameters);
+        List<(string Name, double DefaultValue)> list = [.. parameters];
+        return targets.Any(t => CanReset(t.Clip, effectType, list, t.EffectId));
+    }
+
+    /// <summary>Algún parámetro de la lista tiene keyframes o un valor distinto del de fábrica en alguno de los clips.</summary>
+    public static bool CanReset(IEnumerable<Clip> clips, string effectType, IEnumerable<(string Name, double DefaultValue)> parameters, string? effectId = null)
+    {
+        ArgumentNullException.ThrowIfNull(clips);
+        ArgumentNullException.ThrowIfNull(parameters);
+        List<(string Name, double DefaultValue)> list = [.. parameters];
+        return clips.Any(clip => CanReset(clip, effectType, list, effectId));
+    }
+
+    /// <summary>Keyframes que tienen entre todos los clips en los parámetros nombrados.</summary>
+    public static int KeyframeCount(IEnumerable<(Clip Clip, string? EffectId)> targets, string effectType, IEnumerable<string> names)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        ArgumentNullException.ThrowIfNull(names);
+        List<string> list = [.. names];
+        return targets.Sum(t => KeyframeCount(t.Clip, effectType, list, t.EffectId));
+    }
+
     /// <summary>Algún parámetro de la lista tiene keyframes o un valor distinto del de fábrica.</summary>
     public static bool CanReset(Clip clip, string effectType, IEnumerable<(string Name, double DefaultValue)> parameters, string? effectId = null)
     {
         ArgumentNullException.ThrowIfNull(clip);
         ArgumentNullException.ThrowIfNull(parameters);
         return FindEffect(clip, effectType, effectId) is { } effect && ChangedFromDefault(effect, parameters).Count > 0;
+    }
+
+    /// <summary>Keyframes que tienen entre todos los clips en los parámetros nombrados.</summary>
+    public static int KeyframeCount(IEnumerable<Clip> clips, string effectType, IEnumerable<string> names, string? effectId = null)
+    {
+        ArgumentNullException.ThrowIfNull(clips);
+        ArgumentNullException.ThrowIfNull(names);
+        List<string> list = [.. names];
+        return clips.Sum(clip => KeyframeCount(clip, effectType, list, effectId));
     }
 
     /// <summary>Keyframes que tienen entre todos los parámetros nombrados.</summary>
@@ -345,6 +411,74 @@ public sealed class ClipPropertyEditor
         return FindEffect(clip, effectType, effectId) is { } effect
             ? names.Sum(n => effect.Parameters.TryGetValue(n, out Parameter? p) ? p.Keyframes.Count : 0)
             : 0;
+    }
+
+    /// <summary>
+    /// Restablece los parámetros en varios clips al valor de fábrica en un solo paso del historial (D-024).
+    /// </summary>
+    public Task<bool> ResetAsync(
+        IReadOnlyList<Clip> clips,
+        string effectType,
+        IReadOnlyList<(string Name, double DefaultValue)> parameters,
+        string description,
+        Func<int, Task<bool>> confirmRemoval,
+        string? effectId = null)
+    {
+        ArgumentNullException.ThrowIfNull(clips);
+        return ResetAsync(clips.Select(c => (c, effectId)).ToList(), effectType, parameters, description, confirmRemoval);
+    }
+
+    /// <summary>
+    /// Restablece los parámetros en varios clips con sus efectos específicos al valor de fábrica en un solo paso del historial (D-024).
+    /// </summary>
+    public async Task<bool> ResetAsync(
+        IReadOnlyList<(Clip Clip, string? EffectId)> targets,
+        string effectType,
+        IReadOnlyList<(string Name, double DefaultValue)> parameters,
+        string description,
+        Func<int, Task<bool>> confirmRemoval)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        ArgumentNullException.ThrowIfNull(parameters);
+        ArgumentNullException.ThrowIfNull(confirmRemoval);
+        if (targets.Count == 0)
+        {
+            return false;
+        }
+
+        if (targets.Count == 1)
+        {
+            return await ResetAsync(targets[0].Clip, effectType, parameters, description, confirmRemoval, targets[0].EffectId);
+        }
+
+        EndChange();
+        if (!CanReset(targets, effectType, parameters))
+        {
+            return false;
+        }
+
+        int keyframes = KeyframeCount(targets, effectType, parameters.Select(p => p.Name));
+        if (keyframes > 0 && !await confirmRemoval(keyframes))
+        {
+            return false;
+        }
+
+        var results = new List<(string ClipId, string EffectId, IReadOnlyDictionary<string, double> Defaults)>();
+        foreach ((Clip clip, string? effectId) in targets)
+        {
+            if (Session.Sequence.FindClip(clip.Id) is not { } found || FindEffect(found.Clip, effectType, effectId) is not { } effect)
+            {
+                continue;
+            }
+
+            Dictionary<string, double> changed = ChangedFromDefault(effect, parameters);
+            if (changed.Count > 0)
+            {
+                results.Add((clip.Id, effect.Id, changed));
+            }
+        }
+
+        return results.Count > 0 && Session.Execute(Edits.ResetParametersOnClips(Session.SequenceId, results, description));
     }
 
     /// <summary>
@@ -568,5 +702,5 @@ public sealed class ClipPropertyEditor
         public IReadOnlyList<Target>? Targets { get; init; }
     }
 
-    private sealed record Target(string ClipId, Time SourceTime, bool Inside);
+    private sealed record Target(string ClipId, string? EffectId, Time SourceTime, bool Inside);
 }

@@ -25,6 +25,12 @@ public class SpeedEditorTests
             return _inner.SetSpeed(sequenceId, clipId, rate, scope);
         }
 
+        public ICommand SetSpeed(string sequenceId, IReadOnlyList<string> clipIds, Rational rate, RippleScope scope)
+        {
+            Calls.Add($"speed-many {string.Join(',', clipIds)} {rate}");
+            return _inner.SetSpeed(sequenceId, clipIds, rate, scope);
+        }
+
         public ICommand RateStretch(string sequenceId, string clipId, Time duration, RippleScope scope)
         {
             Calls.Add($"stretch {clipId} {duration.ToSeconds()}");

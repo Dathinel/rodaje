@@ -185,71 +185,99 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
             return;
         }
 
-        Clip? clip = editor.Target();
+        IReadOnlyList<Clip> clips = editor.Targets();
+        Clip? clip = clips.Count > 0 ? clips[0] : null;
         if (clip?.Id != _clipId)
         {
             FinishChange();
         }
 
         _clipId = clip?.Id;
-        bool title = clip?.Generator is not null;
-        bool isStill = clip is not null && editor.Session.Project.FindMedia(clip.MediaId)?.IsStillImage == true;
+        // Targets() ya descarta títulos e imágenes fijas: si no queda ninguno, el mensaje dice por qué.
+        Clip? excluded = clip is null ? editor.Target() : null;
+        bool title = excluded?.Generator is not null;
+        bool isStill = excluded is not null && editor.Session.Project.FindMedia(excluded.MediaId)?.IsStillImage == true;
         EmptyText.Text = title ? ClipLabels.NoMaterial : (isStill ? "No aplica a imágenes fijas." : EmptyHint);
-        EmptyText.Visibility = clip is null || title || isStill ? Visibility.Visible : Visibility.Collapsed;
-        Body.Visibility = clip is null || title || isStill ? Visibility.Collapsed : Visibility.Visible;
-        if (clip is null || title || isStill)
+        EmptyText.Visibility = clip is null ? Visibility.Visible : Visibility.Collapsed;
+        Body.Visibility = clip is null ? Visibility.Collapsed : Visibility.Visible;
+        if (clip is null)
         {
             return;
         }
 
+        bool multi = clips.Count > 1;
+        bool isMixed = multi && SpeedEditor.IsMixed(clips);
+        // Con varios, las rampas y los congelados se dejan como están (el encargo excluye las rampas).
+        bool canChangeRate = multi ? clips.All(c => editor.Read(c) is { CanChangeRate: true, HasCurve: false }) : editor.Read(clip).CanChangeRate;
+
         SpeedState state = editor.Read(clip);
         _updating = true;
-        ClipTitle.Text = ClipLabels.Name(editor.Session.Project, clip);
+        ClipTitle.Text = multi ? $"{clips.Count} clips seleccionados" : ClipLabels.Name(editor.Session.Project, clip);
         ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
         if (!editor.IsChanging)
         {
-            RateSlider.Value = SpeedMath.ToSlider(state.Rate.ToDouble());
+            RateSlider.Value = isMixed ? SpeedMath.ToSlider(1.0) : SpeedMath.ToSlider(state.Rate.ToDouble());
         }
 
         if (RateBox.FocusState == FocusState.Unfocused)
         {
-            RateBox.Text = state.IsFrozen ? "0×" : SpeedMath.FormatRate(state.Rate);
+            RateBox.Text = isMixed ? "—" : (state.IsFrozen ? "0×" : SpeedMath.FormatRate(state.Rate));
         }
 
         if (DurationBox.FocusState == FocusState.Unfocused)
         {
-            DurationBox.Text = SpeedMath.FormatDuration(state.Duration);
+            DurationBox.Text = multi ? "—" : SpeedMath.FormatDuration(state.Duration);
         }
 
-        SourceDurationText.Text = state.IsFrozen ? "Congelado" : SpeedMath.FormatDuration(state.SourceDuration) + " →";
-        RateSlider.IsEnabled = state.CanChangeRate;
-        RateBox.IsEnabled = state.CanChangeRate;
-        DurationBox.IsEnabled = state.CanChangeRate;
+        SourceDurationText.Text = multi ? "—" : (state.IsFrozen ? "Congelado" : SpeedMath.FormatDuration(state.SourceDuration) + " →");
+        RateSlider.IsEnabled = canChangeRate;
+        RateBox.IsEnabled = canChangeRate;
+        DurationBox.IsEnabled = !multi && state.CanChangeRate;
         foreach (UIElement button in QuickPanel.Children)
         {
-            ((Control)button).IsEnabled = state.CanChangeRate;
+            ((Control)button).IsEnabled = RateSlider.IsEnabled;
         }
 
-        ResetButton.IsEnabled = state.CanReset;
+        ResetButton.IsEnabled = multi ? clips.Any(c => editor.Read(c).CanReset) : state.CanReset;
         PitchBox.IsChecked = state.PreservePitch;
-        PitchBox.IsEnabled = state.CanChangePitch;
+        PitchBox.IsEnabled = !multi && state.CanChangePitch;
         ReverseBox.IsChecked = state.IsReversed;
-        ReverseBox.IsEnabled = state.CanReverse;
-        ReverseBadge.Visibility = state.IsReversed ? Visibility.Visible : Visibility.Collapsed;
-        ReverseHint.Text = !state.CanReverse ? "Un cuadro congelado no se invierte." : "";
-        MoreSection.Summary = state.IsReversed ? ReversedLabel : "";
-        ShowReverseNotice(clip);
-        _freezeShown = editor.CanFreeze(clip);
+        ReverseBox.IsEnabled = !multi && state.CanReverse;
+        ReverseBadge.Visibility = !multi && state.IsReversed ? Visibility.Visible : Visibility.Collapsed;
+        ReverseHint.Text = multi ? "La inversión solo se aplica de uno en uno." : (!state.CanReverse ? "Un cuadro congelado no se invierte." : "");
+        MoreSection.Summary = !multi && state.IsReversed ? ReversedLabel : "";
+        if (multi)
+        {
+            ReverseNoticePanel.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            ShowReverseNotice(clip);
+        }
+
+        _freezeShown = !multi && editor.CanFreeze(clip);
         FreezeButton.IsEnabled = _freezeShown;
-        FreezeHint.Text = !state.IsVideo ? "Solo se congelan clips de video."
+        FreezeHint.Text = multi ? "Solo se congela un clip cada vez."
+            : (!state.IsVideo ? "Solo se congelan clips de video."
             : state.IsFrozen ? "Este clip ya es un cuadro congelado."
             : _freezeShown ? "Detiene el cuadro del cursor durante 3 s."
-            : "Pon el cursor sobre el clip para congelar ese cuadro.";
-        ShowCurve(editor, clip, state);
-        ShowNote(state);
-        if (!editor.IsChanging)
+            : "Pon el cursor sobre el clip para congelar ese cuadro.");
+
+        if (multi)
         {
-            ShowWarning(state.IsFrozen ? 1 : state.Rate.ToDouble(), state.HasAudio);
+            CurveSection.Visibility = Visibility.Collapsed;
+            NoteText.Visibility = Visibility.Collapsed;
+            WarningPanel.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            CurveSection.Visibility = Visibility.Visible;
+            ShowCurve(editor, clip, state);
+            ShowNote(state);
+            if (!editor.IsChanging)
+            {
+                ShowWarning(state.IsFrozen ? 1 : state.Rate.ToDouble(), state.HasAudio);
+            }
         }
 
         _updating = false;
@@ -404,9 +432,15 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
     // Vuelve a escribir el texto de la caja aunque tenga el foco (tras confirmar o con Esc).
     private void Refresh(TextBox? box)
     {
-        if (_editor?.Read() is { } state && box is not null)
+        if (_editor is { } editor && box is not null)
         {
-            box.Text = ReferenceEquals(box, RateBox) ? SpeedMath.FormatRate(state.Rate) : SpeedMath.FormatDuration(state.Duration);
+            IReadOnlyList<Clip> clips = editor.Targets();
+            bool multi = clips.Count > 1;
+            bool isMixed = multi && SpeedEditor.IsMixed(clips);
+            SpeedState? state = editor.Read();
+            box.Text = ReferenceEquals(box, RateBox)
+                ? (isMixed ? "—" : (state is not null ? SpeedMath.FormatRate(state.Rate) : ""))
+                : (multi ? "—" : (state is not null ? SpeedMath.FormatDuration(state.Duration) : ""));
         }
 
         Refresh();

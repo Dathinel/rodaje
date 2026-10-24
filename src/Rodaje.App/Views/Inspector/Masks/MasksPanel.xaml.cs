@@ -127,8 +127,8 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         _services = services;
         EditorSession session = services.Session;
         _editor = new ClipPropertyEditor(session);
-        _boxRows = new EffectRowGroup(BoxRows, _editor, Editing, () => XamlRoot, Refresh);
-        _edgeRows = new EffectRowGroup(EdgeRows, _editor, Editing, () => XamlRoot, Refresh);
+        _boxRows = new EffectRowGroup(BoxRows, _editor, Editing, () => XamlRoot, Refresh, EditingTargets);
+        _edgeRows = new EffectRowGroup(EdgeRows, _editor, Editing, () => XamlRoot, Refresh, EditingTargets);
         foreach (InspectorSection section in new[] { ListSection, ShapeSection, EdgeSection, AnimationSection, TrackSection, ViewSection })
         {
             section.Remember(services.Settings);
@@ -181,6 +181,53 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         return null;
     }
 
+    private List<(Track Track, Clip Clip)> Targets()
+    {
+        if (_services is null)
+        {
+            return [];
+        }
+
+        var list = new List<(Track Track, Clip Clip)>();
+        foreach (string id in _services.Session.SelectedClipIds)
+        {
+            if (_services.Session.Sequence.FindClip(id) is { Track.Kind: TrackKind.Video } found && found.Clip.Generator is null)
+            {
+                list.Add(found);
+            }
+        }
+
+        return list;
+    }
+
+    private List<(Clip Clip, string? EffectId)> EditingTargets()
+    {
+        var targets = Targets();
+        if (targets.Count <= 1 || CurrentClip() is not { } primary || _maskId is null)
+        {
+            return Editing() is { } t ? [(t.Clip, (string?)t.EffectId)] : [];
+        }
+
+        var primaryMasks = primary.Effects.Where(e => e.Type == BuiltInEffects.Mask).ToList();
+        int maskIndex = primaryMasks.FindIndex(e => e.Id == _maskId);
+        if (maskIndex < 0)
+        {
+            return [];
+        }
+
+        var list = new List<(Clip Clip, string? EffectId)>();
+        foreach ((Track _, Clip clip) in targets)
+        {
+            var masks = clip.Effects.Where(e => e.Type == BuiltInEffects.Mask).ToList();
+            if (maskIndex < masks.Count)
+            {
+                list.Add((clip, masks[maskIndex].Id));
+            }
+        }
+
+        return list;
+    }
+
     private void Refresh()
     {
         if (_services is null || _editor is null)
@@ -214,7 +261,9 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         _shownPosition = session.Position;
         EmptyText.Visibility = Visibility.Collapsed;
         Header.Visibility = Visibility.Visible;
-        ClipTitle.Text = ClipLabels.Name(session.Project, clip, "Clip");
+        var targets = Targets();
+        bool multi = targets.Count > 1;
+        ClipTitle.Text = multi ? $"{targets.Count} clips seleccionados" : ClipLabels.Name(session.Project, clip, "Clip");
         ShowList(clip);
         ShowDetails(clip);
         Publish();
@@ -230,6 +279,10 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
 
     private void ShowList(Clip clip)
     {
+        var targets = Targets();
+        bool multi = targets.Count > 1;
+        int maxIndex = multi ? targets.Min(t => t.Clip.Effects.Count(e => e.Type == BuiltInEffects.Mask)) : int.MaxValue;
+
         var next = new List<MaskItem>();
         int number = 0;
         foreach (EffectInstance effect in clip.Effects)
@@ -240,6 +293,11 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
             }
 
             number++;
+            if (number > maxIndex)
+            {
+                break;
+            }
+
             string target = effect.Options.GetValueOrDefault(O.Target) is { Length: > 0 } id
                 ? clip.Effects.Find(e => e.Id == id) is { } limited ? EffectUi.Name(limited.Type) : "un efecto que ya no está"
                 : effect.Options.GetValueOrDefault(O.Use) == "effects" ? "la zona de los efectos" : "";
@@ -323,7 +381,8 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         }
 
         _edgeRows!.Build(BuiltInEffects.Mask, edge, context);
-        int keyframes = _boxRows.Show(clip, mask.Id) + _edgeRows.Show(clip, mask.Id);
+        var editingTargets = EditingTargets();
+        int keyframes = _boxRows.Show(clip, mask.Id, editingTargets) + _edgeRows.Show(clip, mask.Id, editingTargets);
         ShapeSection.KeyframeSummary = keyframes == 0 ? "" : KeyframeDialog.Count(keyframes);
         ShowWeight(spec.Shape, points, session.SelectedMaskVertices);
         ShowShapeKeys(clip, mask, vertices, at);
