@@ -211,6 +211,11 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     /// <summary>Pide un dibujo para el próximo cuadro (varios pedidos en el mismo cuadro se juntan).</summary>
     internal void Invalidate(bool content = false)
     {
+        if (_renderer is not null && State.ScrollX != Viewport.ScrollX)
+        {
+            State.ScrollX = Viewport.ScrollX;
+        }
+
         if (content)
         {
             _renderer?.InvalidateContent();
@@ -423,6 +428,10 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _services!.Settings.Current.Timeline.CopyFrom(State);
         switch (e.PropertyName)
         {
+            case nameof(TimelineState.ScrollX):
+                Viewport.ScrollX = State.ScrollX;
+                Invalidate();
+                break;
             case nameof(TimelineState.PixelsPerSecond):
                 if (!_syncingZoom)
                 {
