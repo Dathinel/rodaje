@@ -45,6 +45,9 @@ internal sealed class TimelineOverlay
     /// <summary>Segundo fantasma (el sonido enlazado de un medio que se suelta).</summary>
     public (string TrackId, Time Start, Time End)? LinkedGhost { get; set; }
 
+    /// <summary>Fantasmas adicionales para el grupo arrastrado.</summary>
+    public IReadOnlyList<(string TrackId, Time Start, Time End)>? ExtraGhosts { get; set; }
+
     /// <summary>Corte de la pista magnética donde entraría el clip.</summary>
     public (string TrackId, Time At)? InsertLine { get; set; }
 
@@ -97,6 +100,7 @@ internal sealed class TimelineRenderer
     private readonly Border _cursorBadge = new() { Padding = new Thickness(4, 0, 4, 0), CornerRadius = ThemeResources.Corner("ControlCornerRadius"), IsHitTestVisible = false };
     private readonly Border _ghost = new() { CornerRadius = ThemeResources.Corner("ControlCornerRadius"), BorderThickness = new Thickness(1) };
     private readonly Border _linkedGhost = new() { CornerRadius = ThemeResources.Corner("ControlCornerRadius"), BorderThickness = new Thickness(1) };
+    private readonly List<Border> _extraGhosts = [];
     private readonly Rectangle _insertLine = new() { Width = 2 };
     private readonly Rectangle _snapGuide = new() { Width = 1 };
     private readonly Border _marquee = new() { BorderThickness = new Thickness(1) };
@@ -612,6 +616,22 @@ internal sealed class TimelineRenderer
         TrackLayout layout = Layout!;
         PlaceGhost(_ghost, overlay.Ghost, layout);
         PlaceGhost(_linkedGhost, overlay.LinkedGhost, layout);
+        int extraCount = overlay.ExtraGhosts?.Count ?? 0;
+        for (int i = 0; i < extraCount; i++)
+        {
+            Border ghost = Pooled(_extraGhosts, _overlayCanvas, i, () => new Border
+            {
+                CornerRadius = ThemeResources.Corner("ControlCornerRadius"),
+                BorderThickness = new Thickness(1),
+                Background = _brushes.Ghost,
+                BorderBrush = _brushes.Accent,
+            });
+            PlaceGhost(ghost, overlay.ExtraGhosts![i], layout);
+        }
+        for (int i = extraCount; i < _extraGhosts.Count; i++)
+        {
+            _extraGhosts[i].Visibility = Visibility.Collapsed;
+        }
 
         if (overlay.InsertLine is { } insert && layout.Find(insert.TrackId) is { } insertRow)
         {

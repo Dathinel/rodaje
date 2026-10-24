@@ -84,6 +84,41 @@ public sealed partial class SpeedEditor
         return audio;
     }
 
+    /// <summary>Todos los clips seleccionados que pueden tener velocidad (excluye imágenes fijas y generadores de títulos).</summary>
+    public IReadOnlyList<Clip> Targets()
+    {
+        Sequence sequence = Session.Sequence;
+        var list = new List<Clip>();
+        foreach (string id in Session.SelectedClipIds)
+        {
+            if (sequence.FindClip(id) is { } found
+                && found.Clip.Generator is null
+                && Session.Project.FindMedia(found.Clip.MediaId)?.IsStillImage != true)
+            {
+                list.Add(found.Clip);
+            }
+        }
+
+        return list;
+    }
+
+    /// <summary>Verifica si los clips tienen velocidades o estados de velocidad diferentes.</summary>
+    public static bool IsMixed(IReadOnlyList<Clip> clips)
+    {
+        if (clips.Count < 2)
+        {
+            return false;
+        }
+
+        Rational firstRate = clips[0].Speed?.Rate ?? SpeedState.Normal;
+        bool firstCurve = clips[0].Speed?.Curve is not null;
+        bool firstFrozen = clips[0].Speed?.Freeze ?? false;
+        return clips.Skip(1).Any(c =>
+            (c.Speed?.Rate ?? SpeedState.Normal) != firstRate
+            || (c.Speed?.Curve is not null) != firstCurve
+            || (c.Speed?.Freeze ?? false) != firstFrozen);
+    }
+
     public SpeedState? Read() => Target() is { } clip ? Read(clip) : null;
 
     public SpeedState Read(Clip clip)
@@ -121,28 +156,30 @@ public sealed partial class SpeedEditor
         return state.IsVideo && !state.IsFrozen && clip.Start <= at && at < clip.End;
     }
 
-    /// <summary>Empieza un arrastre del deslizador sobre el clip de ahora.</summary>
+    /// <summary>Empieza un arrastre del deslizador sobre los clips seleccionados.</summary>
     public void BeginChange()
     {
         EndChange();
-        if (Target() is not { } clip)
+        IReadOnlyList<Clip> clips = Targets();
+        if (clips.Count == 0)
         {
             return;
         }
 
         Session.BeginGesture("Cambiar velocidad");
-        _drag = new Drag(clip.Id, SequenceSnapshot.Capture(Session.Sequence), Read(clip));
+        _drag = new Drag([.. clips.Select(c => c.Id)], SequenceSnapshot.Capture(Session.Sequence), Read(clips[0]));
     }
 
     /// <summary>Aplica la velocidad del arrastre en curso; <c>false</c> si no se pudo (y la sesión ya avisó).</summary>
     public bool Change(Rational rate)
     {
-        if (_drag is not { Failed: false } drag || Session.Sequence.FindClip(drag.ClipId) is not { } found)
+        if (_drag is not { Failed: false } drag || drag.ClipIds.Count == 0)
         {
             return false;
         }
 
-        if (Read(found.Clip) is { HasCurve: false } state && state.Rate == rate)
+        if (drag.ClipIds.Count == 1 && Session.Sequence.FindClip(drag.ClipIds[0]) is { } found
+            && Read(found.Clip) is { HasCurve: false } state && state.Rate == rate)
         {
             return true;
         }
@@ -151,7 +188,7 @@ public sealed partial class SpeedEditor
         // material iría variando. Volver a la velocidad de partida es dejar el clip como estaba.
         ICommand? step = drag.StartState is { HasCurve: false } start && start.Rate == rate
             ? null
-            : Commands.SetSpeed(Session.SequenceId, drag.ClipId, rate, Session.SpeedScope);
+            : Commands.SetSpeed(Session.SequenceId, drag.ClipIds, rate, Session.SpeedScope);
 
         // Si un paso falla (pista bloqueada, largo máximo), el resto del arrastre no insiste ni repite el aviso.
         drag.Failed = !Session.Execute(new FromGestureStart(Session.SequenceId, drag.Start, step));
@@ -177,44 +214,53 @@ public sealed partial class SpeedEditor
     public bool SetRate(Rational rate)
     {
         EndChange();
-        if (Target() is not { } clip || Read(clip) is { HasCurve: false } state && state.Rate == rate)
+        IReadOnlyList<Clip> clips = Targets();
+        if (clips.Count == 0)
         {
             return false;
         }
 
+        if (clips.Count == 1 && Read(clips[0]) is { HasCurve: false } state && state.Rate == rate)
+        {
+            return false;
+        }
+
+        List<string> ids = [.. clips.Select(c => c.Id)];
         Session.BreakMerge();
-        bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, clip.Id, rate, Session.SpeedScope));
+        bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, ids, rate, Session.SpeedScope));
         Session.BreakMerge();
         return done;
     }
 
     /// <summary>
-    /// Vuelve a 1× en un paso del historial (D-024). Si el clip tiene una curva, antes pregunta con
+    /// Vuelve a 1× en un paso del historial (D-024). Si algún clip tiene una curva, antes pregunta con
     /// <paramref name="confirmCurveRemoval"/>; si se cancela, no cambia nada. La reversa y «Mantener tono» se quedan.
     /// </summary>
     public async Task<bool> ResetAsync(Func<Task<bool>> confirmCurveRemoval)
     {
         ArgumentNullException.ThrowIfNull(confirmCurveRemoval);
         EndChange();
-        if (Target() is not { } clip || Read(clip) is not { CanReset: true } state)
+        IReadOnlyList<Clip> clips = Targets();
+        if (clips.Count == 0 || !clips.Any(c => Read(c).CanReset))
         {
             return false;
         }
 
-        string clipId = clip.Id;
-        if (state.HasCurve && !await confirmCurveRemoval())
+        bool hasCurve = clips.Any(c => Read(c).HasCurve);
+        if (hasCurve && !await confirmCurveRemoval())
         {
             return false;
         }
 
-        // Mientras el aviso estaba abierto el clip pudo cambiar o desaparecer: se vuelve a leer.
-        if (Session.Sequence.FindClip(clipId) is not { } found || !Read(found.Clip).CanReset)
+        IReadOnlyList<Clip> currentClips = Targets();
+        List<string> ids = [.. currentClips.Where(c => Read(c).CanReset).Select(c => c.Id)];
+        if (ids.Count == 0)
         {
             return false;
         }
 
         Session.BreakMerge();
-        bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, clipId, SpeedState.Normal, Session.SpeedScope));
+        bool done = Session.Execute(Commands.SetSpeed(Session.SequenceId, ids, SpeedState.Normal, Session.SpeedScope));
         Session.BreakMerge();
         return done;
     }
@@ -301,7 +347,7 @@ public sealed partial class SpeedEditor
         }
     }
 
-    private sealed record Drag(string ClipId, SequenceSnapshot Start, SpeedState StartState, bool Grouped = true)
+    private sealed record Drag(IReadOnlyList<string> ClipIds, SequenceSnapshot Start, SpeedState StartState, bool Grouped = true)
     {
         public bool Failed { get; set; }
     }

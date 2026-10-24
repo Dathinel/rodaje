@@ -72,6 +72,7 @@ internal sealed partial class TextPanel
     private Grid FontRow()
     {
         ComboBox box = Combo("Fuente");
+        _fontBox = box;
         box.IsEditable = true;
         foreach (string family in TitleEditor.CommonFonts)
         {
@@ -110,6 +111,7 @@ internal sealed partial class TextPanel
     private Grid WeightRow()
     {
         ComboBox box = Combo("Grosor de la letra");
+        _weightBox = box;
         foreach ((_, string name) in TitleEditor.Weights)
         {
             box.Items.Add(name);
@@ -238,6 +240,10 @@ internal sealed partial class TextPanel
             },
         };
         AutomationProperties.SetName(number, label);
+        if (field == "font-size")
+        {
+            _sizeNumber = number;
+        }
 
         slider.ValueChanged += (_, e) =>
         {
@@ -288,6 +294,18 @@ internal sealed partial class TextPanel
         AutomationProperties.SetName(button, $"Elegir {label.ToLower(CultureInfo.CurrentCulture)}");
         var hex = new TextBox { Height = 28, MinHeight = 28, FontSize = Resource<double>("BodyFontSize"), MinWidth = 0 };
         AutomationProperties.SetName(hex, label);
+        if (field == "fill")
+        {
+            _fillHex = hex;
+        }
+        else if (field == "stroke-color")
+        {
+            _strokeHex = hex;
+        }
+        else if (field == "shadow-color")
+        {
+            _shadowHex = hex;
+        }
 
         bool fromCode = false;
         picker.ColorChanged += (_, e) =>

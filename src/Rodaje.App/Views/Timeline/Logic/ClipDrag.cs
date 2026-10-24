@@ -70,7 +70,8 @@ public sealed record DragPlan(
     string GhostTrackId,
     Time? SnapGuide,
     Time? InsertAt,
-    (Time At, string Text)? Balloon = null);
+    (Time At, string Text)? Balloon = null,
+    IReadOnlyList<(string TrackId, Time Start, Time End)>? Ghosts = null);
 
 /// <summary>
 /// Traduce un arrastre sobre un clip a comandos del núcleo. Recuerda el estado del clip al empezar y, en cada paso,
@@ -100,6 +101,7 @@ public sealed class ClipDrag
     private readonly Rational _frameRate;
     private readonly SnapPoints _snaps;
     private readonly HashSet<string> _group;
+    private readonly List<(Track Track, Clip Clip)> _members;
 
     /// <summary>
     /// Se mueve con otros clips que no son sus enlazados (su grupo o la selección): todos con el mismo desplazamiento.
@@ -141,6 +143,7 @@ public sealed class ClipDrag
         HashSet<string> linked = [.. sequence.GetLinkGroup(clipId).Select(m => m.Clip.Id)];
         _together = operation == DragOperation.Move && members.Exists(m => !linked.Contains(m.Clip.Id));
         _group = [.. members.Select(m => m.Clip.Id)];
+        _members = members;
         _minStart = clip.Start - members.Min(m => m.Clip.Start);
         _snaps = options.Snapping ? SnapPoints.Collect(sequence, _group, playhead) : SnapPoints.Empty;
         _originSource = clip.SourceDuration;
@@ -323,6 +326,28 @@ public sealed class ClipDrag
         Time duration = clip.Duration;
         Time delta = desired - clip.Start;
         bool alone = _options.IgnoreGroups;
+        int offset = row is { } r && r.Kind == _kind && r.Track != track ? KindIndex(sequence, r.Track) - KindIndex(sequence, track) : 0;
+        string ghostTrack = offset == 0 ? track.Id : row!.Track.Id;
+
+        List<Track> kindTracks = _kind == TrackKind.Video ? sequence.VideoTracks : sequence.AudioTracks;
+        var ghosts = new List<(string TrackId, Time Start, Time End)>();
+        foreach ((Track mTrack, Clip mClip) in _members)
+        {
+            Time mStart = mClip.Start + delta;
+            Time mEnd = mStart + mClip.Duration;
+            string mTrackId = mTrack.Id;
+            if (offset != 0 && mTrack.Kind == _kind)
+            {
+                int curIdx = KindIndex(sequence, mTrack);
+                int destIdx = curIdx + offset;
+                if (destIdx >= 0 && destIdx < kindTracks.Count)
+                {
+                    mTrackId = kindTracks[destIdx].Id;
+                }
+            }
+            ghosts.Add((mTrackId, mStart, mEnd));
+        }
+
         if (_options.MagneticTrackId is { } magnetic && sequence.FindTrack(magnetic) is { } main && main.Clips.Exists(c => _group.Contains(c.Id)))
         {
             List<Clip> block = main.Clips.FindAll(c => _group.Contains(c.Id));
@@ -334,17 +359,37 @@ public sealed class ClipDrag
             Func<ICommand>? reorder = order.SequenceEqual(main.Clips)
                 ? null
                 : () => Edits.MoveClipsOnMainTrack(_sequenceId, _group, magnetic, index, alone, _ids);
-            return new DragPlan(reorder, true, desired, desired + duration, track.Id, null, boundary);
+
+            Time cursor = origin;
+            for (int i = 0; i <= others.Count; i++)
+            {
+                if (i == index)
+                {
+                    for (int b = 0; b < block.Count; b++)
+                    {
+                        int gIdx = ghosts.FindIndex(g => g.TrackId == magnetic && g.Start == block[b].Start + delta);
+                        if (gIdx >= 0)
+                        {
+                            ghosts[gIdx] = (magnetic, cursor, cursor + block[b].Duration);
+                        }
+                        cursor += block[b].Duration;
+                    }
+                }
+                if (i < others.Count)
+                {
+                    cursor += others[i].Duration;
+                }
+            }
+
+            return new DragPlan(reorder, true, desired, desired + duration, track.Id, null, boundary, Ghosts: ghosts);
         }
 
-        int offset = row is { } r && r.Kind == _kind && r.Track != track ? KindIndex(sequence, r.Track) - KindIndex(sequence, track) : 0;
         if (delta == Time.Zero && offset == 0)
         {
-            return new DragPlan(null, true, desired, desired + duration, track.Id, guide, null);
+            return new DragPlan(null, true, desired, desired + duration, track.Id, guide, null, Ghosts: ghosts);
         }
 
-        string ghostTrack = offset == 0 ? track.Id : row!.Track.Id;
-        return new DragPlan(() => Edits.MoveClips(_sequenceId, _group, delta, _kind, offset, alone, _ids), true, desired, desired + duration, ghostTrack, guide, null);
+        return new DragPlan(() => Edits.MoveClips(_sequenceId, _group, delta, _kind, offset, alone, _ids), true, desired, desired + duration, ghostTrack, guide, null, Ghosts: ghosts);
     }
 
     private static int KindIndex(Sequence sequence, Track track) =>

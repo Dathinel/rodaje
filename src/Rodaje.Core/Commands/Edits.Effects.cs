@@ -22,8 +22,45 @@ public static partial class Edits
     public static SequenceEditCommand AddEffect(string sequenceId, string clipId, string type, int? index = null, IIdGenerator? ids = null) =>
         new("Añadir filtro", sequenceId, ctx => (IReadOnlyList<string>)[EffectEdits.AddEffect(ctx, clipId, type, index)], ids);
 
+    /// <summary>Agrega un efecto a la pila de varios clips en un solo paso del historial.</summary>
+    public static SequenceEditCommand AddEffectOnClips(string sequenceId, IEnumerable<string> clipIds, string type, IIdGenerator? ids = null)
+    {
+        string[] array = [.. clipIds];
+        return new SequenceEditCommand(
+            "Añadir filtro",
+            sequenceId,
+            ctx =>
+            {
+                List<string> created = [];
+                foreach (string clipId in array)
+                {
+                    created.Add(EffectEdits.AddEffect(ctx, clipId, type));
+                }
+
+                return created;
+            },
+            ids);
+    }
+
     public static SequenceEditCommand RemoveEffect(string sequenceId, string clipId, string effectId, IIdGenerator? ids = null) =>
         new("Quitar filtro", sequenceId, ctx => EffectEdits.RemoveEffect(ctx, clipId, effectId), ids);
+
+    /// <summary>Quita un efecto de varios clips en un solo paso del historial.</summary>
+    public static SequenceEditCommand RemoveEffectFromClips(string sequenceId, IEnumerable<(string ClipId, string EffectId)> targets, IIdGenerator? ids = null)
+    {
+        (string ClipId, string EffectId)[] array = [.. targets];
+        return new SequenceEditCommand(
+            "Quitar filtro",
+            sequenceId,
+            ctx =>
+            {
+                foreach ((string clipId, string effectId) in array)
+                {
+                    EffectEdits.RemoveEffect(ctx, clipId, effectId);
+                }
+            },
+            ids);
+    }
 
     public static SequenceEditCommand MoveEffect(string sequenceId, string clipId, string effectId, int newIndex, IIdGenerator? ids = null) =>
         new("Reordenar filtros", sequenceId, ctx => EffectEdits.MoveEffect(ctx, clipId, effectId, newIndex), ids);
@@ -75,22 +112,47 @@ public static partial class Edits
         IIdGenerator? ids = null)
     {
         ArgumentNullException.ThrowIfNull(targets);
-        (string ClipId, Time At)[] points = [.. targets];
+        return SetParameterOnClips(
+            sequenceId,
+            targets.Select(t => (t.ClipId, (string?)null, t.At)),
+            effectType,
+            name,
+            value,
+            description,
+            ids);
+    }
+
+    /// <summary>
+    /// Cambia un parámetro en varios clips a la vez, opcionalmente especificando el efecto concreto de cada clip (por ejemplo,
+    /// una máscara elegida por índice).
+    /// </summary>
+    public static SequenceEditCommand SetParameterOnClips(
+        string sequenceId,
+        IEnumerable<(string ClipId, string? EffectId, Time At)> targets,
+        string effectType,
+        string name,
+        double value,
+        string? description = null,
+        IIdGenerator? ids = null)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        (string ClipId, string? EffectId, Time At)[] points = [.. targets];
         return new(
             description ?? "Cambiar parámetro",
             sequenceId,
             ctx =>
             {
-                foreach ((string clipId, Time at) in points)
+                foreach ((string clipId, string? targetEffectId, Time at) in points)
                 {
                     Clip clip = ctx.Sequence.GetClip(clipId).Clip;
-                    string effectId = EffectEdits.EnsureEffect(ctx, clipId, effectType)
+                    string effectId = targetEffectId
+                        ?? EffectEdits.EnsureEffect(ctx, clipId, effectType)
                         ?? (clip.Effects.Find(e => e.Type == effectType && e.Enabled) ?? clip.Effects.Find(e => e.Type == effectType))!.Id;
                     EffectEdits.SetParameter(ctx, clipId, effectId, name, value, at);
                 }
             },
             ids,
-            $"params:{effectType}:{name}:" + string.Join(',', points.Select(p => p.ClipId)));
+            $"params:{effectType}:{name}:" + string.Join(',', points.Select(p => p.ClipId + (p.EffectId is not null ? ":" + p.EffectId : ""))));
     }
 
     /// <summary>Crea el keyframe en <paramref name="at"/> o cambia el que ya hay ahí.</summary>
@@ -127,6 +189,28 @@ public static partial class Edits
             sequenceId,
             ctx => EffectEdits.ResetParameters(ctx, clipId, effectId, defaults),
             ids);
+
+    /// <summary>Restablece uno o varios parámetros en varios clips: valor por defecto y sin keyframes, en un solo paso.</summary>
+    public static SequenceEditCommand ResetParametersOnClips(
+        string sequenceId,
+        IEnumerable<(string ClipId, string EffectId, IReadOnlyDictionary<string, double> Defaults)> targets,
+        string? description = null,
+        IIdGenerator? ids = null)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        (string ClipId, string EffectId, IReadOnlyDictionary<string, double> Defaults)[] points = [.. targets];
+        return new(
+            description ?? "Restablecer",
+            sequenceId,
+            ctx =>
+            {
+                foreach ((string clipId, string effectId, IReadOnlyDictionary<string, double> defaults) in points)
+                {
+                    EffectEdits.ResetParameters(ctx, clipId, effectId, defaults);
+                }
+            },
+            ids);
+    }
 
     public static SequenceEditCommand SetKeyframeInterpolation(
         string sequenceId,
