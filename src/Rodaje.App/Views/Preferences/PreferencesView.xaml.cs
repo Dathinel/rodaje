@@ -20,6 +20,9 @@ internal sealed partial class PreferencesView : UserControl
         PreviewQualityBox.Items.Add("Completa");
         PreviewQualityBox.Items.Add("Mitad");
         PreviewQualityBox.Items.Add("Cuarto");
+        TenBitViewerBox.Items.Add("Automático (si el monitor es de 10 bits)");
+        TenBitViewerBox.Items.Add("Siempre");
+        TenBitViewerBox.Items.Add("Nunca (8 bits)");
         ShortcutPresetBox.Items.Add("Estilo Rodaje");
         ShortcutPresetBox.Items.Add("Estilo Ágil");
         ShortcutPresetBox.Items.Add("Estilo Clásico");
@@ -46,6 +49,7 @@ internal sealed partial class PreferencesView : UserControl
         StillCaptureFolderBox.Text = _model.StillCaptureFolder;
         ProxyUsageBox.SelectedIndex = (int)_model.ProxyUsage;
         PreviewQualityBox.SelectedIndex = (int)_model.PreviewQuality;
+        TenBitViewerBox.SelectedIndex = (int)_model.TenBitViewer;
         ShortcutPresetBox.SelectedIndex = (int)_model.ShortcutPreset;
     }
 
@@ -60,6 +64,7 @@ internal sealed partial class PreferencesView : UserControl
         model.GeneratedMediaFolder = GeneratedFolderBox.Text;
         model.ProxyUsage = (ProxyUsage)Math.Max(0, ProxyUsageBox.SelectedIndex);
         model.PreviewQuality = (PreviewQuality)Math.Max(0, PreviewQualityBox.SelectedIndex);
+        model.TenBitViewer = (TenBitViewer)Math.Max(0, TenBitViewerBox.SelectedIndex);
         model.ShortcutPreset = (ShortcutPreset)Math.Max(0, ShortcutPresetBox.SelectedIndex);
         model.SetLinkedAudioVideoTracks(LinkedAudioTracksPanel.Children.OfType<CheckBox>()
             .Where(checkBox => checkBox.IsChecked == true)

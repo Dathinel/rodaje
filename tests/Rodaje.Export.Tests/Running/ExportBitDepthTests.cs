@@ -94,6 +94,7 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
         (int levels, int min, int max, int gap) = await LumaLevelsAsync(lgpl, path);
         (int sourceLevels, _, _, _) = await LumaLevelsAsync(lgpl, project.Media[0].Path);
         output.WriteLine($"Fuente: {sourceLevels} niveles.");
+        Assert.Equal(1024, sourceLevels);
         bool hdrSideData = await HasHdrSideDataAsync(path);
         output.WriteLine(string.Create(CultureInfo.InvariantCulture,
             $"{encoderId} {bits} bits → {report.PixelFormat} ({report.Profile}): {levels} niveles de luma (Y {min}..{max} en 10 bits, salto máximo {gap}); curva {report.ColorTransfer}, primarios {report.ColorPrimaries}, matriz {report.ColorSpace}, rango {report.ColorRange}; metadatos HDR: {(hdrSideData ? "sí" : "no")}."));
@@ -101,6 +102,10 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
         int ceiling = bits == 10 ? 877 : 220;
         Assert.True(levels <= ceiling, $"{levels} niveles con un techo de {ceiling}.");
         Assert.True(levels >= (bits == 10 ? 600 : 180), $"Solo {levels} niveles en {bits} bits.");
+        if (video.RateControl.Mode == RateControlMode.Lossless)
+        {
+            Assert.Equal(ceiling, levels);
+        }
         Assert.Contains(bits == 10 ? "10" : "p", report.PixelFormat, StringComparison.Ordinal);
     }
 
@@ -144,8 +149,11 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
             }
         }
 
+        // El rango y la matriz van también en la entrada: sin ellos ffmpeg toma el crudo por limitado BT.601 y lo estira a
+        // completo BT.709, y el archivo nace con 877 niveles en vez de 1024.
+        string[] color = ["-color_range", "pc", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"];
         await RunAsync(ffmpeg.Path, ["-hide_banner", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "yuv420p10le", "-s", $"{Width}x{Height}",
-            "-r", "30", "-i", raw, "-c:v", "ffv1", "-color_range", "pc", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709", path]);
+            "-r", "30", .. color, "-i", raw, "-c:v", "ffv1", .. color, path]);
         File.Delete(raw);
         return path;
     }

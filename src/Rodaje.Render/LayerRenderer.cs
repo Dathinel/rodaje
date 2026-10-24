@@ -120,7 +120,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     public D3D11TexturePayload? Usable(LayerFrame layer)
     {
         if (layer.Frame.Payload is not D3D11TexturePayload payload || payload.IsReleased
-            || payload.PixelFormat is not (FramePixelFormat.Nv12 or FramePixelFormat.P010 or FramePixelFormat.Bgra8))
+            || payload.PixelFormat is not (FramePixelFormat.Nv12 or FramePixelFormat.P010 or FramePixelFormat.P016 or FramePixelFormat.Bgra8 or FramePixelFormat.Rgba16))
         {
             return null;
         }
@@ -602,15 +602,14 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     internal static QuadConstants LayerQuad(D3D11TexturePayload payload, in LayerPlacement placement, SourceGeometry geometry,
         float opacity, float sequenceWidth, float sequenceHeight, float pixelScale)
     {
-        bool tenBit = payload.PixelFormat == FramePixelFormat.P010;
-        YuvRange range = YuvRange.For(tenBit, payload.Color.FullRange);
+        YuvRange range = YuvRange.For(payload.PixelFormat, payload.Color.FullRange);
         YuvToRgb toRgb = YuvToRgb.For(payload.Color.Matrix);
         float uMax = (float)payload.Width / payload.CodedWidth;
         float vMax = (float)payload.Height / payload.CodedHeight;
         QuadConstants constants = PlacedQuad(placement, VideoLayout.Crop(VideoLayout.Corners(geometry.Rotation, uMax, vMax), geometry.Crop), opacity,
             sequenceWidth, sequenceHeight, pixelScale);
         constants.Range = new(range.LumaScale, range.LumaBias, range.ChromaScale, range.ChromaBias);
-        if (payload.PixelFormat == FramePixelFormat.Bgra8)
+        if (payload.PixelFormat is FramePixelFormat.Bgra8 or FramePixelFormat.Rgba16)
         {
             constants.Range = new(-1, 0, 0, 0);
         }

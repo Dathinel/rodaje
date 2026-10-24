@@ -35,8 +35,48 @@ public sealed class StillImageTests
         AssertPixel(rgba, 8, 0, 255);
         AssertPixel(rgba, 32, 128, 127);
         AssertPixel(rgba, 56, 255, 0);
-        Assert.Equal(FramePixelFormat.Bgra8, Assert.IsType<D3D11TexturePayload>(layer.Frame.Payload).PixelFormat);
+        Assert.Equal(pixelFormat == "rgba64be" ? FramePixelFormat.Rgba16 : FramePixelFormat.Bgra8, Assert.IsType<D3D11TexturePayload>(layer.Frame.Payload).PixelFormat);
         Assert.Equal(1, front.Statistics.DecodedFrames);
+    }
+
+    /// <summary>Un PNG de 16 bits con una rampa de 4096 códigos sube como RGBA16 y el intermedio conserva más de 1024 niveles (8 bits daba 256).</summary>
+    [HardwareFact]
+    public void A_16_bit_png_keeps_more_than_8_bits_in_the_intermediate()
+    {
+        const int width = 4096;
+        const int height = 8;
+        string folder = Path.Combine(Path.GetTempPath(), "rodaje-png16-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string path = Path.Combine(folder, "rampa.png");
+            var pixels = new byte[width * height * 6];
+            for (int i = 0; i < width * height; i++)
+            {
+                for (int c = 0; c < 3; c++)
+                {
+                    BitConverter.TryWriteBytes(pixels.AsSpan((i * 6) + (c * 2)), (ushort)((i % width) * 16));
+                }
+            }
+
+            FfmpegTool.Default!.Run(["-hide_banner", "-loglevel", "error", "-y", "-f", "rawvideo", "-pixel_format", "rgb48le", "-video_size", $"{width}x{height}",
+                "-i", "pipe:0", "-frames:v", "1", "-pix_fmt", "rgb48be", "-update", "1", path], input => input.Write(pixels));
+
+            using var gpu = GpuDevice.TryCreate(out _)!;
+            using var decoder = VideoDecoder.Open(path, new VideoDecoderOptions { Device = gpu });
+            using var frame = decoder.GetFrame(0)!;
+            Assert.Equal(FramePixelFormat.Rgba16, Assert.IsType<D3D11TexturePayload>(frame.Payload).PixelFormat);
+            using var composition = new CompositionFrame(Time.Zero, width, height, [new LayerFrame(0, "foto", frame, LayerTransform.Identity)]);
+            using var compositor = new Compositor(gpu, width, height);
+            Assert.Equal(0, compositor.RenderStrict(composition).LayersSkipped);
+            float[] halves = compositor.ReadbackRgbaFloat();
+            int levels = Enumerable.Range(0, width).Select(x => (int)Math.Round(halves[(((height / 2) * width) + x) * 4 + 1] * 4095)).Distinct().Count();
+            Assert.True(levels > 2000, $"El intermedio solo guarda {levels} niveles de 4096.");
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
     }
 
     private static void AssertPixel(byte[] rgba, int x, int red, int blue)

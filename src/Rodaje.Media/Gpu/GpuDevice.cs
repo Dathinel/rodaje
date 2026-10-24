@@ -35,6 +35,7 @@ public sealed unsafe class GpuDevice : IDisposable
         FeatureLevel = FormatFeatureLevel(device->GetFeatureLevel());
         SupportsNv12Textures = SupportsShaderTexture(DXGI_FORMAT.DXGI_FORMAT_NV12);
         SupportsP010Textures = SupportsShaderTexture(DXGI_FORMAT.DXGI_FORMAT_P010);
+        SupportsP016Textures = SupportsShaderTexture(DXGI_FORMAT.DXGI_FORMAT_P016);
         if (videoSupport && FfmpegLibrary.TryInitialize(out _))
         {
             CreateHardwareDeviceContext();
@@ -50,6 +51,8 @@ public sealed unsafe class GpuDevice : IDisposable
     public bool SupportsNv12Textures { get; }
 
     public bool SupportsP010Textures { get; }
+
+    public bool SupportsP016Textures { get; }
 
     public string AdapterName { get; }
 
@@ -251,12 +254,12 @@ public sealed unsafe class GpuDevice : IDisposable
         return texture;
     }
 
-    /// <summary>Copia el plano Y de una capa de la textura a la CPU, en 8 bits (P010 se reduce con <c>&gt;&gt; 8</c>).</summary>
+    /// <summary>Copia el plano Y de una capa de la textura a la CPU, en 8 bits (P010 y P016 se reducen con <c>&gt;&gt; 8</c>).</summary>
     internal byte[] ReadLuma(ID3D11Texture2D* texture, uint arraySlice, int width, int height)
     {
         D3D11_TEXTURE2D_DESC source;
         texture->GetDesc(&source);
-        bool tenBit = source.Format == DXGI_FORMAT.DXGI_FORMAT_P010;
+        bool tenBit = source.Format is DXGI_FORMAT.DXGI_FORMAT_P010 or DXGI_FORMAT.DXGI_FORMAT_P016;
         if (!tenBit && source.Format != DXGI_FORMAT.DXGI_FORMAT_NV12)
         {
             throw new NotSupportedException($"La lectura de luma no admite el formato {source.Format}.");

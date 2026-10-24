@@ -66,7 +66,7 @@ internal sealed partial class PlayerEngine
 
         if (_external is null)
         {
-            _external = new CompositionSwapChain(_gpu, size.Width, size.Height, size.ScaleX, size.ScaleY);
+            _external = new CompositionSwapChain(_gpu, size.Width, size.Height, size.ScaleX, size.ScaleY, UsesTenBits());
             ExternalSwapChainCreated?.Invoke(_external.NativeSwapChain);
         }
         else

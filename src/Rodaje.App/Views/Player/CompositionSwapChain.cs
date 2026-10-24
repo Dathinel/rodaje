@@ -23,11 +23,13 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
     private ID3D11RenderTargetView* _target;
     private HANDLE _frameWait;
 
-    public CompositionSwapChain(GpuDevice gpu, int width, int height, float scaleX, float scaleY)
+    /// <param name="tenBits">Búfer <c>R10G10B10A2</c> en vez de <c>B8G8R8A8</c> (<see cref="Services.Settings.ViewerBitDepth"/>).</param>
+    public CompositionSwapChain(GpuDevice gpu, int width, int height, float scaleX, float scaleY, bool tenBits = false)
     {
         _gpu = gpu;
         _device = (ID3D11Device*)gpu.NativeDevice;
         _context = (ID3D11DeviceContext*)gpu.NativeContext;
+        TenBits = tenBits;
         try
         {
             Create(Math.Max(1, width), Math.Max(1, height));
@@ -49,6 +51,8 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
     public int Width { get; private set; }
 
     public int Height { get; private set; }
+
+    public bool TenBits { get; }
 
     public float ScaleX { get; private set; } = 1;
 
@@ -128,6 +132,50 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
         }
     }
 
+    /// <summary>Bits por color del monitor que más tenga (<c>DXGI_OUTPUT_DESC1</c>); 8 si no hay monitores (WARP) o no se puede leer.</summary>
+    /// <remarks>shortcut: mira todos los monitores del adaptador y no el que tiene la ventana; afinar si alguien mezcla uno de 10 bits con otro de 8.</remarks>
+    public static int MaxBitsPerColor(GpuDevice gpu)
+    {
+        var device = (ID3D11Device*)gpu.NativeDevice;
+        IDXGIDevice* dxgiDevice = null;
+        IDXGIAdapter* adapter = null;
+        int bits = 8;
+        try
+        {
+            if (device->QueryInterface(__uuidof<IDXGIDevice>(), (void**)&dxgiDevice).FAILED || dxgiDevice->GetAdapter(&adapter).FAILED)
+            {
+                return bits;
+            }
+
+            for (uint i = 0; ; i++)
+            {
+                IDXGIOutput* output;
+                if (adapter->EnumOutputs(i, &output).FAILED)
+                {
+                    return bits;
+                }
+
+                IDXGIOutput6* output6 = null;
+                if (output->QueryInterface(__uuidof<IDXGIOutput6>(), (void**)&output6).SUCCEEDED)
+                {
+                    DXGI_OUTPUT_DESC1 desc;
+                    if (output6->GetDesc1(&desc).SUCCEEDED)
+                    {
+                        bits = Math.Max(bits, (int)desc.BitsPerColor);
+                    }
+                }
+
+                Release(ref output6);
+                Release(ref output);
+            }
+        }
+        finally
+        {
+            Release(ref adapter);
+            Release(ref dxgiDevice);
+        }
+    }
+
     private static void Release<T>(ref T* pointer)
         where T : unmanaged, IUnknown.Interface
     {
@@ -177,7 +225,7 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
             {
                 Width = (uint)width,
                 Height = (uint)height,
-                Format = DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM,
+                Format = TenBits ? DXGI_FORMAT.DXGI_FORMAT_R10G10B10A2_UNORM : DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM,
                 SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
                 BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT,
                 BufferCount = 2,

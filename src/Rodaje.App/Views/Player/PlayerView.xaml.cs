@@ -86,6 +86,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         services.ShortcutRegistry.Changed += (_, _) => UpdateToolTips();
         services.PreviewQualityChanged += (_, _) => UpdateQuality();
         _engine.SetPreviewQuality(services.Settings.Current.PreviewQuality);
+        _engine.TenBitViewer = services.Settings.Current.TenBitViewer;
         UpdateQuality();
         AttachSafeZones();
         UpdateSafeAreas();
