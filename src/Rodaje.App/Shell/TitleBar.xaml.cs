@@ -74,7 +74,7 @@ internal sealed partial class TitleBar : UserControl
 
         string gpu = _services.Player.DeviceDescription;
         long dropped = _services.Session.Transport.FramesDropped;
-        string frames = dropped == 0 ? "sin cuadros perdidos" : string.Create(CultureInfo.InvariantCulture, $"{dropped} cuadros perdidos");
+        string frames = dropped == 0 ? "sin fotogramas perdidos" : string.Create(CultureInfo.InvariantCulture, $"{dropped} fotogramas perdidos");
         string shortGpu = GpuNameFormatter.Abbreviate(gpu);
         StatsText.Text = shortGpu.Length == 0 ? "" : $"{shortGpu} · {frames}";
         string fullStats = gpu.Length == 0 ? "" : $"{gpu} · {frames}";
@@ -254,7 +254,7 @@ internal sealed partial class TitleBar : UserControl
         var content = new StackPanel { Spacing = 8 };
         content.Children.Add(new TextBlock
         {
-            Text = "Guarda el tamaño, la tasa de cuadros y las pistas con sus nombres (sin clips) para empezar otros proyectos igual. Si ya hay una con ese nombre, se reemplaza.",
+            Text = "Guarda el tamaño, la tasa de fotogramas y las pistas con sus nombres (sin clips) para empezar otros proyectos igual. Si ya hay una con ese nombre, se reemplaza.",
             TextWrapping = TextWrapping.Wrap,
         });
         content.Children.Add(nameBox);

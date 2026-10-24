@@ -32,7 +32,7 @@ internal sealed partial class ExportView : UserControl
     ];
 
     private static readonly (string Label, ExportFit Value)[] FitChoices =
-        [("Barras (la imagen entera)", ExportFit.Bars), ("Recortar (llena el cuadro)", ExportFit.Crop), ("Estirar (deforma)", ExportFit.Stretch)];
+        [("Barras (la imagen entera)", ExportFit.Bars), ("Recortar (llena el fotograma)", ExportFit.Crop), ("Estirar (deforma)", ExportFit.Stretch)];
 
     private readonly EditorServices _services;
     private readonly ExportJobList _jobs;

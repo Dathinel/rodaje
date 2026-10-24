@@ -39,7 +39,7 @@ public class ClampedNoticeKindsSessionTests
         EditorNotification notice = Assert.Single(notices);
         Assert.Equal(NotificationSeverity.Warning, notice.Severity);
         Assert.Equal(
-            "Al abrir, la tasa de cuadros de 1 secuencia se llevó al rango de 1/5 a 1000 fps, " +
+            "Al abrir, la tasa de fotogramas de 1 secuencia se llevó al rango de 1/5 a 1000 fps, " +
             "1 clip que pasaba del final de la línea de tiempo se recortó, " +
             "el clip «rápido.mp4», que pasaba del final de la línea de tiempo, se quitó " +
             "y 2 valores de efecto (posición, ancla o rotación) se acotaron al límite. Guarda el proyecto para conservar el cambio.",
@@ -76,7 +76,7 @@ public class ClampedNoticeKindsSessionTests
     {
         var project = new Project();
         Assert.Equal(
-            "Al abrir, las tasas de cuadros de 2 secuencias se llevaron al rango de 1/5 a 1000 fps. Guarda el proyecto para conservar el cambio.",
+            "Al abrir, las tasas de fotogramas de 2 secuencias se llevaron al rango de 1/5 a 1000 fps. Guarda el proyecto para conservar el cambio.",
             EditorSession.ClampedNotice(project, new ClampSummary(2, 0, [], 0)));
         Assert.Equal(
             "Al abrir, 3 clips que pasaban del final de la línea de tiempo se recortaron y 1 valor de efecto (posición, ancla o rotación) " +

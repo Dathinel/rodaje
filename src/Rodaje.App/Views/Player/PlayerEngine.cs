@@ -120,7 +120,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         _enableAudio = enableAudio;
         _proxyUsage = proxyUsage;
         _metrics = metrics;
-        _contentRefresh = new ContentRefresh(() => _wake.Set());
+        _contentRefresh = new ContentRefresh(() => Wake());
         _thread = new Thread(Run) { Name = "Rodaje render", IsBackground = true, Priority = ThreadPriority.AboveNormal };
     }
 
@@ -166,7 +166,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _pendingSize = new SizeRequest(width, height, scaleX, scaleY, Stopwatch.GetTimestamp());
         }
 
-        _wake.Set();
+        Wake();
     }
 
     public void Load(Project project, string sequenceId)
@@ -179,7 +179,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _pendingReload = null;
         }
 
-        _wake.Set();
+        Wake();
     }
 
     public void Reload(Project project)
@@ -192,7 +192,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _pendingReloadAt = Stopwatch.GetTimestamp();
         }
 
-        _wake.Set();
+        Wake();
     }
 
     public void Play() => Post(new Command(CommandKind.Play));
@@ -273,7 +273,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     public void MonitorDynamics(DynamicsMonitor? monitor)
     {
         Volatile.Write(ref _dynamicsMonitor, monitor);
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>
@@ -283,7 +283,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     public void BypassInserts(IReadOnlySet<string>? inserts)
     {
         Volatile.Write(ref _bypassedInserts, inserts);
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>
@@ -409,12 +409,16 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
+        lock (_pendingLock)
         {
-            return;
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
         }
 
-        _disposed = true;
         _stop = true;
         _wake.Set();
         if (_thread.IsAlive && !_thread.Join(TimeSpan.FromSeconds(3)))
@@ -422,13 +426,28 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _metrics.Note("el hilo de render no terminó en 3 s");
         }
 
-        _wake.Dispose();
+        lock (_pendingLock)
+        {
+            _wake.Dispose();
+        }
+    }
+
+    /// <summary>Despierta al hilo de render; tras liberar el motor no hace nada (un refresco de paquetes puede llegar después de cerrar).</summary>
+    private void Wake()
+    {
+        lock (_pendingLock)
+        {
+            if (!_disposed)
+            {
+                _wake.Set();
+            }
+        }
     }
 
     private void Post(Command command)
     {
         _commands.Enqueue(command);
-        _wake.Set();
+        Wake();
     }
 
     private void Run()

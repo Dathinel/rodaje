@@ -49,9 +49,9 @@ internal static class StabilizeDialog
             double pixels = a.Track.Height;
             double reliable = a.Track.Motions.Count(m => m.Inliers > 0) / (double)Math.Max(1, a.Track.Motions.Count - 1);
             status.Text = string.Create(SpanishNumbers.Format,
-                $"Temblor: {result.ShakeBefore * pixels:0.0} → {result.ShakeAfter * pixels:0.00} px por cuadro² " +
+                $"Temblor: {result.ShakeBefore * pixels:0.0} → {result.ShakeAfter * pixels:0.00} px por fotograma² " +
                 $"({(result.ShakeBefore > 0 ? 1 - (result.ShakeAfter / result.ShakeBefore) : 0):P0} menos). " +
-                $"Acercamiento: {result.Zoom - 1:P0}. Cuadros con movimiento medido: {Math.Min(1, reliable):P0}.");
+                $"Acercamiento: {result.Zoom - 1:P0}. Fotogramas con movimiento medido: {Math.Min(1, reliable):P0}.");
         }
 
         intensity = AnalysisUi.Slider(panel, "Intensidad", 0, 1, intensityValue, 0.05,

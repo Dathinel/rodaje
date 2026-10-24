@@ -30,6 +30,10 @@ Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video rea
 - **Formato de proyecto 14,** solo si el proyecto contiene fotos. Sin fotos se sigue guardando en el 13, que abre la 1.0.1 (D-050).
 
 ### Corregido
+- **Cierre:** un refresco de complementos que terminaba después de cerrar la ventana podía tumbar la app (`ObjectDisposedException` en el reproductor).
+- **Nombres con acentos dañados** («SubtÃ­tulos») en proyectos tocados con una herramienta externa se reparan al abrir.
+- **Barra de la línea de tiempo a 1366 px:** marcadores, regiones y los interruptores secundarios se pliegan en un botón «…» antes que Deshacer y Rehacer, que ya no desaparecen.
+- **Término único «fotograma»** en toda la interfaz (antes alternaba con «cuadro»).
 - **Exportación:** las últimas filas podían salir negras en algunos equipos. Las texturas intermedias del render se reutilizaban sin limpiar (#433).
 - **Importación masiva:** ahora tiene un límite de análisis simultáneos y una ruta repetida ya no se analiza dos veces (#425).
 - **Automatización del mezclador:** la de tipo «tocar» respeta una curva Mantener tras el retorno (#389).

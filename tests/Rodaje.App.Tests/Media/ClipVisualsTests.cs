@@ -355,7 +355,7 @@ public sealed class ClipVisualsTests : IDisposable
         }
 
         Thread.Sleep(50);
-        Assert.Contains("cuadros", problem, StringComparison.Ordinal);
+        Assert.Contains("fotogramas", problem, StringComparison.Ordinal);
         Assert.Equal(1, _sources.Attempts);
         Assert.Equal(1, _sources.Opened[_media["v0"]]);
     }

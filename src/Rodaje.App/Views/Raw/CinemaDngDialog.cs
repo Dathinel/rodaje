@@ -36,7 +36,7 @@ internal static class CinemaDngDialog
         }
 
         nint owner = root.ContentIslandEnvironment is { } environment ? Win32Interop.GetWindowFromWindowId(environment.AppWindowId) : 0;
-        IReadOnlyList<string> picked = FileDialogs.Open(owner, "Elige un cuadro de la carpeta CinemaDNG", multiple: false,
+        IReadOnlyList<string> picked = FileDialogs.Open(owner, "Elige un fotograma de la carpeta CinemaDNG", multiple: false,
             FileDialogFolderPolicy.OpenFolder(services.Settings.Current), ("CinemaDNG", "*.dng"), FileDialogs.AllFilter);
         FileDialogFolderPolicy.RememberOpen(services.Settings.Current, picked.Count > 0 ? picked[0] : null);
         if (picked.Count == 0)
@@ -47,7 +47,7 @@ internal static class CinemaDngDialog
         CinemaDngFolder? sequence = await Task.Run(() => CinemaDngImport.Scan(picked[0]));
         if (sequence is null)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "La carpeta no tiene cuadros .dng.");
+            session.Notify(NotificationSeverity.Informational, Title, "La carpeta no tiene fotogramas .dng.");
             return;
         }
 
@@ -61,7 +61,7 @@ internal static class CinemaDngDialog
         var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
         panel.Children.Add(new TextBlock
         {
-            Text = string.Create(SpanishNumbers.Format, $"«{sequence.Name}»: {sequence.Frames.Count} cuadros")
+            Text = string.Create(SpanishNumbers.Format, $"«{sequence.Name}»: {sequence.Frames.Count} fotogramas")
                 + (sequence.Audio is null ? "." : $", con el sonido de «{Path.GetFileName(sequence.Audio)}»."),
             TextWrapping = TextWrapping.Wrap,
         });
@@ -120,7 +120,7 @@ internal static class CinemaDngDialog
         if (imported.MediaIds.Count > 0)
         {
             session.Notify(NotificationSeverity.Success, Title, string.Create(SpanishNumbers.Format,
-                $"«{sequence.Name}»: {result.Frames} cuadros de {result.Width}×{result.Height} a {(double)result.RateNumerator / result.RateDenominator:0.###} cuadros/s")
+                $"«{sequence.Name}»: {result.Frames} fotogramas de {result.Width}×{result.Height} a {(double)result.RateNumerator / result.RateDenominator:0.###} cuadros/s")
                 + (result.Camera.Length > 0 ? $" ({result.Camera})." : "."));
         }
     }

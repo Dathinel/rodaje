@@ -79,7 +79,7 @@ public static class TrackApply
         if (tracked.Effects.Find(e => e.Id == trackId && e.Type == BuiltInEffects.Track) is not { } effect
             || PointTrack.Parse(effect.Options.GetValueOrDefault(O.Samples)) is not { Count: >= 2 } track)
         {
-            problem = "Primero sigue algo: hacen falta al menos dos cuadros seguidos.";
+            problem = "Primero sigue algo: hacen falta al menos dos fotogramas seguidos.";
             return null;
         }
 
@@ -87,7 +87,7 @@ public static class TrackApply
         if (track.PointCount != PointTrack.PointsOf(kind))
         {
             // El tipo se cambió después de seguir (o el archivo trae otro): la deformación leería puntos que no hay.
-            problem = "Los cuadros seguidos no son de este tipo de seguimiento: vuelve a seguir.";
+            problem = "Los fotogramas seguidos no son de este tipo de seguimiento: vuelve a seguir.";
             return null;
         }
 
@@ -238,7 +238,7 @@ public static class TrackApply
         Clip target = found.Clip;
         if (c.InSequence(c.ReferenceIndex) is not { } reference)
         {
-            problem = "El clip seguido no se ve en el cuadro de referencia.";
+            problem = "El clip seguido no se ve en el fotograma de referencia.";
             return null;
         }
 
@@ -351,7 +351,7 @@ public static class TrackApply
         problem = "";
         if (PlacementAt(c.Project, c.Sequence, c.Tracked, c.Track.TimeAt(c.ReferenceIndex)) is not { } layer)
         {
-            problem = "El clip seguido no se ve en el cuadro de referencia.";
+            problem = "El clip seguido no se ve en el fotograma de referencia.";
             return null;
         }
 
@@ -401,7 +401,7 @@ public static class TrackApply
 
         if (keys.Count < 2)
         {
-            problem = "No hay cuadros seguidos dentro del clip.";
+            problem = "No hay fotogramas seguidos dentro del clip.";
             return null;
         }
 
@@ -430,7 +430,7 @@ public static class TrackApply
         Time referenceSource = c.Track.TimeAt(c.ReferenceIndex);
         if (PlacementAt(c.Project, c.Sequence, c.Tracked, referenceSource) is not { } layer || c.InSequence(c.ReferenceIndex) is not { } reference)
         {
-            problem = "El clip seguido no se ve en el cuadro de referencia.";
+            problem = "El clip seguido no se ve en el fotograma de referencia.";
             return null;
         }
 
@@ -454,7 +454,7 @@ public static class TrackApply
 
         if (frames.Count < 2)
         {
-            problem = "No hay cuadros seguidos dentro del clip.";
+            problem = "No hay fotogramas seguidos dentro del clip.";
             return null;
         }
 

@@ -46,7 +46,7 @@ Con menos de 4 GB de VRAM, en los dos modos la vista previa pasa a proxies y a c
 ![Avanzado desplegado: contenedor, video y audio](img/exportar-avanzado.png)
 
 - **Contenedor**: MP4, MOV, MKV, WebM, M4A, GIF… Casillas «Reproducir mientras se descarga (faststart)» y «Capítulos desde los marcadores» (cada marcador abre un capítulo con su nombre; sin nombre, «Capítulo N»). Si hay pistas de subtítulos, «Subtítulos»: «Quemados en la imagen», «Quemados y como pista aparte» o «Solo como pista aparte (se activan en el reproductor)»; la pista aparte va en MP4, MOV, MKV y WebM, una por cada pista de subtítulos visible y con su nombre, recortada al rango.
-- **Video**: códec (H.264, HEVC, AV1, VP9, ProRes…), codificador (GPU · NVIDIA, Windows o CPU), control de tasa (calidad constante, VBR con media y máxima, CBR, tamaño objetivo con dos pasadas), resolución, forma, cuadros por segundo, bits por canal, perfil, velocidad del codificador y «Cuadro clave cada … s». El interruptor de la derecha quita el video (solo audio).
+- **Video**: códec (H.264, HEVC, AV1, VP9, ProRes…), codificador (GPU · NVIDIA, Windows o CPU), control de tasa (calidad constante, VBR con media y máxima, CBR, tamaño objetivo con dos pasadas), resolución, forma, cuadros por segundo, bits por canal, perfil, velocidad del codificador y «Fotograma clave cada … s». El interruptor de la derecha quita el video (solo audio).
 - **Audio**: códec (AAC, Opus, PCM…), tasa, frecuencia, canales y «Normalizar sonoridad»: «−14 LUFS (plataformas de video y música)», «−16 LUFS (pódcast)» o «−23 LUFS (televisión, EBU R128)».
 - **Preajustes propios**: «Guardar como preajuste…» (hasta 50; se guardan en tus ajustes), «Importar…» y «Guardar en archivo…» (`.rodaje-preajuste`, para compartirlos), «Quitar».
 

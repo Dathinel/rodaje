@@ -111,8 +111,8 @@ public sealed partial class EditorSession
         if (clamped.FrameRates > 0)
         {
             parts.Add(clamped.FrameRates == 1
-                ? $"la tasa de cuadros de 1 secuencia se llevó al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps"
-                : $"las tasas de cuadros de {clamped.FrameRates} secuencias se llevaron al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps");
+                ? $"la tasa de fotogramas de 1 secuencia se llevó al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps"
+                : $"las tasas de fotogramas de {clamped.FrameRates} secuencias se llevaron al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps");
         }
 
         if (clamped.TrimmedClips > 0)

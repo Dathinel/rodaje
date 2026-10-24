@@ -121,7 +121,7 @@ internal static partial class StillExportCommand
             Time position = session.Position;
             long frame = position.ToFrames(rate);
             string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
-            string name = string.Concat(string.Create(SpanishNumbers.Format, $"{session.ProjectName} - cuadro {frame}").Split(Path.GetInvalidFileNameChars()));
+            string name = string.Concat(string.Create(SpanishNumbers.Format, $"{session.ProjectName} - fotograma {frame}").Split(Path.GetInvalidFileNameChars()));
             string? path = FileDialogs.Save(_owner, "Exportar fotograma", name + ".png", "png",
                 FileDialogFolderPolicy.SaveFolder(_services.Settings.Current, SaveDialogKind.Still, projectFolder),
                 ("Imagen PNG (*.png)", "*.png"), ("Imagen JPEG (*.jpg)", "*.jpg;*.jpeg"));

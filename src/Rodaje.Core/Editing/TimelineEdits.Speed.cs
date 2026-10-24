@@ -110,7 +110,7 @@ public static partial class TimelineEdits
         List<(Track Track, Clip Clip)> group = EditableSpeedGroup(ctx, clipId);
         if (group.Exists(m => m.Clip.Speed is { Freeze: true }))
         {
-            throw new EditException("Un cuadro congelado no se puede invertir.");
+            throw new EditException("Un fotograma congelado no se puede invertir.");
         }
 
         foreach ((_, Clip clip) in group)
@@ -297,7 +297,7 @@ public static partial class TimelineEdits
         ArgumentNullException.ThrowIfNull(ctx);
         Time length = duration ?? DefaultFreezeDuration;
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
-        TrimmingSupport.EnsureNoGenerator(group, "congelar un cuadro");
+        TrimmingSupport.EnsureNoGenerator(group, "congelar un fotograma");
         (Track track, Clip primary) = group[0];
         if (track.Kind != TrackKind.Video)
         {
