@@ -554,3 +554,13 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
 - **Control.** «Brillo de referencia HDR», en Propiedades, se guarda en `rodaje.transform/hdrReferenceNits`, sin un formato de proyecto nuevo. Reutiliza keyframes, interpolación, deshacer y evaluación comunes a vista previa y exportación. 0 selecciona automáticamente 100 nits de blanco PQ o 1000 nits de pico HLG; 1–10000 fija la referencia. Desactivar la transformación devuelve la referencia automática, sin desactivar la conversión HDR.
 - **Límites.** El blanco de referencia se normaliza a blanco SDR; luces PQ superiores se recortan, recuperables aumentando la referencia. Se limitan los colores fuera de BT.709; no se implementan gamut mapping perceptual, salida HDR ni metadatos dinámicos. La importación pasa a aviso informativo. SDR toma la misma rama anterior, sin operaciones de transferencia añadidas.
 - **Verificación.** Cuadros sintéticos NV12/P010 creados en las pruebas: blanco, negro, tonos medios y colores contra vectores de referencia; igualdad de bytes de composición y exportación RGBA a igual resolución sin tramado; controles animables y etiquetas del decodificador; comparación de bytes SDR con el shader anterior congelado como fuente de prueba (sin binarios añadidos).
+
+## D-053. Camino a HDR, 10 bits y RAW en cuatro fases (24 de octubre de 2026; propuesta, pendiente de Daniel)
+
+- **Contexto.** Daniel pidió HDR → SDR y al revés, trabajar en HDR, 10 bits y RAW. Medido en [`hdr.md`](hdr.md): el intermedio RGBA16F (D-016) y la exportación de 10 bits ya conservan los 10 bits (877 de 877 desde una textura P010; 812 desde un archivo de rango completo, por aislar); se pierden en el visor (8 bits), las imágenes fijas, las fuentes de 12 bits, el intermedio del RAW (ProRes 10 bits Rec.709 recortado) y el color, que no conoce BT.2020, PQ ni HLG.
+- **Propuesta (de Claude).**
+  - Orden: A, HDR → SDR (D-052, Codex); B, cerrar los bordes de 8 bits; C, secuencias HDR en luz lineal BT.2020 (1,0 = 203 nits), visor HDR en scRGB, exportación HDR10/HLG con metadatos y SDR → HDR opcional por clip (BT.2446 A); D, RAW de 12–16 bits con intermedio de 12 bits y curva logarítmica.
+  - El intermedio sigue en RGBA16F: basta para 10 bits en gamma y para HDR en lineal; RGBA32F duplicaría la memoria sin ganancia medible fuera del RAW.
+  - La mezcla en gamma de D-016 se mantiene en SDR; en una secuencia HDR se mezcla en lineal (cambio de D-016 solo para HDR).
+  - SDR → HDR se presenta como realce, no como recuperación: no está activado por defecto.
+- **Pendiente de Daniel.** El orden (C antes que D o al revés), si «trabajar en HDR» entra en la 1.1 o más tarde, y el tamaño aceptable del intermedio RAW (ProRes 4444 XQ, unas 2,5 veces el HQ).
