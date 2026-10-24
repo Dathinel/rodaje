@@ -67,6 +67,14 @@ public sealed partial class TimelineState : ObservableObject
     private bool _lockEnvelopes;
     private bool _ignoreGroups;
     private double _pixelsPerSecond = DefaultPixelsPerSecond;
+    private double _scrollX;
+
+    /// <summary>Origen horizontal compartido por la línea de tiempo y la gráfica del inspector.</summary>
+    public double ScrollX
+    {
+        get => _scrollX;
+        set => SetProperty(ref _scrollX, double.IsFinite(value) ? Math.Max(0, value) : 0);
+    }
 
     public TimelineTool Tool
     {

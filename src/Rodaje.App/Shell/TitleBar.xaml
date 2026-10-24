@@ -108,6 +108,7 @@
                     <MenuFlyoutItem Text="Velocidad" Tag="inspector:Speed" Click="OnInspectorClick" />
                     <MenuFlyoutItem Text="Filtros" Tag="inspector:Filters" Click="OnInspectorClick" />
                     <MenuFlyoutItem Text="Máscaras" Tag="inspector:Masks" Click="OnInspectorClick" />
+                    <MenuFlyoutItem Text="Gráfica" Tag="inspector:Graph" Click="OnInspectorClick" />
                     <MenuFlyoutItem Text="Seguimiento" Tag="inspector:Tracking" Click="OnInspectorClick" />
                     <MenuFlyoutItem Text="Dinámica" Tag="inspector:Dynamics" Click="OnInspectorClick" />
                     <MenuFlyoutItem Text="Transición" Tag="inspector:Transition" Click="OnInspectorClick" />

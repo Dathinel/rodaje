@@ -8,6 +8,11 @@ using Windows.UI.Core;
 
 namespace Rodaje.App.Shell;
 
+internal interface IFocusedShortcutTarget
+{
+    bool TryHandleShortcut(KeyChord chord);
+}
+
 /// <summary>
 /// Atajos de toda la ventana: escucha el túnel (<c>PreviewKeyDown</c>) en la raíz, antes que cualquier control, y pasa
 /// cada combinación a <see cref="ShortcutRouter"/>. Si es un atajo, la marca como manejada también al soltarla, porque
@@ -63,6 +68,7 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
         LastKeyDownTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         var chord = new KeyChord((int)e.Key, CurrentModifiers());
         bool handled = _intercept?.Invoke(chord) == true
+            || (_root.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is IFocusedShortcutTarget target && target.TryHandleShortcut(chord))
             || (!FocusedSliderTakes(chord) && _router.Dispatch(chord, e.KeyStatus.WasKeyDown, FocusKind()));
         if (handled)
         {

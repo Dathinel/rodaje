@@ -227,7 +227,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         MotionBlurSection.Remember(services.Settings);
         PresetsSection.Remember(services.Settings);
         GraphSection.Remember(services.Settings);
-        Graph.Attach(services.Session, _editor);
+        Graph.Attach(services, _editor);
         Graph.Edited += (_, _) => Refresh();
         OpacitySection.Remember(services.Settings);
         AudioSection.Remember(services.Settings);
