@@ -13,20 +13,13 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 - **Worktrees** en `.claude\worktrees\` (ignorado); se unen con `git merge`, un commit por tarea.
 - **Espacios de nombres en las pruebas:** `Rodaje.X.Tests.Timing` tapa a `Rodaje.Core.Timing`: nombre completo o `using`.
 - **Complementos:** contenido en `Dathinel/rodaje-transiciones`, `-filtros`, `-fuentes`, `-titulos`, `-zonas`, `-camaras`, `-sonidos`, `-preajustes-pro` y `-360` (CC0/OFL); módulos en `Dathinel/modulo-*` (GPLv3, `build\empaquetar-modulo.ps1`); x264/x265 en `Dathinel/rodaje-codificadores-gpl` (GPL, `build\armar-codificadores-gpl.ps1`, D-034); descarga firmada desde `Dathinel/rodaje-catalogo` (release `v7`; `docs/descarga.md`).
-- **Decisiones:** `docs/decisiones.md` (D-001 a D-050). Un cambio de fondo que contradiga una decisión vigente se registra como decisión nueva.
+- **Decisiones:** `docs/decisiones.md` (D-001 a D-051). Un cambio de fondo que contradiga una decisión vigente se registra como decisión nueva.
 
-## Para retomar (16-oct)
+## Para retomar (24-oct)
 
-- **v1.0.1 publicada** (release `v1.0.1`, commit 11c44eb, 16-oct-2026; antes `v1.0.0`, commit 8b1e4c1). No se publica nada nuevo hasta que el autor lo pida. 1.0.2 = complementos adicionales y los detalles visuales que quedaron de la 1.0.1.
-- **Tres carriles (D-045 a D-047):**
-  - Gemini local: `build/gemini-cola.ps1`, también con `-Lote`.
-  - Sesiones en la nube con crédito (vence el 4-nov): `build/nube-ciclo.ps1`, nunca como rutina.
-  - Claude Code local: lo que solo se comprueba en Windows.
-  - Los PR los juzga `build/revisar-pr.ps1` y se unen según D-046. `main` está protegido: exige la CI de Linux y Windows, y nunca se usa `--admin`.
-- **En pausa:** la rutina horaria de la nube y `nocturna.yml`.
-- **Pendiente:**
-  - Decisiones de Daniel: 317 a 320 (`formato-paquete.md` frente al código).
-  - Sesión local: 321 (fuzz cortado por reloj) y las pruebas a mano de `.proceso/para-daniel.md`, entre ellas el cierre al elegir «escala» (#99).
-  - Limpiar los worktrees viejos de `.claude/worktrees/`, comprobando antes cada uno.
-  - La 291, a medias en `claude/dep-preroll-4k`.
+- **v1.0.1 publicada** (release `v1.0.1`, 16-oct-2026). No se publica nada nuevo hasta que el autor lo pida.
+- **Sin publicar:** 17 cambios en `main` desde la v1.0.1 (ver CHANGELOG «Sin publicar»).
+- **1.0.2 en marcha** con la Cuadrilla (`D:\Programas de uso libre\mesa-agentes`, hilo `20261024-rodaje-1-0-2-cierre-de-p`). Pendientes en `.proceso/agentes/BACKLOG-1.0.2.md`. La 291 (pre-roll 4K) ya está unida (#335).
+- **Worktrees viejos** ya limpiados. La nube y `nocturna.yml` siguen en pausa.
+- **Decisiones:** hasta D-051. Pruebas a mano en `.proceso/para-daniel.md`.
 - **Informe del último trabajo sin supervisión:** `.proceso/informe-autonomo.md`.

@@ -55,7 +55,7 @@ Detalle de ingeniería de cada subsistema en `src/` (diseño sin dependencias ci
 
 ## 4. Decisiones de diseño y marco legal
 
-- **[Decisiones de diseño (D-001 a D-049)](decisiones.md):** Bitácora oficial de decisiones técnicas, elecciones de arquitectura y compromisos de estabilidad.
+- **[Decisiones de diseño (D-001 a D-051)](decisiones.md):** Bitácora oficial de decisiones técnicas, elecciones de arquitectura y compromisos de estabilidad. Lo aún sin publicar está en el [CHANGELOG](../CHANGELOG.md), sección «Sin publicar».
 - **[Marco legal y licencias](legal.md):** Justificación de la licencia GPLv3, compatibilidad con FFmpeg LGPL y directrices de marcas.
 - **[Guía para contribuir](../CONTRIBUTING.md):** Convención de commits, flujo de Pull Requests y Developer Certificate of Origin ([DCO 1.1](DCO.txt)).
 - **[Configuración de compilación de FFmpeg](ffmpeg-configure.txt):** Opciones exactas de compilación LGPL sin componentes privativos ni no libres.

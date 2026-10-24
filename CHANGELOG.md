@@ -23,6 +23,9 @@ Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video rea
 - **Pegar atributos** copia también el estilo del texto y de los subtítulos (fuente, tamaño, color, contorno, fondo, animaciones) y las sombras, pero no las palabras (#435).
 - **Ventanas estrechas:** el inspector se pliega por debajo de 788 px de ancho y la biblioteca por debajo de 544. Las pestañas del inspector se desplazan y la barra de título se compacta (#428).
 - **Marcadores juntos en la regla:** sus nombres se recortan en lugar de pisarse. El nombre de la GPU se abrevia en la barra de título (#432).
+- **Línea de tiempo:** ocupa el 42 % del alto de la ventana (mínimo 268 px, 3 pistas), con divisor de 8 px y pestaña (doble clic alterna 30 % y 55 %; Ver › Distribución). La rueda sube y baja por las pistas, Mayús+rueda desplaza en el tiempo, Ctrl+rueda hace zoom y Alt+rueda cambia el alto de pista; el estilo Clásico no cambia. Mayús+Z es «Ajustar a la secuencia» y el zoom se ajusta al abrir un proyecto. Las herramientas de IA pasan a un desplegable «Herramientas ▾». Con el arrastre cerca de los bordes la vista se desplaza sola. El inspector sin selección muestra la secuencia y «Formato del proyecto…» (#439, D-051).
+- **Transición por defecto:** guarda defensiva si no hay transición configurada (#440).
+- **Etiqueta de Preferencias** más clara: «Traer también el audio de los medios que caigan en estas pistas de video» (#440).
 - **Formato de proyecto 14,** solo si el proyecto contiene fotos. Sin fotos se sigue guardando en el 13, que abre la 1.0.1 (D-050).
 
 ### Corregido
@@ -30,6 +33,8 @@ Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video rea
 - **Importación masiva:** ahora tiene un límite de análisis simultáneos y una ruta repetida ya no se analiza dos veces (#425).
 - **Automatización del mezclador:** la de tipo «tocar» respeta una curva Mantener tras el retorno (#389).
 - **Instalador:** ya no sale incompleto si la carpeta de la app estaba oculta (#427).
+- **Archivos hostiles:** tope de 256 MB para el `.rodaje` y de 32 MB para los subtítulos, con mensaje en español (#440).
+- **Menú y documentación:** separador duplicado y nombre huérfano en el menú, esquema v14 y texto del historial de la 1.0.1 sobre Preferencias (#440).
 - **Paneles con desbordes:** Exportar › Avanzado, Complementos y Biblioteca (#429).
 
 ## [1.0.1] - 2026-10-16
