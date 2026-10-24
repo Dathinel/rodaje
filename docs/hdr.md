@@ -1,6 +1,6 @@
 # HDR, 10 bits y RAW
 
-Estado medido el 24-oct-2026 (fase B incluida) y plan por fases. Decisión de camino: [D-053](decisiones.md) (propuesta, pendiente de Daniel).
+Estado medido el 24-oct-2026 (fase B incluida) y plan por fases. Decisión de camino: [D-053](decisiones.md) (propuesta, pendiente de Daniel); la fase C se partió en dos ([D-054](decisiones.md)).
 
 ## Lo que hay hoy (medido)
 
@@ -60,7 +60,7 @@ Techo de media precisión para rampas uniformes en [0, 1]: 10 bits → 1024 de 1
 |---|---|---|---|
 | A | HDR → SDR (D-052) | M | Codex, unida en #444 |
 | B | Cerrar los bordes de 8 bits | M | Claude, hecha (rama `claude/hdr-b`) |
-| C | Trabajar en HDR, SDR → HDR, exportar HDR10/HLG | L | Claude (1 y 2 a Codex) |
+| C | Trabajar en HDR, SDR → HDR, exportar HDR10/HLG | L | Claude; parte 1 hecha (rama `claude/hdr-c`, D-054), parte 2 en `encargos/hdr-fase-c-2.md` |
 | D | RAW sin perder profundidad | M | agy la parte del módulo, Claude la integración |
 
 ### A. HDR → SDR
@@ -84,7 +84,11 @@ PQ/HLG → lineal → BT.2020 a BT.709 → Hable → curva BT.709, en `RenderSha
 - **Efectos a revisar:** color, curvas, LUT (entrada en log o PQ), resplandor, mezclas y transiciones (los 38 `saturate`).
 - **Aceptación:** una capa SDR blanca sale en una secuencia PQ con el código de 203 nits; un parche PQ de 1000 nits llega sin recorte al archivo; ffprobe ve los metadatos HDR; una secuencia SDR no cambia ni un bit.
 - **Riesgo:** alto. Toca el formato del proyecto, todos los shaders y el visor, y en el portátil no hay pantalla HDR para la prueba a mano.
-- Encargo: `.proceso/diseno/encargos/hdr-fase-c.md`.
+- Encargo: `.proceso/diseno/encargos/hdr-fase-c.md` (parte 1) y `hdr-fase-c-2.md` (parte 2).
+
+**Parte 1, hecha (24-oct, D-054):** `Sequence.ColorSpace` en el formato 15 (solo se escribe con una secuencia HDR); `ExportColor` con BT.2020 + PQ/HLG y `MaxCll`/`MaxFall` declarados; el conversor de exportación (`ExportShaders`, variante `HDR`) codifica la composición SDR a BT.2020 con PQ o HLG con el blanco en 203 nits, y la variante SDR compila al mismo bytecode de antes (`ExportHdrEncodeTests`); `ffmpeg.exe` recibe `-mastering_display` y `-content_light` como opciones de entrada en PQ; las miniaturas convierten el HDR en la CPU (`HdrToneMap`). Medido con la rampa SDR de `ExportBitDepthTests` en una secuencia HDR (RTX 3050): HEVC NVENC PQ Y 63..572 con SEI de masterizado y MaxCLL/MaxFALL 1000/400; NVENC HLG Y 64..720 sin SEI; SVT-AV1 PQ Y 65..573 y ProRes PQ Y 64..573 con metadatos en el flujo y el contenedor (ffprobe). El rango SDR cabe en 509 códigos PQ (419 niveles de los 877 de la rampa), que es lo esperado: el resto del rango queda para las altas luces de la parte 2.
+
+**Parte 2, pendiente:** compositor en luz lineal BT.2020 (1,0 = 203 nits) con mezcla en lineal solo en HDR y revisión de los `saturate`; SDR → HDR por clip (BT.2446 A); visor scRGB con monitor HDR; selector de espacio de color en «Formato del proyecto…»; medir MaxCLL/MaxFALL (pasada previa opcional). Hasta entonces una secuencia HDR exporta el rango SDR codificado en PQ o HLG y la interfaz no ofrece el espacio de color.
 
 ### D. RAW de 12–16 bits
 - **Archivos:** `CinemaDngImport.cs` (parámetros y argumentos de ffmpeg), `ToneTable.cs`.

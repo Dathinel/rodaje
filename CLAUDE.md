@@ -13,7 +13,7 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 - **Worktrees** en `.claude\worktrees\` (ignorado); se unen con `git merge`, un commit por tarea.
 - **Espacios de nombres en las pruebas:** `Rodaje.X.Tests.Timing` tapa a `Rodaje.Core.Timing`: nombre completo o `using`.
 - **Complementos:** contenido en `Dathinel/rodaje-transiciones`, `-filtros`, `-fuentes`, `-titulos`, `-zonas`, `-camaras`, `-sonidos`, `-preajustes-pro` y `-360` (CC0/OFL); módulos en `Dathinel/modulo-*` (GPLv3, `build\empaquetar-modulo.ps1`); x264/x265 en `Dathinel/rodaje-codificadores-gpl` (GPL, `build\armar-codificadores-gpl.ps1`, D-034); descarga firmada desde `Dathinel/rodaje-catalogo` (release `v7`; `docs/descarga.md`).
-- **Decisiones:** `docs/decisiones.md` (D-001 a D-051). Un cambio de fondo que contradiga una decisión vigente se registra como decisión nueva.
+- **Decisiones:** `docs/decisiones.md` (D-001 a D-054). Un cambio de fondo que contradiga una decisión vigente se registra como decisión nueva.
 
 ## Para retomar (24-oct)
 
@@ -21,5 +21,5 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 - **Sin publicar:** 17 cambios en `main` desde la v1.0.1 (ver CHANGELOG «Sin publicar»).
 - **1.0.2 en marcha** con la Cuadrilla (`D:\Programas de uso libre\mesa-agentes`, hilo `20261024-rodaje-1-0-2-cierre-de-p`). Pendientes en `.proceso/agentes/BACKLOG-1.0.2.md`. La 291 (pre-roll 4K) ya está unida (#335).
 - **Worktrees viejos** ya limpiados. La nube y `nocturna.yml` siguen en pausa.
-- **Decisiones:** hasta D-051. Pruebas a mano en `.proceso/para-daniel.md`.
+- **Decisiones:** hasta D-054 (HDR: D-052 a D-054; estado y fases en `docs/hdr.md`). Pruebas a mano en `.proceso/para-daniel.md`.
 - **Informe del último trabajo sin supervisión:** `.proceso/informe-autonomo.md`.
