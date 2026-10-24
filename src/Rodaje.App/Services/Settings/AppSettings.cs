@@ -79,6 +79,9 @@ public sealed partial class AppSettings
     /// <summary>Resolución de la vista previa; Auto baja sola al reproducir si la GPU no llega.</summary>
     public PreviewQuality PreviewQuality { get; set; } = PreviewQuality.Auto;
 
+    /// <summary>Visor de 10 bits: automático según el monitor, siempre o nunca. Se aplica al volver a abrir el reproductor.</summary>
+    public TenBitViewer TenBitViewer { get; set; } = TenBitViewer.Auto;
+
     /// <summary>Calidad de la IA local (Ver › Calidad de la IA): automática según el equipo, rápida o máxima (D-037).</summary>
     public Rodaje.Media.Ai.AiQuality AiQuality { get; set; } = Rodaje.Media.Ai.AiQuality.Auto;
 
@@ -195,6 +198,11 @@ public sealed partial class AppSettings
         if (!Enum.IsDefined(PreviewQuality))
         {
             PreviewQuality = PreviewQuality.Auto;
+        }
+
+        if (!Enum.IsDefined(TenBitViewer))
+        {
+            TenBitViewer = TenBitViewer.Auto;
         }
 
         FormatClipFit = Format.ProjectFormats.Normalize(FormatClipFit);

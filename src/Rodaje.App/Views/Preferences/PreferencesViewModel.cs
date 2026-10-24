@@ -21,6 +21,7 @@ public sealed class PreferencesViewModel(AppSettings settings)
         : Settings.LinkedAudioTracks.ToSetting() ?? [];
     public ProxyUsage ProxyUsage { get => Settings.ProxyUsage; set => Settings.ProxyUsage = value; }
     public PreviewQuality PreviewQuality { get => Settings.PreviewQuality; set => Settings.PreviewQuality = value; }
+    public TenBitViewer TenBitViewer { get => Settings.TenBitViewer; set => Settings.TenBitViewer = value; }
     public ShortcutPreset ShortcutPreset { get => Settings.ShortcutPreset; set => Settings.ShortcutPreset = value; }
 
     public void SetLinkedAudioVideoTracks(IEnumerable<int> videoTracks)

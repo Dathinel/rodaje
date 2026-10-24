@@ -1056,7 +1056,13 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     }
 
     private static long TextureBytes(D3D11TexturePayload texture) =>
-        (long)texture.CodedWidth * texture.CodedHeight * (texture.PixelFormat == FramePixelFormat.Bgra8 ? 8 : texture.PixelFormat == FramePixelFormat.P010 ? 6 : 3) / 2;
+        (long)texture.CodedWidth * texture.CodedHeight * (texture.PixelFormat switch
+        {
+            FramePixelFormat.Rgba16 => 16,
+            FramePixelFormat.Bgra8 => 8,
+            FramePixelFormat.P010 or FramePixelFormat.P016 => 6,
+            _ => 3,
+        }) / 2;
 }
 
 /// <summary>Contadores acumulados de un <see cref="VideoDecoder"/>.</summary>

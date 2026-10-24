@@ -213,6 +213,11 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     /// <summary>Resolución de la vista previa: Auto, completa, mitad o cuarto.</summary>
     public void SetPreviewQuality(PreviewQuality quality) => Post(new Command(CommandKind.Quality, Quality: quality));
 
+    /// <summary>Visor de 10 bits; se lee al crear cada cadena de intercambio, así que se fija antes del primer tamaño.</summary>
+    public TenBitViewer TenBitViewer { get; set; }
+
+    private bool UsesTenBits() => _gpu is not null && ViewerBitDepth.UsesTenBits(TenBitViewer, CompositionSwapChain.MaxBitsPerColor(_gpu));
+
     /// <summary>Efectos dibujados, saltados y contenido que faltó desde que se abrió el reproductor (para medir).</summary>
     public EffectTotals Effects
     {
@@ -584,8 +589,12 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         if (_swapChain is null)
         {
-            _swapChain = new CompositionSwapChain(_gpu, size.Width, size.Height, size.ScaleX, size.ScaleY);
+            _swapChain = new CompositionSwapChain(_gpu, size.Width, size.Height, size.ScaleX, size.ScaleY, UsesTenBits());
             _metrics.Milestone("cadena_creada");
+            if (_swapChain.TenBits)
+            {
+                _metrics.Note("visor de 10 bits (R10G10B10A2)");
+            }
             SwapChainCreated?.Invoke(_swapChain.NativeSwapChain);
         }
         else

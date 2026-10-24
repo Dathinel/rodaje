@@ -1,6 +1,6 @@
 # HDR, 10 bits y RAW
 
-Estado medido el 24-oct-2026 y plan por fases. Decisión de camino: [D-053](decisiones.md) (propuesta, pendiente de Daniel).
+Estado medido el 24-oct-2026 (fase B incluida) y plan por fases. Decisión de camino: [D-053](decisiones.md) (propuesta, pendiente de Daniel).
 
 ## Lo que hay hoy (medido)
 
@@ -10,25 +10,29 @@ Pruebas: `BitDepthChainTests` (Render), `ExportBitDepthTests` (Export, larga: `R
 
 | Punto | Niveles que quedan | Dónde |
 |---|---|---|
-| Decodificación (P010 de D3D11VA o FFV1/HEVC 10 bits por software) | 1024 | `FrameUploader.cs:56` sube P010 si la fuente tiene más de 8 bits; `PlaneViewCache.cs:120` lo lee como R16 |
+| Decodificación (P010 de D3D11VA o FFV1/HEVC 10 bits por software) | 1024 | `FrameUploader.Upload` sube P010 con 10 bits y la palabra entera de 16 (`FramePixelFormat.P016`) con más; `PlaneViewCache.PlaneFormats` lee los dos como R16 |
+| Decodificación de 12 bits o 4:4:4 (yuv444p12 FFV1 por software, 4096 códigos) | 3072 de 4096 (techo 3073) | swscale a P016 y, si la GPU no muestrea `DXGI_FORMAT_P016` (la RTX 3050 no), a una textura P010 con la palabra completa; `YuvRange.For(P016)` |
+| Imagen fija de 16 bits (PNG rgb48, 4096 códigos) | > 2000 (techo 3073) | `FrameUploader.UploadImage` sube RGBA64 premultiplicado como `R16G16B16A16_UNORM`; las de 8 bits siguen en BGRA8 |
 | Intermedio del compositor (RGBA16F, D-016) | 1024 | `Compositor.cs:75`, `LayerRenderer.cs:78`; LUT y curvas también RGBA16F |
 | Conversor de exportación a P010 / yuv420p10 (BT.709 limitado, techo 877) | 877 / 877 | `ExportLayout.cs`, tramado solo en 8 bits |
 | Conversor a NV12 (techo 220) | 220 | — |
-| Lectura de 8 bits (miniaturas, comparación) y visor | 256 | `Compositor.ReadbackRgba`; cadena de intercambio `B8G8R8A8` en `CompositionSwapChain.cs:180` |
+| Lectura de 8 bits (miniaturas, comparación) | 256 | `Compositor.ReadbackRgba` |
+| Visor | 8 bits, o 10 (`R10G10B10A2`) con monitor de ≥ 10 bits por color o Preferencias › Rendimiento › «Visor de 10 bits» | `CompositionSwapChain`, `ViewerBitDepth.UsesTenBits`; el presentador acepta los dos formatos (probado en WARP) |
 
-**Archivo exportado y vuelto a leer con el ffmpeg del entorno** (exportación entera desde un FFV1 de 10 bits de rango completo; techo 877 en 10 bits y 220 en 8, por el rango limitado):
+**Archivo exportado y vuelto a leer con el ffmpeg del entorno** (exportación entera desde un FFV1 de 10 bits de rango completo con los 1024 códigos; techo 877 en 10 bits y 220 en 8, por el rango limitado):
 
 | Códec | Píxeles del archivo | Niveles | Salto máx. |
 |---|---|---|---|
-| H.264 NVENC / H.264 MF / HEVC NVENC 8 bits / VP9 (WebM) | yuv420p | 220 | 4 |
-| HEVC NVENC Main 10 | yuv420p10le | 866 | 2 |
-| AV1 SVT 10 bits (MKV) | yuv420p10le | 877 | 1 |
-| x265 Main 10 / x264 High 10 (complemento GPL) | yuv420p10le | 877 / 872 | 1–2 |
-| ProRes 422 HQ / DNxHR HQX (MOV) | yuv422p10le | 812 | 2 |
-| FFV1 sin pérdida (MKV) | yuv420p10le | 812 | 2 |
+| H.264 NVENC / HEVC NVENC 8 bits / VP9 (WebM) | yuv420p | 220 | 4 |
+| H.264 MF | yuv420p | 219 (Y 68..940) | 4 |
+| HEVC NVENC Main 10 | yuv420p10le | 870 | 2 |
+| AV1 SVT 10 bits (MKV) | yuv420p10le | 875 | 2 |
+| x265 Main 10 / x264 High 10 (complemento GPL) | yuv420p10le | 877 / 872 con la rampa antigua de 877 códigos; sin medir con la corregida | 1–2 |
+| ProRes 422 HQ / DNxHR HQX (MOV) | yuv422p10le | 877 | 1 |
+| FFV1 sin pérdida (MKV) | yuv420p10le | 877 | 1 |
 | AV1 NVENC | — | no hay en la RTX 3050 | — |
 
-Todos salen con curva, primarios y matriz BT.709 de rango limitado y **sin metadatos HDR**. El FFV1 sin pérdida da la cifra real de la cadena: **812 de 877** (faltan 65 códigos sueltos, saltos de 2). Los códecs con pérdida llegan a 866–877 porque su ruido rellena los huecos, no porque guarden más. La prueba directa del conversor con una textura P010 da 877, así que los 65 se pierden entre la decodificación por software (`FrameUploader.PackP010`) y el compositor con una fuente de rango completo; queda por aislar en la fase B.
+Todos salen con curva, primarios y matriz BT.709 de rango limitado y **sin metadatos HDR**. Los tres códecs sin pérdida visible (FFV1, ProRes HQ, DNxHR HQX) dan **877 de 877**: la cadena no pierde nada. Las primeras medidas (812, «65 códigos perdidos») eran culpa de la rampa de la prueba: ffmpeg tomaba el crudo sin etiquetar por BT.601 limitado y, al pedir `-color_range pc`, lo estiraba, así que el FFV1 fuente nacía con 877 códigos y 877 códigos de rango completo caben en 812 huecos del rango limitado. Con rango y matriz también en la entrada la fuente tiene 1024 (`ExportBitDepthTests.RampAsync` lo comprueba). Los códecs con pérdida quedan en 870–875 por su cuantización.
 
 **RAW** (CinemaDNG sintético de 12 bits, 3840 códigos):
 
@@ -46,16 +50,16 @@ Techo de media precisión para rampas uniformes en [0, 1]: 10 bits → 1024 de 1
 - Desde D-052, `VideoColor` lleva la curva (PQ/HLG) y si los primarios son BT.2020 (`VideoColor.cs:24`), solo para convertir a SDR al entrar.
 - La exportación declara siempre primarios BT.709 (`ExportColor.cs:21`); no hay SEI de mastering display ni MaxCLL/MaxFALL en ningún códec (comprobado con ffprobe en cada archivo de la tabla). La copia directa se niega con HDR (`StreamCopySource.cs:60`).
 - Mezcla en gamma (D-016) y 38 `saturate` en los shaders (31 en `EffectShaders.cs`): todo lo que pase de 1,0 se recorta en los efectos.
-- 12 bits y 4:4:4 de 10 bits se bajan a P010 4:2:0 (`FrameUploader.cs:61`); las imágenes fijas de 16 bits suben en BGRA8 (`FrameUploader.cs:43`).
+- Las fuentes de más de 10 bits conservan la profundidad pero la croma baja a 4:2:0 al subirlas (swscale a P016); 4:4:4 de 10 bits sigue en P010 4:2:0. Un EXR sube en 16 bits pero recortado a [0, 1] y sin curva, como antes.
 
-**Conclusión.** La cadena interna ya es de 10 bits en el compositor y en la exportación de 10 bits (877 de 877 desde una textura P010; 812 de 877 desde un archivo de rango completo). Lo que no es de 10 bits: el visor (8), las imágenes fijas (8), las fuentes de 12 bits (bajan a 10), el RAW (llega a 10 bits con las altas luces recortadas) y el color, que no sabe de BT.2020, PQ ni HLG.
+**Conclusión.** La cadena es de 10 bits o más de punta a punta: 877 de 877 en la exportación de 10 bits desde un archivo de rango completo, 3072 de 4096 en el intermedio desde 12 bits, más de 2000 desde una imagen fija de 16 bits, y el visor en 10 bits con monitor de 10 bits. Lo que falta: el RAW (llega a 10 bits con las altas luces recortadas), la croma 4:4:4 y el color, que no sabe de BT.2020, PQ ni HLG.
 
 ## Fases
 
 | Fase | Qué | Tamaño | Quién |
 |---|---|---|---|
 | A | HDR → SDR (D-052) | M | Codex, unida en #444 |
-| B | Cerrar los bordes de 8 bits | M | Codex |
+| B | Cerrar los bordes de 8 bits | M | Claude, hecha (rama `claude/hdr-b`) |
 | C | Trabajar en HDR, SDR → HDR, exportar HDR10/HLG | L | Claude (1 y 2 a Codex) |
 | D | RAW sin perder profundidad | M | agy la parte del módulo, Claude la integración |
 
@@ -66,8 +70,9 @@ PQ/HLG → lineal → BT.2020 a BT.709 → Hable → curva BT.709, en `RenderSha
 - **Archivos:** `FrameUploader.cs`, `FramePixelFormat.cs`, `PlaneViewCache.cs` (camino de 16 bits para 12 bits y 4:4:4), imágenes fijas de 16 bits en RGBA16F, `CompositionSwapChain.cs` (R10G10B10A2 con monitor de 10 bits).
 - **No cambia:** el intermedio RGBA16F ya basta para 10 bits en gamma; pasar a RGBA32F duplicaría la memoria (8 → 16 B/px: 1080p 16,6 → 33,2 MB por intermedio, 4K 66 → 133 MB) para ganar algo que solo pide el RAW de más de 10 bits en gamma.
 - **Coste:** una textura P016/R16 de 4K pesa 25 MB frente a 12,4 MB en 8 bits; la cadena de intercambio de 10 bits ocupa lo mismo que la de 8.
-- **Aceptación:** el FFV1 sin pérdida de la rampa sube de 812 a 877 niveles; un yuv444p12 de 4096 códigos conserva más de 2000 en el intermedio; las imágenes de 16 bits más de 1024; nada cambia en 8 bits (comparación de bytes).
-- **Riesgo:** bajo. El 12 bits por hardware no existe en D3D11VA de consumo: va por software.
+- **Aceptación (medida):** el FFV1 sin pérdida de la rampa da 877 (la pérdida a 812 estaba en la rampa, no en la cadena); un yuv444p12 de 4096 códigos conserva 3072 en el intermedio; un PNG de 16 bits más de 2000; las de 8 bits siguen en BGRA8 con los mismos colores (`StillImageTests`).
+- **Riesgo:** bajo. El 12 bits por hardware no existe en D3D11VA de consumo: va por software. La RTX 3050 no muestrea `DXGI_FORMAT_P016`: los 16 bits viajan en la palabra de una textura P010.
+- **Fuera:** la croma 4:4:4 (sigue bajando a 4:2:0 al subir) y el visor de 10 bits se decide por el monitor con más bits del adaptador, no por el que tiene la ventana; el cambio de la preferencia se aplica al volver a abrir el reproductor.
 - Encargo: `.proceso/diseno/encargos/hdr-fase-b.md`.
 
 ### C. Trabajar en HDR y SDR → HDR

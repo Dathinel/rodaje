@@ -2,6 +2,7 @@ using Rodaje.Core.Timing;
 using Rodaje.Media.Export;
 using Rodaje.Media.Gpu;
 using Rodaje.Media.Video;
+using Rodaje.Playback;
 using Rodaje.Playback.Composition;
 using Rodaje.Render.Export;
 using Rodaje.Render.Tests.Export;
@@ -62,6 +63,56 @@ public sealed class BitDepthChainTests(ITestOutputHelper output)
         Assert.InRange(nv12, 200, 220);
         Assert.InRange(preview8, 250, 256);
         Assert.InRange(rgba8, 200, 256);
+    }
+
+    /// <summary>
+    /// Un FFV1 yuv444p12 de rango completo con los 4096 códigos sube como P016 (no se baja a P010) y el intermedio conserva
+    /// más de 2000 (el techo de media precisión para 12 bits es 3073).
+    /// </summary>
+    [HardwareFact]
+    public void A_4096_level_yuv444p12_file_keeps_more_than_10_bits_in_the_intermediate()
+    {
+        const int width = 4096;
+        const int height = 16;
+        string folder = Path.Combine(Path.GetTempPath(), "rodaje-12-bits-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string path = Path.Combine(folder, "rampa.mkv");
+            var frame = new byte[width * height * 6];
+            for (int i = 0; i < width * height; i++)
+            {
+                BitConverter.TryWriteBytes(frame.AsSpan(i * 2), (ushort)(i % width));
+                BitConverter.TryWriteBytes(frame.AsSpan((width * height * 2) + (i * 2)), (ushort)2048);
+                BitConverter.TryWriteBytes(frame.AsSpan((width * height * 4) + (i * 2)), (ushort)2048);
+            }
+
+            string[] color = ["-color_range", "pc", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"];
+            FfmpegTool.Default!.Run(["-hide_banner", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "yuv444p12le", "-s", $"{width}x{height}",
+                "-r", "30", .. color, "-i", "pipe:0", "-c:v", "ffv1", .. color, path], input => input.Write(frame));
+
+            using GpuDevice gpu = GpuDevice.Create();
+            using VideoDecoder decoder = VideoDecoder.Open(path, new VideoDecoderOptions { Device = gpu });
+            using DecodedFrame decoded = decoder.GetFrame(0)!;
+            var payload = Assert.IsType<D3D11TexturePayload>(decoded.Payload);
+            Assert.Equal(FramePixelFormat.P016, payload.PixelFormat);
+            Assert.True(payload.Color.FullRange);
+
+            using var compositor = new Compositor(gpu, width, height);
+            using (var composition = new CompositionFrame(Time.Zero, width, height, [new LayerFrame(0, "rampa", decoded, LayerTransform.Identity)]))
+            {
+                Assert.Equal(0, compositor.RenderStrict(composition).LayersSkipped);
+            }
+
+            float[] halves = compositor.ReadbackRgbaFloat();
+            int levels = Distinct(width, x => (int)Math.Round(halves[(((height / 2) * width) + x) * 4 + 1] * 4095));
+            output.WriteLine($"Entrada: 4096 niveles en yuv444p12. Intermedio RGBA16F: {levels}.");
+            Assert.True(levels > 2000, $"El intermedio solo guarda {levels} niveles.");
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
     }
 
     /// <summary>Techo del intermedio de media precisión para rampas uniformes de 10 a 16 bits en [0, 1] (como las codifica una curva).</summary>

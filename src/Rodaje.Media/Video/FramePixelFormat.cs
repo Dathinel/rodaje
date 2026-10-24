@@ -20,4 +20,13 @@ public enum FramePixelFormat
 
     /// <summary>BGRA de 8 bits premultiplicado, para imágenes fijas.</summary>
     Bgra8,
+
+    /// <summary>
+    /// Como P010 con la palabra entera de 16 bits significativa: fuentes de más de 10 bits. Textura <c>P016</c> o, si la GPU
+    /// no la muestrea (la RTX 3050 no), <c>P010</c>: las vistas <c>R16_UNORM</c> leen la palabra completa igual.
+    /// </summary>
+    P016,
+
+    /// <summary>RGBA de 16 bits premultiplicado (<c>R16G16B16A16_UNORM</c>), para imágenes fijas de más de 8 bits.</summary>
+    Rgba16,
 }
