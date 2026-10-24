@@ -223,9 +223,9 @@ internal sealed partial class PlayerView : UserControl, IEditorView
             return;
         }
 
-        SetToolTip(PreviousFrameButton, "Cuadro anterior", ActionIds.PreviousFrame);
+        SetToolTip(PreviousFrameButton, "Fotograma anterior", ActionIds.PreviousFrame);
         SetToolTip(PlayButton, "Reproducir o pausar", ActionIds.TogglePlay);
-        SetToolTip(NextFrameButton, "Cuadro siguiente", ActionIds.NextFrame);
+        SetToolTip(NextFrameButton, "Fotograma siguiente", ActionIds.NextFrame);
         SetToolTip(CaptureButton, "Capturar fotograma", ActionIds.CaptureFrame);
         SetToolTip(FullScreenButton, "Pantalla completa (Esc o doble clic para salir)", PlayerActionIds.FullScreen);
         SetToolTip(SafeAreasButton, SafeZonesToolTip(), PlayerActionIds.SafeAreas);

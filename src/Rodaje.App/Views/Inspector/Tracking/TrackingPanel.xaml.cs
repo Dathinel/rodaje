@@ -177,7 +177,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         {
             PointTrackKind kind = PointTrack.ParseKind(effect.Options.GetValueOrDefault(O.Kind));
             int frames = PointTrack.ParseCached(effect.Options.GetValueOrDefault(O.Samples))?.Count ?? 0;
-            string note = KindName(kind) + (frames > 0 ? $" · {frames} cuadros" : " · sin seguir");
+            string note = KindName(kind) + (frames > 0 ? $" · {frames} fotogramas" : " · sin seguir");
             next.Add(new TrackItem(effect.Id, effect.Options.GetValueOrDefault(O.Name) ?? "Seguimiento", note,
                 new SolidColorBrush(Color(effect.Options.GetValueOrDefault(O.Color)))));
         }
@@ -383,7 +383,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
 
         if (clip.Speed is { Freeze: true } || !_editor.IsPlayheadInside(clip))
         {
-            Session.Notify(NotificationSeverity.Informational, "Seguir", "Lleva el cursor sobre el clip (no un cuadro congelado) para seguir.");
+            Session.Notify(NotificationSeverity.Informational, "Seguir", "Lleva el cursor sobre el clip (no un fotograma congelado) para seguir.");
             return;
         }
 
@@ -475,8 +475,8 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         Session.BreakMerge();
         int frames = Math.Max(0, collected.Count - 1);
         RunText.Text = frames == 0
-            ? "No había cuadros para seguir en esa dirección."
-            : $"Seguidos {frames} cuadros hacia {(forward ? "adelante" : "atrás")}"
+            ? "No había fotogramas para seguir en esa dirección."
+            : $"Seguidos {frames} fotogramas hacia {(forward ? "adelante" : "atrás")}"
                 + (doubtful > 0 ? $"; {doubtful} dudosos" : "")
                 + (lost > 0 ? $"; en {lost} se perdió algún punto y se estimó" : "")
                 + (gone ? ". Se detuvo porque no se encontraba ningún punto." : ".");
@@ -539,7 +539,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         Graph.Children.Add(new Line { X1 = cursor, X2 = cursor, Y1 = 0, Y2 = height, Stroke = (Brush)Application.Current.Resources["TextBrush"], StrokeThickness = 1 });
         GraphText.Text = samples is null
             ? "Todavía no se siguió nada."
-            : $"{samples.Count} cuadros · {doubtful} dudosos · {lost} perdidos (línea punteada: umbral)";
+            : $"{samples.Count} fotogramas · {doubtful} dudosos · {lost} perdidos (línea punteada: umbral)";
         ConfidenceSection.Summary = samples is null ? "" : lost + doubtful == 0 ? "todo bien" : $"{lost + doubtful} por revisar";
         PreviousDoubtButton.IsEnabled = NextDoubtButton.IsEnabled = lost + doubtful > 0;
     }

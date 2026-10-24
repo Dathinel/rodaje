@@ -69,7 +69,7 @@ public static class ProjectFormats
     public static IReadOnlyList<(ClipFit Fit, string Label, string Help)> FitChoices { get; } =
     [
         (ClipFit.Fit, "Encajar", "Cada clip entero, con barras si no tiene la forma del proyecto."),
-        (ClipFit.Fill, "Rellenar", "Cada clip llena el cuadro; lo que sobra queda fuera."),
+        (ClipFit.Fill, "Rellenar", "Cada clip llena el fotograma; lo que sobra queda fuera."),
         (ClipFit.Keep, "Mantener tamaño", "Cada clip conserva su tamaño en píxeles."),
     ];
 

@@ -48,7 +48,7 @@ internal sealed partial class PlayerEngine
             _pendingFonts = fontFiles;
         }
 
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>
@@ -62,7 +62,7 @@ internal sealed partial class PlayerEngine
         Volatile.Write(ref _captureBypass, (int)bypass);
         Interlocked.Exchange(ref _pendingCapture, capture)?.TrySetCanceled();
         _dirty = true;
-        _wake.Set();
+        Wake();
         return capture.Task;
     }
 
@@ -85,7 +85,7 @@ internal sealed partial class PlayerEngine
     {
         Volatile.Write(ref _compareSplit, split is { } s and > 0 ? Math.Clamp(s, 0, 1) : -1);
         _dirty = true;
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>Efectos que la vista previa deja fuera (el recorte mientras se ajusta). Desde cualquier hilo.</summary>
@@ -93,7 +93,7 @@ internal sealed partial class PlayerEngine
     {
         Volatile.Write(ref _viewBypass, (int)bypass);
         _dirty = true;
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>Solo vista previa: una máscara en gris o superpuesta mientras se edita (nula, como se exporta). Desde cualquier hilo.</summary>
@@ -101,7 +101,7 @@ internal sealed partial class PlayerEngine
     {
         Volatile.Write(ref _maskView, view is { } v ? new StrongBox<MaskPreview>(v) : null);
         _dirty = true;
-        _wake.Set();
+        Wake();
     }
 
     private void ApplyViewOptions(Compositor compositor)
@@ -120,7 +120,7 @@ internal sealed partial class PlayerEngine
         _titles.Changed += (_, _) =>
         {
             Interlocked.Exchange(ref _titleReady, 1);
-            _wake.Set();
+            Wake();
         };
     }
 

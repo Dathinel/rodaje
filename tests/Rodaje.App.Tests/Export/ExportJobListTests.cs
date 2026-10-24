@@ -138,7 +138,7 @@ public class ExportJobListTests
 
         string message = ExportErrorText.For(error).Message;
 
-        Assert.StartsWith("No se pudo decodificar el cuadro 430 de «parte 6.mp4» (cuadro 9430 de la exportación).", message, StringComparison.Ordinal);
+        Assert.StartsWith("No se pudo decodificar el fotograma 430 de «parte 6.mp4» (fotograma 9430 de la exportación).", message, StringComparison.Ordinal);
         Assert.DoesNotContain("está dañado", message, StringComparison.Ordinal);
     }
 

@@ -37,7 +37,7 @@ public static class MouseGestures
         new(Zoom, "Zoom de la línea de tiempo", "Zoom", MouseGestureKind.Axis, "Arriba acerca y abajo aleja, alrededor del puntero.", MouseContext.Timeline),
         new(ScrollTime, "Desplazar en el tiempo", "Desplazar", MouseGestureKind.Axis, "Mueve la línea de tiempo a izquierda o derecha.", MouseContext.Timeline),
         new(ScrollTracks, "Desplazar las pistas", "Pistas", MouseGestureKind.Axis, "Sube o baja por las pistas.", MouseContext.Timeline),
-        new(Frames, "Recorrer cuadros", "Cuadros", MouseGestureKind.Axis, "Cada paso mueve el cursor un cuadro: arriba atrás, abajo adelante.", MouseContext.Timeline, MouseContext.Viewer),
+        new(Frames, "Recorrer fotogramas", "Fotogramas", MouseGestureKind.Axis, "Cada paso mueve el cursor un fotograma: arriba atrás, abajo adelante.", MouseContext.Timeline, MouseContext.Viewer),
         new(ViewerZoom, "Zoom del visor", "Zoom visor", MouseGestureKind.Axis, "Pasa entre Ajustar, 50 % y 100 %.", MouseContext.Viewer),
         new(TrackHeight, "Alto de las pistas", "Alto", MouseGestureKind.Axis, "Arriba agranda y abajo achica la pista bajo el puntero.", MouseContext.Timeline),
         new(Pan, "Arrastrar la vista", "Arrastrar", MouseGestureKind.Drag, "Mientras lo mantienes, mueve la línea de tiempo con el ratón.", MouseContext.Timeline),

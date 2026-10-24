@@ -172,7 +172,7 @@ internal sealed partial class StillExportFlow : IDisposable
         {
             StillResult result = await _export(request, cancel.Token);
             _notify(new EditorNotification(NotificationSeverity.Success, "Fotograma exportado",
-                string.Create(SpanishNumbers.Format, $"Cuadro {result.Frame} guardado en «{result.OutputPath}» ({result.Width}×{result.Height}).")));
+                string.Create(SpanishNumbers.Format, $"Fotograma {result.Frame} guardado en «{result.OutputPath}» ({result.Width}×{result.Height}).")));
         }
         // Solo la cancelación de verdad: un disco lleno justo al pulsar «Cancelar» se avisa como lo que es.
         catch (Exception error) when (cancel.IsCancellationRequested
@@ -196,7 +196,7 @@ internal sealed partial class StillExportFlow : IDisposable
     /// <summary>El indicador de «exportando»: un aviso con el botón para cancelar.</summary>
     private void NotifyExporting(CancellationTokenSource cancel) =>
         _notify(new EditorNotification(NotificationSeverity.Informational, "Exportando fotograma…",
-            "Se guarda el cuadro del cursor; el atajo no lanza otro hasta que termine.",
+            "Se guarda el fotograma del cursor; el atajo no lanza otro hasta que termine.",
             new NotificationAction("Cancelar", () =>
             {
                 if (ReferenceEquals(_running, cancel))

@@ -33,8 +33,8 @@ internal sealed partial class TimelineView
         ShortcutRegistry registry = services.ShortcutRegistry;
         registry.Register(new ShortcutAction(GroupId, "Agrupar", ShortcutGroups.Edit, ["Ctrl+G"], agile: []) { Description = "Junta los clips elegidos: se seleccionan y se mueven juntos, aunque estén en la misma pista." });
         registry.Register(new ShortcutAction(UngroupId, "Desagrupar", ShortcutGroups.Edit, ["Ctrl+Mayús+G"], agile: []) { Description = "Separa los clips del grupo; los enlaces de audio y video se mantienen." });
-        registry.Register(new ShortcutAction(NudgeLeftId, "Mover clip un cuadro a la izquierda", ShortcutGroups.Edit, ["Alt+←"], classic: ["Ctrl+Alt+←"]) { ShortLabel = "Empujar ←", Repeats = true, Description = "Corre la selección (con sus enlazados y su grupo) un cuadro, sin pisar nada." });
-        registry.Register(new ShortcutAction(NudgeRightId, "Mover clip un cuadro a la derecha", ShortcutGroups.Edit, ["Alt+→"], classic: ["Ctrl+Alt+→"]) { ShortLabel = "Empujar →", Repeats = true, Description = "Corre la selección (con sus enlazados y su grupo) un cuadro, sin pisar nada." });
+        registry.Register(new ShortcutAction(NudgeLeftId, "Mover clip un fotograma a la izquierda", ShortcutGroups.Edit, ["Alt+←"], classic: ["Ctrl+Alt+←"]) { ShortLabel = "Empujar ←", Repeats = true, Description = "Corre la selección (con sus enlazados y su grupo) un fotograma, sin pisar nada." });
+        registry.Register(new ShortcutAction(NudgeRightId, "Mover clip un fotograma a la derecha", ShortcutGroups.Edit, ["Alt+→"], classic: ["Ctrl+Alt+→"]) { ShortLabel = "Empujar →", Repeats = true, Description = "Corre la selección (con sus enlazados y su grupo) un fotograma, sin pisar nada." });
         registry.Register(new ShortcutAction(CloseGapsId, "Cerrar todos los huecos", ShortcutGroups.Timeline, []) { ShortLabel = "Sin huecos", Description = "Junta los clips de la pista elegida (o de la principal) sin desincronizar los enlazados." });
         registry.Register(new ShortcutAction(NextGapId, "Ir al hueco siguiente", ShortcutGroups.Timeline, []) { ShortLabel = "Hueco →", Description = "Lleva el cursor al próximo tramo vacío de cualquier pista." });
         registry.Register(new ShortcutAction(PreviousGapId, "Ir al hueco anterior", ShortcutGroups.Timeline, []) { ShortLabel = "← Hueco", Description = "Lleva el cursor al tramo vacío anterior de cualquier pista." });
@@ -126,7 +126,7 @@ internal sealed partial class TimelineView
         if (desync.FirstOrDefault(o => session.SelectedClipIds.Contains(o.ClipId)) is { ClipId: not null } offset)
         {
             string frames = Rodaje.App.Services.Titles.ClipLabels.SyncFrames(offset.Frames(session.Sequence.FrameRate));
-            var resync = new MenuFlyoutSubItem { Text = $"Volver a sincronizar ({frames} cuadros)" };
+            var resync = new MenuFlyoutSubItem { Text = $"Volver a sincronizar ({frames} fotogramas)" };
             var move = new MenuFlyoutItem { Text = "Mover a su lugar" };
             move.Click += (_, _) => session.Resync(offset.ClipId, ResyncMode.Move);
             var slip = new MenuFlyoutItem { Text = "Deslizar su contenido" };

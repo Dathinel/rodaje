@@ -16,7 +16,7 @@ En las tablas, «=» significa «igual que Rodaje».
 | Lanzadera hacia atrás (más rápido con cada pulsación) | J | = | = |
 | Lanzadera: detener | K | = | = |
 | Lanzadera hacia adelante (más rápido con cada pulsación) | L | = | = |
-| Cuadro anterior / siguiente | ← / → | = | Alt+← / Alt+→ |
+| Fotograma anterior / siguiente | ← / → | = | Alt+← / Alt+→ |
 | Ir al inicio / al final | Inicio / Fin | = | = |
 | Reproductor en pantalla completa | F (o doble clic en el visor; Esc sale) | = | = |
 | Visor de origen o de programa | Mayús+2 | = | = |
@@ -35,7 +35,7 @@ En las tablas, «=» significa «igual que Rodaje».
 | Añadir texto | T | = | = |
 | Transición por defecto | Ctrl+T | = | = |
 | Velocidad del clip… | Ctrl+R | = | = |
-| Congelar cuadro | Mayús+R | = | = |
+| Congelar fotograma | Mayús+R | = | = |
 | Más rápido / Más lento | Ctrl+Alt+. / Ctrl+Alt+, | = | = |
 | Marcar entrada / salida | I / O | = | = |
 | Quitar entrada y salida | Alt+X | = | Ctrl+Mayús+X |
@@ -99,10 +99,10 @@ Clic izquierdo y derecho son fijos: seleccionar y arrastrar (Ctrl suma a la sele
 | Rueda | Desplazar las pistas (con todas a la vista, en el tiempo) | Desplazar en el tiempo | Zoom |
 | Ctrl+rueda | Zoom alrededor del puntero | = | Desplazar en el tiempo |
 | Mayús+rueda | Desplazar en el tiempo | Desplazar las pistas | Desplazar las pistas |
-| Alt+rueda | Alto de la pista bajo el puntero | Desplazar las pistas | Recorrer cuadros |
+| Alt+rueda | Alto de la pista bajo el puntero | Desplazar las pistas | Recorrer fotogramas |
 | Inclinar rueda | Desplazar en el tiempo | = | = |
 | Botón central | Arrastrar la vista | = | = |
-| Laterales atrás / adelante | Cuadro anterior / siguiente | Deshacer / Rehacer | Cuadro anterior / siguiente |
+| Laterales atrás / adelante | Fotograma anterior / siguiente | Deshacer / Rehacer | Fotograma anterior / siguiente |
 
 **Visor**: la rueda recorre cuadros; Ctrl+rueda pasa entre Ajustar, 50 % y 100 %; clic y arrastre mueve un título, sus esquinas lo escalan. **Biblioteca**: la rueda desplaza la lista; los laterales como en la línea de tiempo.
 

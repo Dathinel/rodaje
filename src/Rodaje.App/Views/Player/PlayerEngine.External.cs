@@ -25,7 +25,7 @@ internal sealed partial class PlayerEngine
             _closeExternal = false;
         }
 
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>Cierra la salida a la otra pantalla. Desde cualquier hilo.</summary>
@@ -37,7 +37,7 @@ internal sealed partial class PlayerEngine
             _closeExternal = true;
         }
 
-        _wake.Set();
+        Wake();
     }
 
     private void ApplyExternal()

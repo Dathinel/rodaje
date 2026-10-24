@@ -145,7 +145,7 @@ internal static class ClipVideoSource
 
         if (estimator is null || estimator.Motions.Count == 0)
         {
-            throw new InvalidOperationException("El clip no tiene cuadros que se puedan analizar.");
+            throw new InvalidOperationException("El clip no tiene fotogramas que se puedan analizar.");
         }
 
         (int width, int height, FrameMotion[] motions) = ToDisplay(stream, estimator);
