@@ -259,7 +259,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         FreezeButton.IsEnabled = _freezeShown;
         FreezeHint.Text = multi ? "Solo se congela un clip cada vez."
             : (!state.IsVideo ? "Solo se congelan clips de video."
-            : state.IsFrozen ? "Este clip ya es un cuadro congelado."
+            : state.IsFrozen ? "Este clip ya es un fotograma congelado."
             : _freezeShown ? "Detiene el fotograma del cursor durante 3 s."
             : "Pon el cursor sobre el clip para congelar ese fotograma.");
 
