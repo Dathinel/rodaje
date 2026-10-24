@@ -63,7 +63,7 @@ public sealed class KeyframeGraphGeometryTests
         Assert.True(double.IsFinite(low) && double.IsFinite(high));
         Assert.True(low < 42 && high > 42);
         KeyframeGraphGeometry geometry = Geometry(Clip()) with { Low = low, High = high };
-        Assert.Equal(0, geometry.Hit(parameter.Keyframes, -1, geometry.Pixel(S(6), 42), 8)?.Key);
+        Assert.Equal(0, geometry.Hit(parameter.Keyframes, new HashSet<Time>(), geometry.Pixel(S(6), 42), 8)?.Key);
     }
 
     [Fact]
@@ -72,12 +72,15 @@ public sealed class KeyframeGraphGeometryTests
         Keyframe[] keys = [new(S(5), -5, Interpolation.Bezier) { Ease = BezierEase.Smooth }, new(S(10), 5)];
         KeyframeGraphGeometry geometry = Geometry(Clip());
         (GraphPoint outgoing, GraphPoint incoming) = KeyframeGraph.Handles(keys[0], keys[1], keys[0].Time);
-        Assert.Equal((0, 0), geometry.Hit(keys, 0, geometry.HandlePixel(outgoing, keys[0].Time), 8));
-        Assert.Equal((0, 1), geometry.Hit(keys, 0, geometry.HandlePixel(incoming, keys[0].Time), 8));
-        Assert.Equal((1, -1), geometry.Hit(keys, -1, geometry.Pixel(keys[1].Time, keys[1].Value), 8));
-        Assert.Null(geometry.Hit(keys, -1, new GraphPoint(1000, 0), 8));
+        HashSet<Time> first = [keys[0].Time];
+        HashSet<Time> none = [];
+        Assert.Equal((0, 0), geometry.Hit(keys, first, geometry.HandlePixel(outgoing, keys[0].Time), 8));
+        Assert.Equal((0, 1), geometry.Hit(keys, first, geometry.HandlePixel(incoming, keys[0].Time), 8));
+        Assert.Equal((1, -1), geometry.Hit(keys, none, geometry.Pixel(keys[1].Time, keys[1].Value), 8));
+        Assert.Null(geometry.Hit(keys, none, geometry.HandlePixel(outgoing, keys[0].Time), 8));
+        Assert.Null(geometry.Hit(keys, first, new GraphPoint(1000, 0), 8));
         keys[0] = keys[0] with { Interpolation = Interpolation.Linear };
-        Assert.Null(geometry.Hit(keys, 0, geometry.HandlePixel(outgoing, keys[0].Time), 8));
+        Assert.Null(geometry.Hit(keys, first, geometry.HandlePixel(outgoing, keys[0].Time), 8));
     }
 
     [Fact]

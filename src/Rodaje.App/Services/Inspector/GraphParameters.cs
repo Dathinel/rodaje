@@ -5,7 +5,7 @@ namespace Rodaje.App.Services.Inspector;
 
 public sealed record GraphParameter(string ClipId, string EffectId, ParameterSpec Spec, string Label);
 
-/// <summary>Catálogo de parámetros animables presentes, incluidos audio y máscaras e instancias repetidas.</summary>
+/// <summary>Catálogo de parámetros animables presentes, incluidos audio, máscaras, instancias repetidas y la curva de velocidad.</summary>
 public static class GraphParameters
 {
     public static IReadOnlyList<GraphParameter> For(Clip clip, ParameterSpec.Context context)
@@ -32,6 +32,27 @@ public static class GraphParameters
             }
         }
 
+        if (SpeedGraph.Has(clip))
+        {
+            result.Add(new GraphParameter(clip.Id, SpeedGraph.EffectId, SpeedGraph.Spec, "Velocidad del clip"));
+        }
+
         return result;
+    }
+
+    /// <summary>El clip y el efecto que dibuja la gráfica para una opción del catálogo; para la velocidad, los sintéticos de <see cref="SpeedGraph"/>.</summary>
+    public static (Clip? Clip, EffectInstance? Effect) Resolve(Clip? clip, string? effectId)
+    {
+        if (clip is null)
+        {
+            return (null, null);
+        }
+
+        if (effectId == SpeedGraph.EffectId)
+        {
+            return SpeedGraph.View(clip) is { } view ? view : (null, null);
+        }
+
+        return (clip, clip.Effects.FirstOrDefault(e => e.Id == effectId));
     }
 }

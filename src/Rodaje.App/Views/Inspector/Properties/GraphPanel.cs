@@ -7,9 +7,10 @@ using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Inspector.Properties;
 
-/// <summary>Panel general que reutiliza el editor de curvas del inspector.</summary>
-internal sealed partial class GraphPanel : StackPanel, IEditorView
+/// <summary>Panel general que reutiliza el editor de curvas del inspector; se desplaza cuando la ventana es baja.</summary>
+internal sealed partial class GraphPanel : Grid, IEditorView
 {
+    private readonly StackPanel _stack = new() { Margin = new Thickness(12), Spacing = 10 };
     private readonly ComboBox _parameters = new() { Header = "Parámetro", HorizontalAlignment = HorizontalAlignment.Stretch };
     private readonly KeyframeGraphControl _graph = new();
     private readonly TextBlock _hint = new()
@@ -24,14 +25,13 @@ internal sealed partial class GraphPanel : StackPanel, IEditorView
 
     public GraphPanel()
     {
-        Margin = new Thickness(12);
-        Spacing = 10;
-        Children.Add(_parameters);
+        Children.Add(new ScrollViewer { Content = _stack, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
+        _stack.Children.Add(_parameters);
         var fit = new Button { Content = "Ver clip completo" };
         fit.Click += (_, _) => _graph.FitTime();
-        Children.Add(fit);
-        Children.Add(_graph);
-        Children.Add(_hint);
+        _stack.Children.Add(fit);
+        _stack.Children.Add(_graph);
+        _stack.Children.Add(_hint);
         AutomationProperties.SetName(_parameters, "Parámetro de la gráfica");
         _parameters.SelectionChanged += (_, _) =>
         {
@@ -100,13 +100,13 @@ internal sealed partial class GraphPanel : StackPanel, IEditorView
     }
 
     private static bool HasKeyframes(EditorServices services, GraphParameter choice) =>
-        services.Session.Sequence.FindClip(choice.ClipId)?.Clip.Effects.FirstOrDefault(e => e.Id == choice.EffectId)?.Parameters
+        GraphParameters.Resolve(services.Session.Sequence.FindClip(choice.ClipId)?.Clip, choice.EffectId).Effect?.Parameters
             .TryGetValue(choice.Spec.Name, out Parameter? parameter) == true && parameter.Keyframes.Count > 0;
 
     private void ShowChosen()
     {
-        Clip? clip = _chosen is not null ? _services?.Session.Sequence.FindClip(_chosen.ClipId)?.Clip : null;
-        EffectInstance? effect = clip?.Effects.FirstOrDefault(e => e.Id == _chosen?.EffectId);
+        (Clip? clip, EffectInstance? effect) = GraphParameters.Resolve(
+            _chosen is null ? null : _services?.Session.Sequence.FindClip(_chosen.ClipId)?.Clip, _chosen?.EffectId);
         _graph.Show(clip, effect, effect is null ? null : _chosen?.Spec);
     }
 }
