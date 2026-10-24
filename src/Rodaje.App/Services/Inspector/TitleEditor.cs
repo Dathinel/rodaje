@@ -59,6 +59,22 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
     /// <summary>El título que se edita: el primero seleccionado.</summary>
     public Clip? Target() => Session.SelectedTitle;
 
+    /// <summary>Los clips de texto seleccionados.</summary>
+    public IReadOnlyList<Clip> Targets()
+    {
+        var list = new List<Clip>();
+        Sequence sequence = Session.Sequence;
+        foreach (string id in Session.SelectedClipIds)
+        {
+            if (sequence.FindClip(id) is { Clip.Generator: not null } found)
+            {
+                list.Add(found.Clip);
+            }
+        }
+
+        return list;
+    }
+
     /// <summary>Cambia el texto. Las teclas seguidas se funden en un paso; una pausa o <see cref="EndTyping"/> lo cierra.</summary>
     public bool SetText(string text)
     {
@@ -104,19 +120,35 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
     {
         ArgumentNullException.ThrowIfNull(field);
         ArgumentNullException.ThrowIfNull(change);
-        if (Target() is not { Generator: { } generator } clip)
+        IReadOnlyList<Clip> targets = Targets();
+        if (targets.Count == 0)
         {
             return false;
         }
 
-        TextStyle style = generator.Style?.Clone() ?? TitleStyles.Default();
-        change(style);
-        if (generator.Style is { } current && current.ContentEquals(style))
+        if (targets.Count == 1)
         {
-            return false;
+            Clip clip = targets[0];
+            ClipGenerator generator = clip.Generator!;
+            TextStyle style = generator.Style?.Clone() ?? TitleStyles.Default();
+            change(style);
+            if (generator.Style is { } current && current.ContentEquals(style))
+            {
+                return false;
+            }
+
+            return Session.Execute(Edits.SetTitleStyle(Session.SequenceId, clip.Id, style, field));
         }
 
-        return Session.Execute(Edits.SetTitleStyle(Session.SequenceId, clip.Id, style, field));
+        var updates = new List<(string ClipId, TextStyle Style)>();
+        foreach (Clip clip in targets)
+        {
+            TextStyle style = clip.Generator!.Style?.Clone() ?? TitleStyles.Default();
+            change(style);
+            updates.Add((clip.Id, style));
+        }
+
+        return Session.Execute(Edits.SetTitleStyles(Session.SequenceId, updates, field));
     }
 
     /// <summary>Se soltó un deslizador o se confirmó un campo: el próximo cambio es otro paso.</summary>

@@ -198,10 +198,10 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private void ApplyPreset(string id)
     {
-        if (_services is { } services && _videoClipId is { } clipId)
+        if (_services is { } services && _videoClipIds is { Count: > 0 } clipIds)
         {
             FinishChanges(_videoRows);
-            services.Session.Execute(MotionPresetCommands.Apply(services.Session.SequenceId, clipId, id));
+            services.Session.Execute(MotionPresetCommands.Apply(services.Session.SequenceId, clipIds, id));
         }
     }
 
@@ -418,11 +418,11 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             + " · Y " + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.Y))
             + " · " + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.Scale)) + " %"
             + " · " + Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.Rotation)) + "°";
-        ShowTransformOptions(clip, values);
+        ShowTransformOptions(clips, values);
         ShowGraph(clip, animated);
 
-        ResetAllItem.IsEnabled = ClipPropertyEditor.CanReset(clip, BuiltInEffects.Transform, Defaults(_videoRows));
-        PlacementReset.IsEnabled = ClipPropertyEditor.CanReset(clip, BuiltInEffects.Transform, Defaults(PlacementRows));
+        ResetAllItem.IsEnabled = ClipPropertyEditor.CanReset(clips, BuiltInEffects.Transform, Defaults(_videoRows));
+        PlacementReset.IsEnabled = ClipPropertyEditor.CanReset(clips, BuiltInEffects.Transform, Defaults(PlacementRows));
         EffectInstance? transform = ClipPropertyEditor.FindEffect(clip, BuiltInEffects.Transform);
         TransformNote.Visibility = transform is { Enabled: false } ? Visibility.Visible : Visibility.Collapsed;
         bool canSave = AnimationPreset.CanExport(transform);
@@ -430,11 +430,12 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         SavePresetItem.Text = canSave ? "Guardar como transición…" : "Guardar como transición (necesita 2 keyframes)";
 
         string mode = BlendMode(clip);
+        bool mixedBlend = clips.Skip(1).Any(c => BlendMode(c) != mode);
         _updatingBlend = true;
-        BlendBox.SelectedIndex = Math.Max(0, EffectRegistry.BlendModes.IndexOf(mode));
+        BlendBox.SelectedIndex = mixedBlend ? -1 : Math.Max(0, EffectRegistry.BlendModes.IndexOf(mode));
         _updatingBlend = false;
         OpacitySection.Summary = Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.Opacity)) + " % · "
-            + EffectUi.BlendModeName(mode);
+            + (mixedBlend ? "—" : EffectUi.BlendModeName(mode));
     }
 
     private IEnumerable<(ParameterRow Row, string Name)> RowNames()
@@ -457,22 +458,25 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     }
 
     /// <summary>Volteo y desenfoque de movimiento: los botones y el interruptor siguen al modelo.</summary>
-    private void ShowTransformOptions(Clip clip, Dictionary<string, double> values)
+    private void ShowTransformOptions(IReadOnlyList<Clip> clips, Dictionary<string, double> values)
     {
+        Clip clip = clips[0];
         EffectInstance? transform = ClipPropertyEditor.FindEffect(clip, BuiltInEffects.Transform);
         bool flipX = transform?.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipX) == "on";
         bool flipY = transform?.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipY) == "on";
+        bool mixedFlipX = clips.Skip(1).Any(c => (ClipPropertyEditor.FindEffect(c, BuiltInEffects.Transform)?.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipX) == "on") != flipX);
+        bool mixedFlipY = clips.Skip(1).Any(c => (ClipPropertyEditor.FindEffect(c, BuiltInEffects.Transform)?.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipY) == "on") != flipY);
         double shutter = values.GetValueOrDefault(BuiltInEffects.TransformParameters.ShutterAngle);
         _updatingTransform = true;
-        FlipXButton.IsChecked = flipX;
-        FlipYButton.IsChecked = flipY;
+        FlipXButton.IsChecked = mixedFlipX ? null : flipX;
+        FlipYButton.IsChecked = mixedFlipY ? null : flipY;
         MotionBlurSwitch.IsOn = shutter > 0;
         _updatingTransform = false;
         MotionBlurRows.Visibility = shutter > 0 ? Visibility.Visible : Visibility.Collapsed;
         MotionBlurSection.Summary = shutter > 0
             ? $"{Number(shutter)}° · {Number(values.GetValueOrDefault(BuiltInEffects.TransformParameters.MotionSamples))} muestras"
             : "Apagado";
-        string flips = (flipX, flipY) switch
+        string flips = (mixedFlipX || mixedFlipY) ? " · volteado —" : (flipX, flipY) switch
         {
             (true, true) => " · volteado ↔↕",
             (true, false) => " · volteado ↔",
@@ -535,14 +539,14 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private void OnFlipClick(object sender, RoutedEventArgs e)
     {
-        if (_updatingTransform || _services is not { } services || _videoClipId is not { } clipId || sender is not ToggleButton { Tag: string axis } button)
+        if (_updatingTransform || _services is not { } services || _videoClipIds is not { Count: > 0 } clipIds || sender is not ToggleButton { Tag: string axis } button)
         {
             return;
         }
 
         bool on = button.IsChecked == true;
         string option = axis == "x" ? BuiltInEffects.TransformOptions.FlipX : BuiltInEffects.TransformOptions.FlipY;
-        services.Session.Execute(EffectCommands.SetOption(services.Session.SequenceId, clipId, BuiltInEffects.Transform, null, option, on ? "on" : "",
+        services.Session.Execute(EffectCommands.SetOption(services.Session.SequenceId, clipIds, BuiltInEffects.Transform, null, option, on ? "on" : "",
             axis == "x" ? "Voltear en horizontal" : "Voltear en vertical"));
     }
 
@@ -596,11 +600,12 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
         AudioSection.KeyframeSummary = KeyframeText(keyframes);
         AudioPreset? preset = AudioPresetCommands.Match(clip.Effects, out bool hasEffects);
+        bool mixedPreset = clips.Skip(1).Any(c => AudioPresetCommands.Match(c.Effects, out bool has) != preset || has != hasEffects);
         _updatingPreset = true;
-        PresetBox.SelectedIndex = !hasEffects ? 0 : preset is null ? PresetBox.Items.Count - 1 : 1 + AudioPresets.All.ToList().IndexOf(preset);
+        PresetBox.SelectedIndex = mixedPreset ? -1 : !hasEffects ? 0 : preset is null ? PresetBox.Items.Count - 1 : 1 + AudioPresets.All.ToList().IndexOf(preset);
         _updatingPreset = false;
-        AudioSection.Summary = Number(gain) + " " + GainRow.Spec.Unit + (hasEffects ? " · " + (preset?.Name ?? "personalizado") : "");
-        AudioReset.IsEnabled = ClipPropertyEditor.CanReset(clip, BuiltInEffects.Audio, Defaults(_audioRows));
+        AudioSection.Summary = Number(gain) + " " + GainRow.Spec.Unit + (mixedPreset ? " · —" : hasEffects ? " · " + (preset?.Name ?? "personalizado") : "");
+        AudioReset.IsEnabled = ClipPropertyEditor.CanReset(clips, BuiltInEffects.Audio, Defaults(_audioRows));
     }
 
     private static IEnumerable<(string Name, double DefaultValue)> Defaults(IEnumerable<ParameterRow> rows) =>
@@ -697,11 +702,17 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private async Task OnRowResetAsync(object? sender, EventArgs e)
     {
-        if (sender is ParameterRow row && _editor is { } editor && ClipFor(row) is { } clip)
+        if (sender is ParameterRow row && _editor is { } editor)
         {
+            List<Clip> clips = ClipsFor(row);
+            if (clips.Count == 0)
+            {
+                return;
+            }
+
             _dragRow = null;
             string label = row.Spec.Label;
-            await editor.ResetAsync(clip, row.Spec.EffectType, [.. Defaults([row])], row.Spec.ResetDescription, KeyframeDialog.ForReset(XamlRoot, label));
+            await editor.ResetAsync(clips, row.Spec.EffectType, [.. Defaults([row])], row.Spec.ResetDescription, KeyframeDialog.ForReset(XamlRoot, label));
         }
     }
 
@@ -732,41 +743,44 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private async Task ResetRowsAsync(ParameterRow[] rows, string description, string what)
     {
-        if (_editor is not { } editor || ClipFor(rows[0]) is not { } clip)
+        if (_editor is not { } editor)
+        {
+            return;
+        }
+
+        List<Clip> clips = ClipsFor(rows[0]);
+        if (clips.Count == 0)
         {
             return;
         }
 
         FinishChanges(rows);
         _dragRow = null;
-        await editor.ResetAsync(clip, rows[0].Spec.EffectType, [.. Defaults(rows)], description, KeyframeDialog.ForResetAll(XamlRoot, what));
+        await editor.ResetAsync(clips, rows[0].Spec.EffectType, [.. Defaults(rows)], description, KeyframeDialog.ForResetAll(XamlRoot, what));
     }
 
     private void OnPresetSelected(object sender, SelectionChangedEventArgs e)
     {
         if (_updatingPreset || PresetBox.SelectedIndex < 0 || PresetBox.SelectedIndex == PresetBox.Items.Count - 1 || _services is not { } services
-            || _audioClipId is not { } clipId)
+            || _audioClipIds is not { Count: > 0 } clipIds)
         {
             return;
         }
 
         AudioPreset? preset = (PresetBox.SelectedItem as ComboBoxItem)?.Tag as AudioPreset;
         // La edición refresca el panel, que vuelve a elegir en este desplegable: va después del evento (tarea 91).
-        DispatcherQueue.RunAfterEvent(() => services.Session.Execute(AudioPresetCommands.Apply(services.Session.SequenceId, clipId, preset)));
+        DispatcherQueue.RunAfterEvent(() => services.Session.Execute(AudioPresetCommands.Apply(services.Session.SequenceId, clipIds, preset)));
     }
 
     private void OnBlendSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (_updatingBlend || BlendBox.SelectedIndex < 0 || _services is not { } services || ClipFor(XRow) is not { } clip)
+        if (_updatingBlend || BlendBox.SelectedIndex < 0 || _services is not { } services || _videoClipIds is not { Count: > 0 } clipIds)
         {
             return;
         }
 
         string mode = EffectRegistry.BlendModes[BlendBox.SelectedIndex];
-        if (BlendMode(clip) != mode)
-        {
-            services.Session.Execute(EffectCommands.SetBlendMode(services.Session.SequenceId, clip.Id, mode));
-        }
+        services.Session.Execute(EffectCommands.SetBlendMode(services.Session.SequenceId, clipIds, mode));
     }
 
     private void OnSavePresetClick(object sender, RoutedEventArgs e) => UiTask.Run(OnSavePresetClickAsync(sender, e));

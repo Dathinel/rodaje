@@ -212,6 +212,50 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         return null;
     }
 
+    private List<(Track Track, Clip Clip)> Targets()
+    {
+        if (_services is null)
+        {
+            return [];
+        }
+
+        Sequence sequence = _services.Session.Sequence;
+        var list = new List<(Track Track, Clip Clip)>();
+        foreach (string id in _services.Session.SelectedClipIds)
+        {
+            if (sequence.FindClip(id) is { } found)
+            {
+                list.Add(found);
+            }
+        }
+
+        return list;
+    }
+
+    private List<(Clip Clip, string? EffectId)> EditingTargets(string type)
+    {
+        var targets = Targets();
+        if (targets.Count <= 1)
+        {
+            return Editing() is { } target ? [(target.Clip, (string?)target.EffectId)] : [];
+        }
+
+        var list = new List<(Clip Clip, string? EffectId)>();
+        foreach ((Track _, Clip clip) in targets)
+        {
+            if (clip.Effects.Find(e => e.Id == _effectId) is { } byId)
+            {
+                list.Add((clip, byId.Id));
+            }
+            else if (clip.Effects.Find(e => e.Type == type) is { } byType)
+            {
+                list.Add((clip, byType.Id));
+            }
+        }
+
+        return list;
+    }
+
     private Clip? CurrentClip() =>
         _clipId is not null && _services?.Session.Sequence.FindClip(_clipId) is { } found ? found.Clip : null;
 
@@ -252,16 +296,19 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
         _clipId = clip.Id;
         _shownPosition = session.Position;
-        ClipTitle.Text = ClipLabels.Name(session.Project, clip, "Clip");
-        TransformHeaderButton.Visibility = clip.Effects.Any(effect => effect.Type == BuiltInEffects.Transform)
+        var targets = Targets();
+        bool multi = targets.Count > 1;
+        TrackKind commonKind = targets.All(t => t.Track.Kind == TrackKind.Audio) ? TrackKind.Audio : TrackKind.Video;
+        ClipTitle.Text = multi ? $"{targets.Count} clips seleccionados" : ClipLabels.Name(session.Project, clip, "Clip");
+        TransformHeaderButton.Visibility = !multi && clip.Effects.Any(effect => effect.Type == BuiltInEffects.Transform)
             ? Visibility.Visible
             : Visibility.Collapsed;
         ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
-        TitleNote.Visibility = clip.Generator is null ? Visibility.Collapsed : Visibility.Visible;
-        if (_kind != track.Kind || _addable.Count == 0)
+        TitleNote.Visibility = !multi && clip.Generator is not null ? Visibility.Visible : Visibility.Collapsed;
+        if (_kind != commonKind || _addable.Count == 0)
         {
-            _kind = track.Kind;
-            _addable = EffectCatalog.For(track.Kind);
+            _kind = commonKind;
+            _addable = EffectCatalog.For(commonKind);
             _updating = true;
             AddBox.Items.Clear();
             foreach (EffectDescriptor descriptor in _addable)
@@ -279,14 +326,21 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
     private void ShowList(Track track, Clip clip)
     {
+        var targets = Targets();
+        bool multi = targets.Count > 1;
         var next = new List<FilterItem>(clip.Effects.Count);
         for (int i = 0; i < clip.Effects.Count; i++)
         {
             EffectInstance effect = clip.Effects[i];
             if (Shows(effect))
             {
+                if (multi && !targets.All(t => t.Clip.Effects.Any(e => e.Type == effect.Type && Shows(e))))
+                {
+                    continue;
+                }
+
                 next.Add(new FilterItem(effect, EffectCatalog.Support(clip, effect, track.Kind), i, clip.Effects.Count,
-                    _services!.Session.IsPreviewOff(effect.Id), track.Kind == TrackKind.Video ? Cost(effect) : null, true));
+                    _services!.Session.IsPreviewOff(effect.Id), track.Kind == TrackKind.Video ? Cost(effect) : null, reorderable: !multi));
             }
         }
 
@@ -340,16 +394,21 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
         bool inside = editor.IsPlayheadInside(clip);
         int keyframes = 0;
+        var editingTargets = EditingTargets(effect.Type);
+        bool multi = editingTargets.Count > 1;
         foreach (ParameterRow row in _rows)
         {
             ParameterState state = editor.Read(clip, effect.Type, row.Spec.Name, row.Spec.DefaultValue, effect.Id);
             keyframes += state.KeyframeCount;
-            row.Show(state, inside);
+            bool mixed = multi && editor.IsMixed(editingTargets, effect.Type, row.Spec.Name, row.Spec.DefaultValue);
+            row.Show(state, inside, mixed);
         }
 
         DetailsSection.KeyframeSummary = keyframes == 0 ? "" : KeyframeDialog.Count(keyframes);
         ResetAllButton.Visibility = _rows.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
-        ResetAllButton.IsEnabled = ClipPropertyEditor.CanReset(clip, effect.Type, Defaults(), effect.Id);
+        ResetAllButton.IsEnabled = multi
+            ? ClipPropertyEditor.CanReset(editingTargets, effect.Type, Defaults())
+            : ClipPropertyEditor.CanReset(clip, effect.Type, Defaults(), effect.Id);
 
         string note = definition switch
         {
@@ -490,15 +549,40 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         _updating = true;
         AddBox.SelectedIndex = -1;
         _updating = false;
-        if (_services is null || _clipId is null)
+        if (_services is null)
         {
             return;
         }
 
-        var command = Edits.AddEffect(_services.Session.SequenceId, _clipId, type);
-        if (_services.Session.Execute(command))
+        var targets = Targets();
+        if (targets.Count == 0)
         {
-            _effectId = command.CreatedIds[0];
+            return;
+        }
+
+        if (targets.Count > 1)
+        {
+            var command = Edits.AddEffectOnClips(_services.Session.SequenceId, targets.Select(t => t.Clip.Id), type);
+            if (_services.Session.Execute(command))
+            {
+                if (command.CreatedIds.Count > 0)
+                {
+                    _effectId = command.CreatedIds[0];
+                }
+                Refresh();
+            }
+            return;
+        }
+
+        if (_clipId is null)
+        {
+            return;
+        }
+
+        var singleCmd = Edits.AddEffect(_services.Session.SequenceId, _clipId, type);
+        if (_services.Session.Execute(singleCmd))
+        {
+            _effectId = singleCmd.CreatedIds[0];
             Refresh();
         }
     }
@@ -600,6 +684,25 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     {
         if (sender is FrameworkElement { Tag: string effectId })
         {
+            var targets = Targets();
+            if (targets.Count > 1 && CurrentClip()?.Effects.Find(e => e.Id == effectId) is { } primaryEffect && _services is not null)
+            {
+                var toRemove = new List<(string ClipId, string EffectId)>();
+                foreach ((Track _, Clip clip) in targets)
+                {
+                    if (clip.Effects.Find(e => e.Id == effectId || e.Type == primaryEffect.Type) is { } found)
+                    {
+                        toRemove.Add((clip.Id, found.Id));
+                    }
+                }
+                if (toRemove.Count > 0)
+                {
+                    _services.Session.Execute(Edits.RemoveEffectFromClips(_services.Session.SequenceId, toRemove));
+                    Refresh();
+                    return;
+                }
+            }
+
             Run((sequence, clip) => Edits.RemoveEffect(sequence, clip, effectId));
         }
     }
@@ -638,7 +741,15 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         if (!ReferenceEquals(_dragRow, row) || !editor.IsDragging)
         {
             _dragRow = row;
-            editor.BeginChange(target.Clip, target.Type, row.Spec.Name, row.Spec.Description, target.EffectId);
+            var targets = EditingTargets(target.Type);
+            if (targets.Count > 1)
+            {
+                editor.BeginChange(targets, target.Type, row.Spec.Name, row.Spec.Description);
+            }
+            else
+            {
+                editor.BeginChange(target.Clip, target.Type, row.Spec.Name, row.Spec.Description, target.EffectId);
+            }
         }
 
         editor.Change(value);
@@ -660,7 +771,15 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     {
         if (sender is ParameterRow row && _editor is { } editor && Editing() is { } target)
         {
-            editor.SetValue(target.Clip, target.Type, row.Spec.Name, value, row.Spec.Description, target.EffectId);
+            var targets = EditingTargets(target.Type);
+            if (targets.Count > 1)
+            {
+                editor.SetValue(targets, target.Type, row.Spec.Name, value, row.Spec.Description);
+            }
+            else
+            {
+                editor.SetValue(target.Clip, target.Type, row.Spec.Name, value, row.Spec.Description, target.EffectId);
+            }
         }
     }
 
@@ -695,8 +814,17 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         if (sender is ParameterRow row && _editor is { } editor && Editing() is { } target)
         {
             _dragRow = null;
-            await editor.ResetAsync(target.Clip, target.Type, [(row.Spec.Name, row.Spec.DefaultValue)], row.Spec.ResetDescription,
-                KeyframeDialog.ForReset(XamlRoot, row.Spec.Label), target.EffectId);
+            var targets = EditingTargets(target.Type);
+            if (targets.Count > 1)
+            {
+                await editor.ResetAsync(targets, target.Type, [(row.Spec.Name, row.Spec.DefaultValue)], row.Spec.ResetDescription,
+                    KeyframeDialog.ForReset(XamlRoot, row.Spec.Label));
+            }
+            else
+            {
+                await editor.ResetAsync(target.Clip, target.Type, [(row.Spec.Name, row.Spec.DefaultValue)], row.Spec.ResetDescription,
+                    KeyframeDialog.ForReset(XamlRoot, row.Spec.Label), target.EffectId);
+            }
         }
     }
 
@@ -725,7 +853,16 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         FinishChanges();
         _dragRow = null;
         string name = EffectUi.Name(target.Type);
-        await editor.ResetAsync(target.Clip, target.Type, [.. Defaults()], "Restablecer " + name,
-            KeyframeDialog.ForResetAll(XamlRoot, "«" + name + "»"), target.EffectId);
+        var targets = EditingTargets(target.Type);
+        if (targets.Count > 1)
+        {
+            await editor.ResetAsync(targets, target.Type, [.. Defaults()], "Restablecer " + name,
+                KeyframeDialog.ForResetAll(XamlRoot, "«" + name + "»"));
+        }
+        else
+        {
+            await editor.ResetAsync(target.Clip, target.Type, [.. Defaults()], "Restablecer " + name,
+                KeyframeDialog.ForResetAll(XamlRoot, "«" + name + "»"), target.EffectId);
+        }
     }
 }

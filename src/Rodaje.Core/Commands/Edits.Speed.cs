@@ -19,6 +19,19 @@ public static partial class Edits
         IIdGenerator? ids = null) =>
         new("Cambiar velocidad", sequenceId, ctx => TimelineEdits.SetSpeed(ctx, clipId, rate, scope), ids, $"speed:{clipId}");
 
+    /// <summary>Velocidad constante de varios clips y sus enlazados en un solo paso del historial.</summary>
+    public static SequenceEditCommand SetSpeedOnClips(
+        string sequenceId,
+        IEnumerable<string> clipIds,
+        Rational rate,
+        RippleScope scope = RippleScope.Track,
+        IIdGenerator? ids = null)
+    {
+        string[] idsArray = [.. clipIds];
+        return new("Cambiar velocidad", sequenceId, ctx => TimelineEdits.SetSpeed(ctx, idsArray, rate, scope), ids,
+            $"speed:{string.Join(",", idsArray)}");
+    }
+
     /// <summary>Alt + arrastrar un borde: cambia la duración con el mismo material. Se funde por clip y borde.</summary>
     public static SequenceEditCommand RateStretch(
         string sequenceId,

@@ -1,10 +1,24 @@
 namespace Rodaje.Engine.Tests.Support;
 
 /// <summary>
+/// <see cref="StressHarnessTests.Un_hilo_trabado_que_no_saca_numeros_se_da_por_interbloqueo"/> toma una instantánea de
+/// todo el proceso (<c>PssCaptureSnapshot</c>, que lo suspende mientras clona su memoria) para comprobar el volcado; corre
+/// sin pruebas en paralelo para no congelar mientras tanto a las que miden tiempo real (<c>MixerTests</c>,
+/// <c>TimelineStressTests</c>): en la CI de Windows el vigilante del arnés llegó a estar 13,6 s sin mirar y una
+/// instantánea pasó de 60 s.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class StressHarnessGroup
+{
+    public const string Name = "Arnés de estrés";
+}
+
+/// <summary>
 /// El propio arnés de estrés: que su detector de «sin avance» falle de verdad con un hilo trabado y que una corrida de
 /// cero vueltas no pase en verde. Sin reloj que medir: la prueba del hilo trabado avanza a mano el reloj del arnés, en
 /// paso cerrado con el hilo sano, y lo que se comprueba es que la corrida falla, no cuánto tarda.
 /// </summary>
+[Collection(StressHarnessGroup.Name)]
 public sealed class StressHarnessTests
 {
     /// <summary>
