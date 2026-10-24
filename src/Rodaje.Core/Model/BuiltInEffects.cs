@@ -12,6 +12,8 @@ public static partial class BuiltInEffects
     /// <summary>Parámetros de <see cref="Transform"/> y su valor cuando faltan.</summary>
     public static class TransformParameters
     {
+        public const string HdrReferenceNits = "hdrReferenceNits";
+
         /// <summary>Desplazamiento horizontal del centro, en píxeles de la secuencia. Por defecto 0.</summary>
         public const string X = "x";
 

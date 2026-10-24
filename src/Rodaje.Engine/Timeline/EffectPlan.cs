@@ -153,6 +153,7 @@ internal sealed class EffectPlan
     private static readonly int ShutterSlot = TransformSlot(T.ShutterAngle);
     private static readonly int PhaseSlot = TransformSlot(T.ShutterPhase);
     private static readonly int SamplesSlot = TransformSlot(T.MotionSamples);
+    private static readonly int HdrReferenceSlot = TransformSlot(T.HdrReferenceNits);
 
     private static int TransformSlot(string name) => EffectRegistry.Find(BuiltInEffects.Transform)!.FindParameter(name)!.Slot;
 
@@ -201,7 +202,10 @@ internal sealed class EffectPlan
         if (plan?._transform is { } curves)
         {
             (double x, double y) = Curve.Position(curves[0], curves[1], at);
-            transform = new LayerTransform(x, y, curves[2].Evaluate(at), curves[3].Evaluate(at), curves[4].Evaluate(at));
+            transform = new LayerTransform(x, y, curves[2].Evaluate(at), curves[3].Evaluate(at), curves[4].Evaluate(at))
+            {
+                HdrReferenceNits = curves[HdrReferenceSlot].Evaluate(at),
+            };
             if (plan._shaped)
             {
                 var shape = new LayerShape(curves[AnchorXSlot].Evaluate(at), curves[AnchorYSlot].Evaluate(at), curves[ScaleXSlot].Evaluate(at),

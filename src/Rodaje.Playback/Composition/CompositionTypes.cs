@@ -9,6 +9,9 @@ public readonly record struct LayerTransform(double X, double Y, double Scale, d
 {
     public static readonly LayerTransform Identity = new(0, 0, 1, 0, 1);
 
+    /// <summary>Blanco PQ o pico HLG en nits; cero elige 100 para PQ y 1000 para HLG.</summary>
+    public double HdrReferenceNits { get; init; }
+
     /// <summary>Corrección de «Estabilizar» del cuadro, que va antes de esta transformación; nula sin estabilizar.</summary>
     public LayerStabilization? Stabilization { get; init; }
 

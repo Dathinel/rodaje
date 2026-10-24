@@ -200,6 +200,7 @@ internal struct QuadConstants
     public Float4 PixelOrigin;
     public Float4 PerPixelX;
     public Float4 PerPixelY;
+    public Float4 Hdr;
 
     /// <summary>Un cuadrilátero que llena el destino, con uv y coordenadas locales de 0 a 1.</summary>
     public static QuadConstants FullTarget() => new()

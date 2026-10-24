@@ -231,7 +231,8 @@ public static unsafe class MediaProbe
             Codec = Av.CodecName(par->codec_id),
             PixelFormat = Av.PixelFormatName(pixelFormat),
             BitDepth = bitDepth,
-            Color = VideoColor.Resolve(par->color_space, par->color_range, pixelFormat, par->height),
+            Color = VideoColor.Resolve(par->color_space, par->color_range, pixelFormat, par->height)
+                .WithTransfer(par->color_trc, par->color_primaries),
             HdrTransfer = par->color_trc switch
             {
                 AVColorTransferCharacteristic.AVCOL_TRC_SMPTE2084 => "PQ",
