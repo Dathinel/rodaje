@@ -50,11 +50,18 @@ public sealed record KeyframeGraphGeometry(Clip Clip, double PixelsPerSecond, do
     public static bool Near(GraphPoint point, GraphPoint target, double radius) =>
         Math.Pow(point.Seconds - target.Seconds, 2) + Math.Pow(point.Value - target.Value, 2) <= radius * radius;
 
-    public (int Key, int Handle)? Hit(IReadOnlyList<Keyframe> keys, int selected, GraphPoint pixel, double radius)
+    /// <summary>Qué hay bajo <paramref name="pixel"/>: un manejador (0 salida, 1 entrada) del tramo Bézier que sale de una clave seleccionada, o una clave (−1).</summary>
+    public (int Key, int Handle)? Hit(IReadOnlyList<Keyframe> keys, IReadOnlySet<Time> selection, GraphPoint pixel, double radius)
     {
         ArgumentNullException.ThrowIfNull(keys);
-        if (selected >= 0 && selected + 1 < keys.Count && keys[selected].Interpolation == Interpolation.Bezier)
+        ArgumentNullException.ThrowIfNull(selection);
+        for (int selected = 0; selected + 1 < keys.Count; selected++)
         {
+            if (!selection.Contains(keys[selected].Time) || keys[selected].Interpolation != Interpolation.Bezier)
+            {
+                continue;
+            }
+
             (GraphPoint outgoing, GraphPoint incoming) = KeyframeGraph.Handles(keys[selected], keys[selected + 1], keys[0].Time);
             if (Near(pixel, HandlePixel(outgoing, keys[0].Time), radius))
             {

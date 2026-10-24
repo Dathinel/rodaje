@@ -27,6 +27,7 @@ namespace Rodaje.App.Views.Inspector.Properties;
 /// keyframe, los keyframes como rombos, el cursor y los dos manejadores Bézier del tramo que sale del keyframe elegido.
 /// Arrastrar un rombo cambia su valor (y, en horizontal, su instante, pegado a los cuadros); arrastrar un manejador
 /// vuelve el tramo Bézier. Cada arrastre es un paso del historial y Esc lo revierte. Dibujado en C# con formas de XAML.
+/// La curva de velocidad del clip llega como un parámetro sintético (<see cref="SpeedGraph"/>), lineal y sin manejadores.
 /// </summary>
 internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarget
 {
@@ -320,11 +321,16 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
         _keys.Data = diamonds;
         var handles = new GeometryGroup();
         var handleLines = new GeometryGroup();
-        if (_mode == GraphMode.Value && _selected >= 0 && _selected + 1 < keys.Count && keys[_selected].Interpolation == Interpolation.Bezier)
+        for (int i = 0; _mode == GraphMode.Value && i + 1 < keys.Count; i++)
         {
-            (GraphPoint outgoing, GraphPoint incoming) = KeyframeGraph.Handles(keys[_selected], keys[_selected + 1], origin);
-            var a = new Point(X((keys[_selected].Time - origin).ToSeconds()), Y(keys[_selected].Value));
-            var b = new Point(X((keys[_selected + 1].Time - origin).ToSeconds()), Y(keys[_selected + 1].Value));
+            if (!_selection.Contains(keys[i].Time) || keys[i].Interpolation != Interpolation.Bezier)
+            {
+                continue;
+            }
+
+            (GraphPoint outgoing, GraphPoint incoming) = KeyframeGraph.Handles(keys[i], keys[i + 1], origin);
+            var a = new Point(X((keys[i].Time - origin).ToSeconds()), Y(keys[i].Value));
+            var b = new Point(X((keys[i + 1].Time - origin).ToSeconds()), Y(keys[i + 1].Value));
             var h1 = new Point(X(outgoing.Seconds), Y(outgoing.Value));
             var h2 = new Point(X(incoming.Seconds), Y(incoming.Value));
             handleLines.Children.Add(new LineGeometry { StartPoint = a, EndPoint = h1 });
@@ -403,7 +409,7 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
         GraphPoint p = Pixel(e.GetCurrentPoint(_canvas).Position);
         KeyframeGraphGeometry geometry = Geometry(parameter);
         bool add = e.KeyModifiers.HasFlag(VirtualKeyModifiers.Control);
-        if (geometry.Hit(parameter.Keyframes, _selected, p, 8) is not { } hit)
+        if (geometry.Hit(parameter.Keyframes, _selection, p, 8) is not { } hit)
         {
             _boxStart = p;
             _boxSelection = add ? [.. _selection] : [];
@@ -497,7 +503,7 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
             (Parameter? partner, bool partnerIsY) = Partner();
             string? other = partner is null ? null : partnerIsY ? BuiltInEffects.TransformParameters.Y : BuiltInEffects.TransformParameters.X;
             if (session.TryExecute(KeyframeGraphEdits.Move(session.SequenceId, drag.ClipId, drag.EffectId, drag.Name,
-                drag.Original, drag.Delta, delta, dv, spec, other)))
+                drag.Original, drag.Delta, delta, dv, spec, other, session.SpeedScope)))
             {
                 _drag = drag with { Delta = delta, ValueDelta = dv };
                 _selection.Clear();
@@ -505,8 +511,7 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
                 _selected = Parameter?.Keyframes.FindIndex(k => _selection.Contains(k.Time)) ?? -1;
             }
 
-            _clip = session.Sequence.FindClip(drag.ClipId)?.Clip;
-            _effect = _clip?.Effects.FirstOrDefault(effect => effect.Id == drag.EffectId);
+            (_clip, _effect) = GraphParameters.Resolve(session.Sequence.FindClip(drag.ClipId)?.Clip, drag.EffectId);
         }
 
         e.Handled = true;
@@ -543,7 +548,7 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
         else if (ctrl && key == VirtualKey.V && _clipboard is { } clipboard && _editor!.IsPlayheadInside(clip))
         {
             Time at = _editor.KeyframeTimeAtPlayhead(clip);
-            if (session.Execute(Edits.PasteKeyframes(session.SequenceId, clip.Id, effect.Id, _name, clipboard, at)))
+            if (session.Execute(KeyframeGraphEdits.Paste(session.SequenceId, clip.Id, effect.Id, _name, clipboard, at, session.SpeedScope)))
             {
                 _selection.Clear();
                 _selection.UnionWith(clipboard.PasteAt(at).Select(k => k.Time));
@@ -551,7 +556,7 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
         }
         else if (key == VirtualKey.Delete && _selection.Count > 0)
         {
-            if (session.Execute(KeyframeGraphEdits.Delete(session.SequenceId, clip.Id, effect.Id, _name, _selection)))
+            if (session.Execute(KeyframeGraphEdits.Delete(session.SequenceId, clip.Id, effect.Id, _name, _selection, session.SpeedScope)))
             {
                 _selection.Clear();
                 _selected = -1;
@@ -573,7 +578,8 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
 
     private void SetInterpolation(Interpolation interpolation)
     {
-        if (_session is not { } session || _clip is not { } clip || _effect is not { } effect || _selection.Count == 0 || _drag is not null)
+        if (_session is not { } session || _clip is not { } clip || _effect is not { } effect || _selection.Count == 0 || _drag is not null
+            || effect.Id == SpeedGraph.EffectId)
         {
             return;
         }
