@@ -190,6 +190,7 @@ internal static partial class SelfTestRun
     {
         EditorSession session = window.Session;
         int steps = session.History.Count;
+        FrameCapture bare = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
         if (!session.AddTitleAtPlayhead() || session.SelectedTitle is not { } title)
         {
             throw new InvalidOperationException("La autoprueba no pudo crear un título.");
@@ -210,7 +211,7 @@ internal static partial class SelfTestRun
         await Task.Delay(250);
         TitleBox box = await WaitForTitleAsync(engine, id, b => b.Width > 0, "El título no se dibujó en el visor en 5 s.");
         await CaptureAsync(window, "texto");
-        FrameCapture withTitle = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        (FrameCapture withTitle, _) = await CaptureChangedAsync(engine, bare, box, session.Sequence);
         await SaveFrameAsync(withTitle, "texto-visor");
         await DragTitleAsync(window, engine, box);
         await ProTitleAsync(window, engine, editor, id, withTitle);
@@ -240,8 +241,7 @@ internal static partial class SelfTestRun
 
         SelectFirstClip(window);
         await Task.Delay(250);
-        FrameCapture without = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
-        int changed = ChangedPixels(withTitle, without, box, session.Sequence.Width, session.Sequence.Height);
+        (_, int changed) = await CaptureChangedAsync(engine, withTitle, box, session.Sequence);
         Program.Metrics.Note($"autoprueba: el título cambia {changed} píxeles del visor");
         if (changed < 500)
         {
@@ -273,9 +273,8 @@ internal static partial class SelfTestRun
         await Task.Delay(400);
         TitleBox box = await WaitForTitleAsync(engine, id, b => b.Width > 0, "El título en arco no se dibujó en 5 s.");
         await CaptureAsync(window, "texto-pro");
-        FrameCapture pro = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        (FrameCapture pro, int changed) = await CaptureChangedAsync(engine, plain, box, session.Sequence);
         await SaveFrameAsync(pro, "texto-pro-visor");
-        int changed = ChangedPixels(plain, pro, box, session.Sequence.Width, session.Sequence.Height);
         Program.Metrics.Note($"autoprueba: el título profesional cambia {changed} píxeles respecto del simple");
         if (changed < 500)
         {
@@ -285,6 +284,21 @@ internal static partial class SelfTestRun
         session.Undo();
         session.Undo();
         await Task.Delay(200);
+    }
+
+    /// <summary>Con la caché de sombreadores vacía (primer arranque, CI) el cuadro nuevo tarda en llegar: se reintenta hasta 10 s.</summary>
+    private static async Task<(FrameCapture Frame, int Changed)> CaptureChangedAsync(PlayerEngine engine, FrameCapture reference, TitleBox box, Sequence sequence)
+    {
+        FrameCapture frame = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        int changed = ChangedPixels(reference, frame, box, sequence.Width, sequence.Height);
+        for (int i = 0; i < 40 && changed < 500; i++)
+        {
+            await Task.Delay(250);
+            frame = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            changed = ChangedPixels(reference, frame, box, sequence.Width, sequence.Height);
+        }
+
+        return (frame, changed);
     }
 
     private static async Task<TitleBox> WaitForTitleAsync(PlayerEngine engine, string id, Func<TitleBox, bool> condition, string failure)
