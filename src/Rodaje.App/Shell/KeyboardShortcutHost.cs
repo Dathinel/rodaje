@@ -69,7 +69,7 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
         var chord = new KeyChord((int)e.Key, CurrentModifiers());
         bool handled = _intercept?.Invoke(chord) == true
             || (_root.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is IFocusedShortcutTarget target && target.TryHandleShortcut(chord))
-            || (!FocusedSliderTakes(chord) && _router.Dispatch(chord, e.KeyStatus.WasKeyDown, FocusKind()));
+            || (!FocusedSliderTakes(chord) && _router.Dispatch(chord, e.KeyStatus.WasKeyDown, FocusKind(e.OriginalSource)));
         if (handled)
         {
             _consumed.Add(e.Key);
@@ -97,8 +97,10 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
     private void OnGettingFocus(UIElement sender, GettingFocusEventArgs args) =>
         _menuByKeyboard = args.NewFocusedElement is MenuBarItem && args.InputDevice == FocusInputDeviceKind.Keyboard;
 
-    private KeyFocus FocusKind() =>
-        (_root.XamlRoot is { } root ? FocusManager.GetFocusedElement(root) : null) switch
+    // La tecla nace en el control con el foco (el TextBox dentro de un NumberBox): más fiable que preguntar al FocusManager,
+    // que en el inspector llegó a no ver el cuadro y dejó pasar Ctrl+A y Fin a la línea de tiempo.
+    private KeyFocus FocusKind(object? source) =>
+        (source ?? (_root.XamlRoot is { } root ? FocusManager.GetFocusedElement(root) : null)) switch
         {
             TextBox or PasswordBox or RichEditBox or AutoSuggestBox or NumberBox => KeyFocus.TextInput,
             MenuFlyoutItemBase => KeyFocus.KeyboardMenu,
