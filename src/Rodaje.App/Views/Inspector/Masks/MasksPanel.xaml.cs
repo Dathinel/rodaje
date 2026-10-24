@@ -181,7 +181,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         return null;
     }
 
-    private IReadOnlyList<(Track Track, Clip Clip)> Targets()
+    private List<(Track Track, Clip Clip)> Targets()
     {
         if (_services is null)
         {
@@ -200,9 +200,9 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         return list;
     }
 
-    private IReadOnlyList<(Clip Clip, string? EffectId)> EditingTargets()
+    private List<(Clip Clip, string? EffectId)> EditingTargets()
     {
-        IReadOnlyList<(Track Track, Clip Clip)> targets = Targets();
+        var targets = Targets();
         if (targets.Count <= 1 || CurrentClip() is not { } primary || _maskId is null)
         {
             return Editing() is { } t ? [(t.Clip, (string?)t.EffectId)] : [];
@@ -261,7 +261,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         _shownPosition = session.Position;
         EmptyText.Visibility = Visibility.Collapsed;
         Header.Visibility = Visibility.Visible;
-        IReadOnlyList<(Track Track, Clip Clip)> targets = Targets();
+        var targets = Targets();
         bool multi = targets.Count > 1;
         ClipTitle.Text = multi ? $"{targets.Count} clips seleccionados" : ClipLabels.Name(session.Project, clip, "Clip");
         ShowList(clip);
@@ -279,7 +279,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
 
     private void ShowList(Clip clip)
     {
-        IReadOnlyList<(Track Track, Clip Clip)> targets = Targets();
+        var targets = Targets();
         bool multi = targets.Count > 1;
         int maxIndex = multi ? targets.Min(t => t.Clip.Effects.Count(e => e.Type == BuiltInEffects.Mask)) : int.MaxValue;
 
@@ -381,7 +381,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         }
 
         _edgeRows!.Build(BuiltInEffects.Mask, edge, context);
-        IReadOnlyList<(Clip Clip, string? EffectId)> editingTargets = EditingTargets();
+        var editingTargets = EditingTargets();
         int keyframes = _boxRows.Show(clip, mask.Id, editingTargets) + _edgeRows.Show(clip, mask.Id, editingTargets);
         ShapeSection.KeyframeSummary = keyframes == 0 ? "" : KeyframeDialog.Count(keyframes);
         ShowWeight(spec.Shape, points, session.SelectedMaskVertices);

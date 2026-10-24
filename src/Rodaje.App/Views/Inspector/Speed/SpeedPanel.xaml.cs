@@ -193,18 +193,22 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         }
 
         _clipId = clip?.Id;
-        bool hasTitle = clips.Any(c => c.Generator is not null);
-        bool hasStill = clips.Any(c => editor.Session.Project.FindMedia(c.MediaId)?.IsStillImage == true);
-        EmptyText.Text = hasTitle ? ClipLabels.NoMaterial : (hasStill ? "No aplica a imágenes fijas." : EmptyHint);
-        EmptyText.Visibility = clip is null || hasTitle || hasStill ? Visibility.Visible : Visibility.Collapsed;
-        Body.Visibility = clip is null || hasTitle || hasStill ? Visibility.Collapsed : Visibility.Visible;
-        if (clip is null || hasTitle || hasStill)
+        // Targets() ya descarta títulos e imágenes fijas: si no queda ninguno, el mensaje dice por qué.
+        Clip? excluded = clip is null ? editor.Target() : null;
+        bool title = excluded?.Generator is not null;
+        bool isStill = excluded is not null && editor.Session.Project.FindMedia(excluded.MediaId)?.IsStillImage == true;
+        EmptyText.Text = title ? ClipLabels.NoMaterial : (isStill ? "No aplica a imágenes fijas." : EmptyHint);
+        EmptyText.Visibility = clip is null ? Visibility.Visible : Visibility.Collapsed;
+        Body.Visibility = clip is null ? Visibility.Collapsed : Visibility.Visible;
+        if (clip is null)
         {
             return;
         }
 
         bool multi = clips.Count > 1;
         bool isMixed = multi && SpeedEditor.IsMixed(clips);
+        // Con varios, las rampas y los congelados se dejan como están (el encargo excluye las rampas).
+        bool canChangeRate = multi ? clips.All(c => editor.Read(c) is { CanChangeRate: true, HasCurve: false }) : editor.Read(clip).CanChangeRate;
 
         SpeedState state = editor.Read(clip);
         _updating = true;
@@ -226,8 +230,8 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         }
 
         SourceDurationText.Text = multi ? "—" : (state.IsFrozen ? "Congelado" : SpeedMath.FormatDuration(state.SourceDuration) + " →");
-        RateSlider.IsEnabled = !hasStill && !hasTitle;
-        RateBox.IsEnabled = RateSlider.IsEnabled;
+        RateSlider.IsEnabled = canChangeRate;
+        RateBox.IsEnabled = canChangeRate;
         DurationBox.IsEnabled = !multi && state.CanChangeRate;
         foreach (UIElement button in QuickPanel.Children)
         {

@@ -416,7 +416,7 @@ public sealed class ClipPropertyEditor
     /// <summary>
     /// Restablece los parámetros en varios clips al valor de fábrica en un solo paso del historial (D-024).
     /// </summary>
-    public async Task<bool> ResetAsync(
+    public Task<bool> ResetAsync(
         IReadOnlyList<Clip> clips,
         string effectType,
         IReadOnlyList<(string Name, double DefaultValue)> parameters,
@@ -425,46 +425,7 @@ public sealed class ClipPropertyEditor
         string? effectId = null)
     {
         ArgumentNullException.ThrowIfNull(clips);
-        ArgumentNullException.ThrowIfNull(parameters);
-        ArgumentNullException.ThrowIfNull(confirmRemoval);
-        if (clips.Count == 0)
-        {
-            return false;
-        }
-
-        if (clips.Count == 1)
-        {
-            return await ResetAsync(clips[0], effectType, parameters, description, confirmRemoval, effectId);
-        }
-
-        EndChange();
-        if (!CanReset(clips, effectType, parameters, effectId))
-        {
-            return false;
-        }
-
-        int keyframes = KeyframeCount(clips, effectType, parameters.Select(p => p.Name), effectId);
-        if (keyframes > 0 && !await confirmRemoval(keyframes))
-        {
-            return false;
-        }
-
-        var targets = new List<(string ClipId, string EffectId, IReadOnlyDictionary<string, double> Defaults)>();
-        foreach (Clip clip in clips)
-        {
-            if (Session.Sequence.FindClip(clip.Id) is not { } found || FindEffect(found.Clip, effectType, effectId) is not { } effect)
-            {
-                continue;
-            }
-
-            Dictionary<string, double> changed = ChangedFromDefault(effect, parameters);
-            if (changed.Count > 0)
-            {
-                targets.Add((clip.Id, effect.Id, changed));
-            }
-        }
-
-        return targets.Count > 0 && Session.Execute(Edits.ResetParametersOnClips(Session.SequenceId, targets, description));
+        return ResetAsync(clips.Select(c => (c, effectId)).ToList(), effectType, parameters, description, confirmRemoval);
     }
 
     /// <summary>

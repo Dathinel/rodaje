@@ -212,7 +212,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         return null;
     }
 
-    private IReadOnlyList<(Track Track, Clip Clip)> Targets()
+    private List<(Track Track, Clip Clip)> Targets()
     {
         if (_services is null)
         {
@@ -232,9 +232,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         return list;
     }
 
-    private IReadOnlyList<(Clip Clip, string? EffectId)> EditingTargets(string type)
+    private List<(Clip Clip, string? EffectId)> EditingTargets(string type)
     {
-        IReadOnlyList<(Track Track, Clip Clip)> targets = Targets();
+        var targets = Targets();
         if (targets.Count <= 1)
         {
             return Editing() is { } target ? [(target.Clip, (string?)target.EffectId)] : [];
@@ -296,7 +296,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
         _clipId = clip.Id;
         _shownPosition = session.Position;
-        IReadOnlyList<(Track Track, Clip Clip)> targets = Targets();
+        var targets = Targets();
         bool multi = targets.Count > 1;
         TrackKind commonKind = targets.All(t => t.Track.Kind == TrackKind.Audio) ? TrackKind.Audio : TrackKind.Video;
         ClipTitle.Text = multi ? $"{targets.Count} clips seleccionados" : ClipLabels.Name(session.Project, clip, "Clip");
@@ -304,7 +304,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             ? Visibility.Visible
             : Visibility.Collapsed;
         ToolTipService.SetToolTip(ClipTitle, ClipTitle.Text);
-        TitleNote.Visibility = !multi && clip.Generator is not null ? Visibility.Collapsed : Visibility.Visible;
+        TitleNote.Visibility = !multi && clip.Generator is not null ? Visibility.Visible : Visibility.Collapsed;
         if (_kind != commonKind || _addable.Count == 0)
         {
             _kind = commonKind;
@@ -326,7 +326,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
     private void ShowList(Track track, Clip clip)
     {
-        IReadOnlyList<(Track Track, Clip Clip)> targets = Targets();
+        var targets = Targets();
         bool multi = targets.Count > 1;
         var next = new List<FilterItem>(clip.Effects.Count);
         for (int i = 0; i < clip.Effects.Count; i++)
@@ -394,7 +394,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
         bool inside = editor.IsPlayheadInside(clip);
         int keyframes = 0;
-        IReadOnlyList<(Clip Clip, string? EffectId)> editingTargets = EditingTargets(effect.Type);
+        var editingTargets = EditingTargets(effect.Type);
         bool multi = editingTargets.Count > 1;
         foreach (ParameterRow row in _rows)
         {
@@ -554,7 +554,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             return;
         }
 
-        IReadOnlyList<(Track Track, Clip Clip)> targets = Targets();
+        var targets = Targets();
         if (targets.Count == 0)
         {
             return;
@@ -684,7 +684,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     {
         if (sender is FrameworkElement { Tag: string effectId })
         {
-            IReadOnlyList<(Track Track, Clip Clip)> targets = Targets();
+            var targets = Targets();
             if (targets.Count > 1 && CurrentClip()?.Effects.Find(e => e.Id == effectId) is { } primaryEffect && _services is not null)
             {
                 var toRemove = new List<(string ClipId, string EffectId)>();
@@ -741,7 +741,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         if (!ReferenceEquals(_dragRow, row) || !editor.IsDragging)
         {
             _dragRow = row;
-            IReadOnlyList<(Clip Clip, string? EffectId)> targets = EditingTargets(target.Type);
+            var targets = EditingTargets(target.Type);
             if (targets.Count > 1)
             {
                 editor.BeginChange(targets, target.Type, row.Spec.Name, row.Spec.Description);
@@ -771,7 +771,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     {
         if (sender is ParameterRow row && _editor is { } editor && Editing() is { } target)
         {
-            IReadOnlyList<(Clip Clip, string? EffectId)> targets = EditingTargets(target.Type);
+            var targets = EditingTargets(target.Type);
             if (targets.Count > 1)
             {
                 editor.SetValue(targets, target.Type, row.Spec.Name, value, row.Spec.Description);
@@ -814,7 +814,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         if (sender is ParameterRow row && _editor is { } editor && Editing() is { } target)
         {
             _dragRow = null;
-            IReadOnlyList<(Clip Clip, string? EffectId)> targets = EditingTargets(target.Type);
+            var targets = EditingTargets(target.Type);
             if (targets.Count > 1)
             {
                 await editor.ResetAsync(targets, target.Type, [(row.Spec.Name, row.Spec.DefaultValue)], row.Spec.ResetDescription,
@@ -853,7 +853,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         FinishChanges();
         _dragRow = null;
         string name = EffectUi.Name(target.Type);
-        IReadOnlyList<(Clip Clip, string? EffectId)> targets = EditingTargets(target.Type);
+        var targets = EditingTargets(target.Type);
         if (targets.Count > 1)
         {
             await editor.ResetAsync(targets, target.Type, [.. Defaults()], "Restablecer " + name,
