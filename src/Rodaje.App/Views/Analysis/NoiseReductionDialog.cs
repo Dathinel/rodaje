@@ -39,7 +39,7 @@ internal static class NoiseReductionDialog
 
         if (clip.Speed is { Freeze: true } || session.Project.FindMedia(clip.MediaId) is not { } media)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "Un cuadro congelado no tiene sonido que limpiar.");
+            session.Notify(NotificationSeverity.Informational, Title, "Un fotograma congelado no tiene sonido que limpiar.");
             return;
         }
 

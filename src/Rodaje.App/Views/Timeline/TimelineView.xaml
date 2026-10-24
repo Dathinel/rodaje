@@ -59,11 +59,32 @@
                 <Button x:Name="TrimStartButton" Style="{StaticResource ToolButtonStyle}" FontFamily="{StaticResource MonoFontFamily}" FontWeight="Bold" Content="[" Click="OnActionClick" />
                 <Button x:Name="TrimEndButton" Style="{StaticResource ToolButtonStyle}" FontFamily="{StaticResource MonoFontFamily}" FontWeight="Bold" Content="]" Click="OnActionClick" />
                 <Button x:Name="DeleteButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE74D;" Click="OnActionClick" />
-                <Button x:Name="MarkerButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE7C1;" Click="OnActionClick" />
-                <Button x:Name="RegionButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE8EC;" Click="OnActionClick" />
                 <Rectangle Style="{StaticResource ToolbarSeparatorStyle}" />
                 <Button x:Name="UndoButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE7A7;" Click="OnActionClick" IsEnabled="{x:Bind Session.CanUndo, Mode=OneWay, FallbackValue=False}" />
                 <Button x:Name="RedoButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE7A6;" Click="OnActionClick" IsEnabled="{x:Bind Session.CanRedo, Mode=OneWay, FallbackValue=False}" />
+                <Rectangle x:Name="MarkersSeparator" Style="{StaticResource ToolbarSeparatorStyle}" />
+                <Button x:Name="MarkerButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE7C1;" Click="OnActionClick" />
+                <Button x:Name="RegionButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE8EC;" Click="OnActionClick" />
+                <Button x:Name="MoreActionsButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE712;" Visibility="Collapsed" ToolTipService.ToolTip="Más acciones">
+                    <Button.Flyout>
+                        <MenuFlyout>
+                            <MenuFlyoutItem x:Name="AddMarkerMenuItem" Click="OnFlyoutClick">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE7C1;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutItem x:Name="AddRegionMenuItem" Click="OnFlyoutClick">
+                                <MenuFlyoutItem.Icon>
+                                    <FontIcon Glyph="&#xE8EC;" />
+                                </MenuFlyoutItem.Icon>
+                            </MenuFlyoutItem>
+                            <MenuFlyoutSeparator x:Name="MoreFlyoutSeparator" Visibility="Collapsed" />
+                            <ToggleMenuFlyoutItem x:Name="CrossfadeMenuItem" Click="OnFlyoutClick" Visibility="Collapsed" />
+                            <ToggleMenuFlyoutItem x:Name="LockEnvelopesMenuItem" Click="OnFlyoutClick" Visibility="Collapsed" />
+                            <ToggleMenuFlyoutItem x:Name="IgnoreGroupsMenuItem" Click="OnFlyoutClick" Visibility="Collapsed" />
+                        </MenuFlyout>
+                    </Button.Flyout>
+                </Button>
             </StackPanel>
 
             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="2">

@@ -67,7 +67,7 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
                 _ => "bajo",
             };
             CostTip = string.Create(Services.Format.SpanishNumbers.Format,
-                $"Costo {level}: unos {c.Milliseconds:0.00} ms de GPU por cuadro en la resolución de la secuencia (medido en una RTX 3050).");
+                $"Costo {level}: unos {c.Milliseconds:0.00} ms de GPU por fotograma en la resolución de la secuencia (medido en una RTX 3050).");
             CostBrush = Theme.ThemeResources.Brush(c.Level == CostLevel.High ? "KeyframeBrush" : "TextMutedBrush");
         }
     }

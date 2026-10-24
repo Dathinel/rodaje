@@ -114,7 +114,7 @@ public sealed partial class ClipVisuals
                     if (image is null)
                     {
                         // Sin ningún cuadro decodificable: se recuerda para no volver a abrirlo en cada redibujo.
-                        Fail(batch.Path, "El archivo no tiene cuadros de video.", readers);
+                        Fail(batch.Path, "El archivo no tiene fotogramas de video.", readers);
                         return;
                     }
 

@@ -373,4 +373,37 @@ public class ProjectSerializerTests
         Assert.Throws<OutOfMemoryException>(() => ProjectSerializer.Deserialize(json, _ => throw new OutOfMemoryException()));
 #pragma warning restore CA2201
     }
+
+    [Fact]
+    public void RepairMojibake_CorrigeSecuenciaLatin1DeUtf8()
+    {
+        // 0xC3 0xAD en Latin-1 es 'Ã' y soft-hyphen ('\u00AD') -> en UTF-8 es 'í'
+        string mojibake = "Subt\u00C3\u00ADtulos";
+        Assert.Equal("Subtítulos", ProjectSerializer.RepairMojibake(mojibake));
+    }
+
+    [Fact]
+    public void Deserialize_ReparaNombreMojibakeAlAbrir()
+    {
+        JsonObject root = RichNode();
+        root["sequences"]![0]!["videoTracks"]![0]!["name"] = "Subt\u00C3\u00ADtulos";
+        root["sequences"]![0]!["name"] = "Secuencia de edici\u00C3\u00B3n";
+
+        Project project = ProjectSerializer.Deserialize(root.ToJsonString());
+
+        Assert.Equal("Subtítulos", project.Sequences[0].VideoTracks[0].Name);
+        Assert.Equal("Secuencia de edición", project.Sequences[0].Name);
+    }
+
+    [Fact]
+    public void Serialize_Deserialize_CaracteresEspanol_SeConservanCorrectamente()
+    {
+        Project original = SerializationSamples.Rich();
+        original.Sequences[0].VideoTracks[0].Name = "Subtítulos en español";
+        string json = ProjectSerializer.Serialize(original);
+
+        Project loaded = ProjectSerializer.Deserialize(json);
+
+        Assert.Equal("Subtítulos en español", loaded.Sequences[0].VideoTracks[0].Name);
+    }
 }

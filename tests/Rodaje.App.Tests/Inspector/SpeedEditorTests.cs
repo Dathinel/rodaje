@@ -46,7 +46,7 @@ public class SpeedEditorTests
         public ICommand FreezeFrame(string sequenceId, string clipId, Time at, Time duration, RippleScope scope)
         {
             Calls.Add($"freeze {clipId} {at.ToSeconds()} {duration.ToSeconds()}");
-            return new SequenceEditCommand("Congelar cuadro", sequenceId, (EditContext _) => { });
+            return new SequenceEditCommand("Congelar fotograma", sequenceId, (EditContext _) => { });
         }
 
         public ICommand SetCurve(string sequenceId, string clipId, SpeedCurve? curve, RippleScope scope)

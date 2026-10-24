@@ -298,7 +298,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         MaskVertex[] points = vertices ? MaskGeometry.Vertices(mask, at) : [];
         ShapeNote.Text = spec.Shape switch
         {
-            MaskShape.Image => "El sujeto de «Quitar fondo» cambia en cada cuadro solo. Para editarlo a mano, «Añadir» › «Sujeto como Bézier».",
+            MaskShape.Image => "El sujeto de «Quitar fondo» cambia en cada fotograma solo. Para editarlo a mano, «Añadir» › «Sujeto como Bézier».",
             MaskShape.Bezier or MaskShape.Stroke => $"{points.Length} puntos" + (session.SelectedMaskVertices.Count > 0
                 ? $", {session.SelectedMaskVertices.Count} elegidos" : "") + ". La caja mueve, escala y gira toda la forma.",
             _ => "",
@@ -470,7 +470,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         MaskVertex[] contour = MaskContour.Trace(frame.Gray, frame.Width, frame.Height, tolerance: Math.Max(1.5, frame.Width / 400.0));
         if (contour.Length < 3)
         {
-            session.Notify(NotificationSeverity.Informational, "Sujeto como Bézier", "En este cuadro no hay un sujeto que contornear.");
+            session.Notify(NotificationSeverity.Informational, "Sujeto como Bézier", "En este fotograma no hay un sujeto que contornear.");
             return null;
         }
 

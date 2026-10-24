@@ -150,6 +150,11 @@ internal sealed partial class MainWindow : Window, IShellHost
         engine.SetTitleFonts(fonts);
         packages.Changed += (_, _) =>
         {
+            if (_closed)
+            {
+                return;
+            }
+
             IReadOnlyList<string> now = TitleFontFiles.Find(packages.Installed);
             if (!now.SequenceEqual(fonts, StringComparer.OrdinalIgnoreCase))
             {

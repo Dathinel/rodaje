@@ -63,6 +63,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     public TimelineView()
     {
         InitializeComponent();
+        SizeChanged += OnTimelineViewSizeChanged;
         Unloaded += OnUnloaded;
     }
 
@@ -176,6 +177,9 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         {
             KeepOffFocus(button);
         }
+
+        KeepOffFocus(MoreActionsButton);
+        UpdateToolbarOverflow(ActualWidth);
 
         UpdateToolbar();
         UpdateTooltips();
@@ -790,11 +794,22 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         (ZoomSelectionButton, ActionIds.ZoomToSelection),
     ];
 
+    private (MenuFlyoutItem Item, string ActionId)[] FlyoutItems() =>
+    [
+        (AddMarkerMenuItem, ActionIds.AddMarker),
+        (AddRegionMenuItem, ActionIds.AddRegion),
+        (CrossfadeMenuItem, TimelineActionIds.AutoCrossfade),
+        (LockEnvelopesMenuItem, TimelineActionIds.LockEnvelopes),
+        (IgnoreGroupsMenuItem, TimelineActionIds.IgnoreGroups),
+    ];
+
     private void OnToolClick(object sender, RoutedEventArgs e) => InvokeFor(sender, ToolButtons());
 
     private void OnToggleClick(object sender, RoutedEventArgs e) => InvokeFor(sender, ToggleButtons());
 
     private void OnActionClick(object sender, RoutedEventArgs e) => InvokeFor(sender, ActionButtons());
+
+    private void OnFlyoutClick(object sender, RoutedEventArgs e) => InvokeFor(sender, FlyoutItems());
 
     private void InvokeFor<T>(object sender, (T Button, string ActionId)[] map)
         where T : class
@@ -850,6 +865,9 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         CrossfadeButton.IsChecked = state.AutoCrossfade;
         LockEnvelopesButton.IsChecked = state.LockEnvelopes;
         IgnoreGroupsButton.IsChecked = state.IgnoreGroups;
+        CrossfadeMenuItem.IsChecked = state.AutoCrossfade;
+        LockEnvelopesMenuItem.IsChecked = state.LockEnvelopes;
+        IgnoreGroupsMenuItem.IsChecked = state.IgnoreGroups;
         GapBehaviorBox.SelectedIndex = (int)state.GapBehavior;
         RippleModeBox.SelectedIndex = (int)state.RippleMode;
     }
@@ -867,9 +885,38 @@ internal sealed partial class TimelineView : UserControl, IEditorView
             ToolTipService.SetToolTip(button, Tip(registry, id));
         }
 
+        foreach ((MenuFlyoutItem item, string id) in FlyoutItems())
+        {
+            item.Text = registry.Find(id)?.Label ?? id;
+        }
+
         ToolTipService.SetToolTip(GapBehaviorBox, "Qué hacen Supr, el recorte y el arrastre si queda un hueco");
         ToolTipService.SetToolTip(RippleModeBox, "Qué pistas, marcadores y regiones se desplazan cuando el modo activo usa ripple");
         ToolTipService.SetToolTip(ZoomSlider, "Zoom (Ctrl+rueda sobre las pistas)");
+    }
+
+    private void OnTimelineViewSizeChanged(object sender, SizeChangedEventArgs e) => UpdateToolbarOverflow(e.NewSize.Width);
+
+    internal void UpdateToolbarOverflow(double availableWidth)
+    {
+        Logic.ToolbarLayoutState layout = Logic.TimelineToolbarOverflow.Calculate(availableWidth);
+
+        MarkerButton.Visibility = layout.ShowDirectMarkers ? Visibility.Visible : Visibility.Collapsed;
+        RegionButton.Visibility = layout.ShowDirectMarkers ? Visibility.Visible : Visibility.Collapsed;
+        MarkersSeparator.Visibility = layout.ShowDirectMarkers ? Visibility.Visible : Visibility.Collapsed;
+        MoreActionsButton.Visibility = layout.ShowMoreButton ? Visibility.Visible : Visibility.Collapsed;
+
+        GapBehaviorBox.Width = layout.GapBoxWidth;
+        RippleModeBox.Width = layout.RippleBoxWidth;
+
+        CrossfadeButton.Visibility = layout.ShowDirectSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
+        LockEnvelopesButton.Visibility = layout.ShowDirectSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
+        IgnoreGroupsButton.Visibility = layout.ShowDirectSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
+
+        MoreFlyoutSeparator.Visibility = layout.ShowFlyoutSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
+        CrossfadeMenuItem.Visibility = layout.ShowFlyoutSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
+        LockEnvelopesMenuItem.Visibility = layout.ShowFlyoutSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
+        IgnoreGroupsMenuItem.Visibility = layout.ShowFlyoutSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static string Tip(ShortcutRegistry registry, string actionId)

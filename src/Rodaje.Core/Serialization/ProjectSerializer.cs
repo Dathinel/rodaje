@@ -156,19 +156,71 @@ public static class ProjectSerializer
                 problems);
         }
 
-        // El color del clip se guarda en mayúsculas, como lo deja la edición, aunque el archivo lo traiga en minúsculas.
-        foreach (Sequence sequence in project!.Sequences)
+        // Nombres con mojibake («SubtÃ­tulos»: UTF-8 leído como Latin-1 por una herramienta externa) se reparan al abrir.
+        project!.Name = RepairMojibake(project.Name);
+        foreach (MediaRef media in project.Media)
         {
+            media.Name = RepairMojibake(media.Name);
+        }
+
+        // El color del clip se guarda en mayúsculas, como lo deja la edición, aunque el archivo lo traiga en minúsculas.
+        foreach (Sequence sequence in project.Sequences)
+        {
+            sequence.Name = RepairMojibake(sequence.Name);
             foreach (Track track in sequence.VideoTracks.Concat(sequence.AudioTracks))
             {
+                track.Name = RepairMojibake(track.Name);
                 foreach (Clip clip in track.Clips)
                 {
                     clip.Color = clip.Color?.ToUpperInvariant();
                 }
             }
+
+            foreach (Marker marker in sequence.Markers)
+            {
+                marker.Name = RepairMojibake(marker.Name);
+            }
+
+            foreach (Region region in sequence.Regions)
+            {
+                region.Name = RepairMojibake(region.Name);
+            }
         }
 
         return project;
+    }
+
+    /// <summary>
+    /// Repara texto con mojibake UTF-8 leído como ISO-8859-1 (Latin-1) o Windows-1252.
+    /// Esto ocurre si un editor externo o script de terceros abre el archivo .rodaje interpretándolo como ANSI/Latin-1
+    /// y luego guarda los dos bytes UTF-8 (como 0xC3 0xAD para «í») como caracteres individuales («SubtÃ­tulos»).
+    /// Si el texto contiene la marca «Ã» típica de UTF-8 interpretado como Latin-1 y sus caracteres son todos Latin-1,
+    /// se reconstruyen los bytes originales y se decodifican como UTF-8 estricto.
+    /// </summary>
+    internal static string RepairMojibake(string text)
+    {
+        if (string.IsNullOrEmpty(text) || !text.Contains('Ã'))
+        {
+            return text;
+        }
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] > 255)
+            {
+                return text;
+            }
+        }
+
+        try
+        {
+            byte[] bytes = Encoding.Latin1.GetBytes(text);
+            return Utf8NoBom.GetString(bytes);
+        }
+        catch (DecoderFallbackException)
+        {
+            return text;
+        }
     }
 
     /// <summary>

@@ -98,7 +98,7 @@ public sealed class MouseMap
             return $"No hay ninguna acción «{actionId}».";
         }
 
-        return chord.IsAxis ? "La rueda solo hace acciones de rueda (zoom, desplazar, recorrer cuadros); las demás van en los botones." : null;
+        return chord.IsAxis ? "La rueda solo hace acciones de rueda (zoom, desplazar, recorrer fotogramas); las demás van en los botones." : null;
     }
 
     /// <summary>

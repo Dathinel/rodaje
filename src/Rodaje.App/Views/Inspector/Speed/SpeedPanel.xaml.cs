@@ -236,15 +236,15 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         ReverseBox.IsChecked = state.IsReversed;
         ReverseBox.IsEnabled = state.CanReverse;
         ReverseBadge.Visibility = state.IsReversed ? Visibility.Visible : Visibility.Collapsed;
-        ReverseHint.Text = !state.CanReverse ? "Un cuadro congelado no se invierte." : "";
+        ReverseHint.Text = !state.CanReverse ? "Un fotograma congelado no se invierte." : "";
         MoreSection.Summary = state.IsReversed ? ReversedLabel : "";
         ShowReverseNotice(clip);
         _freezeShown = editor.CanFreeze(clip);
         FreezeButton.IsEnabled = _freezeShown;
         FreezeHint.Text = !state.IsVideo ? "Solo se congelan clips de video."
-            : state.IsFrozen ? "Este clip ya es un cuadro congelado."
-            : _freezeShown ? "Detiene el cuadro del cursor durante 3 s."
-            : "Pon el cursor sobre el clip para congelar ese cuadro.";
+            : state.IsFrozen ? "Este clip ya es un fotograma congelado."
+            : _freezeShown ? "Detiene el fotograma del cursor durante 3 s."
+            : "Pon el cursor sobre el clip para congelar ese fotograma.";
         ShowCurve(editor, clip, state);
         ShowNote(state);
         if (!editor.IsChanging)
@@ -287,7 +287,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         CurveEditor.Visibility = hasCurve ? Visibility.Visible : Visibility.Collapsed;
         CurveDurationRow.Visibility = hasCurve ? Visibility.Visible : Visibility.Collapsed;
         CurveDurationText.Text = SpeedMath.FormatDuration(state.SourceDuration) + " → " + SpeedMath.FormatDuration(state.Duration);
-        CurveHint.Text = !curve.CanEdit ? "Un cuadro congelado no tiene curva."
+        CurveHint.Text = !curve.CanEdit ? "Un fotograma congelado no tiene curva."
             : hasCurve ? "Arrastra un punto: arriba y abajo cambia la velocidad (0,1×–10×), a los lados su lugar. Doble clic añade o quita un punto."
             : "Elige un preajuste o «Personalizada» para que la velocidad cambie a lo largo del clip.";
         if (hasCurve)
@@ -306,7 +306,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
 
     private void ShowNote(SpeedState state)
     {
-        string? note = state.IsFrozen ? "Un cuadro congelado no tiene velocidad: cambia su duración recortándolo en la línea de tiempo."
+        string? note = state.IsFrozen ? "Un fotograma congelado no tiene velocidad: cambia su duración recortándolo en la línea de tiempo."
             : state.HasCurve ? "Este clip tiene una curva de velocidad; elegir una velocidad la reemplaza."
             : null;
         NoteText.Text = note ?? "";

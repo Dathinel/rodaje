@@ -123,7 +123,7 @@ internal static class VisionTools
                     {
                         Time time = Time.FromSeconds((first + start + i + 0.5) / fps);
                         SharedBufferRef frame = await Task.Run(() => ModuleMedia.WriteFrame(decoder, region, at, time, side, token), token).ConfigureAwait(false)
-                            ?? throw new IOException("El video no tiene cuadros que leer en el tramo del clip.");
+                            ?? throw new IOException("El video no tiene fotogramas que leer en el tramo del clip.");
                         VideoLayout layout = frame.Video!;
                         (width, height) = width == 0 ? (layout.Width, layout.Height) : (width, height);
                         if (layout.Width != width || layout.Height != height)
@@ -277,7 +277,7 @@ internal static class VisionTools
 
             if (frames.Count == 0)
             {
-                throw new IOException("El video no tiene cuadros que leer en el tramo del clip.");
+                throw new IOException("El video no tiene fotogramas que leer en el tramo del clip.");
             }
 
             call.Report(0.92, "Calculando el recorrido");
@@ -341,7 +341,7 @@ internal static class VisionTools
         if (value is not { ValueKind: JsonValueKind.Object } v || !v.TryGetProperty("cuadros", out JsonElement list)
             || list.ValueKind != JsonValueKind.Array || list.GetArrayLength() != frames)
         {
-            throw new ModuleProtocolException("«detectar» devolvió otra cantidad de cuadros.");
+            throw new ModuleProtocolException("«detectar» devolvió otra cantidad de fotogramas.");
         }
 
         var all = new List<IReadOnlyList<DetectedBox>>(frames);

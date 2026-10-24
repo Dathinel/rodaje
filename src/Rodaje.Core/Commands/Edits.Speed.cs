@@ -39,7 +39,7 @@ public static partial class Edits
         Time? duration = null,
         IIdGenerator? ids = null,
         RippleScope scope = RippleScope.Track) =>
-        new("Congelar cuadro", sequenceId, ctx => (IReadOnlyList<string>)[TimelineEdits.FreezeFrame(ctx, clipId, at, duration, scope)], ids);
+        new("Congelar fotograma", sequenceId, ctx => (IReadOnlyList<string>)[TimelineEdits.FreezeFrame(ctx, clipId, at, duration, scope)], ids);
 
     /// <summary>Curva de velocidad del clip y sus enlazados; <c>null</c> vuelve a 1×. Se funde por clip.</summary>
     public static SequenceEditCommand SetCurve(

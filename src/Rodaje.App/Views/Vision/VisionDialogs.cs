@@ -39,7 +39,7 @@ internal static class VisionDialogs
                 && session.Project.FindMedia(found.Clip.MediaId) is { HasVideo: true, FrameRate: not null, Width: > 0, Height: > 0 } media)
             {
                 return found.Clip.Speed is { Freeze: true }
-                    ? (null, null, "Un cuadro congelado no se puede analizar: hazlo sobre el clip original.")
+                    ? (null, null, "Un fotograma congelado no se puede analizar: hazlo sobre el clip original.")
                     : (found.Clip, media, null);
             }
         }
@@ -75,7 +75,7 @@ internal static class VisionDialogs
         var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
         panel.Children.Add(new TextBlock
         {
-            Text = string.Create(SpanishNumbers.Format, $"«{media.Name}»: {frames} cuadros. El sujeto queda y el fondo se vuelve transparente; debajo se ve la pista de abajo."),
+            Text = string.Create(SpanishNumbers.Format, $"«{media.Name}»: {frames} fotogramas. El sujeto queda y el fondo se vuelve transparente; debajo se ve la pista de abajo."),
             TextWrapping = TextWrapping.Wrap,
         });
         var quality = new ComboBox { Header = "Calidad", Width = AnalysisUi.PreviewWidth, SelectedIndex = 0 };
@@ -289,7 +289,7 @@ internal static class VisionDialogs
                     $"Reencuadre de «{media.Name}»", cancel.Token, j => job = j);
                 status.Text = double.IsNaN(plan.Inside)
                     ? string.Create(SpanishNumbers.Format, $"{plan.Keys.Count} keyframes. Aplica para verlo; un Ctrl+Z lo quita.")
-                    : string.Create(SpanishNumbers.Format, $"{plan.Keys.Count} keyframes; el sujeto queda dentro del recorte en el {plan.Inside * 100:0} % de los cuadros. Aplica para verlo; un Ctrl+Z lo quita.");
+                    : string.Create(SpanishNumbers.Format, $"{plan.Keys.Count} keyframes; el sujeto queda dentro del recorte en el {plan.Inside * 100:0} % de los fotogramas. Aplica para verlo; un Ctrl+Z lo quita.");
                 dialog.IsPrimaryButtonEnabled = true;
             }
             catch (OperationCanceledException)

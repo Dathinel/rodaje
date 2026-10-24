@@ -59,7 +59,7 @@ internal sealed partial class PlayerEngine
                 done.SetException(ex);
             }
         });
-        _wake.Set();
+        Wake();
         return done.Task;
     }
 
