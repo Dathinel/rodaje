@@ -278,7 +278,7 @@ internal sealed unsafe class FrameUploader : IDisposable
         AVPixFmtDescriptor* desc = ffmpeg.av_pix_fmt_desc_get(source);
         if (desc != null && (desc->flags & (ulong)ffmpeg.AV_PIX_FMT_FLAG_RGB) != 0)
         {
-            return new VideoColor(YuvMatrix.Bt601, false);
+            return color with { Matrix = YuvMatrix.Bt601, FullRange = false };
         }
 
         bool jpeg = source is AVPixelFormat.AV_PIX_FMT_YUVJ420P or AVPixelFormat.AV_PIX_FMT_YUVJ422P

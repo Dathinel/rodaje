@@ -25,6 +25,7 @@ internal static class RenderShaders
             float4 pixelOrigin;
             float4 perPixelX;
             float4 perPixelY;
+            float4 hdr;
         };
 
         Texture2DArray<float4> lumaPlane : register(t0);
@@ -37,6 +38,52 @@ internal static class RenderShaders
             float2 uv : TEXCOORD0;
             float2 local : TEXCOORD1;
         };
+
+        float Hable(float x)
+        {
+            return ((x * (0.15 * x + 0.05) + 0.004) / (x * (0.15 * x + 0.5) + 0.06)) - (0.02 / 0.3);
+        }
+
+        float HlgLinear(float x)
+        {
+            return x <= 0.5 ? x * x / 3 : (exp((x - 0.55991073) / 0.17883277) + 0.28466892) / 12;
+        }
+
+        float Bt709(float x)
+        {
+            return x < 0.018 ? 4.5 * x : 1.099 * pow(x, 0.45) - 0.099;
+        }
+
+        float3 HdrToSdr(float3 rgb)
+        {
+            float3 light;
+            if (hdr.x == 1)
+            {
+                float3 p = pow(saturate(rgb), 1.0 / 78.84375);
+                light = 10000 * pow(max(p - 0.8359375, 0) / max(18.8515625 - 18.6875 * p, 1e-6), 1.0 / 0.1593017578125);
+            }
+            else
+            {
+                light = float3(HlgLinear(rgb.r), HlgLinear(rgb.g), HlgLinear(rgb.b));
+                float y = dot(light, float3(0.2627, 0.6780, 0.0593));
+                // BT.2100: OOTF de luminancia, no una potencia independiente de cada canal.
+                float gamma = max(1.0, 1.2 + 0.42 * log10(hdr.y / 1000));
+                light *= hdr.y * pow(max(y, 1e-6), gamma - 1);
+            }
+            if (hdr.z > 0)
+            {
+                light = mul(float3x3(
+                    1.660491, -0.587641, -0.072850,
+                    -0.124550, 1.132900, -0.008350,
+                    -0.018151, -0.100579, 1.118730), light);
+            }
+            light = max(light, 0);
+            // Una sola ganancia conserva las proporciones RGB; el blanco elegido llega a 1.
+            float peak = max(max(light.r, light.g), light.b);
+            float mapped = Hable(peak / 100) / Hable(hdr.y / 100);
+            light = saturate(light * (mapped / max(peak, 1e-6)));
+            return float3(Bt709(light.r), Bt709(light.g), Bt709(light.b));
+        }
 
         // WARP redondea hacia abajo la fracción del bilineal: una coordenada un pelo antes del centro de un texel toma
         // 1/256 del vecino. Se corre 1/1024 de texel (limits.xy − limits.zw es medio texel de luma), que el hardware
@@ -56,6 +103,10 @@ internal static class RenderShaders
                     y + toRgb.w * c.x));
             }
 
+            [branch] if (hdr.x > 0)
+            {
+                rgb = HdrToSdr(rgb);
+            }
             return rgb;
         }
 

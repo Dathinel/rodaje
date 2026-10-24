@@ -54,6 +54,8 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private readonly long _frameDurationTs;
     private readonly AVColorSpace _streamColorSpace;
     private readonly AVColorRange _streamColorRange;
+    private readonly AVColorTransferCharacteristic _streamTransfer;
+    private readonly AVColorPrimaries _streamPrimaries;
     private GCHandle _self;
     private AVFormatContext* _format;
     private AVCodecContext* _codec;
@@ -116,6 +118,8 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
             _timeBase = stream->time_base;
             _streamColorSpace = stream->codecpar->color_space;
             _streamColorRange = stream->codecpar->color_range;
+            _streamTransfer = stream->codecpar->color_trc;
+            _streamPrimaries = stream->codecpar->color_primaries;
             FrameRate = Stream.FrameRate;
             _originTs = Av.FromTime(Stream.StartTime, _timeBase);
             _frameDurationTs = Math.Max(1, (long)Av.RoundDiv((Int128)FrameRate.Den * _timeBase.den, (Int128)FrameRate.Num * _timeBase.num));
@@ -1005,7 +1009,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
         IDisposable payload;
         long sizeBytes;
-        VideoColor color = VideoColor.Resolve(clone, _streamColorSpace, _streamColorRange);
+        VideoColor color = VideoColor.Resolve(clone, _streamColorSpace, _streamColorRange, _streamTransfer, _streamPrimaries);
         try
         {
             if ((AVPixelFormat)clone->format == AVPixelFormat.AV_PIX_FMT_D3D11 && _device is not null)

@@ -63,6 +63,27 @@ public class ClipPropertyEditorTests
     private static Time S(double seconds) => Time.FromSeconds(seconds);
 
     [Fact]
+    public void Hdr_reference_is_editable_animatable_saved_and_undoable() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip();
+        ParameterSpec spec = Assert.Single(ParameterSpec.Transform(1920, 1080), p => p.Name == P.HdrReferenceNits);
+        Assert.Equal("nits", spec.Unit);
+        Assert.True(spec.Animatable);
+        Assert.Equal(0, spec.DefaultValue);
+        h.Drag(P.HdrReferenceNits, 100, 400);
+        Assert.Equal(400, h.Read(P.HdrReferenceNits).Value);
+        Assert.True(h.Editor.ToggleKeyframe(h.Video, Transform, P.HdrReferenceNits, 0));
+        Assert.Equal([new Keyframe(S(2), 400)], h.Parameter(P.HdrReferenceNits)!.Keyframes);
+        string json = Dump(h);
+        Project restored = Rodaje.Core.Serialization.ProjectSerializer.Deserialize(json);
+        Clip clip = restored.GetSequence(h.Session.SequenceId).VideoTracks[0].Clips[0];
+        Assert.Equal(h.Parameter(P.HdrReferenceNits)!.Keyframes, clip.Effects[0].Parameters[P.HdrReferenceNits].Keyframes);
+        h.Session.Undo();
+        h.Session.Undo();
+        Assert.Equal(0, h.Read(P.HdrReferenceNits).Value);
+    });
+
+    [Fact]
     public void Objetivos_VideoSeleccionadoYSuAudioEnlazado() => UiThread.Run(async () =>
     {
         Harness h = await Harness.WithClip();

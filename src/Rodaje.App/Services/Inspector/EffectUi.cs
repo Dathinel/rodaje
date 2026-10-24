@@ -196,6 +196,7 @@ public static class EffectUi
             [(BuiltInEffects.Transform, T.Y)] = new("Posición Y", "Mover en Y", "px", Range: UiRange.SequenceHeight),
             [(BuiltInEffects.Transform, T.Scale)] = new("Escala", "Cambiar escala", "%", 100, 1, 1, UiRange.Custom, 1, 400),
             [(BuiltInEffects.Transform, T.Rotation)] = new("Rotación", "Girar", "°", 1, 1, 1, UiRange.Custom, -360, 360),
+            [(BuiltInEffects.Transform, T.HdrReferenceNits)] = new("Brillo de referencia HDR", "Cambiar brillo de referencia HDR", "nits", Step: 10),
             [(BuiltInEffects.Transform, T.Opacity)] = Percent with { Label = "Opacidad", Description = "Cambiar opacidad" },
             [(BuiltInEffects.Transform, T.AnchorX)] = new("Ancla X", "Mover el punto de anclaje", "px", Range: UiRange.SequenceWidth),
             [(BuiltInEffects.Transform, T.AnchorY)] = new("Ancla Y", "Mover el punto de anclaje", "px", Range: UiRange.SequenceHeight),

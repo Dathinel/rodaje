@@ -49,7 +49,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         InitializeComponent();
         GraphParameterBox.RetryWhenClosed(_graphRetry, Refresh);
         _videoRows = [XRow, YRow, ScaleRow, ScaleXRow, ScaleYRow, RotationRow, OpacityRow, AnchorXRow, AnchorYRow, SkewXRow, SkewYRow, ShutterRow, PhaseRow,
-            SamplesRow];
+            SamplesRow, HdrRow];
         BuildPresetTiles();
         _audioRows = [GainRow, FadeInRow, FadeOutRow];
         foreach ((_, string name) in EffectUi.BlendModes)
@@ -368,6 +368,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
                     BuiltInEffects.TransformParameters.AnchorY => ("", "Y"),
                     BuiltInEffects.TransformParameters.SkewX => ("Inclinación", "X"),
                     BuiltInEffects.TransformParameters.SkewY => ("", "Y"),
+                    BuiltInEffects.TransformParameters.HdrReferenceNits => ("Brillo HDR", (string?)null),
                     _ => ((string?)null, (string?)null),
                 };
                 row.Configure(specs[name], label, axis);
@@ -452,6 +453,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         yield return (ShutterRow, BuiltInEffects.TransformParameters.ShutterAngle);
         yield return (PhaseRow, BuiltInEffects.TransformParameters.ShutterPhase);
         yield return (SamplesRow, BuiltInEffects.TransformParameters.MotionSamples);
+        yield return (HdrRow, BuiltInEffects.TransformParameters.HdrReferenceNits);
     }
 
     /// <summary>Volteo y desenfoque de movimiento: los botones y el interruptor siguen al modelo.</summary>
