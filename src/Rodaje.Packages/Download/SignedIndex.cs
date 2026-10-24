@@ -11,6 +11,9 @@ public enum IndexEntryKind
     Content,
     Module,
     Model,
+
+    /// <summary>Una herramienta aparte (zip autocontenido) que instala el Lanzador; Rodaje la ignora.</summary>
+    App,
 }
 
 /// <summary>Un archivo publicado: qué es, de dónde se baja, su SHA-256 y su tamaño exactos, y desde qué versión del programa sirve.</summary>
@@ -128,6 +131,7 @@ public sealed record SignedIndex(DateTimeOffset Generated, IReadOnlyList<IndexEn
             "content" or null => IndexEntryKind.Content,
             "module" => IndexEntryKind.Module,
             "model" => IndexEntryKind.Model,
+            "app" => IndexEntryKind.App,
             _ => null,
         } : null;
         string? sha = e.ValueKind == JsonValueKind.Object ? Str(e, "sha256")?.ToLowerInvariant() : null;

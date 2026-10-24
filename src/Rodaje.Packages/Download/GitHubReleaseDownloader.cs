@@ -118,7 +118,7 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
     public async Task<IReadOnlyDictionary<string, PackageVersion>> AvailableVersionsAsync(CancellationToken cancellationToken)
     {
         SignedIndex index = await GetIndexAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-        return index.Entries.Where(e => e.Kind != IndexEntryKind.Model && e.WorksWith(_options.AppVersion))
+        return index.Entries.Where(e => e.Kind is not (IndexEntryKind.Model or IndexEntryKind.App) && e.WorksWith(_options.AppVersion))
             .GroupBy(e => e.Id, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.Max(e => e.Version)!, StringComparer.Ordinal);
     }
