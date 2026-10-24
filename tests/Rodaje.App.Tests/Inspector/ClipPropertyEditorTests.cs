@@ -29,10 +29,10 @@ public class ClipPropertyEditorTests
 
         public Clip Video => Session.MainTrack!.Clips[0];
 
-        public static async Task<Harness> WithClip()
+        public static async Task<Harness> WithClip(double seconds = 10, int width = 1920, int height = 1080, Rational? rate = null)
         {
             var playback = new FakePlayback();
-            var session = new EditorSession(playback, new FakeProber().Video("a.mp4", 10), new FakeDialogs(), new SequentialIdGenerator());
+            var session = new EditorSession(playback, new FakeProber().Video("a.mp4", seconds, width, height, rate), new FakeDialogs(), new SequentialIdGenerator());
             await session.OpenFilesAsync([Path.GetFullPath("a.mp4")]);
             var harness = new Harness(session, playback);
             session.Select([harness.Video.Id]);
@@ -225,6 +225,29 @@ public class ClipPropertyEditorTests
         h.Drag(P.Scale, 1.5);
         Assert.Equal(1.5, h.Parameter(P.Scale)!.Value);
         Assert.Equal(steps + 1, h.Session.History.Count);
+    });
+
+    [Fact]
+    public void Escala_ElSegundoKeyframeEscritoEnElCuadroSeMantieneHastaElFinal() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip(6, 640, 360, new Rational(25, 1));
+        h.At(0);
+        Assert.True(h.Editor.ToggleKeyframe(h.Video, Transform, P.Scale, 1));
+        h.At(3.056);
+        Assert.True(h.Editor.SetValue([h.Video], Transform, P.Scale, 0.5, "Cambiar escala"));
+
+        Assert.Equal(2, h.Parameter(P.Scale)!.Keyframes.Count);
+        Assert.Equal(0.5, h.Parameter(P.Scale)!.Keyframes[1].Value);
+        foreach (double seconds in new[] { 3.056, 4.278, 5.5 })
+        {
+            h.At(seconds);
+            Assert.Equal(0.5, h.Read(P.Scale).Value, 6);
+        }
+
+        h.At(2);
+        Assert.Equal(1 - (0.5 * 2 / 3.056), h.Read(P.Scale).Value, 2);
+        Assert.Equal(1, h.Read(P.ScaleY).Value);
+        Assert.Null(h.Parameter(P.ScaleY));
     });
 
     [Fact]

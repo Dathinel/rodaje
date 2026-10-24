@@ -318,7 +318,17 @@ internal sealed partial class ParameterRow : UserControl
             return;
         }
 
-        Committed?.Invoke(this, _spec.ToModel(args.NewValue));
+        double model = _spec.ToModel(args.NewValue);
+        Committed?.Invoke(this, model);
+        // El cuadro enseña lo que de verdad quedó (por ejemplo, 50100 acotado a 10000); la columna crece para que no se
+        // vea solo la cola «0» de un número largo.
+        double shown = _spec.ToBox(model);
+        if (shown != args.NewValue)
+        {
+            _updating = true;
+            ValueBox.Value = shown;
+            _updating = false;
+        }
     }
 
     private void OnKeyframeClick(object sender, RoutedEventArgs e)
