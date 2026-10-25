@@ -37,6 +37,8 @@ internal sealed class TrackHeaders
     private string _signature = "";
     private readonly Dictionary<string, Grid> _grids = new(StringComparer.Ordinal);
     private double _lastWidth;
+    private bool _lastMagnetic;
+    private bool _resizing;
     private TrackLayout? _lastLayout;
     private Func<Track, double>? _gainOf;
     private (string TrackId, double StartX, double StartDb)? _gainDrag;
@@ -159,8 +161,22 @@ internal sealed class TrackHeaders
             $"{r.TrackId}:{r.Track.Name}:{r.Track.Role}:{r.Track.Hidden}:{r.Track.Muted}:{r.Track.Locked}:{r.IsMain}:{r.Top}:{r.Height}")) + $"|{magnetic}|{width}";
         _lastLayout = layout;
         _lastWidth = width;
+        _lastMagnetic = magnetic;
         if (signature == _signature)
         {
+            return;
+        }
+
+        // Rearmar quitaría el asa que tiene el puntero capturado y el gesto del alto no se cerraría: solo se recolocan.
+        if (_resizing && layout.Rows.Count == _grids.Count && layout.Rows.All(r => _grids.ContainsKey(r.TrackId)))
+        {
+            foreach (TrackRow row in layout.Rows)
+            {
+                Grid grid = _grids[row.TrackId];
+                grid.Height = row.Height;
+                Canvas.SetTop(grid, row.Top);
+            }
+
             return;
         }
 
@@ -366,6 +382,7 @@ internal sealed class TrackHeaders
         grip.PointerPressed += (_, e) =>
         {
             dragging = grip.CapturePointer(e.Pointer);
+            _resizing = dragging;
             startY = e.GetCurrentPoint(_canvas).Position.Y;
             startHeight = row.Height;
             e.Handled = true;
@@ -379,17 +396,27 @@ internal sealed class TrackHeaders
                 e.Handled = true;
             }
         };
-        grip.PointerReleased += (_, e) =>
+        void End(PointerRoutedEventArgs e)
         {
-            if (dragging)
+            if (!dragging)
             {
-                dragging = false;
-                grip.ReleasePointerCapture(e.Pointer);
-                grip.Background = _brushes.Transparent;
-                HeightCommitted?.Invoke(trackId);
-                e.Handled = true;
+                return;
             }
-        };
+
+            dragging = false;
+            _resizing = false;
+            grip.ReleasePointerCaptures();
+            grip.Background = _brushes.Transparent;
+            HeightCommitted?.Invoke(trackId);
+            e.Handled = true;
+            if (_lastLayout is { } layout)
+            {
+                Update(layout, _lastMagnetic, _lastWidth);
+            }
+        }
+
+        grip.PointerReleased += (_, e) => End(e);
+        grip.PointerCaptureLost += (_, e) => End(e);
         grip.DoubleTapped += (_, e) =>
         {
             HeightChanging?.Invoke(trackId, null);

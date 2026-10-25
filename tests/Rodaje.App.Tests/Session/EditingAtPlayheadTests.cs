@@ -61,10 +61,13 @@ public class EditingAtPlayheadTests
     public void Cortar_ConSeleccion_SoloCortaLoSeleccionado() => UiThread.Run(async () =>
     {
         EditorSession session = await TwoClips();
+        var notices = new List<EditorNotification>();
+        session.Notified += (_, n) => notices.Add(n);
         string second = session.MainTrack!.Clips[1].Id;
         session.Select([second]);
         At(session, 4);
         Assert.False(session.SplitAtPlayhead());
+        Assert.Equal("Ningún clip seleccionado pasa por el cursor", Assert.Single(notices).Title);
 
         At(session, 15);
         Assert.True(session.SplitAtPlayhead());

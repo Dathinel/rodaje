@@ -279,6 +279,12 @@ public sealed class TimelineSession : IDisposable
             _scheduler.Pause();
         }
 
+        // En el último cuadro (Fin deja la posición a mitad de él), acotar llevaría al inicio del cuadro: hacia atrás.
+        if (frames > 0 && CurrentFrame >= FrameCount - 1)
+        {
+            return;
+        }
+
         SeekToFrame(CurrentFrame + frames);
     }
 

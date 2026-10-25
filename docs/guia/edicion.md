@@ -13,13 +13,13 @@ Todo lo que pasa en la línea de tiempo. Los atajos son los del estilo Rodaje; l
 
 ## Seleccionar
 
-Clic selecciona; Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro y marca un rango. Ctrl+A selecciona todo. Un clic en una transición la selecciona (y vacía la selección de clips).
+Clic selecciona (dentro de una selección, deja solo ese clip; arrastrar mueve la selección entera); Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro y marca un rango. Ctrl+A selecciona todo. Un clic en una transición la selecciona (y vacía la selección de clips).
 
 ## Cortar y borrar
 
 | Qué | Cómo |
 |---|---|
-| Cortar en el cursor | S (o Ctrl+B): corta los clips seleccionados o el de la principal bajo el cursor |
+| Cortar en el cursor | S (o Ctrl+B): corta los clips seleccionados o el de la principal bajo el cursor; si ninguno de los seleccionados pasa por el cursor, lo avisa |
 | Cortar en todas las pistas | Ctrl+Mayús+B |
 | Recortar hasta el cursor | Q borra lo que queda a la izquierda del cursor; W, lo de la derecha |
 | Borrar | Supr o Retroceso. El selector de huecos determina si se deja un espacio, solo se imanta la pista principal o se corre lo que sigue con ripple global |
@@ -62,7 +62,7 @@ El selector de la barra indica cómo responderán las ediciones que pueden dejar
 
 ## Audio y video enlazados
 
-Un video con sonido entra como dos clips enlazados que se mueven, cortan y recortan juntos. En el menú del clip: **Desenlazar** / **Enlazar**, **Separar audio**, **Copiar atributos** y **Pegar atributos** (todo, efectos, transformación, velocidad o volumen). El interruptor **ignorar grupos** edita solo el clip agarrado sin romper el enlace.
+Un video con sonido entra como dos clips enlazados que se mueven, cortan y recortan juntos. En el menú del clip: **Desenlazar** / **Enlazar**, **Separar audio**, **Copiar atributos** y **Pegar atributos** (todo, efectos, transformación, velocidad o volumen). El interruptor **ignorar grupos** edita solo el clip agarrado (mover, empujar con Alt+←/→, recortar y Supr) sin romper el enlace.
 
 **Aviso de desfase.** Si un clip enlazado queda corrido respecto de su pareja del mismo medio (por moverlo con ignorar grupos, o porque su pista estaba bloqueada al correr las demás), muestra a la derecha un aviso rojo con los cuadros: «+3», «−12». En su menú, **Volver a sincronizar** › «Mover a su lugar» o «Deslizar su contenido». Insertar, mover, cortar y cerrar huecos nunca desincronizan.
 
