@@ -1,5 +1,8 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Documents;
+using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Shell;
@@ -20,18 +23,26 @@ internal sealed partial class ExportView
         }
 
         model.SetOutputPath(PathBox.Text);
+        IReadOnlyList<(ExportPreset Preset, string? Origin)> choices = ExportPresetLibrary.DistinctByName(model.Presets);
         var boxes = new List<CheckBox>();
         var list = new StackPanel { Spacing = 2 };
         list.Children.Add(new TextBlock
         {
             Text = $"Se guardan en «{Path.GetDirectoryName(model.OutputPath)}» con el nombre del preajuste al final (y un número si ya existe). "
                 + "Rango, rendimiento y subtítulos, los de ahora."
-                + (model.VersionsNote(model.Presets.Select(p => p.Id)) is { } note ? $"\n{note}" : ""),
+                + (model.VersionsNote(choices.Select(c => c.Preset.Id)) is { } note ? $"\n{note}" : ""),
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8),
         });
-        foreach (ExportPreset preset in model.Presets)
+        foreach ((ExportPreset preset, string? origin) in choices)
         {
-            var box = new CheckBox { Content = preset.Name, Tag = preset.Id, IsChecked = preset.Id == model.PresetId };
+            var label = new TextBlock { Text = preset.Name };
+            if (origin is not null)
+            {
+                label.Inlines.Add(new Run { Text = $" · {origin}", Foreground = (Brush)Application.Current.Resources["TextMutedBrush"] });
+            }
+
+            var box = new CheckBox { Content = label, Tag = preset.Id, IsChecked = preset.Id == model.PresetId };
+            AutomationProperties.SetName(box, origin is null ? preset.Name : $"{preset.Name}, {origin}");
             ToolTipService.SetToolTip(box, preset.Description);
             boxes.Add(box);
             list.Children.Add(box);
