@@ -23,7 +23,8 @@ namespace Rodaje.App.Views.Player;
 /// </summary>
 /// <remarks>
 /// Reproduciendo, el hilo espera el objeto de latencia de la cadena (uno por refresco) y luego hace Tick, compone y
-/// presenta. En pausa duerme hasta una orden o 15 ms, y solo pinta si cambió el cuadro (por ejemplo, tras un seek).
+/// presenta. En pausa duerme hasta una orden, un cuadro entregado o un título listo (con un tope de seguridad para lo
+/// periódico del planificador), y solo pinta si cambió el cuadro (por ejemplo, tras un seek).
 /// Los proyectos que llegan con <see cref="Load"/> y <see cref="Reload"/> son copias: este hilo es el único que las lee.
 /// <para>
 /// Medidores: en cada vuelta este hilo publica la posición del reloj (la muestra que suena) con su marca de tiempo, y
@@ -51,6 +52,15 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private readonly Metrics _metrics;
     private readonly ConcurrentQueue<Command> _commands = new();
     private readonly AutoResetEvent _wake = new(false);
+
+    /// <summary>
+    /// Tope de la espera en pausa: todo lo que cambia la composición despierta al hilo (órdenes, cuadros, títulos); lo
+    /// periódico (cerrar decodificadores ociosos, expirar el pre-calentado) espera a lo sumo esto.
+    /// </summary>
+    private const int IdleWaitMs = 250;
+
+    /// <summary>En pausa con una medición de monitor sin recoger: nada avisa cuando la GPU la termina, así que se mira pronto.</summary>
+    private const int ScopeWaitMs = 15;
     private readonly Thread _thread;
     private readonly Lock _pendingLock = new();
     private volatile bool _stop;
@@ -499,7 +509,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 if (_session is null || _swapChain is null)
                 {
                     PublishSnapshot();
-                    _wake.WaitOne(15);
+                    _wake.WaitOne(IdleWaitMs);
                     continue;
                 }
 
@@ -522,7 +532,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 }
                 else
                 {
-                    _wake.WaitOne(15);
+                    _wake.WaitOne(_scopes is { HasPending: true } ? ScopeWaitMs : IdleWaitMs);
                     using CompositionFrame frame = _session.Tick();
                     if (Signature(frame) != _lastSignature)
                     {
@@ -729,6 +739,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         }
 
         _session.DecodeFailed += (_, e) => _metrics.Note($"decodificación falló en {Path.GetFileName(e.Path)} cuadro {e.FrameIndex}: {e.Error.Message}");
+        _session.FrameDelivered += (_, _) => Wake();
         _metrics.Milestone("sesion_abierta");
         _lastSignature = 0;
         UpdateMissingFonts();
