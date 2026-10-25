@@ -167,7 +167,7 @@ internal sealed partial class PreferencesView : UserControl
         public override string ToString() => Label;
     }
 
-    // Sin DisplayMemberPath: con AOT no hay reflexión para leer la propiedad.
+    // El texto del desplegable sale de ToString: con Native AOT el enlace por reflexión no ve las propiedades.
     private sealed record WorkspaceChoice(WorkspaceProfile Profile)
     {
         public override string ToString() => Profile.Name;
