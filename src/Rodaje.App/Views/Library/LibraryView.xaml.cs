@@ -123,7 +123,12 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         _services = services;
         _dispatcher = DispatcherQueue;
         Shortcuts.MouseShortcutHost.Attach(this, MouseContext.Library, services);
-        services.Session.ProjectOpened += (_, _) => RefreshMedia();
+        services.Session.ProjectOpened += (_, _) =>
+        {
+            // Al abrir (también el mismo proyecto otra vez) se vuelve a mirar qué archivos faltan: un disco pudo volver.
+            _healthSignature = "";
+            RefreshMedia();
+        };
         services.Session.ProjectEdited += (_, _) => RefreshMedia();
         services.Session.PropertyChanged += (_, e) =>
         {
@@ -274,6 +279,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         LibraryQuery query = Query();
         MarkersView.Visibility = markers ? Visibility.Visible : Visibility.Collapsed;
         MediaPanel.Visibility = media && library ? Visibility.Visible : Visibility.Collapsed;
+        WatchedBanner.Visibility = media && _services?.WatchedFolders is { Pending.Count: > 0 } ? Visibility.Visible : Visibility.Collapsed;
         MediaGrid.Visibility = !details && Media.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         MediaList.Visibility = details && Media.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         DetailsHeader.Visibility = MediaList.Visibility;
@@ -450,14 +456,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     {
         if (_services is not null && (e.OriginalSource as FrameworkElement)?.DataContext is MediaItem item)
         {
-            if (item.Subclip is { } subclip)
-            {
-                _services.Session.AppendToTimeline(item.Id, subclip.In, subclip.Out);
-            }
-            else
-            {
-                _services.Session.AppendToTimeline(item.Id);
-            }
+            _services.Session.AppendToTimeline(item.Id, item.Subclip?.In, item.Subclip?.Out);
         }
     }
 
@@ -635,7 +634,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     {
         if (_menuTarget is { } item)
         {
-            _services?.Session.AppendToTimeline(item.Id);
+            _services?.Session.AppendToTimeline(item.Id, item.Subclip?.In, item.Subclip?.Out);
         }
     }
 
@@ -843,10 +842,21 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
     }
 
-    private static async Task DropFilesAsync(EditorServices services, DataPackageView data)
+    /// <summary>
+    /// Lo soltado desde el Explorador, aquí o en la ventana: abre proyectos, instala paquetes e importa medios; una carpeta
+    /// entra con los medios que tiene.
+    /// </summary>
+    internal static async Task DropFilesAsync(EditorServices services, DataPackageView data)
     {
         IReadOnlyList<IStorageItem> items = await data.GetStorageItemsAsync();
-        string[] paths = [.. items.OfType<StorageFile>().Select(f => f.Path).Where(p => !string.IsNullOrEmpty(p))];
+        string[] dropped = [.. items.Select(i => i.Path).Where(p => !string.IsNullOrEmpty(p))];
+        string[] paths = await Task.Run(() => WatchedFolderScanner.ExpandFolders(dropped));
+        if (paths.Length == 0)
+        {
+            services.Session.Notify(NotificationSeverity.Informational, "Nada que importar", "Lo soltado no trae videos, audios ni imágenes.");
+            return;
+        }
+
         string[] packages = [.. paths.Where(p => p.EndsWith(PackageManifest.FileExtension, StringComparison.OrdinalIgnoreCase))];
         string[] media = [.. paths.Except(packages)];
         if (media.Any(ProjectPaths.IsProjectFile))
