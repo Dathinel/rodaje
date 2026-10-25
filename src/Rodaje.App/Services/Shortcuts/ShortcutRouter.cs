@@ -11,6 +11,9 @@ public enum KeyFocus
 
     /// <summary>En un menú que la persona abrió o recorre con el teclado: las teclas sin Ctrl, Alt ni Win son del menú.</summary>
     KeyboardMenu,
+
+    /// <summary>En una lista (las fichas de la biblioteca, los marcadores): Supr, Retroceso y Ctrl+A son de la lista.</summary>
+    List,
 }
 
 /// <summary>
@@ -24,6 +27,8 @@ public enum KeyFocus
 /// </remarks>
 public sealed partial class ShortcutRouter
 {
+    private static readonly KeyChord[] ListKeys = [KeyChord.Parse("Supr"), KeyChord.Parse("Retroceso"), KeyChord.Parse("Ctrl+A")];
+
     private readonly Dictionary<string, List<Binding>> _bindings = new(StringComparer.Ordinal);
     private readonly List<Func<ShortcutAction, bool>> _restrictions = [];
     private int _suspended;
@@ -98,6 +103,12 @@ public sealed partial class ShortcutRouter
 
         // En un menú abierto con el teclado, Espacio, Intro, las flechas y las letras eligen; Ctrl+S y similares siguen siendo atajos.
         if (focus == KeyFocus.KeyboardMenu && (chord.Modifiers & (KeyModifiers.Control | KeyModifiers.Alt | KeyModifiers.Windows)) == 0)
+        {
+            return false;
+        }
+
+        // Con una ficha o un marcador enfocados, Supr no borra los clips de la línea de tiempo ni Ctrl+A los selecciona.
+        if (focus == KeyFocus.List && ListKeys.Contains(chord))
         {
             return false;
         }

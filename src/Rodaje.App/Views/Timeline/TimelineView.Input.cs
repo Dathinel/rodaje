@@ -942,6 +942,8 @@ internal sealed partial class TimelineView
             return;
         }
 
+        // El foco seguía en la ficha arrastrada, que se queda Supr: así borra lo recién soltado (clip, transición, título o sonido).
+        TakeKeyboardFocus(FocusState.Pointer);
         if (!e.DataView.Contains(MediaIdFormat))
         {
             if (CarriesSound(e.DataView))
