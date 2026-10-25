@@ -41,6 +41,20 @@ public sealed record KeyframeGraphGeometry(Clip Clip, double PixelsPerSecond, do
         return EffectCommands.KeyframeTime(Clip, Time.Max(Clip.Start, Time.Min(Clip.End, timeline)));
     }
 
+    /// <summary><paramref name="delta"/> acotado para que ningún keyframe de <paramref name="keys"/> salga del clip.</summary>
+    public Time ClampDelta(IReadOnlyList<Keyframe> keys, Time delta)
+    {
+        ArgumentNullException.ThrowIfNull(keys);
+        if (keys.Count == 0)
+        {
+            return delta;
+        }
+
+        Time first = EffectCommands.KeyframeTime(Clip, Clip.Start);
+        Time last = EffectCommands.KeyframeTime(Clip, Clip.End);
+        return Time.Max(first - keys.Min(k => k.Time), Time.Min(last - keys.Max(k => k.Time), delta));
+    }
+
     public double ValueAt(double y) => High - ((y - Padding) / Math.Max(1, Height - (2 * Padding)) * (High - Low));
 
     public GraphPoint FromPixel(GraphPoint pixel, Time origin) => new((TimeAt(pixel.Seconds) - origin).ToSeconds(), ValueAt(pixel.Value));
