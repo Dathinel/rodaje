@@ -320,8 +320,6 @@ internal sealed partial class ParameterRow : UserControl
 
         double model = _spec.ToModel(args.NewValue);
         Committed?.Invoke(this, model);
-        // El cuadro enseña lo que de verdad quedó (por ejemplo, 50100 acotado a 10000); la columna crece para que no se
-        // vea solo la cola «0» de un número largo.
         double shown = _spec.ToBox(model);
         if (shown != args.NewValue)
         {

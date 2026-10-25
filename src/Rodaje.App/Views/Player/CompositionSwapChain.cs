@@ -132,50 +132,6 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
         }
     }
 
-    /// <summary>Bits por color del monitor que más tenga (<c>DXGI_OUTPUT_DESC1</c>); 8 si no hay monitores (WARP) o no se puede leer.</summary>
-    /// <remarks>shortcut: mira todos los monitores del adaptador y no el que tiene la ventana; afinar si alguien mezcla uno de 10 bits con otro de 8.</remarks>
-    public static int MaxBitsPerColor(GpuDevice gpu)
-    {
-        var device = (ID3D11Device*)gpu.NativeDevice;
-        IDXGIDevice* dxgiDevice = null;
-        IDXGIAdapter* adapter = null;
-        int bits = 8;
-        try
-        {
-            if (device->QueryInterface(__uuidof<IDXGIDevice>(), (void**)&dxgiDevice).FAILED || dxgiDevice->GetAdapter(&adapter).FAILED)
-            {
-                return bits;
-            }
-
-            for (uint i = 0; ; i++)
-            {
-                IDXGIOutput* output;
-                if (adapter->EnumOutputs(i, &output).FAILED)
-                {
-                    return bits;
-                }
-
-                IDXGIOutput6* output6 = null;
-                if (output->QueryInterface(__uuidof<IDXGIOutput6>(), (void**)&output6).SUCCEEDED)
-                {
-                    DXGI_OUTPUT_DESC1 desc;
-                    if (output6->GetDesc1(&desc).SUCCEEDED)
-                    {
-                        bits = Math.Max(bits, (int)desc.BitsPerColor);
-                    }
-                }
-
-                Release(ref output6);
-                Release(ref output);
-            }
-        }
-        finally
-        {
-            Release(ref adapter);
-            Release(ref dxgiDevice);
-        }
-    }
-
     private static void Release<T>(ref T* pointer)
         where T : unmanaged, IUnknown.Interface
     {

@@ -572,3 +572,9 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
 - **Lo que no cambia todavía.** El compositor sigue en SDR (D-052): las capas HDR se mapean a SDR y una secuencia HDR exporta, de momento, el rango SDR codificado en PQ o HLG (nada por encima de 203 nits). Por eso no hay todavía selector de espacio de color en la interfaz: se activa con la parte 2 (compositor en luz lineal BT.2020 con 1,0 = 203 nits, mezcla en lineal solo en HDR, SDR → HDR opcional, visor scRGB), descrita en `.proceso/diseno/encargos/hdr-fase-c-2.md`.
 - **MaxCLL/MaxFALL.** Son valores declarados (`ExportColor.MaxCll`/`MaxFall`; 0 no los declara). Medirlos en la exportación exige conocerlos antes de arrancar el codificador: la medida va con la parte 2, como pasada previa opcional o por metadatos del contenedor al terminar.
 - **Verificación.** Bytecode del shader SDR igual al congelado de antes; blanco SDR → 573 (PQ) y 721 (HLG) en 10 bits limitado en WARP; exportación real con NVENC, SVT-AV1 y ProRes leída con ffprobe (curva, primarios, matriz, metadatos y el blanco en el archivo); ida y vuelta del formato 15 y migración 14 → 15; vectores de referencia del mapa HDR → SDR de la CPU.
+
+## Se mantiene tras la revisión de bloque del 24 de octubre de 2026
+
+- «Fotograma» para una imagen suelta y «cuadros/s» para la cadencia (#450).
+- Lo escrito a mano en un cuadro numérico puede llegar al tope del modelo (10 000 % en escala) aunque el deslizador pare antes.
+- El formato 15 solo se escribe cuando hay una secuencia HDR (D-054); las preguntas de D-053 siguen para Daniel.

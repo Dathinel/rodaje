@@ -186,6 +186,11 @@ public static class ProjectSerializer
             {
                 region.Name = RepairMojibake(region.Name);
             }
+
+            foreach (AudioBus bus in sequence.AudioBuses)
+            {
+                bus.Name = RepairMojibake(bus.Name);
+            }
         }
 
         return project;

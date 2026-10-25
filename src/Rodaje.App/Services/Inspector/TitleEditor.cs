@@ -57,23 +57,12 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
     public EditorSession Session { get; } = session ?? throw new ArgumentNullException(nameof(session));
 
     /// <summary>El título que se edita: el primero seleccionado.</summary>
-    public Clip? Target() => Session.SelectedTitle;
+    public Clip? Target() => InspectorTargets.First(Session, IsTitle)?.Clip;
 
     /// <summary>Los clips de texto seleccionados.</summary>
-    public IReadOnlyList<Clip> Targets()
-    {
-        var list = new List<Clip>();
-        Sequence sequence = Session.Sequence;
-        foreach (string id in Session.SelectedClipIds)
-        {
-            if (sequence.FindClip(id) is { Clip.Generator: not null } found)
-            {
-                list.Add(found.Clip);
-            }
-        }
+    public IReadOnlyList<Clip> Targets() => InspectorTargets.Selected(Session, IsTitle).ConvertAll(t => t.Clip);
 
-        return list;
-    }
+    private static bool IsTitle((Track Track, Clip Clip) target) => target.Clip.Generator is not null;
 
     /// <summary>Cambia el texto. Las teclas seguidas se funden en un paso; una pausa o <see cref="EndTyping"/> lo cierra.</summary>
     public bool SetText(string text)

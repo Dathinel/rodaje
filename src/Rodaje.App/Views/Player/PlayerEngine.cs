@@ -69,6 +69,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
     private Presenter? _presenter;
     private CompositionSwapChain? _swapChain;
+    private TenBitViewer _tenBitViewer;
     private GpuTimer? _gpuTimer;
     private PreviewProxies? _proxies;
     private ProxyUsage _proxyUsage = ProxyUsage.Auto;
@@ -213,10 +214,18 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     /// <summary>Resolución de la vista previa: Auto, completa, mitad o cuarto.</summary>
     public void SetPreviewQuality(PreviewQuality quality) => Post(new Command(CommandKind.Quality, Quality: quality));
 
-    /// <summary>Visor de 10 bits; se lee al crear cada cadena de intercambio, así que se fija antes del primer tamaño.</summary>
-    public TenBitViewer TenBitViewer { get; set; }
+    /// <summary>Visor de 10 bits. Si la cadena de intercambio ya existe y cambia la profundidad, el hilo de render la vuelve a crear.</summary>
+    public TenBitViewer TenBitViewer
+    {
+        get => _tenBitViewer;
+        set
+        {
+            _tenBitViewer = value;
+            Post(new Command(CommandKind.TenBits));
+        }
+    }
 
-    private bool UsesTenBits() => _gpu is not null && ViewerBitDepth.UsesTenBits(TenBitViewer, CompositionSwapChain.MaxBitsPerColor(_gpu));
+    private bool UsesTenBits() => _gpu is not null && ViewerBitDepth.UsesTenBits(TenBitViewer, _gpu.MaxOutputBitsPerColor());
 
     /// <summary>Efectos dibujados, saltados y contenido que faltó desde que se abrió el reproductor (para medir).</summary>
     public EffectTotals Effects
@@ -752,6 +761,21 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 continue;
             }
 
+            if (command.Kind == CommandKind.TenBits)
+            {
+                if (_swapChain is { } old && _gpu is { } gpu && old.TenBits != UsesTenBits())
+                {
+                    old.Dispose();
+                    _swapChain = null;
+                    _swapChain = new CompositionSwapChain(gpu, old.Width, old.Height, old.ScaleX, old.ScaleY, UsesTenBits());
+                    _metrics.Note(_swapChain.TenBits ? "visor de 10 bits (R10G10B10A2)" : "visor de 8 bits (B8G8R8A8)");
+                    SwapChainCreated?.Invoke(_swapChain.NativeSwapChain);
+                    _dirty = true;
+                }
+
+                continue;
+            }
+
             if (command.Kind == CommandKind.Zoom)
             {
                 _zoom = command.Zoom;
@@ -1082,6 +1106,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         Zoom,
         Quality,
         Content,
+        TenBits,
     }
 
     private readonly record struct Command(
