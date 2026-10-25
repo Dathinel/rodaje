@@ -18,6 +18,27 @@ public class ExportJobListTests
         new() { FramesPerSecond = 3000, Step = TimeSpan.FromMilliseconds(5), FailWith = failWith };
 
     [Fact]
+    public void LaSalidaExiste_SiEsArchivoOCarpetaDeSecuencia()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "rodaje-salida-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string file = Path.Combine(folder, "uno.mp4");
+            File.WriteAllBytes(file, [1]);
+
+            Assert.True(ExportEntry.OutputExists(file));
+            Assert.True(ExportEntry.OutputExists(folder));
+            Assert.True(ExportEntry.OutputExists(folder + Path.DirectorySeparatorChar));
+            Assert.False(ExportEntry.OutputExists(Path.Combine(folder, "no.mp4")));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
     public void UnaALaVez_LaSegundaEsperaALaPrimera() => UiThread.Run(async () =>
     {
         SimulatedExportRunner runner = FastRunner();

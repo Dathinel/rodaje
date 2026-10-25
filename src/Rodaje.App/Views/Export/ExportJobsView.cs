@@ -181,18 +181,19 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
 
     private void OpenFolder(ExportEntry entry)
     {
-        if (!File.Exists(entry.OutputPath))
+        if (!ExportEntry.OutputExists(entry.OutputPath))
         {
             NotWritten(entry);
             return;
         }
 
-        using Process? _ = Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{entry.OutputPath}\"") { UseShellExecute = false });
+        using Process? _ = Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{Path.TrimEndingDirectorySeparator(entry.OutputPath)}\"") { UseShellExecute = false });
     }
 
+    // Una secuencia de imágenes es una carpeta: el shell la abre en el Explorador.
     private void Play(ExportEntry entry)
     {
-        if (!File.Exists(entry.OutputPath))
+        if (!ExportEntry.OutputExists(entry.OutputPath))
         {
             NotWritten(entry);
             return;
