@@ -190,6 +190,7 @@ public sealed partial class AppSettings
         Transitions ??= new TransitionPreferences();
         Transitions.Normalize();
         NormalizeWorkflow();
+        NormalizePersonalization();
         if (!Enum.IsDefined(ProxyUsage))
         {
             ProxyUsage = ProxyUsage.Auto;

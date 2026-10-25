@@ -94,9 +94,9 @@ internal sealed class TimelineRenderer
     private readonly Path _ticks = new();
     private readonly Rectangle _playheadLine = new() { Width = 1 };
     private readonly Path _playheadHead = new();
-    private readonly TextBlock _balloonText = new() { FontSize = ThemeResources.Size("CaptionFontSize"), TextWrapping = TextWrapping.NoWrap };
+    private readonly TextBlock _balloonText = new() { FontSize = ThemeResources.TimelineSize("CaptionFontSize"), TextWrapping = TextWrapping.NoWrap };
     private readonly Border _balloon = new() { Padding = new Thickness(6, 2, 6, 3), IsHitTestVisible = false };
-    private readonly TextBlock _cursorBadgeText = new() { FontSize = ThemeResources.Size("CaptionFontSize"), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.NoWrap };
+    private readonly TextBlock _cursorBadgeText = new() { FontSize = ThemeResources.TimelineSize("CaptionFontSize"), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.NoWrap };
     private readonly Border _cursorBadge = new() { Padding = new Thickness(4, 0, 4, 0), CornerRadius = ThemeResources.Corner("ControlCornerRadius"), IsHitTestVisible = false };
     private readonly Border _ghost = new() { CornerRadius = ThemeResources.Corner("ControlCornerRadius"), BorderThickness = new Thickness(1) };
     private readonly Border _linkedGhost = new() { CornerRadius = ThemeResources.Corner("ControlCornerRadius"), BorderThickness = new Thickness(1) };
@@ -555,7 +555,7 @@ internal sealed class TimelineRenderer
                 return;
             }
 
-            TextBlock label = Pooled(_markerNames, _rulerContent, index++, () => new TextBlock { FontSize = ThemeResources.Size("MicroFontSize"), IsHitTestVisible = false });
+            TextBlock label = Pooled(_markerNames, _rulerContent, index++, () => new TextBlock { FontSize = ThemeResources.TimelineSize("MicroFontSize"), IsHitTestVisible = false });
             label.Text = text;
             label.Foreground = brush;
             Canvas.SetLeft(label, x);
@@ -594,7 +594,7 @@ internal sealed class TimelineRenderer
             {
                 TextBlock label = Pooled(_rulerLabels, _rulerContent, labels++, () => new TextBlock
                 {
-                    FontSize = ThemeResources.Size("MicroFontSize"),
+                    FontSize = ThemeResources.TimelineSize("MicroFontSize"),
                     Foreground = _brushes.TextMuted,
                     IsHitTestVisible = false,
                 });

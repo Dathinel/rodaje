@@ -17,6 +17,7 @@ Para editores, creadores de contenido y usuarios finales. Todos los manuales est
 - **[Audio y mezcla](guia/audio.md):** Volumen por clip, curvas de envolvente, ducking inteligente, ecualización, compresor y voz en off con sonoridad LUFS.
 - **[Títulos y subtítulos](guia/titulos-y-subtitulos.md):** Generador de títulos vectoriales, subtitulado automático local con Whisper palabra a palabra y traducción.
 - **[Inteligencia artificial local](guia/ia-local.md):** Módulos locales de IA (transcripción, eliminación de ruido, reencuadre vertical, quitar fondo) sin enviar datos a internet.
+- **[Personalización](guia/personalizacion.md):** Tema (Grafito, Claro, Alto contraste, propios), acento, escala, editor de temas con contraste AA, espacios de trabajo, proyecto nuevo y perfil `.rodaje-perfil`.
 - **[Exportación y renderizado](guia/exportar.md):** Preajustes de salida, exportación multipropósito, códecs acelerados por hardware y cola persistente.
 - **[Rendimiento y aceleración gráfica](guia/rendimiento.md):** Optimización para GPU NVIDIA, AMD, Intel y perfiles de proxy para equipos modestos.
 - **[Gestor de complementos](guia/complementos.md):** Instalación, actualización y verificación de firmas de paquetes modulares `.paquete`.

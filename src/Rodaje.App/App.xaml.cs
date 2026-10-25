@@ -35,7 +35,11 @@ public partial class App : Application
         Program.Metrics.Milestone("onlaunched");
         // Antes de crear la ventana: en el constructor Application.Current todavía no da sus recursos.
         Theme.ThemeResources.ApplyHighContrast(_options.SelfTest);
-        _window = new MainWindow(_options, _engine, _prober, _settings, _settingsWarning);
+        IReadOnlyList<string> themeWarnings = Theme.ThemeResources.ApplyFromSettings(_settings.Current);
+        _engine.SetSurround(Theme.ThemeResources.Current.Color("ViewerSurroundBrush"));
+        Theme.ThemeResources.ThemeChanged += (_, _) => _engine.SetSurround(Theme.ThemeResources.Current.Color("ViewerSurroundBrush"));
+        string? warning = string.Join(" ", themeWarnings.Prepend(_settingsWarning).Where(w => !string.IsNullOrEmpty(w)));
+        _window = new MainWindow(_options, _engine, _prober, _settings, warning.Length == 0 ? null : warning);
         _window.Activate();
         // Apagar o cerrar la sesión de Windows no es un fallo: se cierra la sesión del registro antes de que Windows
         // termine el proceso.

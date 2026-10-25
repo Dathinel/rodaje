@@ -1,14 +1,27 @@
+using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Shell;
+using Rodaje.App.Theme;
 using Rodaje.Engine.Timeline;
 
 namespace Rodaje.App.Views.Preferences;
 
 internal sealed partial class PreferencesView : UserControl
 {
+    private static readonly (string Name, string Spec) ProfileFilter = ("Perfil de Rodaje", "*" + PersonalProfile.Extension);
+    private static readonly (string Name, string Spec) ThemeFilter = ("Tema de Rodaje", "*" + Themes.Extension);
+
     private PreferencesViewModel? _model;
+    private ShortcutRegistry? _registry;
+    private WorkspaceProfile? _currentWorkspace;
+    private uint? _accent;
+    private string? _pendingWorkspaceName;
+    private bool _loading;
 
     public PreferencesView()
     {
@@ -26,11 +39,42 @@ internal sealed partial class PreferencesView : UserControl
         ShortcutPresetBox.Items.Add("Estilo Rodaje");
         ShortcutPresetBox.Items.Add("Estilo Ágil");
         ShortcutPresetBox.Items.Add("Estilo Clásico");
+        foreach (int scale in Personalization.Scales)
+        {
+            ScaleBox.Items.Add($"{scale} %");
+        }
+
+        TimelineFontBox.Items.Add("Pequeño");
+        TimelineFontBox.Items.Add("Normal");
+        TimelineFontBox.Items.Add("Grande");
+        foreach (AspectChoice aspect in ProjectFormats.Aspects.Where(a => !a.Custom))
+        {
+            AspectBox.Items.Add($"{aspect.Label} · {aspect.Use}");
+        }
+
+        foreach ((_, string label) in ProjectFormats.Resolutions)
+        {
+            ResolutionBox.Items.Add(label);
+        }
+
+        foreach ((_, string label) in ProjectFormats.FrameRates)
+        {
+            FrameRateBox.Items.Add(label);
+        }
     }
 
-    public void Attach(AppSettings settings)
+    /// <summary>El espacio de trabajo elegido en la pestaña, para que la ventana lo aplique al guardar.</summary>
+    public string? WorkspaceToApply { get; private set; }
+
+    /// <summary>Se importó un perfil: la ventana debe guardar los atajos y volver a leer el estilo.</summary>
+    public bool ProfileImported { get; private set; }
+
+    public void Attach(AppSettings settings, ShortcutRegistry registry, WorkspaceProfile currentWorkspace)
     {
         _model = new PreferencesViewModel(settings);
+        _registry = registry;
+        _currentWorkspace = currentWorkspace;
+        _loading = true;
         VideoTracksBox.Value = _model.VideoTracks;
         AudioTracksBox.Value = _model.AudioTracks;
         LinkedAudioTracksPanel.Children.Clear();
@@ -51,6 +95,8 @@ internal sealed partial class PreferencesView : UserControl
         PreviewQualityBox.SelectedIndex = (int)_model.PreviewQuality;
         TenBitViewerBox.SelectedIndex = (int)_model.TenBitViewer;
         ShortcutPresetBox.SelectedIndex = (int)_model.ShortcutPreset;
+        LoadPersonalization(settings);
+        _loading = false;
     }
 
     public void Apply()
@@ -69,6 +115,407 @@ internal sealed partial class PreferencesView : UserControl
         model.SetLinkedAudioVideoTracks(LinkedAudioTracksPanel.Children.OfType<CheckBox>()
             .Where(checkBox => checkBox.IsChecked == true)
             .Select(checkBox => (int)checkBox.Tag));
-        model.Settings.Normalize();
+
+        AppSettings s = model.Settings;
+        s.Theme = ThemeBox.SelectedItem is ThemeChoice choice ? choice.Setting : Themes.GraphiteName;
+        s.AccentColor = _accent is { } accent ? Personalization.ToHex(accent) : null;
+        s.UiScale = Personalization.Scales[Math.Max(0, ScaleBox.SelectedIndex)];
+        s.TimelineFontSize = (TimelineFontSize)Math.Max(0, TimelineFontBox.SelectedIndex);
+        s.DefaultProjectAspect = ProjectFormats.Aspects[Math.Max(0, AspectBox.SelectedIndex)].Label;
+        s.DefaultProjectShortSide = ProjectFormats.Resolutions[Math.Max(0, ResolutionBox.SelectedIndex)].ShortSide;
+        s.DefaultProjectFrameRate = ProjectFormats.FrameRates[Math.Max(0, FrameRateBox.SelectedIndex)].Rate;
+        s.DefaultProjectFolder = ProjectFolderBox.Text;
+        if (_pendingWorkspaceName is { } name && _currentWorkspace is { } current)
+        {
+            WorkspaceToApply = WorkspaceProfiles.SaveCurrent(s, name, current).Id;
+        }
+        else if (WorkspaceBox.SelectedItem is WorkspaceChoice chosen && chosen.Profile.Id != s.Workspace)
+        {
+            WorkspaceToApply = chosen.Profile.Id;
+        }
+
+        foreach (ThemeDefinition theme in ThemeResources.Store.Own.ToArray())
+        {
+            ThemeResources.Store.Save(theme);
+        }
+
+        s.Normalize();
+        ThemeResources.TimelineFontScale = Personalization.FontFactor(s.TimelineFontSize);
+        ThemeResources.ApplyCurrent(s);
     }
+
+    /// <summary>Para la autoprueba: abre una pestaña y previsualiza un tema por su nombre.</summary>
+    internal void ShowForSelfTest(int tab, string? themeName)
+    {
+        Tabs.SelectedIndex = tab;
+        if (themeName is not null)
+        {
+            ThemeBox.SelectedItem = ThemeBox.Items.Cast<ThemeChoice>().First(c => c.Setting == themeName);
+        }
+    }
+
+    /// <summary>Cancelar: fuera la vista previa y los colores editados sin guardar.</summary>
+    public void Discard()
+    {
+        if (_model is not { } model) return;
+        ThemeResources.Store.Load();
+        ThemeResources.ApplyCurrent(model.Settings);
+    }
+
+    private sealed record ThemeChoice(string Setting, string Label)
+    {
+        public override string ToString() => Label;
+    }
+
+    // Sin DisplayMemberPath: con AOT no hay reflexión para leer la propiedad.
+    private sealed record WorkspaceChoice(WorkspaceProfile Profile)
+    {
+        public override string ToString() => Profile.Name;
+    }
+
+    private void LoadPersonalization(AppSettings s)
+    {
+        _accent = s.Accent;
+        FillThemeBoxes(s.Theme);
+        AccentPanel.Children.Clear();
+        foreach ((string name, uint argb) in Personalization.AccentPalette)
+        {
+            uint color = argb;
+            var swatch = new Button
+            {
+                Width = 28, Height = 28, Padding = new Thickness(0), Background = new SolidColorBrush(ThemeResources.ToColor(color)),
+                BorderBrush = ThemeResources.Brush("ControlBorderBrush"), BorderThickness = new Thickness(1),
+            };
+            ToolTipService.SetToolTip(swatch, name);
+            swatch.Click += (_, _) => SetAccent(color);
+            AccentPanel.Children.Add(swatch);
+        }
+
+        var custom = new Button { Content = "Personalizado…" };
+        var picker = new ColorPicker { IsAlphaEnabled = false, IsMoreButtonVisible = false, IsColorPreviewVisible = false, Color = ThemeResources.ToColor(_accent ?? ThemeResources.Current.Color("AccentBrush")) };
+        picker.ColorChanged += (_, e) => SetAccent(ThemeResources.ToArgb(e.NewColor));
+        custom.Flyout = new Flyout { Content = picker };
+        AccentPanel.Children.Add(custom);
+        var fromTheme = new Button { Content = "Del tema" };
+        fromTheme.Click += (_, _) => SetAccent(null);
+        AccentPanel.Children.Add(fromTheme);
+        UpdateAccentNote();
+
+        ScaleBox.SelectedIndex = Math.Max(0, Personalization.Scales.ToList().IndexOf(s.UiScale));
+        TimelineFontBox.SelectedIndex = (int)s.TimelineFontSize;
+        FillWorkspaces(s);
+        AspectBox.SelectedIndex = Math.Max(0, ProjectFormats.Aspects.ToList().FindIndex(a => a.Label == s.DefaultProjectAspect));
+        ResolutionBox.SelectedIndex = Math.Max(0, ProjectFormats.Resolutions.ToList().FindIndex(r => r.ShortSide == s.DefaultProjectShortSide));
+        FrameRateBox.SelectedIndex = Math.Max(0, ProjectFormats.FrameRates.ToList().FindIndex(r => r.Rate == s.DefaultProjectFrameRate));
+        ProjectFolderBox.Text = s.DefaultProjectFolder ?? "";
+    }
+
+    private void FillThemeBoxes(string? selected)
+    {
+        bool loading = _loading;
+        _loading = true;
+        ThemeBox.Items.Clear();
+        EditThemeBox.Items.Clear();
+        foreach (ThemeDefinition theme in Themes.BuiltIn.Concat(ThemeResources.Store.Own))
+        {
+            ThemeBox.Items.Add(new ThemeChoice(theme.Name, theme.Name + (Themes.IsBuiltIn(theme.Name) ? "" : " (propio)")));
+            EditThemeBox.Items.Add(theme.Name);
+        }
+
+        ThemeBox.Items.Add(new ThemeChoice(Personalization.FollowWindowsTheme, "Seguir a Windows"));
+        ThemeBox.SelectedIndex = Math.Max(0, ThemeBox.Items.Cast<ThemeChoice>().ToList().FindIndex(c => string.Equals(c.Setting, selected, StringComparison.OrdinalIgnoreCase)));
+        string edit = selected is null || selected == Personalization.FollowWindowsTheme ? Themes.GraphiteName : selected;
+        EditThemeBox.SelectedIndex = Math.Max(0, EditThemeBox.Items.Cast<string>().ToList().FindIndex(n => string.Equals(n, edit, StringComparison.OrdinalIgnoreCase)));
+        _loading = loading;
+        ShowThemeEditor();
+    }
+
+    private void FillWorkspaces(AppSettings s)
+    {
+        WorkspaceBox.Items.Clear();
+        foreach (WorkspaceProfile profile in WorkspaceProfiles.All(s))
+        {
+            WorkspaceBox.Items.Add(new WorkspaceChoice(profile));
+        }
+
+        WorkspaceBox.SelectedIndex = Math.Max(0, WorkspaceBox.Items.Cast<WorkspaceChoice>().ToList().FindIndex(c => c.Profile.Id == s.Workspace));
+    }
+
+    private ThemeDefinition PreviewTheme() => ThemeBox.SelectedItem is ThemeChoice choice
+        ? Themes.Resolve(choice.Setting, ThemeResources.Store.Own, choice.Setting == Personalization.FollowWindowsTheme && ThemeResources.WindowsIsLight(), out _)
+        : Themes.Graphite;
+
+    private void Preview(ThemeDefinition theme) => ThemeResources.ApplyTheme(theme, _accent);
+
+    private void SetAccent(uint? accent)
+    {
+        _accent = accent;
+        UpdateAccentNote();
+        Preview(PreviewTheme());
+    }
+
+    private void UpdateAccentNote()
+    {
+        if (_accent is { } accent && Themes.FitAccent(PreviewTheme(), accent) is (uint fitted, true))
+        {
+            AccentNote.Text = $"El acento no llega a 3:1 sobre los paneles; se usa {Personalization.ToHex(fitted)}.";
+            AccentNote.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            AccentNote.Visibility = Visibility.Collapsed;
+        }
+    }
+
+    private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        UpdateAccentNote();
+        Preview(PreviewTheme());
+    }
+
+    private void OnSaveWorkspaceClick(object sender, RoutedEventArgs e)
+    {
+        string name = WorkspaceNameBox.Text.Trim();
+        if (name.Length == 0) return;
+        _pendingWorkspaceName = name;
+        SaveWorkspaceButton.Content = $"Se guardará «{name}»";
+    }
+
+    private void OnResetWorkspaceClick(object sender, RoutedEventArgs e)
+    {
+        _pendingWorkspaceName = null;
+        SaveWorkspaceButton.Content = "Guardar la actual";
+        WorkspaceBox.SelectedItem = WorkspaceBox.Items.OfType<WorkspaceChoice>().First(c => c.Profile.Id == WorkspaceProfiles.EditingId);
+    }
+
+    // Temas
+
+    private ThemeDefinition? EditedTheme => EditThemeBox.SelectedItem is string name
+        ? Themes.BuiltIn.FirstOrDefault(t => t.Name == name) ?? ThemeResources.Store.Find(name)
+        : null;
+
+    private void OnEditThemeChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (_loading) return;
+        ShowThemeEditor();
+        if (EditedTheme is { } theme)
+        {
+            Preview(theme);
+        }
+    }
+
+    private void ShowThemeEditor()
+    {
+        ThemeColorsPanel.Children.Clear();
+        if (EditedTheme is not { } theme)
+        {
+            return;
+        }
+
+        bool builtIn = Themes.IsBuiltIn(theme.Name);
+        RenameThemeButton.IsEnabled = DeleteThemeButton.IsEnabled = ResetThemeButton.IsEnabled = !builtIn;
+        ThemeHint.Text = builtIn ? "Los temas de serie no se editan: pulsa Duplicar para hacer uno propio a partir de este." : "Cada cambio se ve al momento en la app; se guarda al pulsar Guardar.";
+        DeleteThemeText.Text = $"¿Eliminar el tema «{theme.Name}»? El archivo se borra.";
+        RenameBox.Text = theme.Name;
+        string? group = null;
+        foreach ((string key, string groupName, string label) in Themes.Slots)
+        {
+            if (group != groupName)
+            {
+                group = groupName;
+                ThemeColorsPanel.Children.Add(new TextBlock { Text = groupName, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Margin = new Thickness(0, 8, 0, 0) });
+            }
+
+            var row = new Grid { ColumnSpacing = 12 };
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+            uint color = theme.Color(key);
+            // El color va en un Border dentro del botón: desactivado (tema de serie) el fondo del botón se vuelve transparente.
+            var chip = new Border { Width = 36, Height = 16, CornerRadius = new CornerRadius(2), Background = new SolidColorBrush(ThemeResources.ToColor(color)) };
+            var swatch = new Button { Padding = new Thickness(3), IsEnabled = !builtIn, Content = chip };
+            var hex = new TextBlock { Text = Personalization.ToHex(color), VerticalAlignment = VerticalAlignment.Center, Style = ThemeResources.Style("CaptionTextStyle") };
+            var picker = new ColorPicker { IsAlphaEnabled = Personalization.Alpha(color) != 0xFF, IsMoreButtonVisible = false, IsColorPreviewVisible = false, Color = ThemeResources.ToColor(color) };
+            string slot = key;
+            picker.ColorChanged += (_, e) =>
+            {
+                uint argb = ThemeResources.ToArgb(e.NewColor);
+                theme.Set(slot, argb);
+                chip.Background = new SolidColorBrush(e.NewColor);
+                hex.Text = Personalization.ToHex(argb);
+                Preview(theme);
+                UpdateContrastNote(theme);
+            };
+            swatch.Flyout = new Flyout { Content = picker };
+            var text = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
+            Grid.SetColumn(swatch, 1);
+            Grid.SetColumn(hex, 2);
+            row.Children.Add(text);
+            row.Children.Add(swatch);
+            row.Children.Add(hex);
+            ThemeColorsPanel.Children.Add(row);
+        }
+
+        UpdateContrastNote(theme);
+    }
+
+    private void UpdateContrastNote(ThemeDefinition theme)
+    {
+        IReadOnlyList<string> warnings = Themes.ContrastWarnings(theme);
+        ContrastNote.Text = warnings.Count == 0 ? "Contraste AA: todas las parejas de texto y fondo cumplen." : "Contraste insuficiente (AA): " + string.Join("; ", warnings) + ".";
+    }
+
+    private void OnDuplicateThemeClick(object sender, RoutedEventArgs e)
+    {
+        if (EditedTheme is not { } source) return;
+        ThemeDefinition copy = source.Copy(ThemeResources.Store.FreeName(source.Name));
+        ThemeResources.Store.Own.Add(copy);
+        FillThemeBoxes(ThemeBox.SelectedItem is ThemeChoice c ? c.Setting : null);
+        EditThemeBox.SelectedItem = copy.Name;
+    }
+
+    private void OnRenameThemeClick(object sender, RoutedEventArgs e)
+    {
+        if (EditedTheme is not { } theme || Themes.IsBuiltIn(theme.Name) || Themes.CleanName(RenameBox.Text) is not { } name || name == theme.Name) return;
+        if (Themes.IsBuiltIn(name) || ThemeResources.Store.Find(name) is not null)
+        {
+            RenameBox.Header = "Ya hay un tema con ese nombre";
+            return;
+        }
+
+        bool active = string.Equals(_model?.Settings.Theme, theme.Name, StringComparison.OrdinalIgnoreCase);
+        ThemeResources.Store.Delete(theme.Name);
+        theme.Name = name;
+        ThemeResources.Store.Save(theme);
+        RenameThemeButton.Flyout.Hide();
+        FillThemeBoxes(active ? name : ThemeBox.SelectedItem is ThemeChoice c ? c.Setting : null);
+        EditThemeBox.SelectedItem = name;
+    }
+
+    private void OnDeleteThemeClick(object sender, RoutedEventArgs e)
+    {
+        if (EditedTheme is not { } theme || Themes.IsBuiltIn(theme.Name)) return;
+        ThemeResources.Store.Delete(theme.Name);
+        DeleteThemeButton.Flyout.Hide();
+        string? selected = ThemeBox.SelectedItem is ThemeChoice c && !string.Equals(c.Setting, theme.Name, StringComparison.OrdinalIgnoreCase) ? c.Setting : Themes.GraphiteName;
+        FillThemeBoxes(selected);
+        Preview(PreviewTheme());
+    }
+
+    private void OnResetThemeClick(object sender, RoutedEventArgs e)
+    {
+        if (EditedTheme is not { } theme || Themes.IsBuiltIn(theme.Name)) return;
+        theme.Colors = new Dictionary<string, string>(Themes.Graphite.Colors, StringComparer.Ordinal);
+        ShowThemeEditor();
+        Preview(theme);
+    }
+
+    private void OnExportThemeClick(object sender, RoutedEventArgs e)
+    {
+        if (EditedTheme is not { } theme || _model is not { } model) return;
+        try
+        {
+            if (FileDialogs.Save(Owner(), "Exportar tema", Themes.FileName(theme.Name), Themes.Extension.TrimStart('.'),
+                FileDialogFolderPolicy.SaveFolder(model.Settings, SaveDialogKind.Shortcuts), ThemeFilter) is { } path)
+            {
+                AppDataPaths.WriteAllTextAtomic(path, Themes.Serialize(theme));
+                ThemeHint.Text = $"Tema exportado a {path}.";
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            ThemeHint.Text = $"No se pudo exportar: {ex.Message}";
+        }
+    }
+
+    private void OnImportThemeClick(object sender, RoutedEventArgs e)
+    {
+        if (_model is not { } model) return;
+        try
+        {
+            IReadOnlyList<string> picked = FileDialogs.Open(Owner(), "Importar tema", multiple: false, FileDialogFolderPolicy.OpenFolder(model.Settings), ThemeFilter, FileDialogs.AllFilter);
+            if (picked.Count == 0) return;
+            if (Themes.Parse(Rodaje.Packages.SafeText.ReadAllTextStrict(picked[0])) is not { } theme)
+            {
+                ThemeHint.Text = $"{Path.GetFileName(picked[0])} no es un tema de Rodaje.";
+                return;
+            }
+
+            theme.Name = ThemeResources.Store.FreeName(theme.Name);
+            ThemeResources.Store.Save(theme);
+            FillThemeBoxes(ThemeBox.SelectedItem is ThemeChoice c ? c.Setting : null);
+            EditThemeBox.SelectedItem = theme.Name;
+            Preview(theme);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.DecoderFallbackException or System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            ThemeHint.Text = $"No se pudo importar: {ex.Message}";
+        }
+    }
+
+    // Perfil
+
+    private void OnExportProfileClick(object sender, RoutedEventArgs e)
+    {
+        if (_model is not { } model || _registry is not { } registry) return;
+        Apply();
+        try
+        {
+            if (FileDialogs.Save(Owner(), "Exportar perfil", "rodaje" + PersonalProfile.Extension, PersonalProfile.Extension.TrimStart('.'),
+                FileDialogFolderPolicy.SaveFolder(model.Settings, SaveDialogKind.Shortcuts), ProfileFilter) is { } path)
+            {
+                PersonalProfile.Export(model.Settings, registry, ThemeResources.Store.Find(model.Settings.Theme), path);
+                Note(ProfileNote, $"Perfil exportado a {path}.");
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            Note(ProfileNote, $"No se pudo exportar: {ex.Message}");
+        }
+    }
+
+    private void OnImportProfileClick(object sender, RoutedEventArgs e)
+    {
+        if (_model is not { } model || _registry is not { } registry) return;
+        try
+        {
+            IReadOnlyList<string> picked = FileDialogs.Open(Owner(), "Importar perfil", multiple: false, FileDialogFolderPolicy.OpenFolder(model.Settings), ProfileFilter, FileDialogs.AllFilter);
+            if (picked.Count == 0) return;
+            if (PersonalProfile.Import(picked[0], model.Settings, registry, ThemeResources.Store) is { } error)
+            {
+                Note(ProfileNote, error);
+                return;
+            }
+        }
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            Note(ProfileNote, $"No se pudo abrir el diálogo: {ex.Message}");
+            return;
+        }
+
+        ProfileImported = true;
+        Attach(model.Settings, registry, _currentWorkspace!);
+        Preview(PreviewTheme());
+        Note(ProfileNote, "Perfil importado; se aplica al pulsar Guardar.");
+    }
+
+    private void OnResetAllClick(object sender, RoutedEventArgs e)
+    {
+        if (_model is not { } model || _registry is not { } registry) return;
+        PersonalProfile.ResetAll(model.Settings, registry);
+        ProfileImported = true;
+        Attach(model.Settings, registry, _currentWorkspace!);
+        Preview(PreviewTheme());
+        Note(ProfileNote, "Todo vuelve a fábrica al pulsar Guardar.");
+    }
+
+    private static void Note(TextBlock block, string text)
+    {
+        block.Text = text;
+        block.Visibility = Visibility.Visible;
+    }
+
+    private nint Owner() =>
+        XamlRoot?.ContentIslandEnvironment is { } environment ? Microsoft.UI.Win32Interop.GetWindowFromWindowId(environment.AppWindowId) : 0;
 }
