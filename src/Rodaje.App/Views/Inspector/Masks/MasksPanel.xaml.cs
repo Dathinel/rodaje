@@ -4,6 +4,7 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
@@ -101,12 +102,17 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
     private readonly ClosedListRetry _targetsRetry = new();
     private Time _shownPosition;
     private bool _updating;
-    private bool _weightGesture;
+    private bool _weightDragging;
 
     public MasksPanel()
     {
         InitializeComponent();
         TargetBox.RetryWhenClosed(_targetsRetry, Refresh);
+        // Los pasos del borde se funden por su clave; soltar o dejar el deslizador (también con el teclado) corta la fusión.
+        WeightSlider.AddHandler(PointerPressedEvent, new PointerEventHandler((_, _) => _weightDragging = true), true);
+        WeightSlider.AddHandler(PointerReleasedEvent, new PointerEventHandler((_, _) => OnWeightReleased()), true);
+        WeightSlider.AddHandler(PointerCaptureLostEvent, new PointerEventHandler((_, _) => OnWeightReleased()), true);
+        WeightSlider.LostFocus += (_, _) => OnWeightReleased();
         RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => Publish());
         foreach (string mode in EffectRegistry.MaskModes)
         {
@@ -201,13 +207,20 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         return list;
     }
 
-    /// <summary>Un comando por clip seleccionado sobre su máscara equivalente, como un solo paso del historial.</summary>
-    private void RunOnSameMask(string maskId, Func<string, string, ICommand> command)
+    /// <summary>
+    /// Un comando por clip seleccionado sobre su máscara equivalente, como un solo paso del historial. Si falla (pista
+    /// bloqueada), el panel vuelve a mostrar el modelo.
+    /// </summary>
+    private bool RunOnSameMask(string maskId, Func<string, string, ICommand> command)
     {
-        if (InspectorTargets.AsOneStep(SameMask(maskId).ConvertAll(t => command(t.Clip.Id, t.EffectId))) is { } step)
+        if (InspectorTargets.AsOneStep(SameMask(maskId).ConvertAll(t => command(t.Clip.Id, t.EffectId))) is { } step
+            && _services?.Session.Execute(step) == true)
         {
-            Run(step);
+            return true;
         }
+
+        Refresh();
+        return false;
     }
 
     private void Refresh()
@@ -390,7 +403,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         int[] chosen = [.. selected.Where(i => i >= 0 && i < points.Length)];
         bool show = shape is MaskShape.Bezier or MaskShape.Stroke && chosen.Length > 0;
         WeightRow.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        if (!show || _weightGesture)
+        if (!show || _weightDragging)
         {
             return;
         }
@@ -534,9 +547,11 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
 
     private void OnEnabledClick(object sender, RoutedEventArgs e)
     {
-        if (sender is ToggleButton { Tag: string id } toggle && _clipId is not null)
+        if (sender is ToggleButton { Tag: string id } toggle && _clipId is not null
+            && !RunOnSameMask(id, (clipId, maskId) => Edits.SetEffectEnabled(SequenceId, clipId, maskId, toggle.IsChecked != true)))
         {
-            RunOnSameMask(id, (clipId, maskId) => Edits.SetEffectEnabled(SequenceId, clipId, maskId, toggle.IsChecked != true));
+            // La fila no se rehace si el modelo no cambió.
+            toggle.IsChecked = toggle.IsChecked != true;
         }
     }
 
@@ -715,12 +730,6 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         }
 
         EditorSession session = _services.Session;
-        if (!_weightGesture)
-        {
-            _weightGesture = true;
-            session.BeginGesture("Cambiar el borde de los puntos");
-        }
-
         Time at = _editor.KeyframeTimeAtPlayhead(clip);
         MaskVertex[] vertices = MaskGeometry.Vertices(mask, clip.ToEffectTime(session.Position));
         WeightText.Text = e.NewValue.ToString("0.00", SpanishNumbers.Format);
@@ -728,13 +737,10 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
             at, "Cambiar el borde de los puntos", "mascara-peso|" + mask.Id));
     }
 
-    private void OnWeightReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    private void OnWeightReleased()
     {
-        if (_weightGesture)
-        {
-            _weightGesture = false;
-            _services?.Session.EndGesture();
-        }
+        _weightDragging = false;
+        _services?.Session.BreakMerge();
     }
 
     private void OnKeyClick(object sender, RoutedEventArgs e)
