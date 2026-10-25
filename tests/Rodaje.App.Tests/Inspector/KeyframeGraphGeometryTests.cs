@@ -30,6 +30,16 @@ public sealed class KeyframeGraphGeometryTests
     }
 
     [Fact]
+    public void ElDesplazamientoDeUnaSeleccion_SeAcotaParaQueNingunKeyframeSalgaDelClip()
+    {
+        KeyframeGraphGeometry geometry = Geometry(Clip());
+        Keyframe[] keys = [new(S(5), 0), new(S(8), 1)];
+        Assert.Equal(Time.Zero, geometry.ClampDelta(keys, S(-0.04)));
+        Assert.Equal(S(2), geometry.ClampDelta(keys, S(2)));
+        Assert.Equal(S(7), geometry.ClampDelta(keys, S(9)));
+    }
+
+    [Fact]
     public void FrameSnapUsesSequenceTimeAndClampsToClip()
     {
         KeyframeGraphGeometry geometry = Geometry(Clip());

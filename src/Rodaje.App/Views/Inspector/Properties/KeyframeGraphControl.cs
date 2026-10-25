@@ -112,6 +112,13 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
             menu.Items.Add(item);
         }
 
+        menu.Opening += (_, _) =>
+        {
+            foreach (MenuFlyoutItemBase item in menu.Items)
+            {
+                item.IsEnabled = _selection.Count > 0 && _drag is null && _effect?.Id != SpeedGraph.EffectId;
+            }
+        };
         ContextFlyout = menu;
         AutomationProperties.SetName(this, "Gráfica de keyframes");
         ToolTipService.SetToolTip(this, "Arrastra un rombo para cambiar su valor (a los lados, su instante) y los manejadores para dar forma a la curva hasta el siguiente.");
@@ -146,6 +153,7 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
                 _selection.UnionWith(_drag.Original.Select(k => k.Time));
                 _drag = null;
                 _frozenRange = null;
+                _readout.Text = "";
                 ReleasePointerCaptures();
             }
         };
@@ -400,14 +408,34 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
     {
         if (_session is not { } session || _clip is not { } clip || _effect is not { } effect || Parameter is not { } parameter
-            || _mode != GraphMode.Value || !e.GetCurrentPoint(this).Properties.IsLeftButtonPressed)
+            || _mode != GraphMode.Value)
+        {
+            return;
+        }
+
+        var button = e.GetCurrentPoint(this).Properties;
+        GraphPoint p = Pixel(e.GetCurrentPoint(_canvas).Position);
+        KeyframeGraphGeometry geometry = Geometry(parameter);
+        if (button.IsRightButtonPressed)
+        {
+            // El menú de interpolación actúa sobre la selección: el rombo pulsado la sustituye si no estaba en ella.
+            if (geometry.Hit(parameter.Keyframes, _selection, p, 8) is { Handle: < 0 } under && !_selection.Contains(parameter.Keyframes[under.Key].Time))
+            {
+                _selection.Clear();
+                _selection.Add(parameter.Keyframes[under.Key].Time);
+                _selected = under.Key;
+                Draw();
+            }
+
+            return;
+        }
+
+        if (!button.IsLeftButtonPressed)
         {
             return;
         }
 
         Focus(FocusState.Pointer);
-        GraphPoint p = Pixel(e.GetCurrentPoint(_canvas).Position);
-        KeyframeGraphGeometry geometry = Geometry(parameter);
         bool add = e.KeyModifiers.HasFlag(VirtualKeyModifiers.Control);
         if (geometry.Hit(parameter.Keyframes, _selection, p, 8) is not { } hit)
         {
@@ -448,7 +476,8 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
         _frozenRange = CurrentRange(parameter);
         _drag = new Drag(clip.Id, effect.Id, _name, hit.Handle, key.Time, p, parameter.Keyframes[0].Time,
             geometry, [.. parameter.Keyframes.Where(k => _selection.Contains(k.Time))], Time.Zero, 0,
-            effect.Id == SpeedGraph.EffectId ? SequenceSnapshot.Capture(session.Sequence) : null);
+            effect.Id == SpeedGraph.EffectId ? SequenceSnapshot.Capture(session.Sequence) : null,
+            effect.Id == SpeedGraph.EffectId ? session.Sequence.FindClip(clip.Id)?.Clip.Clone() : null);
         session.BeginGesture(hit.Handle < 0 ? "Mover keyframes" : "Cambiar curva");
         CapturePointer(e.Pointer);
         e.Handled = true;
@@ -494,7 +523,7 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
             double dx = p.Seconds - drag.Press.Seconds;
             double anchorX = drag.Geometry.Pixel(drag.Anchor, 0).Seconds;
             Time delta = e.KeyModifiers.HasFlag(VirtualKeyModifiers.Shift) ? Time.Zero
-                : drag.Geometry.TimeAt(anchorX + dx, session.Sequence.FrameRate) - drag.Anchor;
+                : drag.Geometry.ClampDelta(drag.Original, drag.Geometry.TimeAt(anchorX + dx, session.Sequence.FrameRate) - drag.Anchor);
             double dv = drag.Geometry.ValueAt(p.Value) - drag.Geometry.ValueAt(drag.Press.Value);
             if (delta == drag.Delta && dv == drag.ValueDelta)
             {
@@ -506,13 +535,19 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
             if (session.TryExecute(KeyframeGraphEdits.Move(session.SequenceId, drag.ClipId, drag.EffectId, drag.Name,
                 drag.Original, drag.Delta, delta, dv, spec, other, session.SpeedScope, drag.Start)))
             {
-                _drag = drag with { Delta = delta, ValueDelta = dv };
-                _selection.Clear();
-                _selection.UnionWith(drag.Original.Select(k => k.Time + delta));
-                _selected = Parameter?.Keyframes.FindIndex(k => _selection.Contains(k.Time)) ?? -1;
+                drag = drag with { Delta = delta, ValueDelta = dv };
+                _drag = drag;
             }
 
-            (_clip, _effect) = GraphParameters.Resolve(session.Sequence.FindClip(drag.ClipId)?.Clip, drag.EffectId);
+            Clip? now = session.Sequence.FindClip(drag.ClipId)?.Clip;
+            // Guardar la rampa de velocidad cambia la duración del clip y con ella el instante de todos sus puntos.
+            IEnumerable<Time> Moved(IEnumerable<Time> times) => drag.Before is { } before && now is not null ? SpeedGraph.Follow(before, now, times) : times;
+            _selection.Clear();
+            _selection.UnionWith(Moved(drag.Original.Select(k => k.Time + drag.Delta)));
+            (_clip, _effect) = GraphParameters.Resolve(now, drag.EffectId);
+            _selected = Parameter?.Keyframes.FindIndex(k => _selection.Contains(k.Time)) ?? -1;
+            Time anchor = Moved([drag.Anchor + drag.Delta]).First();
+            _readout.Text = Parameter?.Keyframes.Find(k => k.Time == anchor) is { } moved ? $"{Number(Display(moved.Value))} {spec.Unit}" : "";
         }
 
         e.Handled = true;
@@ -531,7 +566,7 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
         VirtualKey key = (VirtualKey)chord.Key;
         bool ctrl = chord.Modifiers == KeyModifiers.Control;
         bool reserved = (ctrl && key is VirtualKey.C or VirtualKey.V or VirtualKey.A)
-            || (chord.Modifiers == KeyModifiers.None && key == VirtualKey.Delete);
+            || (chord.Modifiers == KeyModifiers.None && key is VirtualKey.Delete or VirtualKey.Back);
         if (!reserved)
         {
             return false;
@@ -549,13 +584,15 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
         else if (ctrl && key == VirtualKey.V && _clipboard is { } clipboard && _editor!.IsPlayheadInside(clip))
         {
             Time at = _editor.KeyframeTimeAtPlayhead(clip);
+            Clip? before = effect.Id == SpeedGraph.EffectId ? session.Sequence.FindClip(clip.Id)?.Clip.Clone() : null;
             if (session.Execute(KeyframeGraphEdits.Paste(session.SequenceId, clip.Id, effect.Id, _name, clipboard, at, session.SpeedScope)))
             {
+                IEnumerable<Time> pasted = clipboard.PasteAt(at).Select(k => k.Time);
                 _selection.Clear();
-                _selection.UnionWith(clipboard.PasteAt(at).Select(k => k.Time));
+                _selection.UnionWith(before is not null && session.Sequence.FindClip(clip.Id)?.Clip is { } after ? SpeedGraph.Follow(before, after, pasted) : pasted);
             }
         }
-        else if (key == VirtualKey.Delete && _selection.Count > 0)
+        else if (key is VirtualKey.Delete or VirtualKey.Back && _selection.Count > 0)
         {
             if (session.Execute(KeyframeGraphEdits.Delete(session.SequenceId, clip.Id, effect.Id, _name, _selection, session.SpeedScope)))
             {
@@ -607,7 +644,8 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
         bool tilt = point.Properties.IsHorizontalMouseWheel;
         string? gesture = MouseShortcutHost.Resolve(services.ShortcutRegistry, MouseContext.Timeline,
             tilt ? MouseInput.Tilt : MouseInput.Wheel, e.KeyModifiers);
-        gesture = MouseGestures.EffectiveTimelineWheel(gesture, false, tilt, true);
+        // Sin pistas que bajar, la rueda que bajaría por ellas desplaza el panel que contiene la gráfica.
+        gesture = MouseGestures.EffectiveTimelineWheel(gesture, false, tilt, false);
         int signed = tilt ? point.Properties.MouseWheelDelta : -point.Properties.MouseWheelDelta;
         TimelineState state = services.Session.Timeline;
         switch (gesture)
@@ -654,5 +692,5 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
 
     private sealed record Drag(string ClipId, string EffectId, string Name, int Handle, Time Anchor,
         GraphPoint Press, Time Origin, KeyframeGraphGeometry Geometry, IReadOnlyList<Keyframe> Original, Time Delta, double ValueDelta,
-        SequenceSnapshot? Start);
+        SequenceSnapshot? Start, Clip? Before);
 }
