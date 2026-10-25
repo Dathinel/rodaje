@@ -121,7 +121,7 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
         };
         ContextFlyout = menu;
         AutomationProperties.SetName(this, "Gráfica de keyframes");
-        ToolTipService.SetToolTip(this, "Arrastra un rombo para cambiar su valor (a los lados, su instante) y los manejadores para dar forma a la curva hasta el siguiente.");
+        ToolTipService.SetToolTip(this, "Arrastra un rombo para cambiar su valor (a los lados, su instante). Clic derecho elige la curva; en un tramo Bézier, sus manejadores le dan forma hasta el siguiente.");
     }
 
     /// <summary>Cambió algo con un arrastre de la gráfica (para refrescar el panel al soltar).</summary>
@@ -414,6 +414,8 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
         }
 
         var button = e.GetCurrentPoint(this).Properties;
+        // También con el derecho: Supr tras el menú tiene que llegar a la gráfica y no borrar el clip.
+        Focus(FocusState.Pointer);
         GraphPoint p = Pixel(e.GetCurrentPoint(_canvas).Position);
         KeyframeGraphGeometry geometry = Geometry(parameter);
         if (button.IsRightButtonPressed)
@@ -435,7 +437,6 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
             return;
         }
 
-        Focus(FocusState.Pointer);
         bool add = e.KeyModifiers.HasFlag(VirtualKeyModifiers.Control);
         if (geometry.Hit(parameter.Keyframes, _selection, p, 8) is not { } hit)
         {
@@ -644,8 +645,7 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
         bool tilt = point.Properties.IsHorizontalMouseWheel;
         string? gesture = MouseShortcutHost.Resolve(services.ShortcutRegistry, MouseContext.Timeline,
             tilt ? MouseInput.Tilt : MouseInput.Wheel, e.KeyModifiers);
-        // Sin pistas que bajar, la rueda que bajaría por ellas desplaza el panel que contiene la gráfica.
-        gesture = MouseGestures.EffectiveTimelineWheel(gesture, false, tilt, false);
+        // Sin EffectiveTimelineWheel: aquí no hay pistas, y la rueda que bajaría por ellas desplaza el panel de la gráfica.
         int signed = tilt ? point.Properties.MouseWheelDelta : -point.Properties.MouseWheelDelta;
         TimelineState state = services.Session.Timeline;
         switch (gesture)
