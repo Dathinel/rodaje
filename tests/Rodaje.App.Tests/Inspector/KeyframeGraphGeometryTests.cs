@@ -115,6 +115,34 @@ public sealed class KeyframeGraphGeometryTests
     }
 
     [Fact]
+    public void FitWithFloor_KeepsTheSpeedAxisAboveZero()
+    {
+        var ramp = new Parameter { Keyframes = [new(S(0), 0.1), new(S(2), 2)] };
+        (double low, double high) = KeyframeGraphGeometry.Fit(ramp, []);
+        Assert.True(low < 0);
+        Assert.Equal((0.0, high), KeyframeGraphGeometry.Fit(ramp, [], floor: 0));
+        // Un valor real por debajo del piso sigue a la vista.
+        Assert.Equal(-1, KeyframeGraphGeometry.Fit(ramp, [new(1, -1)], floor: 0).Low);
+    }
+
+    [Fact]
+    public void FlatCurveWithSpec_OpensTheAxisToATenthOfTheSliderRange()
+    {
+        var flat = new Parameter { Keyframes = [new(S(1), 1), new(S(4), 1)] };
+        ParameterSpec spec = SpeedGraph.Spec;
+        (double low, double high) = KeyframeGraphGeometry.Fit(flat, [], spec, floor: 0);
+        Assert.Equal((spec.Maximum - spec.Minimum) / 10 * 1.2, high - low, 6);
+        Assert.True(low > 0 && low < 1 && high > 1);
+        // Media altura del gráfico mueve el valor lo bastante para que se note en el modelo (centésimas en la velocidad).
+        KeyframeGraphGeometry geometry = Geometry(Clip()) with { Low = low, High = high };
+        Assert.True(Math.Abs(geometry.ValueAt(geometry.Height / 2) - geometry.ValueAt(geometry.Height - KeyframeGraphGeometry.Padding)) > 0.1);
+
+        var unbounded = spec with { Minimum = double.NegativeInfinity };
+        (low, high) = KeyframeGraphGeometry.Fit(flat, [], unbounded);
+        Assert.True(double.IsFinite(low) && double.IsFinite(high) && low < 1 && high > 1);
+    }
+
+    [Fact]
     public void CatalogIncludesAudioMasksAndRepeatedEffectsWithDistinctIdentity()
     {
         Clip clip = Clip();

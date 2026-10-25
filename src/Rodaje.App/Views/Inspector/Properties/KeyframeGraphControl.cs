@@ -400,7 +400,8 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
         }
 
         (Parameter? partner, bool partnerIsY) = Partner();
-        return KeyframeGraphGeometry.Fit(parameter, KeyframeGraph.Sample(parameter, _mode, partner, partnerIsY));
+        return KeyframeGraphGeometry.Fit(parameter, KeyframeGraph.Sample(parameter, _mode, partner, partnerIsY), _spec,
+            _effect?.Id == SpeedGraph.EffectId && _mode == GraphMode.Value ? 0 : null);
     }
 
     private static GraphPoint Pixel(Point point) => new(point.X, point.Y);

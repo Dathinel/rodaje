@@ -110,10 +110,18 @@ public sealed record KeyframeGraphGeometry(Clip Clip, double PixelsPerSecond, do
         }).Select(key => key.Time).ToArray();
     }
 
-    public static (double Low, double High) Fit(Parameter parameter, IReadOnlyList<GraphPoint> samples)
+    /// <param name="spec">
+    /// Con él, una curva plana (un solo keyframe o dos iguales) abre el eje a la décima parte del rango del deslizador, y
+    /// no a una millonésima: arrastrar cambia el valor de verdad y los rótulos de arriba y abajo difieren.
+    /// </param>
+    /// <param name="floor">Hasta dónde puede bajar el margen del eje (la velocidad no marca valores negativos); nulo, sin tope.</param>
+    public static (double Low, double High) Fit(Parameter parameter, IReadOnlyList<GraphPoint> samples, ParameterSpec? spec = null, double? floor = null)
     {
         ArgumentNullException.ThrowIfNull(parameter);
         ArgumentNullException.ThrowIfNull(samples);
-        return KeyframeGraph.Range([.. samples, .. parameter.Keyframes.Select(k => new GraphPoint(0, k.Value))], 1e-6);
+        double span = spec is { } s ? (s.Maximum - s.Minimum) / s.DisplayFactor / 10 : 0;
+        IReadOnlyList<GraphPoint> points = [.. samples, .. parameter.Keyframes.Select(k => new GraphPoint(0, k.Value))];
+        (double low, double high) = KeyframeGraph.Range(points, double.IsFinite(span) && span > 1e-6 ? span : 1e-6);
+        return floor is { } f && low < f ? (Math.Min(f, points.Min(p => p.Value)), high) : (low, high);
     }
 }
