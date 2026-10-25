@@ -108,6 +108,9 @@ public sealed class TimelineSession : IDisposable
 
     public Rational FrameRate => _scheduler.Plan.FrameRate;
 
+    /// <summary>Espacio de color de la secuencia (<see cref="Sequence.ColorSpace"/>), para el compositor del reproductor.</summary>
+    public SequenceColorSpace ColorSpace => _scheduler.Plan.Expanded.ColorSpace;
+
     public Time Duration => _scheduler.Plan.Duration;
 
     /// <summary>Cuadros de la secuencia, contando el último aunque esté incompleto.</summary>

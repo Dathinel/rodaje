@@ -225,6 +225,14 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
     private bool UsesTenBits() => _gpu is not null && ViewerBitDepth.UsesTenBits(TenBitViewer, CompositionSwapChain.MaxBitsPerColor(_gpu));
 
+    /// <summary>Visor HDR (scRGB); como <see cref="TenBitViewer"/>, se lee al crear cada cadena de intercambio.</summary>
+    public HdrViewer HdrViewer { get; set; }
+
+    /// <summary>Si la cadena del visor es scRGB: una secuencia HDR se ve en HDR. Si no, se ve en SDR recortando lo que pasa de 203 nits.</summary>
+    public bool ViewerIsScRgb { get; private set; }
+
+    private bool UsesScRgb() => _gpu is not null && ViewerBitDepth.UsesScRgb(HdrViewer, CompositionSwapChain.HasHdrOutput(_gpu));
+
     /// <summary>Efectos dibujados, saltados y contenido que faltó desde que se abrió el reproductor (para medir).</summary>
     public EffectTotals Effects
     {
@@ -596,9 +604,14 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         if (_swapChain is null)
         {
-            _swapChain = new CompositionSwapChain(_gpu, size.Width, size.Height, size.ScaleX, size.ScaleY, UsesTenBits());
+            _swapChain = new CompositionSwapChain(_gpu, size.Width, size.Height, size.ScaleX, size.ScaleY, UsesTenBits(), UsesScRgb());
             _metrics.Milestone("cadena_creada");
-            if (_swapChain.TenBits)
+            ViewerIsScRgb = _swapChain.ScRgb;
+            if (_swapChain.ScRgb)
+            {
+                _metrics.Note("visor HDR (scRGB R16G16B16A16_FLOAT)");
+            }
+            else if (_swapChain.TenBits)
             {
                 _metrics.Note("visor de 10 bits (R10G10B10A2)");
             }
@@ -868,12 +881,13 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         if (_compositor is { } current && current.Width == width && current.Height == height)
         {
+            current.ColorSpace = _session.ColorSpace;
             return;
         }
 
         _compositor?.Dispose();
         _compositor = null;
-        _compositor = new Compositor(_gpu, width, height) { Resources = _content, Titles = _titles };
+        _compositor = new Compositor(_gpu, width, height) { Resources = _content, Titles = _titles, ColorSpace = _session.ColorSpace };
     }
 
     /// <summary>Una LUT terminó de cargar o cambiaron los paquetes: en pausa también hay que volver a componer.</summary>

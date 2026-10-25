@@ -268,7 +268,8 @@ public sealed class ExportJob : IDisposable
         bool blend = plan.ConvertsRate && settings.FrameRateConversion == FrameRateConversion.Blend;
         using var frames = new FrameSource(this, plan, timeline, gpu, titles, alpha, blend);
         ExportSourceRegion? region = settings.Crop is { } crop ? new ExportSourceRegion(crop.X, crop.Y, crop.Width, crop.Height) : null;
-        using var converter = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter, region: region);
+        using var converter = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter, region: region,
+            source: timeline.ColorSpace);
         _converter = converter;
         void Write(in ExportVideoFrame frame)
         {
@@ -488,6 +489,7 @@ public sealed class ExportJob : IDisposable
             {
                 _compositors[c] = new Compositor(gpu, timeline.Width, timeline.Height)
                 {
+                    ColorSpace = timeline.ColorSpace,
                     Resources = job._options.Content,
                     Titles = titles,
                     TransparentBackground = alpha,
