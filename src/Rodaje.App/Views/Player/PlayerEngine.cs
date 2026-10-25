@@ -58,6 +58,9 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     /// periódico (cerrar decodificadores ociosos, expirar el pre-calentado) espera a lo sumo esto.
     /// </summary>
     private const int IdleWaitMs = 250;
+
+    /// <summary>En pausa con una medición de monitor sin recoger: nada avisa cuando la GPU la termina, así que se mira pronto.</summary>
+    private const int ScopeWaitMs = 15;
     private readonly Thread _thread;
     private readonly Lock _pendingLock = new();
     private volatile bool _stop;
@@ -529,7 +532,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 }
                 else
                 {
-                    _wake.WaitOne(IdleWaitMs);
+                    _wake.WaitOne(_scopes is { HasPending: true } ? ScopeWaitMs : IdleWaitMs);
                     using CompositionFrame frame = _session.Tick();
                     if (Signature(frame) != _lastSignature)
                     {
