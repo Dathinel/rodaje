@@ -942,6 +942,8 @@ internal sealed partial class TimelineView
             return;
         }
 
+        // El foco seguía en la ficha arrastrada, que se queda Supr: así borra lo recién soltado (clip, transición, título o sonido).
+        TakeKeyboardFocus(FocusState.Pointer);
         if (!e.DataView.Contains(MediaIdFormat))
         {
             if (CarriesSound(e.DataView))
@@ -971,8 +973,6 @@ internal sealed partial class TimelineView
                 if (Session.Execute(command) && command.CreatedIds.Count > 0)
                 {
                     Session.Select([command.CreatedIds[0]]);
-                    // El foco seguía en la ficha arrastrada, que se queda Supr: así borra el clip recién soltado.
-                    TakeKeyboardFocus(FocusState.Pointer);
                 }
             }
         }
