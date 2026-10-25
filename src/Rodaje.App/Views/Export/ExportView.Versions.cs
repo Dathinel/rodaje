@@ -24,7 +24,9 @@ internal sealed partial class ExportView
         var list = new StackPanel { Spacing = 2 };
         list.Children.Add(new TextBlock
         {
-            Text = $"Se guardan en «{Path.GetDirectoryName(model.OutputPath)}» con el nombre del preajuste al final. Rango y rendimiento, los de ahora.",
+            Text = $"Se guardan en «{Path.GetDirectoryName(model.OutputPath)}» con el nombre del preajuste al final (y un número si ya existe). "
+                + "Rango, rendimiento y subtítulos, los de ahora."
+                + (model.VersionsNote(model.Presets.Select(p => p.Id)) is { } note ? $"\n{note}" : ""),
             TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8),
         });
         foreach (ExportPreset preset in model.Presets)
@@ -60,7 +62,7 @@ internal sealed partial class ExportView
         {
             requests = model.CreateVersionRequests(ids, session.Project.Clone(), session.SequenceId, projectFolder);
         }
-        catch (ArgumentException ex)
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
             session.Notify(NotificationSeverity.Warning, "No se pudieron preparar las versiones", ex.Message);
             return;

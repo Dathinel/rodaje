@@ -121,6 +121,7 @@ internal sealed partial class ExportView : UserControl
     {
         EditorSession session = _services.Session;
         ExportButton.IsEnabled = false;
+        VersionsButton.IsEnabled = false;
         FooterNote.Text = "Comprobando los codificadores de este equipo…";
         IReadOnlyList<EncoderSpec> encoders = await _jobs.Runner.GetEncodersAsync();
         string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
@@ -396,6 +397,7 @@ internal sealed partial class ExportView : UserControl
         ProblemsText.Text = string.Join("\n", problems);
         ProblemsText.Visibility = problems.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ExportButton.IsEnabled = problems.Count == 0;
+        VersionsButton.IsEnabled = model.VersionProblems.Count == 0;
         FooterNote.Text = _jobs.Runner.IsSimulation
             ? "Simulación: no se escribe ningún archivo."
             : _jobs.ActiveCount > 0 ? "Hay otra exportación en curso: esta esperará su turno." : "";
