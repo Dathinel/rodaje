@@ -108,6 +108,8 @@ internal sealed class TimelineRenderer
     private readonly Rectangle _timeRangeRuler = new() { Height = 4 };
     private double _windowLeft;
     private double _windowRight;
+    private double _windowTop;
+    private double _windowBottom;
     private double _realizedPixelsPerSecond;
     private double _realizedWidth;
     private bool _contentDirty = true;
@@ -198,7 +200,8 @@ internal sealed class TimelineRenderer
 
         TimelineViewport vp = Viewport;
         double scale = vp.PixelsPerSecond / _realizedPixelsPerSecond;
-        bool outside = vp.ScrollX < _windowLeft * scale || vp.ScrollX + vp.Width > _windowRight * scale;
+        bool outside = vp.ScrollX < _windowLeft * scale || vp.ScrollX + vp.Width > _windowRight * scale
+            || ScrollY < _windowTop || ScrollY + LanesHeight > _windowBottom;
         bool zoomed = _realizedPixelsPerSecond != vp.PixelsPerSecond;
         bool preview = zoomed && ZoomPreview && scale is >= 1 / MaxPreviewScale and <= MaxPreviewScale;
         if (_contentDirty || outside || (zoomed && !preview) || _realizedWidth != vp.Width)
@@ -275,6 +278,9 @@ internal sealed class TimelineRenderer
         _realizedWidth = vp.Width;
         _windowLeft = Math.Max(0, vp.ScrollX - vp.Width);
         _windowRight = vp.ScrollX + (2 * vp.Width);
+        // Como la horizontal: una pantalla de margen arriba y abajo; las filas fuera no arman clips ni piden miniaturas u ondas.
+        _windowTop = ScrollY - LanesHeight;
+        _windowBottom = ScrollY + (2 * LanesHeight);
         Realizations++;
 
         double pps = vp.PixelsPerSecond;
@@ -289,6 +295,11 @@ internal sealed class TimelineRenderer
         int used = 0;
         foreach (TrackRow row in layout.Rows)
         {
+            if (!row.Overlaps(_windowTop, _windowBottom))
+            {
+                continue;
+            }
+
             List<Clip> clips = row.Track.Clips;
             for (int i = TimelineHitTest.FirstEndingAfter(clips, from); i < clips.Count && clips[i].Start < to; i++)
             {
@@ -327,6 +338,25 @@ internal sealed class TimelineRenderer
         RealizeCrossfades(scene, layout, from, to);
         RealizeMarkers(scene, layout, from, to);
         RealizeRuler(scene, from, to);
+    }
+
+    /// <summary>
+    /// Llegaron miniaturas o picos de un medio: solo los clips armados de ese medio se vuelven a dibujar, sin rearmar la
+    /// ventana ni tocar los demás. Devuelve si había alguno.
+    /// </summary>
+    public bool RefreshMedia(string mediaId)
+    {
+        bool any = false;
+        foreach (ClipVisual clip in _clips)
+        {
+            if (clip.ClipId is not null && clip.MediaId == mediaId)
+            {
+                clip.Refresh();
+                any = true;
+            }
+        }
+
+        return any;
     }
 
     private ClipVisual ClipAt(int index)
