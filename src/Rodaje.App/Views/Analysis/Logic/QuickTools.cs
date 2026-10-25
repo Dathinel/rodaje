@@ -69,7 +69,7 @@ public static class QuickTools
         ArgumentNullException.ThrowIfNull(selection);
         bool HasAudio(Clip c) => c.Generator is null && c.Enabled && project.FindMedia(c.MediaId) is { HasAudio: true };
         Clip? audio = selection.Select(id => sequence.FindClip(id)?.Clip).FirstOrDefault(c => c is not null && HasAudio(c));
-        bool video = selection.Any(id => sequence.FindClip(id) is { } f && f.Clip.Generator is null
+        string? video = selection.FirstOrDefault(id => sequence.FindClip(id) is { } f && f.Clip.Generator is null
             && project.FindMedia(f.Clip.MediaId) is { HasVideo: true, FrameRate: not null });
         bool stillSelected = selection.Any(id => sequence.FindClip(id) is { } f
             && project.FindMedia(f.Clip.MediaId)?.IsStillImage == true);
@@ -85,15 +85,29 @@ public static class QuickTools
             "analysis.noise" when NoiseReduction.TargetClip(sequence, selection, HasAudio) is null =>
                 No("Selecciona un clip con voz en una pista de audio (o un video con su audio enlazado)."),
             "analysis.noise" when !noiseModule => No("Hace falta el módulo «Audio con IA». Instálalo desde Complementos › Módulos de IA."),
+            "analysis.noise" when Locked(sequence, NoiseReduction.TargetClip(sequence, selection, HasAudio)!.Id) is { } locked => No(locked),
             "analysis.noise" => Yes,
-            "analysis.stabilize" or "analysis.autocolor" or "analysis.whitebalance" => video ? Yes : No(videoMissing),
-            RemoveBackground or Reframe when !video => No(videoMissing),
+            "analysis.stabilize" or "analysis.autocolor" or "analysis.whitebalance" => video is not null ? Yes : No(videoMissing),
+            RemoveBackground or Reframe when video is null => No(videoMissing),
             RemoveBackground or Reframe when !visionModule => No("Hace falta el módulo «Visión con IA». Instálalo desde Complementos › Módulos de IA."),
+            RemoveBackground or Reframe when Locked(sequence, video!) is { } locked => No(locked),
             AutoSubtitles when Subtitles.AutoSubtitles.TargetClip(sequence, selection, HasAudio) is null =>
                 No("Selecciona un clip con voz (un video con sonido o un clip de audio)."),
             AutoSubtitles when !subtitleModule => No("Hace falta el módulo «Subtítulos automáticos». Instálalo desde Complementos › Módulos de IA."),
             _ => Yes,
         };
+    }
+
+    /// <summary>
+    /// Por qué no se puede cambiar el clip (su pista está bloqueada), o nulo. Las herramientas de IA lo miran antes de
+    /// lanzar el módulo: si no, el cálculo entero se perdía al aplicar.
+    /// </summary>
+    public static string? Locked(Sequence sequence, string clipId)
+    {
+        ArgumentNullException.ThrowIfNull(sequence);
+        return sequence.FindClip(clipId) is { Track.Locked: true } found
+            ? $"La pista «{found.Track.Name}» está bloqueada: desbloquéala para usar esta herramienta."
+            : null;
     }
 
     private static QuickToolState Yes => new(true, null);

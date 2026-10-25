@@ -16,7 +16,7 @@ internal sealed partial class GraphPanel : Grid, IEditorView
     private readonly KeyframeGraphControl _graph = new();
     private readonly TextBlock _hint = new()
     {
-        Text = "Clic para seleccionar · Ctrl+clic para sumar o quitar · Arrastra un recuadro para seleccionar varios. Supr borra; Ctrl+C y Ctrl+V copian y pegan en el cursor.",
+        Text = "Clic para seleccionar · Ctrl+clic para sumar o quitar · Arrastra un recuadro para seleccionar varios. Supr o Retroceso borran; Ctrl+C y Ctrl+V copian y pegan en el cursor.",
         TextWrapping = TextWrapping.Wrap,
     };
     private EditorServices? _services;
@@ -28,7 +28,7 @@ internal sealed partial class GraphPanel : Grid, IEditorView
     {
         Children.Add(new ScrollViewer { Content = _stack, VerticalScrollBarVisibility = ScrollBarVisibility.Auto });
         _stack.Children.Add(_parameters);
-        var fit = new Button { Content = "Ver clip completo" };
+        var fit = new Button { Content = "Ver clip completo", AllowFocusOnInteraction = false };
         fit.Click += (_, _) => _graph.FitTime();
         _stack.Children.Add(fit);
         _stack.Children.Add(_graph);

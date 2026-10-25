@@ -79,6 +79,12 @@ public sealed class ModuleStartTimeoutTests : IDisposable
         watch.Stop();
 
         Assert.Contains("no se conectó en 1 s", error.Message, StringComparison.Ordinal);
+        ModuleDescriptor mudo = manager.Find("mudo")!;
+        Assert.Equal("«Mudo» no arrancó: El módulo no se conectó en 1 s. Reinstálalo desde Complementos › Módulos de IA o mira si el antivirus lo bloquea. El proyecto no cambió.",
+            ModuleManager.Friendly(mudo, error));
+        var missing = new ModuleExitedException("No se pudo abrir el módulo: x", new System.ComponentModel.Win32Exception(2, "No se encuentra el archivo."));
+        Assert.StartsWith("«Mudo» no arrancó: No se encuentra el archivo. Reinstálalo", ModuleManager.Friendly(mudo, missing), StringComparison.Ordinal);
+        Assert.Contains("se cerró de golpe (código 3)", ModuleManager.Friendly(mudo, new ModuleExitedException(3, null)), StringComparison.Ordinal);
         Assert.True(watch.Elapsed >= TimeSpan.FromSeconds(0.9), $"Falló antes del tope: {watch.ElapsedMilliseconds} ms.");
         Assert.Empty(manager.ProcessIds);
         ModuleJob job = Assert.Single(manager.Jobs.Jobs);

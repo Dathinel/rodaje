@@ -182,7 +182,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         PlaybackSnapshot transport = Session.Transport;
         if (_error is null)
         {
-            bool empty = !transport.IsPlaying && Session.Sequence.Duration.Ticks == 0;
+            bool empty = !transport.IsPlaying && !Session.IsSourceActive && Session.Sequence.Duration.Ticks == 0;
             SetStatus(empty || _hintForSelfTest ? "Importa un video y haz doble clic en él para empezar." : "");
         }
 
@@ -302,6 +302,10 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         _engine?.SetZoom(_zoom);
         UpdateSafeAreas();
         UpdateTitleHandles();
+        UpdateCropHandles();
+        UpdateCompare();
+        UpdateMaskHandles();
+        UpdateTrackHandles();
     }
 
     private void OnQualityClick(object sender, RoutedEventArgs e)

@@ -10,7 +10,9 @@ using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Views.Export;
 using Rodaje.App.Views.Inspector;
+using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Views.Player;
+using Rodaje.App.Views.Preferences;
 using Rodaje.App.Views.Shortcuts;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
@@ -48,6 +50,7 @@ internal static partial class SelfTestRun
             }
 
             await ToolsAsync(window);
+            await PreferencesAsync(window);
             await ShortcutsAsync(window);
             await ShowCurveAsync(window);
             await ToggleReverseAsync(window);
@@ -908,12 +911,52 @@ internal static partial class SelfTestRun
     }
 
     /// <summary>
+    /// Preferencias: la pestaña Personalización con el tema Claro en vista previa (los pinceles se recoloran en caliente) y
+    /// la de Temas; al cerrar vuelve al tema de los ajustes.
+    /// </summary>
+    private static async Task PreferencesAsync(MainWindow window)
+    {
+        var view = new PreferencesView();
+        view.Attach(window.Settings, window.Router.Registry, new Services.Settings.WorkspaceProfile());
+        var dialog = new ContentDialog { XamlRoot = window.XamlRoot, Title = "Preferencias", Content = view, PrimaryButtonText = "Guardar", CloseButtonText = "Cancelar" };
+        var showing = dialog.ShowAsync();
+        await Task.Delay(400);
+        view.ShowForSelfTest(3, Services.Settings.Themes.LightName);
+        await Task.Delay(400);
+        if (Theme.ThemeResources.Current.Name != Services.Settings.Themes.LightName)
+        {
+            throw new InvalidOperationException("La vista previa del tema Claro no se aplicó.");
+        }
+
+        await CaptureElementAsync(view, "preferencias-personalizacion");
+        await CaptureAsync(window, "tema-claro");
+        view.ShowForSelfTest(4, null);
+        await Task.Delay(400);
+        await CaptureElementAsync(view, "preferencias-temas");
+        view.Discard();
+        dialog.Hide();
+        await showing;
+        if (!string.Equals(Theme.ThemeResources.Current.Name, window.Settings.Theme, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Cancelar Preferencias no devolvió el tema de los ajustes.");
+        }
+    }
+
+    /// <summary>
     /// Con <c>RODAJE_AUTOPRUEBA_CAPTURAS=carpeta</c> guarda allí la ventana en PNG (dibujada por XAML, no la pantalla), como
     /// evidencia de cómo se ve con el exe de AOT. Sin la variable no hace nada.
     /// </summary>
     private static async Task CaptureAsync(MainWindow window, string name)
     {
-        if (Environment.GetEnvironmentVariable(CapturesVariable) is not { Length: > 0 } folder || window.Content is not UIElement root)
+        if (window.Content is UIElement root)
+        {
+            await CaptureElementAsync(root, name);
+        }
+    }
+
+    private static async Task CaptureElementAsync(UIElement root, string name)
+    {
+        if (Environment.GetEnvironmentVariable(CapturesVariable) is not { Length: > 0 } folder)
         {
             return;
         }

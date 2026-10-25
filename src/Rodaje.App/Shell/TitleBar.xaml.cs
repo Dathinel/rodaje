@@ -257,7 +257,9 @@ internal sealed partial class TitleBar : UserControl
             Text = "Guarda el tamaño, la tasa de fotogramas y las pistas con sus nombres (sin clips) para empezar otros proyectos igual. Si ya hay una con ese nombre, se reemplaza.",
             TextWrapping = TextWrapping.Wrap,
         });
+        var problem = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
         content.Children.Add(nameBox);
+        content.Children.Add(problem);
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
@@ -266,24 +268,33 @@ internal sealed partial class TitleBar : UserControl
             PrimaryButtonText = "Guardar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
+            IsPrimaryButtonEnabled = false,
             RequestedTheme = ElementTheme.Dark,
         };
+        nameBox.TextChanged += (_, _) => dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(nameBox.Text);
 
-        if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(nameBox.Text))
+        // Se guarda antes de cerrar: si el nombre no vale (el de una de fábrica), el diálogo sigue abierto con lo escrito.
+        ProjectTemplate? saved = null;
+        dialog.PrimaryButtonClick += (_, args) =>
+        {
+            try
+            {
+                saved = templates.Save(services.Session.CreateTemplateFromSequence(nameBox.Text));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+            {
+                problem.Text = ex.Message;
+                problem.Visibility = Visibility.Visible;
+                args.Cancel = true;
+            }
+        };
+
+        if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary || saved is null)
         {
             return;
         }
 
-        try
-        {
-            ProjectTemplate saved = templates.Save(services.Session.CreateTemplateFromSequence(nameBox.Text));
-            services.Session.Notify(NotificationSeverity.Success, "Plantilla guardada", $"«{saved.Name}» aparece en Archivo › Proyecto nuevo desde plantilla ({saved.Summary}).");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
-        {
-            services.Session.Notify(NotificationSeverity.Error, "No se pudo guardar la plantilla", ex.Message);
-        }
-
+        services.Session.Notify(NotificationSeverity.Success, "Plantilla guardada", $"«{saved.Name}» aparece en Archivo › Proyecto nuevo desde plantilla ({saved.Summary}).");
         BuildTemplatesMenu();
     }
 

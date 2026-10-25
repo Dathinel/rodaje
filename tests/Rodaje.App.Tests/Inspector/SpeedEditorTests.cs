@@ -509,4 +509,37 @@ public class SpeedEditorTests
         Assert.Equal(SpeedState.Normal, h.Editor.Read(h.Second).Rate);
         Assert.Equal(steps + 1, h.Session.History.Count);
     });
+
+    [Fact]
+    public void ConUnTituloSeleccionadoAntes_MuestraYEditaElMismoClipDeVideo() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        Assert.True(h.Session.AddTitleAtPlayhead());
+        string title = h.Session.SelectedClipIds[0];
+        h.Session.Select([title, h.Video.Id]);
+
+        Assert.Equal(h.Video.Id, Assert.Single(h.Editor.Targets()).Id);
+        Assert.Equal(h.Video.Id, h.Editor.Target()!.Id);
+        Assert.True(h.Editor.SetReverse(true));
+        Assert.Equal($"reverse {h.Video.Id} True", Assert.Single(h.Commands.Calls));
+
+        h.Session.Select([title]);
+        Assert.Null(h.Editor.Target());
+    });
+
+    [Fact]
+    public void ElVideoYSuAudioEnlazado_SonUnSoloClip_ElDeVideo() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        h.Session.Select([h.Audio.Id, h.Video.Id]);
+
+        Assert.Equal(h.Video.Id, Assert.Single(h.Editor.Targets()).Id);
+        Assert.Equal(h.Video.Id, h.Editor.Target()!.Id);
+        Assert.True(h.Editor.SetReverse(true));
+        Assert.True(h.Audio.Speed!.Reverse);
+
+        h.Session.Select([h.Audio.Id, h.Second.Id, h.SecondAudio.Id]);
+        Assert.Equal(new[] { h.Audio.Id, h.Second.Id }, h.Editor.Targets().Select(c => c.Id));
+        Assert.Equal(h.Second.Id, h.Editor.Target()!.Id);
+    });
 }

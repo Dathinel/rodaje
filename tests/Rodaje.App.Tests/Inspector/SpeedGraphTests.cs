@@ -98,6 +98,23 @@ public sealed class SpeedGraphTests
     }
 
     [Fact]
+    public void BajarUnPuntoCambiaLaDuracion_YFollowDaElInstanteNuevoDeLosPuntosMovidos() => UiThread.Run(async () =>
+    {
+        (EditorSession session, _) = await SessionWithHero();
+        Clip before = session.MainTrack!.Clips[0].Clone();
+        Keyframe key = Keys(before)[2];
+        Assert.True(session.Execute(KeyframeGraphEdits.Move(session.SequenceId, before.Id, SpeedGraph.EffectId, SpeedGraph.Name,
+            [key], Time.Zero, Time.Zero, 0.1 - key.Value, SpeedGraph.Spec, null, session.SpeedScope)));
+
+        Clip after = session.MainTrack!.Clips[0];
+        List<Keyframe> now = Keys(after);
+        Assert.NotEqual(before.Duration, after.Duration);
+        Assert.DoesNotContain(now, k => k.Time == key.Time);
+        Assert.Equal([now[2].Time], SpeedGraph.Follow(before, after, [key.Time]));
+        Assert.Equal(now.Select(k => k.Time), SpeedGraph.Follow(before, after, Keys(before).Select(k => k.Time)));
+    });
+
+    [Fact]
     public void MoverUnPuntoDesdeLaGrafica_DaLoMismoQueDesdeElInspectorDeVelocidad() => UiThread.Run(async () =>
     {
         (EditorSession inspector, SpeedEditor editor) = await SessionWithHero();

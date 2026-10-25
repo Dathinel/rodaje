@@ -45,8 +45,8 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
             _ => "",
         };
         NoteVisibility = Note.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
-        CanMoveUp = index > 0;
-        CanMoveDown = index < count - 1;
+        CanMoveUp = reorderable && index > 0;
+        CanMoveDown = reorderable && index < count - 1;
         IsPreviewOff = previewOff;
         bool image = cost is { Milliseconds: > 0 };
         CompareVisibility = image && effect.Enabled ? Visibility.Visible : Visibility.Collapsed;
@@ -111,7 +111,8 @@ internal sealed partial class FilterItem : IEquatable<FilterItem>
     public bool Equals(FilterItem? other) =>
         other is not null && EffectId == other.EffectId && Name == other.Name && IsEnabled == other.IsEnabled
         && Note == other.Note && CanMoveUp == other.CanMoveUp && CanMoveDown == other.CanMoveDown
-        && IsPreviewOff == other.IsPreviewOff && CostGlyph == other.CostGlyph && CostTip == other.CostTip;
+        && IsPreviewOff == other.IsPreviewOff && CostGlyph == other.CostGlyph && CostTip == other.CostTip
+        && HandleVisibility == other.HandleVisibility;
 
     public override bool Equals(object? obj) => Equals(obj as FilterItem);
 
@@ -210,7 +211,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
         foreach ((Track _, Clip clip) in Targets())
         {
-            if (clip.Effects.Find(e => e.Id == effectId || e.Type == primary.Type) is { } found)
+            if (InspectorTargets.Equivalent(clip, effectId, primary.Type) is { } found)
             {
                 list.Add((clip, found.Id));
             }
@@ -236,13 +237,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         var list = new List<(Clip Clip, string? EffectId)>();
         foreach ((Track _, Clip clip) in targets)
         {
-            if (clip.Effects.Find(e => e.Id == _effectId) is { } byId)
+            if (InspectorTargets.Equivalent(clip, _effectId, type) is { } found)
             {
-                list.Add((clip, byId.Id));
-            }
-            else if (clip.Effects.Find(e => e.Type == type) is { } byType)
-            {
-                list.Add((clip, byType.Id));
+                list.Add((clip, found.Id));
             }
         }
 
@@ -354,6 +351,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
 
         List.SelectedItem = Items.FirstOrDefault(i => i.EffectId == _effectId);
+        List.CanReorderItems = !multi;
         _updating = false;
         NoFiltersText.Visibility = next.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
         int active = next.Count(i => i.IsEnabled);
@@ -657,7 +655,11 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         if (sender is ToggleButton { Tag: string effectId } toggle)
         {
             bool enabled = toggle.IsChecked != true;
-            RunOnSameFilter(effectId, (sequence, clip, effect) => Edits.SetEffectEnabled(sequence, clip, effect, enabled));
+            if (!RunOnSameFilter(effectId, (sequence, clip, effect) => Edits.SetEffectEnabled(sequence, clip, effect, enabled)))
+            {
+                // Falló (pista bloqueada): la fila no se rehace si el modelo no cambió.
+                toggle.IsChecked = toggle.IsChecked != true;
+            }
         }
     }
 

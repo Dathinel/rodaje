@@ -80,7 +80,9 @@ public sealed class ModuleCall
 
     private sealed class RangeProgress(ModuleJob job, double from, double to) : IProgress<ModuleProgress>
     {
-        public void Report(ModuleProgress value) => job.Report(from + (Math.Clamp(value.Fraction, 0, 1) * (to - from)), value.Stage);
+        // Hay módulos que nombran su etapa en minúscula («cargando»): en la interfaz va como las de Rodaje («Cargando…»).
+        public void Report(ModuleProgress value) => job.Report(from + (Math.Clamp(value.Fraction, 0, 1) * (to - from)),
+            value.Stage is { Length: > 0 } stage ? char.ToUpperInvariant(stage[0]) + stage[1..] : value.Stage);
     }
 }
 

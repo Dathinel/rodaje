@@ -63,21 +63,40 @@ public sealed partial class SpeedEditor
 
     public bool IsChanging => _drag is not null;
 
-    /// <summary>El primer clip seleccionado de video o, si no hay, el primero de audio.</summary>
-    public Clip? Target() =>
-        (InspectorTargets.First(Session, t => t.Track.Kind == TrackKind.Video) ?? InspectorTargets.First(Session))?.Clip;
+    /// <summary>
+    /// El clip que muestra y edita la pestaña: el primero de video de <see cref="Targets"/> o, si no hay, el primero de audio.
+    /// </summary>
+    public Clip? Target()
+    {
+        List<(Track Track, Clip Clip)> targets = SpeedTargets();
+        int video = targets.FindIndex(t => t.Track.Kind == TrackKind.Video);
+        return targets.Count == 0 ? null : targets[Math.Max(video, 0)].Clip;
+    }
 
     /// <summary>
-    /// Todos los clips seleccionados que pueden tener velocidad (excluye imágenes fijas y generadores de títulos). Los
-    /// enlazados cuentan como uno, el de video: la velocidad cambia el grupo entero.
+    /// Los clips seleccionados que pueden tener velocidad (excluye imágenes fijas y generadores de títulos), uno por grupo
+    /// enlazado como en los atajos: el de video, que lleva consigo a su audio.
     /// </summary>
-    public IReadOnlyList<Clip> Targets()
+    public IReadOnlyList<Clip> Targets() => SpeedTargets().ConvertAll(t => t.Clip);
+
+    private List<(Track Track, Clip Clip)> SpeedTargets()
     {
-        var links = new HashSet<string>(StringComparer.Ordinal);
-        return [.. InspectorTargets.Selected(Session, t => t.Clip.Generator is null && Session.Project.FindMedia(t.Clip.MediaId)?.IsStillImage != true)
-            .OrderBy(t => t.Track.Kind == TrackKind.Video ? 0 : 1)
-            .Where(t => t.Clip.LinkId is not { } link || links.Add(link))
-            .Select(t => t.Clip)];
+        var list = new List<(Track Track, Clip Clip)>();
+        var byLink = new Dictionary<string, int>(StringComparer.Ordinal);
+        foreach ((Track Track, Clip Clip) target in InspectorTargets.Selected(Session,
+            t => t.Clip.Generator is null && Session.Project.FindMedia(t.Clip.MediaId)?.IsStillImage != true))
+        {
+            if (target.Clip.LinkId is not { } link || byLink.TryAdd(link, list.Count))
+            {
+                list.Add(target);
+            }
+            else if (target.Track.Kind == TrackKind.Video && list[byLink[link]].Track.Kind != TrackKind.Video)
+            {
+                list[byLink[link]] = target;
+            }
+        }
+
+        return list;
     }
 
     /// <summary>Verifica si los clips tienen velocidades o estados de velocidad diferentes.</summary>

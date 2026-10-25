@@ -66,9 +66,9 @@ internal sealed class ClipVisual
     private readonly Polyline _envelope = new() { StrokeThickness = 1.5 };
     private readonly Path _envelopePoints = new() { StrokeThickness = 1 };
     private readonly Path _keys = new();
-    private readonly TextBlock _name = new() { FontSize = ThemeResources.Size("CaptionFontSize"), TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
+    private readonly TextBlock _name = new() { FontSize = ThemeResources.TimelineSize("CaptionFontSize"), TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Border _badge = new() { Padding = new Thickness(4, 0, 4, 1), Height = NameHeight - 1 };
-    private readonly TextBlock _badgeText = new() { FontSize = ThemeResources.Size("MicroFontSize"), TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _badgeText = new() { FontSize = ThemeResources.TimelineSize("MicroFontSize"), TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
 
     // La mini curva, a la derecha del texto del indicador.
     private readonly Polyline _badgeCurve = new()
@@ -91,7 +91,7 @@ internal sealed class ClipVisual
 
     // Aviso de desfase con su enlazado («+3», en cuadros), a la derecha de la fila del nombre.
     private readonly Border _sync = new() { Padding = new Thickness(4, 0, 4, 1), Height = NameHeight - 1, Visibility = Visibility.Collapsed };
-    private readonly TextBlock _syncText = new() { FontSize = ThemeResources.Size("MicroFontSize"), TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _syncText = new() { FontSize = ThemeResources.TimelineSize("MicroFontSize"), TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
 
     public ClipVisual(TimelineBrushes brushes)
     {
@@ -178,6 +178,14 @@ internal sealed class ClipVisual
         ClipId = d.Clip.Id;
         _last = d;
         _visuals = visuals;
+        // El tamaño de fuente de la línea de tiempo se cambia en Preferencias sin reiniciar.
+        double nameSize = ThemeResources.TimelineSize("CaptionFontSize");
+        if (_name.FontSize != nameSize)
+        {
+            _name.FontSize = nameSize;
+            _badgeText.FontSize = _syncText.FontSize = ThemeResources.TimelineSize("MicroFontSize");
+        }
+
         ClipTimeMap map = d.Clip.TimeMap;
         Root.Visibility = Visibility.Visible;
         Canvas.SetLeft(Root, d.Left);
