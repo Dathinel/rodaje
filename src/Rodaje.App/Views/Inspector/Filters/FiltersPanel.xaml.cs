@@ -211,7 +211,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
 
         foreach ((Track _, Clip clip) in Targets())
         {
-            if ((clip.Effects.Find(e => e.Id == effectId) ?? clip.Effects.Find(e => e.Type == primary.Type)) is { } found)
+            if (InspectorTargets.Equivalent(clip, effectId, primary.Type) is { } found)
             {
                 list.Add((clip, found.Id));
             }
@@ -237,13 +237,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         var list = new List<(Clip Clip, string? EffectId)>();
         foreach ((Track _, Clip clip) in targets)
         {
-            if (clip.Effects.Find(e => e.Id == _effectId) is { } byId)
+            if (InspectorTargets.Equivalent(clip, _effectId, type) is { } found)
             {
-                list.Add((clip, byId.Id));
-            }
-            else if (clip.Effects.Find(e => e.Type == type) is { } byType)
-            {
-                list.Add((clip, byType.Id));
+                list.Add((clip, found.Id));
             }
         }
 

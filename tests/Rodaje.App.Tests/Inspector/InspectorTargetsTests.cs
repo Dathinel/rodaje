@@ -25,6 +25,20 @@ public sealed class InspectorTargetsTests
     });
 
     [Fact]
+    public void ElEquivalente_EsElMismoIdAntesQueOtroDelMismoTipo()
+    {
+        var first = new EffectInstance { Id = "a", Type = "blur" };
+        var second = new EffectInstance { Id = "b", Type = "blur" };
+        var clip = new Clip { Effects = [new EffectInstance { Id = "c", Type = "glow" }, first, second] };
+        var other = new Clip { Effects = [new EffectInstance { Id = "d", Type = "blur" }] };
+
+        Assert.Same(second, InspectorTargets.Equivalent(clip, "b", "blur"));
+        Assert.Same(first, InspectorTargets.Equivalent(clip, null, "blur"));
+        Assert.Equal("d", InspectorTargets.Equivalent(other, "b", "blur")?.Id);
+        Assert.Null(InspectorTargets.Equivalent(other, "b", "glow"));
+    }
+
+    [Fact]
     public void VariosComandos_SonUnSoloPaso_UnoVaTalCual_YNingunoEsNulo()
     {
         var one = new SequenceEditCommand("Activar filtro", "seq", (Rodaje.Core.Editing.EditContext _) => { });

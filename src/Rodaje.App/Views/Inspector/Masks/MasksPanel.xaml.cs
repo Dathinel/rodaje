@@ -272,12 +272,9 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         }
     }
 
+    // Con varios clips se listan todas las del primero: lo que se edita va también a la del mismo puesto en los demás.
     private void ShowList(Clip clip)
     {
-        var targets = Targets();
-        bool multi = targets.Count > 1;
-        int maxIndex = multi ? targets.Min(t => t.Clip.Effects.Count(e => e.Type == BuiltInEffects.Mask)) : int.MaxValue;
-
         var next = new List<MaskItem>();
         int number = 0;
         foreach (EffectInstance effect in clip.Effects)
@@ -288,11 +285,6 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
             }
 
             number++;
-            if (number > maxIndex)
-            {
-                break;
-            }
-
             string target = effect.Options.GetValueOrDefault(O.Target) is { Length: > 0 } id
                 ? clip.Effects.Find(e => e.Id == id) is { } limited ? EffectUi.Name(limited.Type) : "un efecto que ya no está"
                 : effect.Options.GetValueOrDefault(O.Use) == "effects" ? "la zona de los efectos" : "";
@@ -469,22 +461,27 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         }
 
         EditorSession session = _services.Session;
-        double aspect = AspectOf(clip);
         double side = 0.35;
-        SequenceEditCommand? command = tag switch
+        SequenceEditCommand? Add(Clip target) => tag switch
         {
-            "rectangle" => Edits.AddMask(SequenceId, clip.Id, MaskShape.Rectangle),
-            "ellipse" => Edits.AddMask(SequenceId, clip.Id, MaskShape.Ellipse),
-            "polygon" => Edits.AddVertexMask(SequenceId, clip.Id, MaskShape.Bezier, 0.5, 0.5, side / aspect, side, MaskPath.Polygon(6), "Añadir un polígono"),
-            "star" => Edits.AddVertexMask(SequenceId, clip.Id, MaskShape.Bezier, 0.5, 0.5, side / aspect, side, MaskPath.Star(5), "Añadir una estrella"),
-            "line" => Edits.AddVertexMask(SequenceId, clip.Id, MaskShape.Stroke, 0.5, 0.5, 0.5, 0.1,
+            "rectangle" => Edits.AddMask(SequenceId, target.Id, MaskShape.Rectangle),
+            "ellipse" => Edits.AddMask(SequenceId, target.Id, MaskShape.Ellipse),
+            "polygon" => Edits.AddVertexMask(SequenceId, target.Id, MaskShape.Bezier, 0.5, 0.5, side / AspectOf(target), side, MaskPath.Polygon(6), "Añadir un polígono"),
+            "star" => Edits.AddVertexMask(SequenceId, target.Id, MaskShape.Bezier, 0.5, 0.5, side / AspectOf(target), side, MaskPath.Star(5), "Añadir una estrella"),
+            "line" => Edits.AddVertexMask(SequenceId, target.Id, MaskShape.Stroke, 0.5, 0.5, 0.5, 0.1,
                 [new MaskVertex(-0.5f, 0), new MaskVertex(0.5f, 0)], "Añadir una línea"),
-            "blur" => Edits.AddMaskedZone(SequenceId, clip.Id, ZoneEffect.Blur),
-            "pixelate" => Edits.AddMaskedZone(SequenceId, clip.Id, ZoneEffect.Pixelate),
-            "subject" => SubjectCommand(clip),
+            "blur" => Edits.AddMaskedZone(SequenceId, target.Id, ZoneEffect.Blur),
+            "pixelate" => Edits.AddMaskedZone(SequenceId, target.Id, ZoneEffect.Pixelate),
+            "subject" => SubjectCommand(target),
             _ => null,
         };
-        if (command is not null && session.Execute(command))
+
+        // El contorno del sujeto es de cada clip: ese solo va al de ahora.
+        SequenceEditCommand? command = Add(clip);
+        List<SequenceEditCommand> others = tag == "subject" || command is null
+            ? []
+            : [.. Targets().Where(t => t.Clip.Id != clip.Id).Select(t => Add(t.Clip)).OfType<SequenceEditCommand>()];
+        if (command is not null && InspectorTargets.AsOneStep([command, .. others]) is { } step && session.Execute(step))
         {
             _maskId = command.CreatedIds[^1];
             session.SetMaskTool(MaskTool.Select);
@@ -601,7 +598,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         Item("Subir", () => Run(Edits.MoveEffect(SequenceId, clip.Id, id, clip.Effects.IndexOf(masks[order - 1]))), order > 0);
         Item("Bajar", () => Run(Edits.MoveEffect(SequenceId, clip.Id, id, clip.Effects.IndexOf(masks[order + 1]))), order < masks.Count - 1);
         menu.Items.Add(new MenuFlyoutSeparator());
-        Item("Quitar", () => Run(Edits.RemoveEffect(SequenceId, clip.Id, id)));
+        Item("Quitar", () => RunOnSameMask(id, (clipId, maskId) => Edits.RemoveEffect(SequenceId, clipId, maskId)));
         menu.ShowAt(button);
     }
 
