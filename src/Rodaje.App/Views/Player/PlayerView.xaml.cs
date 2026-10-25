@@ -147,6 +147,12 @@ internal sealed partial class PlayerView : UserControl, IEditorView
 
     private void OnPanelSizeChanged()
     {
+        // Las asas de una capa más grande que el cuadro no se pintan encima de los paneles vecinos: solo en el visor y su margen.
+        Thickness m = Stage.Margin;
+        Stage.Clip = new Microsoft.UI.Xaml.Media.RectangleGeometry
+        {
+            Rect = new Windows.Foundation.Rect(-m.Left, -m.Top, Stage.ActualWidth + m.Left + m.Right, Stage.ActualHeight + m.Top + m.Bottom),
+        };
         PushPanelSize();
         UpdateSafeAreas();
         UpdateTitleHandles();

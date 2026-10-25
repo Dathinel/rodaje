@@ -97,6 +97,7 @@ internal static class StabilizeDialog
             {
                 analysis = await ClipVideoSource.AnalyzeMotionAsync(session, clip, store, new Progress<double>(p => scope?.Report(progress.Value = p, "Analizando el movimiento…")), cancel.Token);
                 progress.Visibility = Visibility.Collapsed;
+                scope?.Report(1, "Análisis listo");
                 Refresh();
                 dialog.IsPrimaryButtonEnabled = true;
             }

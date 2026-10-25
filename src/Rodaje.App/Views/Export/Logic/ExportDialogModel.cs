@@ -114,14 +114,35 @@ public sealed class ExportDialogModel
 
     /// <summary>
     /// El preajuste elegido es de redes con otra forma que la del proyecto (Reels 9:16 con un proyecto 16:9): la salida
-    /// sigue al proyecto y la vista ofrece cambiar el formato del proyecto. Los de 16:9 (YouTube, maestros) no avisan. Nulo si no.
+    /// sigue al proyecto y la vista ofrece cambiar el formato del proyecto. Los de 16:9 (YouTube, maestros) no avisan.
+    /// También avisa si el preajuste fija otra cadencia que la del proyecto (Vertical 9:16 a 30 fps). Nulo si no.
     /// </summary>
-    public string? PresetShapeNote =>
-        ExportPresetLibrary.Find(_preferences, PresetId) is { Settings.Video: { Width: { } w, Height: { } h } } preset
-        && ExportGeometry.ShapeDiffers(w, h, SequenceWidth, SequenceHeight) && ExportGeometry.ShapeDiffers(w, h, 16, 9)
-            ? $"«{preset.Name}» es para {ExportGeometry.AspectName(w, h)} y el proyecto es {ExportGeometry.AspectName(SequenceWidth, SequenceHeight)}: "
-              + "se exporta con la forma del proyecto."
-            : null;
+    public string? PresetShapeNote
+    {
+        get
+        {
+            if (ExportPresetLibrary.Find(_preferences, PresetId) is not { Settings.Video: { } video } preset)
+            {
+                return null;
+            }
+
+            string? shape = video is { Width: { } w, Height: { } h }
+                && ExportGeometry.ShapeDiffers(w, h, SequenceWidth, SequenceHeight) && ExportGeometry.ShapeDiffers(w, h, 16, 9)
+                    ? $"«{preset.Name}» es para {ExportGeometry.AspectName(w, h)} y el proyecto es {ExportGeometry.AspectName(SequenceWidth, SequenceHeight)}: "
+                      + "se exporta con la forma del proyecto"
+                    : null;
+            string? rate = video.FrameRate is { } fps && fps != SequenceFrameRate
+                ? $"a {ExportText.Number(fps.ToDouble(), 3)} fps (el proyecto va a {ExportText.Number(SequenceFrameRate.ToDouble(), 3)})"
+                : null;
+            return (shape, rate) switch
+            {
+                (null, null) => null,
+                (null, _) => $"«{preset.Name}» se exporta {rate}.",
+                (_, null) => $"{shape}.",
+                _ => $"{shape}, {rate}.",
+            };
+        }
+    }
 
     /// <summary>La salida tiene otra forma que la secuencia (solo si se eligió en Avanzado): barras, recorte o estirar.</summary>
     public bool ShapeDiffers => Settings.Video is not null && OutputSize is var (w, h) && ExportGeometry.ShapeDiffers(w, h, SequenceWidth, SequenceHeight);
