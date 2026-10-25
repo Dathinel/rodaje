@@ -86,6 +86,19 @@ public sealed class OfflineTimelineTests(ITestOutputHelper output)
         Assert.True(checkedFrames > 300);
     }
 
+    /// <summary>D-055: el compositor y el conversor de la exportación siguen el espacio de color de la secuencia a través del plan expandido.</summary>
+    [Fact]
+    public void The_offline_timeline_carries_the_sequence_color_space()
+    {
+        var backend = new FakeTimelineBackend();
+        var b = new TimelineBuilder(1, 0);
+        b.AddMedia("m", Rational.Fps30, 30_000, backend: backend);
+        b.AddVideo(0, "m", Time.Zero, S(1), S(2));
+        b.Project.Sequences[0].ColorSpace = SequenceColorSpace.HdrPq;
+        using OfflineTimeline offline = OfflineProjects.Open(b, backend);
+        Assert.Equal(SequenceColorSpace.HdrPq, offline.ColorSpace);
+    }
+
     [Fact]
     public void A_partial_range_decodes_only_around_its_frames()
     {

@@ -1,3 +1,4 @@
+using Rodaje.Core.Model;
 using Rodaje.Media.Gpu;
 using TerraFX.Interop.DirectX;
 
@@ -34,6 +35,15 @@ public sealed unsafe class Presenter : IDisposable
     /// <summary>Color de lo que queda fuera de la imagen (R, G, B de 0 a 1); negro por omisión.</summary>
     public (float R, float G, float B) Surround { get; set; }
 
+    /// <summary>
+    /// El búfer de destino es scRGB (<c>R16G16B16A16_FLOAT</c>, BT.709 lineal con 1,0 = 80 nits): la composición se pasa a esa escala con el
+    /// blanco en 203 nits. Si no, una composición HDR (<see cref="Compositor.ColorSpace"/>) sale en SDR BT.709 recortando lo que pasa de 203 nits.
+    /// </summary>
+    public bool ScRgb { get; set; }
+
+    /// <summary>Qué hace <c>PsPresent</c> con la composición (<c>present.w</c>): 0 la copia; 1 HDR → SDR; 2 HDR → scRGB; 3 SDR → scRGB.</summary>
+    internal static int ModeFor(bool hdrComposition, bool scRgb) => hdrComposition ? (scRgb ? 2 : 1) : (scRgb ? 3 : 0);
+
     /// <summary>Como <see cref="Draw(nint, int, int, Compositor)"/>, pero en <paramref name="placement"/> si se da (puede salirse del destino).</summary>
     public PixelRect Draw(nint renderTargetView, int targetWidth, int targetHeight, Compositor source, PixelRect? placement)
     {
@@ -65,7 +75,7 @@ public sealed unsafe class Presenter : IDisposable
 
             _pipeline.Bind(target, targetWidth, targetHeight, QuadPipeline.Shader.Present);
             _context->PSSetShaderResources(2, 1, &shaderView);
-            _pipeline.Draw(Constants(rect, targetWidth, targetHeight, reduce));
+            _pipeline.Draw(Constants(rect, targetWidth, targetHeight, reduce, ModeFor(source.ColorSpace != SequenceColorSpace.Sdr709, ScRgb)));
         }
         finally
         {
@@ -78,7 +88,7 @@ public sealed unsafe class Presenter : IDisposable
 
     public void Dispose() => _pipeline.Dispose();
 
-    private static QuadConstants Constants(PixelRect rect, int targetWidth, int targetHeight, bool reduce)
+    internal static QuadConstants Constants(PixelRect rect, int targetWidth, int targetHeight, bool reduce, int mode = 0)
     {
         float left = (2f * rect.X / targetWidth) - 1f;
         float right = (2f * (rect.X + rect.Width) / targetWidth) - 1f;
@@ -90,7 +100,7 @@ public sealed unsafe class Presenter : IDisposable
             TopRight = new(right, top, 1, 0),
             BottomLeft = new(left, bottom, 0, 1),
             BottomRight = new(right, bottom, 1, 1),
-            Present = new(reduce ? 1 : 0, 0, 0, 0),
+            Present = new(reduce ? 1 : 0, 0, 0, mode),
         };
     }
 }
