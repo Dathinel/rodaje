@@ -163,69 +163,51 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
     private (Clip Clip, string Type, string EffectId)? Editing() =>
         CurrentClip() is { } clip && CurrentMask() is { } mask ? (clip, BuiltInEffects.Mask, mask.Id) : null;
 
-    private (Track Track, Clip Clip)? Target()
-    {
-        if (_services is null)
-        {
-            return null;
-        }
+    private (Track Track, Clip Clip)? Target() => _services is null ? null : InspectorTargets.First(_services.Session, IsVideoMaterial);
 
-        foreach (string id in _services.Session.SelectedClipIds)
-        {
-            if (_services.Session.Sequence.FindClip(id) is { Track.Kind: TrackKind.Video } found && found.Clip.Generator is null)
-            {
-                return found;
-            }
-        }
+    private List<(Track Track, Clip Clip)> Targets() => _services is null ? [] : InspectorTargets.Selected(_services.Session, IsVideoMaterial);
 
-        return null;
-    }
-
-    private List<(Track Track, Clip Clip)> Targets()
-    {
-        if (_services is null)
-        {
-            return [];
-        }
-
-        var list = new List<(Track Track, Clip Clip)>();
-        foreach (string id in _services.Session.SelectedClipIds)
-        {
-            if (_services.Session.Sequence.FindClip(id) is { Track.Kind: TrackKind.Video } found && found.Clip.Generator is null)
-            {
-                list.Add(found);
-            }
-        }
-
-        return list;
-    }
+    private static bool IsVideoMaterial((Track Track, Clip Clip) target) => target.Track.Kind == TrackKind.Video && target.Clip.Generator is null;
 
     private List<(Clip Clip, string? EffectId)> EditingTargets()
     {
-        var targets = Targets();
-        if (targets.Count <= 1 || CurrentClip() is not { } primary || _maskId is null)
+        if (Targets().Count <= 1 || _maskId is null)
         {
             return Editing() is { } t ? [(t.Clip, (string?)t.EffectId)] : [];
         }
 
-        var primaryMasks = primary.Effects.Where(e => e.Type == BuiltInEffects.Mask).ToList();
-        int maskIndex = primaryMasks.FindIndex(e => e.Id == _maskId);
-        if (maskIndex < 0)
+        return SameMask(_maskId).ConvertAll(t => (t.Clip, (string?)t.EffectId));
+    }
+
+    /// <summary>La máscara <paramref name="maskId"/> del clip de ahora y la que ocupa el mismo puesto en los demás seleccionados.</summary>
+    private List<(Clip Clip, string EffectId)> SameMask(string maskId)
+    {
+        var list = new List<(Clip Clip, string EffectId)>();
+        int index = CurrentClip()?.Effects.Where(e => e.Type == BuiltInEffects.Mask).ToList().FindIndex(e => e.Id == maskId) ?? -1;
+        if (index < 0)
         {
-            return [];
+            return list;
         }
 
-        var list = new List<(Clip Clip, string? EffectId)>();
-        foreach ((Track _, Clip clip) in targets)
+        foreach ((Track _, Clip clip) in Targets())
         {
             var masks = clip.Effects.Where(e => e.Type == BuiltInEffects.Mask).ToList();
-            if (maskIndex < masks.Count)
+            if (index < masks.Count)
             {
-                list.Add((clip, masks[maskIndex].Id));
+                list.Add((clip, masks[index].Id));
             }
         }
 
         return list;
+    }
+
+    /// <summary>Un comando por clip seleccionado sobre su máscara equivalente, como un solo paso del historial.</summary>
+    private void RunOnSameMask(string maskId, Func<string, string, ICommand> command)
+    {
+        if (InspectorTargets.AsOneStep(SameMask(maskId).ConvertAll(t => command(t.Clip.Id, t.EffectId))) is { } step)
+        {
+            Run(step);
+        }
     }
 
     private void Refresh()
@@ -552,9 +534,9 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
 
     private void OnEnabledClick(object sender, RoutedEventArgs e)
     {
-        if (sender is ToggleButton { Tag: string id } toggle && _clipId is { } clipId)
+        if (sender is ToggleButton { Tag: string id } toggle && _clipId is not null)
         {
-            Run(Edits.SetEffectEnabled(SequenceId, clipId, id, toggle.IsChecked != true));
+            RunOnSameMask(id, (clipId, maskId) => Edits.SetEffectEnabled(SequenceId, clipId, maskId, toggle.IsChecked != true));
         }
     }
 
@@ -677,17 +659,17 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
 
     private void OnModeSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (!_updating && ModeBox.SelectedIndex >= 0 && _clipId is { } clipId && _maskId is { } id)
+        if (!_updating && ModeBox.SelectedIndex >= 0 && _clipId is not null && _maskId is { } id)
         {
-            Run(Edits.SetEffectOption(SequenceId, clipId, id, O.Mode, EffectRegistry.MaskModes[ModeBox.SelectedIndex]));
+            RunOnSameMask(id, (clipId, maskId) => Edits.SetEffectOption(SequenceId, clipId, maskId, O.Mode, EffectRegistry.MaskModes[ModeBox.SelectedIndex]));
         }
     }
 
     private void OnInvertClick(object sender, RoutedEventArgs e)
     {
-        if (_clipId is { } clipId && _maskId is { } id)
+        if (_clipId is not null && _maskId is { } id)
         {
-            Run(Edits.SetEffectOption(SequenceId, clipId, id, O.Invert, InvertBox.IsChecked == true ? "on" : "off"));
+            RunOnSameMask(id, (clipId, maskId) => Edits.SetEffectOption(SequenceId, clipId, maskId, O.Invert, InvertBox.IsChecked == true ? "on" : "off"));
         }
     }
 

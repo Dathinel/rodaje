@@ -64,43 +64,13 @@ public sealed partial class SpeedEditor
     public bool IsChanging => _drag is not null;
 
     /// <summary>El primer clip seleccionado de video o, si no hay, el primero de audio.</summary>
-    public Clip? Target()
-    {
-        Sequence sequence = Session.Sequence;
-        Clip? audio = null;
-        foreach (string id in Session.SelectedClipIds)
-        {
-            if (sequence.FindClip(id) is { } found)
-            {
-                if (found.Track.Kind == TrackKind.Video)
-                {
-                    return found.Clip;
-                }
-
-                audio ??= found.Clip;
-            }
-        }
-
-        return audio;
-    }
+    public Clip? Target() =>
+        (InspectorTargets.First(Session, t => t.Track.Kind == TrackKind.Video) ?? InspectorTargets.First(Session))?.Clip;
 
     /// <summary>Todos los clips seleccionados que pueden tener velocidad (excluye imágenes fijas y generadores de títulos).</summary>
-    public IReadOnlyList<Clip> Targets()
-    {
-        Sequence sequence = Session.Sequence;
-        var list = new List<Clip>();
-        foreach (string id in Session.SelectedClipIds)
-        {
-            if (sequence.FindClip(id) is { } found
-                && found.Clip.Generator is null
-                && Session.Project.FindMedia(found.Clip.MediaId)?.IsStillImage != true)
-            {
-                list.Add(found.Clip);
-            }
-        }
-
-        return list;
-    }
+    public IReadOnlyList<Clip> Targets() =>
+        InspectorTargets.Selected(Session, t => t.Clip.Generator is null && Session.Project.FindMedia(t.Clip.MediaId)?.IsStillImage != true)
+            .ConvertAll(t => t.Clip);
 
     /// <summary>Verifica si los clips tienen velocidades o estados de velocidad diferentes.</summary>
     public static bool IsMixed(IReadOnlyList<Clip> clips)
@@ -167,7 +137,7 @@ public sealed partial class SpeedEditor
         }
 
         Session.BeginGesture("Cambiar velocidad");
-        _drag = new Drag([.. clips.Select(c => c.Id)], SequenceSnapshot.Capture(Session.Sequence), Read(clips[0]));
+        _drag = new Drag([.. clips.Select(c => c.Id)], SequenceSnapshot.Capture(Session.Sequence), Read(clips[0]), Mixed: IsMixed(clips));
     }
 
     /// <summary>Aplica la velocidad del arrastre en curso; <c>false</c> si no se pudo (y la sesión ya avisó).</summary>
@@ -185,8 +155,9 @@ public sealed partial class SpeedEditor
         }
 
         // Cada paso parte del estado del inicio del gesto: encadenarlos llevaría el final al cuadro una y otra vez y el
-        // material iría variando. Volver a la velocidad de partida es dejar el clip como estaba.
-        ICommand? step = drag.StartState is { HasCurve: false } start && start.Rate == rate
+        // material iría variando. Volver a la velocidad de partida es dejar el clip como estaba, salvo con varios clips de
+        // velocidades distintas: ahí la del primero es un cambio para los demás.
+        ICommand? step = drag.StartState is { HasCurve: false } start && start.Rate == rate && !drag.Mixed
             ? null
             : Commands.SetSpeed(Session.SequenceId, drag.ClipIds, rate, Session.SpeedScope);
 
@@ -347,7 +318,7 @@ public sealed partial class SpeedEditor
         }
     }
 
-    private sealed record Drag(IReadOnlyList<string> ClipIds, SequenceSnapshot Start, SpeedState StartState, bool Grouped = true)
+    private sealed record Drag(IReadOnlyList<string> ClipIds, SequenceSnapshot Start, SpeedState StartState, bool Grouped = true, bool Mixed = false)
     {
         public bool Failed { get; set; }
     }

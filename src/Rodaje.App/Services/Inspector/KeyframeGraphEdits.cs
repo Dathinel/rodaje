@@ -8,20 +8,30 @@ namespace Rodaje.App.Services.Inspector;
 /// <summary>Edición atómica de la selección de la gráfica mediante el núcleo compartido.</summary>
 public static class KeyframeGraphEdits
 {
-    public static SequenceEditCommand Move(string sequenceId, string clipId, string effectId, string name,
+    /// <summary>
+    /// Mueve los keyframes seleccionados. En la curva de velocidad cada paso del arrastre se calcula desde
+    /// <paramref name="gestureStart"/> (la secuencia al empezar el gesto), porque guardar la rampa cambia la duración del
+    /// clip y con ella el instante de todos sus puntos: sobre el clip ya movido los originales no se encontrarían y se duplicarían.
+    /// </summary>
+    public static ICommand Move(string sequenceId, string clipId, string effectId, string name,
         IReadOnlyList<Keyframe> original, Time previousDelta, Time delta, double valueDelta, ParameterSpec spec, string? partnerName = null,
-        RippleScope scope = RippleScope.Track) =>
-        new("Mover keyframes", sequenceId, ctx =>
+        RippleScope scope = RippleScope.Track, SequenceSnapshot? gestureStart = null)
+    {
+        if (effectId == SpeedGraph.EffectId)
         {
-            Time[] times = original.Select(key => key.Time + previousDelta).ToArray();
-            if (effectId == SpeedGraph.EffectId)
+            Time[] times = original.Select(key => key.Time).ToArray();
+            var step = new SequenceEditCommand("Mover keyframes", sequenceId, ctx =>
             {
                 double moved = Shift(original, valueDelta, spec);
                 SpeedGraph.Edit(ctx, clipId, keys => keys.Where(key => !times.Contains(key.Time))
                     .Concat(original.Select(key => new Keyframe(key.Time + delta, key.Value + moved))), scope);
-                return;
-            }
+            });
+            return gestureStart is null ? step : new FromGestureStart(sequenceId, gestureStart, step);
+        }
 
+        return new SequenceEditCommand("Mover keyframes", sequenceId, ctx =>
+        {
+            Time[] times = original.Select(key => key.Time + previousDelta).ToArray();
             EffectEdits.MoveKeyframes(ctx, clipId, effectId, name, times, delta - previousDelta);
             if (partnerName is not null)
             {
@@ -39,6 +49,7 @@ public static class KeyframeGraphEdits
                 EffectEdits.SetKeyframe(ctx, clipId, effectId, name, key.Time + delta, key.Value + shift);
             }
         }, mergeKey: $"graph|{clipId}|{effectId}|{name}");
+    }
 
     public static SequenceEditCommand Delete(string sequenceId, string clipId, string effectId, string name, IEnumerable<Time> selected,
         RippleScope scope = RippleScope.Track)

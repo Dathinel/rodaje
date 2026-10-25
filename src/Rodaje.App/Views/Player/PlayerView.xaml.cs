@@ -66,6 +66,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         {
             SwapChainPanelNative.SetSwapChain(VideoPanel, swapChain);
             Program.Metrics.Milestone("cadena_en_panel");
+            UpdateHdrBadge();
         });
         _engine.Failed += message => dispatcher.RunLater(() => ShowError(message));
         _engine.Warning += message => dispatcher.RunLater(() =>

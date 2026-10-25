@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
 using Rodaje.Core.Model;
 
@@ -63,13 +64,15 @@ internal sealed partial class GraphPanel : Grid, IEditorView
         }
 
         var choices = new List<GraphParameter>();
+        bool multi = services.Session.SelectedClipIds.Count > 1;
         foreach (string id in services.Session.SelectedClipIds)
         {
             if (services.Session.Sequence.FindClip(id) is { } found)
             {
                 Clip clip = found.Clip;
-                choices.AddRange(GraphParameters.For(clip, new ParameterSpec.Context(services.Session.Sequence.Width,
-                    services.Session.Sequence.Height, clip.Duration.ToSeconds())));
+                IEnumerable<GraphParameter> own = GraphParameters.For(clip, new ParameterSpec.Context(services.Session.Sequence.Width,
+                    services.Session.Sequence.Height, clip.Duration.ToSeconds()));
+                choices.AddRange(multi ? own.Select(c => c with { Label = $"{ClipLabels.Name(services.Session.Project, clip, "Clip")} · {c.Label}" }) : own);
             }
         }
 

@@ -193,44 +193,37 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         Bindings.Update();
     }
 
-    private (Track Track, Clip Clip)? Target()
+    private (Track Track, Clip Clip)? Target() => _services is null ? null : InspectorTargets.First(_services.Session);
+
+    /// <summary>Los seleccionados del mismo tipo de pista que el primero: los filtros de video no van a clips de audio ni al revés.</summary>
+    private List<(Track Track, Clip Clip)> Targets() =>
+        _services is not null && Target() is { } first ? InspectorTargets.Selected(_services.Session, t => t.Track.Kind == first.Track.Kind) : [];
+
+    /// <summary>El filtro <paramref name="effectId"/> del clip de ahora y su equivalente (mismo id o mismo tipo) en los demás seleccionados.</summary>
+    private List<(Clip Clip, string EffectId)> SameFilter(string effectId)
     {
-        if (_services is null)
+        var list = new List<(Clip Clip, string EffectId)>();
+        if (CurrentClip()?.Effects.Find(e => e.Id == effectId) is not { } primary)
         {
-            return null;
+            return list;
         }
 
-        Sequence sequence = _services.Session.Sequence;
-        foreach (string id in _services.Session.SelectedClipIds)
+        foreach ((Track _, Clip clip) in Targets())
         {
-            if (sequence.FindClip(id) is { } found)
+            if (clip.Effects.Find(e => e.Id == effectId || e.Type == primary.Type) is { } found)
             {
-                return found;
-            }
-        }
-
-        return null;
-    }
-
-    private List<(Track Track, Clip Clip)> Targets()
-    {
-        if (_services is null)
-        {
-            return [];
-        }
-
-        Sequence sequence = _services.Session.Sequence;
-        var list = new List<(Track Track, Clip Clip)>();
-        foreach (string id in _services.Session.SelectedClipIds)
-        {
-            if (sequence.FindClip(id) is { } found)
-            {
-                list.Add(found);
+                list.Add((clip, found.Id));
             }
         }
 
         return list;
     }
+
+    /// <summary>Un comando por clip seleccionado sobre su filtro equivalente, como un solo paso del historial.</summary>
+    private bool RunOnSameFilter(string effectId, Func<string, string, string, ICommand> command) =>
+        _services is { } services
+        && InspectorTargets.AsOneStep(SameFilter(effectId).ConvertAll(t => command(services.Session.SequenceId, t.Clip.Id, t.EffectId))) is { } step
+        && services.Session.Execute(step);
 
     private List<(Clip Clip, string? EffectId)> EditingTargets(string type)
     {
@@ -615,7 +608,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
             value = LutReference.ForFile(path);
         }
 
-        if (!_services.Session.Execute(EffectCommands.SetLut(_services.Session.SequenceId, _clipId!, effectId, value)))
+        if (!RunOnSameFilter(effectId, (sequence, clip, effect) => EffectCommands.SetLut(sequence, clip, effect, value)))
         {
             _lutShown = null;
             Refresh();
@@ -664,7 +657,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         if (sender is ToggleButton { Tag: string effectId } toggle)
         {
             bool enabled = toggle.IsChecked != true;
-            Run((sequence, clip) => Edits.SetEffectEnabled(sequence, clip, effectId, enabled));
+            RunOnSameFilter(effectId, (sequence, clip, effect) => Edits.SetEffectEnabled(sequence, clip, effect, enabled));
         }
     }
 
@@ -684,23 +677,11 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     {
         if (sender is FrameworkElement { Tag: string effectId })
         {
-            var targets = Targets();
-            if (targets.Count > 1 && CurrentClip()?.Effects.Find(e => e.Id == effectId) is { } primaryEffect && _services is not null)
+            if (Targets().Count > 1 && _services is not null && SameFilter(effectId) is { Count: > 0 } toRemove)
             {
-                var toRemove = new List<(string ClipId, string EffectId)>();
-                foreach ((Track _, Clip clip) in targets)
-                {
-                    if (clip.Effects.Find(e => e.Id == effectId || e.Type == primaryEffect.Type) is { } found)
-                    {
-                        toRemove.Add((clip.Id, found.Id));
-                    }
-                }
-                if (toRemove.Count > 0)
-                {
-                    _services.Session.Execute(Edits.RemoveEffectFromClips(_services.Session.SequenceId, toRemove));
-                    Refresh();
-                    return;
-                }
+                _services.Session.Execute(Edits.RemoveEffectFromClips(_services.Session.SequenceId, toRemove.ConvertAll(t => (t.Clip.Id, t.EffectId))));
+                Refresh();
+                return;
             }
 
             Run((sequence, clip) => Edits.RemoveEffect(sequence, clip, effectId));

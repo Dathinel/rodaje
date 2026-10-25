@@ -406,6 +406,50 @@ public sealed unsafe class GpuDevice : IDisposable
         }
     }
 
+    /// <summary>Bits por color del monitor que más tenga entre los del adaptador (<c>DXGI_OUTPUT_DESC1</c>); 8 si no hay monitores (WARP) o no se puede leer.</summary>
+    /// <remarks>shortcut: mira todos los monitores del adaptador y no el que tiene la ventana; afinar si alguien mezcla uno de 10 bits con otro de 8.</remarks>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0")]
+    public int MaxOutputBitsPerColor()
+    {
+        ObjectDisposedException.ThrowIf(_device == null, this);
+        IDXGIAdapter* adapter = GetAdapter();
+        int bits = 8;
+        if (adapter == null)
+        {
+            return bits;
+        }
+
+        try
+        {
+            for (uint i = 0; ; i++)
+            {
+                IDXGIOutput* output;
+                if (adapter->EnumOutputs(i, &output).FAILED)
+                {
+                    return bits;
+                }
+
+                IDXGIOutput6* output6;
+                if (output->QueryInterface(__uuidof<IDXGIOutput6>(), (void**)&output6).SUCCEEDED)
+                {
+                    DXGI_OUTPUT_DESC1 desc;
+                    if (output6->GetDesc1(&desc).SUCCEEDED)
+                    {
+                        bits = Math.Max(bits, (int)desc.BitsPerColor);
+                    }
+
+                    output6->Release();
+                }
+
+                output->Release();
+            }
+        }
+        finally
+        {
+            adapter->Release();
+        }
+    }
+
     private IDXGIAdapter* GetAdapter()
     {
         IDXGIDevice* dxgi;

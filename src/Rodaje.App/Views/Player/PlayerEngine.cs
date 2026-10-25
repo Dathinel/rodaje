@@ -69,6 +69,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
     private Presenter? _presenter;
     private CompositionSwapChain? _swapChain;
+    private TenBitViewer _tenBitViewer;
+    private HdrViewer _hdrViewer;
     private GpuTimer? _gpuTimer;
     private PreviewProxies? _proxies;
     private ProxyUsage _proxyUsage = ProxyUsage.Auto;
@@ -213,13 +215,29 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     /// <summary>Resolución de la vista previa: Auto, completa, mitad o cuarto.</summary>
     public void SetPreviewQuality(PreviewQuality quality) => Post(new Command(CommandKind.Quality, Quality: quality));
 
-    /// <summary>Visor de 10 bits; se lee al crear cada cadena de intercambio, así que se fija antes del primer tamaño.</summary>
-    public TenBitViewer TenBitViewer { get; set; }
+    /// <summary>Visor de 10 bits. Si la cadena de intercambio ya existe y cambia su formato, el hilo de render la vuelve a crear.</summary>
+    public TenBitViewer TenBitViewer
+    {
+        get => _tenBitViewer;
+        set
+        {
+            _tenBitViewer = value;
+            Post(new Command(CommandKind.ViewerFormat));
+        }
+    }
 
-    private bool UsesTenBits() => _gpu is not null && ViewerBitDepth.UsesTenBits(TenBitViewer, CompositionSwapChain.MaxBitsPerColor(_gpu));
+    private bool UsesTenBits() => _gpu is not null && ViewerBitDepth.UsesTenBits(TenBitViewer, _gpu.MaxOutputBitsPerColor());
 
-    /// <summary>Visor HDR (scRGB); como <see cref="TenBitViewer"/>, se lee al crear cada cadena de intercambio.</summary>
-    public HdrViewer HdrViewer { get; set; }
+    /// <summary>Visor HDR (scRGB); como <see cref="TenBitViewer"/>, cambiarlo con la cadena creada la vuelve a crear.</summary>
+    public HdrViewer HdrViewer
+    {
+        get => _hdrViewer;
+        set
+        {
+            _hdrViewer = value;
+            Post(new Command(CommandKind.ViewerFormat));
+        }
+    }
 
     /// <summary>Si la cadena del visor es scRGB: una secuencia HDR se ve en HDR. Si no, se ve en SDR recortando lo que pasa de 203 nits.</summary>
     public bool ViewerIsScRgb { get; private set; }
@@ -765,6 +783,26 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 continue;
             }
 
+            if (command.Kind == CommandKind.ViewerFormat)
+            {
+                // scRGB manda; si no, 10 bits cuando toca; si no, 8 bits: la misma elección que al crear la cadena.
+                bool scRgb = UsesScRgb();
+                bool tenBits = UsesTenBits() && !scRgb;
+                if (_swapChain is { } old && _gpu is { } gpu && (old.ScRgb != scRgb || old.TenBits != tenBits))
+                {
+                    old.Dispose();
+                    _swapChain = null;
+                    _swapChain = new CompositionSwapChain(gpu, old.Width, old.Height, old.ScaleX, old.ScaleY, tenBits, scRgb);
+                    ViewerIsScRgb = _swapChain.ScRgb;
+                    _metrics.Note(_swapChain.ScRgb ? "visor HDR (scRGB R16G16B16A16_FLOAT)"
+                        : _swapChain.TenBits ? "visor de 10 bits (R10G10B10A2)" : "visor de 8 bits (B8G8R8A8)");
+                    SwapChainCreated?.Invoke(_swapChain.NativeSwapChain);
+                    _dirty = true;
+                }
+
+                continue;
+            }
+
             if (command.Kind == CommandKind.Zoom)
             {
                 _zoom = command.Zoom;
@@ -1096,6 +1134,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         Zoom,
         Quality,
         Content,
+        ViewerFormat,
     }
 
     private readonly record struct Command(
