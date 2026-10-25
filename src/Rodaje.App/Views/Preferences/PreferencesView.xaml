@@ -2,7 +2,7 @@
     x:Class="Rodaje.App.Views.Preferences.PreferencesView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <TabView x:Name="Tabs" IsAddTabButtonVisible="False" MaxHeight="600" MinWidth="500">
+    <TabView x:Name="Tabs" IsAddTabButtonVisible="False" MaxHeight="600" MinWidth="520">
         <TabViewItem Header="General" IsClosable="False">
             <ScrollViewer><StackPanel Spacing="16" Padding="12">
                 <TextBlock Text="Traer también el audio de los medios que caigan en estas pistas de video" FontWeight="SemiBold" />
