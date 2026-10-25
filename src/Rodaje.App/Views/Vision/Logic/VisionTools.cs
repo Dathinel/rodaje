@@ -427,7 +427,9 @@ internal static class VisionTools
             info.ArgumentList.Add(argument);
         }
 
-        return Process.Start(info) ?? throw new IOException("ffmpeg.exe no arrancó.");
+        Process process = Process.Start(info) ?? throw new IOException("ffmpeg.exe no arrancó.");
+        ChildProcessJob.TryAssign(process);
+        return process;
     }
 
     private static string Tail(string text) => text.Length > 400 ? text[^400..].Trim() : text.Trim();

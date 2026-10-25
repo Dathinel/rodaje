@@ -301,7 +301,9 @@ internal static class CinemaDngImport
             info.ArgumentList.Add(argument);
         }
 
-        return Process.Start(info) ?? throw new IOException("ffmpeg.exe no arrancó.");
+        Process process = Process.Start(info) ?? throw new IOException("ffmpeg.exe no arrancó.");
+        ChildProcessJob.TryAssign(process);
+        return process;
     }
 
     private static string UniquePath(string folder, string name, string extension)
