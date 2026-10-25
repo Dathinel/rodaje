@@ -269,7 +269,6 @@ internal sealed partial class TitleBar : UserControl
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
             IsPrimaryButtonEnabled = false,
-            RequestedTheme = ElementTheme.Dark,
         };
         nameBox.TextChanged += (_, _) => dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(nameBox.Text);
 
@@ -346,7 +345,6 @@ internal sealed partial class TitleBar : UserControl
             Title = "Carpeta de medios generados",
             Content = body,
             CloseButtonText = "Listo",
-            RequestedTheme = ElementTheme.Dark,
         };
         await DialogGate.ShowAsync(dialog);
     }
@@ -384,7 +382,6 @@ internal sealed partial class TitleBar : UserControl
             Content = body,
             CloseButtonText = "Cerrar",
             DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
         };
         await DialogGate.ShowAsync(dialog);
     }

@@ -133,7 +133,6 @@ internal static class RelinkDialog
             CloseButtonText = "Más tarde",
             DefaultButton = ContentDialogButton.Primary,
             IsPrimaryButtonEnabled = false,
-            RequestedTheme = ElementTheme.Dark,
         };
 
         var cancel = new CancellationTokenSource();

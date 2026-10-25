@@ -22,7 +22,6 @@ internal static class AnalysisUi
         CloseButtonText = "Cancelar",
         DefaultButton = ContentDialogButton.Primary,
         IsPrimaryButtonEnabled = AnalysisApplyState.IsEnabled(initialPhase),
-        RequestedTheme = ElementTheme.Dark,
     };
 
     /// <summary>Deslizador con etiqueta y valor; <paramref name="changed"/> se llama al moverlo.</summary>

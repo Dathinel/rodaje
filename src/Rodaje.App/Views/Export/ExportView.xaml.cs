@@ -806,7 +806,7 @@ internal sealed partial class ExportView : UserControl
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot, Title = "Guardar como preajuste", Content = name, PrimaryButtonText = "Guardar", CloseButtonText = "Cancelar",
-            DefaultButton = ContentDialogButton.Primary, RequestedTheme = ElementTheme.Dark,
+            DefaultButton = ContentDialogButton.Primary,
         };
         if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(name.Text))
         {
@@ -820,7 +820,6 @@ internal sealed partial class ExportView : UserControl
                 XamlRoot = XamlRoot, Title = $"¿Reemplazar «{existing.Name}»?",
                 Content = "Ya hay un preajuste propio con ese nombre. Si guardas, sus ajustes se cambian por los de ahora.",
                 PrimaryButtonText = "Reemplazar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Close,
-                RequestedTheme = ElementTheme.Dark,
             };
             if (await DialogGate.ShowAsync(confirm) != ContentDialogResult.Primary)
             {
@@ -915,7 +914,6 @@ internal sealed partial class ExportView : UserControl
             PrimaryButtonText = "Quitar preajuste",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
         };
         if (await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary
             && ReferenceEquals(_model, model) && model.PresetId == preset.Id)
@@ -948,7 +946,6 @@ internal sealed partial class ExportView : UserControl
                 XamlRoot = XamlRoot, Title = "¿Reemplazar el archivo?",
                 Content = $"Ya existe «{Path.GetFileName(model.OutputPath)}» en esa carpeta, o lo escribirá otra exportación de la cola. Si exportas, se reemplaza al terminar.",
                 PrimaryButtonText = "Reemplazar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Close,
-                RequestedTheme = ElementTheme.Dark,
             };
             if (await DialogGate.ShowAsync(confirm) != ContentDialogResult.Primary)
             {

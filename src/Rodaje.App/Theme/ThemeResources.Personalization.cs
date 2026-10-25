@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services.Settings;
 using Windows.UI;
@@ -24,6 +25,26 @@ internal static partial class ThemeResources
 
     /// <summary>Factor del tamaño del texto de la línea de tiempo (<see cref="Personalization.FontFactor"/>).</summary>
     public static double TimelineFontScale { get; set; } = 1;
+
+    /// <summary>El tema de WinUI del aplicado: con fondo claro, los pinceles de fábrica de los controles son los del tema claro.</summary>
+    public static ElementTheme RequestedTheme => Themes.IsLight(Current) ? ElementTheme.Light : ElementTheme.Dark;
+
+    /// <summary>Lleva <see cref="RequestedTheme"/> a la raíz de la ventana y a lo abierto encima (diálogos, menús).</summary>
+    public static void ApplyRequestedTheme(FrameworkElement root)
+    {
+        ArgumentNullException.ThrowIfNull(root);
+        root.RequestedTheme = RequestedTheme;
+        if (root.XamlRoot is { } xamlRoot)
+        {
+            foreach (Popup popup in VisualTreeHelper.GetOpenPopupsForXamlRoot(xamlRoot))
+            {
+                if (popup.Child is FrameworkElement child)
+                {
+                    child.RequestedTheme = RequestedTheme;
+                }
+            }
+        }
+    }
 
     public static double TimelineSize(string key) => Math.Round(Size(key) * TimelineFontScale, 1);
 
@@ -92,16 +113,21 @@ internal static partial class ThemeResources
 
         SetBrush("AccentHoverBrush", hover);
         SetBrush("AccentPressedBrush", pressed);
-        SetBrush("ApplicationPageBackgroundThemeBrush", theme.Color("BackgroundBrush"));
-        handled.UnionWith(["AccentHoverBrush", "AccentPressedBrush", "ApplicationPageBackgroundThemeBrush"]);
+        handled.UnionWith(["AccentHoverBrush", "AccentPressedBrush"]);
         handled.UnionWith(Untouched);
-        foreach ((string key, SolidColorBrush brush) in AllBrushes(Application.Current.Resources))
+        var all = AllBrushes(Application.Current.Resources, stockLight: false).Where(b => !handled.Contains(b.Key)).ToList();
+        // Por pincel y no por clave: en WinUI AccentButtonBackground es el mismo pincel que AccentFillColorDefaultBrush.
+        var fixedColors = new Dictionary<SolidColorBrush, uint>();
+        foreach ((string key, SolidColorBrush brush, _) in all)
         {
-            if (handled.Contains(key))
+            if (FixedColor(key, theme, light, hover, pressed) is { } color)
             {
-                continue;
+                fixedColors[brush] = color;
             }
+        }
 
+        foreach ((_, SolidColorBrush brush, bool stockLight) in all)
+        {
             if (!Originals.TryGetValue(brush, out Color original))
             {
                 original = brush.Color;
@@ -109,8 +135,9 @@ internal static partial class ThemeResources
             }
 
             uint o = ToArgb(original);
-            uint mapped = AccentFamily(o, accentColor, hover, pressed)
-                ?? (light && Personalization.Alpha(o) == 0xFF && Personalization.IsAchromatic(o) ? Personalization.Invert(o) : o);
+            // Los grises del tema claro de fábrica de WinUI ya son claros: solo se invierten los pensados para oscuro.
+            uint mapped = fixedColors.TryGetValue(brush, out uint fixedColor) ? fixedColor : AccentFamily(o, accentColor, hover, pressed)
+                ?? (light && !stockLight && Personalization.Alpha(o) == 0xFF && Personalization.IsAchromatic(o) ? Personalization.Invert(o) : o);
             Color color = ToColor(mapped);
             if (brush.Color != color)
             {
@@ -140,6 +167,24 @@ internal static partial class ThemeResources
         return target is { } t ? Personalization.WithAlpha(t, Personalization.Alpha(original)) : null;
     }
 
+    /// <summary>El fondo de página siempre; en un tema claro, el botón de acento de WinUI con el acento y su texto (AA, <see cref="Themes.WithAccent"/>) y las pestañas.</summary>
+    private static uint? FixedColor(string key, ThemeDefinition theme, bool light, uint hover, uint pressed) => key switch
+    {
+        "ApplicationPageBackgroundThemeBrush" => theme.Color("BackgroundBrush"),
+        "AccentButtonBackground" when light => theme.Color("AccentBrush"),
+        "AccentButtonBackgroundPointerOver" when light => hover,
+        "AccentButtonBackgroundPressed" when light => pressed,
+        "AccentButtonForeground" or "AccentButtonForegroundPointerOver" or "AccentButtonForegroundPressed" when light => theme.Color("AccentForegroundBrush"),
+        // TabViewItem toma estas del tema de la aplicación (oscuro) aunque el suyo sea claro.
+        "TabViewItemHeaderForeground" when light => theme.Color("TextMutedBrush"),
+        "TabViewItemHeaderForegroundSelected" or "TabViewItemHeaderForegroundPointerOver" or "TabViewItemHeaderForegroundPressed" when light => theme.Color("TextBrush"),
+        "TabViewItemHeaderBackgroundSelected" when light => theme.Color("PanelBrush"),
+        _ => null,
+    };
+
+    private static bool IsOwn(ResourceDictionary dictionary) =>
+        dictionary.Source is { } source && source.AbsolutePath.StartsWith("/Theme/", StringComparison.OrdinalIgnoreCase);
+
     private static void SetBrush(string key, uint argb)
     {
         if (Application.Current.Resources[key] is SolidColorBrush brush)
@@ -152,29 +197,30 @@ internal static partial class ThemeResources
         }
     }
 
-    private static IEnumerable<(string Key, SolidColorBrush Brush)> AllBrushes(ResourceDictionary dictionary)
+    /// <summary>Los pinceles con su clave; <c>StockLight</c> marca los del tema claro de fábrica de WinUI (no los de ControlColors.xaml).</summary>
+    private static IEnumerable<(string Key, SolidColorBrush Brush, bool StockLight)> AllBrushes(ResourceDictionary dictionary, bool stockLight)
     {
         foreach (KeyValuePair<object, object> entry in dictionary)
         {
             if (entry.Key is string key && entry.Value is SolidColorBrush brush)
             {
-                yield return (key, brush);
+                yield return (key, brush, stockLight);
             }
         }
 
         foreach (ResourceDictionary merged in dictionary.MergedDictionaries)
         {
-            foreach (var pair in AllBrushes(merged))
+            foreach (var pair in AllBrushes(merged, stockLight))
             {
                 yield return pair;
             }
         }
 
-        foreach (object value in dictionary.ThemeDictionaries.Values)
+        foreach (KeyValuePair<object, object> entry in dictionary.ThemeDictionaries)
         {
-            if (value is ResourceDictionary themed)
+            if (entry.Value is ResourceDictionary themed)
             {
-                foreach (var pair in AllBrushes(themed))
+                foreach (var pair in AllBrushes(themed, stockLight || ("Light".Equals(entry.Key) && !IsOwn(themed))))
                 {
                     yield return pair;
                 }

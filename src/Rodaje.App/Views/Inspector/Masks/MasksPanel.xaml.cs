@@ -776,7 +776,6 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
             PrimaryButtonText = "Quitar keyframes",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
         };
         if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary
             || _maskId != id || _clipId != clip.Id || services.Session.Sequence.FindClip(clip.Id) is not { } current

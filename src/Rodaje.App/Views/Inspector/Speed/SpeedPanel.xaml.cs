@@ -483,7 +483,6 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
             PrimaryButtonText = "Quitar la curva y restablecer",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
         };
         return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
     }

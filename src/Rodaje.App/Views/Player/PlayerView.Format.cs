@@ -223,7 +223,7 @@ internal sealed partial class PlayerView
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot, Title = "Formato del proyecto", Content = panel, PrimaryButtonText = "Aplicar", CloseButtonText = "Cancelar",
-            DefaultButton = ContentDialogButton.Primary, RequestedTheme = ElementTheme.Dark,
+            DefaultButton = ContentDialogButton.Primary,
         };
 
         void Refresh()

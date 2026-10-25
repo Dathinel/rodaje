@@ -98,7 +98,6 @@ internal sealed partial class TimelineView
             SecondaryButtonText = "Recortar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
         return await DialogGate.ShowAsync(dialog) switch
         {
