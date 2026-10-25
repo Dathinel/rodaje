@@ -112,9 +112,11 @@ internal static class VisionDialogs
         dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(AnalyzeBeforeApply(args));
         async Task AnalyzeBeforeApply(ContentDialogButtonClickEventArgs args)
         {
+            // Apagado mientras corre el módulo: un segundo clic no lanza otro Run. Si falló, vuelve para reintentar.
             ContentDialogButtonClickDeferral deferral = args.GetDeferral();
+            dialog.IsPrimaryButtonEnabled = false;
             try { if (matte is null) { work = Run(); await work; } args.Cancel = matte is null; }
-            finally { deferral.Complete(); }
+            finally { dialog.IsPrimaryButtonEnabled = true; deferral.Complete(); }
         }
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();
@@ -240,9 +242,11 @@ internal static class VisionDialogs
         dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(AnalyzeBeforeApply(args));
         async Task AnalyzeBeforeApply(ContentDialogButtonClickEventArgs args)
         {
+            // Apagado mientras corre el módulo: un segundo clic no lanza otro Run. Si falló, vuelve para reintentar.
             ContentDialogButtonClickDeferral deferral = args.GetDeferral();
+            dialog.IsPrimaryButtonEnabled = false;
             try { if (plan is null) { work = Run(); await work; } args.Cancel = plan is null; }
-            finally { deferral.Complete(); }
+            finally { dialog.IsPrimaryButtonEnabled = true; deferral.Complete(); }
         }
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();

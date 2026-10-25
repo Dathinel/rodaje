@@ -30,6 +30,9 @@ public sealed partial class ExportEntry
 
     public string OutputPath => Request.OutputPath;
 
+    /// <summary>Si la salida sigue en disco: un archivo, o la carpeta de una secuencia de imágenes.</summary>
+    public static bool OutputExists(string outputPath) => File.Exists(outputPath) || Directory.Exists(outputPath);
+
     public string Title => Path.GetFileName(Request.OutputPath);
 
     public ExportProgress Progress => Job?.Progress ?? new ExportProgress(ExportJobState.Queued, 0, 0, 0, TimeSpan.Zero, null, 0);
