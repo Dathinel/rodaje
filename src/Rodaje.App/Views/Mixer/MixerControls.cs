@@ -36,6 +36,12 @@ internal abstract partial class DragControl : Grid
         DoubleTapped += (_, _) => Commit(Neutral);
         PointerWheelChanged += (_, e) =>
         {
+            // Sin foco ni Ctrl la rueda desplaza el mezclador: pasar por encima de un fader no cambia la mezcla.
+            if (FocusState == FocusState.Unfocused && (e.KeyModifiers & VirtualKeyModifiers.Control) == 0)
+            {
+                return;
+            }
+
             int delta = e.GetCurrentPoint(this).Properties.MouseWheelDelta;
             Commit(Value + (Math.Sign(delta) * Step));
             e.Handled = true;
@@ -220,7 +226,7 @@ internal sealed partial class FaderControl : DragControl
         Children.Add(_canvas);
         SizeChanged += (_, _) => Render(Value);
         AutomationProperties.SetName(this, "Volumen");
-        ToolTipService.SetToolTip(this, "Arrastra el volumen (Mayús: fino). Rueda o flechas: de a 0,5 dB. Doble clic: 0 dB.");
+        ToolTipService.SetToolTip(this, "Arrastra el volumen (Mayús: fino). Rueda (con el fader elegido o con Ctrl) o flechas: de a 0,5 dB. Doble clic: 0 dB.");
     }
 
     protected override double Minimum => MixerModel.FaderMinDb;
