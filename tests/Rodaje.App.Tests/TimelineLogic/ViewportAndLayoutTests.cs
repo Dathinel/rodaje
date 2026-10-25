@@ -171,6 +171,22 @@ public class ViewportAndLayoutTests
     }
 
     [Fact]
+    public void SoloLasFilasQueAsomanEnLaFranjaVisibleSeArman()
+    {
+        Sequence sequence = ProjectFactory.CreateDefault("p", new SequentialIdGenerator()).Sequences[0];
+        TrackLayout layout = TrackLayout.Build(sequence, sequence.VideoTracks[0]);
+        TrackRow first = layout.Rows[0];
+        TrackRow last = layout.Rows[^1];
+
+        Assert.True(first.Overlaps(first.Top, first.Bottom));
+        Assert.True(first.Overlaps(first.Bottom - 1, first.Bottom + 100));
+        Assert.False(first.Overlaps(first.Bottom, first.Bottom + 100));
+        Assert.False(last.Overlaps(0, last.Top));
+        Assert.Equal(layout.Rows.Count, layout.Rows.Count(r => r.Overlaps(-100, layout.TotalHeight + 100)));
+        Assert.Equal([first], layout.Rows.Where(r => r.Overlaps(0, first.Top + 1)));
+    }
+
+    [Fact]
     public void ArrastrarUnaCabeceraSoloLaLlevaEntreLasDeSuTipoYNuncaBajoLaPrincipal()
     {
         Sequence sequence = ProjectFactory.CreateDefault("p", new SequentialIdGenerator()).Sequences[0];

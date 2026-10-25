@@ -45,6 +45,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     private EditorServices? _services;
     private IClipVisuals? _visuals;
     private bool _renderQueued;
+    private readonly HashSet<string> _dirtyMedia = new(StringComparer.Ordinal);
     private bool _syncingBars;
     private bool _syncingZoom;
     private double? _zoomAnchor;
@@ -240,6 +241,13 @@ internal sealed partial class TimelineView : UserControl, IEditorView
             return;
         }
 
+        foreach (string mediaId in _dirtyMedia)
+        {
+            _renderer.RefreshMedia(mediaId);
+        }
+
+        _dirtyMedia.Clear();
+
         UpdateScrollBars();
         _renderer.Render(Scene(), _overlay);
     }
@@ -397,8 +405,14 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         && session.Sequence.FindTrack(trackId) is { Locked: false } track
         && !Rodaje.Core.Editing.TimelineEdits.IsMainTrack(session.Sequence, track);
 
+    // Se anota el medio y se redibuja en el próximo cuadro, una vez por medio aunque lleguen muchas miniaturas: solo sus
+    // clips armados, sin rearmar la ventana ni tocar los demás (ni sus ondas).
     private void OnVisualsChanged(object? sender, ClipVisualsChangedEventArgs e) =>
-        DispatcherQueue.RunLater(() => Invalidate(content: true));
+        DispatcherQueue.RunLater(() =>
+        {
+            _dirtyMedia.Add(e.MediaId);
+            Invalidate();
+        });
 
     private void OnTransportChanged()
     {

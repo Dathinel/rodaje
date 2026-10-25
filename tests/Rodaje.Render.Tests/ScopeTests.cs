@@ -111,7 +111,9 @@ public sealed class ScopeTests
 
         using var scopes = new ScopeRenderer(gpu);
         Assert.True(scopes.Ready.Wait(TimeSpan.FromSeconds(60)));
+        Assert.False(scopes.HasPending);
         Assert.True(scopes.Submit(compositor, ScopeKind.Waveform));
+        Assert.True(scopes.HasPending);
         ScopeImage? image = null;
         for (int i = 0; i < 200 && image is null; i++)
         {
@@ -128,6 +130,7 @@ public sealed class ScopeTests
         byte traceGreen = Enumerable.Range(row - 2, 5).Max(r => image.Bgra[(((r * ScopeRenderer.ImageWidth) + 100) * 4) + 1]);
         byte emptyGreen = image.Bgra[(((20 * ScopeRenderer.ImageWidth) + 100) * 4) + 1];
         Assert.True(traceGreen > 200 && emptyGreen < 20, $"Trazo {traceGreen}, vacío {emptyGreen}.");
+        Assert.False(scopes.HasPending);
         Assert.Null(scopes.TryRead());
     }
 
