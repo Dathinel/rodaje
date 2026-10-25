@@ -16,8 +16,12 @@ Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video rea
 - **Captura de fotograma rápida:** botón de cámara en el visor y `Ctrl+Mayús+C`. Guarda en la carpeta `Capturas` del proyecto sin diálogo y ofrece añadirla a la biblioteca (#434).
 - **Pistas:** eliminar desde el menú de la cabecera o con Supr, y reordenar arrastrando la cabecera o con Subir y Bajar pista (#437).
 - **Selección múltiple:** los clips seleccionados se mueven juntos, y posición, escala, rotación, opacidad, volumen y fundidos se editan a la vez en el inspector; los valores distintos se muestran como «—» (#436).
+- **Selección múltiple, parte 2:** restablecer, voltear, modo de mezcla, preajustes, velocidad fija, filtros, máscaras y estilo de texto se aplican a todos los clips seleccionados en un solo paso de deshacer, con «—» en los valores mixtos; la sombra de arrastre muestra el grupo entero (#448).
+- **Gráfica de fotogramas clave:** pestaña «Gráfica» en el inspector (y en Ver › Paneles) con la curva Bézier del parámetro elegido: puntos arrastrables en tiempo y valor, asas en todas las claves seleccionadas, selección por recuadro, Supr, copiar y pegar, y la rampa de velocidad del clip como un parámetro más. Cada arrastre es un paso de deshacer (#443, #446).
+- **HDR a SDR:** los videos PQ y HLG (BT.2020) se convierten a BT.709 con mapeo de tonos en la vista previa y en la exportación, con el parámetro animable «Brillo de referencia HDR» en Propiedades; antes salían con los colores apagados (#444, D-052).
+- **10 bits de punta a punta:** las fuentes de 12 bits y 4:4:4 (ProRes 4444, FFV1, DNxHR 444) ya no se bajan a 10 bits al decodificar, las imágenes fijas de 16 bits (PNG, TIFF, EXR) entran en 16 bits en vez de 8, y el visor usa 10 bits con un monitor de 10 bits (Preferencias › Rendimiento › «Visor de 10 bits»). Medido en `docs/hdr.md` (#447, #451, D-053 propuesta).
 - **Secuencias HDR (parte 1):** el formato de proyecto 15 guarda el espacio de color de la secuencia (`colorSpace`: `sdr-709`, `hdr-pq` o `hdr-hlg`; sin HDR se sigue guardando en 13 o 14). Una secuencia HDR se exporta en BT.2020 con PQ o HLG en HEVC Main 10, AV1 de 10 bits y ProRes, con el blanco SDR en 203 nits (BT.2408) y, en PQ, la pantalla de masterizado y MaxCLL/MaxFALL en el archivo. Las miniaturas y la tira de fotogramas de un medio HDR ya se ven convertidas a SDR. El compositor sigue en SDR: la selección en la interfaz, la mezcla en lineal y el visor HDR llegan en la parte 2 (D-054, `docs/hdr.md`).
-- **10 bits de punta a punta:** las fuentes de 12 bits y 4:4:4 (ProRes 4444, FFV1, DNxHR 444) ya no se bajan a 10 bits al decodificar, las imágenes fijas de 16 bits (PNG, TIFF, EXR) entran en 16 bits en vez de 8, y el visor usa 10 bits con un monitor de 10 bits (Preferencias › Rendimiento › «Visor de 10 bits»). Medido en `docs/hdr.md`.
+- **Índice firmado:** tipo de entrada «app» para las herramientas que se descargan aparte (Subtitular, Rastrear, Lanzador); Rodaje las omite y sigue viendo solo complementos y módulos (#445).
 
 ### Cambiado
 - **Video encima de otro:** su sonido va a la primera pista de audio libre, o a una nueva, sin tener que separarlo (#437).
@@ -29,12 +33,14 @@ Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video rea
 - **Transición por defecto:** guarda defensiva si no hay transición configurada (#440).
 - **Etiqueta de Preferencias** más clara: «Traer también el audio de los medios que caigan en estas pistas de video» (#440).
 - **Formato de proyecto 14,** solo si el proyecto contiene fotos. Sin fotos se sigue guardando en el 13, que abre la 1.0.1 (D-050).
+- **CI:** la de Windows publica la app y la arranca (autoprueba con WARP, 3 min), y `release.yml` crea la release en borrador solo al lanzarlo a mano (#442). Las pruebas intermitentes se han asentado: la instantánea del arnés de estrés ya no corre en paralelo y las fugas de hilos se cuentan por mediana (#449).
 
 ### Corregido
-- **Cierre:** un refresco de complementos que terminaba después de cerrar la ventana podía tumbar la app (`ObjectDisposedException` en el reproductor).
-- **Nombres con acentos dañados** («SubtÃ­tulos») en proyectos tocados con una herramienta externa se reparan al abrir.
-- **Barra de la línea de tiempo a 1366 px:** marcadores, regiones y los interruptores secundarios se pliegan en un botón «…» antes que Deshacer y Rehacer, que ya no desaparecen.
-- **Término único «fotograma»** en toda la interfaz (antes alternaba con «cuadro»).
+- **Cuadro numérico del inspector:** un valor largo (7051 en Escala) se ve entero y, tras confirmar, el cuadro muestra el valor realmente aplicado; con el foco en un cuadro de texto, Ctrl+A y Fin actúan sobre el texto y no sobre los clips (#452).
+- **Cierre:** un refresco de complementos que terminaba después de cerrar la ventana podía tumbar la app (`ObjectDisposedException` en el reproductor) (#450).
+- **Nombres con acentos dañados** («SubtÃ­tulos») en proyectos tocados con una herramienta externa se reparan al abrir (#450).
+- **Barra de la línea de tiempo a 1366 px:** marcadores, regiones y los interruptores secundarios se pliegan en un botón «…» antes que Deshacer y Rehacer, que ya no desaparecen (#450).
+- **Término único «fotograma»** en toda la interfaz (antes alternaba con «cuadro») (#450).
 - **Exportación:** las últimas filas podían salir negras en algunos equipos. Las texturas intermedias del render se reutilizaban sin limpiar (#433).
 - **Importación masiva:** ahora tiene un límite de análisis simultáneos y una ruta repetida ya no se analiza dos veces (#425).
 - **Automatización del mezclador:** la de tipo «tocar» respeta una curva Mantener tras el retorno (#389).
