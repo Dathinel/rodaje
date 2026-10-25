@@ -71,6 +71,25 @@ public class ShortcutRouterTests
     }
 
     [Fact]
+    public void EnUnaLista_SuprYCtrlASonDeLaLista()
+    {
+        ShortcutRouter router = Router();
+        router.Registry.Register(new ShortcutAction("all", "Seleccionar todo", "E", ["Ctrl+A"]));
+        var invoked = new List<string>();
+        router.Bind("delete", () => invoked.Add("delete"));
+        router.Bind("all", () => invoked.Add("all"));
+        router.Bind("play", () => invoked.Add("play"));
+
+        Assert.False(router.Dispatch(K("Supr"), false, KeyFocus.List));
+        Assert.False(router.Dispatch(K("Ctrl+A"), false, KeyFocus.List));
+        Assert.True(router.Dispatch(K("Espacio"), false, KeyFocus.List));
+        Assert.True(router.Dispatch(K("Supr"), false, KeyFocus.Other));
+        Assert.True(router.Dispatch(K("Ctrl+A"), false, KeyFocus.Other));
+
+        Assert.Equal(["play", "delete", "all"], invoked);
+    }
+
+    [Fact]
     public void EspacioConElFocoEnUnBotonOEnNada_Reproduce()
     {
         ShortcutRouter router = Router();

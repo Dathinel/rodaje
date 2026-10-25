@@ -66,8 +66,7 @@ public static class SpeedGraph
         List<SpeedPoint> points =
         [
             .. curve.Points.Where(p => p.At < from || p.At > to),
-            .. keys.Select(k => new SpeedPoint(
-                Math.Clamp(SpeedCurveMath.AtOfClipTime(clip, EffectCommands.TimelineOfKeyframe(proxy, k.Time) - clip.Start), 0, SpeedCurve.AtScale),
+            .. keys.Select(k => new SpeedPoint(AtOf(clip, proxy, k.Time),
                 Math.Clamp((int)Math.Round(k.Value * 100), RetimeMath.MinHundredths, RetimeMath.MaxHundredths))),
         ];
         points.Sort((a, b) => a.At.CompareTo(b.At));
@@ -78,6 +77,20 @@ public static class SpeedGraph
         }
 
         return new SpeedCurve { Span = curve.Span, Points = points };
+    }
+
+    /// <summary>
+    /// Dónde quedan en <paramref name="after"/> los keyframes que en <paramref name="before"/> iban en <paramref name="times"/>:
+    /// guardar la rampa cambia la duración del clip y con ella el instante de cada punto, pero no su sitio en la rampa.
+    /// </summary>
+    public static IReadOnlyList<Time> Follow(Clip before, Clip after, IEnumerable<Time> times)
+    {
+        ArgumentNullException.ThrowIfNull(before);
+        ArgumentNullException.ThrowIfNull(after);
+        ArgumentNullException.ThrowIfNull(times);
+        Clip from = Proxy(before);
+        Clip to = Proxy(after);
+        return [.. times.Select(time => KeyTime(to, after, AtOf(before, from, time)))];
     }
 
     /// <summary>Aplica <paramref name="change"/> a los keyframes de la rampa y la guarda como lo hace el inspector de velocidad.</summary>
@@ -102,6 +115,9 @@ public static class SpeedGraph
         proxy.SourceOut = proxy.SourceIn + clip.Duration;
         return proxy;
     }
+
+    private static int AtOf(Clip clip, Clip proxy, Time time) =>
+        Math.Clamp(SpeedCurveMath.AtOfClipTime(clip, EffectCommands.TimelineOfKeyframe(proxy, time) - clip.Start), 0, SpeedCurve.AtScale);
 
     private static Time KeyTime(Clip proxy, Clip clip, double at) =>
         EffectCommands.KeyframeTime(proxy, clip.Start + SpeedCurveMath.ClipTimeOf(clip, at));

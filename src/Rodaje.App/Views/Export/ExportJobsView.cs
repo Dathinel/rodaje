@@ -199,7 +199,14 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
             return;
         }
 
-        using Process? _ = Process.Start(new ProcessStartInfo(entry.OutputPath) { UseShellExecute = true });
+        try
+        {
+            using Process? _ = Process.Start(new ProcessStartInfo(entry.OutputPath) { UseShellExecute = true });
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            _services?.Session.Notify(NotificationSeverity.Warning, "No se pudo abrir", ex.Message);
+        }
     }
 
     private void NotWritten(ExportEntry entry) => _services?.Session.Notify(NotificationSeverity.Warning, "No está el archivo",

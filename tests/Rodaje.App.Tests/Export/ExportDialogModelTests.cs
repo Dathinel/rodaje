@@ -60,6 +60,43 @@ public sealed class ExportDialogModelTests
     }
 
     [Fact]
+    public void Names_with_dots_keep_them_and_versions_do_not_loop()
+    {
+        using var dir = new TempDirectory();
+        var project = ExportTestData.Project();
+        var model = new ExportDialogModel(new ExportPreferences { Folder = dir.Path }, project.Sequences[0], [], SimulatedEncoders.All, "Boda 24.10.2026", null);
+        Assert.Equal("Boda 24.10.2026.mp4", Path.GetFileName(model.OutputPath));
+
+        model.SetOutputPath(dir.File("Prueba 1.5"));
+        Assert.Equal("Prueba 1.5.mp4", Path.GetFileName(model.OutputPath));
+        File.WriteAllText(dir.File("Prueba 1.5 - Web 1080p.mp4"), "");
+
+        IReadOnlyList<ExportRequest> requests = model.CreateVersionRequests([ExportPresets.YouTube1080p.Id, ExportPresets.Vertical.Id], project, "sec", null);
+
+        Assert.Equal(["Prueba 1.5 - Web 1080p (2).mp4", "Prueba 1.5 - Vertical 9_16.mp4"], requests.Select(r => Path.GetFileName(r.OutputPath)));
+    }
+
+    [Fact]
+    public void Outputs_still_in_the_queue_count_as_existing_files()
+    {
+        using var dir = new TempDirectory();
+        var project = ExportTestData.Project();
+        var model = new ExportDialogModel(new ExportPreferences(), project.Sequences[0], [], SimulatedEncoders.All, project.Name, dir.Path)
+        {
+            PendingOutputs = [dir.File("VIAJE.mp4"), dir.File("viaje - web 1080p.mp4")],
+        };
+        model.SetOutputPath(dir.File("viaje.mp4"));
+        Assert.Equal(OutputCheck.Exists, model.OutputCheck);
+        Assert.True(model.CanExport);
+
+        IReadOnlyList<ExportRequest> requests = model.CreateVersionRequests([ExportPresets.YouTube1080p.Id], project, "sec", null);
+
+        Assert.Equal("viaje - Web 1080p (2).mp4", Path.GetFileName(requests[0].OutputPath));
+        model.SetOutputPath(dir.File("otro.mp4"));
+        Assert.Equal(OutputCheck.Ok, model.OutputCheck);
+    }
+
+    [Fact]
     public void Versions_keep_the_subtitle_mode_and_warn_where_the_container_cannot_take_it()
     {
         var project = ExportTestData.Project();

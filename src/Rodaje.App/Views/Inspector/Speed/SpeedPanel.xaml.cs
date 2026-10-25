@@ -186,14 +186,14 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         }
 
         IReadOnlyList<Clip> clips = editor.Targets();
-        Clip? clip = clips.Count > 0 ? clips[0] : null;
+        Clip? clip = editor.Target();
         if (clip?.Id != _clipId)
         {
             FinishChange();
         }
 
         _clipId = clip?.Id;
-        Clip? excluded = clip is null ? editor.Target() : null;
+        Clip? excluded = clip is null ? InspectorTargets.First(editor.Session)?.Clip : null;
         bool title = excluded?.Generator is not null;
         bool isStill = excluded is not null && editor.Session.Project.FindMedia(excluded.MediaId)?.IsStillImage == true;
         EmptyText.Text = title ? ClipLabels.NoMaterial : (isStill ? "No aplica a imágenes fijas." : EmptyHint);
@@ -264,7 +264,8 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         if (multi)
         {
             CurveSection.Visibility = Visibility.Collapsed;
-            NoteText.Visibility = Visibility.Collapsed;
+            NoteText.Text = canChangeRate ? "" : "Algún clip tiene una curva de velocidad o es un fotograma congelado: cambia su velocidad de uno en uno.";
+            NoteText.Visibility = canChangeRate ? Visibility.Collapsed : Visibility.Visible;
             WarningPanel.Visibility = Visibility.Collapsed;
         }
         else
@@ -563,7 +564,11 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         });
     }
 
-    private void OnPitchClick(object sender, RoutedEventArgs e) => _editor?.SetPreservePitch(PitchBox.IsChecked == true);
+    private void OnPitchClick(object sender, RoutedEventArgs e)
+    {
+        _editor?.SetPreservePitch(PitchBox.IsChecked == true);
+        Refresh();
+    }
 
     private void OnFreezeClick(object sender, RoutedEventArgs e) => _editor?.Freeze();
 }

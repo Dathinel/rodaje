@@ -80,6 +80,20 @@ public sealed class DynamicsEditorTests
         Assert.Equal(121, TransferCurve.Points(threshold, ratio, knee, makeup).Count());
     });
 
+    [Fact]
+    public void The_history_names_the_compressor_not_a_filter() => UiThread.Run(async () =>
+    {
+        EditorSession session = await Open();
+        var editor = new DynamicsEditor(session) { Owner = new DynamicsOwner(DynamicsOwnerKind.Track, session.Sequence.AudioTracks[0].Id) };
+
+        Assert.True(editor.Add());
+        Assert.Equal("Añadir compresor", session.History.UndoDescription);
+        Assert.True(editor.SetEnabled(false));
+        Assert.Equal("Desactivar compresor", session.History.UndoDescription);
+        Assert.True(editor.Remove());
+        Assert.Equal("Quitar compresor", session.History.UndoDescription);
+    });
+
     private static void At(EditorSession session, double seconds) =>
         session.UpdateTransport(PlaybackSnapshot.Empty with { Position = Time.FromSeconds(seconds) });
 

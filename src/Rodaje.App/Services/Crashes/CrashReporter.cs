@@ -741,9 +741,9 @@ public sealed class CrashReporter
         ArgumentNullException.ThrowIfNull(pending);
         string latest = Path.Combine(FolderName, Path.GetFileName(pending[^1]));
         return pending.Count == 1
-            ? $"La última vez Rodaje se cerró por un error. El informe quedó en {latest}, dentro de la carpeta de datos de Rodaje; cópialo y envíalo para que se pueda arreglar."
+            ? $"La última vez Rodaje no se cerró bien (un error, un cierre forzado o un apagón). El informe quedó en {latest}, dentro de la carpeta de datos de Rodaje; cópialo y envíalo para que se pueda arreglar."
             : string.Create(CultureInfo.InvariantCulture,
-                $"Rodaje se cerró por un error {pending.Count} veces desde la última vez. El informe más reciente quedó en {latest}, dentro de la carpeta de datos de Rodaje; cópialo y envíalo para que se pueda arreglar.");
+                $"Rodaje no se cerró bien {pending.Count} veces desde la última vez (un error, un cierre forzado o un apagón). El informe más reciente quedó en {latest}, dentro de la carpeta de datos de Rodaje; cópialo y envíalo para que se pueda arreglar.");
     }
 
     // ---- Interno ----

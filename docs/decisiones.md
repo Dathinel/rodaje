@@ -587,3 +587,14 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
 - «Fotograma» para una imagen suelta y «cuadros/s» para la cadencia (#450).
 - Lo escrito a mano en un cuadro numérico puede llegar al tope del modelo (10 000 % en escala) aunque el deslizador pare antes.
 - El formato 15 solo se escribe cuando hay una secuencia HDR (D-054); las preguntas de D-053 siguen para Daniel.
+
+## D-056. Personalización: tema, acento, escala y temas propios, sin skins (24 de octubre de 2026)
+
+- **Contexto.** Daniel pidió la personalización de Rodaje (pendiente desde el 10-oct: pistas por defecto) y la pantalla de temas completa. La paleta era fija (grafito de D-027, `Palette.xaml` y `ControlColors.xaml` con colores literales) y Preferencias solo decía «La apariencia sigue el tema de Windows».
+- **Decisión.**
+  - **Qué entra:** tema por nombre (de serie Grafito, Claro y Alto contraste; propios en `%LOCALAPPDATA%\Rodaje\temas\<nombre>.rodaje-tema`, JSON con versión), acento (ocho de paleta o personalizado), escala de la interfaz (90–125 %), tamaño del texto de la línea de tiempo, editor de temas por grupos con vista previa en vivo y comprobación AA, espacios de trabajo desde Preferencias, formato y carpeta de los proyectos nuevos y el perfil `.rodaje-perfil` (apariencia, tema activo, espacios, proyecto nuevo, atajos y ratón).
+  - **Qué no entra:** skins ni editor de controles (formas, tipografía, iconos). Los controles de WinUI toman del tema solo claro/oscuro y el acento: la familia del naranja de fábrica pasa al acento y los grises opacos se invierten en un tema claro; no toman un tinte de color. Las pistas de video y audio no tienen color propio (van con paneles y barras).
+  - **Cómo se aplica en vivo:** los `SolidColorBrush` de la paleta y de `ControlColors.xaml` se recoloran en caliente (`ThemeResources.ApplyTheme`, el mismo camino que el contraste alto); nada de `RequestedTheme`, que exige reiniciar y dejaría los diálogos (fijados en oscuro) desacompasados. La escala es un `ScaleTransform` sobre la raíz con su tamaño dividido por la escala; los diálogos y menús flotantes quedan al 100 %.
+  - **Contraste:** el acento se ajusta solo hasta 3:1 sobre los paneles (AA de controles) y se avisa; el editor lista las parejas texto/fondo bajo 4,5:1 y bordes bajo 3:1 sin impedir guardar. El tema «Claro» de serie sale de invertir los grises del grafito y oscurecer el naranja hasta 3:1.
+  - **Lo que viene de fuera** (`.rodaje-tema`, `.rodaje-perfil`) pasa por `SafeText` (nombres), `WindowsFileNames` (archivos) y `Normalize` (valores acotados); un archivo roto no tumba la app: se ignora con aviso y se arranca en Grafito. Los temas de serie no se editan: se duplican.
+- **Consecuencia.** `AppSettings` suma tema, acento, escala, fuente y formato de proyecto (sin subir la versión: valores con fábrica). «Seguir a Windows» se evalúa al arrancar y al guardar Preferencias, no al cambiar Windows en caliente.

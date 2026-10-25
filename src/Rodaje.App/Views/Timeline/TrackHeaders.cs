@@ -200,7 +200,7 @@ internal sealed class TrackHeaders
         labels.Children.Add(new TextBlock
         {
             Text = track.Name,
-            FontSize = ThemeResources.Size("BodyFontSize"),
+            FontSize = ThemeResources.TimelineSize("BodyFontSize"),
             FontWeight = row.IsMain ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
             Foreground = track.Hidden || track.Muted ? _brushes.TextMuted : _brushes.Text,
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -214,7 +214,7 @@ internal sealed class TrackHeaders
             labels.Children.Add(new TextBlock
             {
                 Text = Caption(row, magnetic),
-                FontSize = ThemeResources.Size("MicroFontSize"),
+                FontSize = ThemeResources.TimelineSize("MicroFontSize"),
                 Foreground = row.IsMain && magnetic ? _brushes.Accent : _brushes.TextMuted,
                 TextTrimming = TextTrimming.CharacterEllipsis,
             });
@@ -524,7 +524,7 @@ internal sealed class TrackHeaders
         var text = new TextBlock
         {
             Text = GainText(_gainOf?.Invoke(track) ?? 0),
-            FontSize = ThemeResources.Size("MicroFontSize"),
+            FontSize = ThemeResources.TimelineSize("MicroFontSize"),
             Foreground = track.Locked ? _brushes.TextDisabled : _brushes.TextMuted,
             HorizontalAlignment = HorizontalAlignment.Left,
             Padding = new Thickness(0, 0, 8, 0),
@@ -609,7 +609,7 @@ internal sealed class TrackHeaders
             Style = _toggleStyle,
             Width = 24,
             Height = 24,
-            FontSize = ThemeResources.Size("BodyFontSize"),
+            FontSize = ThemeResources.TimelineSize("BodyFontSize"),
             Content = glyph,
             IsChecked = isOn,
         };

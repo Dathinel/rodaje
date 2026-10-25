@@ -111,6 +111,31 @@ public class ExportJobListTests
     });
 
     [Fact]
+    public void Reintentar_LaQueYaSeReintento_NoLaEncolaOtraVez() => UiThread.Run(async () =>
+    {
+        using var list = new ExportJobList(FastRunner(new ExportException(ExportErrorCode.MediaMissing, "Falta")), SynchronizationContext.Current);
+        ExportEntry entry = list.Enqueue(Request("falla.mp4"));
+        await WaitAsync(() => entry.IsFinished);
+
+        ExportEntry retried = list.Retry(entry);
+
+        Assert.Same(entry, list.Retry(entry));
+        Assert.Same(retried, Assert.Single(list.Entries));
+        await WaitAsync(() => retried.IsFinished);
+    });
+
+    [Fact]
+    public void NoSePuedeEscribir_DiceElMotivoReal()
+    {
+        const string reason = "La carpeta fotos ya tiene archivos; elige una vacía.";
+
+        string message = ExportErrorText.For(new ExportException(ExportErrorCode.OutputNotWritable, reason)).Message;
+
+        Assert.StartsWith(reason, message, StringComparison.Ordinal);
+        Assert.DoesNotContain("solo lectura", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Reintentar_ExportaElProyectoDeAhoraSiEsElMismo() => UiThread.Run(async () =>
     {
         var damaged = new ExportException(ExportErrorCode.DecodeFailed, "x") { Culprit = @"C:\medios\clip.mp4" };

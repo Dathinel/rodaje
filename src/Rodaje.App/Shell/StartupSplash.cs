@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using Microsoft.UI.Windowing;
 using Rodaje.App.Services.Settings;
+using Rodaje.App.Views.Player;
 using Windows.Graphics;
 
 namespace Rodaje.App.Shell;
@@ -75,6 +76,16 @@ internal static unsafe partial class StartupSplash
             if (_hwnd == 0)
             {
                 return;
+            }
+
+            // CW_USEDEFAULT no mira el área de trabajo: 1440×900 en un portátil pasaría bajo la barra de tareas.
+            var monitor = new MONITORINFO { cbSize = (uint)sizeof(MONITORINFO) };
+            if (GetWindowRect(_hwnd, out RECT placed) != 0 && GetMonitorInfoW(MonitorFromWindow(_hwnd, 2), &monitor) != 0) // MONITOR_DEFAULTTONEAREST
+            {
+                RECT w = monitor.rcWork;
+                ScreenRect fit = new ScreenRect(placed.Left, placed.Top, placed.Right - placed.Left, placed.Bottom - placed.Top)
+                    .FitInside(new ScreenRect(w.Left, w.Top, w.Right - w.Left, w.Bottom - w.Top));
+                _ = MoveWindow(_hwnd, fit.X, fit.Y, fit.Width, fit.Height, 0);
             }
 
             int on = 1;
@@ -212,6 +223,15 @@ internal static unsafe partial class StartupSplash
     }
 
     [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO
+    {
+        public uint cbSize;
+        public RECT rcMonitor;
+        public RECT rcWork;
+        public uint dwFlags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
     private struct WNDCLASSEXW
     {
         public uint cbSize;
@@ -269,6 +289,15 @@ internal static unsafe partial class StartupSplash
 
     [LibraryImport("user32.dll")]
     private static partial int GetClientRect(nint hwnd, out RECT rect);
+
+    [LibraryImport("user32.dll")]
+    private static partial nint MonitorFromWindow(nint hwnd, uint flags);
+
+    [LibraryImport("user32.dll")]
+    private static partial int GetMonitorInfoW(nint monitor, MONITORINFO* info);
+
+    [LibraryImport("user32.dll")]
+    private static partial int MoveWindow(nint hwnd, int x, int y, int width, int height, int repaint);
 
     [LibraryImport("user32.dll")]
     private static partial uint GetDpiForSystem();

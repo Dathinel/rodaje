@@ -6,6 +6,7 @@ using Rodaje.Engine.Timeline;
 
 namespace Rodaje.App.Tests.Settings;
 
+[Collection("StillImageDefaults")]
 public sealed class PreferencesViewModelTests
 {
     [Fact]

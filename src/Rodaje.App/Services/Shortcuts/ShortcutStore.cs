@@ -123,7 +123,7 @@ public sealed class ShortcutStore
         }
     }
 
-    private static ShortcutFile Build(ShortcutRegistry registry)
+    internal static ShortcutFile Build(ShortcutRegistry registry)
     {
         var file = new ShortcutFile { Version = CurrentVersion };
         foreach (ShortcutPreset preset in Enum.GetValues<ShortcutPreset>())
@@ -153,7 +153,7 @@ public sealed class ShortcutStore
         return file;
     }
 
-    private static void Apply(ShortcutRegistry registry, ShortcutFile file, bool replaceAll)
+    internal static void Apply(ShortcutRegistry registry, ShortcutFile file, bool replaceAll)
     {
         var keys = new Dictionary<ShortcutPreset, IReadOnlyDictionary<string, IReadOnlyList<KeyChord>>>();
         var mouse = new Dictionary<ShortcutPreset, IReadOnlyDictionary<MouseContext, IReadOnlyDictionary<MouseChord, string?>>>();
