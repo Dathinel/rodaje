@@ -4,6 +4,7 @@ using Microsoft.UI;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
+using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
@@ -101,12 +102,17 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
     private readonly ClosedListRetry _targetsRetry = new();
     private Time _shownPosition;
     private bool _updating;
-    private bool _weightGesture;
+    private bool _weightDragging;
 
     public MasksPanel()
     {
         InitializeComponent();
         TargetBox.RetryWhenClosed(_targetsRetry, Refresh);
+        // Los pasos del borde se funden por su clave; soltar o dejar el deslizador (también con el teclado) corta la fusión.
+        WeightSlider.AddHandler(PointerPressedEvent, new PointerEventHandler((_, _) => _weightDragging = true), true);
+        WeightSlider.AddHandler(PointerReleasedEvent, new PointerEventHandler((_, _) => OnWeightReleased()), true);
+        WeightSlider.AddHandler(PointerCaptureLostEvent, new PointerEventHandler((_, _) => OnWeightReleased()), true);
+        WeightSlider.LostFocus += (_, _) => OnWeightReleased();
         RegisterPropertyChangedCallback(VisibilityProperty, (_, _) => Publish());
         foreach (string mode in EffectRegistry.MaskModes)
         {
@@ -179,35 +185,25 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         return SameMask(_maskId).ConvertAll(t => (t.Clip, (string?)t.EffectId));
     }
 
-    /// <summary>La máscara <paramref name="maskId"/> del clip de ahora y la que ocupa el mismo puesto en los demás seleccionados.</summary>
-    private List<(Clip Clip, string EffectId)> SameMask(string maskId)
+    /// <summary>La máscara <paramref name="maskId"/> del clip de ahora y la del mismo puesto en los seleccionados con tantas como él.</summary>
+    private List<(Clip Clip, string EffectId)> SameMask(string maskId) => CurrentClip() is { } clip
+        ? InspectorTargets.SamePlace(clip, maskId, BuiltInEffects.Mask, Targets().Select(t => t.Clip))
+        : [];
+
+    /// <summary>
+    /// Un comando por clip seleccionado sobre su máscara equivalente, como un solo paso del historial. Si falla (pista
+    /// bloqueada), el panel vuelve a mostrar el modelo.
+    /// </summary>
+    private bool RunOnSameMask(string maskId, Func<string, string, ICommand> command)
     {
-        var list = new List<(Clip Clip, string EffectId)>();
-        int index = CurrentClip()?.Effects.Where(e => e.Type == BuiltInEffects.Mask).ToList().FindIndex(e => e.Id == maskId) ?? -1;
-        if (index < 0)
+        if (InspectorTargets.AsOneStep(SameMask(maskId).ConvertAll(t => command(t.Clip.Id, t.EffectId))) is { } step
+            && _services?.Session.Execute(step) == true)
         {
-            return list;
+            return true;
         }
 
-        foreach ((Track _, Clip clip) in Targets())
-        {
-            var masks = clip.Effects.Where(e => e.Type == BuiltInEffects.Mask).ToList();
-            if (index < masks.Count)
-            {
-                list.Add((clip, masks[index].Id));
-            }
-        }
-
-        return list;
-    }
-
-    /// <summary>Un comando por clip seleccionado sobre su máscara equivalente, como un solo paso del historial.</summary>
-    private void RunOnSameMask(string maskId, Func<string, string, ICommand> command)
-    {
-        if (InspectorTargets.AsOneStep(SameMask(maskId).ConvertAll(t => command(t.Clip.Id, t.EffectId))) is { } step)
-        {
-            Run(step);
-        }
+        Refresh();
+        return false;
     }
 
     private void Refresh()
@@ -259,12 +255,9 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         }
     }
 
+    // Con varios clips se listan todas las del primero: lo que se edita va también a la del mismo puesto en los demás.
     private void ShowList(Clip clip)
     {
-        var targets = Targets();
-        bool multi = targets.Count > 1;
-        int maxIndex = multi ? targets.Min(t => t.Clip.Effects.Count(e => e.Type == BuiltInEffects.Mask)) : int.MaxValue;
-
         var next = new List<MaskItem>();
         int number = 0;
         foreach (EffectInstance effect in clip.Effects)
@@ -275,11 +268,6 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
             }
 
             number++;
-            if (number > maxIndex)
-            {
-                break;
-            }
-
             string target = effect.Options.GetValueOrDefault(O.Target) is { Length: > 0 } id
                 ? clip.Effects.Find(e => e.Id == id) is { } limited ? EffectUi.Name(limited.Type) : "un efecto que ya no está"
                 : effect.Options.GetValueOrDefault(O.Use) == "effects" ? "la zona de los efectos" : "";
@@ -390,7 +378,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         int[] chosen = [.. selected.Where(i => i >= 0 && i < points.Length)];
         bool show = shape is MaskShape.Bezier or MaskShape.Stroke && chosen.Length > 0;
         WeightRow.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
-        if (!show || _weightGesture)
+        if (!show || _weightDragging)
         {
             return;
         }
@@ -456,22 +444,27 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         }
 
         EditorSession session = _services.Session;
-        double aspect = AspectOf(clip);
         double side = 0.35;
-        SequenceEditCommand? command = tag switch
+        SequenceEditCommand? Add(Clip target) => tag switch
         {
-            "rectangle" => Edits.AddMask(SequenceId, clip.Id, MaskShape.Rectangle),
-            "ellipse" => Edits.AddMask(SequenceId, clip.Id, MaskShape.Ellipse),
-            "polygon" => Edits.AddVertexMask(SequenceId, clip.Id, MaskShape.Bezier, 0.5, 0.5, side / aspect, side, MaskPath.Polygon(6), "Añadir un polígono"),
-            "star" => Edits.AddVertexMask(SequenceId, clip.Id, MaskShape.Bezier, 0.5, 0.5, side / aspect, side, MaskPath.Star(5), "Añadir una estrella"),
-            "line" => Edits.AddVertexMask(SequenceId, clip.Id, MaskShape.Stroke, 0.5, 0.5, 0.5, 0.1,
+            "rectangle" => Edits.AddMask(SequenceId, target.Id, MaskShape.Rectangle),
+            "ellipse" => Edits.AddMask(SequenceId, target.Id, MaskShape.Ellipse),
+            "polygon" => Edits.AddVertexMask(SequenceId, target.Id, MaskShape.Bezier, 0.5, 0.5, side / AspectOf(target), side, MaskPath.Polygon(6), "Añadir un polígono"),
+            "star" => Edits.AddVertexMask(SequenceId, target.Id, MaskShape.Bezier, 0.5, 0.5, side / AspectOf(target), side, MaskPath.Star(5), "Añadir una estrella"),
+            "line" => Edits.AddVertexMask(SequenceId, target.Id, MaskShape.Stroke, 0.5, 0.5, 0.5, 0.1,
                 [new MaskVertex(-0.5f, 0), new MaskVertex(0.5f, 0)], "Añadir una línea"),
-            "blur" => Edits.AddMaskedZone(SequenceId, clip.Id, ZoneEffect.Blur),
-            "pixelate" => Edits.AddMaskedZone(SequenceId, clip.Id, ZoneEffect.Pixelate),
-            "subject" => SubjectCommand(clip),
+            "blur" => Edits.AddMaskedZone(SequenceId, target.Id, ZoneEffect.Blur),
+            "pixelate" => Edits.AddMaskedZone(SequenceId, target.Id, ZoneEffect.Pixelate),
+            "subject" => SubjectCommand(target),
             _ => null,
         };
-        if (command is not null && session.Execute(command))
+
+        // El contorno del sujeto es de cada clip: ese solo va al de ahora.
+        SequenceEditCommand? command = Add(clip);
+        List<SequenceEditCommand> others = tag == "subject" || command is null
+            ? []
+            : [.. Targets().Where(t => t.Clip.Id != clip.Id).Select(t => Add(t.Clip)).OfType<SequenceEditCommand>()];
+        if (command is not null && InspectorTargets.AsOneStep([command, .. others]) is { } step && session.Execute(step))
         {
             _maskId = command.CreatedIds[^1];
             session.SetMaskTool(MaskTool.Select);
@@ -534,9 +527,11 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
 
     private void OnEnabledClick(object sender, RoutedEventArgs e)
     {
-        if (sender is ToggleButton { Tag: string id } toggle && _clipId is not null)
+        if (sender is ToggleButton { Tag: string id } toggle && _clipId is not null
+            && !RunOnSameMask(id, (clipId, maskId) => Edits.SetEffectEnabled(SequenceId, clipId, maskId, toggle.IsChecked != true)))
         {
-            RunOnSameMask(id, (clipId, maskId) => Edits.SetEffectEnabled(SequenceId, clipId, maskId, toggle.IsChecked != true));
+            // La fila no se rehace si el modelo no cambió.
+            toggle.IsChecked = toggle.IsChecked != true;
         }
     }
 
@@ -586,7 +581,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         Item("Subir", () => Run(Edits.MoveEffect(SequenceId, clip.Id, id, clip.Effects.IndexOf(masks[order - 1]))), order > 0);
         Item("Bajar", () => Run(Edits.MoveEffect(SequenceId, clip.Id, id, clip.Effects.IndexOf(masks[order + 1]))), order < masks.Count - 1);
         menu.Items.Add(new MenuFlyoutSeparator());
-        Item("Quitar", () => Run(Edits.RemoveEffect(SequenceId, clip.Id, id)));
+        Item("Quitar", () => RunOnSameMask(id, (clipId, maskId) => Edits.RemoveEffect(SequenceId, clipId, maskId)));
         menu.ShowAt(button);
     }
 
@@ -715,12 +710,6 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         }
 
         EditorSession session = _services.Session;
-        if (!_weightGesture)
-        {
-            _weightGesture = true;
-            session.BeginGesture("Cambiar el borde de los puntos");
-        }
-
         Time at = _editor.KeyframeTimeAtPlayhead(clip);
         MaskVertex[] vertices = MaskGeometry.Vertices(mask, clip.ToEffectTime(session.Position));
         WeightText.Text = e.NewValue.ToString("0.00", SpanishNumbers.Format);
@@ -728,13 +717,10 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
             at, "Cambiar el borde de los puntos", "mascara-peso|" + mask.Id));
     }
 
-    private void OnWeightReleased(object sender, Microsoft.UI.Xaml.Input.PointerRoutedEventArgs e)
+    private void OnWeightReleased()
     {
-        if (_weightGesture)
-        {
-            _weightGesture = false;
-            _services?.Session.EndGesture();
-        }
+        _weightDragging = false;
+        _services?.Session.BreakMerge();
     }
 
     private void OnKeyClick(object sender, RoutedEventArgs e)
