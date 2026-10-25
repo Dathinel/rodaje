@@ -186,7 +186,8 @@ internal static class AutoSubtitlesDialog
                 }
 
                 again.IsEnabled = draft.CanTranscribe(Selected());
-                dialog.IsPrimaryButtonEnabled = true;
+                // Activo mientras transcribe (aplica al terminar); después, solo si hay algo que aplicar.
+                dialog.IsPrimaryButtonEnabled = draft.CanApply;
             }
         }
 

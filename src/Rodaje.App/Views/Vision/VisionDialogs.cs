@@ -40,7 +40,7 @@ internal static class VisionDialogs
             {
                 return found.Clip.Speed is { Freeze: true }
                     ? (null, null, "Un fotograma congelado no se puede analizar: hazlo sobre el clip original.")
-                    : (found.Clip, media, null);
+                    : QuickTools.Locked(session.Sequence, found.Clip.Id) is { } locked ? (null, null, locked) : (found.Clip, media, null);
             }
         }
 
@@ -171,6 +171,7 @@ internal static class VisionDialogs
             {
                 timer.Stop();
                 progress.Visibility = Visibility.Collapsed;
+                quality.IsEnabled = matte is null;
             }
         }
     }
@@ -308,6 +309,7 @@ internal static class VisionDialogs
             {
                 timer.Stop();
                 progress.Visibility = Visibility.Collapsed;
+                aspect.IsEnabled = subject.IsEnabled = plan is null;
             }
         }
     }

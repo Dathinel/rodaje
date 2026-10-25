@@ -10,9 +10,9 @@ public static partial class Edits
 {
     /// <summary>Agrega el efecto si el clip no tiene ninguno de ese tipo (por ejemplo, la transformación antes de editarla).</summary>
     /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: el efecto creado, o vacío si ya existía.</remarks>
-    public static SequenceEditCommand EnsureEffect(string sequenceId, string clipId, string type, IIdGenerator? ids = null) =>
+    public static SequenceEditCommand EnsureEffect(string sequenceId, string clipId, string type, IIdGenerator? ids = null, string? description = null) =>
         new(
-            "Añadir efecto",
+            description ?? "Añadir efecto",
             sequenceId,
             ctx => EffectEdits.EnsureEffect(ctx, clipId, type) is { } id ? [id] : (IReadOnlyList<string>)[],
             ids);
@@ -42,8 +42,9 @@ public static partial class Edits
             ids);
     }
 
-    public static SequenceEditCommand RemoveEffect(string sequenceId, string clipId, string effectId, IIdGenerator? ids = null) =>
-        new("Quitar filtro", sequenceId, ctx => EffectEdits.RemoveEffect(ctx, clipId, effectId), ids);
+    /// <param name="description">Texto del historial cuando el efecto no se ve como filtro (un seguimiento, el compresor).</param>
+    public static SequenceEditCommand RemoveEffect(string sequenceId, string clipId, string effectId, IIdGenerator? ids = null, string? description = null) =>
+        new(description ?? "Quitar filtro", sequenceId, ctx => EffectEdits.RemoveEffect(ctx, clipId, effectId), ids);
 
     /// <summary>Quita un efecto de varios clips en un solo paso del historial.</summary>
     public static SequenceEditCommand RemoveEffectFromClips(string sequenceId, IEnumerable<(string ClipId, string EffectId)> targets, IIdGenerator? ids = null)
@@ -65,16 +66,18 @@ public static partial class Edits
     public static SequenceEditCommand MoveEffect(string sequenceId, string clipId, string effectId, int newIndex, IIdGenerator? ids = null) =>
         new("Reordenar filtros", sequenceId, ctx => EffectEdits.MoveEffect(ctx, clipId, effectId, newIndex), ids);
 
-    public static SequenceEditCommand SetEffectEnabled(string sequenceId, string clipId, string effectId, bool enabled, IIdGenerator? ids = null) =>
+    public static SequenceEditCommand SetEffectEnabled(string sequenceId, string clipId, string effectId, bool enabled, IIdGenerator? ids = null,
+        string? description = null) =>
         new(
-            enabled ? "Activar filtro" : "Desactivar filtro",
+            description ?? (enabled ? "Activar filtro" : "Desactivar filtro"),
             sequenceId,
             ctx => EffectEdits.SetEffectEnabled(ctx, clipId, effectId, enabled),
             ids);
 
     /// <summary>Fija una opción del efecto (modo de mezcla, LUT, origen); un valor vacío la quita.</summary>
-    public static SequenceEditCommand SetEffectOption(string sequenceId, string clipId, string effectId, string name, string value, IIdGenerator? ids = null) =>
-        new("Cambiar filtro", sequenceId, ctx => EffectEdits.SetOption(ctx, clipId, effectId, name, value), ids);
+    public static SequenceEditCommand SetEffectOption(string sequenceId, string clipId, string effectId, string name, string value, IIdGenerator? ids = null,
+        string? description = null) =>
+        new(description ?? "Cambiar filtro", sequenceId, ctx => EffectEdits.SetOption(ctx, clipId, effectId, name, value), ids);
 
     /// <summary>Cambia un parámetro; si está animado, crea o fija el keyframe en <paramref name="at"/> (tiempo del origen).</summary>
     /// <remarks>

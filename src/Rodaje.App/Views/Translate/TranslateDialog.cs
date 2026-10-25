@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.LongActions;
+using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Translate;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
@@ -66,10 +67,12 @@ internal static class TranslateDialog
         int last = targets.ToList().FindIndex(l => l.Code == _lastTarget);
         target.SelectedIndex = last >= 0 ? last : 1;
 
+        const string Intro = "Se crea una pista nueva encima con los mismos tiempos; la original no cambia.";
+        const string SameLanguage = "Elige un idioma distinto del original.";
         var busy = new ProgressRing { IsActive = false, Width = 20, Height = 20 };
         var status = new TextBlock
         {
-            Text = "Se crea una pista nueva encima con los mismos tiempos; la original no cambia.",
+            Text = Intro,
             TextWrapping = TextWrapping.Wrap,
             Width = AnalysisUi.PreviewWidth - 30,
         };
@@ -87,8 +90,15 @@ internal static class TranslateDialog
         using var work = new DialogWork();
         bool running = false;
 
-        void Refresh() => dialog.IsPrimaryButtonEnabled = !running && Chosen(track, trackChoices) is not null && Chosen(target, targets) is { } to
-            && Chosen(source, sources)?.Code != to.Code;
+        void Refresh()
+        {
+            bool same = Chosen(target, targets) is { } to && Chosen(source, sources)?.Code == to.Code;
+            dialog.IsPrimaryButtonEnabled = !running && Chosen(track, trackChoices) is not null && Chosen(target, targets) is not null && !same;
+            if (same || status.Text == SameLanguage)
+            {
+                status.Text = same ? SameLanguage : Intro;
+            }
+        }
 
         void Estimate() => advice.Show(Chosen(track, trackChoices) is { } c && session.Sequence.FindTrack(c.TrackId) is { } chosen
             ? translator.Estimate(SubtitleTrackTranslation.Collect(chosen))
@@ -131,7 +141,12 @@ internal static class TranslateDialog
             catch (Exception ex)
 #pragma warning restore CA1031
             {
-                status.Text = ex is TranslationException or ModuleException ? ex.Message : "No se pudo traducir. El proyecto no cambió.";
+                status.Text = ex switch
+                {
+                    ModuleException error when modules.Find(SubtitleTrackTranslation.ModuleId) is { } module => ModuleManager.Friendly(module, error),
+                    TranslationException or ModuleException => ex.Message,
+                    _ => "No se pudo traducir. El proyecto no cambió.",
+                };
                 if (ex is not (TranslationException or ModuleException))
                 {
                     UiTask.Report(ex, notify: false);

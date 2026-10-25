@@ -63,6 +63,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
     private ChoiceList<string?> _targets = new();
     private readonly ClosedListRetry _targetsRetry = new();
     private Time _shownPosition;
+    private string? _shownTrack;
 
     public TrackingPanel()
     {
@@ -211,6 +212,13 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
 
     private void ShowSelected(Clip clip)
     {
+        // El resultado de seguir o aplicar es de un seguimiento: no queda a la vista al pasar a otro.
+        if (_shownTrack != $"{_clipId}|{_trackId}")
+        {
+            _shownTrack = $"{_clipId}|{_trackId}";
+            RunText.Text = ApplyText.Text = "";
+        }
+
         if (CurrentTrack() is not { } track)
         {
             Selected.Visibility = Visibility.Collapsed;
@@ -316,7 +324,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         Item("Renombrar…", () => Rename(button, clip, track));
         Item("Borrar lo seguido", () => Session.Execute(TrackEdits.SetSamples(Session.SequenceId, clip.Id, id, null, "Borrar lo seguido")));
         menu.Items.Add(new MenuFlyoutSeparator());
-        Item("Quitar", () => Session.Execute(Edits.RemoveEffect(Session.SequenceId, clip.Id, id)));
+        Item("Quitar", () => Session.Execute(Edits.RemoveEffect(Session.SequenceId, clip.Id, id, description: "Quitar seguimiento")));
         menu.ShowAt(button);
     }
 
@@ -333,7 +341,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
                 string name = box.Text.Trim();
                 if (name.Length > 0)
                 {
-                    Session.Execute(Edits.SetEffectOption(Session.SequenceId, clip.Id, track.Id, O.Name, name));
+                    Session.Execute(Edits.SetEffectOption(Session.SequenceId, clip.Id, track.Id, O.Name, name, description: "Renombrar seguimiento"));
                 }
             }
         };
@@ -410,16 +418,26 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         var collected = new SortedDictionary<Time, TrackSample[]>();
         string clipId = clip.Id, trackId = track.Id;
         _runMerge = $"seguimiento-seguir|{trackId}|{++_runs}";
-        int pending = 0, lost = 0, doubtful = 0;
-        bool gone = false;
+        int pending = 0, lost = 0, doubtful = 0, saved = 0;
+        bool gone = false, unsaved = false;
         float threshold = request.Threshold;
         void Commit()
         {
-            if (collected.Count > 0)
+            // Solo el cuadro de partida no es nada seguido: no deja paso en el historial.
+            if (collected.Count > 1 && !unsaved)
             {
                 var update = new PointTrack([.. collected.Keys], [.. collected.Values]);
-                Session.TryExecute(TrackEdits.SetSamples(Session.SequenceId, clipId, trackId, existing?.Merge(update) ?? update,
-                    forward ? "Seguir hacia adelante" : "Seguir hacia atrás", _runMerge));
+                if (Session.TryExecute(TrackEdits.SetSamples(Session.SequenceId, clipId, trackId, existing?.Merge(update) ?? update,
+                    forward ? "Seguir hacia adelante" : "Seguir hacia atrás", _runMerge)))
+                {
+                    saved = collected.Count - 1;
+                }
+                else
+                {
+                    // Ya no cabe (o el clip ya no está): seguir sería perder el cálculo sin aviso.
+                    unsaved = true;
+                    _services?.LongActions.Cancel(RunActionId);
+                }
             }
 
             pending = 0;
@@ -474,7 +492,9 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
 
         Session.BreakMerge();
         int frames = Math.Max(0, collected.Count - 1);
-        RunText.Text = frames == 0
+        RunText.Text = unsaved
+            ? $"Se detuvo: lo seguido ya no se pudo guardar (es demasiado largo o el clip ya no está). Quedaron guardados {saved} fotogramas."
+            : frames == 0
             ? "No había fotogramas para seguir en esa dirección."
             : $"Seguidos {frames} fotogramas hacia {(forward ? "adelante" : "atrás")}"
                 + (doubtful > 0 ? $"; {doubtful} dudosos" : "")
