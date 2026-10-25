@@ -59,6 +59,9 @@ internal sealed class ClipVisual
     private readonly List<Image> _thumbPool = [];
     private readonly Path _wave = new();
     private readonly RectangleGeometry _waveBounds = new();
+    private (string MediaId, ClipTimeMap Map, Time Low, Time High, int Count, double Width, double Height)? _waveKey;
+    private ClipDraw _last;
+    private IClipVisuals? _visuals;
     private readonly Border _veil = new();
     private readonly Polyline _envelope = new() { StrokeThickness = 1.5 };
     private readonly Path _envelopePoints = new() { StrokeThickness = 1 };
@@ -155,6 +158,15 @@ internal sealed class ClipVisual
 
     public string? ClipId { get; private set; }
 
+    public string? MediaId => ClipId is null ? null : _last.Clip.MediaId;
+
+    /// <summary>Vuelve a dibujar el clip con lo último que se le pidió (llegaron miniaturas o picos de su medio).</summary>
+    public void Refresh()
+    {
+        _waveKey = null;
+        Update(_last, _visuals);
+    }
+
     public void Hide()
     {
         ClipId = null;
@@ -164,6 +176,8 @@ internal sealed class ClipVisual
     public void Update(in ClipDraw d, IClipVisuals? visuals)
     {
         ClipId = d.Clip.Id;
+        _last = d;
+        _visuals = visuals;
         // El tamaño de fuente de la línea de tiempo se cambia en Preferencias sin reiniciar.
         double nameSize = ThemeResources.TimelineSize("CaptionFontSize");
         if (_name.FontSize != nameSize)
@@ -460,8 +474,17 @@ internal sealed class ClipVisual
         // Se pide el tramo del origen que se ve y cada punto toma el suyo con el mapeo: a otra velocidad, en reversa o
         // con una curva la onda sigue al material. Mientras se calcula (o sin sonido) se dibuja el marcador de posición.
         (Time low, Time high) = ClipMapping.VisibleSource(map, TimeAt(d, 0), TimeAt(d, d.Width));
+        var key = (clip.MediaId, map, low, high, count, d.Width, d.Height);
+        if (_waveKey == key)
+        {
+            // La misma onda completa que ya está dibujada: no se vuelve a pedir ni a construir su geometría.
+            _wave.Visibility = Visibility.Visible;
+            return;
+        }
+
         WaveformSlice? slice = visuals?.GetWaveform(clip.MediaId, low, high, count);
         bool real = slice is { IsComplete: true, HasAudio: true } && slice.Buckets == count;
+        _waveKey = real ? key : null;
         for (int i = 0; i < count; i++)
         {
             double x = i == count - 1 ? d.Width : i * step;
