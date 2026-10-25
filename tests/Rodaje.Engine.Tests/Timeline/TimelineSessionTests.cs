@@ -40,6 +40,26 @@ public sealed class TimelineSessionTests
     }
 
     [Fact]
+    public void Each_delivered_frame_signals_so_the_render_thread_can_sleep_until_then()
+    {
+        var backend = new FakeTimelineBackend { ManualDecoding = true };
+        var b = new TimelineBuilder(1, 0);
+        b.AddMedia("m0", Rational.Fps30, 3000, backend: backend);
+        b.AddVideo(0, "m0", Time.Zero, Time.Zero, S(4));
+        using TimelineSession session = Open(b, backend);
+        int delivered = 0;
+        session.FrameDelivered += (_, _) => delivered++;
+
+        session.Tick().Dispose();
+        Assert.Equal(0, delivered);
+
+        backend.RunDecoders();
+        Assert.True(delivered > 0);
+        using CompositionFrame frame = session.Tick();
+        Assert.Single(frame.Layers);
+    }
+
+    [Fact]
     public void Each_layer_carries_the_pixel_shape_and_rotation_of_its_source()
     {
         var backend = new FakeTimelineBackend();

@@ -10,6 +10,9 @@ public sealed record TrackRow(Track Track, int Row, double Top, double Height, b
     public TrackKind Kind => Track.Kind;
 
     public double Bottom => Top + Height;
+
+    /// <summary>Si la fila asoma en la franja vertical [<paramref name="top"/>, <paramref name="bottom"/>) del contenido.</summary>
+    public bool Overlaps(double top, double bottom) => Bottom > top && Top < bottom;
 }
 
 /// <summary>
