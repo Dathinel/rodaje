@@ -44,7 +44,8 @@ public partial class App : Application
         if (!_options.IsAutomated)
         {
             // Después de los avisos del arranque, para que no lo tapen.
-            _ = DispatcherQueue.GetForCurrentThread().RunLater(DispatcherQueuePriority.Low, OfferPendingCrashReports);
+            MainWindow window = _window;
+            _ = DispatcherQueue.GetForCurrentThread().RunLater(DispatcherQueuePriority.Low, () => UiTask.Run(OfferAfterUncleanExitAsync(window)));
         }
     }
 
@@ -96,19 +97,21 @@ public partial class App : Application
         session.Notified += (_, n) => Program.Log.Append($"Aviso ({n.Severity}): {n.Title}. {n.Message}");
     }
 
-    // Si la vez anterior la app se cerró por un error, lo dice y ofrece copiar el informe para enviarlo.
-    private void OfferPendingCrashReports()
+    // Si la vez anterior la app no se cerró bien, un solo aviso (la barra muestra uno): «Recuperar» si quedaron cambios
+    // sin guardar, con «Copiar informe» al lado si hay informe; si no, el del informe solo.
+    private async Task OfferAfterUncleanExitAsync(MainWindow window)
     {
         IReadOnlyList<string> pending = Program.Crashes.PendingReports();
-        if (pending.Count == 0 || _window is null)
+        NotificationAction? copy = pending.Count > 0 ? new NotificationAction("Copiar informe", () => CopyReport(pending[^1])) : null;
+        if (await window.OfferRecoveryAsync(copy) is null && copy is not null)
         {
-            return;
+            window.Session.Notify(NotificationSeverity.Warning, "Rodaje se cerró por un error", CrashReporter.DescribePending(pending), copy);
         }
 
-        Program.Crashes.AcknowledgePending();
-        string latest = pending[^1];
-        _window.Session.Notify(NotificationSeverity.Warning, "Rodaje se cerró por un error", CrashReporter.DescribePending(pending),
-            new NotificationAction("Copiar informe", () => CopyReport(latest)));
+        if (copy is not null)
+        {
+            Program.Crashes.AcknowledgePending();
+        }
     }
 
     private void CopyReport(string path)
