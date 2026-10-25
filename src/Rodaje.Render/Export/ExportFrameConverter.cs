@@ -445,8 +445,13 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         int bits = pixels.BitDepth();
         double max = (1 << bits) - 1;
         double unit = Math.Pow(2, bits - 8);
-        (double kr, double kb) = format.Color.Matrix == ExportMatrix.Bt601 ? (0.299, 0.114) : (0.2126, 0.0722);
-        uint flags = 0;
+        (double kr, double kb) = format.Color.Matrix switch
+        {
+            ExportMatrix.Bt601 => (0.299, 0.114),
+            ExportMatrix.Bt2020 => (0.2627, 0.0593),
+            _ => (0.2126, 0.0722),
+        };
+        uint flags = format.Color.Transfer switch { ExportTransfer.Pq => 16u, ExportTransfer.Hlg => 32u, _ => 0u };
         if (Dither && bits == 8)
         {
             flags |= 1;
@@ -587,7 +592,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     private void CreateResources()
     {
         _scale = CreateShader(ExportShaders.ScaleVariant);
-        _convert = CreateShader(ExportShaders.ConvertVariant);
+        _convert = CreateShader(Output.Color.IsHdr ? ExportShaders.ConvertHdrVariant : ExportShaders.ConvertVariant);
         _thumbnail = CreateShader(ExportShaders.ThumbnailVariant);
         _scaleConstants = CreateConstants(sizeof(ScaleConstants));
         _convertConstants = CreateConstants(sizeof(ConvertConstants));

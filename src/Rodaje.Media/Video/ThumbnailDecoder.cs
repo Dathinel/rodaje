@@ -370,6 +370,9 @@ public sealed unsafe class ThumbnailDecoder : IDisposable
             }
         }
 
+        // El compositor convierte el HDR al componer (D-052); aquí no hay compositor, así que se convierte en la CPU.
+        AVCodecParameters* par = _format->streams[_streamIndex]->codecpar;
+        HdrToneMap.ToSdrInPlace(pixels, VideoColor.Resolve(source, par->color_space, par->color_range, par->color_trc, par->color_primaries));
         ffmpeg.av_frame_unref(_scaled);
         return new BgraImage(width, height, pixels);
     }

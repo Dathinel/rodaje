@@ -3,6 +3,22 @@ using Rodaje.Core.Timing;
 
 namespace Rodaje.Core.Model;
 
+/// <summary>Espacio de color en que se trabaja, se ve y se exporta una secuencia (formato 15).</summary>
+public enum SequenceColorSpace
+{
+    /// <summary>SDR BT.709: lo de siempre. Los medios HDR se convierten al entrar (D-052).</summary>
+    [JsonStringEnumMemberName("sdr-709")]
+    Sdr709,
+
+    /// <summary>HDR10: BT.2020 con curva PQ (ST 2084).</summary>
+    [JsonStringEnumMemberName("hdr-pq")]
+    HdrPq,
+
+    /// <summary>BT.2020 con curva HLG (ARIB STD-B67).</summary>
+    [JsonStringEnumMemberName("hdr-hlg")]
+    HdrHlg,
+}
+
 /// <summary>Línea de tiempo; el índice 0 de <see cref="VideoTracks"/> es la capa de más abajo.</summary>
 public sealed class Sequence
 {
@@ -45,6 +61,10 @@ public sealed class Sequence
     public int Height { get; set; } = 1080;
 
     public int SampleRate { get; set; } = 48000;
+
+    /// <summary>Por defecto SDR; no se escribe en el archivo (y el formato se queda en 13 o 14) si todas las secuencias son SDR.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public SequenceColorSpace ColorSpace { get; set; }
 
     public const double MinMasterGainDb = -60;
 

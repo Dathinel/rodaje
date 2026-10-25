@@ -47,7 +47,7 @@ Detalle de ingeniería de cada subsistema en `src/` (diseño sin dependencias ci
 
 - **[Matriz de formatos compatibles](formatos.md):** 37 combinaciones de contenedores, códecs de video, audio e imágenes verificadas de punta a punta.
 - **[HDR, 10 bits y RAW](hdr.md):** Profundidad medida en cada punto de la cadena y plan por fases (HDR → SDR, 10 bits de punta a punta, trabajar en HDR, RAW).
-- **[Formato de proyecto `.rodaje`](formato-proyecto.md):** Especificación del archivo JSON de proyecto, marcas de tiempo en ticks racionales y [esquema JSON](../schema/rodaje-proyecto.v13.schema.json).
+- **[Formato de proyecto `.rodaje`](formato-proyecto.md):** Especificación del archivo JSON de proyecto, marcas de tiempo en ticks racionales y [esquema JSON](../schema/rodaje-proyecto.v15.schema.json).
 - **[Formato modular `.paquete`](formato-paquete.md):** Empaquetado zip para plantillas, filtros, transiciones, tablas LUT y módulos ejecutables.
 - **[Protocolo de módulos de IA](protocolo-modulos.md):** Comunicación interproceso mediante tuberías nombradas y memoria compartida para integrar modelos en cualquier lenguaje.
 - **[Descarga y seguridad del catálogo](descarga.md):** Infraestructura de catálogo firmado mediante claves criptográficas para distribución segura de complementos.

@@ -309,17 +309,15 @@ public sealed class ProjectRoundTripPropertiesTests : IDisposable
     /// </summary>
     private static class SchemaCheck
     {
-        private static readonly Lazy<JsonDocument> Schema = new(() =>
-            JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "schema", $"rodaje-proyecto.v{Project.CurrentSchemaVersion}.schema.json"))));
-
-        private static readonly Lazy<JsonDocument> Schema13 = new(() =>
-            JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "schema", "rodaje-proyecto.v13.schema.json"))));
+        // Un archivo se escribe en 13, 14 o 15 según lo que contenga: se valida contra el esquema de su versión.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, JsonDocument> Schemas = new();
 
         public static void AssertValid(string json, string context)
         {
             using JsonDocument doc = JsonDocument.Parse(json);
             var problems = new List<string>();
-            JsonElement schema = doc.RootElement.GetProperty("schemaVersion").GetInt32() == 13 ? Schema13.Value.RootElement : Schema.Value.RootElement;
+            JsonElement schema = Schemas.GetOrAdd(doc.RootElement.GetProperty("schemaVersion").GetInt32(), version =>
+                JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "schema", $"rodaje-proyecto.v{version}.schema.json")))).RootElement;
             Check(doc.RootElement, schema, "$", problems, schema);
             Assert.True(problems.Count == 0, $"El archivo no cumple el esquema ({context}):\n" + string.Join("\n", problems.Take(10)));
         }

@@ -1366,6 +1366,7 @@ internal static class FfmpegPipeArguments
             {
                 // En la entrada para que los cuadros lleven el color; en la salida para que lo escriban todos los codificadores.
                 args.AddRange(video.Color.FfmpegArguments());
+                args.AddRange(video.Color.FfmpegHdrInputArguments());
             }
 
             args.AddRange(["-i", "pipe:0"]);
