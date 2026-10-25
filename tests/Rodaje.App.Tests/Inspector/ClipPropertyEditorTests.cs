@@ -296,6 +296,28 @@ public class ClipPropertyEditorTests
     });
 
     [Fact]
+    public void TrasCortar_LaNavegacionSoloVaALosKeyframesDelTrozo() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.WithClip(6);
+        double scale = P.DefaultValue(P.Scale);
+        h.At(1);
+        Assert.True(h.Editor.ToggleKeyframe(h.Video, Transform, P.Scale, scale));
+        h.At(5);
+        Assert.True(h.Editor.ToggleKeyframe(h.Video, Transform, P.Scale, scale));
+        h.At(3);
+        Assert.True(h.Session.SplitAtPlayhead());
+        Clip left = h.Session.MainTrack!.Clips[0];
+        Clip right = h.Session.MainTrack!.Clips[1];
+
+        h.At(2);
+        Assert.Equal(S(1), h.Editor.Read(left, Transform, P.Scale, scale).Previous);
+        Assert.Null(h.Editor.Read(left, Transform, P.Scale, scale).Next);
+        h.At(4);
+        Assert.Null(h.Editor.Read(right, Transform, P.Scale, scale).Previous);
+        Assert.Equal(S(5), h.Editor.Read(right, Transform, P.Scale, scale).Next);
+    });
+
+    [Fact]
     public void PistaBloqueada_AvisaUnaVezPorArrastre_YNoQuedaNada() => UiThread.Run(async () =>
     {
         Harness h = await Harness.WithClip();

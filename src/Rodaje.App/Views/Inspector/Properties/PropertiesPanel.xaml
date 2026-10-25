@@ -66,6 +66,9 @@
                 <TextBlock x:Name="TransformNote" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,8"
                            TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed"
                            Text="Transformar está desactivado en Filtros: los cambios se guardan pero no se ven." />
+                <TextBlock x:Name="PlayheadNote" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,8"
+                           TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed"
+                           Text="El cursor está fuera del clip: llévalo dentro para poner o cambiar keyframes." />
 
                 <inspector:InspectorSection x:Name="PlacementSection" Key="posicion" Title="Posición y tamaño">
                     <inspector:InspectorSection.Actions>

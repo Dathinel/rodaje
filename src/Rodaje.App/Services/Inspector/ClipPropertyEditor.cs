@@ -62,13 +62,14 @@ public sealed class ClipPropertyEditor
     /// <summary>
     /// A qué clips va cada parte del panel con la selección de ahora: los de video seleccionados y el audio (los de audio
     /// seleccionados y el enlazado de cada video). Si se mezclan clips de video y de audio, solo queda lo común: el
-    /// audio, y solo si todos los de video tienen el suyo.
+    /// audio, y solo si todos los de video tienen el suyo. El audio enlazado de un video seleccionado va con su video.
     /// </summary>
     public (IReadOnlyList<Clip> Video, IReadOnlyList<Clip> Audio) Targets()
     {
         List<Clip> video = Selected(TrackKind.Video);
         List<Clip> audio = Selected(TrackKind.Audio);
         List<Clip?> linked = video.ConvertAll(v => (Clip?)Session.Sequence.GetLinkGroup(v.Id).Find(g => g.Track.Kind == TrackKind.Audio).Clip);
+        audio.RemoveAll(linked.Contains);
         List<Clip> sound = [.. audio.Concat(linked.OfType<Clip>()).Distinct()];
         if (video.Count > 0 && audio.Count > 0)
         {
@@ -77,6 +78,10 @@ public sealed class ClipPropertyEditor
 
         return (video, sound);
     }
+
+    /// <summary>Cuántos clips hay seleccionados, con los enlazados (el video y su audio) como uno solo.</summary>
+    public int SelectedCount() =>
+        Session.SelectedClipIds.Select(Session.Sequence.FindClip).OfType<(Track Track, Clip Clip)>().Select(f => f.Clip.LinkId ?? f.Clip.Id).Distinct().Count();
 
     /// <summary>El parámetro no vale lo mismo en todos los clips en el cursor: el inspector lo muestra como «—».</summary>
     public bool IsMixed(IReadOnlyList<Clip> clips, string effectType, string name, double defaultValue = 0)
@@ -145,8 +150,13 @@ public sealed class ClipPropertyEditor
         List<Keyframe> keys = parameter.Keyframes;
         Keyframe? here = KeyframeNear(clip, keys, at);
         Time tolerance = HalfFrame(clip);
-        Keyframe? previous = keys.FindLast(k => k.Time < at - tolerance);
-        Keyframe? next = keys.Find(k => k.Time > at + tolerance);
+        // Cortar o recortar deja en el efecto los keyframes de fuera del trozo: ◀ y ▶ solo van a los de dentro.
+        Time first = EffectCommands.KeyframeTime(clip, clip.Start);
+        Time last = EffectCommands.KeyframeTime(clip, clip.End - Time.FromTicks(1));
+        Time low = Time.Min(first, last);
+        Time high = Time.Max(first, last);
+        Keyframe? previous = keys.FindLast(k => k.Time < at - tolerance && k.Time >= low && k.Time <= high);
+        Keyframe? next = keys.Find(k => k.Time > at + tolerance && k.Time >= low && k.Time <= high);
         return new ParameterState(
             PathValue(effect, name, parameter, at),
             keys.Count,
@@ -358,6 +368,40 @@ public sealed class ClipPropertyEditor
         }
     }
 
+    /// <summary>
+    /// El rombo con varios clips, en un paso del historial: si el primero con el cursor dentro tiene keyframe ahí, se quita
+    /// en todos los que lo tienen; si no, se crea en los que no lo tienen.
+    /// </summary>
+    public bool ToggleKeyframe(IReadOnlyList<Clip> clips, string effectType, string name, double defaultValue)
+    {
+        ArgumentNullException.ThrowIfNull(clips);
+        List<Clip> inside = [.. clips.Where(IsPlayheadInside)];
+        if (inside.Count <= 1)
+        {
+            return inside.Count == 1 && ToggleKeyframe(inside[0], effectType, name, defaultValue);
+        }
+
+        bool remove = Read(inside[0], effectType, name, defaultValue).KeyframeHere is not null;
+        Session.BeginGesture(remove ? "Quitar keyframe" : "Añadir keyframe");
+        try
+        {
+            bool done = false;
+            foreach (Clip clip in inside)
+            {
+                if (Session.Sequence.FindClip(clip.Id) is { } found && (Read(found.Clip, effectType, name, defaultValue).KeyframeHere is not null) == remove)
+                {
+                    done |= ToggleKeyframe(found.Clip, effectType, name, defaultValue);
+                }
+            }
+
+            return done;
+        }
+        finally
+        {
+            Session.EndGesture();
+        }
+    }
+
     /// <summary>Algún parámetro de la lista tiene keyframes o un valor distinto del de fábrica en alguno de los clips.</summary>
     public static bool CanReset(IEnumerable<(Clip Clip, string? EffectId)> targets, string effectType,
         IEnumerable<(string Name, double DefaultValue)> parameters)
@@ -547,6 +591,67 @@ public sealed class ClipPropertyEditor
         double value = parameter.Evaluate(KeyframeTimeAtPlayhead(found.Clip));
         return Session.Execute(Edits.ResetParameters(
             Session.SequenceId, clipId, effect.Id, new Dictionary<string, double> { [name] = value }, description));
+    }
+
+    /// <summary>
+    /// «Quitar keyframes» con varios clips: tras una sola confirmación, cada uno queda fijo en el valor que tiene en el
+    /// cursor. Un paso del historial.
+    /// </summary>
+    public async Task<bool> ClearKeyframesAsync(
+        IReadOnlyList<Clip> clips, string effectType, string name, string description, Func<int, Task<bool>> confirmRemoval)
+    {
+        ArgumentNullException.ThrowIfNull(clips);
+        ArgumentNullException.ThrowIfNull(confirmRemoval);
+        if (clips.Count == 1)
+        {
+            return await ClearKeyframesAsync(clips[0], effectType, name, description, confirmRemoval);
+        }
+
+        EndChange();
+        int keyframes = KeyframeCount(clips, effectType, [name]);
+        if (keyframes == 0 || !await confirmRemoval(keyframes))
+        {
+            return false;
+        }
+
+        // Mientras el aviso estaba abierto los clips pudieron cambiar: se vuelven a leer.
+        var results = new List<(string ClipId, string EffectId, IReadOnlyDictionary<string, double> Defaults)>();
+        foreach (Clip clip in clips)
+        {
+            if (Session.Sequence.FindClip(clip.Id) is { } found && FindEffect(found.Clip, effectType) is { } effect
+                && effect.Parameters.TryGetValue(name, out Parameter? parameter) && parameter.Keyframes.Count > 0)
+            {
+                results.Add((clip.Id, effect.Id, new Dictionary<string, double> { [name] = parameter.Evaluate(KeyframeTimeAtPlayhead(found.Clip)) }));
+            }
+        }
+
+        return results.Count > 0 && Session.Execute(Edits.ResetParametersOnClips(Session.SequenceId, results, description));
+    }
+
+    /// <summary>La curva del keyframe del cursor en cada clip que tiene uno ahí, en un paso del historial.</summary>
+    public bool SetInterpolation(IReadOnlyList<Clip> clips, string effectType, string name, Interpolation interpolation)
+    {
+        ArgumentNullException.ThrowIfNull(clips);
+        if (clips.Count == 1)
+        {
+            return SetInterpolation(clips[0], effectType, name, interpolation);
+        }
+
+        Session.BeginGesture("Cambiar interpolación");
+        try
+        {
+            bool done = false;
+            foreach (Clip clip in clips)
+            {
+                done |= Session.Sequence.FindClip(clip.Id) is { } found && SetInterpolation(found.Clip, effectType, name, interpolation);
+            }
+
+            return done;
+        }
+        finally
+        {
+            Session.EndGesture();
+        }
     }
 
     /// <summary>Cambia la curva del keyframe del cursor hacia el siguiente.</summary>

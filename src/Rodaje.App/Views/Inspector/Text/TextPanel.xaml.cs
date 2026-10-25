@@ -194,7 +194,8 @@ internal sealed partial class TextPanel : UserControl, IEditorView
     {
         if (!_updating && _editor is { } editor)
         {
-            editor.SetEdges(InBox.IsChecked == true, OutBox.IsChecked == true);
+            // Solo el borde que se tocó: con varios títulos, el otro se queda como estaba en cada uno.
+            editor.SetEdges(ReferenceEquals(sender, InBox) ? InBox.IsChecked == true : null, ReferenceEquals(sender, OutBox) ? OutBox.IsChecked == true : null);
         }
     }
 

@@ -67,10 +67,18 @@ public sealed partial class SpeedEditor
     public Clip? Target() =>
         (InspectorTargets.First(Session, t => t.Track.Kind == TrackKind.Video) ?? InspectorTargets.First(Session))?.Clip;
 
-    /// <summary>Todos los clips seleccionados que pueden tener velocidad (excluye imágenes fijas y generadores de títulos).</summary>
-    public IReadOnlyList<Clip> Targets() =>
-        InspectorTargets.Selected(Session, t => t.Clip.Generator is null && Session.Project.FindMedia(t.Clip.MediaId)?.IsStillImage != true)
-            .ConvertAll(t => t.Clip);
+    /// <summary>
+    /// Todos los clips seleccionados que pueden tener velocidad (excluye imágenes fijas y generadores de títulos). Los
+    /// enlazados cuentan como uno, el de video: la velocidad cambia el grupo entero.
+    /// </summary>
+    public IReadOnlyList<Clip> Targets()
+    {
+        var links = new HashSet<string>(StringComparer.Ordinal);
+        return [.. InspectorTargets.Selected(Session, t => t.Clip.Generator is null && Session.Project.FindMedia(t.Clip.MediaId)?.IsStillImage != true)
+            .OrderBy(t => t.Track.Kind == TrackKind.Video ? 0 : 1)
+            .Where(t => t.Clip.LinkId is not { } link || links.Add(link))
+            .Select(t => t.Clip)];
+    }
 
     /// <summary>Verifica si los clips tienen velocidades o estados de velocidad diferentes.</summary>
     public static bool IsMixed(IReadOnlyList<Clip> clips)
@@ -191,7 +199,7 @@ public sealed partial class SpeedEditor
             return false;
         }
 
-        if (clips.Count == 1 && Read(clips[0]) is { HasCurve: false } state && state.Rate == rate)
+        if (clips.All(c => Read(c) is { HasCurve: false } state && state.Rate == rate))
         {
             return false;
         }
