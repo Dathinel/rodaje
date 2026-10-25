@@ -395,6 +395,7 @@ internal sealed partial class TextPanel
             };
             AutomationProperties.SetName(number, name);
             ToolTipService.SetToolTip(number, name);
+            NumberBoxCommit.CommitBeforeFocusLeaves(number);
             number.ValueChanged += (_, e) =>
             {
                 if (!_updating && double.IsFinite(e.NewValue))

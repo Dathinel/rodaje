@@ -243,6 +243,7 @@ internal sealed partial class TextPanel
             },
         };
         AutomationProperties.SetName(number, label);
+        NumberBoxCommit.CommitBeforeFocusLeaves(number);
         if (field == "font-size")
         {
             _sizeNumber = number;
