@@ -289,7 +289,8 @@ public sealed partial class EditorSession
             MediaImported?.Invoke(this, added);
         }
 
-        if (added.Where(i => i.Video?.HdrTransfer is not null).Select(i => $"{Path.GetFileName(i.Path)} ({i.Video!.HdrTransfer})").ToList() is { Count: > 0 } hdr)
+        if (Sequence.ColorSpace == SequenceColorSpace.Sdr709
+            && added.Where(i => i.Video?.HdrTransfer is not null).Select(i => $"{Path.GetFileName(i.Path)} ({i.Video!.HdrTransfer})").ToList() is { Count: > 0 } hdr)
         {
             Notify(NotificationSeverity.Informational, hdr.Count == 1 ? "Video HDR" : "Videos HDR",
                 $"{string.Join(", ", hdr)}: HDR: se convierte a SDR; ajusta el brillo en Propiedades");

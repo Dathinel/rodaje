@@ -70,6 +70,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private Presenter? _presenter;
     private CompositionSwapChain? _swapChain;
     private TenBitViewer _tenBitViewer;
+    private HdrViewer _hdrViewer;
     private GpuTimer? _gpuTimer;
     private PreviewProxies? _proxies;
     private ProxyUsage _proxyUsage = ProxyUsage.Auto;
@@ -214,18 +215,34 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     /// <summary>Resolución de la vista previa: Auto, completa, mitad o cuarto.</summary>
     public void SetPreviewQuality(PreviewQuality quality) => Post(new Command(CommandKind.Quality, Quality: quality));
 
-    /// <summary>Visor de 10 bits. Si la cadena de intercambio ya existe y cambia la profundidad, el hilo de render la vuelve a crear.</summary>
+    /// <summary>Visor de 10 bits. Si la cadena de intercambio ya existe y cambia su formato, el hilo de render la vuelve a crear.</summary>
     public TenBitViewer TenBitViewer
     {
         get => _tenBitViewer;
         set
         {
             _tenBitViewer = value;
-            Post(new Command(CommandKind.TenBits));
+            Post(new Command(CommandKind.ViewerFormat));
         }
     }
 
     private bool UsesTenBits() => _gpu is not null && ViewerBitDepth.UsesTenBits(TenBitViewer, _gpu.MaxOutputBitsPerColor());
+
+    /// <summary>Visor HDR (scRGB); como <see cref="TenBitViewer"/>, cambiarlo con la cadena creada la vuelve a crear.</summary>
+    public HdrViewer HdrViewer
+    {
+        get => _hdrViewer;
+        set
+        {
+            _hdrViewer = value;
+            Post(new Command(CommandKind.ViewerFormat));
+        }
+    }
+
+    /// <summary>Si la cadena del visor es scRGB: una secuencia HDR se ve en HDR. Si no, se ve en SDR recortando lo que pasa de 203 nits.</summary>
+    public bool ViewerIsScRgb { get; private set; }
+
+    private bool UsesScRgb() => _gpu is not null && ViewerBitDepth.UsesScRgb(HdrViewer, CompositionSwapChain.HasHdrOutput(_gpu));
 
     /// <summary>Efectos dibujados, saltados y contenido que faltó desde que se abrió el reproductor (para medir).</summary>
     public EffectTotals Effects
@@ -598,9 +615,14 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         if (_swapChain is null)
         {
-            _swapChain = new CompositionSwapChain(_gpu, size.Width, size.Height, size.ScaleX, size.ScaleY, UsesTenBits());
+            _swapChain = new CompositionSwapChain(_gpu, size.Width, size.Height, size.ScaleX, size.ScaleY, UsesTenBits(), UsesScRgb());
             _metrics.Milestone("cadena_creada");
-            if (_swapChain.TenBits)
+            ViewerIsScRgb = _swapChain.ScRgb;
+            if (_swapChain.ScRgb)
+            {
+                _metrics.Note("visor HDR (scRGB R16G16B16A16_FLOAT)");
+            }
+            else if (_swapChain.TenBits)
             {
                 _metrics.Note("visor de 10 bits (R10G10B10A2)");
             }
@@ -761,14 +783,19 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 continue;
             }
 
-            if (command.Kind == CommandKind.TenBits)
+            if (command.Kind == CommandKind.ViewerFormat)
             {
-                if (_swapChain is { } old && _gpu is { } gpu && old.TenBits != UsesTenBits())
+                // scRGB manda; si no, 10 bits cuando toca; si no, 8 bits: la misma elección que al crear la cadena.
+                bool scRgb = UsesScRgb();
+                bool tenBits = UsesTenBits() && !scRgb;
+                if (_swapChain is { } old && _gpu is { } gpu && (old.ScRgb != scRgb || old.TenBits != tenBits))
                 {
                     old.Dispose();
                     _swapChain = null;
-                    _swapChain = new CompositionSwapChain(gpu, old.Width, old.Height, old.ScaleX, old.ScaleY, UsesTenBits());
-                    _metrics.Note(_swapChain.TenBits ? "visor de 10 bits (R10G10B10A2)" : "visor de 8 bits (B8G8R8A8)");
+                    _swapChain = new CompositionSwapChain(gpu, old.Width, old.Height, old.ScaleX, old.ScaleY, tenBits, scRgb);
+                    ViewerIsScRgb = _swapChain.ScRgb;
+                    _metrics.Note(_swapChain.ScRgb ? "visor HDR (scRGB R16G16B16A16_FLOAT)"
+                        : _swapChain.TenBits ? "visor de 10 bits (R10G10B10A2)" : "visor de 8 bits (B8G8R8A8)");
                     SwapChainCreated?.Invoke(_swapChain.NativeSwapChain);
                     _dirty = true;
                 }
@@ -884,12 +911,13 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         if (_compositor is { } current && current.Width == width && current.Height == height)
         {
+            current.ColorSpace = _session.ColorSpace;
             return;
         }
 
         _compositor?.Dispose();
         _compositor = null;
-        _compositor = new Compositor(_gpu, width, height) { Resources = _content, Titles = _titles };
+        _compositor = new Compositor(_gpu, width, height) { Resources = _content, Titles = _titles, ColorSpace = _session.ColorSpace };
     }
 
     /// <summary>Una LUT terminó de cargar o cambiaron los paquetes: en pausa también hay que volver a componer.</summary>
@@ -1106,7 +1134,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         Zoom,
         Quality,
         Content,
-        TenBits,
+        ViewerFormat,
     }
 
     private readonly record struct Command(

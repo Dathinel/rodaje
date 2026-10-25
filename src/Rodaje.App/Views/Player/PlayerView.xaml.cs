@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
@@ -38,6 +39,8 @@ internal sealed partial class PlayerView : UserControl, IEditorView
     private string? _error;
     private double _zoom;
     private bool _usesProxy;
+    private SequenceColorSpace _hdrBadgeSpace;
+    private bool _hdrBadgeScRgb;
     private int _shuttleRate;
     private int _previewDivisor = 1;
     private bool _hintForSelfTest;
@@ -63,6 +66,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         {
             SwapChainPanelNative.SetSwapChain(VideoPanel, swapChain);
             Program.Metrics.Milestone("cadena_en_panel");
+            UpdateHdrBadge();
         });
         _engine.Failed += message => dispatcher.RunLater(() => ShowError(message));
         _engine.Warning += message => dispatcher.RunLater(() =>
@@ -87,6 +91,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         services.PreviewQualityChanged += (_, _) => UpdateQuality();
         _engine.SetPreviewQuality(services.Settings.Current.PreviewQuality);
         _engine.TenBitViewer = services.Settings.Current.TenBitViewer;
+        _engine.HdrViewer = services.Settings.Current.HdrViewer;
         UpdateQuality();
         AttachSafeZones();
         UpdateSafeAreas();
@@ -181,6 +186,8 @@ internal sealed partial class PlayerView : UserControl, IEditorView
             ProxyBadge.Visibility = _usesProxy ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        UpdateHdrBadge();
+
         if (transport.PreviewDivisor != _previewDivisor)
         {
             _previewDivisor = transport.PreviewDivisor;
@@ -194,6 +201,26 @@ internal sealed partial class PlayerView : UserControl, IEditorView
             ShuttleText.Text = label;
             ShuttleBadge.Visibility = label.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
+    }
+
+    /// <summary>La barra dice si una secuencia HDR se ve en HDR (visor scRGB) o recortada a SDR (sin pantalla HDR o con el visor HDR apagado).</summary>
+    private void UpdateHdrBadge()
+    {
+        SequenceColorSpace space = Session?.Sequence.ColorSpace ?? SequenceColorSpace.Sdr709;
+        bool scRgb = _engine?.ViewerIsScRgb == true;
+        if (space == _hdrBadgeSpace && scRgb == _hdrBadgeScRgb)
+        {
+            return;
+        }
+
+        _hdrBadgeSpace = space;
+        _hdrBadgeScRgb = scRgb;
+        HdrBadge.Visibility = space == SequenceColorSpace.Sdr709 ? Visibility.Collapsed : Visibility.Visible;
+        string name = ProjectFormats.ColorSpaceName(space);
+        HdrText.Text = scRgb ? name : $"{name} → SDR";
+        ToolTipService.SetToolTip(HdrBadge, scRgb
+            ? $"Secuencia {name}: el visor la muestra en HDR (scRGB) con el blanco en 203 nits."
+            : $"Secuencia {name}: sin pantalla en modo HDR (o con el visor HDR apagado en Preferencias) el visor la muestra en SDR y recorta lo que pasa de 203 nits. La exportación HDR conserva todo.");
     }
 
     private void UpdateFormat()

@@ -49,8 +49,8 @@ internal sealed unsafe class ExportGpu : IDisposable
 
     public ExportFrameConverter Converter(int sourceWidth, int sourceHeight, ExportVideoFormat output, ExportFit fit = ExportFit.Bars,
         ExportScaleFilter filter = ExportScaleFilter.Auto, int ring = ExportFrameConverter.DefaultRingSize, TimeProvider? time = null, bool dither = true,
-        ExportSourceRegion? region = null) =>
-        new(Gpu, Device, Context, sourceWidth, sourceHeight, output, fit, filter, ring, ShaderCache.Default, time ?? TimeProvider.System, region)
+        ExportSourceRegion? region = null, Rodaje.Core.Model.SequenceColorSpace source = Rodaje.Core.Model.SequenceColorSpace.Sdr709) =>
+        new(Gpu, Device, Context, sourceWidth, sourceHeight, output, fit, filter, ring, ShaderCache.Default, time ?? TimeProvider.System, region, source)
         {
             Dither = dither,
         };

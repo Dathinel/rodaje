@@ -10,7 +10,10 @@ internal static class RenderShaders
     // calcula con la distancia al lado más cercano en píxeles de destino, así un borde girado sale suavizado y uno
     // alineado con la rejilla queda nítido (los centros de sus píxeles están a 0,5 px o más del lado).
     // present: x > 0 pide muestreo con mipmaps (destino más pequeño que la fuente); z > 0, capa con perspectiva (anclaje de
-    // esquinas): local[i].z es el w de cada esquina, que VsQuad pone en el vértice para que uv y local se interpolen con perspectiva.
+    // esquinas): local[i].z es el w de cada esquina, que VsQuad pone en el vértice para que uv y local se interpolen con perspectiva;
+    // w, en el presentador, cómo va la composición a la pantalla (PresentHdr).
+    // hdr: x = curva de la capa (HdrTransfer), y = blanco o pico de referencia en nits, z = primarios BT.2020, w = 1 si la
+    // secuencia es HDR (la composición es luz lineal BT.2020 con 1,0 = 203 nits; QuadPipeline.HdrMode).
     /// <summary>Constantes, planos, vértices y conversión de color comunes a todos los shaders.</summary>
     public const string Prelude = """
         cbuffer Quad : register(b0)
@@ -54,7 +57,23 @@ internal static class RenderShaders
             return x < 0.018 ? 4.5 * x : 1.099 * pow(x, 0.45) - 0.099;
         }
 
-        float3 HdrToSdr(float3 rgb)
+        float Bt709Linear(float x)
+        {
+            return x < 0.081 ? x / 4.5 : pow(max(x + 0.099, 0) / 1.099, 1.0 / 0.45);
+        }
+
+        static const float3x3 Bt2020ToBt709 = float3x3(
+            1.660491, -0.587641, -0.072850,
+            -0.124550, 1.132900, -0.008350,
+            -0.018151, -0.100579, 1.118730);
+
+        static const float3x3 Bt709ToBt2020 = float3x3(
+            0.627404, 0.329283, 0.043313,
+            0.069097, 0.919540, 0.011362,
+            0.016391, 0.088013, 0.895595);
+
+        // Señal PQ o HLG (hdr.x) → luz en nits, en los primarios de la capa.
+        float3 HdrLight(float3 rgb)
         {
             float3 light;
             if (hdr.x == 1)
@@ -70,18 +89,58 @@ internal static class RenderShaders
                 float gamma = max(1.0, 1.2 + 0.42 * log10(hdr.y / 1000));
                 light *= hdr.y * pow(max(y, 1e-6), gamma - 1);
             }
+            return light;
+        }
+
+        float3 HdrToSdr(float3 rgb)
+        {
+            float3 light = HdrLight(rgb);
             if (hdr.z > 0)
             {
-                light = mul(float3x3(
-                    1.660491, -0.587641, -0.072850,
-                    -0.124550, 1.132900, -0.008350,
-                    -0.018151, -0.100579, 1.118730), light);
+                light = mul(Bt2020ToBt709, light);
             }
             light = max(light, 0);
             // Una sola ganancia conserva las proporciones RGB; el blanco elegido llega a 1.
             float peak = max(max(light.r, light.g), light.b);
             float mapped = Hable(peak / 100) / Hable(hdr.y / 100);
             light = saturate(light * (mapped / max(peak, 1e-6)));
+            return float3(Bt709(light.r), Bt709(light.g), Bt709(light.b));
+        }
+
+        // Secuencia HDR (hdr.w > 0): luz lineal BT.2020 con 1,0 = 203 nits (BT.2408) y sin recortar por arriba. PQ y HLG
+        // por su curva, sin Hable; una capa SDR entra con el blanco en 203 nits, sin expandir.
+        float3 ToLinear2020(float3 rgb)
+        {
+            float3 light;
+            [branch] if (hdr.x > 0)
+            {
+                light = HdrLight(rgb) * (1.0 / 203);
+                light = hdr.z > 0 ? light : mul(Bt709ToBt2020, light);
+            }
+            else
+            {
+                light = mul(Bt709ToBt2020, float3(Bt709Linear(rgb.r), Bt709Linear(rgb.g), Bt709Linear(rgb.b)));
+            }
+
+            return max(light, 0);
+        }
+
+        // La composición lineal BT.2020 hacia la pantalla (present.w): 1, SDR BT.709 recortando lo que pasa de 203 nits;
+        // 2, scRGB (BT.709 lineal, 1,0 = 80 nits). Con 3 la composición es SDR en gamma y la pantalla scRGB.
+        float3 PresentHdr(float3 rgb)
+        {
+            if (present.w > 2.5)
+            {
+                return float3(Bt709Linear(rgb.r), Bt709Linear(rgb.g), Bt709Linear(rgb.b)) * (203.0 / 80);
+            }
+
+            float3 light = mul(Bt2020ToBt709, rgb);
+            if (present.w > 1.5)
+            {
+                return light * (203.0 / 80);
+            }
+
+            light = saturate(light);
             return float3(Bt709(light.r), Bt709(light.g), Bt709(light.b));
         }
 
@@ -103,9 +162,16 @@ internal static class RenderShaders
                     y + toRgb.w * c.x));
             }
 
-            [branch] if (hdr.x > 0)
+            [branch] if (hdr.w > 0)
             {
-                rgb = HdrToSdr(rgb);
+                rgb = ToLinear2020(rgb);
+            }
+            else
+            {
+                [branch] if (hdr.x > 0)
+                {
+                    rgb = HdrToSdr(rgb);
+                }
             }
             return rgb;
         }
@@ -179,6 +245,10 @@ internal static class RenderShaders
             float3 rgb = present.x > 0
                 ? composite.Sample(linearClamp, i.uv).rgb
                 : composite.SampleLevel(linearClamp, i.uv, 0).rgb;
+            [branch] if (present.w > 0)
+            {
+                rgb = PresentHdr(rgb);
+            }
             return float4(rgb, 1);
         }
         """;

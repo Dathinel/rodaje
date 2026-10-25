@@ -25,6 +25,7 @@
             <CheckBox x:Name="AutoProxiesBox" Content="Generar proxies al importar videos pesados" />
             <ComboBox x:Name="PreviewQualityBox" Header="Calidad de la vista previa" />
             <ComboBox x:Name="TenBitViewerBox" Header="Visor de 10 bits" />
+            <ComboBox x:Name="HdrViewerBox" Header="Visor HDR en scRGB" />
         </StackPanel></TabViewItem>
         <TabViewItem Header="Teclado" IsClosable="False"><StackPanel Padding="12"><ComboBox x:Name="ShortcutPresetBox" Header="Estilo de teclado" /></StackPanel></TabViewItem>
         <TabViewItem Header="Apariencia" IsClosable="False"><StackPanel Padding="12"><TextBlock Text="La apariencia sigue el tema de Windows." TextWrapping="Wrap" /></StackPanel></TabViewItem>

@@ -12,6 +12,7 @@ namespace Rodaje.App.Views.Player;
 /// píxeles físicos: el búfer mide el panel por su escala de composición y una matriz inversa lo devuelve a unidades
 /// del panel, así que la imagen no se reescala. Todo menos la creación del panel se usa desde el hilo de render.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows10.0")]
 internal sealed unsafe partial class CompositionSwapChain : IDisposable
 {
     private const uint SwapChainFlags = (uint)DXGI_SWAP_CHAIN_FLAG.DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
@@ -24,12 +25,17 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
     private HANDLE _frameWait;
 
     /// <param name="tenBits">Búfer <c>R10G10B10A2</c> en vez de <c>B8G8R8A8</c> (<see cref="Services.Settings.ViewerBitDepth"/>).</param>
-    public CompositionSwapChain(GpuDevice gpu, int width, int height, float scaleX, float scaleY, bool tenBits = false)
+    /// <param name="scRgb">
+    /// Búfer <c>R16G16B16A16_FLOAT</c> en scRGB (<c>DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709</c>, BT.709 lineal con 1,0 = 80 nits), para ver
+    /// una secuencia HDR en una pantalla en modo HDR; manda sobre <paramref name="tenBits"/>. Si el adaptador no lo admite, queda en SDR.
+    /// </param>
+    public CompositionSwapChain(GpuDevice gpu, int width, int height, float scaleX, float scaleY, bool tenBits = false, bool scRgb = false)
     {
         _gpu = gpu;
         _device = (ID3D11Device*)gpu.NativeDevice;
         _context = (ID3D11DeviceContext*)gpu.NativeContext;
-        TenBits = tenBits;
+        TenBits = tenBits && !scRgb;
+        ScRgb = scRgb;
         try
         {
             Create(Math.Max(1, width), Math.Max(1, height));
@@ -53,6 +59,9 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
     public int Height { get; private set; }
 
     public bool TenBits { get; }
+
+    /// <summary>El búfer es scRGB de media precisión; <see cref="Presenter.ScRgb"/> lo sigue en cada <see cref="Render"/>.</summary>
+    public bool ScRgb { get; private set; }
 
     public float ScaleX { get; private set; } = 1;
 
@@ -98,6 +107,7 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
     {
         if (composition is not null)
         {
+            presenter.ScRgb = ScRgb;
             presenter.Draw((nint)_target, Width, Height, composition, placement);
         }
         else
@@ -129,6 +139,70 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
         {
             CloseHandle(_frameWait);
             _frameWait = HANDLE.NULL;
+        }
+    }
+
+    /// <summary>Si algún monitor del adaptador está en modo HDR de Windows (<c>DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020</c>); nunca en WARP.</summary>
+    /// <remarks>shortcut: como <see cref="GpuDevice.MaxOutputBitsPerColor"/>, mira todos los monitores y no el de la ventana.</remarks>
+    public static bool HasHdrOutput(GpuDevice gpu)
+    {
+        var device = (ID3D11Device*)gpu.NativeDevice;
+        IDXGIDevice* dxgiDevice = null;
+        IDXGIAdapter* adapter = null;
+        try
+        {
+            if (device->QueryInterface(__uuidof<IDXGIDevice>(), (void**)&dxgiDevice).FAILED || dxgiDevice->GetAdapter(&adapter).FAILED)
+            {
+                return false;
+            }
+
+            for (uint i = 0; ; i++)
+            {
+                IDXGIOutput* output;
+                if (adapter->EnumOutputs(i, &output).FAILED)
+                {
+                    return false;
+                }
+
+                IDXGIOutput6* output6 = null;
+                bool hdr = false;
+                if (output->QueryInterface(__uuidof<IDXGIOutput6>(), (void**)&output6).SUCCEEDED)
+                {
+                    DXGI_OUTPUT_DESC1 desc;
+                    hdr = output6->GetDesc1(&desc).SUCCEEDED && desc.ColorSpace == DXGI_COLOR_SPACE_TYPE.DXGI_COLOR_SPACE_RGB_FULL_G2084_NONE_P2020;
+                }
+
+                Release(ref output6);
+                Release(ref output);
+                if (hdr)
+                {
+                    return true;
+                }
+            }
+        }
+        finally
+        {
+            Release(ref adapter);
+            Release(ref dxgiDevice);
+        }
+    }
+
+    /// <summary>Declara el búfer de media precisión como scRGB; si la cadena no lo admite, el visor se queda en SDR.</summary>
+    private void SetScRgb()
+    {
+        IDXGISwapChain3* swapChain3 = null;
+        try
+        {
+            const DXGI_COLOR_SPACE_TYPE space = DXGI_COLOR_SPACE_TYPE.DXGI_COLOR_SPACE_RGB_FULL_G10_NONE_P709;
+            uint support = 0;
+            ScRgb = _swapChain->QueryInterface(__uuidof<IDXGISwapChain3>(), (void**)&swapChain3).SUCCEEDED
+                && swapChain3->CheckColorSpaceSupport(space, &support).SUCCEEDED
+                && (support & (uint)DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG.DXGI_SWAP_CHAIN_COLOR_SPACE_SUPPORT_FLAG_PRESENT) != 0
+                && swapChain3->SetColorSpace1(space).SUCCEEDED;
+        }
+        finally
+        {
+            Release(ref swapChain3);
         }
     }
 
@@ -181,7 +255,8 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
             {
                 Width = (uint)width,
                 Height = (uint)height,
-                Format = TenBits ? DXGI_FORMAT.DXGI_FORMAT_R10G10B10A2_UNORM : DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM,
+                Format = ScRgb ? DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT
+                    : TenBits ? DXGI_FORMAT.DXGI_FORMAT_R10G10B10A2_UNORM : DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM,
                 SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
                 BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT,
                 BufferCount = 2,
@@ -195,6 +270,11 @@ internal sealed unsafe partial class CompositionSwapChain : IDisposable
             IDXGISwapChain2* swapChain;
             Check(swapChain1->QueryInterface(__uuidof<IDXGISwapChain2>(), (void**)&swapChain), "QueryInterface(IDXGISwapChain2)");
             _swapChain = swapChain;
+            if (ScRgb)
+            {
+                SetScRgb();
+            }
+
             Check(_swapChain->SetMaximumFrameLatency(1), "SetMaximumFrameLatency");
             _frameWait = _swapChain->GetFrameLatencyWaitableObject();
             Width = width;

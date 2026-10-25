@@ -34,6 +34,10 @@
                         ToolTipService.ToolTip="La vista previa usa un proxy: una copia liviana del medio. La exportación usa siempre los originales.">
                     <TextBlock Text="Proxy" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" />
                 </Border>
+                <Border x:Name="HdrBadge" Visibility="Collapsed" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
+                        BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Padding="8,1">
+                    <TextBlock x:Name="HdrText" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" />
+                </Border>
             </StackPanel>
             <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled"
                           VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled" ZoomMode="Disabled">
