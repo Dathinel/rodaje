@@ -469,7 +469,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
 
         _dragMediaIds = [.. e.Items.OfType<MediaItem>().Select(i => i.Id)];
-        e.Data.SetData(MediaDragFormat, item.DragText);
+        e.Data.SetData(MediaDragFormat, string.Join('\n', e.Items.OfType<MediaItem>().Select(i => i.DragText)));
         e.Data.SetText(item.Id);
         e.Data.RequestedOperation = DataPackageOperation.Copy;
     }

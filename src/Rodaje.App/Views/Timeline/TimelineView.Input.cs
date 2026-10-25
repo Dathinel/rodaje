@@ -965,12 +965,14 @@ internal sealed partial class TimelineView
         try
         {
             _dropMediaId ??= (await e.DataView.GetDataAsync(MediaIdFormat))?.ToString();
-            if (PlanDrop(e) is { } plan)
+            if (_renderer?.Layout is { } layout)
             {
-                SequenceEditCommand command = plan.Build();
-                if (Session.Execute(command) && command.CreatedIds.Count > 0)
+                Point p = e.GetPosition(LanesHost);
+                List<string> created = TimelinePlanning.DropMedia(Session, MediaDrop.ParseAll(_dropMediaId), layout.RowAt(ContentY(p.Y)), Viewport.XToTime(p.X),
+                    e.Modifiers.HasFlag(DragDropModifiers.Control), Options(), Session.ProgramPosition);
+                if (created.Count > 0)
                 {
-                    Session.Select([command.CreatedIds[0]]);
+                    Session.Select(created);
                 }
             }
         }
