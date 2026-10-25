@@ -1,6 +1,8 @@
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Tests.Support;
 using Rodaje.App.Views.Export;
+using Rodaje.Core.Model;
+using Rodaje.Core.Timing;
 using Rodaje.Export;
 
 namespace Rodaje.App.Tests.Export;
@@ -39,5 +41,67 @@ public sealed class ExportDialogModelTests
         Assert.Equal(ExportPerformance.Fastest, preferences.Performance);
         Assert.Equal("salida-cuadrada.mp4", Path.GetFileName(model.OutputPath));
         Assert.Equal(model.Settings.Video?.Fit, preferences.Settings?.Video?.Fit);
+    }
+
+    [Fact]
+    public void Versions_do_not_replace_existing_files()
+    {
+        using var dir = new TempDirectory();
+        var project = ExportTestData.Project();
+        var model = new ExportDialogModel(new ExportPreferences(), project.Sequences[0], [], SimulatedEncoders.All, project.Name, dir.Path);
+        model.SetOutputPath(dir.File("viaje.mp4"));
+        File.WriteAllText(dir.File("viaje - Web 1080p.mp4"), "");
+        File.WriteAllText(dir.File("viaje - Web 1080p (2).mp4"), "");
+
+        IReadOnlyList<ExportRequest> requests = model.CreateVersionRequests([ExportPresets.YouTube1080p.Id, ExportPresets.Vertical.Id], project, "sec", null);
+
+        Assert.Equal("viaje - Web 1080p (3).mp4", Path.GetFileName(requests[0].OutputPath));
+        Assert.All(requests, r => Assert.False(File.Exists(r.OutputPath)));
+    }
+
+    [Fact]
+    public void Versions_keep_the_subtitle_mode_and_warn_where_the_container_cannot_take_it()
+    {
+        var project = ExportTestData.Project();
+        var subtitles = new Track { Id = "s", Kind = TrackKind.Video, Role = TrackRoles.Subtitles };
+        subtitles.Clips.Add(new Clip { Id = "t", Start = Time.Zero, SourceIn = Time.Zero, SourceOut = Time.FromSeconds(2), Generator = new ClipGenerator { Kind = GeneratorKinds.Text, Text = "Hola" } });
+        project.Sequences[0].VideoTracks.Add(subtitles);
+        var model = new ExportDialogModel(new ExportPreferences(), project.Sequences[0], [], SimulatedEncoders.All, project.Name, null);
+        model.Update(s => s with { Subtitles = SubtitleExport.Embedded });
+        string[] ids = [ExportPresets.YouTube1080p.Id, ExportPresets.Gif.Id];
+
+        IReadOnlyList<ExportRequest> requests = model.CreateVersionRequests(ids, project, "sec", null);
+
+        Assert.Equal(SubtitleExport.Embedded, requests[0].Settings.Subtitles);
+        Assert.Equal(SubtitleExport.Burned, requests[1].Settings.Subtitles);
+        Assert.Contains("GIF animado", model.VersionsNote(ids));
+        Assert.Null(model.VersionsNote([ExportPresets.YouTube1080p.Id]));
+    }
+
+    [Fact]
+    public void Remembered_settings_keep_the_subtitle_mode_and_still_match_the_preset()
+    {
+        var project = ExportTestData.Project();
+        var preferences = new ExportPreferences();
+        var model = new ExportDialogModel(preferences, project.Sequences[0], [], SimulatedEncoders.All, project.Name, null);
+        model.Update(s => s with { Subtitles = SubtitleExport.Embedded });
+        model.RememberDraft();
+
+        var reopened = new ExportDialogModel(preferences, project.Sequences[0], [], SimulatedEncoders.All, project.Name, null);
+
+        Assert.Equal(SubtitleExport.Embedded, reopened.Settings.Subtitles);
+        Assert.Equal(ExportPresets.YouTube1080p.Id, reopened.PresetId);
+    }
+
+    [Fact]
+    public void Versions_refuse_an_empty_sequence_and_say_why()
+    {
+        var project = ExportTestData.Project();
+        project.Sequences[0].VideoTracks[0].Clips.Clear();
+        var model = new ExportDialogModel(new ExportPreferences(), project.Sequences[0], [], SimulatedEncoders.All, project.Name, null);
+
+        Assert.Contains(model.VersionProblems, p => p.Contains("vacía", StringComparison.Ordinal));
+        var error = Assert.Throws<InvalidOperationException>(() => model.CreateVersionRequests([ExportPresets.YouTube1080p.Id], project, "sec", null));
+        Assert.Contains("vacía", error.Message, StringComparison.Ordinal);
     }
 }

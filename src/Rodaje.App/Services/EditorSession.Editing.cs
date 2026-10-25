@@ -51,17 +51,19 @@ public sealed partial class EditorSession
             return false;
         }
 
-        List<string> ripple = existing.FindAll(id => ClosesGaps(sequence.GetClip(id).Track));
+        // Un grupo enlazado va entero a un lado (como en DeleteSideOfPlayhead): si el ripple del video borrara también su
+        // audio, el lift de ese audio ya no lo encontraría y se revertiría todo.
+        List<string> ripple = existing.FindAll(id => sequence.GetLinkGroup(id).Exists(m => ClosesGaps(m.Track)));
         List<string> lift = existing.FindAll(id => !ripple.Contains(id));
         var commands = new List<ICommand>(2);
-        if (ripple.Count > 0)
-        {
-            commands.Add(Edits.RippleDelete(SequenceId, ripple, Timeline.RippleScope, _ids));
-        }
-
         if (lift.Count > 0)
         {
             commands.Add(Edits.Lift(SequenceId, lift, _ids));
+        }
+
+        if (ripple.Count > 0)
+        {
+            commands.Add(Edits.RippleDelete(SequenceId, ripple, Timeline.RippleScope, _ids));
         }
 
         bool done = commands.Count == 1 ? Execute(commands[0]) : Execute(new CompositeCommand("Borrar", commands));
