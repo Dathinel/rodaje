@@ -582,6 +582,12 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
 - **Fuera de esta parte** (`.proceso/diseno/encargos/hdr-fase-c-3.md`): MaxCLL/MaxFALL medidos (siguen declarados), SDR → HDR por clip (BT.2446 A), LUT y curvas con entrada en PQ en HDR (hoy lo que pasa de 203 nits toma el borde de la tabla), la miniatura JPEG de la exportación y los osciloscopios en HDR (leen el lineal tal cual), y el blanco SDR del sistema en scRGB (se fija en 203 nits).
 - **Verificación.** Blanco SDR en una secuencia PQ → 573 y en HLG → 721; un parche PQ de 1000 nits (código 723) sale en 723 del compositor lineal y recortaba a ≤ 575 en SDR; el color no recorta en HDR; bytes del presentador SDR iguales al shader congelado; vista previa HDR → SDR igual a la exportación `TONEMAP` (±1); exportación real del parche con NVENC y ProRes leída con ffprobe (`ExportBitDepthTests`); la elección Auto/Sí/No del visor HDR y la cadena scRGB en WARP.
 
+## Se mantiene tras la revisión de bloque del 24 de octubre de 2026
+
+- «Fotograma» para una imagen suelta y «cuadros/s» para la cadencia (#450).
+- Lo escrito a mano en un cuadro numérico puede llegar al tope del modelo (10 000 % en escala) aunque el deslizador pare antes.
+- El formato 15 solo se escribe cuando hay una secuencia HDR (D-054); las preguntas de D-053 siguen para Daniel.
+
 ## D-056. Personalización: tema, acento, escala y temas propios, sin skins (24 de octubre de 2026)
 
 - **Contexto.** Daniel pidió la personalización de Rodaje (pendiente desde el 10-oct: pistas por defecto) y la pantalla de temas completa. La paleta era fija (grafito de D-027, `Palette.xaml` y `ControlColors.xaml` con colores literales) y Preferencias solo decía «La apariencia sigue el tema de Windows».

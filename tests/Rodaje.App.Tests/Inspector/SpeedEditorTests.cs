@@ -489,4 +489,24 @@ public class SpeedEditorTests
         Assert.Null(h.Video.Speed);
         Assert.Equal((S(0), S(10.37)), (h.Video.SourceIn, h.Video.SourceOut));
     });
+
+    [Fact]
+    public void Arrastre_ConVariosClipsDeVelocidadesDistintas_LaDelPrimeroTambienSeAplicaAlResto() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        h.Session.Select([h.Second.Id]);
+        Assert.True(h.Editor.SetRate(new Rational(2, 1)));
+        h.Session.Select([h.Video.Id, h.Second.Id]);
+        int steps = h.Session.History.Count;
+
+        // El primero ya va a 1x: el deslizador vuelve a su velocidad, pero el segundo tiene que cambiar.
+        h.Editor.BeginChange();
+        Assert.True(h.Editor.Change(new Rational(3, 1)));
+        Assert.True(h.Editor.Change(SpeedState.Normal));
+        h.Editor.EndChange();
+
+        Assert.Equal(SpeedState.Normal, h.Editor.Read(h.Video).Rate);
+        Assert.Equal(SpeedState.Normal, h.Editor.Read(h.Second).Rate);
+        Assert.Equal(steps + 1, h.Session.History.Count);
+    });
 }

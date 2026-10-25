@@ -2,6 +2,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Tests.Support;
+using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
@@ -133,5 +134,40 @@ public sealed class SpeedGraphTests
         Assert.Equal(0, graph.MainTrack.Clips[0].Speed!.Curve!.Points[0].At);
         Assert.True(graph.Undo());
         Assert.Equal(fromInspector.Speed.Curve.Points, graph.MainTrack.Clips[0].Speed!.Curve!.Points);
+    });
+
+    [Fact]
+    public void ArrastrarEnVariosPasos_PorLaGrafica_NoDuplicaPuntos_YDaLoMismoQueUnPaso() => UiThread.Run(async () =>
+    {
+        (EditorSession steps, _) = await SessionWithHero();
+        (EditorSession once, _) = await SessionWithHero();
+        Clip before = steps.MainTrack!.Clips[0];
+        int points = before.Speed!.Curve!.Points.Count;
+        int history = steps.History.Count;
+        Keyframe key = Keys(before)[2];
+        Time halfway = SpeedGraph.KeyTime(before, 4150) - key.Time;
+        Time final = SpeedGraph.KeyTime(before, 4000) - key.Time;
+        double lift = 0.5 - key.Value;
+
+        // El ratón pasa por un punto intermedio antes de soltar: cada paso parte de la rampa del inicio del gesto.
+        SequenceSnapshot start = SequenceSnapshot.Capture(steps.Sequence);
+        steps.BeginGesture("Mover keyframes");
+        Assert.True(steps.TryExecute(KeyframeGraphEdits.Move(steps.SequenceId, before.Id, SpeedGraph.EffectId, SpeedGraph.Name,
+            [key], Time.Zero, halfway, lift / 2, SpeedGraph.Spec, null, steps.SpeedScope, start)));
+        Assert.True(steps.TryExecute(KeyframeGraphEdits.Move(steps.SequenceId, before.Id, SpeedGraph.EffectId, SpeedGraph.Name,
+            [key], halfway, final, lift, SpeedGraph.Spec, null, steps.SpeedScope, start)));
+        steps.EndGesture();
+
+        once.BeginGesture("Mover keyframes");
+        Assert.True(once.TryExecute(KeyframeGraphEdits.Move(once.SequenceId, before.Id, SpeedGraph.EffectId, SpeedGraph.Name,
+            [key], Time.Zero, final, lift, SpeedGraph.Spec, null, once.SpeedScope, SequenceSnapshot.Capture(once.Sequence))));
+        once.EndGesture();
+
+        Clip stepped = steps.MainTrack.Clips[0];
+        Assert.Equal(points, stepped.Speed!.Curve!.Points.Count);
+        Assert.Equal(new SpeedPoint(4000, 50), stepped.Speed.Curve.Points[2]);
+        Assert.Equal(once.MainTrack!.Clips[0].Speed!.Curve!.Points, stepped.Speed.Curve.Points);
+        Assert.Equal(once.MainTrack.Clips[0].Duration, stepped.Duration);
+        Assert.Equal(history + 1, steps.History.Count);
     });
 }

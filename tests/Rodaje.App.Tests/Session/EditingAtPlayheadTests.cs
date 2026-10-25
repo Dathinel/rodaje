@@ -122,6 +122,18 @@ public class EditingAtPlayheadTests
     });
 
     [Fact]
+    public void Borrar_VideoYAudioEnlazados_EnLaPrincipalMagnetica_BorraLosDos() => UiThread.Run(async () =>
+    {
+        EditorSession session = await TwoClips();
+        session.SelectAll();
+
+        Assert.True(session.DeleteSelection());
+
+        Assert.Empty(MainClips(session));
+        Assert.Empty(session.Sequence.AudioTracks[0].Clips);
+    });
+
+    [Fact]
     public void Borrar_SinMagnetica_DejaElHueco() => UiThread.Run(async () =>
     {
         EditorSession session = await TwoClips();

@@ -38,10 +38,7 @@ public static partial class TimelineEdits
         });
     }
 
-    /// <summary>
-    /// Cambia la velocidad fija en varios clips en un solo paso. Los clips se procesan en orden descendente por su posición
-    /// de inicio para que el reajuste temporal no desplace los clips previos antes de ser procesados.
-    /// </summary>
+    /// <summary>Cambia la velocidad fija en varios clips en un solo paso, del último al primero para que el reajuste de uno no corra a los que faltan.</summary>
     public static void SetSpeed(EditContext ctx, IEnumerable<string> clipIds, Rational rate, RippleScope scope = RippleScope.Track)
     {
         ArgumentNullException.ThrowIfNull(ctx);

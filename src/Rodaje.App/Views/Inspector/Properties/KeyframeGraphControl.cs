@@ -447,7 +447,8 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
 
         _frozenRange = CurrentRange(parameter);
         _drag = new Drag(clip.Id, effect.Id, _name, hit.Handle, key.Time, p, parameter.Keyframes[0].Time,
-            geometry, [.. parameter.Keyframes.Where(k => _selection.Contains(k.Time))], Time.Zero, 0);
+            geometry, [.. parameter.Keyframes.Where(k => _selection.Contains(k.Time))], Time.Zero, 0,
+            effect.Id == SpeedGraph.EffectId ? SequenceSnapshot.Capture(session.Sequence) : null);
         session.BeginGesture(hit.Handle < 0 ? "Mover keyframes" : "Cambiar curva");
         CapturePointer(e.Pointer);
         e.Handled = true;
@@ -503,7 +504,7 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
             (Parameter? partner, bool partnerIsY) = Partner();
             string? other = partner is null ? null : partnerIsY ? BuiltInEffects.TransformParameters.Y : BuiltInEffects.TransformParameters.X;
             if (session.TryExecute(KeyframeGraphEdits.Move(session.SequenceId, drag.ClipId, drag.EffectId, drag.Name,
-                drag.Original, drag.Delta, delta, dv, spec, other, session.SpeedScope)))
+                drag.Original, drag.Delta, delta, dv, spec, other, session.SpeedScope, drag.Start)))
             {
                 _drag = drag with { Delta = delta, ValueDelta = dv };
                 _selection.Clear();
@@ -652,5 +653,6 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
     }
 
     private sealed record Drag(string ClipId, string EffectId, string Name, int Handle, Time Anchor,
-        GraphPoint Press, Time Origin, KeyframeGraphGeometry Geometry, IReadOnlyList<Keyframe> Original, Time Delta, double ValueDelta);
+        GraphPoint Press, Time Origin, KeyframeGraphGeometry Geometry, IReadOnlyList<Keyframe> Original, Time Delta, double ValueDelta,
+        SequenceSnapshot? Start);
 }
