@@ -105,9 +105,9 @@ public class FormatV5Tests
     [Fact]
     public void NewerFormat_AsksToUpdate()
     {
-        string newer = Example.Replace("\"schemaVersion\": 5", "\"schemaVersion\": 15", StringComparison.Ordinal);
+        string newer = Example.Replace("\"schemaVersion\": 5", "\"schemaVersion\": 16", StringComparison.Ordinal);
         var ex = Assert.Throws<ProjectFormatException>(() => ProjectSerializer.Deserialize(newer));
-        Assert.Contains("formato 15", ex.Message, StringComparison.Ordinal);
+        Assert.Contains("formato 16", ex.Message, StringComparison.Ordinal);
         Assert.Contains("Actualiza Rodaje", ex.Message, StringComparison.Ordinal);
     }
 

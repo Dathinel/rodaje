@@ -40,59 +40,27 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
         { "libx265", "mp4", 10 },
     };
 
+    public static TheoryData<string, string, SequenceColorSpace> HdrCases => new()
+    {
+        { "hevc_nvenc", "mp4", SequenceColorSpace.HdrPq },
+        { "hevc_nvenc", "mp4", SequenceColorSpace.HdrHlg },
+        { "libsvtav1", "mkv", SequenceColorSpace.HdrPq },
+        { "prores_ks", "mov", SequenceColorSpace.HdrPq },
+        { "libx265", "mp4", SequenceColorSpace.HdrPq },
+    };
+
     [BitDepthExportTheory]
     [MemberData(nameof(Cases))]
     public async Task Each_encoder_keeps_the_levels_of_a_1024_code_ramp(string encoderId, string extension, int bits)
     {
-        FfmpegExecutable lgpl = Skip.ProxyExecutable!;
-        FfmpegExecutable? gpl = encoderId.StartsWith("libx26", StringComparison.Ordinal) ? GplAddOn() : null;
-        if (encoderId.StartsWith("libx26", StringComparison.Ordinal) && gpl is null)
+        if (await ExportRampAsync(encoderId, extension, bits, SequenceColorSpace.Sdr709, null) is not (ExportJob job, string path, Project project, VideoExportSettings video))
         {
-            output.WriteLine("Sin RODAJE_CODIFICADORES_GPL: se omite.");
             return;
         }
-
-        List<EncoderSpec> encoders = [.. await new CatalogEncoderSource(lgpl).GetAsync()];
-        if (gpl is not null)
-        {
-            encoders.AddRange(await CatalogEncoderSource.ForGplAddOn(gpl).GetAsync());
-        }
-
-        if (encoders.FirstOrDefault(e => e.Id == encoderId) is not { } spec)
-        {
-            output.WriteLine($"{encoderId}: no está en este equipo, se omite.");
-            return;
-        }
-
-        string folder = ExportEndToEndTests.Folder();
-        Project project = RampProject(await RampAsync(lgpl, Path.Combine(folder, "rampa 10 bits.mkv")));
-        var video = new VideoExportSettings
-        {
-            Codec = spec.Codec,
-            EncoderId = encoderId,
-            BitDepth = bits,
-            Chroma = spec.Codec is ExportCodec.ProRes or ExportCodec.DnxHr ? ChromaSubsampling.Chroma422 : ChromaSubsampling.Chroma420,
-            Profile = encoderId switch { "prores_ks" => "hq", "dnxhd" => "dnxhr_hqx", _ => null },
-            RateControl = spec.Codec switch
-            {
-                ExportCodec.ProRes or ExportCodec.DnxHr => RateControl.ProfileDefined,
-                ExportCodec.Ffv1 => RateControl.Lossless,
-                _ => RateControl.ConstantQuality(),
-            },
-        };
-        string path = Path.Combine(folder, $"salida {encoderId} {bits}.{extension}");
-        var runner = new ExportRunner(new ExportRunnerOptions { Ffmpeg = lgpl, GplFfmpeg = gpl });
-        ExportJob job = runner.Start(new ExportRequest(project, "sec", path, new ExportSettings
-        {
-            Container = extension switch { "mkv" => ExportContainer.Mkv, "webm" => ExportContainer.WebM, "mov" => ExportContainer.Mov, _ => ExportContainer.Mp4 },
-            Video = video,
-        }), encoders);
-        await job.Completion.WaitAsync(TimeSpan.FromMinutes(3));
-        Assert.True(job.Progress.State == ExportJobState.Completed, job.Failure?.ToString());
 
         ExportVideoReport report = job.Report!.Video!;
-        (int levels, int min, int max, int gap) = await LumaLevelsAsync(lgpl, path);
-        (int sourceLevels, _, _, _) = await LumaLevelsAsync(lgpl, project.Media[0].Path);
+        (int levels, int min, int max, int gap) = await LumaLevelsAsync(Skip.ProxyExecutable!, path);
+        (int sourceLevels, _, _, _) = await LumaLevelsAsync(Skip.ProxyExecutable!, project.Media[0].Path);
         output.WriteLine($"Fuente: {sourceLevels} niveles.");
         Assert.Equal(1024, sourceLevels);
         bool hdrSideData = await HasHdrSideDataAsync(path);
@@ -107,6 +75,103 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
             Assert.Equal(ceiling, levels);
         }
         Assert.Contains(bits == 10 ? "10" : "p", report.PixelFormat, StringComparison.Ordinal);
+        Assert.False(hdrSideData, "Una exportación SDR no lleva metadatos HDR.");
+    }
+
+    /// <summary>
+    /// Fase C, parte 1: la misma rampa SDR en una secuencia HDR sale etiquetada BT.2020 con PQ o HLG, el blanco cae en el
+    /// código de 203 nits (≈ 573 en PQ, 721 en HLG) y PQ lleva la pantalla de masterizado y el MaxCLL/MaxFALL pedidos; HLG, nada.
+    /// </summary>
+    [BitDepthExportTheory]
+    [MemberData(nameof(HdrCases))]
+    public async Task An_hdr_sequence_exports_bt2020_with_its_curve_and_metadata(string encoderId, string extension, SequenceColorSpace space)
+    {
+        bool pq = space == SequenceColorSpace.HdrPq;
+        ExportColor? requested = pq ? ExportColor.Hdr10 with { MaxCll = 1000, MaxFall = 400 } : null;
+        if (await ExportRampAsync(encoderId, extension, 10, space, requested) is not (ExportJob job, string path, _, _))
+        {
+            return;
+        }
+
+        ExportVideoReport report = job.Report!.Video!;
+        (int levels, int min, int max, _) = await LumaLevelsAsync(Skip.ProxyExecutable!, path);
+        string probe = await ProbeJsonAsync(path);
+        bool mastering = probe.Contains("Mastering display", StringComparison.OrdinalIgnoreCase);
+        bool light = probe.Contains("Content light level", StringComparison.OrdinalIgnoreCase);
+        output.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"{encoderId} {space} → {report.PixelFormat}: {levels} niveles (Y {min}..{max}); curva {report.ColorTransfer}, primarios {report.ColorPrimaries}, matriz {report.ColorSpace}; metadatos HDR: {(mastering || light ? "sí" : "no")} (masterizado {mastering}, nivel de luz {light})."));
+
+        Assert.Equal(pq ? "smpte2084" : "arib-std-b67", report.ColorTransfer);
+        Assert.Equal("bt2020", report.ColorPrimaries);
+        Assert.Equal("bt2020nc", report.ColorSpace);
+        int white = pq ? 573 : 721;
+        Assert.InRange(max, white - 8, white + 8);
+        Assert.InRange(min, 56, 72);
+        if (pq)
+        {
+            Assert.True(mastering && light, "Faltan los metadatos HDR10.");
+            Assert.Contains("\"max_content\": 1000", probe, StringComparison.Ordinal);
+            Assert.Contains("\"max_average\": 400", probe, StringComparison.Ordinal);
+            Assert.Matches("\"max_luminance\": \"(1000/1|10000000/10000|256000/256)\"", probe);
+        }
+        else
+        {
+            Assert.False(mastering || light, "HLG no lleva SEI de masterizado ni de nivel de luz.");
+        }
+    }
+
+    /// <summary>Exporta la rampa con un codificador; <c>null</c> si el codificador no está en este equipo.</summary>
+    private async Task<(ExportJob Job, string Path, Project Project, VideoExportSettings Video)?> ExportRampAsync(string encoderId, string extension,
+        int bits, SequenceColorSpace space, ExportColor? color)
+    {
+        FfmpegExecutable lgpl = Skip.ProxyExecutable!;
+        FfmpegExecutable? gpl = encoderId.StartsWith("libx26", StringComparison.Ordinal) ? GplAddOn() : null;
+        if (encoderId.StartsWith("libx26", StringComparison.Ordinal) && gpl is null)
+        {
+            output.WriteLine("Sin RODAJE_CODIFICADORES_GPL: se omite.");
+            return null;
+        }
+
+        List<EncoderSpec> encoders = [.. await new CatalogEncoderSource(lgpl).GetAsync()];
+        if (gpl is not null)
+        {
+            encoders.AddRange(await CatalogEncoderSource.ForGplAddOn(gpl).GetAsync());
+        }
+
+        if (encoders.FirstOrDefault(e => e.Id == encoderId) is not { } spec)
+        {
+            output.WriteLine($"{encoderId}: no está en este equipo, se omite.");
+            return null;
+        }
+
+        string folder = ExportEndToEndTests.Folder();
+        Project project = RampProject(await RampAsync(lgpl, Path.Combine(folder, "rampa 10 bits.mkv")));
+        project.Sequences[0].ColorSpace = space;
+        var video = new VideoExportSettings
+        {
+            Codec = spec.Codec,
+            EncoderId = encoderId,
+            BitDepth = bits,
+            Chroma = spec.Codec is ExportCodec.ProRes or ExportCodec.DnxHr ? ChromaSubsampling.Chroma422 : ChromaSubsampling.Chroma420,
+            Profile = encoderId switch { "prores_ks" => "hq", "dnxhd" => "dnxhr_hqx", _ => null },
+            RateControl = spec.Codec switch
+            {
+                ExportCodec.ProRes or ExportCodec.DnxHr => RateControl.ProfileDefined,
+                ExportCodec.Ffv1 => RateControl.Lossless,
+                _ => RateControl.ConstantQuality(),
+            },
+            Color = color,
+        };
+        string path = Path.Combine(folder, $"salida {encoderId} {bits} {space}.{extension}");
+        var runner = new ExportRunner(new ExportRunnerOptions { Ffmpeg = lgpl, GplFfmpeg = gpl });
+        ExportJob job = runner.Start(new ExportRequest(project, "sec", path, new ExportSettings
+        {
+            Container = extension switch { "mkv" => ExportContainer.Mkv, "webm" => ExportContainer.WebM, "mov" => ExportContainer.Mov, _ => ExportContainer.Mp4 },
+            Video = video,
+        }), encoders);
+        await job.Completion.WaitAsync(TimeSpan.FromMinutes(3));
+        Assert.True(job.Progress.State == ExportJobState.Completed, job.Failure?.ToString());
+        return (job, path, project, video);
     }
 
     public void Dispose() => ExportEndToEndTests.DeleteFolders();
@@ -186,10 +251,16 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
 
     private static async Task<bool> HasHdrSideDataAsync(string path)
     {
+        string text = await ProbeJsonAsync(path);
+        return text.Contains("Mastering display", StringComparison.OrdinalIgnoreCase) || text.Contains("Content light level", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>Flujo de video y primer cuadro con sus datos adjuntos (ffprobe en JSON).</summary>
+    private static async Task<string> ProbeJsonAsync(string path)
+    {
         string ffprobe = Path.Combine(Path.GetDirectoryName(Skip.ProxyExecutable!.Path)!, "ffprobe.exe");
         byte[] json = await RunAsync(ffprobe, ["-v", "error", "-select_streams", "v:0", "-read_intervals", "%+#1", "-show_frames", "-show_streams", "-of", "json", path]);
-        string text = System.Text.Encoding.UTF8.GetString(json);
-        return text.Contains("Mastering display", StringComparison.OrdinalIgnoreCase) || text.Contains("Content light level", StringComparison.OrdinalIgnoreCase);
+        return System.Text.Encoding.UTF8.GetString(json);
     }
 
     private static async Task<byte[]> RunAsync(string exe, string[] args)

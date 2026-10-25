@@ -96,8 +96,10 @@ internal static class ExportShaders
         """;
 
     // plane: offset, pitch, unidades por fila, filas. mode: PlaneKind, código máximo, desplazamiento (P010: 6),
-    // banderas (1 tramado, 2 alfa recto, 4 croma a medio ancho, 8 croma a media altura). coef: Kr, Kb y los
+    // banderas (1 tramado, 2 alfa recto, 4 croma a medio ancho, 8 croma a media altura; con HDR, 16 PQ y 32 HLG). coef: Kr, Kb y los
     // divisores de Cb y Cr. range: escala y desplazamiento de luma y de croma, en códigos. size: tamaño del cuadro.
+    // La variante HDR codifica la composición SDR (BT.709) a BT.2020 con PQ o HLG, con el blanco en 203 nits (BT.2408);
+    // sin HDR definido la fuente es la de siempre, así el bytecode SDR no cambia (lo comprueba ExportHdrEncodeTests).
     private const string Convert = """
         cbuffer Convert : register(b0)
         {
@@ -113,13 +115,50 @@ internal static class ExportShaders
 
         static const float bayer[16] = { 0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5 };
 
+        #ifdef HDR
+        float Bt709Linear(float x)
+        {
+            return x < 0.081 ? x / 4.5 : pow((x + 0.099) / 1.099, 1.0 / 0.45);
+        }
+
+        float HlgOetf(float x)
+        {
+            return x <= 1.0 / 12 ? sqrt(3 * x) : 0.17883277 * log(12 * x - 0.28466892) + 0.55991073;
+        }
+
+        // Entra R'G'B' BT.709 en [0, 1]; sale R'G'B' BT.2020 en PQ (1,0 = 203 nits) o en HLG (203 nits = 75 %, pico 1000).
+        float3 EncodeHdr(float3 rgb)
+        {
+            float3 light = mul(float3x3(
+                0.627404, 0.329283, 0.043313,
+                0.069097, 0.919540, 0.011362,
+                0.016391, 0.088013, 0.895595), float3(Bt709Linear(rgb.r), Bt709Linear(rgb.g), Bt709Linear(rgb.b)));
+            light = max(light, 0);
+            if ((mode.w & 16) != 0)
+            {
+                float3 y = pow(light * (203.0 / 10000), 0.1593017578125);
+                return pow((0.8359375 + 18.8515625 * y) / (1 + 18.6875 * y), 78.84375);
+            }
+
+            // BT.2100: OOTF inversa de luminancia (gamma 1,2 a 1000 nits) y después la OETF por canal.
+            float3 display = light * (203.0 / 1000);
+            float luminance = max(dot(display, float3(0.2627, 0.6780, 0.0593)), 1e-6);
+            float3 scene = display * pow(luminance, 1.0 / 1.2 - 1);
+            return float3(HlgOetf(scene.r), HlgOetf(scene.g), HlgOetf(scene.b));
+        }
+        #endif
+
         float4 Pixel(int x, int y)
         {
             float4 p = picture.Load(int3(clamp(x, 0, int(size.x) - 1), clamp(y, 0, int(size.y) - 1), 0));
             float a = saturate(p.a);
             float3 rgb = p.rgb;
             if ((mode.w & 2) != 0) rgb = a > 0 ? rgb / a : 0;
+        #ifdef HDR
+            return float4(EncodeHdr(saturate(rgb)), a);
+        #else
             return float4(saturate(rgb), a);
+        #endif
         }
 
         float Luma(float3 rgb)
@@ -291,6 +330,8 @@ internal static class ExportShaders
     public static ShaderVariant ScaleVariant { get; } = new(Scale, "CsScale", "cs_5_0", SourceName);
 
     public static ShaderVariant ConvertVariant { get; } = new(Convert, "CsConvert", "cs_5_0", SourceName);
+
+    public static ShaderVariant ConvertHdrVariant { get; } = new(Convert, "CsConvert", "cs_5_0", SourceName, "HDR");
 
     public static ShaderVariant ThumbnailVariant { get; } = new(Thumbnail, "CsThumbnail", "cs_5_0", SourceName);
 }

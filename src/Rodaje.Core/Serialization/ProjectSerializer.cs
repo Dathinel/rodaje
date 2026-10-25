@@ -7,7 +7,7 @@ namespace Rodaje.Core.Serialization;
 
 /// <summary>
 /// Lee y escribe proyectos en el formato <c>.rodaje</c>: JSON en UTF-8 descrito en
-/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v14.schema.json</c>.
+/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v15.schema.json</c>.
 /// </summary>
 public static class ProjectSerializer
 {
@@ -38,7 +38,8 @@ public static class ProjectSerializer
         {
             var document = new Project
             {
-                SchemaVersion = project.Media.Any(media => media.IsStillImage) ? 14 : 13,
+                SchemaVersion = project.Sequences.Any(sequence => sequence.ColorSpace != SequenceColorSpace.Sdr709) ? 15
+                    : project.Media.Any(media => media.IsStillImage) ? 14 : 13,
                 Id = project.Id,
                 Name = project.Name,
                 Media = project.Media,

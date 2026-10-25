@@ -50,7 +50,7 @@ public sealed class StillImageTests
     {
         string path = Path.Combine(Serialization.ProjectSchemaTests.FindRepoRoot(), "tests", "Rodaje.Core.Tests", "Serialization", "ejemplos", "proyecto-v13.rodaje");
         Project copy = ProjectSerializer.Load(path);
-        Assert.Equal(14, copy.SchemaVersion);
+        Assert.Equal(15, copy.SchemaVersion);
         Assert.False(copy.Media[0].IsStillImage);
         Assert.Equal(Time.FromSeconds(1), copy.Media[0].Duration);
     }
@@ -168,7 +168,7 @@ public sealed class StillImageTests
 
         string json = ProjectSerializer.Serialize(f.Project);
         Assert.Equal(version, System.Text.Json.Nodes.JsonNode.Parse(json)!["schemaVersion"]!.GetValue<int>());
-        Assert.Equal(14, f.Project.SchemaVersion);
+        Assert.Equal(15, f.Project.SchemaVersion);
         Assert.Empty(ModelValidator.Validate(ProjectSerializer.Deserialize(json)));
     }
 }
