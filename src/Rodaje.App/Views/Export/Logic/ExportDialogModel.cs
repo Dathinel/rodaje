@@ -129,7 +129,16 @@ public sealed class ExportDialogModel
     public ExportEstimate Estimate => ExportEstimator.Estimate(Settings with { Performance = Performance }, VideoEncoder, OutputSize.Width,
         OutputSize.Height, FrameRate.ToDouble(), TimeSpan.FromSeconds(Duration.ToSeconds()));
 
-    public OutputCheck OutputCheck => ExportRanges.Check(OutputPath);
+    /// <summary>
+    /// Las salidas de la cola que aún no terminaron: su archivo todavía no está en el disco, pero cuentan como si ya
+    /// existiera (se pide confirmar y las versiones no las repiten).
+    /// </summary>
+    public IReadOnlyCollection<string> PendingOutputs { get; init; } = [];
+
+    public OutputCheck OutputCheck => ExportRanges.Check(OutputPath, Settings.Container) is var check && check == OutputCheck.Ok
+        && PendingOutputs.Contains(OutputPath, StringComparer.OrdinalIgnoreCase)
+            ? OutputCheck.Exists
+            : check;
 
     /// <summary>Lo que impide exportar (vacío si se puede); la ruta que ya existe no impide, pide confirmar.</summary>
     public IReadOnlyList<string> Problems => [.. ExportSettingsEditor.Validate(Settings, Encoders).Select(p => p.Message), .. VersionProblems];
@@ -292,7 +301,7 @@ public sealed class ExportDialogModel
         string folder = Path.GetDirectoryName(OutputPath) is { Length: > 0 } dir ? dir : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
         string baseName = Path.GetFileNameWithoutExtension(OutputPath);
         var requests = new List<ExportRequest>();
-        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var used = new HashSet<string>(PendingOutputs, StringComparer.OrdinalIgnoreCase);
         foreach (string id in presetIds)
         {
             ExportPreset preset = ExportPresetLibrary.Find(_preferences, id) ?? throw new ArgumentException($"No hay un preajuste «{id}».", nameof(presetIds));
@@ -320,10 +329,12 @@ public sealed class ExportDialogModel
             }
 
             string name = string.Concat($"{baseName} - {preset.Name}".Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim();
-            string path = ExportRanges.WithExtension(Path.Combine(folder, name), settings);
+            // La extensión se añade, no se cambia: en «Boda 24.10.2026 - Web 1080p» el último punto es del nombre.
+            string extension = "." + ExportRanges.Extension(settings);
+            string path = Path.Combine(folder, name + extension);
             for (int n = 2; !used.Add(path) || File.Exists(path) || Directory.Exists(path); n++)
             {
-                path = ExportRanges.WithExtension(Path.Combine(folder, $"{name} ({n})"), settings);
+                path = Path.Combine(folder, $"{name} ({n}){extension}");
             }
 
             requests.Add(new ExportRequest(projectCopy, sequenceId, path, settings, Ranges[RangeIndex].Range) { ProjectDirectory = projectDirectory });

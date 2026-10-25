@@ -214,6 +214,15 @@ public sealed partial class EditorSession
 
     private string PlaybackSequenceId => IsSourceActive ? SourceSequenceId : SequenceId;
 
+    /// <summary>
+    /// Copia del proyecto y la secuencia del cuadro que muestra el visor, con su cadencia: la del origen si está activo, o
+    /// la del programa. Es lo que guardan «Capturar fotograma» y «Exportar fotograma» junto con <see cref="Position"/>.
+    /// </summary>
+    public (Project Project, string SequenceId, Rational FrameRate) ViewerFrameSource() =>
+        IsSourceActive && SourceMedia is { } media
+            ? (SourceProject(media), SourceSequenceId, media.FrameRate ?? Sequence.FrameRate)
+            : (Project.Clone(), SequenceId, Sequence.FrameRate);
+
     private ThreePointRequest Request(PlacementMode mode, FourPointFit fit)
     {
         Sequence sequence = Sequence;

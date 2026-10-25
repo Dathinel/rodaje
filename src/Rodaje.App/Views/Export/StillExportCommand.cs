@@ -5,6 +5,7 @@ using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Export.Running;
 using Rodaje.Export.Still;
@@ -71,7 +72,7 @@ internal static partial class StillExportCommand
         private Task CaptureFrameAsync()
         {
             EditorSession session = _services.Session;
-            Rational rate = session.Project.Sequences.FirstOrDefault(s => s.Id == session.SequenceId)?.FrameRate ?? Rational.Fps30;
+            (Project project, string sequenceId, Rational rate) = session.ViewerFrameSource();
             Time position = session.Position;
             string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
             string folder = Logic.StillCaptureNaming.ResolveCaptureFolder(_services.Settings.Current, session.FilePath);
@@ -86,8 +87,8 @@ internal static partial class StillExportCommand
             }
 
             string fileName = Logic.StillCaptureNaming.FormatFileName(session.ProjectName, position, rate);
-            string path = Path.Combine(folder, fileName);
-            var request = new StillRequest(session.Project.Clone(), session.SequenceId, position, path,
+            string path = Logic.StillCaptureNaming.Available(Path.Combine(folder, fileName));
+            var request = new StillRequest(project, sequenceId, position, path,
                 new StillSettings { Format = StillFormat.Png }) { ProjectDirectory = projectFolder };
 
             return _flow.CaptureAsync(request, result =>
@@ -117,7 +118,7 @@ internal static partial class StillExportCommand
         private StillRequest? Ask()
         {
             EditorSession session = _services.Session;
-            Rational rate = session.Project.Sequences.FirstOrDefault(s => s.Id == session.SequenceId)?.FrameRate ?? Rational.Fps30;
+            (Project project, string sequenceId, Rational rate) = session.ViewerFrameSource();
             Time position = session.Position;
             long frame = position.ToFrames(rate);
             string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
@@ -136,7 +137,7 @@ internal static partial class StillExportCommand
             // «foto.bmp» no sale como un PNG con nombre BMP: se le añade «.png» («foto.bmp.png»).
             StillFormat format = StillSettings.FormatFor(path);
             path = StillSettings.WithExtension(path, format);
-            return new StillRequest(session.Project.Clone(), session.SequenceId, position, path,
+            return new StillRequest(project, sequenceId, position, path,
                 new StillSettings { Format = format }) { ProjectDirectory = projectFolder };
         }
 

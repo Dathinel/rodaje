@@ -212,10 +212,19 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
     /// Con <paramref name="current"/> (el proyecto abierto) y si es el mismo proyecto con la misma secuencia, exporta su estado
     /// de ahora: lo que se arregló después del fallo (un clip o medio quitado) ya no está en la copia que se repite.
     /// </summary>
+    /// <remarks>
+    /// Si ya no está en la lista o no terminó (se reintentó desde la tarjeta y luego desde el aviso), no hace nada y la
+    /// devuelve tal cual: no se encola dos veces la misma exportación.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">Una completada (<see cref="ExportEntry.IsReleased"/>) sin ese proyecto abierto.</exception>
     public ExportEntry Retry(ExportEntry entry, bool continueWithoutMissing = false, Project? current = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        if (!entry.IsFinished || !_entries.Contains(entry))
+        {
+            return entry;
+        }
+
         ExportRequest request = entry.Request;
         if (current is { Id.Length: > 0 } && current.Id == request.Project.Id && current.Sequences.Exists(s => s.Id == request.SequenceId))
         {
@@ -285,8 +294,10 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
         {
             // La más antigua que espera: la lista va de la más reciente a la más antigua.
             ExportEntry? next = _entries.LastOrDefault(e => e.Job is null);
-            ExportSettings[] running = [.. _entries.Where(e => e.Job is { } job && !job.Progress.State.IsFinished()).Select(e => e.Request.Settings)];
-            if (next is null || !Concurrency.Allows(running, next.Request.Settings))
+            ExportEntry[] running = [.. _entries.Where(e => e.Job is { } job && !job.Progress.State.IsFinished())];
+            // Dos a la misma salida pisarían el mismo temporal: la segunda espera a que termine la primera.
+            if (next is null || running.Any(e => string.Equals(e.OutputPath, next.OutputPath, StringComparison.OrdinalIgnoreCase))
+                || !Concurrency.Allows([.. running.Select(e => e.Request.Settings)], next.Request.Settings))
             {
                 return;
             }
