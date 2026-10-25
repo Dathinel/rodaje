@@ -87,6 +87,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         Program.Metrics.Milestone("ventana_inicio");
         InitializeComponent();
         Program.Metrics.Milestone("ventana_xaml");
+        Theme.ThemeResources.ApplyRequestedTheme(Root);
+        Theme.ThemeResources.ThemeChanged += (_, _) => Theme.ThemeResources.ApplyRequestedTheme(Root);
         _dispatcher = DispatcherQueue.GetForCurrentThread();
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
         SetUpTitleBar();

@@ -104,6 +104,28 @@ public sealed class PersonalizationTests
     }
 
     [Fact]
+    public void Temas_ElTemaDeWinUISigueAlFondoYElTextoDelAcentoCumpleAA()
+    {
+        // ThemeResources.RequestedTheme es Light justo cuando IsLight: Claro y los propios de fondo claro.
+        Assert.False(Themes.IsLight(Themes.HighContrast));
+        ThemeDefinition own = Themes.Graphite.Copy("Papel");
+        own.Set("BackgroundBrush", 0xFFF5F0E6);
+        Assert.True(Themes.IsLight(own));
+        own.Set("BackgroundBrush", 0xFF2A2420);
+        Assert.False(Themes.IsLight(own));
+
+        foreach (ThemeDefinition theme in Themes.BuiltIn)
+        {
+            foreach ((string name, uint accent) in Personalization.AccentPalette)
+            {
+                ThemeDefinition themed = Themes.WithAccent(theme, Themes.FitAccent(theme, accent).Accent);
+                double contrast = Personalization.Contrast(themed.Color("AccentForegroundBrush"), themed.Color("AccentBrush"));
+                Assert.True(contrast >= Personalization.TextContrast, $"{theme.Name}, {name}: {contrast:0.00}");
+            }
+        }
+    }
+
+    [Fact]
     public void Temas_UnTemaRotoAvisaYSeAplicaGrafito()
     {
         ThemeDefinition broken = Themes.Graphite.Copy("Mío");

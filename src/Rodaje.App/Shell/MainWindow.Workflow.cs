@@ -172,7 +172,7 @@ internal sealed partial class MainWindow
                     add,
                 },
             },
-            CloseButtonText = "Listo", RequestedTheme = ElementTheme.Dark,
+            CloseButtonText = "Listo",
         };
         await DialogGate.ShowAsync(dialog).ConfigureAwait(true);
     }
@@ -220,7 +220,7 @@ internal sealed partial class MainWindow
                     name,
                 },
             },
-            PrimaryButtonText = "Guardar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Primary, RequestedTheme = ElementTheme.Dark,
+            PrimaryButtonText = "Guardar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Primary,
         };
         if (await DialogGate.ShowAsync(dialog).ConfigureAwait(true) != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(name.Text))
         {
@@ -275,7 +275,7 @@ internal sealed partial class MainWindow
                     + $" de la última vez: {names}. La que estaba a medias empieza de nuevo.",
             },
             PrimaryButtonText = "Reanudar", CloseButtonText = "Descartar",
-            DefaultButton = ContentDialogButton.Primary, RequestedTheme = ElementTheme.Dark,
+            DefaultButton = ContentDialogButton.Primary,
         };
         // Si otra pregunta está abierta (recuperar un autoguardado), se espera a que se cierre.
         while (DialogGate.IsOpen && !_closed)

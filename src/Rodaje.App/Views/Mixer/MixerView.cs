@@ -571,7 +571,6 @@ internal sealed partial class MixerView : UserControl, IEditorView, IStripHost
             PrimaryButtonText = "Aceptar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
         return await DialogGate.ShowAsync(dialog).ConfigureAwait(true) == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text)
             ? box.Text.Trim()

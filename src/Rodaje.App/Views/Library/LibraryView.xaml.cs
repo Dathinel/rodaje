@@ -693,7 +693,6 @@ internal sealed partial class LibraryView : UserControl, IEditorView
                 PrimaryButtonText = "Reemplazar y acortar",
                 CloseButtonText = "Cancelar",
                 DefaultButton = ContentDialogButton.Close,
-                RequestedTheme = ElementTheme.Dark,
             };
             if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary)
             {

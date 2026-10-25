@@ -928,6 +928,11 @@ internal static partial class SelfTestRun
             throw new InvalidOperationException("La vista previa del tema Claro no se aplicó.");
         }
 
+        if (((FrameworkElement)window.Content).ActualTheme != ElementTheme.Light || dialog.ActualTheme != ElementTheme.Light)
+        {
+            throw new InvalidOperationException("Con el tema Claro, la ventana o el diálogo siguen con los controles de WinUI en oscuro.");
+        }
+
         await CaptureElementAsync(view, "preferencias-personalizacion");
         await CaptureAsync(window, "tema-claro");
         view.ShowForSelfTest(4, null);
@@ -939,6 +944,11 @@ internal static partial class SelfTestRun
         if (!string.Equals(Theme.ThemeResources.Current.Name, window.Settings.Theme, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Cancelar Preferencias no devolvió el tema de los ajustes.");
+        }
+
+        if (((FrameworkElement)window.Content).ActualTheme != Theme.ThemeResources.RequestedTheme)
+        {
+            throw new InvalidOperationException("Cancelar Preferencias no devolvió el tema de WinUI de los ajustes.");
         }
     }
 

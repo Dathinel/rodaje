@@ -103,7 +103,6 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             PrimaryButtonText = "Normalizar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
         return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary ? LoudnessNormalizer.ParseTarget(box.Text) : null;
     }
@@ -813,7 +812,6 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             PrimaryButtonText = "Guardar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
 
         if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary)

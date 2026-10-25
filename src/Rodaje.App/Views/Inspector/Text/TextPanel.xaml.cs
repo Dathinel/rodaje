@@ -278,7 +278,6 @@ internal sealed partial class TextPanel : UserControl, IEditorView
             PrimaryButtonText = "Guardar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
 
         if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary)

@@ -53,7 +53,6 @@ internal sealed partial class ExportView
             XamlRoot = XamlRoot, Title = "Exportar varias versiones",
             Content = new ScrollViewer { Content = list, MaxHeight = 420 },
             PrimaryButtonText = "Exportar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
         if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary)
         {

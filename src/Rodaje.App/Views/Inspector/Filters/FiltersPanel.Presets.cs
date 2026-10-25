@@ -265,7 +265,6 @@ internal sealed partial class FiltersPanel
             PrimaryButtonText = "Guardar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
         if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary || CurrentClip() is not { } current)
         {
