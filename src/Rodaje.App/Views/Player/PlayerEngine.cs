@@ -74,10 +74,20 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private GpuDevice? _gpu;
     private TimelineSession? _session;
     private Compositor? _compositor;
-    /// <summary>El gris de alrededor del lienzo, igual que <c>ViewerSurroundColor</c> de <c>Palette.xaml</c> (#242424).</summary>
-    private static readonly (float R, float G, float B) SurroundColor = (0x24 / 255f, 0x24 / 255f, 0x24 / 255f);
+    /// <summary>El gris de alrededor del lienzo, el <c>ViewerSurroundBrush</c> del tema (#242424 en grafito; <see cref="SetSurround"/>).</summary>
+    private (float R, float G, float B) _surround = (0x24 / 255f, 0x24 / 255f, 0x24 / 255f);
 
     private Presenter? _presenter;
+
+    /// <summary>Cambia el color de alrededor del lienzo (al cambiar de tema); llega al siguiente cuadro.</summary>
+    public void SetSurround(uint argb)
+    {
+        _surround = (((argb >> 16) & 0xFF) / 255f, ((argb >> 8) & 0xFF) / 255f, (argb & 0xFF) / 255f);
+        if (_presenter is { } presenter)
+        {
+            presenter.Surround = _surround;
+        }
+    }
     private CompositionSwapChain? _swapChain;
     private TenBitViewer _tenBitViewer;
     private HdrViewer _hdrViewer;
@@ -569,7 +579,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         _gpu = GpuDevice.TryCreate(out string? gpuFailure) ?? throw new InvalidOperationException("Hace falta una GPU con Direct3D 11. " + gpuFailure);
         DeviceDescription = _gpu.ToString();
-        _presenter = new Presenter(_gpu) { Surround = SurroundColor };
+        _presenter = new Presenter(_gpu) { Surround = _surround };
         _gpuTimer = new GpuTimer(_gpu);
         CreateTitles();
         _metrics.Milestone("gpu_lista");

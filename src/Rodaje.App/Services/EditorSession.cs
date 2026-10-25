@@ -64,7 +64,7 @@ public sealed partial class EditorSession : ObservableObject
     // Cuántas veces cambió el historial: dice si una excepción llegó antes o después de aplicar la edición.
     private long _historyChanges;
 
-    public EditorSession(IPlaybackEngine playback, IMediaProber prober, IEditorDialogs dialogs, IIdGenerator? ids = null, NewProjectTracks? newProjectTracks = null)
+    public EditorSession(IPlaybackEngine playback, IMediaProber prober, IEditorDialogs dialogs, IIdGenerator? ids = null, NewProjectTracks? newProjectTracks = null, Settings.NewProjectFormat? newProjectFormat = null)
     {
         ArgumentNullException.ThrowIfNull(playback);
         ArgumentNullException.ThrowIfNull(prober);
@@ -74,6 +74,7 @@ public sealed partial class EditorSession : ObservableObject
         _dialogs = dialogs;
         _ids = ids ?? GuidIdGenerator.Instance;
         NewProjectTracks = newProjectTracks ?? NewProjectTracks.Default;
+        NewProjectFormat = newProjectFormat;
         _threadId = Environment.CurrentManagedThreadId;
         Project project = CreateEmptyProject();
         Project = project;
@@ -421,7 +422,25 @@ public sealed partial class EditorSession : ObservableObject
     /// <summary>La copia del proyecto que recibe el reproductor.</summary>
     private Project PlaybackProject() => IsSourceActive && SourceMedia is { } media ? SourceProject(media) : WithPreviewOff(Project.Clone());
 
-    private Project CreateEmptyProject() => NewProjectTracks.CreateProject(UntitledName, _ids);
+    /// <summary>Formato de los proyectos nuevos (Preferencias › Personalización); nulo deja 1080p a 30.</summary>
+    public Settings.NewProjectFormat? NewProjectFormat { get; set; }
+
+    private Project CreateEmptyProject()
+    {
+        Project project = NewProjectTracks.CreateProject(UntitledName, _ids);
+        if (NewProjectFormat is { } format)
+        {
+            Sequence sequence = project.Sequences[0];
+            (sequence.Width, sequence.Height, sequence.FrameRate) = (format.Width, format.Height, format.FrameRate);
+            // Un formato elegido en Preferencias se respeta como el de una plantilla: el primer video no lo pisa.
+            if (format != Settings.NewProjectFormat.Factory)
+            {
+                _templateProject = project;
+            }
+        }
+
+        return project;
+    }
 
     /// <summary>
     /// Cambia de proyecto: historial nuevo, selección vacía y el reproductor desde el principio. Con

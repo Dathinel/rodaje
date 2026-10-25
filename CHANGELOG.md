@@ -11,6 +11,7 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video real para Instagram.
 
 ### Añadido
+- **Personalización:** pestañas «Personalización» y «Temas» en Preferencias. Tema Grafito, Claro, Alto contraste o «Seguir a Windows»; acento de ocho colores o personalizado con ajuste automático a 3:1; escala de la interfaz (90–125 %) y tamaño del texto de la línea de tiempo. Editor de temas propios por grupos con vista previa en vivo, comprobación AA, duplicar, renombrar, eliminar, importar y exportar `.rodaje-tema`. Espacios de trabajo desde Preferencias, formato y carpeta de los proyectos nuevos, y perfil `.rodaje-perfil` con todo lo anterior más atajos y ratón; «Restablecer todo» con confirmación (D-056).
 - **Imágenes fijas como clips:** PNG, JPEG, WebP, BMP y TIFF, también con transparencia. Duración inicial configurable en Preferencias (5 s por defecto) y recorte libre. Respeta la orientación EXIF y reduce a 8192 px las imágenes más grandes (#430, #431, #434).
 - **Efecto Ken Burns** para fotos, con 4 preajustes en el menú del clip: acercar, alejar y desplazar a la izquierda o a la derecha (#434).
 - **Captura de fotograma rápida:** botón de cámara en el visor y `Ctrl+Mayús+C`. Guarda en la carpeta `Capturas` del proyecto sin diálogo y ofrece añadirla a la biblioteca (#434).

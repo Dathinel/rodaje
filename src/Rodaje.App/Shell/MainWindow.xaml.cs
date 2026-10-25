@@ -107,7 +107,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         var dialogs = new ShellDialogs(this, _hwnd, settings, () => session?.FilePath);
         _dialogs = dialogs;
         session = new EditorSession(engine, prober, dialogs,
-            newProjectTracks: settings.Current.NewProjectTracks)
+            newProjectTracks: settings.Current.NewProjectTracks, newProjectFormat: settings.Current.NewProjectFormat)
         {
             LinkedAudioTracks = settings.Current.LinkedAudioTracks,
         };
@@ -286,6 +286,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         // Un aviso abierto empuja la página modal hacia abajo en lugar de taparle la cabecera.
         Notification.SizeChanged += (_, e) => ModalFrame.Margin = new Thickness(48, 56 + e.NewSize.Height, 48, 40);
         Activated += OnActivated;
+        SizeChanged += (_, _) => ApplyUiScale();
         AppWindow.Closing += OnClosing;
         Closed += OnClosed;
 
@@ -357,7 +358,13 @@ internal sealed partial class MainWindow : Window, IShellHost
     private async Task ShowPreferencesAsync()
     {
         var view = new PreferencesView();
-        view.Attach(_settings.Current);
+        SaveLayout();
+        AppSettings current = _settings.Current;
+        view.Attach(current, _router.Registry, new WorkspaceProfile
+        {
+            LibraryWidth = current.LibraryWidth, InspectorWidth = current.InspectorWidth, TimelineShare = current.TimelineShare,
+            InspectorTab = Inspector.CurrentTabName, HiddenInspectorTabs = [.. current.HiddenInspectorTabs],
+        });
         var dialog = new ContentDialog
         {
             XamlRoot = Root.XamlRoot,
@@ -369,16 +376,30 @@ internal sealed partial class MainWindow : Window, IShellHost
         };
         if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary)
         {
+            view.Discard();
             return;
         }
 
         view.Apply();
         _services.Session.NewProjectTracks = _settings.Current.NewProjectTracks;
+        _services.Session.NewProjectFormat = _settings.Current.NewProjectFormat;
         _services.Session.LinkedAudioTracks = _settings.Current.LinkedAudioTracks;
         _services.Player.SetProxyUsage(_settings.Current.ProxyUsage);
         _services.Player.TenBitViewer = _settings.Current.TenBitViewer;
         _services.Player.HdrViewer = _settings.Current.HdrViewer;
         _router.Registry.Preset = _settings.Current.ShortcutPreset;
+        if (view.WorkspaceToApply is { } workspace)
+        {
+            ApplyWorkspace(workspace);
+        }
+
+        if (view.ProfileImported)
+        {
+            _shortcutStore.Save(_router.Registry);
+            TitleBar.RefreshWorkspaces();
+        }
+
+        ApplyUiScale();
         _settings.SaveIfChanged();
     }
 
@@ -619,6 +640,38 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         FitSidePanels(width);
+    }
+
+    /// <summary>
+    /// Escala de la interfaz (Preferencias › Personalización): la raíz se dibuja escalada y mide el tamaño de la ventana
+    /// dividido por la escala, así todo se recoloca de verdad. Los diálogos y menús flotantes quedan al 100 %.
+    /// </summary>
+    private void ApplyUiScale()
+    {
+        double scale = _settings.Current.UiScale / 100.0;
+        if (scale == 1 && Root.RenderTransform is null)
+        {
+            return;
+        }
+
+        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        double width = AppWindow.ClientSize.Width * 96.0 / Math.Max(1u, dpi);
+        double height = AppWindow.ClientSize.Height * 96.0 / Math.Max(1u, dpi);
+        if (scale == 1 || width <= 0 || height <= 0)
+        {
+            Root.RenderTransform = null;
+            Root.Width = double.NaN;
+            Root.Height = double.NaN;
+            Root.HorizontalAlignment = HorizontalAlignment.Stretch;
+            Root.VerticalAlignment = VerticalAlignment.Stretch;
+            return;
+        }
+
+        Root.RenderTransform = new ScaleTransform { ScaleX = scale, ScaleY = scale };
+        Root.HorizontalAlignment = HorizontalAlignment.Left;
+        Root.VerticalAlignment = VerticalAlignment.Top;
+        Root.Width = width / scale;
+        Root.Height = height / scale;
     }
 
     /// <summary>
