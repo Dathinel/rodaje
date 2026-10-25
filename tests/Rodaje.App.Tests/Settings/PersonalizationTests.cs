@@ -2,6 +2,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Tests.Support;
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.App.Tests.Settings;
@@ -180,6 +181,7 @@ public sealed class PersonalizationTests
         Assert.True(PersonalProfile.Apply(json, target, registry, themes));
         Assert.Equal("Mi tema", target.Theme);
         Assert.NotNull(themes.Find("Mi tema"));
+        Assert.False(File.Exists(Path.Combine(dir.Path, "Mi tema.rodaje-tema")));
         Assert.Equal("#4F9DDE", target.AccentColor);
         Assert.Equal(110, target.UiScale);
         Assert.Equal(TimelineFontSize.Large, target.TimelineFontSize);
@@ -200,11 +202,111 @@ public sealed class PersonalizationTests
 
         Assert.False(PersonalProfile.Apply("{ roto", new AppSettings(), registry, null));
         Assert.False(PersonalProfile.Apply("""{"version": 2}""", new AppSettings(), registry, null));
-        Assert.Contains("No se pudo leer", PersonalProfile.Import(Path.Combine(dir.Path, "x.rodaje-perfil"), new AppSettings(), registry, null) ?? "", StringComparison.Ordinal);
+        Assert.Contains("No se pudo leer", new PersonalizationDraft(new AppSettings(), registry).Import(Path.Combine(dir.Path, "x.rodaje-perfil"), null) ?? "", StringComparison.Ordinal);
 
         PersonalProfile.ResetAll(target, registry);
         Assert.Equal(Themes.GraphiteName, target.Theme);
         Assert.Empty(target.Workspaces);
         Assert.Equal(ShortcutPreset.Rodaje, registry.Preset);
     }
+
+    [Fact]
+    public void Borrador_ImportarYRestablecerNoTocanLoVivoHastaGuardar()
+    {
+        var registry = new ShortcutRegistry();
+        registry.RegisterRange(EditorShortcuts.Catalog);
+        KeyChord x = KeyChord.Parse("X");
+        registry.Rebind(ActionIds.Split, x);
+        var live = new AppSettings { UiScale = 125, Theme = Themes.LightName };
+        live.Normalize();
+        WorkspaceProfiles.SaveCurrent(live, "Mío", new WorkspaceProfile { LibraryWidth = 300 });
+
+        using var dir = new TempDirectory();
+        var exported = new AppSettings { UiScale = 90, ShortcutPreset = ShortcutPreset.Classic };
+        exported.Normalize();
+        string path = Path.Combine(dir.Path, "p.rodaje-perfil");
+        File.WriteAllText(path, PersonalProfile.Serialize(exported, new ShortcutRegistry(), null));
+
+        var draft = new PersonalizationDraft(live, registry);
+        Assert.Null(draft.Import(path, null));
+        Assert.Equal(90, draft.Settings.UiScale);
+        Assert.Equal(125, live.UiScale);
+        draft.ResetAll();
+        Assert.Empty(draft.Settings.Workspaces);
+        Assert.Equal(ShortcutPreset.Rodaje, draft.Registry.Preset);
+        Assert.False(draft.Registry.IsCustomized(ActionIds.Split));
+
+        // Cancelar: lo vivo sigue igual.
+        Assert.Equal(["Mío"], live.Workspaces.Select(w => w.Name));
+        Assert.Equal(ActionIds.Split, registry.FindAction(x));
+        Assert.Equal(Themes.LightName, live.Theme);
+
+        // Guardar: se repiten los pasos en orden sobre lo vivo.
+        Assert.True(draft.HasProfileChanges);
+        draft.Commit(live, registry);
+        Assert.False(draft.HasProfileChanges);
+        Assert.Empty(live.Workspaces);
+        Assert.Equal(Personalization.DefaultScale, live.UiScale);
+        Assert.Null(registry.FindAction(x));
+    }
+
+    [Fact]
+    public void Borrador_LosTemasBorradosYRenombradosSoloSeEscribenAlGuardar()
+    {
+        using var dir = new TempDirectory();
+        var store = new ThemeStore(dir.Path);
+        store.Save(Themes.Light.Copy("Mi claro"));
+        store.Save(Themes.Graphite.Copy("Otro"));
+        var registry = new ShortcutRegistry();
+        var draft = new PersonalizationDraft(new AppSettings(), registry);
+
+        draft.RenameTheme(store.Find("Mi claro")!, "Claro mío");
+        draft.DeleteTheme(store, "Otro");
+        Assert.Equal(["Claro mío"], store.Own.Select(t => t.Name));
+        Assert.True(File.Exists(Path.Combine(dir.Path, "Mi claro.rodaje-tema")));
+        Assert.True(File.Exists(Path.Combine(dir.Path, "Otro.rodaje-tema")));
+
+        // Cancelar relee la carpeta: vuelve todo como estaba.
+        Assert.Empty(store.Load());
+        Assert.Equal(["Mi claro", "Otro"], store.Own.Select(t => t.Name));
+
+        draft = new PersonalizationDraft(new AppSettings(), registry);
+        draft.RenameTheme(store.Find("Mi claro")!, "Claro mío");
+        draft.DeleteTheme(store, "Otro");
+        draft.CommitThemes(store);
+        Assert.Equal(["Claro mío.rodaje-tema"], Directory.GetFiles(dir.Path).Select(f => Path.GetFileName(f)));
+        Assert.Empty(store.Load());
+        Assert.Equal(Themes.Light.Color("BackgroundBrush"), store.Find("Claro mío")!.Color("BackgroundBrush"));
+    }
+
+    [Fact]
+    public void Ajustes_LaCopiaEsIndependiente()
+    {
+        var live = new AppSettings { Theme = "Mío" };
+        WorkspaceProfiles.SaveCurrent(live, "A", new WorkspaceProfile());
+        AppSettings copy = live.Clone();
+        copy.Theme = Themes.LightName;
+        copy.Workspaces.Clear();
+        Assert.Equal("Mío", live.Theme);
+        Assert.Single(live.Workspaces);
+    }
+
+    [Fact]
+    public void FormatoDePreferencias_ElPrimerVideoNoLoPisa() => UiThread.Run(async () =>
+    {
+        var prober = new FakeProber().Video("a.mp4", 10, 640, 360, new Rational(25, 1));
+        var vertical = new EditorSession(new FakePlayback(), prober, new FakeDialogs { Choice = UnsavedChangesChoice.Discard }, new SequentialIdGenerator(), newProjectFormat: new NewProjectFormat(1080, 1920, Rational.Fps60));
+        Assert.True(vertical.KeepsTemplateFormat);
+        await vertical.ImportMediaAsync([Path.GetFullPath("a.mp4")]);
+        Assert.Equal((1080, 1920, Rational.Fps60), (vertical.Sequence.Width, vertical.Sequence.Height, vertical.Sequence.FrameRate));
+
+        Assert.True(await vertical.NewProjectAsync());
+        Assert.True(vertical.KeepsTemplateFormat);
+
+        // Con el de fábrica, el primer video sigue adaptando la secuencia, como antes.
+        var factory = new EditorSession(new FakePlayback(), new FakeProber().Video("a.mp4", 10, 640, 360, new Rational(25, 1)), new FakeDialogs(), new SequentialIdGenerator(), newProjectFormat: NewProjectFormat.Factory);
+        Assert.False(factory.KeepsTemplateFormat);
+        await factory.ImportMediaAsync([Path.GetFullPath("a.mp4")]);
+        Assert.Equal((640, 360), (factory.Sequence.Width, factory.Sequence.Height));
+    });
 }

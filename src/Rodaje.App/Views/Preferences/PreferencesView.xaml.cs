@@ -18,6 +18,7 @@ internal sealed partial class PreferencesView : UserControl
 
     private PreferencesViewModel? _model;
     private ShortcutRegistry? _registry;
+    private PersonalizationDraft? _draft;
     private WorkspaceProfile? _currentWorkspace;
     private uint? _accent;
     private string? _pendingWorkspaceName;
@@ -69,13 +70,14 @@ internal sealed partial class PreferencesView : UserControl
     /// <summary>El espacio de trabajo elegido en la pestaña, para que la ventana lo aplique al guardar.</summary>
     public string? WorkspaceToApply { get; private set; }
 
-    /// <summary>Se importó un perfil: la ventana debe guardar los atajos y volver a leer el estilo.</summary>
+    /// <summary>Se confirmó un perfil importado o «Restablecer todo»: la ventana debe guardar los atajos y releer los espacios.</summary>
     public bool ProfileImported { get; private set; }
 
     public void Attach(AppSettings settings, ShortcutRegistry registry, WorkspaceProfile currentWorkspace)
     {
         _model = new PreferencesViewModel(settings);
         _registry = registry;
+        _draft = new PersonalizationDraft(settings, registry);
         _currentWorkspace = currentWorkspace;
         _loading = true;
         VideoTracksBox.Value = _model.VideoTracks;
@@ -105,9 +107,10 @@ internal sealed partial class PreferencesView : UserControl
 
     public void Apply()
     {
-        if (_model is not { } model) return;
-        model.VideoTracks = double.IsFinite(VideoTracksBox.Value) ? (int)VideoTracksBox.Value : NewProjectTracks.Default.Video;
-        model.AudioTracks = double.IsFinite(AudioTracksBox.Value) ? (int)AudioTracksBox.Value : NewProjectTracks.Default.Audio;
+        if (_model is not { } model || _draft is not { } draft || _registry is not { } registry) return;
+        bool profileChanges = draft.HasProfileChanges;
+        draft.Commit(model.Settings, registry);
+        ProfileImported = profileChanges;
         model.StillImageDurationSeconds = double.IsFinite(StillImageDurationBox.Value) ? StillImageDurationBox.Value : Rodaje.Core.Model.MediaRef.DefaultStillImageDurationSeconds;
         model.StillCaptureFolder = StillCaptureFolderBox.Text;
         model.GenerateProxies = AutoProxiesBox.IsChecked == true;
@@ -116,12 +119,33 @@ internal sealed partial class PreferencesView : UserControl
         model.PreviewQuality = (PreviewQuality)Math.Max(0, PreviewQualityBox.SelectedIndex);
         model.TenBitViewer = (TenBitViewer)Math.Max(0, TenBitViewerBox.SelectedIndex);
         model.HdrViewer = (HdrViewer)Math.Max(0, HdrViewerBox.SelectedIndex);
-        model.ShortcutPreset = (ShortcutPreset)Math.Max(0, ShortcutPresetBox.SelectedIndex);
         model.SetLinkedAudioVideoTracks(LinkedAudioTracksPanel.Children.OfType<CheckBox>()
             .Where(checkBox => checkBox.IsChecked == true)
             .Select(checkBox => (int)checkBox.Tag));
 
         AppSettings s = model.Settings;
+        WritePersonalization(s);
+        if (_pendingWorkspaceName is { } name && _currentWorkspace is { } current)
+        {
+            WorkspaceToApply = WorkspaceProfiles.SaveCurrent(s, name, current).Id;
+        }
+        else if (WorkspaceBox.SelectedItem is WorkspaceChoice chosen && (chosen.Profile.Id != s.Workspace || profileChanges))
+        {
+            WorkspaceToApply = chosen.Profile.Id;
+        }
+
+        draft.CommitThemes(ThemeResources.Store);
+        s.Normalize();
+        ThemeResources.TimelineFontScale = Personalization.FontFactor(s.TimelineFontSize);
+        ThemeResources.ApplyCurrent(s);
+    }
+
+    /// <summary>Lo de la pestaña Personalización (y el estilo de teclado, que viaja en el perfil) a <paramref name="s"/>.</summary>
+    private void WritePersonalization(AppSettings s)
+    {
+        s.DefaultVideoTracks = double.IsFinite(VideoTracksBox.Value) ? (int)VideoTracksBox.Value : NewProjectTracks.Default.Video;
+        s.DefaultAudioTracks = double.IsFinite(AudioTracksBox.Value) ? (int)AudioTracksBox.Value : NewProjectTracks.Default.Audio;
+        s.ShortcutPreset = (ShortcutPreset)Math.Max(0, ShortcutPresetBox.SelectedIndex);
         s.Theme = ThemeBox.SelectedItem is ThemeChoice choice ? choice.Setting : Themes.GraphiteName;
         s.AccentColor = _accent is { } accent ? Personalization.ToHex(accent) : null;
         s.UiScale = Personalization.Scales[Math.Max(0, ScaleBox.SelectedIndex)];
@@ -130,23 +154,20 @@ internal sealed partial class PreferencesView : UserControl
         s.DefaultProjectShortSide = ProjectFormats.Resolutions[Math.Max(0, ResolutionBox.SelectedIndex)].ShortSide;
         s.DefaultProjectFrameRate = ProjectFormats.FrameRates[Math.Max(0, FrameRateBox.SelectedIndex)].Rate;
         s.DefaultProjectFolder = ProjectFolderBox.Text;
-        if (_pendingWorkspaceName is { } name && _currentWorkspace is { } current)
-        {
-            WorkspaceToApply = WorkspaceProfiles.SaveCurrent(s, name, current).Id;
-        }
-        else if (WorkspaceBox.SelectedItem is WorkspaceChoice chosen && chosen.Profile.Id != s.Workspace)
-        {
-            WorkspaceToApply = chosen.Profile.Id;
-        }
+    }
 
-        foreach (ThemeDefinition theme in ThemeResources.Store.Own.ToArray())
-        {
-            ThemeResources.Store.Save(theme);
-        }
-
-        s.Normalize();
-        ThemeResources.TimelineFontScale = Personalization.FontFactor(s.TimelineFontSize);
-        ThemeResources.ApplyCurrent(s);
+    /// <summary>Tras importar un perfil o «Restablecer todo»: los controles muestran la copia pendiente y la app la previsualiza.</summary>
+    private void ShowDraft(AppSettings s)
+    {
+        _loading = true;
+        VideoTracksBox.Value = s.DefaultVideoTracks;
+        AudioTracksBox.Value = s.DefaultAudioTracks;
+        ShortcutPresetBox.SelectedIndex = (int)s.ShortcutPreset;
+        _pendingWorkspaceName = null;
+        SaveWorkspaceButton.Content = "Guardar la actual";
+        LoadPersonalization(s);
+        _loading = false;
+        Preview(PreviewTheme());
     }
 
     /// <summary>Para la autoprueba: abre una pestaña y previsualiza un tema por su nombre.</summary>
@@ -159,7 +180,7 @@ internal sealed partial class PreferencesView : UserControl
         }
     }
 
-    /// <summary>Cancelar: fuera la vista previa y los colores editados sin guardar.</summary>
+    /// <summary>Cancelar: fuera la vista previa, los temas editados, borrados o renombrados y lo importado o restablecido.</summary>
     public void Discard()
     {
         if (_model is not { } model) return;
@@ -272,9 +293,20 @@ internal sealed partial class PreferencesView : UserControl
         }
     }
 
+    // Los dos desplegables de tema van juntos: el que se ve (y se edita) en Temas es el que queda al pulsar Guardar.
     private void OnThemeChanged(object sender, SelectionChangedEventArgs e)
     {
         if (_loading) return;
+        if (ThemeBox.SelectedItem is ThemeChoice choice && choice.Setting != Personalization.FollowWindowsTheme
+            && EditThemeBox.Items.Cast<string>().FirstOrDefault(n => string.Equals(n, choice.Setting, StringComparison.OrdinalIgnoreCase)) is { } name
+            && !Equals(EditThemeBox.SelectedItem, name))
+        {
+            _loading = true;
+            EditThemeBox.SelectedItem = name;
+            _loading = false;
+            ShowThemeEditor();
+        }
+
         UpdateAccentNote();
         Preview(PreviewTheme());
     }
@@ -304,10 +336,16 @@ internal sealed partial class PreferencesView : UserControl
     {
         if (_loading) return;
         ShowThemeEditor();
-        if (EditedTheme is { } theme)
+        if (EditThemeBox.SelectedItem is string name
+            && ThemeBox.Items.Cast<ThemeChoice>().FirstOrDefault(c => string.Equals(c.Setting, name, StringComparison.OrdinalIgnoreCase)) is { } choice)
         {
-            Preview(theme);
+            _loading = true;
+            ThemeBox.SelectedItem = choice;
+            _loading = false;
         }
+
+        UpdateAccentNote();
+        Preview(PreviewTheme());
     }
 
     private void ShowThemeEditor()
@@ -320,8 +358,10 @@ internal sealed partial class PreferencesView : UserControl
 
         bool builtIn = Themes.IsBuiltIn(theme.Name);
         RenameThemeButton.IsEnabled = DeleteThemeButton.IsEnabled = ResetThemeButton.IsEnabled = !builtIn;
-        ThemeHint.Text = builtIn ? "Los temas de serie no se editan: pulsa Duplicar para hacer uno propio a partir de este." : "Cada cambio se ve al momento en la app; se guarda al pulsar Guardar.";
-        DeleteThemeText.Text = $"¿Eliminar el tema «{theme.Name}»? El archivo se borra.";
+        ThemeHint.Text = builtIn
+            ? "Es el tema de la app. Los de serie no se editan: pulsa Duplicar para hacer uno propio a partir de este."
+            : "Es el tema de la app; cada cambio se ve al momento y se guarda al pulsar Guardar.";
+        DeleteThemeText.Text = $"¿Eliminar el tema «{theme.Name}»? El archivo se borra al pulsar Guardar.";
         RenameBox.Text = theme.Name;
         string? group = null;
         foreach ((string key, string groupName, string label) in Themes.Slots)
@@ -349,7 +389,7 @@ internal sealed partial class PreferencesView : UserControl
                 theme.Set(slot, argb);
                 chip.Background = new SolidColorBrush(e.NewColor);
                 hex.Text = Personalization.ToHex(argb);
-                Preview(theme);
+                Preview(PreviewTheme());
                 UpdateContrastNote(theme);
             };
             swatch.Flyout = new Flyout { Content = picker };
@@ -376,8 +416,8 @@ internal sealed partial class PreferencesView : UserControl
         if (EditedTheme is not { } source) return;
         ThemeDefinition copy = source.Copy(ThemeResources.Store.FreeName(source.Name));
         ThemeResources.Store.Own.Add(copy);
-        FillThemeBoxes(ThemeBox.SelectedItem is ThemeChoice c ? c.Setting : null);
-        EditThemeBox.SelectedItem = copy.Name;
+        FillThemeBoxes(copy.Name);
+        Preview(PreviewTheme());
     }
 
     private void OnRenameThemeClick(object sender, RoutedEventArgs e)
@@ -389,19 +429,16 @@ internal sealed partial class PreferencesView : UserControl
             return;
         }
 
-        bool active = string.Equals(_model?.Settings.Theme, theme.Name, StringComparison.OrdinalIgnoreCase);
-        ThemeResources.Store.Delete(theme.Name);
-        theme.Name = name;
-        ThemeResources.Store.Save(theme);
+        _draft?.RenameTheme(theme, name);
         RenameThemeButton.Flyout.Hide();
-        FillThemeBoxes(active ? name : ThemeBox.SelectedItem is ThemeChoice c ? c.Setting : null);
-        EditThemeBox.SelectedItem = name;
+        FillThemeBoxes(name);
+        Preview(PreviewTheme());
     }
 
     private void OnDeleteThemeClick(object sender, RoutedEventArgs e)
     {
         if (EditedTheme is not { } theme || Themes.IsBuiltIn(theme.Name)) return;
-        ThemeResources.Store.Delete(theme.Name);
+        _draft?.DeleteTheme(ThemeResources.Store, theme.Name);
         DeleteThemeButton.Flyout.Hide();
         string? selected = ThemeBox.SelectedItem is ThemeChoice c && !string.Equals(c.Setting, theme.Name, StringComparison.OrdinalIgnoreCase) ? c.Setting : Themes.GraphiteName;
         FillThemeBoxes(selected);
@@ -413,7 +450,7 @@ internal sealed partial class PreferencesView : UserControl
         if (EditedTheme is not { } theme || Themes.IsBuiltIn(theme.Name)) return;
         theme.Colors = new Dictionary<string, string>(Themes.Graphite.Colors, StringComparer.Ordinal);
         ShowThemeEditor();
-        Preview(theme);
+        Preview(PreviewTheme());
     }
 
     private void OnExportThemeClick(object sender, RoutedEventArgs e)
@@ -448,10 +485,9 @@ internal sealed partial class PreferencesView : UserControl
             }
 
             theme.Name = ThemeResources.Store.FreeName(theme.Name);
-            ThemeResources.Store.Save(theme);
-            FillThemeBoxes(ThemeBox.SelectedItem is ThemeChoice c ? c.Setting : null);
-            EditThemeBox.SelectedItem = theme.Name;
-            Preview(theme);
+            ThemeResources.Store.Own.Add(theme);
+            FillThemeBoxes(theme.Name);
+            Preview(PreviewTheme());
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.DecoderFallbackException or System.Runtime.InteropServices.COMException or InvalidOperationException)
         {
@@ -463,14 +499,26 @@ internal sealed partial class PreferencesView : UserControl
 
     private void OnExportProfileClick(object sender, RoutedEventArgs e)
     {
-        if (_model is not { } model || _registry is not { } registry) return;
-        Apply();
+        if (_model is not { } model || _draft is not { } draft) return;
+        // Se exporta lo que muestran los controles sobre una copia: los ajustes vivos no cambian hasta Guardar.
+        AppSettings profile = draft.Settings.Clone();
+        WritePersonalization(profile);
+        if (_pendingWorkspaceName is { } name && _currentWorkspace is { } current)
+        {
+            WorkspaceProfiles.SaveCurrent(profile, name, current);
+        }
+        else if (WorkspaceBox.SelectedItem is WorkspaceChoice chosen)
+        {
+            profile.Workspace = chosen.Profile.Id;
+        }
+
+        profile.Normalize();
         try
         {
             if (FileDialogs.Save(Owner(), "Exportar perfil", "rodaje" + PersonalProfile.Extension, PersonalProfile.Extension.TrimStart('.'),
                 FileDialogFolderPolicy.SaveFolder(model.Settings, SaveDialogKind.Shortcuts), ProfileFilter) is { } path)
             {
-                PersonalProfile.Export(model.Settings, registry, ThemeResources.Store.Find(model.Settings.Theme), path);
+                PersonalProfile.Export(profile, draft.Registry, ThemeResources.Store.Find(profile.Theme), path);
                 Note(ProfileNote, $"Perfil exportado a {path}.");
             }
         }
@@ -482,12 +530,12 @@ internal sealed partial class PreferencesView : UserControl
 
     private void OnImportProfileClick(object sender, RoutedEventArgs e)
     {
-        if (_model is not { } model || _registry is not { } registry) return;
+        if (_model is not { } model || _draft is not { } draft) return;
         try
         {
             IReadOnlyList<string> picked = FileDialogs.Open(Owner(), "Importar perfil", multiple: false, FileDialogFolderPolicy.OpenFolder(model.Settings), ProfileFilter, FileDialogs.AllFilter);
             if (picked.Count == 0) return;
-            if (PersonalProfile.Import(picked[0], model.Settings, registry, ThemeResources.Store) is { } error)
+            if (draft.Import(picked[0], ThemeResources.Store) is { } error)
             {
                 Note(ProfileNote, error);
                 return;
@@ -499,20 +547,16 @@ internal sealed partial class PreferencesView : UserControl
             return;
         }
 
-        ProfileImported = true;
-        Attach(model.Settings, registry, _currentWorkspace!);
-        Preview(PreviewTheme());
-        Note(ProfileNote, "Perfil importado; se aplica al pulsar Guardar.");
+        ShowDraft(draft.Settings);
+        Note(ProfileNote, "Perfil importado; se aplica al pulsar Guardar (Cancelar lo descarta).");
     }
 
     private void OnResetAllClick(object sender, RoutedEventArgs e)
     {
-        if (_model is not { } model || _registry is not { } registry) return;
-        PersonalProfile.ResetAll(model.Settings, registry);
-        ProfileImported = true;
-        Attach(model.Settings, registry, _currentWorkspace!);
-        Preview(PreviewTheme());
-        Note(ProfileNote, "Todo vuelve a fábrica al pulsar Guardar.");
+        if (_draft is not { } draft) return;
+        draft.ResetAll();
+        ShowDraft(draft.Settings);
+        Note(ProfileNote, "Todo vuelve a fábrica al pulsar Guardar (Cancelar lo descarta).");
     }
 
     private static void Note(TextBlock block, string text)

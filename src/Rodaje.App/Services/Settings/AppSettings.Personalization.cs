@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Rodaje.App.Services.Format;
 using Rodaje.Core.Timing;
@@ -35,6 +36,11 @@ public sealed partial class AppSettings
     /// <summary>El acento de los ajustes como ARGB, o nulo si se usa el del tema.</summary>
     [JsonIgnore]
     public uint? Accent => Personalization.TryParseColor(AccentColor, out uint argb) ? Personalization.WithAlpha(argb, 0xFF) : null;
+
+    /// <summary>Una copia independiente (por el mismo JSON con que se guarda): Preferencias trabaja sobre ella hasta Guardar.</summary>
+    public AppSettings Clone() =>
+        JsonSerializer.Deserialize(JsonSerializer.Serialize(this, SettingsJsonContext.Default.AppSettings), SettingsJsonContext.Default.AppSettings)
+        ?? throw new InvalidOperationException("No se pudieron copiar los ajustes.");
 
     private void NormalizePersonalization()
     {

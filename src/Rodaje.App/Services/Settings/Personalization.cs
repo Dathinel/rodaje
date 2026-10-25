@@ -12,7 +12,11 @@ public enum TimelineFontSize
 }
 
 /// <summary>Medidas y cadencia de la secuencia de un proyecto nuevo.</summary>
-public readonly record struct NewProjectFormat(int Width, int Height, Rational FrameRate);
+public readonly record struct NewProjectFormat(int Width, int Height, Rational FrameRate)
+{
+    /// <summary>16:9, 1080p, 30: con este formato el primer video importado sigue adaptando la secuencia.</summary>
+    public static NewProjectFormat Factory { get; } = new(1920, 1080, Rational.Fps30);
+}
 
 /// <summary>
 /// La parte sin WinUI de la personalización: colores como ARGB (<c>0xAARRGGBB</c>), contraste WCAG, escala de la

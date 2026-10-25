@@ -73,26 +73,10 @@ public static class PersonalProfile
     }
 
     /// <summary>
-    /// Aplica el perfil del archivo a los ajustes, los atajos y los temas propios (el tema activo del perfil se guarda si
-    /// no existe). Devuelve <c>null</c> si fue bien o el motivo en español; en ese caso no cambia nada.
+    /// Aplica el perfil a los ajustes y a los atajos; el tema activo del perfil, si no existe, se añade a los temas propios
+    /// en memoria (se escribe con <see cref="ThemeStore.Save"/>). <c>false</c> si el JSON no es un perfil válido; entonces
+    /// no toca nada.
     /// </summary>
-    public static string? Import(string path, AppSettings settings, ShortcutRegistry registry, ThemeStore? themes)
-    {
-        ArgumentException.ThrowIfNullOrEmpty(path);
-        string json;
-        try
-        {
-            json = SafeText.ReadAllTextStrict(path);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.DecoderFallbackException)
-        {
-            return $"No se pudo leer {Path.GetFileName(path)}: {ex.Message}";
-        }
-
-        return Apply(json, settings, registry, themes) ? null : $"{Path.GetFileName(path)} no es un perfil de Rodaje o es de una versión más nueva.";
-    }
-
-    /// <summary><c>false</c> si el JSON no es un perfil válido; entonces no toca nada.</summary>
     public static bool Apply(string json, AppSettings settings, ShortcutRegistry registry, ThemeStore? themes)
     {
         ArgumentNullException.ThrowIfNull(settings);
@@ -115,7 +99,7 @@ public static class PersonalProfile
         ThemeDefinition? active = Themes.Normalize(file.ActiveTheme);
         if (active is not null && themes is not null && !Themes.IsBuiltIn(active.Name) && themes.Find(active.Name) is null)
         {
-            themes.Save(active);
+            themes.Own.Add(active);
         }
 
         settings.Theme = file.Theme == Personalization.FollowWindowsTheme ? file.Theme : Themes.CleanName(file.Theme) ?? Themes.GraphiteName;

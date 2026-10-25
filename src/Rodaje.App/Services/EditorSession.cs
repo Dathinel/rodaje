@@ -432,6 +432,11 @@ public sealed partial class EditorSession : ObservableObject
         {
             Sequence sequence = project.Sequences[0];
             (sequence.Width, sequence.Height, sequence.FrameRate) = (format.Width, format.Height, format.FrameRate);
+            // Un formato elegido en Preferencias se respeta como el de una plantilla: el primer video no lo pisa.
+            if (format != Settings.NewProjectFormat.Factory)
+            {
+                _templateProject = project;
+            }
         }
 
         return project;
