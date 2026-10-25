@@ -159,6 +159,9 @@ public sealed unsafe class ScopeRenderer : IDisposable
         return true;
     }
 
+    /// <summary>Hay alguna medición encolada que <see cref="TryRead"/> todavía no recogió.</summary>
+    public bool HasPending => _read < _submitted;
+
     /// <summary>La imagen más nueva que la GPU ya terminó, o <c>null</c> si no hay ninguna nueva. Nunca espera.</summary>
     public ScopeImage? TryRead()
     {
