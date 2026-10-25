@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
@@ -252,7 +253,8 @@ internal sealed partial class ExportView : UserControl
         PresetShapeText.Text = presetNote ?? "";
         PresetShapePanel.Visibility = presetNote is null ? Visibility.Collapsed : Visibility.Visible;
         ProjectFormatText.Text = $"Formato del proyecto: {ExportGeometry.AspectName(model.SequenceWidth, model.SequenceHeight)} · "
-            + $"{model.SequenceWidth}×{model.SequenceHeight} · {ExportText.Number(model.SequenceFrameRate.ToDouble(), 3)} fps";
+            + $"{model.SequenceWidth}×{model.SequenceHeight} · {ExportText.Number(model.SequenceFrameRate.ToDouble(), 3)} fps"
+            + (model.HdrNote is { } hdr ? $" · {ProjectFormats.ColorSpaceName(model.SequenceColorSpace)}. {hdr}" : "");
     }
 
     private void RefreshVideo(ExportDialogModel model)

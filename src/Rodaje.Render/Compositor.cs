@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Numerics;
+using Rodaje.Core.Model;
 using Rodaje.Media.Export;
 using Rodaje.Media.Gpu;
 using Rodaje.Media.Video;
@@ -142,6 +143,13 @@ public sealed unsafe partial class Compositor : IDisposable
     /// </summary>
     public bool TransparentBackground { get; set; }
 
+    /// <summary>
+    /// Espacio de color de la secuencia. En HDR la composición es luz lineal BT.2020 con 1,0 = 203 nits y sin recorte por arriba
+    /// (<see cref="QuadPipeline.HdrMode"/>; D-055): cada capa entra por su curva, la mezcla y los efectos van en lineal, y el
+    /// presentador o el conversor de exportación la codifican a PQ, HLG, scRGB o SDR. En SDR nada cambia (D-016, D-052).
+    /// </summary>
+    public SequenceColorSpace ColorSpace { get; set; }
+
     /// <summary>Vistas de superficies del decodificador guardadas, para diagnóstico.</summary>
     public int CachedViewCount => _views.Count;
 
@@ -209,6 +217,7 @@ public sealed unsafe partial class Compositor : IDisposable
         _gpu.LockContext();
         try
         {
+            _pipeline.HdrMode = ColorSpace != SequenceColorSpace.Sdr709 ? 1 : 0;
             PreviewBypass bypass = strict ? PreviewBypass.None : Bypass;
             _layers.Bypass = bypass;
             _layers.MaskView = strict ? null : MaskView;
@@ -656,6 +665,12 @@ public sealed unsafe partial class Compositor : IDisposable
                     }
 
                     var halves = new ReadOnlySpan<Half>(row, Width * 4);
+                    if (ColorSpace != SequenceColorSpace.Sdr709)
+                    {
+                        LinearToSdr(halves, target);
+                        continue;
+                    }
+
                     for (int i = 0; i < target.Length; i++)
                     {
                         target[i] = (byte)Math.Round(Math.Clamp((float)halves[i], 0f, 1f) * 255f);
@@ -775,6 +790,27 @@ public sealed unsafe partial class Compositor : IDisposable
         }
 
         _output = new RenderTarget(target, rtv, srv, Width, Height, format, RenderTarget.BytesFor(Width, Height, format));
+    }
+
+    /// <summary>Una fila de la composición HDR (lineal BT.2020, 1,0 = 203 nits) a SDR BT.709 de 8 bits, como <c>PresentHdr</c> y la variante TONEMAP de la exportación.</summary>
+    private static void LinearToSdr(ReadOnlySpan<Half> source, Span<byte> target)
+    {
+        for (int i = 0; i + 3 < target.Length; i += 4)
+        {
+            double r = (float)source[i];
+            double g = (float)source[i + 1];
+            double b = (float)source[i + 2];
+            target[i] = Bt709Code((1.660491 * r) - (0.587641 * g) - (0.072850 * b));
+            target[i + 1] = Bt709Code((-0.124550 * r) + (1.132900 * g) - (0.008350 * b));
+            target[i + 2] = Bt709Code((-0.018151 * r) - (0.100579 * g) + (1.118730 * b));
+            target[i + 3] = (byte)Math.Round(Math.Clamp((float)source[i + 3], 0f, 1f) * 255f);
+        }
+    }
+
+    private static byte Bt709Code(double light)
+    {
+        double x = Math.Clamp(light, 0, 1);
+        return (byte)Math.Round((x < 0.018 ? 4.5 * x : (1.099 * Math.Pow(x, 0.45)) - 0.099) * 255);
     }
 
     private ID3D11Texture2D* Staging()
