@@ -25,7 +25,7 @@ public sealed class SequenceSnapshot
     private readonly Marker[] _markers;
     private readonly Region[] _regions;
 
-    private SequenceSnapshot(Sequence sequence)
+    private SequenceSnapshot(Sequence sequence, SequenceSnapshot? previous)
     {
         _id = sequence.Id;
         _name = sequence.Name;
@@ -37,8 +37,8 @@ public sealed class SequenceSnapshot
         _colorSpace = sequence.ColorSpace;
         _masterEffects = [.. sequence.MasterEffects.Select(e => e.Clone())];
         _audioBuses = [.. sequence.AudioBuses.Select(b => b.Clone())];
-        _videoTracks = [.. sequence.VideoTracks.Select(t => new TrackEntry(t, t.Clone()))];
-        _audioTracks = [.. sequence.AudioTracks.Select(t => new TrackEntry(t, t.Clone()))];
+        _videoTracks = [.. sequence.VideoTracks.Select(t => Entry(t, previous?._videoTracks))];
+        _audioTracks = [.. sequence.AudioTracks.Select(t => Entry(t, previous?._audioTracks))];
         _markers = [.. sequence.Markers.Select(m => m.Clone())];
         _regions = [.. sequence.Regions.Select(r => r.Clone())];
     }
@@ -49,10 +49,16 @@ public sealed class SequenceSnapshot
 
     internal IReadOnlyList<TrackEntry> AudioTracks => _audioTracks;
 
-    public static SequenceSnapshot Capture(Sequence sequence)
+    public static SequenceSnapshot Capture(Sequence sequence) => Capture(sequence, null);
+
+    /// <summary>
+    /// Como <see cref="Capture(Sequence)"/>, pero una pista que sigue igual que en <paramref name="previous"/> comparte su
+    /// copia en vez de clonarse otra vez: tras una edición, solo se copian las pistas que tocó.
+    /// </summary>
+    public static SequenceSnapshot Capture(Sequence sequence, SequenceSnapshot? previous)
     {
         ArgumentNullException.ThrowIfNull(sequence);
-        return new SequenceSnapshot(sequence);
+        return new SequenceSnapshot(sequence, previous);
     }
 
     /// <summary>Restaura el estado capturado; se puede llamar cuantas veces haga falta.</summary>
@@ -241,6 +247,20 @@ public sealed class SequenceSnapshot
             entry.Track.CopyStateFrom(entry.State);
             target.Add(entry.Track);
         }
+    }
+
+    // Las copias de una instantánea nunca se modifican (restaurar copia de ellas), así que dos pueden compartirlas.
+    private static TrackEntry Entry(Track track, TrackEntry[]? previous)
+    {
+        foreach (TrackEntry entry in previous ?? [])
+        {
+            if (ReferenceEquals(entry.Track, track) && TrackStateEquals(track, entry.State))
+            {
+                return entry;
+            }
+        }
+
+        return new TrackEntry(track, track.Clone());
     }
 
     private static bool TracksMatch(List<Track> current, TrackEntry[] entries)

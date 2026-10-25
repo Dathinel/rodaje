@@ -64,6 +64,11 @@ public sealed partial class EditorSession : ObservableObject
     // Cuántas veces cambió el historial: dice si una excepción llegó antes o después de aplicar la edición.
     private long _historyChanges;
 
+    // Durante un gesto el reproductor recibe como mucho una copia por cuadro: ya salió la de este cuadro, y hay cambios
+    // que todavía no tiene.
+    private bool _playbackFrame;
+    private bool _playbackStale;
+
     public EditorSession(IPlaybackEngine playback, IMediaProber prober, IEditorDialogs dialogs, IIdGenerator? ids = null, NewProjectTracks? newProjectTracks = null, Settings.NewProjectFormat? newProjectFormat = null)
     {
         ArgumentNullException.ThrowIfNull(playback);
@@ -312,6 +317,10 @@ public sealed partial class EditorSession : ObservableObject
         }
 
         History.BreakMerge();
+        if (_playbackStale)
+        {
+            ReloadPlayback();
+        }
     }
 
     /// <summary>Revierte todo lo del gesto abierto (por ejemplo, Esc mientras se arrastra).</summary>
@@ -422,6 +431,39 @@ public sealed partial class EditorSession : ObservableObject
     /// <summary>La copia del proyecto que recibe el reproductor.</summary>
     private Project PlaybackProject() => IsSourceActive && SourceMedia is { } media ? SourceProject(media) : WithPreviewOff(Project.Clone());
 
+    /// <summary>
+    /// Programa una acción para el próximo cuadro de la interfaz. Con él, los pasos de un gesto llegan al reproductor como
+    /// mucho una vez por cuadro (el primero enseguida); sin él, cada uno enseguida.
+    /// </summary>
+    public Action<Action>? NextFrame { get; init; }
+
+    private void ReloadPlayback()
+    {
+        if (History.IsInGroup && NextFrame is { } nextFrame)
+        {
+            if (_playbackFrame)
+            {
+                _playbackStale = true;
+                return;
+            }
+
+            _playbackFrame = true;
+            nextFrame(OnPlaybackFrame);
+        }
+
+        _playbackStale = false;
+        _playback.Reload(PlaybackProject());
+    }
+
+    private void OnPlaybackFrame()
+    {
+        _playbackFrame = false;
+        if (_playbackStale)
+        {
+            ReloadPlayback();
+        }
+    }
+
     /// <summary>Formato de los proyectos nuevos (Preferencias › Personalización); nulo deja 1080p a 30.</summary>
     public Settings.NewProjectFormat? NewProjectFormat { get; set; }
 
@@ -467,6 +509,7 @@ public sealed partial class EditorSession : ObservableObject
         _editVersion++;
         FilePath = filePath;
         _previewOff.Clear();
+        _playbackStale = false;
         _playback.Load(project.Clone(), sequenceId);
         RaiseHistoryProperties();
         OnPropertyChanged(nameof(Project));
@@ -509,11 +552,12 @@ public sealed partial class EditorSession : ObservableObject
 
         if (LeaveRemovedSequences() | lostSource)
         {
+            _playbackStale = false;
             _playback.Load(PlaybackProject(), PlaybackSequenceId);
         }
         else
         {
-            _playback.Reload(PlaybackProject());
+            ReloadPlayback();
         }
 
         try

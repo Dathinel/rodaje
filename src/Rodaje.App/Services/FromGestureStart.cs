@@ -41,7 +41,7 @@ public sealed class FromGestureStart(string sequenceId, SequenceSnapshot start, 
         }
 
         _before = before;
-        _after = SequenceSnapshot.Capture(sequence);
+        _after = SequenceSnapshot.Capture(sequence, before);
     }
 
     public void Revert(Project project) =>
