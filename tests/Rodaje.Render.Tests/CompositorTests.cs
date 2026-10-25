@@ -358,6 +358,20 @@ public sealed class CompositorTests
         }
     }
 
+    /// <summary>En scRGB el gris de alrededor pasa a lineal con la escala de la imagen (en gamma salía más claro que el marco); en SDR va tal cual.</summary>
+    [Fact]
+    public void Presenter_surround_is_linear_in_scrgb_and_untouched_otherwise()
+    {
+        (float R, float G, float B) gray = (0x24 / 255f, 0x24 / 255f, 0x24 / 255f);
+        Assert.Equal(gray, Presenter.SurroundFor(gray, scRgb: false));
+        (float r, float g, float b) = Presenter.SurroundFor(gray, scRgb: true);
+        Assert.InRange(r, 0.085f, 0.088f);
+        Assert.Equal(r, g);
+        Assert.Equal(r, b);
+        Assert.Equal((0f, 0f, 0f), Presenter.SurroundFor((0f, 0f, 0f), scRgb: true));
+        Assert.InRange(Presenter.SurroundFor((1f, 1f, 1f), scRgb: true).R, 2.537f, 2.538f);
+    }
+
     [GpuFact]
     public void Presenter_letterboxes_the_composition_in_the_back_buffer()
     {

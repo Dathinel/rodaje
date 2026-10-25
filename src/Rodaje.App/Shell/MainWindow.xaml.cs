@@ -372,7 +372,13 @@ internal sealed partial class MainWindow : Window, IShellHost
             return;
         }
 
+        PreviewQuality quality = _settings.Current.PreviewQuality;
         view.Apply();
+        if (_settings.Current.PreviewQuality != quality)
+        {
+            _services.SetPreviewQuality(_settings.Current.PreviewQuality);
+        }
+
         _services.Session.NewProjectTracks = _settings.Current.NewProjectTracks;
         _services.Session.LinkedAudioTracks = _settings.Current.LinkedAudioTracks;
         _services.Player.SetProxyUsage(_settings.Current.ProxyUsage);
