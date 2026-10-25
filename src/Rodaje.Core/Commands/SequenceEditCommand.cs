@@ -69,10 +69,10 @@ public sealed class SequenceEditCommand : ICommand
     public void Apply(Project project) => Apply(project, null);
 
     /// <summary>
-    /// Como <see cref="Apply(Project)"/>; las pistas que siguen igual que en <paramref name="previous"/> (la instantánea de
-    /// la edición anterior) no se copian otra vez.
+    /// Como <see cref="Apply(Project)"/>; las pistas y los clips que siguen iguales que en <paramref name="previous"/> (la
+    /// instantánea de la edición anterior o del inicio del gesto) no se copian otra vez.
     /// </summary>
-    internal void Apply(Project project, SequenceSnapshot? previous)
+    public void Apply(Project project, SequenceSnapshot? previous)
     {
         ArgumentNullException.ThrowIfNull(project);
         Sequence sequence = FindSequence(project);

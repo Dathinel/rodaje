@@ -42,7 +42,10 @@ public class SequenceSnapshotTests
         Assert.Equal(SequenceId, snapshot.SequenceId);
     }
 
-    /// <summary>Tras una edición, la pista que no cambió comparte su copia con la instantánea anterior; las dos restauran bien.</summary>
+    /// <summary>
+    /// Tras una edición, la pista que no cambió comparte su copia con la instantánea anterior, y en la que cambió, los clips
+    /// que siguen iguales; las dos restauran bien.
+    /// </summary>
     [Fact]
     public void Capture_ConLaAnterior_CompartePistasIgualesYRestauraCadaUna()
     {
@@ -56,6 +59,8 @@ public class SequenceSnapshotTests
         var second = SequenceSnapshot.Capture(seq, first);
 
         Assert.NotSame(first.VideoTracks[0].State, second.VideoTracks[0].State);
+        Assert.NotSame(first.VideoTracks[0].State.Clips[0], second.VideoTracks[0].State.Clips[0]);
+        Assert.Same(first.VideoTracks[0].State.Clips[1], second.VideoTracks[0].State.Clips[1]);
         Assert.Same(first.VideoTracks[1].State, second.VideoTracks[1].State);
         Assert.Same(first.AudioTracks[0].State, second.AudioTracks[0].State);
         first.Restore(seq);

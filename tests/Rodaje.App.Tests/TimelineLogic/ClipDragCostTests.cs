@@ -21,11 +21,14 @@ public sealed class ClipDragCostTests(ITestOutputHelper output)
 
     /// <summary>
     /// Antes, 958 KB por paso: dos instantáneas enteras, la validación y el proyecto entero para el reproductor. Ahora las
-    /// instantáneas solo copian la pista que se mueve (las demás se comparten) y, con dos movimientos por cuadro, el
-    /// reproductor recibe una copia cada dos pasos.
+    /// instantáneas solo copian los clips que se mueven (el resto se comparte) y, con dos movimientos por cuadro, el
+    /// reproductor recibe una copia cada dos pasos. V1 es el caso típico: el clip lleva su audio enlazado en A1, y las dos
+    /// pistas son casi toda la secuencia.
     /// </summary>
-    [Fact]
-    public void UnPasoVivo_CopiaSoloLaPistaQueCambiaYUnProyectoPorCuadro()
+    [Theory]
+    [InlineData(0)]
+    [InlineData(1)]
+    public void UnPasoVivo_CopiaSoloLosClipsQueCambianYUnProyectoPorCuadro(int track)
     {
         using var directory = new TempDirectory();
         string path = SaveProject(directory.Path);
@@ -41,7 +44,9 @@ public sealed class ClipDragCostTests(ITestOutputHelper output)
             long clone = Allocated(() => session.Project.Clone());
             long validation = Allocated(() => ModelValidator.ValidateSequence(session.Project, session.Sequence));
 
-            Clip moved = session.Sequence.VideoTracks[1].Clips[^1];
+            Clip moved = session.Sequence.VideoTracks[track].Clips[^1];
+            Clip? linked = session.Sequence.AudioTracks[0].Clips.Find(c => moved.LinkId is not null && c.LinkId == moved.LinkId);
+            Assert.Equal(track == 0, linked is not null);
             Time grab = moved.Start;
             var drag = new ClipDragSession(session, new ClipDrag(session.Project, session.SequenceId, moved.Id, DragOperation.Move, grab, new DragOptions(), session.Position));
             drag.Begin();
@@ -67,10 +72,14 @@ public sealed class ClipDragCostTests(ITestOutputHelper output)
             drag.Complete();
 
             output.WriteLine($"instantánea: {snapshot / 1024.0:0} KB; Project.Clone: {clone / 1024.0:0} KB; validación: {validation / 1024.0:0} KB");
-            output.WriteLine($"por paso: {perStep / 1024.0:0} KB asignados, {snapshotsPerStep:0.00} instantáneas, {reloadsPerStep:0.00} proyectos al reproductor, {ms:0.00} ms");
+            output.WriteLine($"V{track + 1}, por paso: {perStep / 1024.0:0} KB asignados, {snapshotsPerStep:0.00} instantáneas, {reloadsPerStep:0.00} proyectos al reproductor, {ms:0.00} ms");
             Time end = grab + Time.FromSeconds(Steps * 0.1);
             Assert.Equal(Steps + 1, drag.LiveSteps);
             Assert.Equal(end, session.Sequence.GetClip(moved.Id).Clip.Start);
+            if (linked is not null)
+            {
+                Assert.Equal(end, session.Sequence.GetClip(linked.Id).Clip.Start);
+            }
             Assert.Equal(end, playback.Reloads[^1].GetSequence(session.SequenceId).GetClip(moved.Id).Clip.Start);
             Assert.Equal(1, session.History.Count);
             Assert.True(snapshotsPerStep < 0.25, $"{snapshotsPerStep:0.00} instantáneas por paso");
