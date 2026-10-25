@@ -237,10 +237,7 @@ internal sealed partial class TimelineView
             }
             else if (!Session.SelectedClipIds.Contains(clip.Id))
             {
-                // Un clip agrupado se elige con todo su grupo.
-                Session.Select(State.IgnoreGroups || clip.GroupId is null
-                    ? [clip.Id]
-                    : TimelineEdits.ExpandWithGroups(Session.Sequence, [clip.Id]).Select(m => m.Clip.Id));
+                SelectClicked(clip);
             }
 
             _mode = State.Tool == TimelineTool.Selection ? PointerMode.Marquee : PointerMode.PendingClip;
@@ -345,6 +342,12 @@ internal sealed partial class TimelineView
                 FinishRange(p);
                 break;
             case PointerMode.PendingClip:
+                // Al pulsar se conservó la selección para arrastrarla entera; un clic sin arrastre elige solo este clip.
+                if (!_pressCtrl && _pressHit.Clip is { } clicked)
+                {
+                    SelectClicked(clicked);
+                }
+
                 SelectEdge(_pressHit);
                 break;
             case PointerMode.DraggingTransition:
@@ -450,6 +453,15 @@ internal sealed partial class TimelineView
             _ => null,
         },
     };
+
+    /// <summary>Un clip agrupado se elige con todo su grupo (salvo con «ignorar grupos»).</summary>
+    private void SelectClicked(Clip clip)
+    {
+        EditorSession session = Session!;
+        session.Select(State.IgnoreGroups || clip.GroupId is null
+            ? [clip.Id]
+            : TimelineEdits.ExpandWithGroups(session.Sequence, [clip.Id]).Select(m => m.Clip.Id));
+    }
 
     /// <summary>
     /// Un clic sin arrastrar en un borde lo elige para recortarlo con «,» y «.» (con la herramienta de ripple, recorte
@@ -557,10 +569,14 @@ internal sealed partial class TimelineView
         _overlay.Marquee = null;
         if (Distance(p, _pressPoint) < DragThreshold)
         {
-            if (_pressHit.Clip is null)
+            if (_pressHit.Clip is not { } clicked)
             {
                 _overlay.TimeRange = null;
                 SeekProgram(_pressTime.SnapToFrame(session.Sequence.FrameRate));
+            }
+            else if (!_pressCtrl)
+            {
+                SelectClicked(clicked);
             }
 
             Invalidate();
@@ -801,7 +817,7 @@ internal sealed partial class TimelineView
             Time at = Viewport.XToTime(x).SnapToFrame(Session.Sequence.FrameRate);
             if (State.Snapping)
             {
-                SnapPoints snaps = SnapPoints.Collect(Session.Sequence, new HashSet<string>(), Session.ProgramPosition);
+                SnapPoints snaps = SnapPoints.Collect(Session.Sequence, new HashSet<string> { id }, Session.ProgramPosition);
                 at = snaps.Nearest(at, Viewport.PixelsToDuration(SnapPoints.ThresholdPixels)) ?? at;
             }
 

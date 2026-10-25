@@ -53,7 +53,8 @@ public enum TimelineGapBehavior
 /// <summary>Opciones de la línea de tiempo que no son parte del proyecto: herramienta, interruptores y zoom.</summary>
 public sealed partial class TimelineState : ObservableObject
 {
-    public const double MinPixelsPerSecond = 2;
+    // Así «Ajustar a la secuencia» deja ver entera una de varias horas (con 2 px/s no cabían ni 10 min).
+    public const double MinPixelsPerSecond = 0.05;
     public const double MaxPixelsPerSecond = 2400;
     public const double DefaultPixelsPerSecond = 60;
     public const double ZoomStep = 1.25;

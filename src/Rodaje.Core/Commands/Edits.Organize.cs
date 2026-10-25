@@ -29,13 +29,13 @@ public static partial class Edits
     }
 
     /// <summary>
-    /// Mueve los clips (con enlazados y grupos) en el tiempo sin pisar nada. Los empujones seguidos de la misma selección
-    /// se funden en un paso.
+    /// Mueve los clips (con enlazados y grupos; con <paramref name="alone"/>, solo ellos) en el tiempo sin pisar nada. Los
+    /// empujones seguidos de la misma selección se funden en un paso.
     /// </summary>
-    public static SequenceEditCommand MoveClips(string sequenceId, IEnumerable<string> clipIds, Time delta, IIdGenerator? ids = null)
+    public static SequenceEditCommand MoveClips(string sequenceId, IEnumerable<string> clipIds, Time delta, IIdGenerator? ids = null, bool alone = false)
     {
         string[] selection = CopySelection(clipIds);
-        return new("Mover clips", sequenceId, ctx => TimelineEdits.MoveClips(ctx, selection, delta), ids, "nudge:" + string.Join(',', selection));
+        return new("Mover clips", sequenceId, ctx => TimelineEdits.MoveClips(ctx, selection, delta, TrackKind.Video, 0, alone), ids, "nudge:" + string.Join(',', selection));
     }
 
     /// <summary>

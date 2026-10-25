@@ -870,6 +870,9 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         IgnoreGroupsMenuItem.IsChecked = state.IgnoreGroups;
         GapBehaviorBox.SelectedIndex = (int)state.GapBehavior;
         RippleModeBox.SelectedIndex = (int)state.RippleMode;
+        // Con la barra plegada el texto elegido se corta: la ayuda lo dice entero.
+        ToolTipService.SetToolTip(GapBehaviorBox, $"{(GapBehaviorBox.SelectedItem as ComboBoxItem)?.Content as string}. Qué hacen Supr, el recorte y el arrastre si queda un hueco");
+        ToolTipService.SetToolTip(RippleModeBox, $"{(RippleModeBox.SelectedItem as ComboBoxItem)?.Content as string}. Qué pistas, marcadores y regiones se desplazan cuando el modo activo usa ripple");
     }
 
     private void UpdateTooltips()
@@ -890,8 +893,6 @@ internal sealed partial class TimelineView : UserControl, IEditorView
             item.Text = registry.Find(id)?.Label ?? id;
         }
 
-        ToolTipService.SetToolTip(GapBehaviorBox, "Qué hacen Supr, el recorte y el arrastre si queda un hueco");
-        ToolTipService.SetToolTip(RippleModeBox, "Qué pistas, marcadores y regiones se desplazan cuando el modo activo usa ripple");
         ToolTipService.SetToolTip(ZoomSlider, "Zoom (Ctrl+rueda sobre las pistas)");
     }
 

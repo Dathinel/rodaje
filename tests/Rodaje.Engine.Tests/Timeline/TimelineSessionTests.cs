@@ -521,6 +521,13 @@ public sealed class TimelineSessionTests
         session.SeekToFrame(1000);
         Assert.Equal(49, session.CurrentFrame);
         Assert.Equal(50, session.FrameCount);
+
+        // Fin deja la posición a mitad del último cuadro: un paso adelante no la lleva hacia atrás.
+        session.Seek(S(2));
+        Time end = session.Position;
+        Assert.True(end > F(49, Rational.Fps25));
+        session.StepFrame(1);
+        Assert.Equal(end, session.Position);
     }
 
     [Fact]

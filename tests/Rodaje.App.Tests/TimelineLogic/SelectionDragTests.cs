@@ -134,6 +134,49 @@ public class SelectionDragTests
     });
 
     [Fact]
+    public void ConUnaPistaBloqueadaEnLaSeleccion_AlSoltarSeAvisaPorQueNoSeMovio() => UiThread.Run(async () =>
+    {
+        EditorSession session = await Timeline();
+        Track v2 = session.Sequence.VideoTracks[1];
+        Assert.True(session.Execute(Edits.SetTrackState(session.SequenceId, v2.Id, locked: true)));
+        string before = All(session);
+        var notices = new List<EditorNotification>();
+        session.Notified += (_, n) => notices.Add(n);
+        Clip c = Named(session, "c");
+        session.Select([c.Id, Named(session, "muda").Id]);
+
+        ClipDragSession drag = Start(session, c, 22, Options(session, magnetic: false));
+        drag.Move(S(25), Row(session, session.MainTrack!));
+        Assert.Empty(notices);
+        drag.Complete();
+
+        Assert.Equal(0, drag.LiveSteps);
+        Assert.Equal(before, All(session));
+        Assert.Contains("bloqueada", Assert.Single(notices).Message, StringComparison.Ordinal);
+    });
+
+    [Fact]
+    public void ConLaPrincipalMagnetica_LasSombrasCoincidenConElResultado() => UiThread.Run(async () =>
+    {
+        EditorSession session = await Timeline();
+        Clip a = Named(session, "a");
+        session.Select([a.Id, Named(session, "c").Id, Named(session, "muda").Id]);
+
+        // El puntero sobre V2: el bloque se reordena en la principal y no cambia de pista.
+        ClipDragSession drag = Start(session, a, 5, Options(session, magnetic: true));
+        DragPlan plan = drag.Move(S(30), Row(session, session.Sequence.VideoTracks[1]));
+        drag.Complete();
+
+        Assert.Equal("b@0-10 a@10-20 c@20-25", Layout(session, session.MainTrack!));
+        Assert.Equal("b@0-10 a@10-20 c@20-25", Layout(session, session.Sequence.AudioTracks[0]));
+        Assert.Equal("muda@40-44", Layout(session, session.Sequence.VideoTracks[1]));
+        var result = session.Sequence.AllTracks
+            .SelectMany(t => t.Clips.Where(clip => drag.Drag.Group.Contains(clip.Id)).Select(clip => (t.Id, clip.Start, clip.End)))
+            .Order();
+        Assert.Equal(result, plan.Ghosts!.Order());
+    });
+
+    [Fact]
     public void DragShadow_DibujaFantasmasParaTodosLosMiembrosDelGrupo() => UiThread.Run(async () =>
     {
         EditorSession session = await Timeline();

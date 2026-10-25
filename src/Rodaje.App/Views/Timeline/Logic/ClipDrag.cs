@@ -360,25 +360,34 @@ public sealed class ClipDrag
                 ? null
                 : () => Edits.MoveClipsOnMainTrack(_sequenceId, _group, magnetic, index, alone, _ids);
 
+            // Como MoveClipsOnMainTrack: nadie cambia de pista, la principal queda sin huecos, cada enlazado sigue a su clip
+            // y el resto de la selección se corre lo mismo que el primero del bloque.
+            var shifts = new Dictionary<string, Time>(StringComparer.Ordinal);
+            var linkShifts = new Dictionary<string, Time>(StringComparer.Ordinal);
             Time cursor = origin;
-            for (int i = 0; i <= others.Count; i++)
+            foreach (Clip c in order)
             {
-                if (i == index)
+                shifts[c.Id] = cursor - c.Start;
+                if (c.LinkId is { } link)
                 {
-                    for (int b = 0; b < block.Count; b++)
-                    {
-                        int gIdx = ghosts.FindIndex(g => g.TrackId == magnetic && g.Start == block[b].Start + delta);
-                        if (gIdx >= 0)
-                        {
-                            ghosts[gIdx] = (magnetic, cursor, cursor + block[b].Duration);
-                        }
-                        cursor += block[b].Duration;
-                    }
+                    linkShifts[link] = cursor - c.Start;
                 }
-                if (i < others.Count)
+
+                cursor += c.Duration;
+            }
+
+            ghosts.Clear();
+            foreach ((_, Clip mClip) in _members)
+            {
+                if (sequence.FindClip(mClip.Id) is not { } now)
                 {
-                    cursor += others[i].Duration;
+                    continue;
                 }
+
+                Time shift = now.Track == main ? shifts[now.Clip.Id]
+                    : now.Clip.LinkId is { } link && linkShifts.TryGetValue(link, out Time linked) ? linked
+                    : shifts[block[0].Id];
+                ghosts.Add((now.Track.Id, now.Clip.Start + shift, now.Clip.End + shift));
             }
 
             return new DragPlan(reorder, true, desired, desired + duration, track.Id, null, boundary, Ghosts: ghosts);
