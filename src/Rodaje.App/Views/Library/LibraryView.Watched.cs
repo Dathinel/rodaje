@@ -20,12 +20,13 @@ internal sealed partial class LibraryView
 
     private void ShowWatched(WatchedFolderInbox inbox)
     {
-        WatchedBanner.Visibility = inbox.Pending.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         if (inbox.Pending.Count > 0)
         {
             WatchedText.Text = WatchedFolderInbox.Describe(inbox.Pending);
             ToolTipService.SetToolTip(WatchedText, string.Join("\n", inbox.Pending.Take(20).Select(f => Path.GetFileName(f.Path))));
         }
+
+        UpdateVisibility();
     }
 
     private void OnWatchedImportClick(object sender, RoutedEventArgs e) => UiTask.Run(ImportWatchedAsync());

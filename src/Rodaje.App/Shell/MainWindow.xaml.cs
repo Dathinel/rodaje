@@ -212,7 +212,11 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         session.Notified += (_, n) => ShowNotification(n);
         session.ProjectOpened += (_, _) => RememberProject();
-        session.ProjectOpened += (_, _) => _visuals.ForgetRemovedMedia();
+        session.ProjectOpened += (_, _) =>
+        {
+            _visuals.ForgetRemovedMedia();
+            UiTask.Run(_visuals.RetryFailedAsync());
+        };
         // Exportar se quedaría con la secuencia, el nombre y el rango del proyecto anterior (Ctrl+N y Ctrl+O siguen con ella abierta).
         session.ProjectOpened += (_, _) => ClosePage();
         session.ProjectEdited += (_, _) => _visuals.ForgetRemovedMedia();
@@ -993,21 +997,8 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         try
         {
-            IReadOnlyList<IStorageItem> items = await e.DataView.GetStorageItemsAsync();
-            string[] paths = [.. items.OfType<StorageFile>().Select(f => f.Path).Where(p => !string.IsNullOrEmpty(p))];
-            if (paths.Length == 0)
-            {
-                return;
-            }
-
-            if (paths.Any(ProjectPaths.IsProjectFile))
-            {
-                await Session.OpenFilesAsync(paths);
-            }
-            else
-            {
-                await Session.ImportMediaAsync(paths);
-            }
+            // Como soltar en la biblioteca: los paquetes se instalan y una carpeta entra con sus medios.
+            await Views.Library.LibraryView.DropFilesAsync(_services, e.DataView);
         }
 #pragma warning disable CA1031 // Soltar archivos no debe tumbar la aplicación: el error se muestra en la ventana.
         catch (Exception ex)

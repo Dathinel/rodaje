@@ -288,22 +288,6 @@
                           CanDragItems="True" DragItemsStarting="OnMediaDragStarting" DoubleTapped="OnMediaDoubleTapped"
                           ContextRequested="OnMediaContextRequested"
                           ItemsSource="{x:Bind Media}" ItemTemplate="{StaticResource MediaRowTemplate}" />
-
-                <!-- Medios nuevos de las carpetas vigiladas (LibraryView.Watched): importar con un clic o descartar. -->
-                <Border x:Name="WatchedBanner" Grid.Row="4" VerticalAlignment="Bottom" Margin="8" Padding="12,8" Visibility="Collapsed" CornerRadius="{StaticResource ControlCornerRadius}"
-                        Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1">
-                    <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="WatchedText" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" TextTrimming="None" />
-                        <Button Grid.Column="1" Content="Importar" Style="{StaticResource AccentButtonStyle}" Click="OnWatchedImportClick" />
-                        <Button Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Content="&#xE711;" Click="OnWatchedDismissClick"
-                                AutomationProperties.Name="Descartar" ToolTipService.ToolTip="Descartar: no se vuelven a ofrecer" />
-                    </Grid>
-                </Border>
             </Grid>
 
             <Grid x:Name="AudioPanel" Grid.Row="1" Visibility="Collapsed">
@@ -383,6 +367,22 @@
                 <shell:AppLogo Width="48" Height="48" Opacity="0.5" />
                 <TextBlock x:Name="EmptyText" Style="{StaticResource PlaceholderTextStyle}" />
             </StackPanel>
+
+            <!-- Medios nuevos de las carpetas vigiladas (LibraryView.Watched): importar con un clic o descartar; también con la biblioteca vacía. -->
+            <Border x:Name="WatchedBanner" Grid.Row="1" VerticalAlignment="Bottom" Margin="8" Padding="12,8" Visibility="Collapsed" CornerRadius="{StaticResource ControlCornerRadius}"
+                    Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="WatchedText" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" TextTrimming="None" />
+                    <Button Grid.Column="1" Content="Importar" Style="{StaticResource AccentButtonStyle}" Click="OnWatchedImportClick" />
+                    <Button Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Content="&#xE711;" Click="OnWatchedDismissClick"
+                            AutomationProperties.Name="Descartar" ToolTipService.ToolTip="Descartar: no se vuelven a ofrecer" />
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>

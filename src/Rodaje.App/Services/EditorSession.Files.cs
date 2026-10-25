@@ -230,9 +230,15 @@ public sealed partial class EditorSession
             EndBusy();
         }
 
-        if (!ReferenceEquals(target, Project) || IsInGesture)
+        // Un gesto en curso (arrastrar un clip, un deslizador) no admite otro paso del historial: se espera a que acabe.
+        while (IsInGesture && ReferenceEquals(target, Project))
         {
-            // Mientras se leía se abrió otro proyecto o empezó un gesto: no se mezcla.
+            await Task.Delay(100, cancellationToken);
+        }
+
+        if (!ReferenceEquals(target, Project))
+        {
+            // Mientras se leía se abrió otro proyecto: no se mezcla.
             return ImportResult.Empty;
         }
 
@@ -503,7 +509,7 @@ public sealed partial class EditorSession
     private bool AdoptFormatIfEmpty(MediaInfo info)
     {
         Sequence sequence = Sequence;
-        if (info.IsStillImage || info.Video is not { } video || KeepsTemplateFormat || Project.Media.Count > 0 || sequence.AllTracks.Any(t => t.Clips.Count > 0))
+        if (info.IsStillImage || info.Video is not { } video || KeepsTemplateFormat || Project.Media.Exists(m => m.HasVideo && !m.IsStillImage) || sequence.AllTracks.Any(t => t.Clips.Count > 0))
         {
             return false;
         }

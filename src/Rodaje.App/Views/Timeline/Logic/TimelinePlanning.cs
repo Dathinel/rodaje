@@ -1,4 +1,5 @@
 using System.Globalization;
+using Rodaje.App.Services;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -107,6 +108,50 @@ public static class TimelinePlanning
             at,
             duration,
             mode);
+    }
+
+    /// <summary>
+    /// Suelta las fichas arrastradas juntas: la primera como <see cref="PlanDrop"/> y las demás una tras otra detrás, en un
+    /// solo paso del historial. Devuelve el primer clip que creó cada una.
+    /// </summary>
+    public static List<string> DropMedia(EditorSession session, IReadOnlyList<MediaDrop> drops, TrackRow? row, Time position, bool insert, DragOptions options, Time? playhead)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(drops);
+        var created = new List<string>();
+        bool several = drops.Count > 1;
+        if (several)
+        {
+            session.BeginGesture("Añadir medios");
+        }
+
+        try
+        {
+            foreach (MediaDrop drop in drops)
+            {
+                if (session.Project.FindMedia(drop.MediaId) is not { } media
+                    || PlanDrop(session.Project, session.Sequence, media, row, position, insert, options, playhead, range: drop.Range) is not { } plan)
+                {
+                    continue;
+                }
+
+                SequenceEditCommand command = plan.Build();
+                if (session.Execute(command))
+                {
+                    created.AddRange(command.CreatedIds.Take(1));
+                    position = plan.At + plan.Duration;
+                }
+            }
+        }
+        finally
+        {
+            if (several)
+            {
+                session.EndGesture();
+            }
+        }
+
+        return created;
     }
 
     /// <summary>

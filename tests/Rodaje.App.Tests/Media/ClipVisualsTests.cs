@@ -231,6 +231,27 @@ public sealed class ClipVisualsTests : IDisposable
     }
 
     [Fact]
+    public async Task A_file_that_failed_while_missing_is_read_again_once_it_is_back()
+    {
+        string path = Path.Combine(_folder.Path, "vuelve.mp4");
+        _media["r1"] = path;
+        _sources.Broken.Add(path);
+        using ClipVisuals visuals = Create();
+        visuals.GetThumbnail("r1", Time.Zero, 32);
+        WaitFor(() => visuals.ThumbnailProblem(path));
+
+        await visuals.RetryFailedAsync();
+        Assert.NotNull(visuals.ThumbnailProblem(path));
+
+        _sources.Broken.Remove(path);
+        await File.WriteAllBytesAsync(path, [0]);
+        await visuals.RetryFailedAsync();
+
+        Assert.Null(visuals.ThumbnailProblem(path));
+        WaitFor(() => visuals.GetThumbnail("r1", Time.Zero, 32));
+    }
+
+    [Fact]
     public void Unknown_media_gives_empty_results()
     {
         using ClipVisuals visuals = Create();

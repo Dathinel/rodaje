@@ -21,6 +21,7 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
     private const string WaveformFolder = "ondas";
     private const string WaveformExtension = ".picos";
     private const int MaxQueuedBatches = 512;
+    private const string NoAudio = "sin audio";
 
     private readonly Func<string, string?> _resolve;
     private readonly IVisualsSources _sources;
@@ -219,6 +220,30 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Vuelve a intentar los archivos que fallaron y ya están en disco (un USB que se reconecta, un archivo que recupera su
+    /// nombre): se leen al pedirlos. Mira el disco fuera del hilo de la interfaz.
+    /// </summary>
+    public Task RetryFailedAsync()
+    {
+        string[] failed = [.. _failedThumbnails.Keys.Union(_noWaveform.Where(p => p.Value != NoAudio).Select(p => p.Key), StringComparer.OrdinalIgnoreCase)];
+        return failed.Length == 0 ? Task.CompletedTask : Task.Run(() =>
+        {
+            foreach (string path in failed.Where(File.Exists))
+            {
+                if (_failedThumbnails.TryRemove(path, out _))
+                {
+                    MarkChanged(path, ClipVisualKind.Thumbnails);
+                }
+
+                if (_noWaveform.TryRemove(path, out _))
+                {
+                    MarkChanged(path, ClipVisualKind.Waveform);
+                }
+            }
+        });
     }
 
     /// <summary>

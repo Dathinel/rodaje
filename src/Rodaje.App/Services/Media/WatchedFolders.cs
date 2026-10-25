@@ -30,9 +30,9 @@ public sealed class WatchedFolderScanner
 
     public static readonly IReadOnlySet<string> MediaExtensions = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
-        ".mp4", ".mkv", ".mov", ".m4v", ".webm", ".avi", ".mts", ".m2ts", ".ts", ".wmv", ".flv", ".3gp",
-        ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus",
-        ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff",
+        ".mp4", ".mkv", ".mov", ".m4v", ".webm", ".avi", ".mts", ".m2ts", ".ts", ".wmv", ".flv", ".3gp", ".mpg", ".mpeg", ".mxf", ".vob",
+        ".mp3", ".wav", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".aif", ".aiff", ".wma", ".ac3",
+        ".png", ".jpg", ".jpeg", ".webp", ".bmp", ".tif", ".tiff", ".gif",
     };
 
     private readonly Dictionary<string, long> _sizes = new(StringComparer.OrdinalIgnoreCase);
@@ -107,6 +107,18 @@ public sealed class WatchedFolderScanner
 
         settings.WatchedFolders.Add(new WatchedFolder { Path = full, SinceUtc = nowUtc });
         return true;
+    }
+
+    /// <summary>
+    /// Lo soltado en la ventana, con cada carpeta cambiada por los medios que tiene (hasta <see cref="MaxDepth"/> niveles,
+    /// por orden de ruta); los archivos pasan tal cual. Se llama fuera del hilo de la interfaz.
+    /// </summary>
+    public static string[] ExpandFolders(IEnumerable<string> paths)
+    {
+        ArgumentNullException.ThrowIfNull(paths);
+        return [.. paths.SelectMany(p => Directory.Exists(p)
+            ? Files(p).Where(f => MediaExtensions.Contains(f.Extension)).Select(f => f.FullName).Order(StringComparer.OrdinalIgnoreCase)
+            : Enumerable.Repeat(p, 1))];
     }
 
     private static DateTime Max(DateTime a, DateTime b) => a > b ? a : b;
