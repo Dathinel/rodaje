@@ -85,13 +85,13 @@ public static class ExportPresetLibrary
         return removed;
     }
 
-    /// <summary>Lo que se recuerda al lanzar una exportación.</summary>
+    /// <summary>Lo que se recuerda al lanzar una exportación; los subtítulos son del proyecto y se conservan tal cual.</summary>
     public static void Remember(ExportPreferences preferences, string? presetId, ExportSettings settings, string outputPath)
     {
         ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(settings);
         preferences.PresetId = presetId;
-        preferences.Settings = Canonical(settings) with { Performance = settings.Performance };
+        preferences.Settings = Canonical(settings) with { Performance = settings.Performance, Subtitles = settings.Subtitles };
         preferences.Performance = settings.Performance;
         preferences.Folder = Path.GetDirectoryName(outputPath) ?? preferences.Folder;
     }

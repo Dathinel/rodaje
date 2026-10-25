@@ -132,11 +132,14 @@ public sealed class ExportDialogModel
     public OutputCheck OutputCheck => ExportRanges.Check(OutputPath);
 
     /// <summary>Lo que impide exportar (vacío si se puede); la ruta que ya existe no impide, pide confirmar.</summary>
-    public IReadOnlyList<string> Problems
+    public IReadOnlyList<string> Problems => [.. ExportSettingsEditor.Validate(Settings, Encoders).Select(p => p.Message), .. VersionProblems];
+
+    /// <summary>Lo que impide exportar sea cual sea el preajuste (duración y destino): es lo que frena «Varias versiones».</summary>
+    public IReadOnlyList<string> VersionProblems
     {
         get
         {
-            var problems = ExportSettingsEditor.Validate(Settings, Encoders).Select(p => p.Message).ToList();
+            var problems = new List<string>();
             if (Duration.Ticks <= 0)
             {
                 problems.Add("La secuencia está vacía: no hay nada que exportar.");
@@ -152,6 +155,24 @@ public sealed class ExportDialogModel
     }
 
     public bool CanExport => Problems.Count == 0;
+
+    /// <summary>
+    /// Aviso para «Varias versiones»: los preajustes cuyo contenedor no lleva subtítulos aparte cuando se eligió ese modo
+    /// (saldrán quemados). Nulo si no hay nada que avisar.
+    /// </summary>
+    public string? VersionsNote(IEnumerable<string> presetIds)
+    {
+        ArgumentNullException.ThrowIfNull(presetIds);
+        if (Settings.Subtitles == SubtitleExport.Burned || !HasSubtitles)
+        {
+            return null;
+        }
+
+        string[] names = [.. presetIds.Select(id => ExportPresetLibrary.Find(_preferences, id))
+            .Where(p => p is { Settings.Video: not null } && !FfmpegPipeSinkOptions.AllowsSoftSubtitles(p.Settings.Container))
+            .Select(p => $"«{p!.Name}»")];
+        return names.Length == 0 ? null : $"{string.Join(", ", names)}: el formato no admite subtítulos aparte; irán quemados en la imagen.";
+    }
 
     public void SelectPreset(string id)
     {
@@ -251,15 +272,23 @@ public sealed class ExportDialogModel
     }
 
     /// <summary>
-    /// «Exportar varias versiones»: una petición por preajuste, con el rango, el rendimiento y la carpeta de ahora y el nombre
-    /// del archivo más el del preajuste («Viaje - YouTube 1080p.mp4»). Un preajuste de otra forma que el proyecto (Reels 9:16
-    /// sobre un proyecto 16:9) conserva su forma y llena el cuadro recortando al centro; los demás siguen al proyecto.
+    /// «Exportar varias versiones»: una petición por preajuste, con el rango, el rendimiento, los subtítulos y la carpeta de
+    /// ahora y el nombre del archivo más el del preajuste («Viaje - YouTube 1080p.mp4»; con un número si ya existe). Un
+    /// preajuste de otra forma que el proyecto (Reels 9:16 sobre un proyecto 16:9) conserva su forma y llena el cuadro
+    /// recortando al centro; los demás siguen al proyecto.
     /// </summary>
+    /// <exception cref="InvalidOperationException"><see cref="VersionProblems"/> no está vacío.</exception>
+    /// <exception cref="ArgumentException">Un preajuste no existe o no se puede exportar en este equipo.</exception>
     public IReadOnlyList<ExportRequest> CreateVersionRequests(IEnumerable<string> presetIds, Project projectCopy, string sequenceId,
         string? projectDirectory)
     {
         ArgumentNullException.ThrowIfNull(presetIds);
         ArgumentNullException.ThrowIfNull(projectCopy);
+        if (VersionProblems is { Count: > 0 } problems)
+        {
+            throw new InvalidOperationException(string.Join(" ", problems));
+        }
+
         string folder = Path.GetDirectoryName(OutputPath) is { Length: > 0 } dir ? dir : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
         string baseName = Path.GetFileNameWithoutExtension(OutputPath);
         var requests = new List<ExportRequest>();
@@ -267,8 +296,18 @@ public sealed class ExportDialogModel
         foreach (string id in presetIds)
         {
             ExportPreset preset = ExportPresetLibrary.Find(_preferences, id) ?? throw new ArgumentException($"No hay un preajuste «{id}».", nameof(presetIds));
-            ExportSettings settings = VersionSettings(preset.Settings);
+            ExportSettings settings = VersionSettings(preset.Settings) with { Subtitles = Settings.Subtitles };
             settings = ExportSettingsEditor.Coerce(settings, Encoders).Settings with { Performance = Performance };
+            if (settings.Video is null || !FfmpegPipeSinkOptions.AllowsSoftSubtitles(settings.Container))
+            {
+                settings = settings with { Subtitles = SubtitleExport.Burned };
+            }
+
+            if (ExportSettingsEditor.Validate(settings, Encoders) is { Count: > 0 } invalid)
+            {
+                throw new ArgumentException($"«{preset.Name}»: {string.Join(" ", invalid.Select(p => p.Message))}", nameof(presetIds));
+            }
+
             (EncoderSpec? video, EncoderSpec? audio) = ExportSettingsEditor.Encoders(settings, Encoders);
             if (settings.Video is { } v && settings.Container is not ExportContainer.ImageSequence && video is not null)
             {
@@ -282,7 +321,7 @@ public sealed class ExportDialogModel
 
             string name = string.Concat($"{baseName} - {preset.Name}".Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim();
             string path = ExportRanges.WithExtension(Path.Combine(folder, name), settings);
-            for (int n = 2; !used.Add(path); n++)
+            for (int n = 2; !used.Add(path) || File.Exists(path) || Directory.Exists(path); n++)
             {
                 path = ExportRanges.WithExtension(Path.Combine(folder, $"{name} ({n})"), settings);
             }

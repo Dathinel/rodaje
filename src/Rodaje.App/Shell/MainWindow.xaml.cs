@@ -376,6 +376,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         _services.Session.NewProjectTracks = _settings.Current.NewProjectTracks;
         _services.Session.LinkedAudioTracks = _settings.Current.LinkedAudioTracks;
         _services.Player.SetProxyUsage(_settings.Current.ProxyUsage);
+        _services.Player.TenBitViewer = _settings.Current.TenBitViewer;
+        _services.Player.HdrViewer = _settings.Current.HdrViewer;
         _router.Registry.Preset = _settings.Current.ShortcutPreset;
         _settings.SaveIfChanged();
     }

@@ -388,11 +388,13 @@ public class ProjectSerializerTests
         JsonObject root = RichNode();
         root["sequences"]![0]!["videoTracks"]![0]!["name"] = "Subt\u00C3\u00ADtulos";
         root["sequences"]![0]!["name"] = "Secuencia de edici\u00C3\u00B3n";
+        root["sequences"]![0]!["audioBuses"] = new JsonArray(new JsonObject { ["id"] = "bus-musica", ["name"] = "M\u00C3\u00BAsica" });
 
         Project project = ProjectSerializer.Deserialize(root.ToJsonString());
 
         Assert.Equal("Subtítulos", project.Sequences[0].VideoTracks[0].Name);
         Assert.Equal("Secuencia de edición", project.Sequences[0].Name);
+        Assert.Equal("Música", project.Sequences[0].AudioBuses[0].Name);
     }
 
     [Fact]
