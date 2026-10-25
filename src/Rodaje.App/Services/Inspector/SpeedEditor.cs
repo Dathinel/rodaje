@@ -218,7 +218,7 @@ public sealed partial class SpeedEditor
             return false;
         }
 
-        if (clips.Count == 1 && Read(clips[0]) is { HasCurve: false } state && state.Rate == rate)
+        if (clips.All(c => Read(c) is { HasCurve: false } state && state.Rate == rate))
         {
             return false;
         }

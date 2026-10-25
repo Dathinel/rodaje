@@ -50,23 +50,26 @@ internal sealed partial class TextPanel
         StyleRows.Children.Add(SliderRow("Espaciado", -20, 100, 1, "letter-spacing", s => s.LetterSpacing, (s, v) => s.LetterSpacing = v));
 
         StrokeRows.Children.Add(Toggle("Con borde", "stroke-on", s => s.Stroke is not null, (s, on) => s.Stroke = on ? new StyleStroke { Color = "#000000", Width = Math.Min(6, s.Size / 2) } : null));
-        StrokeRows.Children.Add(ColorRow("Color", "stroke-color", s => s.Stroke?.Color, (s, c) => (s.Stroke ??= new StyleStroke()).Color = c));
-        StrokeRows.Children.Add(SliderRow("Grosor", 0, 50, 0.5, "stroke-width", s => s.Stroke?.Width, (s, v) => (s.Stroke ??= new StyleStroke()).Width = Math.Min(v, s.Size / 2)));
+        // Con varios títulos, las filas siguen al primero: a los que no tienen borde, sombra o fondo no se les crea.
+        StrokeRows.Children.Add(ColorRow("Color", "stroke-color", s => s.Stroke?.Color, (s, c) => { if (s.Stroke is { } stroke) { stroke.Color = c; } }));
+        StrokeRows.Children.Add(SliderRow("Grosor", 0, 50, 0.5, "stroke-width", s => s.Stroke?.Width, (s, v) => { if (s.Stroke is { } stroke) { stroke.Width = Math.Min(v, s.Size / 2); } }));
 
         ShadowRows.Children.Add(Toggle("Con sombra", "shadow-on", s => s.Shadow is not null, (s, on) => s.Shadow = on ? new StyleShadow { Color = "#00000099", Dy = 4, Blur = 8 } : null));
-        ShadowRows.Children.Add(ColorRow("Color", "shadow-color", s => s.Shadow?.Color, (s, c) => (s.Shadow ??= new StyleShadow()).Color = c));
-        ShadowRows.Children.Add(SliderRow("Distancia X", -100, 100, 1, "shadow-dx", s => s.Shadow?.Dx, (s, v) => (s.Shadow ??= new StyleShadow()).Dx = v));
-        ShadowRows.Children.Add(SliderRow("Distancia Y", -100, 100, 1, "shadow-dy", s => s.Shadow?.Dy, (s, v) => (s.Shadow ??= new StyleShadow()).Dy = v));
-        ShadowRows.Children.Add(SliderRow("Desenfoque", 0, 64, 1, "shadow-blur", s => s.Shadow?.Blur, (s, v) => (s.Shadow ??= new StyleShadow()).Blur = v));
+        ShadowRows.Children.Add(ColorRow("Color", "shadow-color", s => s.Shadow?.Color, (s, c) => { if (s.Shadow is { } shadow) { shadow.Color = c; } }));
+        ShadowRows.Children.Add(SliderRow("Distancia X", -100, 100, 1, "shadow-dx", s => s.Shadow?.Dx, (s, v) => { if (s.Shadow is { } shadow) { shadow.Dx = v; } }));
+        ShadowRows.Children.Add(SliderRow("Distancia Y", -100, 100, 1, "shadow-dy", s => s.Shadow?.Dy, (s, v) => { if (s.Shadow is { } shadow) { shadow.Dy = v; } }));
+        ShadowRows.Children.Add(SliderRow("Desenfoque", 0, 64, 1, "shadow-blur", s => s.Shadow?.Blur, (s, v) => { if (s.Shadow is { } shadow) { shadow.Blur = v; } }));
 
         BackgroundRows.Children.Add(Toggle("Con fondo", "background-on", s => s.Background is not null, (s, on) => s.Background = on ? new StyleBackground { Color = "#00000080", Padding = [24, 12], Radius = 8 } : null));
-        BackgroundRows.Children.Add(ColorRow("Color", "background-color", s => s.Background?.Color, (s, c) => (s.Background ??= new StyleBackground()).Color = c));
+        BackgroundRows.Children.Add(ColorRow("Color", "background-color", s => s.Background?.Color, (s, c) => { if (s.Background is { } background) { background.Color = c; } }));
         BackgroundRows.Children.Add(SliderRow("Margen", 0, 200, 1, "background-padding", s => s.Background?.Padding[0], (s, v) =>
         {
-            StyleBackground background = s.Background ??= new StyleBackground();
-            background.Padding = [v, Math.Round(v / 2)];
+            if (s.Background is { } background)
+            {
+                background.Padding = [v, Math.Round(v / 2)];
+            }
         }));
-        BackgroundRows.Children.Add(SliderRow("Esquinas", 0, 100, 1, "background-radius", s => s.Background?.Radius, (s, v) => (s.Background ??= new StyleBackground()).Radius = v));
+        BackgroundRows.Children.Add(SliderRow("Esquinas", 0, 100, 1, "background-radius", s => s.Background?.Radius, (s, v) => { if (s.Background is { } background) { background.Radius = v; } }));
     }
 
     private Grid FontRow()

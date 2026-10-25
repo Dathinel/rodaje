@@ -76,6 +76,120 @@ public class MultiClipPropertyTests
     });
 
     [Fact]
+    public void VideoYSuAudioEnlazado_SonUnSoloClip() => UiThread.Run(async () =>
+    {
+        (EditorSession session, ClipPropertyEditor editor, Clip a, _) = await TwoClips();
+        Clip audioA = session.Sequence.AudioTracks[0].Clips[0];
+        Assert.Equal(a.LinkId, audioA.LinkId);
+        session.Select([a.Id, audioA.Id]);
+
+        (IReadOnlyList<Clip> videos, IReadOnlyList<Clip> audios) = editor.Targets();
+
+        Assert.Same(a, Assert.Single(videos));
+        Assert.Same(audioA, Assert.Single(audios));
+        Assert.Equal(1, editor.SelectedCount());
+        Assert.Same(a, Assert.Single(new SpeedEditor(session, SpeedCommands.Default).Targets()));
+    });
+
+    [Fact]
+    public void Rombo_CurvaYQuitarKeyframes_VanATodosEnUnPaso() => UiThread.Run(async () =>
+    {
+        (EditorSession session, ClipPropertyEditor editor, Clip a, _) = await TwoClips();
+        var title = Edits.InsertTitle(session.SequenceId, Time.Zero, Time.FromSeconds(3), new ClipGenerator { Text = "T", Style = TitleStyles.Default() });
+        Assert.True(session.Execute(title));
+        string[] ids = [a.Id, title.CreatedIds[0]];
+        session.Select(ids);
+        List<Keyframe> Keys(string id) =>
+            ClipPropertyEditor.FindEffect(session.Sequence.GetClip(id).Clip, Transform) is { } effect && effect.Parameters.TryGetValue(P.Opacity, out Parameter? opacity)
+                ? opacity.Keyframes
+                : [];
+        IReadOnlyList<Clip> Videos() => editor.Targets().Video;
+        int steps = session.History.Count;
+
+        Assert.True(editor.ToggleKeyframe(Videos(), Transform, P.Opacity, 1));
+        Assert.Equal(steps + 1, session.History.Count);
+        Assert.All(ids, id => Assert.Single(Keys(id)));
+
+        Assert.True(editor.SetInterpolation(Videos(), Transform, P.Opacity, Interpolation.EaseInOut));
+        Assert.Equal(steps + 2, session.History.Count);
+        Assert.All(ids, id => Assert.Equal(Interpolation.EaseInOut, Keys(id)[0].Interpolation));
+
+        Assert.True(editor.ToggleKeyframe(Videos(), Transform, P.Opacity, 1));
+        Assert.Equal(steps + 3, session.History.Count);
+        Assert.All(ids, id => Assert.Empty(Keys(id)));
+
+        Assert.True(editor.ToggleKeyframe(Videos(), Transform, P.Opacity, 1));
+        int asked = 0;
+        Assert.True(await editor.ClearKeyframesAsync(Videos(), Transform, P.Opacity, "Quitar keyframes de opacidad", n =>
+        {
+            asked = n;
+            return Task.FromResult(true);
+        }));
+        Assert.Equal(2, asked);
+        Assert.Equal(steps + 5, session.History.Count);
+        Assert.All(ids, id => Assert.Empty(Keys(id)));
+    });
+
+    [Fact]
+    public void ConfirmarSinCambiar_VariosClips_NoDejaPasoVacio() => UiThread.Run(async () =>
+    {
+        (EditorSession session, _, Clip a, Clip b) = await TwoClips();
+        var cmdA = Edits.InsertTitle(session.SequenceId, Time.Zero, Time.FromSeconds(3), new ClipGenerator { Text = "A", Style = TitleStyles.Default() });
+        var cmdB = Edits.InsertTitle(session.SequenceId, Time.FromSeconds(4), Time.FromSeconds(3), new ClipGenerator { Text = "B", Style = TitleStyles.Default() });
+        Assert.True(session.Execute(cmdA));
+        Assert.True(session.Execute(cmdB));
+        int steps = session.History.Count;
+
+        session.Select([a.Id, b.Id]);
+        Assert.False(new SpeedEditor(session, SpeedCommands.Default).SetRate(SpeedState.Normal));
+        session.Select([cmdA.CreatedIds[0], cmdB.CreatedIds[0]]);
+        Assert.False(new TitleEditor(session).ChangeStyle("fill", s => s.Fill.Color = s.Fill.Color));
+
+        Assert.Equal(steps, session.History.Count);
+    });
+
+    [Fact]
+    public void Texto_VariosTitulos_EstiloBordesCajaYKeyframesVanATodos() => UiThread.Run(async () =>
+    {
+        (EditorSession session, _, _, _) = await TwoClips();
+        TextStyle animated = TitleStyles.Default();
+        var fadeIn = new StyleAnimation { DurationSeconds = 0.5, Curves = { ["opacity"] = [new StyleKey(0, 0), new StyleKey(0.5, 1)] } };
+        animated.In = fadeIn;
+        var cmdA = Edits.InsertTitle(session.SequenceId, Time.Zero, Time.FromSeconds(3), new ClipGenerator { Text = "A", Style = animated.Clone() });
+        var cmdB = Edits.InsertTitle(session.SequenceId, Time.FromSeconds(4), Time.FromSeconds(3), new ClipGenerator { Text = "B", Style = animated.Clone() });
+        Assert.True(session.Execute(cmdA));
+        Assert.True(session.Execute(cmdB));
+        string[] ids = [cmdA.CreatedIds[0], cmdB.CreatedIds[0]];
+        session.Select(ids);
+        var editor = new TitleEditor(session);
+        Clip Title(string id) => session.Sequence.GetClip(id).Clip;
+        int steps = session.History.Count;
+
+        Assert.True(editor.SetEdges(false, null));
+        Assert.All(ids, id => Assert.False(Title(id).Generator!.Edges.In));
+        Assert.False(editor.SetEdges(false, null));
+        Assert.Equal(steps + 1, session.History.Count);
+
+        // Elegir la animación que ya tienen enciende el borde en un paso; repetirla no deja nada.
+        Assert.True(editor.ChooseAnimation("in", s => s.In = fadeIn.Clone(), entry: true, animated: true));
+        Assert.All(ids, id => Assert.True(Title(id).Generator!.Edges.In));
+        Assert.False(editor.ChooseAnimation("in", s => s.In = fadeIn.Clone(), entry: true, animated: true));
+        Assert.Equal(steps + 2, session.History.Count);
+
+        Assert.True(editor.SetBox(_ => new TextFrame { WidthFraction = 0.5 }));
+        Assert.All(ids, id => Assert.Equal(0.5, Title(id).Generator!.Box!.WidthFraction));
+
+        Assert.True(editor.ConvertToKeyframes());
+        Assert.All(ids, id => Assert.Null(Title(id).Generator!.Style!.In));
+
+        TextStyle other = TitleStyles.Default();
+        other.Font.Family = "Impact";
+        Assert.True(editor.ApplyStyle(other));
+        Assert.All(ids, id => Assert.Equal("Impact", Title(id).Generator!.Style!.Font.Family));
+        Assert.Equal(steps + 5, session.History.Count);
+    });
+
+    [Fact]
     public void ResetAsync_VariosClips_RestableceEnUnSoloPaso() => UiThread.Run(async () =>
     {
         (EditorSession session, ClipPropertyEditor editor, Clip a, Clip b) = await TwoClips();

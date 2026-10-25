@@ -105,6 +105,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             DefaultButton = ContentDialogButton.Primary,
             RequestedTheme = ElementTheme.Dark,
         };
+        box.TextChanged += (_, _) => dialog.IsPrimaryButtonEnabled = LoudnessNormalizer.ParseTarget(box.Text) is not null;
         return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary ? LoudnessNormalizer.ParseTarget(box.Text) : null;
     }
 
@@ -306,7 +307,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         _videoClipIds = videoIds;
         _audioClipIds = audioIds;
         _shownPosition = session.Position;
-        int selected = session.SelectedClipIds.Count(id => session.Sequence.FindClip(id) is not null);
+        int selected = editor.SelectedCount();
         bool any = video is not null || audio is not null;
         _emptyText ??= EmptyText.Text;
         EmptyText.Text = !any && selected > 1 ? "Los clips seleccionados no tienen propiedades en común." : _emptyText;
@@ -338,6 +339,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         MoreButton.Visibility = videoVisible;
         KeyframeTotal.Visibility = videoVisible;
         TransformNote.Visibility = Visibility.Collapsed;
+        PlayheadNote.Visibility = videos.Concat(audios).Any(editor.IsPlayheadInside) ? Visibility.Collapsed : Visibility.Visible;
         AudioSection.Visibility = audio is null ? Visibility.Collapsed : Visibility.Visible;
 
         if (video is not null)
@@ -375,7 +377,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             }
         }
 
-        bool inside = editor.IsPlayheadInside(clip);
+        bool inside = clips.Any(editor.IsPlayheadInside);
         var values = new Dictionary<string, double>(StringComparer.Ordinal);
         int placementKeyframes = 0;
         int opacityKeyframes = 0;
@@ -403,7 +405,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
                 animated.Add(row);
             }
 
-            row.Show(state, inside, editor.IsMixed(clips, row.Spec.EffectType, row.Spec.Name, row.Spec.DefaultValue));
+            row.Show(state, inside, editor.IsMixed(clips, row.Spec.EffectType, row.Spec.Name, row.Spec.DefaultValue), CanReset(clips, row));
         }
 
         KeyframeTotal.Text = KeyframeText(placementKeyframes + opacityKeyframes + shapeKeyframes);
@@ -583,7 +585,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
             FadeOutRow.Configure(specs[2], "Salida");
         }
 
-        bool inside = editor.IsPlayheadInside(clip);
+        bool inside = clips.Any(editor.IsPlayheadInside);
         int keyframes = 0;
         double gain = 0;
         foreach (ParameterRow row in _audioRows)
@@ -595,7 +597,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
                 gain = row.Spec.ToDisplay(state.Value);
             }
 
-            row.Show(state, inside, editor.IsMixed(clips, row.Spec.EffectType, row.Spec.Name, row.Spec.DefaultValue));
+            row.Show(state, inside, editor.IsMixed(clips, row.Spec.EffectType, row.Spec.Name, row.Spec.DefaultValue), CanReset(clips, row));
         }
 
         AudioSection.KeyframeSummary = KeyframeText(keyframes);
@@ -610,6 +612,10 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private static IEnumerable<(string Name, double DefaultValue)> Defaults(IEnumerable<ParameterRow> rows) =>
         rows.Select(r => (r.Spec.Name, r.Spec.DefaultValue));
+
+    // Con varios clips, ↺ se activa si alguno se puede restablecer, no solo el primero.
+    private static bool? CanReset(IReadOnlyList<Clip> clips, ParameterRow row) =>
+        clips.Count > 1 ? ClipPropertyEditor.CanReset(clips, row.Spec.EffectType, Defaults([row])) : null;
 
     private static void FinishChanges(ParameterRow[] rows)
     {
@@ -676,9 +682,9 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private void OnRowKeyframeToggled(object? sender, EventArgs e)
     {
-        if (sender is ParameterRow row && _editor is { } editor && ClipFor(row) is { } clip)
+        if (sender is ParameterRow row && _editor is { } editor)
         {
-            editor.ToggleKeyframe(clip, row.Spec.EffectType, row.Spec.Name, row.Spec.DefaultValue);
+            editor.ToggleKeyframe(ClipsFor(row), row.Spec.EffectType, row.Spec.Name, row.Spec.DefaultValue);
         }
     }
 
@@ -692,9 +698,9 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private void OnRowInterpolation(object? sender, Interpolation interpolation)
     {
-        if (sender is ParameterRow row && _editor is { } editor && ClipFor(row) is { } clip)
+        if (sender is ParameterRow row && _editor is { } editor)
         {
-            editor.SetInterpolation(clip, row.Spec.EffectType, row.Spec.Name, interpolation);
+            editor.SetInterpolation(ClipsFor(row), row.Spec.EffectType, row.Spec.Name, interpolation);
         }
     }
 
@@ -720,11 +726,11 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
 
     private async Task OnRowClearKeyframesAsync(object? sender, EventArgs e)
     {
-        if (sender is ParameterRow row && _editor is { } editor && ClipFor(row) is { } clip)
+        if (sender is ParameterRow row && _editor is { } editor && ClipsFor(row) is { Count: > 0 } clips)
         {
             _dragRow = null;
             string label = row.Spec.Label;
-            await editor.ClearKeyframesAsync(clip, row.Spec.EffectType, row.Spec.Name, "Quitar keyframes de " + char.ToLowerInvariant(label[0]) + label[1..],
+            await editor.ClearKeyframesAsync(clips, row.Spec.EffectType, row.Spec.Name, "Quitar keyframes de " + char.ToLowerInvariant(label[0]) + label[1..],
                 KeyframeDialog.ForClear(XamlRoot, label));
         }
     }

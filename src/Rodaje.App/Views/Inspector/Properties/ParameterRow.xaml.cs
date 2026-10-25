@@ -113,7 +113,8 @@ internal sealed partial class ParameterRow : UserControl
     /// <param name="state">Estado en el cursor.</param>
     /// <param name="playheadInside">El cursor está dentro del clip: solo ahí se ponen keyframes.</param>
     /// <param name="mixed">Varios clips con valores distintos: el número queda en «—» hasta que se toca.</param>
-    public void Show(ParameterState state, bool playheadInside, bool mixed = false)
+    /// <param name="canReset">Con varios clips, si alguno se puede restablecer; sin él, lo dice <paramref name="state"/>.</param>
+    public void Show(ParameterState state, bool playheadInside, bool mixed = false, bool? canReset = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ParameterSpec spec = Spec;
@@ -147,7 +148,7 @@ internal sealed partial class ParameterRow : UserControl
         KeyframeButton.IsEnabled = playheadInside;
         PreviousButton.IsEnabled = state.Previous is not null;
         NextButton.IsEnabled = state.Next is not null;
-        ResetButton.IsEnabled = !state.IsDefault(spec.DefaultValue);
+        ResetButton.IsEnabled = canReset ?? !state.IsDefault(spec.DefaultValue);
         ResetItem.IsEnabled = ResetButton.IsEnabled;
         ClearKeyframesItem.IsEnabled = state.IsAnimated;
         KeyframeStrip.Visibility = state.IsAnimated && spec.Animatable ? Visibility.Visible : Visibility.Collapsed;

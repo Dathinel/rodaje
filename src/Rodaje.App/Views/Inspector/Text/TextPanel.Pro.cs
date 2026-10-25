@@ -258,14 +258,17 @@ internal sealed partial class TextPanel
         var value = new TextBlock { Width = NumberWidth, Style = Resource<Style>("LabelTextStyle"), VerticalAlignment = VerticalAlignment.Center, TextAlignment = TextAlignment.Right };
         void Commit(double? fraction)
         {
-            if (_updating || _editor?.Target() is not { Generator: { } generator })
+            if (_updating || _editor is null)
             {
                 return;
             }
 
-            TextFrame box = generator.Box?.Clone() ?? new TextFrame();
-            set(box, fraction);
-            _editor.SetBox(box.Width is null && box.WidthFraction is null && box.HeightFraction is null ? null : box);
+            _editor.SetBox(current =>
+            {
+                TextFrame box = current?.Clone() ?? new TextFrame();
+                set(box, fraction);
+                return box.Width is null && box.WidthFraction is null && box.HeightFraction is null ? null : box;
+            });
         }
 
         on.Click += (_, _) => Commit(on.IsChecked == true ? slider.Value / 100 : null);
@@ -505,17 +508,13 @@ internal sealed partial class TextPanel
             }
 
             TextAnimationPreset? preset = tag as TextAnimationPreset;
-            editor.CommitStyle(field, s =>
+            editor.ChooseAnimation(field, s =>
             {
                 StyleAnimation? current = get(s);
                 Set(s, preset is null ? null
                     : entry ? preset.In(seconds: current?.DurationSeconds, order: current?.Order ?? UnitOrder.Forward)
                     : preset.Out(seconds: current?.DurationSeconds, order: current?.Order ?? UnitOrder.Forward));
-            });
-            if (preset is not null && _editor.Target()?.Generator is { } generator)
-            {
-                editor.SetEdges(entry ? true : null, entry ? null : true);
-            }
+            }, entry, animated: preset is not null);
         };
         AnimationRows.Children.Add(gallery);
         AnimationRows.Children.Add(ChoiceRow("Por", field + "-unit", ["Bloque", "Línea", "Palabra", "Letra"], s => (int)(get(s)?.Unit ?? TextUnit.Block),
