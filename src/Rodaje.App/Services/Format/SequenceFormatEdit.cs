@@ -15,7 +15,9 @@ namespace Rodaje.App.Services.Format;
 /// </summary>
 public static class SequenceFormatEdit
 {
-    public static SequenceEditCommand Command(string sequenceId, int width, int height, Rational frameRate, ClipFit fit, IIdGenerator? ids = null)
+    /// <param name="colorSpace">Espacio de color de la secuencia; <c>null</c> deja el que tiene.</param>
+    public static SequenceEditCommand Command(string sequenceId, int width, int height, Rational frameRate, ClipFit fit,
+        SequenceColorSpace? colorSpace = null, IIdGenerator? ids = null)
     {
         ArgumentNullException.ThrowIfNull(sequenceId);
         if (!ProjectFormats.IsValidSize(width, height))
@@ -28,17 +30,19 @@ public static class SequenceFormatEdit
             throw new ArgumentException($"{frameRate} no es una tasa válida: de 1 a {Sequence.MaxFrameRate} cuadros por segundo.");
         }
 
-        return new SequenceEditCommand($"Formato del proyecto: {ProjectFormats.AspectName(width, height)} · {width}×{height}", sequenceId,
-            ctx => Apply(ctx, width, height, frameRate, fit), ids);
+        string color = colorSpace is { } space and not SequenceColorSpace.Sdr709 ? $" · {ProjectFormats.ColorSpaceName(space)}" : "";
+        return new SequenceEditCommand($"Formato del proyecto: {ProjectFormats.AspectName(width, height)} · {width}×{height}{color}", sequenceId,
+            ctx => Apply(ctx, width, height, frameRate, fit, colorSpace), ids);
     }
 
-    private static void Apply(EditContext ctx, int width, int height, Rational frameRate, ClipFit fit)
+    private static void Apply(EditContext ctx, int width, int height, Rational frameRate, ClipFit fit, SequenceColorSpace? colorSpace)
     {
         Sequence sequence = ctx.Sequence;
         (int oldWidth, int oldHeight) = (sequence.Width, sequence.Height);
         sequence.Width = width;
         sequence.Height = height;
         sequence.FrameRate = frameRate;
+        sequence.ColorSpace = colorSpace ?? sequence.ColorSpace;
         foreach (Track track in sequence.VideoTracks)
         {
             if (track.Locked)

@@ -124,12 +124,24 @@ public static class ProjectFormats
     public static bool IsValidSize(int width, int height) =>
         width is >= MinSide and <= MaxSide && height is >= MinSide and <= MaxSide && width % 2 == 0 && height % 2 == 0;
 
-    /// <summary>«9:16 · 1080×1920 · 30 fps».</summary>
+    /// <summary>«9:16 · 1080×1920 · 30 fps», más « · HDR10 (PQ)» o « · HLG» si la secuencia es HDR.</summary>
     public static string Describe(Sequence sequence)
     {
         ArgumentNullException.ThrowIfNull(sequence);
-        return $"{AspectName(sequence.Width, sequence.Height)} · {sequence.Width}×{sequence.Height} · {Fps(sequence.FrameRate)} fps";
+        string color = sequence.ColorSpace == SequenceColorSpace.Sdr709 ? "" : $" · {ColorSpaceName(sequence.ColorSpace)}";
+        return $"{AspectName(sequence.Width, sequence.Height)} · {sequence.Width}×{sequence.Height} · {Fps(sequence.FrameRate)} fps{color}";
     }
+
+    /// <summary>Los espacios de color que ofrece «Formato del proyecto…», en el orden de <see cref="SequenceColorSpace"/>.</summary>
+    public static IReadOnlyList<(SequenceColorSpace Space, string Label, string Help)> ColorSpaces { get; } =
+    [
+        (SequenceColorSpace.Sdr709, "SDR BT.709", "Lo de siempre; los videos HDR se convierten a SDR al entrar."),
+        (SequenceColorSpace.HdrPq, "HDR10 (PQ)", "Se trabaja en HDR: luz lineal BT.2020 con el blanco SDR en 203 nits; exporta HDR10 en HEVC, AV1 o ProRes de 10 bits."),
+        (SequenceColorSpace.HdrHlg, "HLG", "Como HDR10, pero la salida va en HLG (BT.2100), sin metadatos de masterizado."),
+    ];
+
+    /// <summary>«SDR BT.709», «HDR10 (PQ)» o «HLG».</summary>
+    public static string ColorSpaceName(SequenceColorSpace space) => ColorSpaces.FirstOrDefault(c => c.Space == space).Label ?? space.ToString();
 
     /// <summary>«16:9», «9:16», «4:5» o «2,35:1».</summary>
     public static string AspectName(int width, int height)

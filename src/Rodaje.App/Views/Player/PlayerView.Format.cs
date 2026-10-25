@@ -132,11 +132,11 @@ internal sealed partial class PlayerView
     private void ApplyFormat(int width, int height, Rational frameRate) =>
         ApplyFormat(width, height, frameRate, ProjectFormats.Normalize(_services?.Settings.Current.FormatClipFit ?? ClipFit.Fit));
 
-    private void ApplyFormat(int width, int height, Rational frameRate, ClipFit fit)
+    private void ApplyFormat(int width, int height, Rational frameRate, ClipFit fit, SequenceColorSpace? colorSpace = null)
     {
         // Un ajuste fuera de la lista (ajustes guardados a mano) ya no lanza aquí: antes «First» cerraba la app desde el clic.
         fit = ProjectFormats.Normalize(fit);
-        if (Session is not { } session || !ProjectFormats.IsValidSize(width, height) || !session.ChangeFormat(width, height, frameRate, fit))
+        if (Session is not { } session || !ProjectFormats.IsValidSize(width, height) || !session.ChangeFormat(width, height, frameRate, fit, colorSpace))
         {
             return;
         }
@@ -178,6 +178,15 @@ internal sealed partial class PlayerView
         }
 
         rateBox.SelectedIndex = Math.Max(0, ProjectFormats.FrameRates.ToList().FindIndex(r => r.Rate == sequence.FrameRate));
+        var colorBox = new ComboBox { Header = "Color", HorizontalAlignment = HorizontalAlignment.Stretch };
+        foreach ((SequenceColorSpace _, string label, string help) in ProjectFormats.ColorSpaces)
+        {
+            var item = new ComboBoxItem { Content = label };
+            ToolTipService.SetToolTip(item, help);
+            colorBox.Items.Add(item);
+        }
+
+        colorBox.SelectedIndex = Math.Max(0, ProjectFormats.ColorSpaces.ToList().FindIndex(c => c.Space == sequence.ColorSpace));
         var fitPanel = new StackPanel { Spacing = 2 };
         fitPanel.Children.Add(new TextBlock { Text = "Ajustar clips", Style = (Style)Application.Current.Resources["LabelTextStyle"] });
         var fitButtons = new List<RadioButton>();
@@ -193,6 +202,7 @@ internal sealed partial class PlayerView
         panel.Children.Add(resolutionBox);
         panel.Children.Add(sizeRow);
         panel.Children.Add(rateBox);
+        panel.Children.Add(colorBox);
         panel.Children.Add(fitPanel);
         panel.Children.Add(result);
 
@@ -230,8 +240,10 @@ internal sealed partial class PlayerView
             (int w, int h) = Size();
             bool valid = ProjectFormats.IsValidSize(w, h);
             dialog.IsPrimaryButtonEnabled = valid;
+            SequenceColorSpace space = ProjectFormats.ColorSpaces[Math.Max(0, colorBox.SelectedIndex)].Space;
+            string color = space == SequenceColorSpace.Sdr709 ? "" : $" · {ProjectFormats.ColorSpaceName(space)} (se ve en HDR solo con pantalla HDR; exporta en HEVC, AV1 o ProRes de 10 bits)";
             result.Text = valid
-                ? $"Quedará {ProjectFormats.AspectName(w, h)} · {w}×{h} · {rateBox.SelectedItem} fps. Un solo Ctrl+Z lo deshace."
+                ? $"Quedará {ProjectFormats.AspectName(w, h)} · {w}×{h} · {rateBox.SelectedItem} fps{color}. Un solo Ctrl+Z lo deshace."
                 : $"Ancho y alto pares, de {ProjectFormats.MinSide} a {ProjectFormats.MaxSide} píxeles.";
             updating = false;
         }
@@ -249,6 +261,7 @@ internal sealed partial class PlayerView
         aspectBox.SelectionChanged += (_, _) => Refresh();
         resolutionBox.SelectionChanged += (_, _) => Refresh();
         rateBox.SelectionChanged += (_, _) => Refresh();
+        colorBox.SelectionChanged += (_, _) => Refresh();
         widthBox.ValueChanged += (_, _) => Refresh();
         heightBox.ValueChanged += (_, _) => Refresh();
         Refresh();
@@ -263,7 +276,8 @@ internal sealed partial class PlayerView
         services.Settings.Current.FormatClipFit = fit;
         if (ProjectFormats.IsValidSize(width, height))
         {
-            ApplyFormat(width, height, ProjectFormats.FrameRates[Math.Max(0, rateBox.SelectedIndex)].Rate, fit);
+            ApplyFormat(width, height, ProjectFormats.FrameRates[Math.Max(0, rateBox.SelectedIndex)].Rate, fit,
+                ProjectFormats.ColorSpaces[Math.Max(0, colorBox.SelectedIndex)].Space);
         }
     }
 }
