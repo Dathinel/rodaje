@@ -42,7 +42,6 @@ public static partial class Edits
             ids);
     }
 
-    /// <param name="description">Texto del historial cuando el efecto no se ve como filtro (un seguimiento, el compresor).</param>
     public static SequenceEditCommand RemoveEffect(string sequenceId, string clipId, string effectId, IIdGenerator? ids = null, string? description = null) =>
         new(description ?? "Quitar filtro", sequenceId, ctx => EffectEdits.RemoveEffect(ctx, clipId, effectId), ids);
 

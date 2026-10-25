@@ -178,7 +178,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         {
             PointTrackKind kind = PointTrack.ParseKind(effect.Options.GetValueOrDefault(O.Kind));
             int frames = PointTrack.ParseCached(effect.Options.GetValueOrDefault(O.Samples))?.Count ?? 0;
-            string note = KindName(kind) + (frames > 0 ? $" · {frames} fotogramas" : " · sin seguir");
+            string note = KindName(kind) + (frames > 0 ? " · " + Frames(frames) : " · sin seguir");
             next.Add(new TrackItem(effect.Id, effect.Options.GetValueOrDefault(O.Name) ?? "Seguimiento", note,
                 new SolidColorBrush(Color(effect.Options.GetValueOrDefault(O.Color)))));
         }
@@ -236,6 +236,8 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         DrawGraph();
         ShowRunning();
     }
+
+    private static string Frames(int count) => count == 1 ? "1 fotograma" : $"{count} fotogramas";
 
     private static double Threshold(EffectInstance track) =>
         track.Parameters.TryGetValue(BuiltInEffects.TrackParameters.Threshold, out Parameter? p) ? p.Value : 0.7;
@@ -493,10 +495,10 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         Session.BreakMerge();
         int frames = Math.Max(0, collected.Count - 1);
         RunText.Text = unsaved
-            ? $"Se detuvo: lo seguido ya no se pudo guardar (es demasiado largo o el clip ya no está). Quedaron guardados {saved} fotogramas."
+            ? $"Se detuvo: lo seguido ya no se pudo guardar (es demasiado largo o el clip ya no está). Quedaron guardados {Frames(saved)}."
             : frames == 0
             ? "No había fotogramas para seguir en esa dirección."
-            : $"Seguidos {frames} fotogramas hacia {(forward ? "adelante" : "atrás")}"
+            : $"Seguidos {Frames(frames)} hacia {(forward ? "adelante" : "atrás")}"
                 + (doubtful > 0 ? $"; {doubtful} dudosos" : "")
                 + (lost > 0 ? $"; en {lost} se perdió algún punto y se estimó" : "")
                 + (gone ? ". Se detuvo porque no se encontraba ningún punto." : ".");
@@ -559,7 +561,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         Graph.Children.Add(new Line { X1 = cursor, X2 = cursor, Y1 = 0, Y2 = height, Stroke = (Brush)Application.Current.Resources["TextBrush"], StrokeThickness = 1 });
         GraphText.Text = samples is null
             ? "Todavía no se siguió nada."
-            : $"{samples.Count} fotogramas · {doubtful} dudosos · {lost} perdidos (línea punteada: umbral)";
+            : $"{Frames(samples.Count)} · {doubtful} dudosos · {lost} perdidos (línea punteada: umbral)";
         ConfidenceSection.Summary = samples is null ? "" : lost + doubtful == 0 ? "todo bien" : $"{lost + doubtful} por revisar";
         PreviousDoubtButton.IsEnabled = NextDoubtButton.IsEnabled = lost + doubtful > 0;
     }
