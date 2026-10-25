@@ -178,6 +178,12 @@ internal sealed partial class TimelineScheduler : IDisposable
     /// <summary>Un archivo no se pudo abrir o un cuadro no se pudo decodificar. Puede llegar desde un hilo de decodificación.</summary>
     public event EventHandler<TimelineDecodeFailedEventArgs>? DecodeFailed;
 
+    /// <summary>
+    /// Un decodificador entregó un cuadro (o falló al pedirlo): el próximo <see cref="Tick"/> puede cambiar la composición.
+    /// Llega desde el hilo del decodificador; quien lo escucha solo debe despertar a su propio hilo.
+    /// </summary>
+    public event EventHandler? FrameDelivered;
+
     public TimelinePlan Plan
     {
         get

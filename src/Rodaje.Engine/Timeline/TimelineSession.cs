@@ -78,6 +78,7 @@ public sealed class TimelineSession : IDisposable
             _scheduler = new TimelineScheduler(plan, clock, backend, decoderOptions, options, vramBudget);
             _scheduler.EndReached += (_, e) => EndReached?.Invoke(this, e);
             _scheduler.DecodeFailed += (_, e) => DecodeFailed?.Invoke(this, e);
+            _scheduler.FrameDelivered += (_, e) => FrameDelivered?.Invoke(this, e);
         }
         catch
         {
@@ -95,6 +96,9 @@ public sealed class TimelineSession : IDisposable
 
     /// <summary>Un medio no se pudo abrir o un cuadro no se pudo decodificar; puede llegar desde un hilo de decodificación.</summary>
     public event EventHandler<TimelineDecodeFailedEventArgs>? DecodeFailed;
+
+    /// <summary>Llegó (o falló) un cuadro pedido: el próximo <see cref="Tick"/> puede cambiar la composición. Desde el hilo del decodificador.</summary>
+    public event EventHandler? FrameDelivered;
 
     public string SequenceId { get; }
 
