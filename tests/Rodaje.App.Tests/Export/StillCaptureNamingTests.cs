@@ -45,6 +45,18 @@ public sealed class StillCaptureNamingTests
     }
 
     [Fact]
+    public void Available_DoesNotReplaceAnEarlierCapture()
+    {
+        using var dir = new Rodaje.App.Tests.Support.TempDirectory();
+        string first = dir.File("Demo_00-00-03-00.png");
+        Assert.Equal(first, StillCaptureNaming.Available(first));
+
+        File.WriteAllText(first, "");
+        File.WriteAllText(dir.File("Demo_00-00-03-00 (2).png"), "");
+        Assert.Equal(dir.File("Demo_00-00-03-00 (3).png"), StillCaptureNaming.Available(first));
+    }
+
+    [Fact]
     public void ResolveCaptureFolder_UsesPreferenceWhenConfigured()
     {
         var settings = new AppSettings { StillCaptureFolder = @"C:\MisCapturas" };

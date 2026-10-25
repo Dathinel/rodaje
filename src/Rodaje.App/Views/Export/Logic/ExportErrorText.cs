@@ -51,7 +51,8 @@ public static class ExportErrorText
             ExportErrorCode.EncoderRejected => ("El codificador no aceptó los ajustes", "Elige otro codificador (por ejemplo, el de CPU) o vuelve a un preajuste.", ExportErrorAction.ChangeSettings),
             ExportErrorCode.EncoderFailed => ("El codificador se detuvo", "Prueba otra vez; si se repite, elige otro codificador en Avanzado.", ExportErrorAction.Retry),
             ExportErrorCode.DiskFull => ("No hay espacio en el disco", "Libera espacio o guarda en otro disco.", ExportErrorAction.ChooseOutput),
-            ExportErrorCode.OutputNotWritable => ("No se puede escribir ahí", "La carpeta es de solo lectura o el archivo está abierto en otro programa. Ciérralo o elige otra carpeta.", ExportErrorAction.ChooseOutput),
+            // El motivo cambia mucho (carpeta con archivos, exportación cancelada que aún se cierra, temporal sin renombrar): se dice el real.
+            ExportErrorCode.OutputNotWritable => ("No se puede escribir ahí", $"{Reason(error)}Si no se resuelve, elige otra carpeta u otro nombre.", ExportErrorAction.ChooseOutput),
             // El motivo lo da el plan en español («Entrelazado, el alto tiene que ser par…»); sin él solo quedaba la pista.
             ExportErrorCode.InvalidSettings => ("Los ajustes no son válidos", $"{Reason(error)}Revisa el formato en Avanzado o vuelve a un preajuste.", ExportErrorAction.ChangeSettings),
             ExportErrorCode.Canceled => ("Exportación cancelada", "No se guardó ningún archivo.", ExportErrorAction.None),

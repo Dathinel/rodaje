@@ -47,6 +47,23 @@ public static class StillCaptureNaming
     }
 
     /// <summary>
+    /// <paramref name="path"/> o, si ya hay un archivo con ese nombre, «… (2).png», «… (3).png»: una segunda captura del
+    /// mismo cuadro (tras retocar el color) no pisa la primera ni choca con ella si se añadió a la biblioteca.
+    /// </summary>
+    public static string Available(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        string folder = Path.GetDirectoryName(path) ?? "";
+        string candidate = path;
+        for (int n = 2; File.Exists(candidate) || Directory.Exists(candidate); n++)
+        {
+            candidate = Path.Combine(folder, $"{Path.GetFileNameWithoutExtension(path)} ({n}){Path.GetExtension(path)}");
+        }
+
+        return candidate;
+    }
+
+    /// <summary>
     /// Resuelve la carpeta destino para las capturas: la configurada en preferencias o «Capturas» junto al proyecto.
     /// </summary>
     public static string ResolveCaptureFolder(AppSettings settings, string? projectFilePath)

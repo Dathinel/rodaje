@@ -12,6 +12,9 @@ public sealed record RangeChoice(string Label, ExportRange? Range);
 /// <summary>Los rangos que se ofrecen y la ruta de salida.</summary>
 public static class ExportRanges
 {
+    private static readonly HashSet<string> KnownExtensions = new(
+        [.. Enum.GetValues<ExportContainer>().Select(c => c.Extension()), "tif", "tiff", "jpg", "jpeg", "exr"], StringComparer.OrdinalIgnoreCase);
+
     public static IReadOnlyList<RangeChoice> Choices(Sequence sequence, IReadOnlyCollection<string> selectedClipIds)
     {
         ArgumentNullException.ThrowIfNull(sequence);
@@ -70,15 +73,24 @@ public static class ExportRanges
         return WindowsFileNames.AvoidReserved((name.Length == 0 ? "Exportación" : name) + "." + Extension(settings));
     }
 
-    /// <summary>La ruta con la extensión que piden los ajustes (cambiar MP4 por MOV cambia el «.mp4» del final).</summary>
+    /// <summary>
+    /// La ruta con la extensión que piden los ajustes: cambia la de exportación que ya tenga (MP4 por MOV cambia el «.mp4»
+    /// del final) y, si no tiene ninguna, la añade: en «Boda 24.10.2026» o «Prueba 1.5», lo que sigue al último punto es
+    /// parte del nombre.
+    /// </summary>
     public static string WithExtension(string path, ExportSettings settings)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
-        return Path.ChangeExtension(path, Extension(settings));
+        return KnownExtensions.Contains(Path.GetExtension(path).TrimStart('.'))
+            ? Path.ChangeExtension(path, Extension(settings))
+            : path.TrimEnd('.') + "." + Extension(settings);
     }
 
-    /// <summary>Si se puede escribir ahí: carpeta existente, nombre válido; y si ya hay un archivo (hay que confirmar).</summary>
-    public static OutputCheck Check(string? path)
+    /// <summary>
+    /// Si se puede escribir ahí: carpeta existente, nombre válido; y si ya hay un archivo (hay que confirmar). Una secuencia
+    /// de imágenes no reemplaza una carpeta con archivos (<see cref="ExportOutputGuard.CheckOutput"/> la rechaza).
+    /// </summary>
+    public static OutputCheck Check(string? path, ExportContainer? container = null)
     {
         if (string.IsNullOrWhiteSpace(path))
         {
@@ -96,7 +108,24 @@ public static class ExportRanges
             return OutputCheck.FolderMissing;
         }
 
+        if (container == ExportContainer.ImageSequence && Directory.Exists(path) && HasEntries(path))
+        {
+            return OutputCheck.FolderNotEmpty;
+        }
+
         return File.Exists(path) || Directory.Exists(path) ? OutputCheck.Exists : OutputCheck.Ok;
+    }
+
+    private static bool HasEntries(string folder)
+    {
+        try
+        {
+            return Directory.EnumerateFileSystemEntries(folder).Any();
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     public static string? Describe(OutputCheck check) => check switch
@@ -105,6 +134,7 @@ public static class ExportRanges
         OutputCheck.InvalidName => "El nombre del archivo no es válido.",
         OutputCheck.FolderMissing => "La carpeta no existe.",
         OutputCheck.Exists => "Ya hay un archivo con ese nombre: se reemplazará al exportar.",
+        OutputCheck.FolderNotEmpty => "La carpeta ya tiene archivos: elige otro nombre.",
         _ => null,
     };
 }
@@ -118,4 +148,7 @@ public enum OutputCheck
 
     /// <summary>Se puede, pero reemplaza un archivo: el diálogo pide confirmación.</summary>
     Exists,
+
+    /// <summary>La carpeta de una secuencia de imágenes ya tiene archivos: no se puede reemplazar.</summary>
+    FolderNotEmpty,
 }

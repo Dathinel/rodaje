@@ -126,7 +126,7 @@ internal sealed partial class ExportView : UserControl
         IReadOnlyList<EncoderSpec> encoders = await _jobs.Runner.GetEncodersAsync();
         string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
         _model = new ExportDialogModel(_services.Settings.Current.Export, session.Sequence, session.SelectedClipIds, encoders, session.ProjectName,
-            projectFolder);
+            projectFolder) { PendingOutputs = [.. _jobs.Entries.Where(e => !e.IsFinished).Select(e => e.OutputPath)] };
         _model.Changed += (_, _) => QueueRefresh();
         ShowAdvanced(_services.Settings.Current.Export.AdvancedOpen);
         Refresh();
@@ -444,7 +444,8 @@ internal sealed partial class ExportView : UserControl
             parts.Add("sin audio");
         }
 
-        return string.Join(" · ", parts);
+        // Con una secuencia HDR, si sale en HDR o cae a SDR se dice aquí y no solo en Avanzado, que suele estar plegado.
+        return string.Join(" · ", parts) + (model.HdrNote is { } hdr ? $"\n{hdr}" : "");
     }
 
     /// <summary>Pone las opciones y la elegida; si las opciones no cambiaron, solo mueve la elección (ver <see cref="QueueRefresh"/>).</summary>
@@ -812,6 +813,21 @@ internal sealed partial class ExportView : UserControl
             return;
         }
 
+        if (ExportPresetLibrary.FindUserPreset(_services.Settings.Current.Export, name.Text) is { } existing && XamlRoot is not null)
+        {
+            var confirm = new ContentDialog
+            {
+                XamlRoot = XamlRoot, Title = $"¿Reemplazar «{existing.Name}»?",
+                Content = "Ya hay un preajuste propio con ese nombre. Si guardas, sus ajustes se cambian por los de ahora.",
+                PrimaryButtonText = "Reemplazar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Close,
+                RequestedTheme = ElementTheme.Dark,
+            };
+            if (await DialogGate.ShowAsync(confirm) != ContentDialogResult.Primary)
+            {
+                return;
+            }
+        }
+
         try
         {
             ExportPreset preset = model.SavePreset(name.Text);
@@ -930,7 +946,7 @@ internal sealed partial class ExportView : UserControl
             var confirm = new ContentDialog
             {
                 XamlRoot = XamlRoot, Title = "¿Reemplazar el archivo?",
-                Content = $"Ya existe «{Path.GetFileName(model.OutputPath)}» en esa carpeta. Si exportas, se reemplaza al terminar.",
+                Content = $"Ya existe «{Path.GetFileName(model.OutputPath)}» en esa carpeta, o lo escribirá otra exportación de la cola. Si exportas, se reemplaza al terminar.",
                 PrimaryButtonText = "Reemplazar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Close,
                 RequestedTheme = ElementTheme.Dark,
             };

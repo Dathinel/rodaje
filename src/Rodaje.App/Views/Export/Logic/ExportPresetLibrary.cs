@@ -69,7 +69,15 @@ public static class ExportPresetLibrary
         return Canonical(preset.Settings) == Canonical(settings);
     }
 
-    /// <summary>Guarda los ajustes como preajuste propio; con el mismo nombre, lo reemplaza.</summary>
+    /// <summary>El preajuste propio con ese nombre (sin distinguir mayúsculas), o <c>null</c>.</summary>
+    public static ExportPreset? FindUserPreset(ExportPreferences preferences, string name)
+    {
+        ArgumentNullException.ThrowIfNull(preferences);
+        name = (name ?? "").Trim();
+        return preferences.UserPresets.Find(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Guarda los ajustes como preajuste propio; con el mismo nombre, lo reemplaza (el diálogo pregunta antes).</summary>
     public static ExportPreset SaveUserPreset(ExportPreferences preferences, string name, ExportSettings settings)
     {
         ArgumentNullException.ThrowIfNull(preferences);
@@ -131,7 +139,10 @@ public static class ExportPresetLibrary
         AppDataPaths.WriteAllTextAtomic(path, json);
     }
 
-    /// <summary>Lee un preajuste de archivo y lo añade como propio (con un id nuevo si choca).</summary>
+    /// <summary>
+    /// Lee un preajuste de archivo y lo añade como propio, con un id nuevo si choca; si ya hay uno propio con ese nombre, no
+    /// lo pisa: el importado se llama «Nombre (2)».
+    /// </summary>
     /// <exception cref="InvalidDataException">El archivo no es un preajuste de Rodaje.</exception>
     public static ExportPreset Import(ExportPreferences preferences, string path)
     {
@@ -156,7 +167,13 @@ public static class ExportPresetLibrary
             throw new InvalidDataException($"El preajuste está dañado: {damage}");
         }
 
-        return SaveUserPreset(preferences, read.Name, read.Settings);
+        string name = read.Name.Trim();
+        for (int n = 2; FindUserPreset(preferences, name) is not null; n++)
+        {
+            name = $"{read.Name.Trim()} ({n})";
+        }
+
+        return SaveUserPreset(preferences, name, read.Settings);
     }
 
     /// <summary>
