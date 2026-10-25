@@ -120,6 +120,7 @@ internal static class SilenceDialog
                     await ClipAudioSource.AnalyzeAsync(session, clip, envelope, new Progress<double>(p => scope?.Report(progress.Value = p, "Analizando el audio…")), cancel.Token);
                 }
                 progress.Visibility = Visibility.Collapsed;
+                scope?.Report(1, "Análisis listo");
                 ready = true;
                 Refresh();
             }

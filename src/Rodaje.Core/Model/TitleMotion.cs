@@ -14,6 +14,18 @@ public static class TitleMotion
             ? Time.FromSeconds(a.DurationSeconds).Ticks
             : 0;
 
+    /// <summary>Lo que dura la entrada de un título sin partir de <paramref name="duration"/>, ya encogida si no cabe; cero si no entra animado.</summary>
+    public static Time InDuration(ClipGenerator generator, Time duration)
+    {
+        ArgumentNullException.ThrowIfNull(generator);
+        if (generator.Style is not { } style || !generator.Edges.In)
+        {
+            return Time.Zero;
+        }
+
+        return Time.FromTicks(Fit(Ticks(style.In), generator.Edges.Out ? Ticks(style.Out) : 0, duration.Ticks).In);
+    }
+
     /// <summary>
     /// Ajusta entrada y salida a <paramref name="durationTicks"/>: si no caben, las dos se encogen por igual y suman
     /// exactamente el clip. <c>Stretch</c> es el factor (1 si caben).
