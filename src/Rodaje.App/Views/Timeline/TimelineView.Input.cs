@@ -971,6 +971,8 @@ internal sealed partial class TimelineView
                 if (Session.Execute(command) && command.CreatedIds.Count > 0)
                 {
                     Session.Select([command.CreatedIds[0]]);
+                    // El foco seguía en la ficha arrastrada, que se queda Supr: así borra el clip recién soltado.
+                    TakeKeyboardFocus(FocusState.Pointer);
                 }
             }
         }

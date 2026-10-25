@@ -102,10 +102,12 @@ public partial class App : Application
     private async Task OfferAfterUncleanExitAsync(MainWindow window)
     {
         IReadOnlyList<string> pending = Program.Crashes.PendingReports();
-        NotificationAction? copy = pending.Count > 0 ? new NotificationAction("Copiar informe", () => CopyReport(pending[^1])) : null;
-        if (await window.OfferRecoveryAsync(copy) is null && copy is not null)
+        NotificationAction? recover = null;
+        NotificationAction? copy = pending.Count > 0 ? new NotificationAction("Copiar informe", () => CopyReport(pending[^1], recover)) : null;
+        recover = await window.OfferRecoveryAsync(copy);
+        if (recover is null && copy is not null)
         {
-            window.Session.Notify(NotificationSeverity.Warning, "Rodaje se cerró por un error", CrashReporter.DescribePending(pending), copy);
+            window.Session.Notify(NotificationSeverity.Warning, "Rodaje no se cerró bien", CrashReporter.DescribePending(pending), copy);
         }
 
         if (copy is not null)
@@ -114,7 +116,8 @@ public partial class App : Application
         }
     }
 
-    private void CopyReport(string path)
+    // Copiar cierra el aviso: si llevaba «Recuperar» (<paramref name="recover"/>), el siguiente lo vuelve a ofrecer.
+    private void CopyReport(string path, NotificationAction? recover)
     {
         bool copied = CrashRouting.TryCopyReport(path, text =>
         {
@@ -124,11 +127,12 @@ public partial class App : Application
         }, Program.Log);
         if (copied)
         {
-            _window?.Session.Notify(NotificationSeverity.Success, "Informe copiado", "Pégalo en un correo o en un reporte de GitHub.");
+            _window?.Session.Notify(recover is null ? NotificationSeverity.Success : NotificationSeverity.Warning, "Informe copiado",
+                "Pégalo en un correo o en un reporte de GitHub." + (recover is null ? "" : " Los cambios sin guardar se pueden recuperar todavía."), recover);
         }
         else
         {
-            _window?.Session.Notify(NotificationSeverity.Warning, "No se pudo copiar el informe", $"Está en {path}.");
+            _window?.Session.Notify(NotificationSeverity.Warning, "No se pudo copiar el informe", $"Está en {path}.", recover);
         }
     }
 

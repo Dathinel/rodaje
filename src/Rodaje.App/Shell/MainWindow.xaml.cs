@@ -430,7 +430,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
         else if (page == ShellPage.Export)
         {
-            if (_exportView is not null && ModalContent.Content == _exportView)
+            if (ModalContent.Content is ExportView)
             {
                 // Ctrl+E con Exportar ya abierta no la rehace: se perdería lo cambiado en Avanzado.
                 return;
