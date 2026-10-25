@@ -90,6 +90,7 @@ internal static class RhythmDialog
                 await ClipAudioSource.AnalyzeAsync(session, clip, envelope, new Progress<double>(p => scope?.Report(progress.Value = p, "Analizando el audio…")), cancel.Token);
                 result = await Task.Run(() => BeatTracker.Track(envelope), cancel.Token);
                 progress.Visibility = Visibility.Collapsed;
+                scope?.Report(1, "Análisis listo");
                 double width = Math.Max(0.02, result.Duration / AnalysisUi.PreviewWidth);
                 AnalysisUi.DrawRanges(preview, result.Duration, result.Beats.Select(b => new TimeRange(b, b + width)), ThemeResources.Color("BeatMarkColor"));
                 status.Text = result.Beats.Count == 0
