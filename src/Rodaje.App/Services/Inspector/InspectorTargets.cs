@@ -38,6 +38,34 @@ public static class InspectorTargets
         return clip.Effects.Find(e => e.Id == effectId) ?? clip.Effects.Find(e => e.Type == type);
     }
 
+    /// <summary>
+    /// El efecto <paramref name="effectId"/> de <paramref name="current"/> y el del mismo puesto entre los de su tipo en cada
+    /// clip que tenga tantos como él: con otra cuenta (Añadir los pone al final), el puesto empareja con uno que no es.
+    /// </summary>
+    public static List<(Clip Clip, string EffectId)> SamePlace(Clip current, string effectId, string type, IEnumerable<Clip> clips)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(clips);
+        List<EffectInstance> mine = current.Effects.FindAll(e => e.Type == type);
+        int index = mine.FindIndex(e => e.Id == effectId);
+        var list = new List<(Clip Clip, string EffectId)>();
+        if (index < 0)
+        {
+            return list;
+        }
+
+        foreach (Clip clip in clips)
+        {
+            List<EffectInstance> theirs = clip.Effects.FindAll(e => e.Type == type);
+            if (theirs.Count == mine.Count)
+            {
+                list.Add((clip, theirs[index].Id));
+            }
+        }
+
+        return list;
+    }
+
     /// <summary>Varios comandos como un solo paso del historial; uno solo, tal cual; ninguno, nulo.</summary>
     public static ICommand? AsOneStep(IReadOnlyList<ICommand> commands)
     {

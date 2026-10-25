@@ -39,6 +39,20 @@ public sealed class InspectorTargetsTests
     }
 
     [Fact]
+    public void ElMismoPuesto_SoloEnLosClipsConTantosComoElDeAhora()
+    {
+        EffectInstance Mask(string id) => new() { Id = id, Type = "mask" };
+        var first = new Clip { Effects = [Mask("rect1")] };
+        var second = new Clip { Effects = [Mask("elipse"), new EffectInstance { Id = "g", Type = "glow" }, Mask("rect2")] };
+        var third = new Clip { Effects = [Mask("otra")] };
+
+        // Tras Añadir con cuentas distintas, la nueva del primero no es la vieja del segundo.
+        Assert.Equal([(first, "rect1"), (third, "otra")], InspectorTargets.SamePlace(first, "rect1", "mask", [first, second, third]));
+        Assert.Equal([(second, "rect2")], InspectorTargets.SamePlace(second, "rect2", "mask", [first, second]));
+        Assert.Empty(InspectorTargets.SamePlace(first, "no-esta", "mask", [first, second]));
+    }
+
+    [Fact]
     public void VariosComandos_SonUnSoloPaso_UnoVaTalCual_YNingunoEsNulo()
     {
         var one = new SequenceEditCommand("Activar filtro", "seq", (Rodaje.Core.Editing.EditContext _) => { });

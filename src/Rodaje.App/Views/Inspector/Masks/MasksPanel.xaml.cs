@@ -185,27 +185,10 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         return SameMask(_maskId).ConvertAll(t => (t.Clip, (string?)t.EffectId));
     }
 
-    /// <summary>La máscara <paramref name="maskId"/> del clip de ahora y la que ocupa el mismo puesto en los demás seleccionados.</summary>
-    private List<(Clip Clip, string EffectId)> SameMask(string maskId)
-    {
-        var list = new List<(Clip Clip, string EffectId)>();
-        int index = CurrentClip()?.Effects.Where(e => e.Type == BuiltInEffects.Mask).ToList().FindIndex(e => e.Id == maskId) ?? -1;
-        if (index < 0)
-        {
-            return list;
-        }
-
-        foreach ((Track _, Clip clip) in Targets())
-        {
-            var masks = clip.Effects.Where(e => e.Type == BuiltInEffects.Mask).ToList();
-            if (index < masks.Count)
-            {
-                list.Add((clip, masks[index].Id));
-            }
-        }
-
-        return list;
-    }
+    /// <summary>La máscara <paramref name="maskId"/> del clip de ahora y la del mismo puesto en los seleccionados con tantas como él.</summary>
+    private List<(Clip Clip, string EffectId)> SameMask(string maskId) => CurrentClip() is { } clip
+        ? InspectorTargets.SamePlace(clip, maskId, BuiltInEffects.Mask, Targets().Select(t => t.Clip))
+        : [];
 
     /// <summary>
     /// Un comando por clip seleccionado sobre su máscara equivalente, como un solo paso del historial. Si falla (pista
