@@ -33,12 +33,16 @@ public static class FfmpegLoudness
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(ffmpeg);
+        return Parse(RunForStderr(ffmpeg, MeasureArguments(wavePath, targetLufs, maxTruePeakDbtp), cancellationToken));
+    }
+
+    /// <summary>La línea de la primera pasada; el WAV va como <see cref="FfmpegPipeArguments.FilePath"/> por si su carpeta es larga.</summary>
+    internal static IReadOnlyList<string> MeasureArguments(string wavePath, double targetLufs, double maxTruePeakDbtp)
+    {
         ArgumentException.ThrowIfNullOrWhiteSpace(wavePath);
         string filter = string.Create(CultureInfo.InvariantCulture,
             $"loudnorm=I={targetLufs:0.0#}:TP={maxTruePeakDbtp:0.0#}:LRA={DefaultRangeLu:0.0#}:print_format=json");
-        string stderr = RunForStderr(ffmpeg, ["-hide_banner", "-nostdin", "-nostats", "-loglevel", "info", "-i", wavePath, "-af", filter,
-            "-f", "null", "NUL"], cancellationToken);
-        return Parse(stderr);
+        return ["-hide_banner", "-nostdin", "-nostats", "-loglevel", "info", "-i", FfmpegPipeArguments.FilePath(wavePath), "-af", filter, "-f", "null", "NUL"];
     }
 
     /// <summary>El filtro de la segunda pasada, con lo medido.</summary>
@@ -111,8 +115,9 @@ public static class FfmpegLoudness
             {
                 process.Kill();
             }
-            catch (InvalidOperationException)
+            catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
             {
+                // Ya salió o está saliendo: no hay nada que matar.
             }
         });
         Task<string> output = process.StandardOutput.ReadToEndAsync(CancellationToken.None);

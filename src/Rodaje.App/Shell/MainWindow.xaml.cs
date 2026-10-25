@@ -60,6 +60,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     private NotificationAction? _notificationAction;
     private NotificationAction? _notificationSecondaryAction;
     private readonly LongActionService _longActions;
+    private readonly ShellDialogs _dialogs;
 
     // La barra de avisos muestra el avance de una acción larga hasta que llega un aviso; al cerrarse ese aviso vuelve al avance.
     private bool _showingProgress;
@@ -104,6 +105,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         EditorSession? session = null;
         var dialogs = new ShellDialogs(this, _hwnd, settings, () => session?.FilePath);
+        _dialogs = dialogs;
         session = new EditorSession(engine, prober, dialogs,
             newProjectTracks: settings.Current.NewProjectTracks, newProjectFormat: settings.Current.NewProjectFormat)
         {
@@ -1018,7 +1020,10 @@ internal sealed partial class MainWindow : Window, IShellHost
         _closing = true;
         try
         {
-            if (await Session.ConfirmDiscardChangesAsync())
+            // Con el proyecto guardado, cerrar con una exportación, un módulo de IA o una acción larga en curso los mataría sin avisar.
+            if (await Session.ConfirmDiscardChangesAsync()
+                && (ClosingNotice.Describe(JobsPanel.ActiveCount + _longActions.Running.Count) is not { } busy
+                    || await _dialogs.ConfirmAsync(ClosingNotice.Title, busy, ClosingNotice.Confirm)))
             {
                 _allowClose = true;
                 Close();

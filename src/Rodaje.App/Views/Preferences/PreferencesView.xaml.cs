@@ -36,6 +36,9 @@ internal sealed partial class PreferencesView : UserControl
         TenBitViewerBox.Items.Add("Automático (si el monitor es de 10 bits)");
         TenBitViewerBox.Items.Add("Siempre");
         TenBitViewerBox.Items.Add("Nunca (8 bits)");
+        HdrViewerBox.Items.Add("Automático (si Windows está en HDR)");
+        HdrViewerBox.Items.Add("Siempre");
+        HdrViewerBox.Items.Add("Nunca (SDR)");
         ShortcutPresetBox.Items.Add("Estilo Rodaje");
         ShortcutPresetBox.Items.Add("Estilo Ágil");
         ShortcutPresetBox.Items.Add("Estilo Clásico");
@@ -94,6 +97,7 @@ internal sealed partial class PreferencesView : UserControl
         ProxyUsageBox.SelectedIndex = (int)_model.ProxyUsage;
         PreviewQualityBox.SelectedIndex = (int)_model.PreviewQuality;
         TenBitViewerBox.SelectedIndex = (int)_model.TenBitViewer;
+        HdrViewerBox.SelectedIndex = (int)_model.HdrViewer;
         ShortcutPresetBox.SelectedIndex = (int)_model.ShortcutPreset;
         LoadPersonalization(settings);
         _loading = false;
@@ -111,6 +115,7 @@ internal sealed partial class PreferencesView : UserControl
         model.ProxyUsage = (ProxyUsage)Math.Max(0, ProxyUsageBox.SelectedIndex);
         model.PreviewQuality = (PreviewQuality)Math.Max(0, PreviewQualityBox.SelectedIndex);
         model.TenBitViewer = (TenBitViewer)Math.Max(0, TenBitViewerBox.SelectedIndex);
+        model.HdrViewer = (HdrViewer)Math.Max(0, HdrViewerBox.SelectedIndex);
         model.ShortcutPreset = (ShortcutPreset)Math.Max(0, ShortcutPresetBox.SelectedIndex);
         model.SetLinkedAudioVideoTracks(LinkedAudioTracksPanel.Children.OfType<CheckBox>()
             .Where(checkBox => checkBox.IsChecked == true)

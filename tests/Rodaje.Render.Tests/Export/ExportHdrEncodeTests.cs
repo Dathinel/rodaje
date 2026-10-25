@@ -1,3 +1,4 @@
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Export;
 using Rodaje.Render.Export;
@@ -38,6 +39,33 @@ public sealed class ExportHdrEncodeTests
         Assert.InRange(luma[0], 572, 574);
         Assert.InRange(luma[16], Limited(Pq(203 * Bt709Linear(0.5))) - 1, Limited(Pq(203 * Bt709Linear(0.5))) + 1);
         Assert.Equal(64, luma[48]);
+    }
+
+    /// <summary>Parte 2 (D-055): la composición de una secuencia HDR es lineal BT.2020 con 1,0 = 203 nits y no pasa por la curva BT.709 ni se recorta.</summary>
+    [Fact]
+    public void A_linear_hdr_composition_is_encoded_as_nits_without_clipping()
+    {
+        using ExportGpu gpu = ExportGpu.Warp();
+        var format = new ExportVideoFormat(64, 16, Rate, ExportPixelFormat.P010, ExportColor.Hdr10);
+        double peak = 1000.0 / 203;
+        var source = new Picture(64, 16).Fill(0, 0, 16, 16, 1, 1, 1).Fill(16, 0, 32, 16, 0.5, 0.5, 0.5).Fill(48, 0, 16, 16, peak, peak, peak);
+        using ExportFrameConverter converter = gpu.Converter(64, 16, format, dither: false, source: SequenceColorSpace.HdrPq);
+        nint texture = gpu.Upload(source);
+        try
+        {
+            converter.Submit(texture, 0);
+            int[] luma = ExportCheck.ReadOne(converter, 0)[0];
+            Assert.InRange(luma[0], 572, 574);
+            Assert.InRange(luma[16], Limited(Pq(101.5)) - 1, Limited(Pq(101.5)) + 1);
+            Assert.InRange(luma[48], Limited(Pq(1000)) - 1, Limited(Pq(1000)) + 1);
+        }
+        finally
+        {
+            ExportGpu.Release(texture);
+        }
+
+        Assert.NotEqual(ShaderCompiler.Compile(ExportShaders.ConvertVariant.FullSource(), "CsConvert", "cs_5_0", "rodaje-export.hlsl"),
+            ShaderCompiler.Compile(ExportShaders.ConvertToneMapVariant.FullSource(), "CsConvert", "cs_5_0", "rodaje-export.hlsl"));
     }
 
     [Fact]

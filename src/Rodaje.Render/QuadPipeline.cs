@@ -70,12 +70,19 @@ internal sealed unsafe class QuadPipeline : IDisposable
         _context->OMSetBlendState(blend, null, uint.MaxValue);
     }
 
+    /// <summary>
+    /// 1 si la composición es una secuencia HDR: los shaders trabajan en luz lineal BT.2020 con 1,0 = 203 nits (<c>hdr.w</c>); 0, SDR
+    /// en gamma como siempre. Se estampa en cada dibujo para que llegue a todas las constantes sin tocar a quien las arma.
+    /// </summary>
+    public float HdrMode { get; set; }
+
     /// <summary>Sube las constantes y dibuja la tira de cuatro vértices.</summary>
     public void Draw(in QuadConstants constants)
     {
         D3D11_MAPPED_SUBRESOURCE mapped;
         Check(_context->Map((ID3D11Resource*)_constants, 0, D3D11_MAP.D3D11_MAP_WRITE_DISCARD, 0, &mapped), "Map(constantes)");
         QuadConstants exact = constants;
+        exact.Hdr.W = HdrMode;
         exact.SetPixelGradients(_width, _height);
         *(QuadConstants*)mapped.pData = exact;
         _context->Unmap((ID3D11Resource*)_constants, 0);

@@ -69,6 +69,32 @@ public sealed class ExportDialogModel
 
     public Rational SequenceFrameRate => _sequence.FrameRate;
 
+    public SequenceColorSpace SequenceColorSpace => _sequence.ColorSpace;
+
+    /// <summary>
+    /// Con una secuencia HDR: si la salida va en HDR10 o HLG (misma regla que <c>ExportPlan</c>: HEVC, AV1 o ProRes en Y'CbCr de 10 bits) o
+    /// por qué cae a SDR. Nulo en una secuencia SDR o sin video.
+    /// </summary>
+    public string? HdrNote
+    {
+        get
+        {
+            if (_sequence.ColorSpace == SequenceColorSpace.Sdr709 || Settings.Video is not { } video || VideoEncoder is not { } encoder)
+            {
+                return null;
+            }
+
+            bool hdrCodec = encoder.Codec is ExportCodec.Hevc or ExportCodec.Av1 or ExportCodec.ProRes;
+            (int width, int height) = OutputSize;
+            ExportColor color = video.Color ?? (encoder.PixelFormatFor(video.BitDepth, video.Chroma, video.Alpha) is { } pixels
+                ? ExportColor.For(width, height, pixels, hdrCodec ? _sequence.ColorSpace : SequenceColorSpace.Sdr709)
+                : ExportColor.Bt709Limited);
+            return color.IsHdr
+                ? $"Sale en {(color.Transfer == ExportTransfer.Pq ? "HDR10 (PQ)" : "HLG")}, BT.2020 de 10 bits."
+                : "Sale en SDR: el HDR necesita HEVC, AV1 o ProRes con 10 bits y sin alfa.";
+        }
+    }
+
     /// <summary>Si alguna pista de subtítulos visible tiene texto: solo entonces se ofrece cómo exportarlos.</summary>
     public bool HasSubtitles => _sequence.VideoTracks.Any(t => t.Role == TrackRoles.Subtitles && !t.Hidden
         && t.Clips.Any(c => c.Generator is { Kind: GeneratorKinds.Text }));

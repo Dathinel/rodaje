@@ -120,9 +120,36 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
         }
     }
 
-    /// <summary>Exporta la rampa con un codificador; <c>null</c> si el codificador no está en este equipo.</summary>
+    public static TheoryData<string, string> PqPatchCases => new()
+    {
+        { "hevc_nvenc", "mp4" },
+        { "prores_ks", "mov" },
+    };
+
+    /// <summary>
+    /// Fase C, parte 2 (D-055): el compositor de una secuencia HDR trabaja en lineal sin recortar, así que un clip PQ con un parche de
+    /// 1000 nits (código ≈ 723 en 10 bits) llega al archivo entero, el blanco de 203 nits sigue en ≈ 573 y el negro en 64.
+    /// </summary>
+    [BitDepthExportTheory]
+    [MemberData(nameof(PqPatchCases))]
+    public async Task A_1000_nit_pq_patch_reaches_the_file_without_clipping(string encoderId, string extension)
+    {
+        if (await ExportRampAsync(encoderId, extension, 10, SequenceColorSpace.HdrPq, null, pqPatch: true) is not (ExportJob job, string path, _, _))
+        {
+            return;
+        }
+
+        ExportVideoReport report = job.Report!.Video!;
+        (int levels, int min, int max, _) = await LumaLevelsAsync(Skip.ProxyExecutable!, path);
+        output.WriteLine($"{encoderId} parche PQ → {report.PixelFormat}: {levels} niveles (Y {min}..{max}); curva {report.ColorTransfer}, primarios {report.ColorPrimaries}.");
+        Assert.Equal("smpte2084", report.ColorTransfer);
+        Assert.InRange(max, 715, 731);
+        Assert.InRange(min, 56, 72);
+    }
+
+    /// <summary>Exporta la rampa (o el parche PQ) con un codificador; <c>null</c> si el codificador no está en este equipo.</summary>
     private async Task<(ExportJob Job, string Path, Project Project, VideoExportSettings Video)?> ExportRampAsync(string encoderId, string extension,
-        int bits, SequenceColorSpace space, ExportColor? color)
+        int bits, SequenceColorSpace space, ExportColor? color, bool pqPatch = false)
     {
         FfmpegExecutable lgpl = Skip.ProxyExecutable!;
         FfmpegExecutable? gpl = encoderId.StartsWith("libx26", StringComparison.Ordinal) ? GplAddOn() : null;
@@ -145,7 +172,9 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
         }
 
         string folder = ExportEndToEndTests.Folder();
-        Project project = RampProject(await RampAsync(lgpl, Path.Combine(folder, "rampa 10 bits.mkv")));
+        Project project = RampProject(pqPatch
+            ? await PqPatchAsync(lgpl, Path.Combine(folder, "parche pq.mkv"))
+            : await RampAsync(lgpl, Path.Combine(folder, "rampa 10 bits.mkv")));
         project.Sequences[0].ColorSpace = space;
         var video = new VideoExportSettings
         {
@@ -217,6 +246,40 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
         // El rango y la matriz van también en la entrada: sin ellos ffmpeg toma el crudo por limitado BT.601 y lo estira a
         // completo BT.709, y el archivo nace con 877 niveles en vez de 1024.
         string[] color = ["-color_range", "pc", "-colorspace", "bt709", "-color_primaries", "bt709", "-color_trc", "bt709"];
+        await RunAsync(ffmpeg.Path, ["-hide_banner", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "yuv420p10le", "-s", $"{Width}x{Height}",
+            "-r", "30", .. color, "-i", raw, "-c:v", "ffv1", .. color, path]);
+        File.Delete(raw);
+        return path;
+    }
+
+    /// <summary>1 s de FFV1 yuv420p10le PQ BT.2020 limitado: un tercio negro (64), un tercio a 203 nits (573) y un tercio a 1000 nits (723).</summary>
+    private static async Task<string> PqPatchAsync(FfmpegExecutable ffmpeg, string path)
+    {
+        var frame = new byte[Width * Height * 3];
+        for (int y = 0; y < Height; y++)
+        {
+            for (int x = 0; x < Width; x++)
+            {
+                ushort code = x < Width / 3 ? (ushort)64 : x < 2 * Width / 3 ? (ushort)573 : (ushort)723;
+                BitConverter.TryWriteBytes(frame.AsSpan(((y * Width) + x) * 2), code);
+            }
+        }
+
+        for (int i = Width * Height * 2; i < frame.Length; i += 2)
+        {
+            BitConverter.TryWriteBytes(frame.AsSpan(i), (ushort)512);
+        }
+
+        string raw = path + ".yuv";
+        await using (FileStream file = File.Create(raw))
+        {
+            for (int i = 0; i < 30; i++)
+            {
+                await file.WriteAsync(frame);
+            }
+        }
+
+        string[] color = ["-color_range", "tv", "-colorspace", "bt2020nc", "-color_primaries", "bt2020", "-color_trc", "smpte2084"];
         await RunAsync(ffmpeg.Path, ["-hide_banner", "-loglevel", "error", "-y", "-f", "rawvideo", "-pix_fmt", "yuv420p10le", "-s", $"{Width}x{Height}",
             "-r", "30", .. color, "-i", raw, "-c:v", "ffv1", .. color, path]);
         File.Delete(raw);

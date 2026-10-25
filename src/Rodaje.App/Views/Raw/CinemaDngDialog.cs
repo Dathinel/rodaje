@@ -3,11 +3,13 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Format;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
 using Rodaje.App.Views.Shared;
+using Rodaje.Core.Model;
 using Rodaje.Media.Proxies;
 using Rodaje.Modules.Protocol;
 
@@ -19,11 +21,13 @@ namespace Rodaje.App.Views.Raw;
 /// </summary>
 internal static class CinemaDngDialog
 {
-    private const string Title = "Importar CinemaDNG";
+    public const string Title = "Importar CinemaDNG";
 
-    public static async Task ShowAsync(EditorServices services)
+    public static async Task ShowAsync(EditorServices services, LongActionScope scope)
     {
+        ArgumentNullException.ThrowIfNull(scope);
         EditorSession session = services.Session;
+        Project project = session.Project;
         if (services.Modules?.FindByFunction(CinemaDngImport.Function) is not { } module)
         {
             session.Notify(NotificationSeverity.Informational, Title, "Hace falta el módulo «RAW de cine». Instálalo desde Complementos › Módulos de IA.");
@@ -95,11 +99,12 @@ internal static class CinemaDngDialog
 
         services.Settings.Current.LastMediaFolder = sequence.Folder;
         var options = new CinemaDngOptions(balance.SelectedIndex == 1 ? "luz-dia" : "camara", exposure, quality.SelectedIndex == 0);
+        scope.Report(null, $"Revelando «{sequence.Name}»…");
         CinemaDngResult result;
         try
         {
             result = await CinemaDngImport.RunAsync(services.Modules, module, ffmpeg, sequence, options,
-                saveIn.Folder, $"CinemaDNG «{sequence.Name}»");
+                saveIn.Folder, $"CinemaDNG «{sequence.Name}»", scope.Token);
         }
         catch (OperationCanceledException)
         {
@@ -116,7 +121,19 @@ internal static class CinemaDngDialog
             return;
         }
 
-        ImportResult imported = await session.ImportMediaAsync([result.Path]);
+        // Un gesto en curso (arrastre) haría que ImportMediaAsync descartara el video en silencio: se espera a que acabe.
+        while (session.IsInGesture && ReferenceEquals(session.Project, project))
+        {
+            await Task.Delay(100, scope.Token);
+        }
+
+        if (!ReferenceEquals(session.Project, project))
+        {
+            session.Notify(NotificationSeverity.Informational, Title, $"Se abrió otro proyecto mientras se revelaba; el video quedó en «{result.Path}».");
+            return;
+        }
+
+        ImportResult imported = await session.ImportMediaAsync([result.Path], scope.Token);
         if (imported.MediaIds.Count > 0)
         {
             session.Notify(NotificationSeverity.Success, Title, string.Create(SpanishNumbers.Format,

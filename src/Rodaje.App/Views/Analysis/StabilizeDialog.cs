@@ -63,12 +63,14 @@ internal static class StabilizeDialog
 
         ContentDialog dialog = AnalysisUi.Dialog(root, "Estabilizar", "Aplicar", panel, AnalysisApplyPhase.NeedsAnalysis);
         using var cancel = new CancellationTokenSource();
-        Task work = Task.CompletedTask;
-        dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(AnalyzeBeforeApply(args));
-        async Task AnalyzeBeforeApply(ContentDialogButtonClickEventArgs args)
+        Task work = Analyze();
+        dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(WaitForAnalysis(args));
+        async Task WaitForAnalysis(ContentDialogButtonClickEventArgs args)
         {
+            // Apagado mientras se espera: un segundo clic no cuenta. Analyze lo vuelve a encender si terminó bien.
             ContentDialogButtonClickDeferral deferral = args.GetDeferral();
-            try { if (analysis is null) { work = Analyze(); await work; } args.Cancel = analysis is null; }
+            dialog.IsPrimaryButtonEnabled = false;
+            try { await work; args.Cancel = analysis is null; }
             finally { deferral.Complete(); }
         }
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
