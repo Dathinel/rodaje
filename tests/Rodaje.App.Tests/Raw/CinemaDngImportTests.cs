@@ -68,12 +68,18 @@ public sealed class CinemaDngImportTests(ITestOutputHelper output) : IDisposable
         Assert.DoesNotContain("1:a", string.Join(' ', CinemaDngImport.EncoderArguments(64, 32, 25, 1, null, "x.mov")), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Sin vigilante: aquí se prueba la importación, no el ping. Su regla de 10 s de reloj mató al módulo sano en la CI con
+    /// la máquina parada (ModuleHungException a los 18 s); el vigilante se prueba sin reloj en BusyModulePingTests.
+    /// </summary>
+    private static readonly TimeSpan NoWatchdog = Timeout.InfiniteTimeSpan;
+
     /// <summary>La carpeta entera por el módulo de verdad y el ffmpeg.exe LGPL: el intermedio tiene los cuadros, la cadencia y el gris del 18 %.</summary>
     [FfmpegLibraryFact]
     public async Task A_cinemadng_folder_becomes_a_prores_file_with_the_right_frames_and_gray()
     {
         string? modules = ModuleCatalog.FindDevelopmentModules(AppContext.BaseDirectory);
-        await using ModuleManager manager = new(new ModuleManagerOptions { Roots = modules is null ? [] : [new ModuleRoot(modules, ModuleOrigin.Development)] });
+        await using ModuleManager manager = new(new ModuleManagerOptions { Roots = modules is null ? [] : [new ModuleRoot(modules, ModuleOrigin.Development)], PingInterval = NoWatchdog });
         manager.Refresh();
         if (manager.FindByFunction(CinemaDngImport.Function) is not { } module || !File.Exists(Path.Combine(Path.GetDirectoryName(module.EntryPath)!, "libraw.dll")))
         {
@@ -132,7 +138,7 @@ public sealed class CinemaDngImportTests(ITestOutputHelper output) : IDisposable
     public async Task A_12_bit_ramp_reaches_the_prores_intermediate_with_its_levels_counted()
     {
         string? modules = ModuleCatalog.FindDevelopmentModules(AppContext.BaseDirectory);
-        await using ModuleManager manager = new(new ModuleManagerOptions { Roots = modules is null ? [] : [new ModuleRoot(modules, ModuleOrigin.Development)] });
+        await using ModuleManager manager = new(new ModuleManagerOptions { Roots = modules is null ? [] : [new ModuleRoot(modules, ModuleOrigin.Development)], PingInterval = NoWatchdog });
         manager.Refresh();
         if (manager.FindByFunction(CinemaDngImport.Function) is not { } module || !File.Exists(Path.Combine(Path.GetDirectoryName(module.EntryPath)!, "libraw.dll")))
         {
@@ -183,7 +189,7 @@ public sealed class CinemaDngImportTests(ITestOutputHelper output) : IDisposable
     public async Task Cancelling_leaves_no_file()
     {
         string? modules = ModuleCatalog.FindDevelopmentModules(AppContext.BaseDirectory);
-        await using ModuleManager manager = new(new ModuleManagerOptions { Roots = modules is null ? [] : [new ModuleRoot(modules, ModuleOrigin.Development)] });
+        await using ModuleManager manager = new(new ModuleManagerOptions { Roots = modules is null ? [] : [new ModuleRoot(modules, ModuleOrigin.Development)], PingInterval = NoWatchdog });
         manager.Refresh();
         if (manager.FindByFunction(CinemaDngImport.Function) is not { } module || !File.Exists(Path.Combine(Path.GetDirectoryName(module.EntryPath)!, "libraw.dll")))
         {
