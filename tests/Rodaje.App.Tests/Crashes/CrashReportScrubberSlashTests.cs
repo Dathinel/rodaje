@@ -180,7 +180,7 @@ public class CrashReportScrubberSlashTests
         // Sin tope de tiempo (tarea 178): aquí se comprueba el resultado; el coste, sin reloj, en la prueba siguiente.
         string line = PathologicalLine();
         string many = string.Join('\n', Enumerable.Repeat(line[..CrashReportScrubber.MaxLineLength], 20));
-        var scrubber = new CrashReportScrubber(Temp) { Budget = TimeSpan.MaxValue };
+        var scrubber = new CrashReportScrubber(Temp) { Budget = long.MaxValue };
 
         string text = scrubber.Scrub(line + "\n" + many);
 
@@ -197,7 +197,7 @@ public class CrashReportScrubberSlashTests
     {
         // Como en CrashReportScrubberTextTests: el trabajo del analizador, no el reloj, al pasar de 1 KB a 8 KB por línea.
         string Repeat(int length) => unit.Length == 0 ? PathologicalLine()[..length] : string.Concat(Enumerable.Repeat(unit, (length / unit.Length) + 1))[..length];
-        var scrubber = new CrashReportScrubber(Temp) { Budget = TimeSpan.MaxValue };
+        var scrubber = new CrashReportScrubber(Temp) { Budget = long.MaxValue };
 
         scrubber.Scrub(Repeat(1024), out long small);
         scrubber.Scrub(Repeat(CrashReportScrubber.MaxLineLength), out long large);

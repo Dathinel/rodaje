@@ -20,7 +20,7 @@ public sealed class StrictCompositionTests
     {
         using GpuDevice gpu = GpuDevice.Create();
         using var gate = new ManualResetEventSlim(false);
-        var cache = new ShaderCache(null) { BeforeCompile = () => gate.Wait() };
+        var cache = new ShaderCache(null) { Compile = _ => { gate.Wait(); return TrivialShader.Code; } };
         using var compositor = new Compositor(gpu, 256, 128, CompositeFormat.Rgba16Float, cache);
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(256, 128, false, new YuvCode(120, 128, 128)), Bt709,
             new LayerLook([Fx.Color((BuiltInEffectsColor.Exposure, 1)), Fx.Blur(5)], BlendMode.Overlay));
@@ -37,7 +37,7 @@ public sealed class StrictCompositionTests
     {
         using GpuDevice gpu = GpuDevice.Create();
         using var gate = new ManualResetEventSlim(false);
-        var cache = new ShaderCache(null) { BeforeCompile = () => gate.Wait() };
+        var cache = new ShaderCache(null) { Compile = _ => { gate.Wait(); return TrivialShader.Code; } };
         using var compositor = new Compositor(gpu, 64, 64, CompositeFormat.Rgba16Float, cache);
         using CompositionFrame frame = Layers.Frame(64, 64);
         try

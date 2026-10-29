@@ -15,8 +15,8 @@ namespace Rodaje.Engine.Tests.Support;
 /// más. Las iteraciones paran también al vencer <see cref="Budget"/>, sin fallar: en la CI de Windows, con todos los
 /// proyectos de prueba a la vez y esperas de 1 ms que allí duran 15,6 (la resolución del reloj), una corrida que en Linux
 /// tarda medio segundo pasaba de 60 s y se daba por interbloqueo. Interbloqueo es ahora un hilo vivo que no avanza
-/// (no saca ningún número de su <see cref="Random"/>) en <see cref="Stall"/>, o la corrida entera pasada de
-/// <see cref="Deadline"/>. Cortar por presupuesto no puede dejar la prueba vacía: una corrida en la que ningún hilo sacó
+/// (no saca ningún número de su <see cref="Random"/>) en <see cref="Stall"/> antes de la parada, o la corrida entera
+/// pasada de <see cref="Deadline"/>: tras la parada un hilo termina su vuelta (cerrar la sesión) sin sacar números. Cortar por presupuesto no puede dejar la prueba vacía: una corrida en la que ningún hilo sacó
 /// un número (cero vueltas) falla, en vez de pasar en verde sin haber probado nada. Y el hilo que recorre sus vueltas con
 /// <see cref="Steps"/> hace siempre al menos <see cref="MinimumSteps"/>: el presupuesto no corta antes, y si el hilo sale
 /// antes por su cuenta la corrida falla. Al dar con un interbloqueo, el mensaje trae las pilas de todos los hilos
@@ -161,7 +161,7 @@ internal static class Stress
                     seen[i] = progress;
                     moved[i] = now;
                 }
-                else if (threads[i].Thread.IsAlive && now - moved[i] > stall)
+                else if (threads[i].Thread.IsAlive && !stop.IsCancellationRequested && now - moved[i] > stall)
                 {
                     stalled.Add(threads[i].Name);
                 }
