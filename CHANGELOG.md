@@ -49,8 +49,8 @@ Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video rea
 - **Preferencias:** alto fijo (no salta al cambiar de pestaña); el perfil y los temas solo se aplican al pulsar Guardar; el tema Claro deja legibles los controles de WinUI (#456, #462, #472).
 - **Medios:** el aviso de carpetas vigiladas se ve aunque la biblioteca esté vacía; importar durante un gesto ya no se pierde; una foto ya no fija el formato de la secuencia; las miniaturas vuelven al reaparecer el archivo; se pueden soltar carpetas (#469).
 - **Cuadro numérico del inspector:** un valor largo (7051 en Escala) se ve entero y, tras confirmar, el cuadro muestra el valor realmente aplicado; con el foco en un cuadro de texto, Ctrl+A y Fin actúan sobre el texto y no sobre los clips (#452).
-- **Informe de fallo con el equipo sobrecargado:** el error y la pila ya no salen tapados por «se agotó el tiempo del limpiador»; el tope del limpiador cuenta trabajo, no segundos.
-- **Informe de fallo con un disco lento:** si escribir el informe tarda más de 10 s, las repeticiones del mismo error se cuentan en ese informe en vez de abrir uno nuevo y otro aviso cada vez.
+- **Informe de fallo con el equipo sobrecargado:** el error y la pila ya no salen tapados por «se agotó el tiempo del limpiador»; el tope del limpiador cuenta trabajo, no segundos (#474).
+- **Informe de fallo con un disco lento:** si escribir el informe tarda más de 10 s, las repeticiones del mismo error se cuentan en ese informe en vez de abrir uno nuevo y otro aviso cada vez (#474).
 - **Cierre:** un refresco de complementos que terminaba después de cerrar la ventana podía tumbar la app (`ObjectDisposedException` en el reproductor) (#450).
 - **Nombres con acentos dañados** («SubtÃ­tulos») en proyectos tocados con una herramienta externa se reparan al abrir (#450).
 - **Barra de la línea de tiempo a 1366 px:** marcadores, regiones y los interruptores secundarios se pliegan en un botón «…» antes que Deshacer y Rehacer, que ya no desaparecen (#450).
