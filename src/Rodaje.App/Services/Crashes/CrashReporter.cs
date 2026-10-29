@@ -919,8 +919,9 @@ public sealed class CrashReporter
 
         if (signature is not null)
         {
-            // También si no se pudo escribir: con el disco lleno, una ráfaga no reintenta en cada repetición.
-            RememberBurst(signature, new Burst(path, now, firstLine) { Reports = chained + 1 });
+            // También si no se pudo escribir: con el disco lleno, una ráfaga no reintenta en cada repetición. Cuenta desde
+            // que el informe quedó escrito: con un disco lento (más de BurstWindow), cada repetición abría otro informe.
+            RememberBurst(signature, new Burst(path, _clock(), firstLine) { Reports = chained + 1 });
             RememberReport(signature, now, path, firstLine);
         }
 

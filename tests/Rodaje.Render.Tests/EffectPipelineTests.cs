@@ -87,7 +87,9 @@ public sealed class EffectPipelineTests
     {
         using GpuDevice gpu = GpuDevice.Create();
         using var gate = new ManualResetEventSlim(false);
-        var cache = new ShaderCache(null) { BeforeCompile = () => gate.Wait() };
+        // Un shader vacío en vez de compilar en frío las variantes: al abrir la puerta solo quedan sus CreatePixelShader
+        // (la CI pasó de los 60 s). Que cada variante compila y pinta bien lo prueban ShaderCompileTests y EffectFidelityTests.
+        var cache = new ShaderCache(null) { Compile = _ => { gate.Wait(); return TrivialShader.Code; } };
         using var compositor = new Compositor(gpu, 256, 128, CompositeFormat.Rgba16Float, cache);
         YuvCode gray = ReferenceColor.Encode(120, 120, 120, Bt709, false);
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(256, 128, false, gray), Bt709,

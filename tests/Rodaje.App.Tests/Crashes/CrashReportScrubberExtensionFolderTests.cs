@@ -54,7 +54,7 @@ public class CrashReportScrubberExtensionFolderTests
     {
         // Como en CrashReportScrubberSlashTests: el trabajo del analizador, no el reloj, al pasar de 1 KB a 8 KB por línea.
         string Repeat(int length) => string.Concat(Enumerable.Repeat(unit, (length / unit.Length) + 1))[..length];
-        var scrubber = new CrashReportScrubber(AnaFolders) { Budget = TimeSpan.MaxValue };
+        var scrubber = new CrashReportScrubber(AnaFolders) { Budget = long.MaxValue };
 
         scrubber.Scrub(Repeat(1024), out long small);
         scrubber.Scrub(Repeat(CrashReportScrubber.MaxLineLength), out long large);
