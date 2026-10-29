@@ -126,7 +126,7 @@ internal static class CinemaDngImport
         string outputFolder)
     {
         CancellationToken token = call.CancellationToken;
-        call.Report(0, "Leyendo el primer cuadro");
+        call.Report(0, "Leyendo el primer fotograma");
         SharedMemoryRegion first = call.CreateRegion(sequence.LargestFrameBytes);
         SharedBufferRef firstFile = await ReadAsync(sequence.Frames[0], first, 0, sequence.LargestFrameBytes, token).ConfigureAwait(false);
         ModuleResult info = await call.InvokeAsync("info", null, [firstFile], 0, 0).ConfigureAwait(false);
@@ -165,7 +165,7 @@ internal static class CinemaDngImport
                 ModuleResult result = await call.InvokeAsync(Function, parameters.RootElement, pairs, from, to).ConfigureAwait(false);
                 if (result.Buffers.Count != count)
                 {
-                    throw new ModuleProtocolException("«revelar» devolvió otra cantidad de cuadros.");
+                    throw new ModuleProtocolException("«revelar» devolvió otra cantidad de fotogramas.");
                 }
 
                 try
@@ -210,7 +210,7 @@ internal static class CinemaDngImport
             Span<byte> pixels = call.Map(frame);
             if (pixels.Length != frameBytes)
             {
-                throw new ModuleProtocolException("«revelar» devolvió un cuadro de otro tamaño.");
+                throw new ModuleProtocolException("«revelar» devolvió un fotograma de otro tamaño.");
             }
 
             stdin.Write(pixels);
@@ -301,7 +301,9 @@ internal static class CinemaDngImport
             info.ArgumentList.Add(argument);
         }
 
-        return Process.Start(info) ?? throw new IOException("ffmpeg.exe no arrancó.");
+        Process process = Process.Start(info) ?? throw new IOException("ffmpeg.exe no arrancó.");
+        ChildProcessJob.TryAssign(process);
+        return process;
     }
 
     private static string UniquePath(string folder, string name, string extension)

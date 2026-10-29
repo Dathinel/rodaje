@@ -77,6 +77,12 @@ public class ExportPreferencesTests
         Assert.Equal("Canal", imported.Name);
         Assert.True(ExportPresetLibrary.Matches(ExportPresets.Vertical, imported.Settings));
 
+        // Uno propio con el mismo nombre no se pisa: el importado se llama «Canal (2)».
+        ExportPresetLibrary.SaveUserPreset(target, "canal", ExportPresets.Gif.Settings);
+        Assert.Equal("Canal (2)", ExportPresetLibrary.Import(target, file).Name);
+        Assert.Equal(2, target.UserPresets.Count);
+        Assert.True(ExportPresetLibrary.Matches(ExportPresets.Gif, ExportPresetLibrary.FindUserPreset(target, " CANAL ")!.Settings));
+
         File.WriteAllText(dir.File("malo" + ExportPresetLibrary.FileExtension), "{ no es json");
         Assert.Throws<InvalidDataException>(() => ExportPresetLibrary.Import(target, dir.File("malo" + ExportPresetLibrary.FileExtension)));
     }
@@ -221,5 +227,19 @@ public class ExportPreferencesTests
         Assert.Equal(OutputCheck.Missing, ExportRanges.Check(" "));
         Assert.Equal("a.tif", Path.GetFileName(ExportRanges.WithExtension(dir.File("a.png"),
             new ExportSettings { Container = ExportContainer.ImageSequence, Video = new VideoExportSettings { Codec = ExportCodec.Tiff } })));
+        ExportSettings mp4 = ExportPresets.YouTube1080p.Settings;
+        Assert.Equal("Prueba 1.5.mp4", Path.GetFileName(ExportRanges.WithExtension(dir.File("Prueba 1.5"), mp4)));
+        Assert.Equal("Boda 24.10.2026 - Web.mp4", Path.GetFileName(ExportRanges.WithExtension(dir.File("Boda 24.10.2026 - Web"), mp4)));
+        Assert.Equal("a.mp4", Path.GetFileName(ExportRanges.WithExtension(dir.File("a.MOV"), mp4)));
+        Assert.Equal("a.mp4", Path.GetFileName(ExportRanges.WithExtension(dir.File("a."), mp4)));
+
+        // Una secuencia de imágenes no se escribe en una carpeta con archivos: no se ofrece reemplazarla.
+        string frames = dir.File("cuadros");
+        Directory.CreateDirectory(frames);
+        Assert.Equal(OutputCheck.Exists, ExportRanges.Check(frames, ExportContainer.ImageSequence));
+        File.WriteAllText(Path.Combine(frames, "000001.png"), "x");
+        Assert.Equal(OutputCheck.FolderNotEmpty, ExportRanges.Check(frames, ExportContainer.ImageSequence));
+        Assert.Equal(OutputCheck.Exists, ExportRanges.Check(frames));
+        Assert.NotNull(ExportRanges.Describe(OutputCheck.FolderNotEmpty));
     }
 }

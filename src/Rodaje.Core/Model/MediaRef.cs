@@ -12,8 +12,22 @@ public sealed class MediaRef
 
     public string Name { get; set; } = "";
 
-    /// <summary>Duración total del archivo. Los puntos de entrada y salida de los clips no pueden pasarla.</summary>
+    /// <summary>Duración total del archivo; cero en imágenes fijas, cuyo origen virtual no tiene final.</summary>
     public Time Duration { get; set; }
+
+    /// <summary>Imagen sin duración propia: sus clips usan un origen virtual y pueden alargarse.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingDefault)]
+    public bool IsStillImage { get; set; }
+
+    public const double DefaultStillImageDurationSeconds = 5;
+    public const double MinStillImageDurationSeconds = 1;
+    public const double MaxStillImageDurationSeconds = 60;
+
+    /// <summary>Duración por defecto de una foto (1–60 s); configurable desde Preferencias.</summary>
+    public static Time DefaultStillImageDuration { get; set; } = Time.FromSeconds(DefaultStillImageDurationSeconds);
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public Time InitialClipDuration => IsStillImage ? DefaultStillImageDuration : Duration;
 
     public bool HasVideo { get; set; }
 

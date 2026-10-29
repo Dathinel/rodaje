@@ -48,6 +48,9 @@ internal sealed partial class MainWindow
             _bindings.Add(_router.Bind(id, () => ApplyWorkspace(profile.Id)));
         }
 
+        _bindings.Add(_router.Bind(ActionIds.LayoutBalanced, () => SetTimelineShare(TimelineProportion.Balanced)));
+        _bindings.Add(_router.Bind(ActionIds.LayoutMoreViewer, () => SetTimelineShare(TimelineProportion.MoreViewer)));
+        _bindings.Add(_router.Bind(ActionIds.LayoutMoreTimeline, () => SetTimelineShare(TimelineProportion.MoreTimeline)));
         registry.Register(new ShortcutAction(WatchedFoldersActionId, "Carpetas vigiladas…", ShortcutGroups.File, []));
         _bindings.Add(_router.Bind(WatchedFoldersActionId, () => UiTask.Run(EditWatchedFoldersAsync())));
         StartWatchingFolders();
@@ -169,7 +172,7 @@ internal sealed partial class MainWindow
                     add,
                 },
             },
-            CloseButtonText = "Listo", RequestedTheme = ElementTheme.Dark,
+            CloseButtonText = "Listo",
         };
         await DialogGate.ShowAsync(dialog).ConfigureAwait(true);
     }
@@ -189,7 +192,7 @@ internal sealed partial class MainWindow
 
         WorkspaceProfiles.Apply(_settings.Current, profile);
         AppSettings s = _settings.Current;
-        TimelineRow.Height = new GridLength(s.TimelineHeight);
+        ApplyTimelineShare();
         LibraryColumn.Width = new GridLength(s.LibraryWidth);
         InspectorColumn.Width = new GridLength(s.InspectorWidth);
         FitSidePanels();
@@ -217,7 +220,7 @@ internal sealed partial class MainWindow
                     name,
                 },
             },
-            PrimaryButtonText = "Guardar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Primary, RequestedTheme = ElementTheme.Dark,
+            PrimaryButtonText = "Guardar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Primary,
         };
         if (await DialogGate.ShowAsync(dialog).ConfigureAwait(true) != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(name.Text))
         {
@@ -228,7 +231,7 @@ internal sealed partial class MainWindow
         AppSettings s = _settings.Current;
         var current = new WorkspaceProfile
         {
-            LibraryWidth = s.LibraryWidth, InspectorWidth = s.InspectorWidth, TimelineHeight = TimelineRow.ActualHeight,
+            LibraryWidth = s.LibraryWidth, InspectorWidth = s.InspectorWidth, TimelineShare = s.TimelineShare,
             InspectorTab = Inspector.CurrentTabName, HiddenInspectorTabs = [.. s.HiddenInspectorTabs],
         };
         WorkspaceProfile saved = WorkspaceProfiles.SaveCurrent(s, name.Text, current);
@@ -272,7 +275,7 @@ internal sealed partial class MainWindow
                     + $" de la última vez: {names}. La que estaba a medias empieza de nuevo.",
             },
             PrimaryButtonText = "Reanudar", CloseButtonText = "Descartar",
-            DefaultButton = ContentDialogButton.Primary, RequestedTheme = ElementTheme.Dark,
+            DefaultButton = ContentDialogButton.Primary,
         };
         // Si otra pregunta está abierta (recuperar un autoguardado), se espera a que se cierre.
         while (DialogGate.IsOpen && !_closed)

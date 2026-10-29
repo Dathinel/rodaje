@@ -6,7 +6,7 @@ using Windows.UI.ViewManagement;
 namespace Rodaje.App.Theme;
 
 /// <summary>Las claves de Palette.xaml y Typography.xaml desde el código, y la paleta en el contraste alto de Windows.</summary>
-internal static class ThemeResources
+internal static partial class ThemeResources
 {
     public static Brush Brush(string key) => (Brush)Application.Current.Resources[key];
 

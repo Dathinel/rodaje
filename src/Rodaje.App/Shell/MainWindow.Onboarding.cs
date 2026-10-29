@@ -118,7 +118,7 @@ internal sealed partial class MainWindow
         {
             TourTarget.Library => Library,
             TourTarget.Player => Player,
-            TourTarget.Tools => Tools,
+            TourTarget.Tools => Timeline.QuickToolsMenu,
             TourTarget.Timeline => Timeline,
             TourTarget.Inspector => Inspector,
             _ => TitleBar.ExportButton,

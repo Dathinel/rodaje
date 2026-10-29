@@ -3,11 +3,13 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Format;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
 using Rodaje.App.Views.Shared;
+using Rodaje.Core.Model;
 using Rodaje.Media.Proxies;
 using Rodaje.Modules.Protocol;
 
@@ -19,11 +21,13 @@ namespace Rodaje.App.Views.Raw;
 /// </summary>
 internal static class CinemaDngDialog
 {
-    private const string Title = "Importar CinemaDNG";
+    public const string Title = "Importar CinemaDNG";
 
-    public static async Task ShowAsync(EditorServices services)
+    public static async Task ShowAsync(EditorServices services, LongActionScope scope)
     {
+        ArgumentNullException.ThrowIfNull(scope);
         EditorSession session = services.Session;
+        Project project = session.Project;
         if (services.Modules?.FindByFunction(CinemaDngImport.Function) is not { } module)
         {
             session.Notify(NotificationSeverity.Informational, Title, "Hace falta el módulo «RAW de cine». Instálalo desde Complementos › Módulos de IA.");
@@ -36,7 +40,7 @@ internal static class CinemaDngDialog
         }
 
         nint owner = root.ContentIslandEnvironment is { } environment ? Win32Interop.GetWindowFromWindowId(environment.AppWindowId) : 0;
-        IReadOnlyList<string> picked = FileDialogs.Open(owner, "Elige un cuadro de la carpeta CinemaDNG", multiple: false,
+        IReadOnlyList<string> picked = FileDialogs.Open(owner, "Elige un fotograma de la carpeta CinemaDNG", multiple: false,
             FileDialogFolderPolicy.OpenFolder(services.Settings.Current), ("CinemaDNG", "*.dng"), FileDialogs.AllFilter);
         FileDialogFolderPolicy.RememberOpen(services.Settings.Current, picked.Count > 0 ? picked[0] : null);
         if (picked.Count == 0)
@@ -47,7 +51,7 @@ internal static class CinemaDngDialog
         CinemaDngFolder? sequence = await Task.Run(() => CinemaDngImport.Scan(picked[0]));
         if (sequence is null)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "La carpeta no tiene cuadros .dng.");
+            session.Notify(NotificationSeverity.Informational, Title, "La carpeta no tiene fotogramas .dng.");
             return;
         }
 
@@ -61,7 +65,7 @@ internal static class CinemaDngDialog
         var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
         panel.Children.Add(new TextBlock
         {
-            Text = string.Create(SpanishNumbers.Format, $"«{sequence.Name}»: {sequence.Frames.Count} cuadros")
+            Text = string.Create(SpanishNumbers.Format, $"«{sequence.Name}»: {sequence.Frames.Count} fotogramas")
                 + (sequence.Audio is null ? "." : $", con el sonido de «{Path.GetFileName(sequence.Audio)}»."),
             TextWrapping = TextWrapping.Wrap,
         });
@@ -95,11 +99,12 @@ internal static class CinemaDngDialog
 
         services.Settings.Current.LastMediaFolder = sequence.Folder;
         var options = new CinemaDngOptions(balance.SelectedIndex == 1 ? "luz-dia" : "camara", exposure, quality.SelectedIndex == 0);
+        scope.Report(null, $"Revelando «{sequence.Name}»…");
         CinemaDngResult result;
         try
         {
             result = await CinemaDngImport.RunAsync(services.Modules, module, ffmpeg, sequence, options,
-                saveIn.Folder, $"CinemaDNG «{sequence.Name}»");
+                saveIn.Folder, $"CinemaDNG «{sequence.Name}»", scope.Token);
         }
         catch (OperationCanceledException)
         {
@@ -116,11 +121,23 @@ internal static class CinemaDngDialog
             return;
         }
 
-        ImportResult imported = await session.ImportMediaAsync([result.Path]);
+        // Un gesto en curso (arrastre) haría que ImportMediaAsync descartara el video en silencio: se espera a que acabe.
+        while (session.IsInGesture && ReferenceEquals(session.Project, project))
+        {
+            await Task.Delay(100, scope.Token);
+        }
+
+        if (!ReferenceEquals(session.Project, project))
+        {
+            session.Notify(NotificationSeverity.Informational, Title, $"Se abrió otro proyecto mientras se revelaba; el video quedó en «{result.Path}».");
+            return;
+        }
+
+        ImportResult imported = await session.ImportMediaAsync([result.Path], scope.Token);
         if (imported.MediaIds.Count > 0)
         {
             session.Notify(NotificationSeverity.Success, Title, string.Create(SpanishNumbers.Format,
-                $"«{sequence.Name}»: {result.Frames} cuadros de {result.Width}×{result.Height} a {(double)result.RateNumerator / result.RateDenominator:0.###} cuadros/s")
+                $"«{sequence.Name}»: {result.Frames} fotogramas de {result.Width}×{result.Height} a {(double)result.RateNumerator / result.RateDenominator:0.###} cuadros/s")
                 + (result.Camera.Length > 0 ? $" ({result.Camera})." : "."));
         }
     }

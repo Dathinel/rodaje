@@ -1,0 +1,107 @@
+# Solo Daniel publica el borrador con «Publish» en GitHub.
+name: Preparar release en borrador
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-borrador
+  cancel-in-progress: false
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+
+jobs:
+  armar:
+    if: github.ref == 'refs/heads/main' && github.repository == 'Dathinel/rodaje'
+    runs-on: windows-latest
+    timeout-minutes: 180
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}\.entorno\nuget
+      DOTNET_ROOT: ${{ github.workspace }}\.entorno\dotnet
+      DOTNET_CLI_HOME: ${{ github.workspace }}\.entorno
+      DOTNET_MULTILEVEL_LOOKUP: '0'
+      DOTNET_CLI_FORCE_UTF8_ENCODING: '1'
+      RODAJE_FORZAR_WARP: '1'
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/preparar-windows
+
+      - name: Versión de la distribución
+        id: version
+        shell: pwsh
+        run: |
+          Import-Module .\build\comun.psm1 -DisableNameChecking
+          $null = Inicializar-Rodaje $pwd.Path
+          "version=$(Version-Rodaje)" >> $env:GITHUB_OUTPUT
+
+      - name: Compilar y comprobar la distribución completa
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\distribuir.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Guardar instalador, portable, completo, sumas y notas
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-distribucion
+          path: |
+            dist/distribucion/Rodaje-${{ steps.version.outputs.version }}-instalador.exe
+            dist/distribucion/Rodaje-${{ steps.version.outputs.version }}-portable.zip
+            dist/distribucion/Rodaje-${{ steps.version.outputs.version }}-completo.zip
+            dist/distribucion/SHA256SUMS.txt
+            dist/distribucion/Rodaje-${{ steps.version.outputs.version }}-notas.md
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Registros
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-registros
+          path: TestResults/**
+          if-no-files-found: ignore
+
+  borrador:
+    needs: armar
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-distribucion
+          path: distribucion
+
+      - name: Verificar artefactos y crear exclusivamente un borrador
+        shell: bash
+        working-directory: distribucion
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ needs.armar.outputs.version }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([+-][0-9A-Za-z.-]+)?$ ]]
+          # distribuir.ps1 escribe CRLF en Windows; sha256sum recibe una copia con LF.
+          sed 's/\r$//' SHA256SUMS.txt > SHA256SUMS.lf.txt
+          archivos=("Rodaje-$VERSION-instalador.exe" "Rodaje-$VERSION-portable.zip" "Rodaje-$VERSION-completo.zip")
+          for archivo in "${archivos[@]}"; do
+            test -s "$archivo"
+            test "$(stat -c %s "$archivo")" -lt 2147483648
+            grep -E "^[0-9a-f]{64}  " SHA256SUMS.lf.txt | cut -c 67- | grep -Fx -- "$archivo"
+          done
+          sha256sum --check --strict SHA256SUMS.lf.txt
+          test -s "Rodaje-$VERSION-notas.md"
+          gh release create "v$VERSION" "${archivos[@]}" SHA256SUMS.txt \
+            --draft --target "$COMMIT" --title "Rodaje $VERSION" --notes-file "Rodaje-$VERSION-notas.md"

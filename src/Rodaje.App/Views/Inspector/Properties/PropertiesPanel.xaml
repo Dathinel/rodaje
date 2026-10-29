@@ -14,6 +14,23 @@
         <TextBlock x:Name="EmptyText" Style="{StaticResource PlaceholderTextStyle}" VerticalAlignment="Center" Margin="24,0"
                    Text="Selecciona un clip en la línea de tiempo para ver y animar sus propiedades." />
 
+        <!-- Sin nada seleccionado: el formato y el contenido de la secuencia (SequenceSummary). -->
+        <ScrollViewer x:Name="SequenceInfo" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
+            <StackPanel Padding="12,8,12,12" Spacing="8">
+                <TextBlock x:Name="SequenceTitle" Style="{StaticResource PanelTitleTextStyle}" TextTrimming="CharacterEllipsis" />
+                <Grid x:Name="SequenceRows" ColumnSpacing="12" RowSpacing="6">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                </Grid>
+                <Button x:Name="SequenceFormatButton" Content="Formato del proyecto…" Click="OnSequenceFormatClick" Margin="0,4,0,0"
+                        ToolTipService.ToolTip="Cambia la proporción, la resolución y los cuadros por segundo de la secuencia" />
+                <TextBlock Style="{StaticResource PlaceholderTextStyle}" TextWrapping="Wrap" Margin="0,8,0,0"
+                           Text="Selecciona un clip en la línea de tiempo para ver y animar sus propiedades." />
+            </StackPanel>
+        </ScrollViewer>
+
         <ScrollViewer x:Name="Body" Visibility="Collapsed" VerticalScrollBarVisibility="Auto">
             <StackPanel Padding="0,0,0,12">
                 <Grid Height="36" Padding="12,0,8,0" ColumnSpacing="8">
@@ -49,6 +66,9 @@
                 <TextBlock x:Name="TransformNote" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,8"
                            TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed"
                            Text="Transformar está desactivado en Filtros: los cambios se guardan pero no se ven." />
+                <TextBlock x:Name="PlayheadNote" Style="{StaticResource CaptionTextStyle}" Margin="12,0,12,8"
+                           TextWrapping="Wrap" TextTrimming="None" Visibility="Collapsed"
+                           Text="El cursor está fuera del clip: llévalo dentro para poner o cambiar keyframes." />
 
                 <inspector:InspectorSection x:Name="PlacementSection" Key="posicion" Title="Posición y tamaño">
                     <inspector:InspectorSection.Actions>
@@ -109,6 +129,9 @@
                 <inspector:InspectorSection x:Name="OpacitySection" Key="opacidad" Title="Opacidad y mezcla">
                     <StackPanel>
                         <local:ParameterRow x:Name="OpacityRow" />
+                        <local:ParameterRow x:Name="HdrRow" ToolTipService.ToolTip="0: automático (blanco PQ de 100 nits; pico HLG de 1000 nits). Solo afecta a HDR." />
+                        <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="12,2,12,4" TextWrapping="Wrap" TextTrimming="None"
+                                   Text="Brillo de referencia HDR: 0 usa 100 nits en PQ o 1000 nits en HLG. No afecta a SDR." />
                         <Grid Padding="12,4,8,4" ColumnSpacing="4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="76" />

@@ -123,6 +123,7 @@ public static class EffectRegistry
             new(T.ShutterAngle, 0, 0, 720, Animatable: false),
             new(T.ShutterPhase, 0, -360, 360, Animatable: false),
             new(T.MotionSamples, T.DefaultMotionSamples, 2, 64, Animatable: false),
+            new(T.HdrReferenceNits, 0, 0, 10000),
         ],
         [
             OptionDefinition.Choice(BuiltInEffects.TransformOptions.FlipX, "off", "off", "on"),

@@ -45,7 +45,8 @@ public class ZoomFitTests
         Assert.Equal(950.0 / 40, frame.PixelsPerSecond, 9);
         Assert.Equal(40, Visible(frame, 1000).End * 0.95, 6);
 
-        // Una secuencia muy larga no puede bajar del zoom mínimo; una vacía se ve como un segundo.
+        // Tres horas caben enteras; una secuencia muy larga no puede bajar del zoom mínimo; una vacía se ve como un segundo.
+        Assert.Equal(950.0 / 10_800, ZoomFit.Whole(S(10_800), 1000).PixelsPerSecond, 9);
         Assert.Equal(TimelineState.MinPixelsPerSecond, ZoomFit.Whole(S(36_000), 1000).PixelsPerSecond);
         Assert.Equal(950, ZoomFit.Whole(Time.Zero, 1000).PixelsPerSecond, 9);
     }

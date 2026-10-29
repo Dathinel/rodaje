@@ -21,6 +21,7 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
     private const string WaveformFolder = "ondas";
     private const string WaveformExtension = ".picos";
     private const int MaxQueuedBatches = 512;
+    private const string NoAudio = "sin audio";
 
     private readonly Func<string, string?> _resolve;
     private readonly IVisualsSources _sources;
@@ -45,6 +46,9 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
     private readonly ConcurrentDictionary<string, string> _noWaveform = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string> _fingerprints = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _idsByPath = new(StringComparer.OrdinalIgnoreCase);
+
+    /// <summary>Sube con cada <see cref="Forget"/>: los hilos cierran el decodificador que abrieron con una generación anterior.</summary>
+    private readonly Dictionary<string, int> _readerGeneration = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<(string Path, ClipVisualKind Kind)> _changed = [];
     private readonly HashSet<ThumbnailKey> _inFlight = [];
     private readonly Dictionary<string, SortedSet<long>> _indexByFile = new(StringComparer.Ordinal);
@@ -192,6 +196,8 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
         string indexPrefix = path.ToUpperInvariant() + "|";
         lock (_gate)
         {
+            _readerGeneration[path] = _readerGeneration.GetValueOrDefault(path) + 1;
+            Monitor.PulseAll(_gate);
             foreach (Batch batch in _batches.Where(b => string.Equals(b.Path, path, StringComparison.OrdinalIgnoreCase)).ToList())
             {
                 _batches.Remove(batch);
@@ -214,6 +220,30 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
                 }
             }
         }
+    }
+
+    /// <summary>
+    /// Vuelve a intentar los archivos que fallaron y ya están en disco (un USB que se reconecta, un archivo que recupera su
+    /// nombre): se leen al pedirlos. Mira el disco fuera del hilo de la interfaz.
+    /// </summary>
+    public Task RetryFailedAsync()
+    {
+        string[] failed = [.. _failedThumbnails.Keys.Union(_noWaveform.Where(p => p.Value != NoAudio).Select(p => p.Key), StringComparer.OrdinalIgnoreCase)];
+        return failed.Length == 0 ? Task.CompletedTask : Task.Run(() =>
+        {
+            foreach (string path in failed.Where(File.Exists))
+            {
+                if (_failedThumbnails.TryRemove(path, out _))
+                {
+                    MarkChanged(path, ClipVisualKind.Thumbnails);
+                }
+
+                if (_noWaveform.TryRemove(path, out _))
+                {
+                    MarkChanged(path, ClipVisualKind.Waveform);
+                }
+            }
+        });
     }
 
     /// <summary>

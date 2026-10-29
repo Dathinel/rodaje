@@ -111,8 +111,8 @@ public sealed partial class EditorSession
         if (clamped.FrameRates > 0)
         {
             parts.Add(clamped.FrameRates == 1
-                ? $"la tasa de cuadros de 1 secuencia se llevó al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps"
-                : $"las tasas de cuadros de {clamped.FrameRates} secuencias se llevaron al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps");
+                ? $"la tasa de fotogramas de 1 secuencia se llevó al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps"
+                : $"las tasas de fotogramas de {clamped.FrameRates} secuencias se llevaron al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps");
         }
 
         if (clamped.TrimmedClips > 0)
@@ -188,11 +188,15 @@ public sealed partial class EditorSession
     /// del historial. Un archivo que ya estaba en la biblioteca no se repite: se devuelve su medio. Lo que no entra se
     /// avisa con el motivo.
     /// </summary>
-    /// <remarks>Si la secuencia está vacía, toma la tasa y el tamaño del primer video.</remarks>
-    public async Task<ImportResult> ImportMediaAsync(IEnumerable<string> paths)
+    /// <remarks>
+    /// Si la secuencia está vacía, toma la tasa y el tamaño del primer video. Cancelar impide iniciar análisis pendientes
+    /// y descarta el lote; espera a que terminen los análisis síncronos que ya estaban en curso.
+    /// </remarks>
+    public async Task<ImportResult> ImportMediaAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
     {
         VerifyAccess();
         ArgumentNullException.ThrowIfNull(paths);
+        cancellationToken.ThrowIfCancellationRequested();
         string[] files = [.. paths.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase)];
         if (files.Length == 0)
         {
@@ -204,16 +208,37 @@ public sealed partial class EditorSession
         MediaProbeResult[] probes;
         try
         {
-            probes = await Task.WhenAll(files.Select(f => Task.Run(() => _prober.Probe(f))));
+            // Limita las lecturas simultáneas del disco sin bloquear hilos del pool mientras esperan su turno.
+            int concurrency = Math.Clamp(Environment.ProcessorCount, 2, 8);
+            using var slots = new SemaphoreSlim(concurrency, concurrency);
+            probes = await Task.WhenAll(files.Select(async file =>
+            {
+                await slots.WaitAsync(cancellationToken).ConfigureAwait(false);
+                try
+                {
+                    return await Task.Run(() => _prober.Probe(file), cancellationToken).ConfigureAwait(false);
+                }
+                finally
+                {
+                    slots.Release();
+                }
+            }));
+            cancellationToken.ThrowIfCancellationRequested();
         }
         finally
         {
             EndBusy();
         }
 
-        if (!ReferenceEquals(target, Project) || IsInGesture)
+        // Un gesto en curso (arrastrar un clip, un deslizador) no admite otro paso del historial: se espera a que acabe.
+        while (IsInGesture && ReferenceEquals(target, Project))
         {
-            // Mientras se leía se abrió otro proyecto o empezó un gesto: no se mezcla.
+            await Task.Delay(100, cancellationToken);
+        }
+
+        if (!ReferenceEquals(target, Project))
+        {
+            // Mientras se leía se abrió otro proyecto: no se mezcla.
             return ImportResult.Empty;
         }
 
@@ -270,10 +295,11 @@ public sealed partial class EditorSession
             MediaImported?.Invoke(this, added);
         }
 
-        if (added.Where(i => i.Video?.HdrTransfer is not null).Select(i => $"{Path.GetFileName(i.Path)} ({i.Video!.HdrTransfer})").ToList() is { Count: > 0 } hdr)
+        if (Sequence.ColorSpace == SequenceColorSpace.Sdr709
+            && added.Where(i => i.Video?.HdrTransfer is not null).Select(i => $"{Path.GetFileName(i.Path)} ({i.Video!.HdrTransfer})").ToList() is { Count: > 0 } hdr)
         {
-            Notify(NotificationSeverity.Warning, hdr.Count == 1 ? "Video HDR" : "Videos HDR",
-                $"{string.Join(", ", hdr)}: Rodaje todavía no convierte HDR a SDR, así que se verá y se exportará con los colores apagados.");
+            Notify(NotificationSeverity.Informational, hdr.Count == 1 ? "Video HDR" : "Videos HDR",
+                $"{string.Join(", ", hdr)}: HDR: se convierte a SDR; ajusta el brillo en Propiedades");
         }
 
         if (skipped.Count > 0)
@@ -325,8 +351,8 @@ public sealed partial class EditorSession
             return false;
         }
 
-        Time from = sourceIn is { } a && a >= Time.Zero && a < media.Duration ? a : Time.Zero;
-        Time to = sourceOut is { } b && b > from && b <= media.Duration ? b : media.Duration;
+        Time from = sourceIn is { } a && a >= Time.Zero && (media.IsStillImage || a < media.Duration) ? a : Time.Zero;
+        Time to = sourceOut is { } b && b > from && (media.IsStillImage || b <= media.Duration) ? b : media.InitialClipDuration;
 
         Sequence sequence = Sequence;
         string? videoTrack = media.HasVideo ? sequence.VideoTracks.FirstOrDefault()?.Id : null;
@@ -483,7 +509,7 @@ public sealed partial class EditorSession
     private bool AdoptFormatIfEmpty(MediaInfo info)
     {
         Sequence sequence = Sequence;
-        if (info.Video is not { } video || KeepsTemplateFormat || Project.Media.Count > 0 || sequence.AllTracks.Any(t => t.Clips.Count > 0))
+        if (info.IsStillImage || info.Video is not { } video || KeepsTemplateFormat || Project.Media.Exists(m => m.HasVideo && !m.IsStillImage) || sequence.AllTracks.Any(t => t.Clips.Count > 0))
         {
             return false;
         }

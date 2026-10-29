@@ -11,11 +11,18 @@
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/licencia-GPLv3-E8833A?style=flat-square&labelColor=1D1D1D" alt="Licencia GPLv3"></a>
-  <a href="https://github.com/Dathinel/rodaje/releases"><img src="https://img.shields.io/badge/versi%C3%B3n-1.0.1--dev-E8833A?style=flat-square&labelColor=1D1D1D" alt="Versión 1.0.1"></a>
+  <a href="https://github.com/Dathinel/rodaje/releases/latest"><img src="https://img.shields.io/github/v/release/Dathinel/rodaje?style=flat-square&labelColor=1D1D1D&color=E8833A&label=versi%C3%B3n" alt="Última versión publicada"></a>
+  <a href="CHANGELOG.md#sin-publicar"><img src="https://img.shields.io/github/commits-since/Dathinel/rodaje/latest?style=flat-square&labelColor=1D1D1D&color=E8833A&label=cambios%20sin%20publicar" alt="Cambios desde la última versión"></a>
   <img src="https://img.shields.io/badge/Windows-x64-E8833A?style=flat-square&labelColor=1D1D1D" alt="Windows x64">
   <img src="https://img.shields.io/badge/.NET-10-E8833A?style=flat-square&labelColor=1D1D1D&logo=dotnet&logoColor=white" alt=".NET 10">
   <a href="https://github.com/Dathinel/rodaje/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Dathinel/rodaje/ci.yml?branch=main&style=flat-square&labelColor=1D1D1D&label=CI" alt="Estado de la CI"></a>
 </p>
+
+## Descargar
+
+La última versión es la **[1.0.1](https://github.com/Dathinel/rodaje/releases/latest)** (16-oct-2026). Hay tres descargas: el **instalador** (recomendado, por usuario y sin permisos de administrador), el **portable** (descomprimir y abrir) y el **completo** (portable con los complementos y los módulos de IA ya dentro). Detalle en [Instalar Rodaje](docs/guia/instalar.md).
+
+Lo nuevo de la 1.0.1: interfaz reorganizada (menús Herramientas y Secuencia, Preferencias con `Ctrl+,`, inspector con pestañas Propiedades, Transición y Seguimiento), funciones de IA que se aplican con un solo clic, «Quitar silencios» con detección de voz y muchas correcciones de estabilidad. Todo en el [historial de cambios](CHANGELOG.md).
 
 ## Qué es y qué hace
 
@@ -33,7 +40,7 @@ Rodaje es un editor de video no lineal (NLE) de alto rendimiento enfocado en la 
 1. **Crear o abrir:** Al iniciar, elige una plantilla (16:9 horizontal, 9:16 vertical para redes) o pulsa `Ctrl+N`.
 2. **Importar medios:** Arrastra videos, fotos o canciones a la biblioteca o pulsa `Ctrl+I`.
 3. **Editar en la línea de tiempo:** Arrastra clips a las pistas. Corta con `S`, elimina el sobrante con `Supr`, o recorta rápidamente con `Q` y `W`.
-4. **Ajustar propiedades:** Selecciona un clip para modificar volumen, color, velocidad o efectos en el panel derecho contextual.
+4. **Ajustar propiedades:** Selecciona un clip para modificar volumen, color, velocidad o efectos en el inspector de la derecha. Las funciones de IA (quitar fondo, reencuadre, subtítulos, reducir ruido) están en el menú **Herramientas**.
 5. **Exportar:** Pulsa `Ctrl+E`, elige tu resolución y códec, y pulsa **Exportar**.
 
 Consulta la [Guía de inicio paso a paso](docs/guia/primer-proyecto.md) para un tutorial completo de 10 minutos.

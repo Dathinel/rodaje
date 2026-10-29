@@ -40,6 +40,7 @@ public static class ActionIds
     public const string NextFrame = "playback.nextFrame";
     public const string GoToStart = "playback.start";
     public const string GoToEnd = "playback.end";
+    public const string CaptureFrame = "playback.captureFrame";
 
     // Las registra el reproductor; aquí para que la vista esencial de la página de atajos las nombre.
     public const string ShuttleReverse = "playback.shuttleReverse";
@@ -71,6 +72,9 @@ public static class ActionIds
     public const string ShowPlugins = "view.plugins";
     public const string ShowMixer = "view.mixer";
     public const string ShowHistory = "view.history";
+    public const string LayoutBalanced = "view.layoutBalanced";
+    public const string LayoutMoreViewer = "view.layoutMoreViewer";
+    public const string LayoutMoreTimeline = "view.layoutMoreTimeline";
     public const string ShowPreferences = "view.preferences";
 }
 
@@ -104,7 +108,7 @@ public static partial class EditorShortcuts
         new(ActionIds.Import, "Importar medios", ShortcutGroups.File, ["Ctrl+I"]) { ShortLabel = "Importar", Description = "Trae videos, audios o imágenes a la biblioteca." },
         new(ActionIds.Export, "Exportar", ShortcutGroups.File, ["Ctrl+E", "Ctrl+M"], agile: ["Ctrl+E"], classic: ["Ctrl+M"]) { WorksInTextInput = true, Description = "Convierte el proyecto en un video terminado." },
         new(ActionIds.ShowPreferences, "Preferencias", ShortcutGroups.File, ["Ctrl+,"]) { WorksInTextInput = true, Description = "Configura las preferencias de Rodaje." },
-        new(ActionIds.ExportFrame, "Exportar fotograma", ShortcutGroups.File, ["Ctrl+Mayús+E"]) { ShortLabel = "Fotograma", Description = "Guarda como imagen PNG o JPEG el cuadro que está bajo el cursor." },
+        new(ActionIds.ExportFrame, "Exportar fotograma", ShortcutGroups.File, ["Ctrl+Mayús+E"]) { ShortLabel = "Fotograma", Description = "Guarda como imagen PNG o JPEG el fotograma que está bajo el cursor." },
 
         new(ActionIds.Undo, "Deshacer", ShortcutGroups.Edit, ["Ctrl+Z"]) { Repeats = true, Description = "Vuelve atrás el último cambio." },
         new(ActionIds.Redo, "Rehacer", ShortcutGroups.Edit, ["Ctrl+Mayús+Z", "Ctrl+Y"], agile: ["Ctrl+Mayús+Z"], classic: ["Ctrl+Y", "Ctrl+Mayús+Z"]) { Repeats = true, Description = "Repite lo que acabas de deshacer." },
@@ -117,17 +121,18 @@ public static partial class EditorShortcuts
         new(ActionIds.ShowHistory, "Historial", ShortcutGroups.Edit, ["Ctrl+H"]) { Description = "Abre el historial de cambios del proyecto." },
         new(ActionIds.AddTransition, "Transición por defecto", ShortcutGroups.Edit, ["Ctrl+T"]) { ShortLabel = "Transición", Description = "Pone la transición por defecto en el corte más cercano o en el del clip elegido." },
         new(ActionIds.ClipSpeed, "Velocidad del clip…", ShortcutGroups.Edit, ["Ctrl+R"]) { ShortLabel = "Velocidad", Description = "Abre la pestaña Velocidad del clip seleccionado o del que está bajo el cursor." },
-        new(ActionIds.FreezeFrame, "Congelar cuadro", ShortcutGroups.Edit, ["Mayús+R"]) { ShortLabel = "Congelar", Description = "Detiene la imagen del cursor 3 segundos y corre lo que sigue." },
+        new(ActionIds.FreezeFrame, "Congelar fotograma", ShortcutGroups.Edit, ["Mayús+R"]) { ShortLabel = "Congelar", Description = "Detiene la imagen del cursor 3 segundos y corre lo que sigue." },
         new(ActionIds.SpeedUp, "Más rápido", ShortcutGroups.Edit, ["Ctrl+Alt+."]) { Repeats = true, Description = "Sube un escalón la velocidad del clip (1,25×, 1,5×, 2×…)." },
         new(ActionIds.SlowDown, "Más lento", ShortcutGroups.Edit, ["Ctrl+Alt+,"]) { Repeats = true, Description = "Baja un escalón la velocidad del clip (0,75×, 0,5×, 0,25×…)." },
         new(ActionIds.Reverse, "Invertir", ShortcutGroups.Edit, []) { Description = "Reproduce el clip hacia atrás; otra vez lo vuelve a poner hacia adelante." },
         new(ActionIds.AddText, "Añadir texto", ShortcutGroups.Edit, ["T"]) { ShortLabel = "Texto", Description = "Pone un título de 5 segundos en el cursor, en la pista de arriba que esté libre." },
 
         new(ActionIds.TogglePlay, "Reproducir o pausar", ShortcutGroups.Playback, ["Espacio"]) { ShortLabel = "Reproducir", Description = "Arranca o detiene la reproducción desde el cursor." },
-        new(ActionIds.PreviousFrame, "Cuadro anterior", ShortcutGroups.Playback, ["←"], classic: ["Alt+←"]) { ShortLabel = "Cuadro atrás", Repeats = true, Description = "Retrocede una imagen; mantenla para ir más atrás." },
-        new(ActionIds.NextFrame, "Cuadro siguiente", ShortcutGroups.Playback, ["→"], classic: ["Alt+→"]) { ShortLabel = "Cuadro adelante", Repeats = true, Description = "Avanza una imagen; mantenla para seguir avanzando." },
+        new(ActionIds.PreviousFrame, "Fotograma anterior", ShortcutGroups.Playback, ["←"], classic: ["Alt+←"]) { ShortLabel = "Fotograma ant.", Repeats = true, Description = "Retrocede una imagen; mantenla para ir más atrás." },
+        new(ActionIds.NextFrame, "Fotograma siguiente", ShortcutGroups.Playback, ["→"], classic: ["Alt+→"]) { ShortLabel = "Fotograma sig.", Repeats = true, Description = "Avanza una imagen; mantenla para seguir avanzando." },
         new(ActionIds.GoToStart, "Ir al inicio", ShortcutGroups.Playback, ["Inicio"]) { ShortLabel = "Inicio", Description = "Lleva el cursor al principio de la secuencia." },
         new(ActionIds.GoToEnd, "Ir al final", ShortcutGroups.Playback, ["Fin"]) { ShortLabel = "Final", Description = "Lleva el cursor al final del último clip." },
+        new(ActionIds.CaptureFrame, "Capturar fotograma", ShortcutGroups.Playback, ["Ctrl+Mayús+C"]) { ShortLabel = "Captura", Description = "Guarda de inmediato el fotograma actual como imagen PNG." },
 
         new(ActionIds.AddMarker, "Añadir marcador", ShortcutGroups.Timeline, ["M"]) { ShortLabel = "Marcador", Description = "Deja una marca en el cursor para volver a ese punto." },
         new(ActionIds.AddRegion, "Añadir región", ShortcutGroups.Timeline, ["R"], agile: []) { ShortLabel = "Región", Description = "Marca un tramo de la secuencia con nombre." },
@@ -151,11 +156,14 @@ public static partial class EditorShortcuts
 
         new(ActionIds.ZoomIn, "Acercar", ShortcutGroups.View, ["Ctrl++", "Ctrl+Num +"], classic: ["↑"]) { Repeats = true, Description = "Agranda la línea de tiempo para ver más detalle." },
         new(ActionIds.ZoomOut, "Alejar", ShortcutGroups.View, ["Ctrl+-", "Ctrl+Num -"], classic: ["↓"]) { Repeats = true, Description = "Achica la línea de tiempo para ver más tiempo a la vez." },
-        new(ActionIds.ZoomToFit, "Ajustar a la ventana", ShortcutGroups.View, ["Mayús+Z"]) { ShortLabel = "Ver todo", Description = "Ajusta el zoom para que todo el proyecto quepa en la vista." },
+        new(ActionIds.ZoomToFit, "Ajustar a la secuencia", ShortcutGroups.View, ["Mayús+Z"]) { ShortLabel = "Ver todo", Description = "Ajusta el zoom para que toda la secuencia quepa en la vista." },
         new(ActionIds.ZoomToSelection, "Zoom a la selección", ShortcutGroups.View, ["Ctrl+Alt+Z"]) { ShortLabel = "Ver selección", Description = "Acerca hasta que los clips seleccionados o el tramo marcado llenen la vista." },
         new(ActionIds.ShowShortcuts, "Atajos de teclado", ShortcutGroups.View, ["Ctrl+Alt+K"]) { ShortLabel = "Atajos", Description = "Abre esta página para ver y cambiar las teclas." },
         new(ActionIds.ShowPlugins, "Complementos", ShortcutGroups.View, []) { Description = "Abre el gestor de paquetes y módulos de IA." },
         new(ActionIds.ShowMixer, "Mezclador", ShortcutGroups.View, ["Alt+M"]) { Description = "Cambia la línea de tiempo por el mezclador de pistas y buses; otra vez vuelve." },
+        new(ActionIds.LayoutBalanced, "Distribución equilibrada", ShortcutGroups.View, []) { ShortLabel = "Equilibrada", Description = "La línea de tiempo ocupa el 42 % del alto de la ventana." },
+        new(ActionIds.LayoutMoreViewer, "Más visor", ShortcutGroups.View, []) { Description = "La línea de tiempo baja al 30 % del alto y el visor crece." },
+        new(ActionIds.LayoutMoreTimeline, "Más línea de tiempo", ShortcutGroups.View, []) { ShortLabel = "Más línea", Description = "La línea de tiempo sube al 55 % del alto para ver más pistas." },
     ];
 
     /// <summary>

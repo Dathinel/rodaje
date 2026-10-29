@@ -120,7 +120,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     public D3D11TexturePayload? Usable(LayerFrame layer)
     {
         if (layer.Frame.Payload is not D3D11TexturePayload payload || payload.IsReleased
-            || payload.PixelFormat is not (FramePixelFormat.Nv12 or FramePixelFormat.P010))
+            || payload.PixelFormat is not (FramePixelFormat.Nv12 or FramePixelFormat.P010 or FramePixelFormat.P016 or FramePixelFormat.Bgra8 or FramePixelFormat.Rgba16))
         {
             return null;
         }
@@ -143,6 +143,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         }
 
         QuadConstants constants = LayerQuad(payload, placement, geometry, Opacity(layer), sequenceWidth, sequenceHeight, pixelScale);
+        SetHdr(ref constants, payload, layer.Transform.HdrReferenceNits);
         PlaneViews views = _views.Get(payload, out bool owned);
         try
         {
@@ -289,6 +290,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
         QuadConstants quad = LayerQuad(payload, placement, geometry, Opacity(layer), destination.SequenceWidth, destination.SequenceHeight,
             destination.PixelScale);
+        SetHdr(ref quad, payload.Planes, layer.Transform.HdrReferenceNits);
         RenderTarget? background = null;
         if (shaderBlend)
         {
@@ -353,6 +355,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         var local = new LayerPlacement(Matrix3x2.CreateScale(firstScaleX, firstScaleY), placement.LocalWidth, placement.LocalHeight,
             Math.Min(firstScaleX, firstScaleY));
         QuadConstants toIntermediate = LayerQuad(payload, local, geometry, 1, firstWidth, firstHeight, 1);
+        SetHdr(ref toIntermediate, payload.Planes, layer.Transform.HdrReferenceNits);
         PrepareSource(payload, ref effects);
         _quad.Bind(first.Rtv, firstWidth, firstHeight, graded, null);
         BindInputs(null, plan.Lut, null, null, mask, plan.Curves);
@@ -599,21 +602,38 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     internal static QuadConstants LayerQuad(D3D11TexturePayload payload, in LayerPlacement placement, SourceGeometry geometry,
         float opacity, float sequenceWidth, float sequenceHeight, float pixelScale)
     {
-        bool tenBit = payload.PixelFormat == FramePixelFormat.P010;
-        YuvRange range = YuvRange.For(tenBit, payload.Color.FullRange);
+        YuvRange range = YuvRange.For(payload.PixelFormat, payload.Color.FullRange);
         YuvToRgb toRgb = YuvToRgb.For(payload.Color.Matrix);
         float uMax = (float)payload.Width / payload.CodedWidth;
         float vMax = (float)payload.Height / payload.CodedHeight;
         QuadConstants constants = PlacedQuad(placement, VideoLayout.Crop(VideoLayout.Corners(geometry.Rotation, uMax, vMax), geometry.Crop), opacity,
             sequenceWidth, sequenceHeight, pixelScale);
         constants.Range = new(range.LumaScale, range.LumaBias, range.ChromaScale, range.ChromaBias);
+        if (payload.PixelFormat is FramePixelFormat.Bgra8 or FramePixelFormat.Rgba16)
+        {
+            constants.Range = new(-1, 0, 0, 0);
+        }
         constants.ToRgb = new(toRgb.RedFromCr, toRgb.GreenFromCb, toRgb.GreenFromCr, toRgb.BlueFromCb);
         constants.Limits = new(
             (payload.Width - 0.5f) / payload.CodedWidth,
             (payload.Height - 0.5f) / payload.CodedHeight,
             (payload.Width - 1f) / payload.CodedWidth,
             (payload.Height - 1f) / payload.CodedHeight);
+        SetHdr(ref constants, payload, 0);
         return constants;
+    }
+
+    private static void SetHdr(ref QuadConstants constants, D3D11TexturePayload? payload, double referenceNits)
+    {
+        if (payload is null || payload.Color.Transfer == HdrTransfer.None)
+        {
+            return;
+        }
+
+        float white = referenceNits > 0 && double.IsFinite(referenceNits)
+            ? (float)Math.Clamp(referenceNits, 1, 10000)
+            : payload.Color.Transfer == HdrTransfer.Pq ? 100 : 1000;
+        constants.Hdr = new((float)payload.Color.Transfer, white, payload.Color.Bt2020Primaries ? 1 : 0, 0);
     }
 
     /// <summary>Esquinas, coordenadas locales y forma de un rectángulo colocado, con un píxel de margen para suavizar el borde.</summary>

@@ -71,7 +71,12 @@ internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader do
 
     public string InstallText { get; } = hasUpdate ? "Actualizar" : missingModelBytes > 0 ? "Bajar modelos" : "Instalar";
 
-    public bool CanDownload { get; } = missingModelBytes > 0 && !hasUpdate || downloader.IsAvailable && !(hasUpdate && othersOpen);
+    private readonly bool _canDownloadAlone = missingModelBytes > 0 && !hasUpdate || downloader.IsAvailable;
+
+    private readonly bool _canDownloadWithOthers = missingModelBytes > 0 && !hasUpdate || downloader.IsAvailable && !hasUpdate;
+
+    /// <summary>Actualizar reemplaza archivos que otra instancia puede tener abiertos: espera a que se cierre.</summary>
+    public bool CanDownload => CanUninstallNow ? _canDownloadAlone : _canDownloadWithOthers;
 
     public string InstallTooltip { get; } = missingModelBytes > 0 && !hasUpdate ? "Descargar sus modelos (Hugging Face o las releases del proyecto), comprobar su hash y dejarlos en la carpeta del módulo"
         : !downloader.IsAvailable ? downloader.UnavailableReason ?? ""
@@ -92,6 +97,7 @@ internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader do
 
         CanUninstallNow = canUninstallNow;
         _notices.Raise(this, nameof(CanUninstallNow));
+        _notices.Raise(this, nameof(CanDownload));
     }
 
     public double StateOpacity { get; } = entry.IsInstalled ? 1 : 0.6;

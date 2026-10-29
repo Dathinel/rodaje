@@ -7,17 +7,19 @@ Todo lo que pasa en la línea de tiempo. Los atajos son los del estilo Rodaje; l
 - **Barra de herramientas** (de izquierda a derecha): herramienta normal (V), envolvente (E), selección, zoom (Z), roll (Y), slide (U), cuchilla (C), **Recorte Ripple** (B), slip (D) y rango (G), cada una con su marca junto al puntero; el selector de huecos (**Dejar huecos**, **Pista principal magnética** o **Ripple global**), **ajuste** (N) y el ámbito del ripple (pistas afectadas, todas las pistas o todas las pistas con marcadores y regiones); **fundido cruzado automático**, **bloquear envolventes** e **ignorar grupos**; las acciones cortar (S), recortar inicio (Q) y final (W), borrar (Supr), marcador (M), región (R), deshacer y rehacer; y el zoom.
 - **Pistas.** Cada cabecera tiene el nombre, ocultar o silenciar y bloquear. **Alto:** arrastra el borde de abajo de la cabecera (doble clic vuelve al de siempre) o elige Compacta, Normal, Alta o Muy alta en su menú; se guarda con el proyecto. La primera pista de video es la **principal**; las de audio muestran su volumen («Volumen 0,0 dB»). Clic derecho en una cabecera: añadir pista de subtítulos, usar una pista de video para subtítulos, grabar voz en off, ecualizador y compresor de la pista. También puedes gestionar pistas desde el menú **Secuencia** (**Añadir pista de video**, **Añadir pista de audio** y **Añadir pista de subtítulos**).
 - **Clips.** Color por tipo, nombre, tira de película o forma de onda, rombos de keyframes, envolvente de volumen. Delante del nombre, un indicador de velocidad cuando no es 1× («2,0×», «◀ 0,5×», «❚❚ Congelado» o la mini curva).
-- **Zoom y desplazamiento.** Rueda desplaza en el tiempo, Mayús+rueda cambia de pistas, Ctrl+rueda hace zoom alrededor del puntero. Ctrl++ y Ctrl+- acercan y alejan; Mayús+Z ajusta todo a la ventana; Ctrl+Alt+Z hace zoom a la selección. El botón central arrastra la vista.
+- **Zoom y desplazamiento.** La rueda sube y baja por las pistas (si se ven todas, desplaza en el tiempo), Mayús+rueda desplaza en el tiempo, Ctrl+rueda hace zoom alrededor del puntero y Alt+rueda cambia el alto de la pista bajo el puntero (con el estilo Clásico, la rueda hace zoom como en Premiere). Ctrl++ y Ctrl+- acercan y alejan; Mayús+Z ajusta toda la secuencia a la vista, cosa que también pasa sola al abrir un proyecto y con el primer clip; Ctrl+Alt+Z hace zoom a la selección. El botón central arrastra la vista y, al arrastrar un clip cerca de un borde, la vista se corre sola, más rápido cuanto más cerca.
+- **Alto de la línea de tiempo.** Ocupa el 42 % del alto de la ventana (nunca menos de lo que deja ver tres pistas) y se adapta al cambiar su tamaño. El separador con la pestaña se arrastra; doble clic alterna entre «Más visor» (30 %) y «Más línea de tiempo» (55 %), y las tres están en Ver › Distribución.
+- **Herramientas rápidas.** El botón «Herramientas» de la barra de la línea de tiempo abre silencios, ritmo, color, subtítulos, voz y texto por grupos; las que no aplican a lo seleccionado se ven atenuadas y dicen por qué.
 
 ## Seleccionar
 
-Clic selecciona; Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro y marca un rango. Ctrl+A selecciona todo. Un clic en una transición la selecciona (y vacía la selección de clips).
+Clic selecciona (dentro de una selección, deja solo ese clip; arrastrar mueve la selección entera); Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro y marca un rango. Ctrl+A selecciona todo. Un clic en una transición la selecciona (y vacía la selección de clips).
 
 ## Cortar y borrar
 
 | Qué | Cómo |
 |---|---|
-| Cortar en el cursor | S (o Ctrl+B): corta los clips seleccionados o el de la principal bajo el cursor |
+| Cortar en el cursor | S (o Ctrl+B): corta los clips seleccionados o el de la principal bajo el cursor; si ninguno de los seleccionados pasa por el cursor, lo avisa |
 | Cortar en todas las pistas | Ctrl+Mayús+B |
 | Recortar hasta el cursor | Q borra lo que queda a la izquierda del cursor; W, lo de la derecha |
 | Borrar | Supr o Retroceso. El selector de huecos determina si se deja un espacio, solo se imanta la pista principal o se corre lo que sigue con ripple global |
@@ -60,7 +62,7 @@ El selector de la barra indica cómo responderán las ediciones que pueden dejar
 
 ## Audio y video enlazados
 
-Un video con sonido entra como dos clips enlazados que se mueven, cortan y recortan juntos. En el menú del clip: **Desenlazar** / **Enlazar**, **Separar audio**, **Copiar atributos** y **Pegar atributos** (todo, efectos, transformación, velocidad o volumen). El interruptor **ignorar grupos** edita solo el clip agarrado sin romper el enlace.
+Un video con sonido entra como dos clips enlazados que se mueven, cortan y recortan juntos. En el menú del clip: **Desenlazar** / **Enlazar**, **Separar audio**, **Copiar atributos** y **Pegar atributos** (todo, efectos, transformación, velocidad o volumen). El interruptor **ignorar grupos** edita solo el clip agarrado (mover, empujar con Alt+←/→, recortar y Supr) sin romper el enlace.
 
 **Aviso de desfase.** Si un clip enlazado queda corrido respecto de su pareja del mismo medio (por moverlo con ignorar grupos, o porque su pista estaba bloqueada al correr las demás), muestra a la derecha un aviso rojo con los cuadros: «+3», «−12». En su menú, **Volver a sincronizar** › «Mover a su lugar» o «Deslizar su contenido». Insertar, mover, cortar y cerrar huecos nunca desincronizan.
 
@@ -99,7 +101,7 @@ Pestaña **Velocidad** del panel derecho (Ctrl+R la abre con el clip seleccionad
 - Arrástrala al **corte** entre dos clips pegados (cae en el más cercano). Dura 0,5 s; arrastra la manija de afuera para cambiar la duración. Si el corte ya tenía una, cambia el tipo y conserva la duración. Las de audio van solo en pistas de audio.
 - **Ctrl+T** pone la **transición por defecto** en el corte del clip seleccionado (al final; si no tiene vecino, al principio) o, sin selección, en el corte más cercano al cursor. En pistas de audio pone el fundido de audio por defecto. Para cambiarla: selecciona una transición y, en el menú ⋯, **Usar como transición por defecto** (guarda tipo, duración, alineación y curva).
 - Con **fundido cruzado automático** encendido, cada corte sin transición de la pista principal muestra un símbolo: un clic crea un fundido de 0,5 s.
-- Con la transición seleccionada en la línea de tiempo, el Inspector activa su pestaña propia **Transición** (ocultando temporalmente las pestañas de clip). Muestra arriba su **vista previa animada** (un clic la pausa) y debajo:
+- Con la transición seleccionada en la línea de tiempo, el Inspector activa su pestaña propia **Transición** (ocultando temporalmente la pestaña Propiedades). Muestra arriba su **vista previa animada** (un clic la pausa) y debajo:
   - **Tipo** y **Duración**. En el menú ⋯, **Esta duración en toda la pista** o **en todas las transiciones** (cada una se acorta si no cabe), en un paso.
   - **Alineación**: al final del clip que sale, centrada o al inicio del que entra. Alineada a un lado, solo se arrastra la manija de afuera.
   - **Dirección**: una rueda (arrastra; con Mayús, sin pasos de 15°) y atajos de 0°, 90°, 180° y 270°; en Empujar, cuatro flechas.
@@ -108,7 +110,7 @@ Pestaña **Velocidad** del panel derecho (Ctrl+R la abre con el clip seleccionad
   - **Desenfoque de movimiento** en las que mueven la imagen (empujar, deslizar, giro, rebote): 50 % es el obturador de cine.
   - **Curva del avance**: Lineal, Suave, Entrada, Salida, Rebote, Elástico o **Bézier**, con manejadores en la gráfica. El punto de la gráfica sigue a la vista previa. La misma curva vale para el cruce de audio.
   - «Quitar transición» deja el corte seco. Supr también la quita.
-  Al deseleccionar la transición, el inspector vuelve automáticamente a las pestañas del clip.
+  Al deseleccionar la transición, el inspector vuelve automáticamente a la pestaña Propiedades.
 - **Guardar como transición…** (menú ⋯ de Propiedades) convierte los keyframes de transformación de un clip en una transición propia.
 
 ## Marcadores y regiones

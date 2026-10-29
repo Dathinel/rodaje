@@ -211,4 +211,16 @@ public static class SpeedCurveMath
 
         return Time.FromTicks((long)Math.Round(at / SpeedCurve.AtScale * curve.Span.Ticks)) - speed.Offset;
     }
+
+    /// <summary>La inversa de <see cref="ClipTimeOf"/>: dónde cae en la curva un instante del clip (desde su inicio), sin acotar.</summary>
+    public static int AtOfClipTime(Clip clip, Time clipTime)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        if (clip.Speed is not { Curve: { Span.Ticks: > 0 } curve } speed)
+        {
+            return 0;
+        }
+
+        return (int)Math.Round((speed.Offset + clipTime).Ticks * (double)SpeedCurve.AtScale / curve.Span.Ticks);
+    }
 }

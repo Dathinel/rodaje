@@ -59,7 +59,7 @@ internal sealed partial class TimelineScheduler
     private Variant ResolveVariant(MediaState media, int layers)
     {
         var original = new Variant(media.Key.Path, IsProxy: false, media.DisplayWidth, media.DisplayHeight);
-        if (_resolver is null)
+        if (_resolver is null || media.IsStillImage)
         {
             return original;
         }

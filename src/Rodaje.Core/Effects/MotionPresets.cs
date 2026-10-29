@@ -24,6 +24,10 @@ public readonly record struct MotionBase(double X, double Y, double Scale, doubl
 public static class MotionPresets
 {
     public const string KenBurns = "kenBurns";
+    public const string KenBurnsZoomIn = "kenBurnsZoomIn";
+    public const string KenBurnsZoomOut = "kenBurnsZoomOut";
+    public const string KenBurnsPanLeft = "kenBurnsPanLeft";
+    public const string KenBurnsPanRight = "kenBurnsPanRight";
     public const string SlowZoom = "slowZoom";
     public const string SlideIn = "slideIn";
     public const string SlideOut = "slideOut";
@@ -49,6 +53,10 @@ public static class MotionPresets
     public static IReadOnlyList<MotionPreset> All { get; } =
     [
         new(KenBurns, "Ken Burns", "Acercamiento lento con un paneo suave, para fotos y tomas quietas."),
+        new(KenBurnsZoomIn, "Acercar", "Acercamiento suave hacia el centro."),
+        new(KenBurnsZoomOut, "Alejar", "Alejamiento suave desde un encuadre más cercano."),
+        new(KenBurnsPanLeft, "Desplazar a la izquierda", "Desplazamiento horizontal suave hacia la izquierda."),
+        new(KenBurnsPanRight, "Desplazar a la derecha", "Desplazamiento horizontal suave hacia la derecha."),
         new(SlowZoom, "Zoom lento", "Se acerca un 12 % a lo largo de todo el clip."),
         new(SlideIn, "Deslizar entrada", "Entra desde la izquierda y frena al llegar."),
         new(SlideOut, "Deslizar salida", "Sale por la derecha, acelerando, al final del clip."),
@@ -78,6 +86,30 @@ public static class MotionPresets
                 [T.Scale] = Pair(from.Scale, from.Scale * 1.15, d, Interpolation.EaseInOut),
                 [T.X] = Pair(from.X, from.X - (0.04 * width), d, Interpolation.EaseInOut),
                 [T.Y] = Pair(from.Y, from.Y - (0.03 * height), d, Interpolation.EaseInOut),
+            },
+            KenBurnsZoomIn => new Dictionary<string, IReadOnlyList<MotionKey>>
+            {
+                [T.Scale] = Pair(from.Scale, from.Scale * 1.2, d, Interpolation.EaseInOut),
+                [T.X] = Pair(from.X, from.X, d, Interpolation.EaseInOut),
+                [T.Y] = Pair(from.Y, from.Y, d, Interpolation.EaseInOut),
+            },
+            KenBurnsZoomOut => new Dictionary<string, IReadOnlyList<MotionKey>>
+            {
+                [T.Scale] = Pair(from.Scale * 1.2, from.Scale, d, Interpolation.EaseInOut),
+                [T.X] = Pair(from.X, from.X, d, Interpolation.EaseInOut),
+                [T.Y] = Pair(from.Y, from.Y, d, Interpolation.EaseInOut),
+            },
+            KenBurnsPanLeft => new Dictionary<string, IReadOnlyList<MotionKey>>
+            {
+                [T.Scale] = Pair(from.Scale * 1.15, from.Scale * 1.15, d, Interpolation.EaseInOut),
+                [T.X] = Pair(from.X + (0.05 * width), from.X - (0.05 * width), d, Interpolation.EaseInOut),
+                [T.Y] = Pair(from.Y, from.Y, d, Interpolation.EaseInOut),
+            },
+            KenBurnsPanRight => new Dictionary<string, IReadOnlyList<MotionKey>>
+            {
+                [T.Scale] = Pair(from.Scale * 1.15, from.Scale * 1.15, d, Interpolation.EaseInOut),
+                [T.X] = Pair(from.X - (0.05 * width), from.X + (0.05 * width), d, Interpolation.EaseInOut),
+                [T.Y] = Pair(from.Y, from.Y, d, Interpolation.EaseInOut),
             },
             SlowZoom => new Dictionary<string, IReadOnlyList<MotionKey>>
             {

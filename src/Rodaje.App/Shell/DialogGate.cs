@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using Microsoft.UI.Xaml.Controls;
+using Rodaje.App.Theme;
 
 namespace Rodaje.App.Shell;
 
@@ -20,6 +21,8 @@ internal static class DialogGate
             return null;
         }
 
+        // Un diálogo no hereda el tema de la ventana: toma el de WinUI que va con el tema de Rodaje.
+        dialog.RequestedTheme = ThemeResources.RequestedTheme;
         IsOpen = true;
         try
         {

@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
@@ -32,7 +33,7 @@ internal sealed partial class ExportView : UserControl
     ];
 
     private static readonly (string Label, ExportFit Value)[] FitChoices =
-        [("Barras (la imagen entera)", ExportFit.Bars), ("Recortar (llena el cuadro)", ExportFit.Crop), ("Estirar (deforma)", ExportFit.Stretch)];
+        [("Barras (la imagen entera)", ExportFit.Bars), ("Recortar (llena el fotograma)", ExportFit.Crop), ("Estirar (deforma)", ExportFit.Stretch)];
 
     private readonly EditorServices _services;
     private readonly ExportJobList _jobs;
@@ -120,11 +121,12 @@ internal sealed partial class ExportView : UserControl
     {
         EditorSession session = _services.Session;
         ExportButton.IsEnabled = false;
+        VersionsButton.IsEnabled = false;
         FooterNote.Text = "Comprobando los codificadores de este equipo…";
         IReadOnlyList<EncoderSpec> encoders = await _jobs.Runner.GetEncodersAsync();
         string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
         _model = new ExportDialogModel(_services.Settings.Current.Export, session.Sequence, session.SelectedClipIds, encoders, session.ProjectName,
-            projectFolder);
+            projectFolder) { PendingOutputs = [.. _jobs.Entries.Where(e => !e.IsFinished).Select(e => e.OutputPath)] };
         _model.Changed += (_, _) => QueueRefresh();
         ShowAdvanced(_services.Settings.Current.Export.AdvancedOpen);
         Refresh();
@@ -251,7 +253,8 @@ internal sealed partial class ExportView : UserControl
         PresetShapeText.Text = presetNote ?? "";
         PresetShapePanel.Visibility = presetNote is null ? Visibility.Collapsed : Visibility.Visible;
         ProjectFormatText.Text = $"Formato del proyecto: {ExportGeometry.AspectName(model.SequenceWidth, model.SequenceHeight)} · "
-            + $"{model.SequenceWidth}×{model.SequenceHeight} · {ExportText.Number(model.SequenceFrameRate.ToDouble(), 3)} fps";
+            + $"{model.SequenceWidth}×{model.SequenceHeight} · {ExportText.Number(model.SequenceFrameRate.ToDouble(), 3)} fps"
+            + (model.HdrNote is { } hdr ? $" · {ProjectFormats.ColorSpaceName(model.SequenceColorSpace)}. {hdr}" : "");
     }
 
     private void RefreshVideo(ExportDialogModel model)
@@ -394,6 +397,7 @@ internal sealed partial class ExportView : UserControl
         ProblemsText.Text = string.Join("\n", problems);
         ProblemsText.Visibility = problems.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ExportButton.IsEnabled = problems.Count == 0;
+        VersionsButton.IsEnabled = model.VersionProblems.Count == 0;
         FooterNote.Text = _jobs.Runner.IsSimulation
             ? "Simulación: no se escribe ningún archivo."
             : _jobs.ActiveCount > 0 ? "Hay otra exportación en curso: esta esperará su turno." : "";
@@ -440,7 +444,8 @@ internal sealed partial class ExportView : UserControl
             parts.Add("sin audio");
         }
 
-        return string.Join(" · ", parts);
+        // Con una secuencia HDR, si sale en HDR o cae a SDR se dice aquí y no solo en Avanzado, que suele estar plegado.
+        return string.Join(" · ", parts) + (model.HdrNote is { } hdr ? $"\n{hdr}" : "");
     }
 
     /// <summary>Pone las opciones y la elegida; si las opciones no cambiaron, solo mueve la elección (ver <see cref="QueueRefresh"/>).</summary>
@@ -801,11 +806,25 @@ internal sealed partial class ExportView : UserControl
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot, Title = "Guardar como preajuste", Content = name, PrimaryButtonText = "Guardar", CloseButtonText = "Cancelar",
-            DefaultButton = ContentDialogButton.Primary, RequestedTheme = ElementTheme.Dark,
+            DefaultButton = ContentDialogButton.Primary,
         };
         if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(name.Text))
         {
             return;
+        }
+
+        if (ExportPresetLibrary.FindUserPreset(_services.Settings.Current.Export, name.Text) is { } existing && XamlRoot is not null)
+        {
+            var confirm = new ContentDialog
+            {
+                XamlRoot = XamlRoot, Title = $"¿Reemplazar «{existing.Name}»?",
+                Content = "Ya hay un preajuste propio con ese nombre. Si guardas, sus ajustes se cambian por los de ahora.",
+                PrimaryButtonText = "Reemplazar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Close,
+            };
+            if (await DialogGate.ShowAsync(confirm) != ContentDialogResult.Primary)
+            {
+                return;
+            }
         }
 
         try
@@ -895,7 +914,6 @@ internal sealed partial class ExportView : UserControl
             PrimaryButtonText = "Quitar preajuste",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
         };
         if (await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary
             && ReferenceEquals(_model, model) && model.PresetId == preset.Id)
@@ -926,9 +944,8 @@ internal sealed partial class ExportView : UserControl
             var confirm = new ContentDialog
             {
                 XamlRoot = XamlRoot, Title = "¿Reemplazar el archivo?",
-                Content = $"Ya existe «{Path.GetFileName(model.OutputPath)}» en esa carpeta. Si exportas, se reemplaza al terminar.",
+                Content = $"Ya existe «{Path.GetFileName(model.OutputPath)}» en esa carpeta, o lo escribirá otra exportación de la cola. Si exportas, se reemplaza al terminar.",
                 PrimaryButtonText = "Reemplazar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Close,
-                RequestedTheme = ElementTheme.Dark,
             };
             if (await DialogGate.ShowAsync(confirm) != ContentDialogResult.Primary)
             {

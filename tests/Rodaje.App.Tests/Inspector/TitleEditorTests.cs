@@ -4,6 +4,7 @@ using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Tests.Support;
 using Rodaje.Core.Model;
+using Rodaje.Core.Timing;
 using Rodaje.Packages;
 
 namespace Rodaje.App.Tests.Inspector;
@@ -250,4 +251,28 @@ public class TitleEditorTests
         Assert.Equal("350", TitleEditor.WeightName(350));
         Assert.Contains("Segoe UI", TitleEditor.CommonFonts);
     }
+
+    /// <summary>Prueba con el ratón del 24-oct: «Título grande» entra transparente y en pausa no se veía lo añadido.</summary>
+    [Fact]
+    public void UnTituloConEntrada_EnPausa_LlevaElCursorTrasLaEntrada_YReproduciendoNo() => UiThread.Run(async () =>
+    {
+        var playback = new FakePlayback();
+        var session = new EditorSession(playback, new FakeProber().Video("a.mp4", 10, rate: Rational.Ntsc24), new FakeDialogs(), new SequentialIdGenerator());
+        await session.OpenFilesAsync([Path.GetFullPath("a.mp4")]);
+        TextStyle fade = TitleStyles.Default();
+        fade.In = new StyleAnimation { DurationSeconds = 0.6, Curves = { ["opacity"] = [new StyleKey(0, 0), new StyleKey(0.6, 1)] } };
+        Rational rate = session.Sequence.FrameRate;
+        Time entry = Time.FromSeconds(0.6);
+
+        Assert.True(session.AddTitleAtPlayhead(fade));
+        Time target = playback.Seeks[^1];
+        Assert.Equal(target, target.SnapToFrame(rate));
+        Assert.True(target >= entry && target - Time.FromFrames(1, rate) < entry, $"{target}");
+
+        int seeks = playback.Seeks.Count;
+        Assert.True(session.AddTitleAtPlayhead(TitleStyles.Default()));
+        session.UpdateTransport(PlaybackSnapshot.Empty with { IsPlaying = true });
+        Assert.True(session.AddTitleAtPlayhead(fade));
+        Assert.Equal(seeks, playback.Seeks.Count);
+    });
 }

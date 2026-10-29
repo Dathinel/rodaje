@@ -38,6 +38,22 @@ public static partial class TimelineEdits
         });
     }
 
+    /// <summary>Cambia la velocidad fija en varios clips en un solo paso, del último al primero para que el reajuste de uno no corra a los que faltan.</summary>
+    public static void SetSpeed(EditContext ctx, IEnumerable<string> clipIds, Rational rate, RippleScope scope = RippleScope.Track)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        var targets = clipIds
+            .Select(id => ctx.Sequence.FindClip(id))
+            .OfType<(Track Track, Clip Clip)>()
+            .OrderByDescending(f => f.Clip.Start)
+            .ToList();
+
+        foreach ((Track _, Clip clip) in targets)
+        {
+            SetSpeed(ctx, clip.Id, rate, scope);
+        }
+    }
+
     /// <summary>
     /// Velocidad que cambia a lo largo del clip; <c>null</c> vuelve a 1×. Se conservan
     /// la forma y el material: la duración es la que recorre el tramo del origen con esa forma, y la curva la cubre.
@@ -91,7 +107,7 @@ public static partial class TimelineEdits
         List<(Track Track, Clip Clip)> group = EditableSpeedGroup(ctx, clipId);
         if (group.Exists(m => m.Clip.Speed is { Freeze: true }))
         {
-            throw new EditException("Un cuadro congelado no se puede invertir.");
+            throw new EditException("Un fotograma congelado no se puede invertir.");
         }
 
         foreach ((_, Clip clip) in group)
@@ -142,7 +158,7 @@ public static partial class TimelineEdits
     /// <summary>
     /// Alt + arrastrar un borde: el clip pasa a durar <c>D ∓ delta</c> con el mismo material, así que cambia su velocidad
     /// a <c>material / duración</c>, aproximada con un denominador de hasta <see cref="StretchMaxDenominator"/> y acotada
-    /// a 0,1×–100×. El inicio queda, tire del borde que tire; lo que sigue se une o se empuja como en <see cref="SetSpeed"/>.
+    /// a 0,1×–100×. El inicio queda, tire del borde que tire; lo que sigue se une o se empuja como en <see cref="SetSpeed(EditContext, string, Rational, RippleScope)"/>.
     /// En un congelado es un recorte. En una curva se estira la forma: su <see cref="SpeedCurve.Span"/> y el
     /// desplazamiento se escalan por <c>D′/D</c> y cada punto se divide por lo mismo (velocidad media nueva), redondeado
     /// a centésimas y acotado para que ningún punto salga de 0,1×–10×.
@@ -278,7 +294,7 @@ public static partial class TimelineEdits
         ArgumentNullException.ThrowIfNull(ctx);
         Time length = duration ?? DefaultFreezeDuration;
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
-        TrimmingSupport.EnsureNoGenerator(group, "congelar un cuadro");
+        TrimmingSupport.EnsureNoGenerator(group, "congelar un fotograma");
         (Track track, Clip primary) = group[0];
         if (track.Kind != TrackKind.Video)
         {

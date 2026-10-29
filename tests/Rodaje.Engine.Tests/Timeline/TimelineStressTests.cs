@@ -65,7 +65,7 @@ public sealed class TimelineStressTests
                 finally
                 {
                     Volatile.Write(ref closed, 1);
-                    Stress.Within(seed, "Dispose de la sesión", TimeSpan.FromSeconds(20), session.Dispose);
+                    Stress.Within(seed, "Dispose de la sesión", Stress.Stall, session.Dispose);
                 }
             }),
             ("audio", (random, stop) => AudioThread(backend, random, () => Volatile.Read(ref closed) != 0 || stop.IsCancellationRequested)),
@@ -77,14 +77,16 @@ public sealed class TimelineStressTests
 
     /// <summary>
     /// Cerrar la ventana durante cada operación larga: con cada decodificador ocupado en un cuadro que tarda, el cierre
-    /// en un momento al azar (tras abrir, buscar, reproducir o editar) vuelve enseguida y no deja nada abierto.
+    /// en un momento al azar (tras abrir, buscar, reproducir o editar) vuelve enseguida y no deja nada abierto. Sin cota
+    /// de reloj (en la CI, 20,1 s con la CPU robada): que el cierre cancela los cuadros lentos (2 min) lo prueba la
+    /// condición de cada vuelta, y que el motor se acota en 5 s, <c>TimelineCloseDeadlineTests</c>.
     /// </summary>
     [Theory]
     [InlineData(7)]
     [InlineData(8)]
     [InlineData(9)]
     public void Closing_during_any_long_operation_returns_promptly_and_releases_everything(int seed) =>
-        CloseDuringLongOperations(seed, CloseCiLimit);
+        CloseDuringLongOperations(seed, null);
 
     /// <summary>La cota fina del cierre (3 s), contra el reloj.</summary>
     [Theory]
@@ -95,14 +97,7 @@ public sealed class TimelineStressTests
     public void Closing_during_any_long_operation_returns_within_three_seconds(int seed) =>
         CloseDuringLongOperations(seed, TimeSpan.FromSeconds(3));
 
-    /// <summary>
-    /// Cota de la CI para cerrar: la misma que <see cref="Dispose_cancels_the_frames_being_decoded"/>, que pasó de 5 a
-    /// 15 s por las vueltas lentas del runner de Windows. Que el cierre cancele los cuadros en curso no depende de esta
-    /// cota: los lentos tardan 2 minutos y cada vuelta espera, como condición, a que ninguno siga en su espera.
-    /// </summary>
-    private static readonly TimeSpan CloseCiLimit = TimeSpan.FromSeconds(15);
-
-    private static void CloseDuringLongOperations(int seed, TimeSpan limit)
+    private static void CloseDuringLongOperations(int seed, TimeSpan? limit)
     {
         var random = new Random(seed);
         int rounds = Stress.Iterations(6);
@@ -145,14 +140,17 @@ public sealed class TimelineStressTests
 
             Thread.Sleep(random.Next(0, 30));
             var watch = Stopwatch.StartNew();
-            Stress.Within(seed, $"Dispose tras la operación {operation} (vuelta {round})", TimeSpan.FromSeconds(20), session.Dispose);
-            Assert.True(watch.Elapsed < limit,
-                $"Semilla {seed}, vuelta {round}: cerrar tras la operación {operation} tardó {watch.Elapsed.TotalMilliseconds:0} ms (cota {limit.TotalSeconds:0} s).");
+            Stress.Within(seed, $"Dispose tras la operación {operation} (vuelta {round})", Stress.Stall, session.Dispose);
+            if (limit is { } max)
+            {
+                Assert.True(watch.Elapsed < max,
+                    $"Semilla {seed}, vuelta {round}: cerrar tras la operación {operation} tardó {watch.Elapsed.TotalMilliseconds:0} ms (cota {max.TotalSeconds:0} s).");
+            }
 
-            // Ningún cuadro sigue decodificando: los lentos solo terminan si los cancelan (el cierre, o antes un seek o el
-            // cierre de un decodificador ocioso).
+            // Ningún cuadro sigue decodificando: los lentos (2 min) solo terminan si los cancelan (el cierre, o antes un seek
+            // o el cierre de un decodificador ocioso). El tope, la mitad de un cuadro lento, sigue distinguiéndolo.
             Stress.WaitUntil(seed, $"cancelar los cuadros en curso tras la operación {operation} (vuelta {round})",
-                () => Volatile.Read(ref backend.DelaysInProgress) == 0);
+                () => Volatile.Read(ref backend.DelaysInProgress) == 0, TimeSpan.FromMinutes(1));
             AssertReleased(seed, backend, threads);
         }
     }

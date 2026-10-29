@@ -37,9 +37,15 @@ internal static class NoiseReductionDialog
             return;
         }
 
+        if (QuickTools.Locked(session.Sequence, clip.Id) is { } locked)
+        {
+            session.Notify(NotificationSeverity.Informational, Title, locked);
+            return;
+        }
+
         if (clip.Speed is { Freeze: true } || session.Project.FindMedia(clip.MediaId) is not { } media)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "Un cuadro congelado no tiene sonido que limpiar.");
+            session.Notify(NotificationSeverity.Informational, Title, "Un fotograma congelado no tiene sonido que limpiar.");
             return;
         }
 
@@ -235,6 +241,7 @@ internal static class NoiseReductionDialog
             {
                 status.Text = ex is ModuleException error ? ModuleManager.Friendly(module, error) : "No se pudo limpiar: " + ex.Message;
                 progress.Visibility = Visibility.Collapsed;
+                dialog.IsPrimaryButtonEnabled = false;
                 timer.Stop();
             }
         }

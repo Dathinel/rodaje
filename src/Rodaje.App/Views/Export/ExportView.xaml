@@ -47,7 +47,8 @@
             </ScrollViewer>
         </StackPanel>
 
-        <ScrollViewer Grid.Row="1" HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto">
+        <ScrollViewer Grid.Row="1" HorizontalScrollMode="Disabled" HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollMode="Enabled" VerticalScrollBarVisibility="Auto">
             <Grid Padding="20,12,20,16" ColumnSpacing="28">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
@@ -170,7 +171,7 @@
                             <ComboBox x:Name="ProfileBox" Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnProfileChanged" DropDownClosed="OnDropDownClosed" />
                             <TextBlock Grid.Row="8" Text="Velocidad del codificador" Style="{StaticResource FieldLabelStyle}" />
                             <ComboBox x:Name="SpeedPresetBox" Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSpeedPresetChanged" DropDownClosed="OnDropDownClosed" />
-                            <TextBlock Grid.Row="9" Text="Cuadro clave cada" Style="{StaticResource FieldLabelStyle}" />
+                            <TextBlock Grid.Row="9" Text="Fotograma clave cada" Style="{StaticResource FieldLabelStyle}" />
                             <StackPanel Grid.Row="9" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
                                 <NumberBox x:Name="KeyframeBox" Width="96" SpinButtonPlacementMode="Hidden" Minimum="0.1" Maximum="60" ValueChanged="OnKeyframeChanged" />
                                 <TextBlock Text="s" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />

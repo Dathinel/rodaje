@@ -68,12 +68,18 @@ public sealed class CinemaDngImportTests(ITestOutputHelper output) : IDisposable
         Assert.DoesNotContain("1:a", string.Join(' ', CinemaDngImport.EncoderArguments(64, 32, 25, 1, null, "x.mov")), StringComparison.Ordinal);
     }
 
+    /// <summary>
+    /// Sin vigilante: aquí se prueba la importación, no el ping. Su regla de 10 s de reloj mató al módulo sano en la CI con
+    /// la máquina parada (ModuleHungException a los 18 s); el vigilante se prueba sin reloj en BusyModulePingTests.
+    /// </summary>
+    private static readonly TimeSpan NoWatchdog = Timeout.InfiniteTimeSpan;
+
     /// <summary>La carpeta entera por el módulo de verdad y el ffmpeg.exe LGPL: el intermedio tiene los cuadros, la cadencia y el gris del 18 %.</summary>
     [FfmpegLibraryFact]
     public async Task A_cinemadng_folder_becomes_a_prores_file_with_the_right_frames_and_gray()
     {
         string? modules = ModuleCatalog.FindDevelopmentModules(AppContext.BaseDirectory);
-        await using ModuleManager manager = new(new ModuleManagerOptions { Roots = modules is null ? [] : [new ModuleRoot(modules, ModuleOrigin.Development)] });
+        await using ModuleManager manager = new(new ModuleManagerOptions { Roots = modules is null ? [] : [new ModuleRoot(modules, ModuleOrigin.Development)], PingInterval = NoWatchdog });
         manager.Refresh();
         if (manager.FindByFunction(CinemaDngImport.Function) is not { } module || !File.Exists(Path.Combine(Path.GetDirectoryName(module.EntryPath)!, "libraw.dll")))
         {
@@ -124,11 +130,66 @@ public sealed class CinemaDngImportTests(ITestOutputHelper output) : IDisposable
         Assert.Equal(Path.Combine(outputFolder, "Toma 1 (2).mov"), again.Path);
     }
 
+    /// <summary>
+    /// Profundidad que queda tras la importación (docs/hdr.md, fase D): una rampa de los 3840 códigos de un CinemaDNG de
+    /// 12 bits, un código cada 4 columnas, por el módulo y el intermedio ProRes; se cuentan los niveles de luma del .mov.
+    /// </summary>
+    [FfmpegLibraryFact]
+    public async Task A_12_bit_ramp_reaches_the_prores_intermediate_with_its_levels_counted()
+    {
+        string? modules = ModuleCatalog.FindDevelopmentModules(AppContext.BaseDirectory);
+        await using ModuleManager manager = new(new ModuleManagerOptions { Roots = modules is null ? [] : [new ModuleRoot(modules, ModuleOrigin.Development)], PingInterval = NoWatchdog });
+        manager.Refresh();
+        if (manager.FindByFunction(CinemaDngImport.Function) is not { } module || !File.Exists(Path.Combine(Path.GetDirectoryName(module.EntryPath)!, "libraw.dll")))
+        {
+            output.WriteLine("Sin modulo-raw compilado con libraw.dll: se omite.");
+            return;
+        }
+
+        const int Levels = 3840, Block = 4, Width = Levels * Block, Height = 32;
+        string dir = Path.Combine(_folder.Path, "Rampa");
+        Directory.CreateDirectory(dir);
+        byte[] dng = new SyntheticDng
+        {
+            Width = Width,
+            Height = Height,
+            Neutral = [1.0, 1.0, 1.0],
+            FrameRate = (25, 1),
+            Scene = (x, _) => { double v = x / Block / (double)(Levels - 1); return (v, v, v); },
+        }.Write();
+        for (int i = 0; i < 2; i++)
+        {
+            await File.WriteAllBytesAsync(Path.Combine(dir, $"R_{i:000}.dng"), dng);
+        }
+
+        FfmpegExecutable ffmpeg = FfmpegExecutable.Locate();
+        CinemaDngResult result = await CinemaDngImport.RunAsync(manager, module, ffmpeg, CinemaDngImport.Scan(dir)!,
+            new CinemaDngOptions(HighQuality: false), Path.Combine(_folder.Path, "medios"), "Rampa");
+        MediaInfo info = MediaProbe.Probe(result.Path);
+
+        var start = new System.Diagnostics.ProcessStartInfo(ffmpeg.Path) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true };
+        foreach (string a in (string[])["-hide_banner", "-loglevel", "error", "-i", result.Path, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "yuv422p10le", "pipe:1"])
+        {
+            start.ArgumentList.Add(a);
+        }
+
+        using var process = System.Diagnostics.Process.Start(start)!;
+        using var memory = new MemoryStream();
+        await process.StandardOutput.BaseStream.CopyToAsync(memory);
+        await process.WaitForExitAsync();
+        byte[] data = memory.ToArray();
+        int row = Height / 2 * Width * 2;
+        ushort[] luma = [.. Enumerable.Range(0, Levels).Select(i => BitConverter.ToUInt16(data, row + (((i * Block) + 2) * 2)))];
+        int distinct = luma.Distinct().Count();
+        output.WriteLine($"{info.Video!.PixelFormat} {info.Video.BitDepth} bits: {Levels} códigos RAW de 12 bits → {distinct} niveles de luma (Y {luma.Min()}..{luma.Max()}).");
+        Assert.InRange(distinct, 600, 1024);
+    }
+
     [FfmpegLibraryFact]
     public async Task Cancelling_leaves_no_file()
     {
         string? modules = ModuleCatalog.FindDevelopmentModules(AppContext.BaseDirectory);
-        await using ModuleManager manager = new(new ModuleManagerOptions { Roots = modules is null ? [] : [new ModuleRoot(modules, ModuleOrigin.Development)] });
+        await using ModuleManager manager = new(new ModuleManagerOptions { Roots = modules is null ? [] : [new ModuleRoot(modules, ModuleOrigin.Development)], PingInterval = NoWatchdog });
         manager.Refresh();
         if (manager.FindByFunction(CinemaDngImport.Function) is not { } module || !File.Exists(Path.Combine(Path.GetDirectoryName(module.EntryPath)!, "libraw.dll")))
         {

@@ -1,6 +1,8 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Inspector;
+using Rodaje.Core.Effects;
 using Rodaje.Core.Editing;
 using Windows.Foundation;
 
@@ -16,6 +18,8 @@ internal sealed partial class TimelineView
         (ClipAttributeKinds.Transform, "Transformación"),
         (ClipAttributeKinds.Speed, "Velocidad"),
         (ClipAttributeKinds.Volume, "Volumen"),
+        (ClipAttributeKinds.Text, "Estilo del texto"),
+        (ClipAttributeKinds.Shadow, "Sombras"),
     ];
 
     /// <summary>Abre el menú del clip en <paramref name="p"/>; la selección ya incluye el clip pulsado.</summary>
@@ -44,9 +48,21 @@ internal sealed partial class TimelineView
 
         ClipAttributeKinds available = session.CopiedAttributes?.Available ?? ClipAttributeKinds.None;
         var paste = new MenuFlyoutSubItem { Text = "Pegar atributos", IsEnabled = available != ClipAttributeKinds.None };
+        bool stillSelection = session.SelectedClipIds.Count > 0 && session.SelectedClipIds.All(id =>
+            session.Sequence.FindClip(id) is { Clip: { } clip } && session.Project.FindMedia(clip.MediaId)?.IsStillImage == true);
         foreach ((ClipAttributeKinds kind, string text) in PasteChoices)
         {
-            var item = new MenuFlyoutItem { Text = text, IsEnabled = (available & kind) != ClipAttributeKinds.None };
+            bool applies = kind != ClipAttributeKinds.Speed || !stillSelection;
+            var item = new MenuFlyoutItem
+            {
+                Text = text,
+                IsEnabled = (available & kind) != ClipAttributeKinds.None && applies,
+            };
+            if (!applies)
+            {
+                ToolTipService.SetToolTip(item, "No aplica a imágenes fijas.");
+            }
+
             item.Click += (_, _) => session.PasteAttributes(kind);
             paste.Items.Add(item);
             if (kind == ClipAttributeKinds.All)
@@ -56,9 +72,39 @@ internal sealed partial class TimelineView
         }
 
         menu.Items.Add(paste);
+        AddKenBurnsItems(menu);
         AddCompoundItems(menu);
         AddOrganizeItems(menu);
         AddAnalysisItems(menu);
         menu.ShowAt(LanesHost, new FlyoutShowOptions { Position = p });
+    }
+
+    private void AddKenBurnsItems(MenuFlyout menu)
+    {
+        EditorSession session = Session!;
+        List<string> photoClips = [.. session.SelectedClipIds.Where(id =>
+            session.Sequence.FindClip(id) is { Clip: { } clip } && session.Project.FindMedia(clip.MediaId)?.IsStillImage == true)];
+        if (photoClips.Count == 0)
+        {
+            return;
+        }
+
+        var kenBurns = new MenuFlyoutSubItem { Text = "Efecto Ken Burns…" };
+        (string Id, string Text)[] choices =
+        [
+            (MotionPresets.KenBurnsZoomIn, "Acercar"),
+            (MotionPresets.KenBurnsZoomOut, "Alejar"),
+            (MotionPresets.KenBurnsPanLeft, "Desplazar a la izquierda"),
+            (MotionPresets.KenBurnsPanRight, "Desplazar a la derecha"),
+        ];
+
+        foreach ((string id, string text) in choices)
+        {
+            var item = new MenuFlyoutItem { Text = text };
+            item.Click += (_, _) => session.Execute(MotionPresetCommands.Apply(session.SequenceId, photoClips, id));
+            kenBurns.Items.Add(item);
+        }
+
+        menu.Items.Add(kenBurns);
     }
 }

@@ -35,9 +35,16 @@ internal sealed class TrackHeaders
 
     private readonly Dictionary<string, TextBlock> _gains = new(StringComparer.Ordinal);
     private string _signature = "";
+    private readonly Dictionary<string, Grid> _grids = new(StringComparer.Ordinal);
+    private double _lastWidth;
+    private bool _lastMagnetic;
+    private bool _resizing;
     private TrackLayout? _lastLayout;
     private Func<Track, double>? _gainOf;
     private (string TrackId, double StartX, double StartDb)? _gainDrag;
+    private (string TrackId, double StartY, int? Index)? _reorderDrag;
+    private Rectangle? _dropLine;
+    private const double ReorderThreshold = 4;
 
     public TrackHeaders(Canvas canvas, TimelineBrushes brushes, Style toggleStyle)
     {
@@ -83,6 +90,24 @@ internal sealed class TrackHeaders
     /// <summary>Del menú de una cabecera: cerrar todos los huecos de la pista.</summary>
     public event Action<string>? CloseGapsRequested;
 
+    /// <summary>Se tocó una cabecera: queda seleccionada (Supr la elimina).</summary>
+    public event Action<string>? TrackSelected;
+
+    /// <summary>Del menú de una cabecera: eliminar la pista.</summary>
+    public event Action<string>? DeleteRequested;
+
+    /// <summary>Del menú de una cabecera: subirla (true) o bajarla un lugar.</summary>
+    public event Action<string, bool>? StepRequested;
+
+    /// <summary>Se soltó una cabecera arrastrada: la posición nueva dentro de su tipo.</summary>
+    public event Action<string, int>? ReorderRequested;
+
+    /// <summary>Si la pista puede subir (true) o bajar; la da la vista, que conoce la secuencia.</summary>
+    public Func<string, bool, bool>? CanStep { get; set; }
+
+    /// <summary>La pista cuya cabecera está seleccionada, si hay.</summary>
+    public string? SelectedTrackId { get; private set; }
+
     public double ScrollY
     {
         get => -_shift.Y;
@@ -102,19 +127,63 @@ internal sealed class TrackHeaders
         }
     }
 
+    /// <summary>Selecciona la cabecera de una pista (o ninguna) y la redibuja.</summary>
+    public void Select(string? trackId)
+    {
+        if (SelectedTrackId == trackId)
+        {
+            return;
+        }
+
+        // Solo el fondo: rearmar quitaría la cabecera que se está tocando y cortaría su arrastre.
+        string? previous = SelectedTrackId;
+        SelectedTrackId = trackId;
+        foreach (string? id in (string?[])[previous, trackId])
+        {
+            if (id is not null && _grids.TryGetValue(id, out Grid? grid) && _lastLayout?.Find(id) is { } row)
+            {
+                grid.Background = HeaderBackground(row);
+            }
+        }
+    }
+
+    private Brush HeaderBackground(TrackRow row) =>
+        row.TrackId == SelectedTrackId ? _brushes.AccentSubtle : row.IsMain ? _brushes.Control : _brushes.Panel;
+
     public void Update(TrackLayout layout, bool magnetic, double width)
     {
+        if (SelectedTrackId is { } selected && layout.Find(selected) is null)
+        {
+            SelectedTrackId = null;
+        }
+
         string signature = string.Join("|", layout.Rows.Select(r =>
             $"{r.TrackId}:{r.Track.Name}:{r.Track.Role}:{r.Track.Hidden}:{r.Track.Muted}:{r.Track.Locked}:{r.IsMain}:{r.Top}:{r.Height}")) + $"|{magnetic}|{width}";
         _lastLayout = layout;
+        _lastWidth = width;
+        _lastMagnetic = magnetic;
         if (signature == _signature)
         {
+            return;
+        }
+
+        // Rearmar quitaría el asa que tiene el puntero capturado y el gesto del alto no se cerraría: solo se recolocan.
+        if (_resizing && layout.Rows.Count == _grids.Count && layout.Rows.All(r => _grids.ContainsKey(r.TrackId)))
+        {
+            foreach (TrackRow row in layout.Rows)
+            {
+                Grid grid = _grids[row.TrackId];
+                grid.Height = row.Height;
+                Canvas.SetTop(grid, row.Top);
+            }
+
             return;
         }
 
         _signature = signature;
         _canvas.Children.Clear();
         _gains.Clear();
+        _grids.Clear();
         foreach (TrackRow row in layout.Rows)
         {
             _canvas.Children.Add(Build(row, magnetic, width));
@@ -128,7 +197,7 @@ internal sealed class TrackHeaders
         {
             Width = width,
             Height = row.Height,
-            Background = row.IsMain ? _brushes.Control : _brushes.Panel,
+            Background = HeaderBackground(row),
             BorderBrush = _brushes.Stroke,
             BorderThickness = new Thickness(0, 0, 1, 0),
             Padding = new Thickness(10, 0, 4, 0),
@@ -147,7 +216,7 @@ internal sealed class TrackHeaders
         labels.Children.Add(new TextBlock
         {
             Text = track.Name,
-            FontSize = ThemeResources.Size("BodyFontSize"),
+            FontSize = ThemeResources.TimelineSize("BodyFontSize"),
             FontWeight = row.IsMain ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
             Foreground = track.Hidden || track.Muted ? _brushes.TextMuted : _brushes.Text,
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -161,7 +230,7 @@ internal sealed class TrackHeaders
             labels.Children.Add(new TextBlock
             {
                 Text = Caption(row, magnetic),
-                FontSize = ThemeResources.Size("MicroFontSize"),
+                FontSize = ThemeResources.TimelineSize("MicroFontSize"),
                 Foreground = row.IsMain && magnetic ? _brushes.Accent : _brushes.TextMuted,
                 TextTrimming = TextTrimming.CharacterEllipsis,
             });
@@ -198,7 +267,92 @@ internal sealed class TrackHeaders
         grid.Children.Add(toggles);
         grid.Children.Add(HeightGrip(row));
         grid.ContextFlyout = Menu(row);
+        HookReorder(grid, row);
+        _grids[row.TrackId] = grid;
         return grid;
+    }
+
+    /// <summary>Tocar la cabecera la selecciona; arrastrarla en vertical la lleva a otra posición entre las de su tipo.</summary>
+    private void HookReorder(Grid grid, TrackRow row)
+    {
+        string trackId = row.TrackId;
+        bool movable = !row.IsMain && !row.Track.Locked;
+        grid.PointerPressed += (_, e) =>
+        {
+            if (!e.GetCurrentPoint(grid).Properties.IsLeftButtonPressed)
+            {
+                return;
+            }
+
+            TrackSelected?.Invoke(trackId);
+            if (movable && grid.CapturePointer(e.Pointer))
+            {
+                _reorderDrag = (trackId, e.GetCurrentPoint(_canvas).Position.Y, null);
+            }
+
+            e.Handled = true;
+        };
+        grid.PointerMoved += (_, e) =>
+        {
+            if (_reorderDrag is not { } drag || drag.TrackId != trackId || _lastLayout is not { } layout)
+            {
+                return;
+            }
+
+            double y = e.GetCurrentPoint(_canvas).Position.Y;
+            if (drag.Index is null && Math.Abs(y - drag.StartY) < ReorderThreshold)
+            {
+                return;
+            }
+
+            (int Index, double LineY)? slot = layout.ReorderSlot(trackId, y);
+            _reorderDrag = drag with { Index = slot?.Index ?? -1 };
+            ShowDropLine(slot is { } s && s.Index != layout.IndexInKind(trackId) ? s.LineY : null);
+            e.Handled = true;
+        };
+        void End(PointerRoutedEventArgs e, bool commit)
+        {
+            if (_reorderDrag is not { } drag || drag.TrackId != trackId)
+            {
+                return;
+            }
+
+            _reorderDrag = null;
+            grid.ReleasePointerCaptures();
+            ShowDropLine(null);
+            if (commit && drag.Index is int index and >= 0 && index != _lastLayout?.IndexInKind(trackId))
+            {
+                ReorderRequested?.Invoke(trackId, index);
+            }
+
+            e.Handled = true;
+        }
+
+        grid.PointerReleased += (_, e) => End(e, commit: true);
+        grid.PointerCaptureLost += (_, e) => End(e, commit: false);
+    }
+
+    private void ShowDropLine(double? y)
+    {
+        if (y is not { } top)
+        {
+            if (_dropLine is not null)
+            {
+                _dropLine.Visibility = Visibility.Collapsed;
+            }
+
+            return;
+        }
+
+        _dropLine ??= new Rectangle { Height = 2, Fill = _brushes.Accent, IsHitTestVisible = false };
+        if (!_canvas.Children.Contains(_dropLine))
+        {
+            _canvas.Children.Add(_dropLine);
+        }
+
+        _dropLine.Width = _lastWidth;
+        _dropLine.Visibility = Visibility.Visible;
+        Canvas.SetTop(_dropLine, top - 1);
     }
 
     /// <summary>Franja del borde de abajo: arrastrarla cambia el alto de la pista (doble clic: el de siempre).</summary>
@@ -228,6 +382,7 @@ internal sealed class TrackHeaders
         grip.PointerPressed += (_, e) =>
         {
             dragging = grip.CapturePointer(e.Pointer);
+            _resizing = dragging;
             startY = e.GetCurrentPoint(_canvas).Position.Y;
             startHeight = row.Height;
             e.Handled = true;
@@ -241,17 +396,27 @@ internal sealed class TrackHeaders
                 e.Handled = true;
             }
         };
-        grip.PointerReleased += (_, e) =>
+        void End(PointerRoutedEventArgs e)
         {
-            if (dragging)
+            if (!dragging)
             {
-                dragging = false;
-                grip.ReleasePointerCapture(e.Pointer);
-                grip.Background = _brushes.Transparent;
-                HeightCommitted?.Invoke(trackId);
-                e.Handled = true;
+                return;
             }
-        };
+
+            dragging = false;
+            _resizing = false;
+            grip.ReleasePointerCaptures();
+            grip.Background = _brushes.Transparent;
+            HeightCommitted?.Invoke(trackId);
+            e.Handled = true;
+            if (_lastLayout is { } layout)
+            {
+                Update(layout, _lastMagnetic, _lastWidth);
+            }
+        }
+
+        grip.PointerReleased += (_, e) => End(e);
+        grip.PointerCaptureLost += (_, e) => End(e);
         grip.DoubleTapped += (_, e) =>
         {
             HeightChanging?.Invoke(trackId, null);
@@ -279,6 +444,7 @@ internal sealed class TrackHeaders
         }
 
         menu.Items.Add(height);
+        AddOrderItems(menu, row);
         var gaps = new MenuFlyoutItem { Text = "Cerrar todos los huecos de la pista", Icon = new FontIcon { Glyph = "" }, IsEnabled = !row.Track.Locked };
         gaps.Click += (_, _) => CloseGapsRequested?.Invoke(row.TrackId);
         menu.Items.Add(gaps);
@@ -343,6 +509,31 @@ internal sealed class TrackHeaders
         return menu;
     }
 
+    private void AddOrderItems(MenuFlyout menu, TrackRow row)
+    {
+        string trackId = row.TrackId;
+        var up = new MenuFlyoutItem { Text = "Subir pista", Icon = new FontIcon { Glyph = "\uE74A" } };
+        var down = new MenuFlyoutItem { Text = "Bajar pista", Icon = new FontIcon { Glyph = "\uE74B" } };
+        var delete = new MenuFlyoutItem { Text = "Eliminar pista", Icon = new FontIcon { Glyph = "\uE74D" }, IsEnabled = !row.IsMain && !row.Track.Locked };
+        if (row.IsMain)
+        {
+            ToolTipService.SetToolTip(delete, "La pista principal no se elimina");
+        }
+
+        up.Click += (_, _) => StepRequested?.Invoke(trackId, true);
+        down.Click += (_, _) => StepRequested?.Invoke(trackId, false);
+        delete.Click += (_, _) => DeleteRequested?.Invoke(trackId);
+        menu.Opening += (_, _) =>
+        {
+            up.IsEnabled = !row.Track.Locked && CanStep?.Invoke(trackId, true) == true;
+            down.IsEnabled = !row.Track.Locked && CanStep?.Invoke(trackId, false) == true;
+        };
+        menu.Items.Add(up);
+        menu.Items.Add(down);
+        menu.Items.Add(delete);
+        menu.Items.Add(new MenuFlyoutSeparator());
+    }
+
     private RadioMenuFlyoutItem PresetItem(string trackId, AudioPreset? preset, string text, bool isChecked)
     {
         var item = new RadioMenuFlyoutItem { Text = text, IsChecked = isChecked, GroupName = "preajuste" };
@@ -360,7 +551,7 @@ internal sealed class TrackHeaders
         var text = new TextBlock
         {
             Text = GainText(_gainOf?.Invoke(track) ?? 0),
-            FontSize = ThemeResources.Size("MicroFontSize"),
+            FontSize = ThemeResources.TimelineSize("MicroFontSize"),
             Foreground = track.Locked ? _brushes.TextDisabled : _brushes.TextMuted,
             HorizontalAlignment = HorizontalAlignment.Left,
             Padding = new Thickness(0, 0, 8, 0),
@@ -445,7 +636,7 @@ internal sealed class TrackHeaders
             Style = _toggleStyle,
             Width = 24,
             Height = 24,
-            FontSize = ThemeResources.Size("BodyFontSize"),
+            FontSize = ThemeResources.TimelineSize("BodyFontSize"),
             Content = glyph,
             IsChecked = isOn,
         };

@@ -65,7 +65,10 @@ public sealed class ClipDragSession
         return plan;
     }
 
-    /// <summary>Suelta: ejecuta lo que quedó pendiente (si falla, la sesión avisa el porqué) y cierra el paso.</summary>
+    /// <summary>
+    /// Suelta: ejecuta lo que quedó pendiente (si falla, la sesión avisa el porqué) y cierra el paso. Si ningún paso en
+    /// vivo se pudo hacer, repite el último para que la sesión diga por qué no se movió nada (una pista bloqueada, un choque).
+    /// </summary>
     public void Complete()
     {
         if (!_open)
@@ -79,6 +82,10 @@ public sealed class ClipDragSession
             if (_pending is { } pending && _session.IsInGesture)
             {
                 _session.Execute(pending());
+            }
+            else if (LiveSteps == 0 && Plan is { IsLive: true, Build: { } build } && _session.IsInGesture)
+            {
+                _session.Execute(build());
             }
         }
         finally

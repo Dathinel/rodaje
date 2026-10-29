@@ -34,7 +34,7 @@ public enum CrashKind
 }
 
 /// <summary>
-/// Escribe los informes de fallo en <c>%LOCALAPPDATA%\Rodaje\fallos\</c>: la vía, la pila, la versión (<c>1.0.0+commit</c>),
+/// Escribe los informes de fallo en <c>%LOCALAPPDATA%\Rodaje\fallos\</c>: la vía, la pila, la versión (<c>1.0.1+commit</c>),
 /// la GPU y las últimas líneas del <see cref="SessionLog"/>. Sin WinUI, para poder probar cada vía. Los fatales se llaman
 /// <c>&lt;fecha&gt;.txt</c> y los que la app sobrevivió <c>&lt;fecha&gt;-recuperado.txt</c> (uno por firma cada
 /// <see cref="BurstWindow"/>); al siguiente arranque se
@@ -741,9 +741,9 @@ public sealed class CrashReporter
         ArgumentNullException.ThrowIfNull(pending);
         string latest = Path.Combine(FolderName, Path.GetFileName(pending[^1]));
         return pending.Count == 1
-            ? $"La última vez Rodaje se cerró por un error. El informe quedó en {latest}, dentro de la carpeta de datos de Rodaje; cópialo y envíalo para que se pueda arreglar."
+            ? $"La última vez Rodaje no se cerró bien (un error, un cierre forzado o un apagón). El informe quedó en {latest}, dentro de la carpeta de datos de Rodaje; cópialo y envíalo para que se pueda arreglar."
             : string.Create(CultureInfo.InvariantCulture,
-                $"Rodaje se cerró por un error {pending.Count} veces desde la última vez. El informe más reciente quedó en {latest}, dentro de la carpeta de datos de Rodaje; cópialo y envíalo para que se pueda arreglar.");
+                $"Rodaje no se cerró bien {pending.Count} veces desde la última vez (un error, un cierre forzado o un apagón). El informe más reciente quedó en {latest}, dentro de la carpeta de datos de Rodaje; cópialo y envíalo para que se pueda arreglar.");
     }
 
     // ---- Interno ----
@@ -919,8 +919,9 @@ public sealed class CrashReporter
 
         if (signature is not null)
         {
-            // También si no se pudo escribir: con el disco lleno, una ráfaga no reintenta en cada repetición.
-            RememberBurst(signature, new Burst(path, now, firstLine) { Reports = chained + 1 });
+            // También si no se pudo escribir: con el disco lleno, una ráfaga no reintenta en cada repetición. Cuenta desde
+            // que el informe quedó escrito: con un disco lento (más de BurstWindow), cada repetición abría otro informe.
+            RememberBurst(signature, new Burst(path, _clock(), firstLine) { Reports = chained + 1 });
             RememberReport(signature, now, path, firstLine);
         }
 

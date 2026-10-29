@@ -184,8 +184,7 @@
                             </Grid.ColumnDefinitions>
                             <TextBlock x:Name="WeightLabel" Text="Puntos" Style="{StaticResource LabelTextStyle}" />
                             <Slider x:Name="WeightSlider" Grid.Column="1" Minimum="0" Maximum="4" StepFrequency="0.05" VerticalAlignment="Center"
-                                    AutomationProperties.Name="Borde de los puntos elegidos" ValueChanged="OnWeightChanged"
-                                    PointerCaptureLost="OnWeightReleased" />
+                                    AutomationProperties.Name="Borde de los puntos elegidos" ValueChanged="OnWeightChanged" />
                             <TextBlock x:Name="WeightText" Grid.Column="2" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
                         </Grid>
                     </StackPanel>

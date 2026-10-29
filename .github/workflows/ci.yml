@@ -78,6 +78,28 @@ jobs:
 
       - uses: ./.github/actions/preparar-windows
 
+      - name: Publicar AOT para la autoprueba
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\probar-autoprueba.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $reloj = [System.Diagnostics.Stopwatch]::StartNew()
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\app.ps1 -SoloPublicar
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & build\dotnet-local.cmd publish modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj -c Release -o modules\Rodaje.Module.Echo\bin\aot -m:4 --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "Publicación AOT: $($reloj.Elapsed.TotalSeconds.ToString('F1')) s" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Autoprueba de arranque (WARP, ventana lista)
+        timeout-minutes: 3
+        shell: pwsh
+        env:
+          RODAJE_FORZAR_WARP: '1'
+          RODAJE_DATOS: ${{ github.workspace }}\TestResults\autoprueba-ci
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\app.ps1 -SinPublicar -Autoprueba
+          exit $LASTEXITCODE
+
       # Sin RODAJE_PRUEBAS_LARGAS las largas y las de hardware se omiten solas (tests/Rodaje.TestMedia/Skip.cs);
       # TiempoReal y Rendimiento se excluyen igual que en Linux. Una prueba colgada se corta a los 10 minutos con su nombre
       # en el registro (--blame-hang), en vez de agotar los 45 del trabajo sin decir cuál era.
@@ -100,5 +122,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pruebas-windows
-          path: TestResults/**/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/app-*.log
+            TestResults/app-arranque.txt
+            TestResults/autoprueba-ci/**
+            dist/Rodaje/app/rodaje-error.txt
           if-no-files-found: ignore

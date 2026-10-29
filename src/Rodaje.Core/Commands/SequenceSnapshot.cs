@@ -17,6 +17,7 @@ public sealed class SequenceSnapshot
     private readonly int _height;
     private readonly int _sampleRate;
     private readonly double _masterGainDb;
+    private readonly SequenceColorSpace _colorSpace;
     private readonly EffectInstance[] _masterEffects;
     private readonly AudioBus[] _audioBuses;
     private readonly TrackEntry[] _videoTracks;
@@ -33,6 +34,7 @@ public sealed class SequenceSnapshot
         _height = sequence.Height;
         _sampleRate = sequence.SampleRate;
         _masterGainDb = sequence.MasterGainDb;
+        _colorSpace = sequence.ColorSpace;
         _masterEffects = [.. sequence.MasterEffects.Select(e => e.Clone())];
         _audioBuses = [.. sequence.AudioBuses.Select(b => b.Clone())];
         _videoTracks = [.. sequence.VideoTracks.Select(t => new TrackEntry(t, t.Clone()))];
@@ -64,6 +66,7 @@ public sealed class SequenceSnapshot
         sequence.Height = _height;
         sequence.SampleRate = _sampleRate;
         sequence.MasterGainDb = _masterGainDb;
+        sequence.ColorSpace = _colorSpace;
         sequence.MasterEffects = [.. _masterEffects.Select(e => e.Clone())];
         sequence.AudioBuses = [.. _audioBuses.Select(b => b.Clone())];
         RestoreTracks(sequence.VideoTracks, _videoTracks);
@@ -85,6 +88,7 @@ public sealed class SequenceSnapshot
             && sequence.Height == _height
             && sequence.SampleRate == _sampleRate
             && sequence.MasterGainDb.Equals(_masterGainDb)
+            && sequence.ColorSpace == _colorSpace
             && SequenceEqual(sequence.MasterEffects, [.. _masterEffects], EffectStateEquals)
             && SequenceEqual(sequence.AudioBuses, [.. _audioBuses], (a, b) => a.ContentEquals(b))
             && TracksMatch(sequence.VideoTracks, _videoTracks)

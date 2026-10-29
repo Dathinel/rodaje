@@ -10,7 +10,7 @@ public sealed class Project
     /// <summary>Versión del formato JSON; los archivos antiguos se migran al cargarlos.</summary>
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
-    public const int CurrentSchemaVersion = 13;
+    public const int CurrentSchemaVersion = 15;
 
     public string Id { get; set; } = "";
 

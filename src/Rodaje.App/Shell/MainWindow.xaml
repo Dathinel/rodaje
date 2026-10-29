@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Distribución D-018: barra de título; biblioteca con su riel, reproductor y panel derecho; herramientas rápidas y línea de tiempo abajo. Los
-    separadores cambian el tamaño de cada zona y se recuerda en ajustes.json. Las páginas de atajos y complementos se
+    Distribución D-018: barra de título; biblioteca con su riel, reproductor y panel derecho; línea de tiempo abajo. Los
+    separadores cambian el tamaño de cada zona y se recuerda en ajustes.json (la línea de tiempo, como proporción del alto). Las páginas de atajos y complementos se
     abren encima (ModalLayer).
 -->
 <Window
@@ -13,7 +13,6 @@
     xmlns:player="using:Rodaje.App.Views.Player"
     xmlns:inspector="using:Rodaje.App.Views.Inspector"
     xmlns:timeline="using:Rodaje.App.Views.Timeline"
-    xmlns:tools="using:Rodaje.App.Views.Tools"
     xmlns:mixer="using:Rodaje.App.Views.Mixer"
     xmlns:history="using:Rodaje.App.Views.Inspector.History"
     xmlns:jobs="using:Rodaje.App.Views.Inspector.Jobs"
@@ -24,7 +23,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" MinHeight="240" />
-            <RowDefinition Height="4" />
+            <RowDefinition Height="8" />
             <RowDefinition x:Name="TimelineRow" Height="300" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -36,21 +35,24 @@
             <InfoBar.ActionButton>
                 <Button x:Name="NotificationButton" Visibility="Collapsed" Click="OnNotificationButtonClick" />
             </InfoBar.ActionButton>
-            <!-- Una acción larga en marcha (LongActionService): avance con porcentaje, o indeterminado si no se sabe. -->
-            <StackPanel x:Name="NotificationProgress" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12" Visibility="Collapsed">
-                <ProgressBar x:Name="NotificationProgressBar" Width="280" Maximum="1" VerticalAlignment="Center"
-                             AutomationProperties.Name="Avance" />
-                <TextBlock x:Name="NotificationProgressText" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button x:Name="NotificationSecondaryButton" Visibility="Collapsed" Click="OnNotificationSecondaryButtonClick" />
+                <!-- Una acción larga en marcha (LongActionService): avance con porcentaje, o indeterminado si no se sabe. -->
+                <StackPanel x:Name="NotificationProgress" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12" Visibility="Collapsed">
+                    <ProgressBar x:Name="NotificationProgressBar" Width="280" Maximum="1" VerticalAlignment="Center"
+                                 AutomationProperties.Name="Avance" />
+                    <TextBlock x:Name="NotificationProgressText" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+                </StackPanel>
             </StackPanel>
         </InfoBar>
 
         <Grid x:Name="MainArea" Grid.Row="2">
             <Grid.ColumnDefinitions>
-                <ColumnDefinition x:Name="LibraryColumn" Width="320" />
+                <ColumnDefinition x:Name="LibraryColumn" Width="320" MinWidth="0" />
                 <ColumnDefinition Width="4" />
                 <ColumnDefinition Width="*" MinWidth="320" />
                 <ColumnDefinition Width="4" />
-                <ColumnDefinition x:Name="InspectorColumn" Width="320" />
+                <ColumnDefinition x:Name="InspectorColumn" Width="320" MinWidth="0" />
             </Grid.ColumnDefinitions>
 
             <library:LibraryView x:Name="Library" />
@@ -60,17 +62,13 @@
             <inspector:InspectorView x:Name="Inspector" Grid.Column="4" />
         </Grid>
 
-        <shell:PaneSplitter x:Name="TimelineSplitter" Grid.Row="3" ResizesColumn="False" TargetIndex="4" GrowsTowardEnd="False" MinSize="160" MaxSize="1400" ReserveForStar="240" />
+        <shell:PaneSplitter x:Name="TimelineSplitter" Grid.Row="3" ResizesColumn="False" ShowGrip="True" TargetIndex="4" GrowsTowardEnd="False" MaxSize="1400" ReserveForStar="240"
+                            ToolTipService.ToolTip="Arrastra para cambiar el alto de la línea de tiempo. Doble clic: más visor o más línea de tiempo"
+                            AutomationProperties.Name="Separador del visor y la línea de tiempo" />
 
-        <!-- Herramientas rápidas encima de la línea de tiempo: siempre a la vista, cerca de los clips que se eligen. -->
         <Grid Grid.Row="4">
-            <Grid.RowDefinitions>
-                <RowDefinition Height="Auto" />
-                <RowDefinition Height="*" />
-            </Grid.RowDefinitions>
-            <tools:ToolsBar x:Name="Tools" />
-            <timeline:TimelineView x:Name="Timeline" Grid.Row="1" />
-            <mixer:MixerView x:Name="Mixer" Grid.Row="1" Visibility="Collapsed" />
+            <timeline:TimelineView x:Name="Timeline" />
+            <mixer:MixerView x:Name="Mixer" Visibility="Collapsed" />
         </Grid>
 
         <Border Grid.Row="5" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0" Padding="8,4">

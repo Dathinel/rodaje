@@ -9,9 +9,10 @@ public sealed partial class AppSettings
 {
     /// <summary>
     /// 2: el panel derecho pasa a 380 px por defecto para que sus pestañas quepan con nombre. 3: los márgenes seguros se
-    /// apagan una vez (se confundían con guías de recorte de la secuencia vertical).
+    /// apagan una vez (se confundían con guías de recorte de la secuencia vertical). 4: el alto de la línea de tiempo pasa
+    /// a guardarse como proporción de la ventana (<see cref="TimelineShare"/>).
     /// </summary>
-    public const int CurrentVersion = 3;
+    public const int CurrentVersion = 4;
 
     public const double DefaultLibraryWidth = 280;
 
@@ -38,6 +39,9 @@ public sealed partial class AppSettings
     /// <summary>Última carpeta elegida al exportar un fotograma.</summary>
     public string? LastStillExportFolder { get; set; }
 
+    /// <summary>Carpeta para las capturas directas de fotogramas; <c>null</c> para «Capturas» junto al proyecto.</summary>
+    public string? StillCaptureFolder { get; set; }
+
     /// <summary>Última carpeta elegida al guardar un preajuste de exportación.</summary>
     public string? LastExportPresetFolder { get; set; }
 
@@ -51,7 +55,12 @@ public sealed partial class AppSettings
 
     public double InspectorWidth { get; set; } = DefaultInspectorWidth;
 
-    public double TimelineHeight { get; set; } = 300;
+    /// <summary>Alto de la línea de tiempo como parte del alto de la ventana (<see cref="TimelineProportion"/>).</summary>
+    public double TimelineShare { get; set; } = TimelineProportion.Balanced;
+
+    /// <summary>El alto en píxeles de los ajustes de antes de la versión 4; solo se lee para pasarlo a <see cref="TimelineShare"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public double? TimelineHeight { get; set; }
 
     /// <summary>Tamaño de la ventana en píxeles independientes del DPI; 0 para el de fábrica.</summary>
     public double WindowWidth { get; set; }
@@ -69,6 +78,12 @@ public sealed partial class AppSettings
 
     /// <summary>Resolución de la vista previa; Auto baja sola al reproducir si la GPU no llega.</summary>
     public PreviewQuality PreviewQuality { get; set; } = PreviewQuality.Auto;
+
+    /// <summary>Visor de 10 bits: automático según el monitor, siempre o nunca. Se aplica al volver a abrir el reproductor.</summary>
+    public TenBitViewer TenBitViewer { get; set; } = TenBitViewer.Auto;
+
+    /// <summary>Visor HDR (scRGB): automático según el modo HDR de Windows, siempre o nunca. Se aplica al volver a abrir el reproductor.</summary>
+    public HdrViewer HdrViewer { get; set; } = HdrViewer.Auto;
 
     /// <summary>Calidad de la IA local (Ver › Calidad de la IA): automática según el equipo, rápida o máxima (D-037).</summary>
     public Rodaje.Media.Ai.AiQuality AiQuality { get; set; } = Rodaje.Media.Ai.AiQuality.Auto;
@@ -99,6 +114,9 @@ public sealed partial class AppSettings
 
     /// <summary>Pistas de audio que trae un proyecto nuevo (1–8).</summary>
     public int DefaultAudioTracks { get; set; } = NewProjectTracks.Default.Audio;
+
+    /// <summary>Duración por defecto de las imágenes fijas al añadirlas (1–60 s).</summary>
+    public double StillImageDurationSeconds { get; set; } = Rodaje.Core.Model.MediaRef.DefaultStillImageDurationSeconds;
 
     /// <summary>
     /// Números de las pistas de video (1 = «Video 1») de las que sale el audio de un medio a su propia pista al
@@ -140,16 +158,25 @@ public sealed partial class AppSettings
         if (Version < 3)
         {
             ShowSafeAreas = false;
-            Version = CurrentVersion;
         }
+
+        if (Version < 4)
+        {
+            TimelineShare = TimelineProportion.FromLegacyHeight(TimelineHeight, WindowHeight);
+        }
+
+        Version = Math.Max(Version, CurrentVersion);
+        TimelineHeight = null;
 
         LibraryWidth = Clamp(LibraryWidth, 220, 900, DefaultLibraryWidth);
         InspectorWidth = Clamp(InspectorWidth, 240, 900, DefaultInspectorWidth);
-        TimelineHeight = Clamp(TimelineHeight, 160, 1400, 300);
+        TimelineShare = TimelineProportion.Normalize(TimelineShare);
         WindowWidth = WindowWidth == 0 ? 0 : Clamp(WindowWidth, 800, 10000, 0);
         WindowHeight = WindowHeight == 0 ? 0 : Clamp(WindowHeight, 560, 10000, 0);
         DefaultVideoTracks = Math.Clamp(DefaultVideoTracks, NewProjectTracks.Min, NewProjectTracks.Max);
         DefaultAudioTracks = Math.Clamp(DefaultAudioTracks, NewProjectTracks.Min, NewProjectTracks.Max);
+        StillImageDurationSeconds = Clamp(StillImageDurationSeconds, Rodaje.Core.Model.MediaRef.MinStillImageDurationSeconds, Rodaje.Core.Model.MediaRef.MaxStillImageDurationSeconds, Rodaje.Core.Model.MediaRef.DefaultStillImageDurationSeconds);
+        Rodaje.Core.Model.MediaRef.DefaultStillImageDuration = Rodaje.Core.Timing.Time.FromSeconds(StillImageDurationSeconds);
         LinkedAudioVideoTracks = LinkedAudioTracks.ToSetting();
         MeterDecayDbPerSecond = Clamp(MeterDecayDbPerSecond, 3, 120, 20);
         RecentProjects = [.. (RecentProjects ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Take(MaxRecentProjects)];
@@ -166,6 +193,7 @@ public sealed partial class AppSettings
         Transitions ??= new TransitionPreferences();
         Transitions.Normalize();
         NormalizeWorkflow();
+        NormalizePersonalization();
         if (!Enum.IsDefined(ProxyUsage))
         {
             ProxyUsage = ProxyUsage.Auto;
@@ -174,6 +202,16 @@ public sealed partial class AppSettings
         if (!Enum.IsDefined(PreviewQuality))
         {
             PreviewQuality = PreviewQuality.Auto;
+        }
+
+        if (!Enum.IsDefined(TenBitViewer))
+        {
+            TenBitViewer = TenBitViewer.Auto;
+        }
+
+        if (!Enum.IsDefined(HdrViewer))
+        {
+            HdrViewer = HdrViewer.Auto;
         }
 
         FormatClipFit = Format.ProjectFormats.Normalize(FormatClipFit);
