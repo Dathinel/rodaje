@@ -34,6 +34,8 @@ public static class SdrExpansion
     /// <summary>
     /// La curva inversa de BT.2446-1 método A, de luminancia lineal SDR en [0, 1] a luminancia lineal relativa al pico (0 → 0,
     /// 1 → 1): luma en gamma 2,4, logarítmica con ρ del SDR, la inversa de la curva de tono por tramos y exponencial con ρ del HDR.
+    /// La primera rodilla va donde el tramo lineal y el cuadrático se cruzan de verdad (Y'p = 0,7622, Y'c = 0,8209): con la
+    /// rodilla publicada (0,7399) los coeficientes redondeados del método dejan un salto de 0,0005 y la curva bajaría.
     /// </summary>
     public static double Normalized(double luminance, double peakNits)
     {
@@ -41,7 +43,7 @@ public static class SdrExpansion
         double rhoSdr = 1 + (32 * Math.Pow(WhiteNits / 10000, 1 / 2.4));
         double rhoHdr = 1 + (32 * Math.Pow(peakNits / 10000, 1 / 2.4));
         double yc = Math.Log(1 + ((rhoSdr - 1) * Math.Pow(y, 1 / 2.4))) / Math.Log(rhoSdr);
-        double yp = yc <= 0.79688 ? yc / 1.0770
+        double yp = yc <= 0.82089 ? yc / 1.0770
             : yc < 0.99545 ? (2.7811 - Math.Sqrt(Math.Max((2.7811 * 2.7811) - (4 * 1.1510 * (0.6302 + yc)), 0))) / (2 * 1.1510)
             : (2 * yc) - 1;
         double yHdr = (Math.Pow(rhoHdr, yp) - 1) / (rhoHdr - 1);

@@ -122,11 +122,12 @@ internal static class RenderShaders
         }
 
         // «Expandir a HDR» de una capa SDR (hdr.y = pico en nits, 203–1000): la curva inversa de BT.2446-1 método A normalizada
-        // al pico y anclada en el gris del 18 %, como SdrExpansion en Rodaje.Core (la referencia). ρ del SDR de 203 nits = 7,3085.
+        // al pico y anclada en el gris del 18 %, como SdrExpansion en Rodaje.Core (la referencia; la rodilla en 0,8209 es donde los
+        // tramos se cruzan de verdad). ρ del SDR de 203 nits = 7,3085.
         float ExpandNormalized(float y, float rhoHdr)
         {
             float yc = log(1 + 6.3085 * pow(y, 1.0 / 2.4)) / 1.98904;
-            float yp = yc <= 0.79688 ? yc / 1.0770
+            float yp = yc <= 0.82089 ? yc / 1.0770
                 : yc < 0.99545 ? (2.7811 - sqrt(max(2.7811 * 2.7811 - 4 * 1.1510 * (0.6302 + yc), 0))) / (2 * 1.1510)
                 : 2 * yc - 1;
             return pow(saturate((pow(rhoHdr, yp) - 1) / (rhoHdr - 1)), 2.4);
