@@ -171,7 +171,7 @@ public sealed class ModuleProcess : IAsyncDisposable
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                throw new ModuleProtocolException($"El módulo no se conectó en {options.HandshakeTimeout.TotalSeconds:0.#} s.", new TimeoutException());
+                throw new ModuleProtocolException($"El módulo no se conectó en {options.HandshakeTimeout.TotalSeconds:0.#} s.{Tail(stderr)}", new TimeoutException());
             }
             client = await ModuleClient.ConnectAsync(pipe, options, cancellationToken).ConfigureAwait(false);
         }
