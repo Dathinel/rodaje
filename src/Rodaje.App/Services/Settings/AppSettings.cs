@@ -147,6 +147,13 @@ public sealed partial class AppSettings
         }
     }
 
+    /// <summary>Quita de los recientes los proyectos que <paramref name="exists"/> ya no encuentra. Devuelve cuántos quitó.</summary>
+    public int PruneRecentProjects(Func<string, bool> exists)
+    {
+        ArgumentNullException.ThrowIfNull(exists);
+        return RecentProjects.RemoveAll(p => !exists(p));
+    }
+
     /// <summary>Corrige lo que no tenga sentido (un archivo editado a mano, o de otra pantalla).</summary>
     public void Normalize()
     {

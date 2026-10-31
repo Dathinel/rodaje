@@ -198,6 +198,12 @@ internal sealed partial class MainWindow : Window, IShellHost
         TitleBar.InspectorTabRequested += (_, tab) => Inspector.Show(tab);
         TitleBar.MarkersPanelRequested += (_, _) => Library.ShowMarkers();
         TitleBar.ExitRequested += (_, _) => RequestClose();
+        TitleBar.RecentProjectMissing += (_, path) =>
+        {
+            settings.Current.RecentProjects.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+            TitleBar.RefreshRecentProjects(settings.Current);
+        };
+        TitleBar.RefreshRecentProjects(settings.Current);
         Library.Attach(_services);
         Player.Attach(_services);
         Inspector.Attach(_services);
@@ -798,6 +804,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         {
             _settings.Current.AddRecentProject(path);
             _settings.Current.LastProjectFolder = Path.GetDirectoryName(path);
+            TitleBar.RefreshRecentProjects(_settings.Current);
         }
     }
 

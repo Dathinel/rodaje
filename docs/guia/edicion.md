@@ -140,6 +140,7 @@ Pestaña **Velocidad** del panel derecho (Ctrl+R la abre con el clip seleccionad
 ## Proyecto, guardado y recuperación
 
 - **Ctrl+N** nuevo (pregunta «¿Guardar los cambios?» si hay), **Ctrl+O** abrir, **Ctrl+S** guardar, **Ctrl+Mayús+S** guardar como. El `.rodaje` es JSON legible; los medios se referencian por ruta.
+- **Archivo › Proyectos recientes:** los últimos diez proyectos abiertos o guardados, el más reciente arriba, con la ruta abreviada (la completa se lee al pasar el ratón). Los archivos que ya no existen desaparecen de la lista solos; «Vaciar la lista» la deja en blanco.
 - **Guardado atómico y copias `.bak`:** cada guardado escribe primero en un archivo temporal seguro y crea una copia de respaldo `.bak` previa en la misma carpeta del proyecto. Se evitan pérdidas o corrupciones de proyecto ante cortes repentinos o bloqueos de sincronizadores en la nube (como OneDrive).
 - **Plantillas:** Archivo › Proyecto nuevo desde plantilla (Horizontal 16:9 1080p y 4K, Vertical 9:16, Cuadrado 1:1, Retrato 4:5, más las tuyas) y Guardar como plantilla...
 - **Autoguardado:** copias en `%LOCALAPPDATA%\Rodaje\Autoguardado` tras 5 s sin cambios y como mucho cada 2 min (10 por sesión). Tras un cierre inesperado, al abrir Rodaje avisa «Hay una copia de «X» del … con cambios sin guardar» con **Recuperar**, que la valida y guarda como «X (recuperado).rodaje».

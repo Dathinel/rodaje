@@ -8,7 +8,10 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ## [Sin publicar]
 
-Nada todavía.
+Funciones de calidad de vida para la 1.1.
+
+### Añadido
+- **Proyectos recientes:** Archivo › Proyectos recientes lista los últimos diez proyectos con la ruta abreviada; los que ya no existen se quitan solos y «Vaciar la lista» la limpia.
 
 ## [1.0.2] - 2026-10-31
 
