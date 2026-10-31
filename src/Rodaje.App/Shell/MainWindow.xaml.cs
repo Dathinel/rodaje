@@ -637,6 +637,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         bar.ButtonInactiveBackgroundColor = Colors.Transparent;
         ApplyTitleBarColors();
         Theme.ThemeResources.ThemeChanged += (_, _) => ApplyTitleBarColors();
+        TitleBar.DragRegion.Loaded += (_, _) => UpdateDragRegion();
         TitleBar.DragRegion.SizeChanged += (_, _) => UpdateDragRegion();
     }
 
@@ -653,7 +654,8 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private void UpdateDragRegion()
     {
-        if (_closed)
+        // Antes de cargarse en el árbol (la activación llega antes), TransformToVisual lanza E_UNEXPECTED; Loaded lo repite.
+        if (_closed || !TitleBar.DragRegion.IsLoaded)
         {
             return;
         }
