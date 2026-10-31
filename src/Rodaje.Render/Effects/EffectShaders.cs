@@ -247,9 +247,21 @@ internal static class EffectShaders
             return lerp(rgb, Clip(FromYcc(y, c) * qual3.x), m);
         }
 
+        // En una secuencia HDR la LUT y las curvas reciben la luz lineal codificada en PQ (BT.2020, 203 nits ≈ 0,58) y devuelven PQ:
+        // una LUT de HDR10 se aplica tal cual y lo que pasa de 203 nits ya no toma el borde de la tabla.
         float3 ApplyLut(float3 rgb)
         {
-            float3 graded = lut.SampleLevel(linearClamp, rgb * tones.z + tones.w, 0).rgb;
+            float3 graded;
+            [branch] if (hdr.w > 0)
+            {
+                float3 pq = LinearToPq(rgb);
+                graded = PqToLinear(lut.SampleLevel(linearClamp, pq * tones.z + tones.w, 0).rgb);
+            }
+            else
+            {
+                graded = lut.SampleLevel(linearClamp, rgb * tones.z + tones.w, 0).rgb;
+            }
+
             return Clip(lerp(rgb, graded, grade.w));
         }
 
@@ -282,7 +294,7 @@ internal static class EffectShaders
 
         // Fila 0 (v = 0,25): curvas de tono por canal. Fila 1 (v = 0,75): tono contra tono (r), tono contra saturación (g)
         // y luma contra saturación (b), con 0,5 sin cambio.
-        float3 Curves(float3 rgb)
+        float3 CurvesCoded(float3 rgb)
         {
             float3 u = saturate(rgb) * ((CurveSize - 1.0) / CurveSize) + 0.5 / CurveSize;
             rgb = float3(
@@ -303,6 +315,16 @@ internal static class EffectShaders
             }
 
             return rgb;
+        }
+
+        float3 Curves(float3 rgb)
+        {
+            [branch] if (hdr.w > 0)
+            {
+                return PqToLinear(CurvesCoded(LinearToPq(rgb)));
+            }
+
+            return CurvesCoded(rgb);
         }
 
         // Con redondez 0 y el centro en el medio es la elipse del cuadro (d = 1 en las esquinas); con 1, un círculo en píxeles.

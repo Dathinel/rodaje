@@ -14,6 +14,9 @@ public enum ExportJobState
     /// <summary>Mezcla del audio al WAV temporal.</summary>
     MixingAudio,
 
+    /// <summary>Pasada previa de MaxCLL/MaxFALL sobre la composición (solo HDR10 con <c>MeasureLightLevels</c>).</summary>
+    MeasuringLight,
+
     /// <summary>Componiendo y codificando el video (en dos pasadas, la primera es de análisis).</summary>
     Encoding,
 

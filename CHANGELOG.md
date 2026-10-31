@@ -8,6 +8,9 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ## [Sin publicar]
 
+### Para la 1.1 (no entra en la 1.0.2)
+- **Secuencias HDR (parte 3)** (D-057, `docs/hdr.md`): «Medir MaxCLL/MaxFALL antes de codificar» en la exportación HDR10 (pasada previa que mide la composición en la GPU y escribe lo medido en el archivo; sin ella siguen los valores declarados). «Expandir a HDR» por clip en Propiedades › Opacidad y mezcla (apagado; pico en «Brillo de referencia HDR», 203–1000 nits): sube las luces de un clip SDR con la curva inversa de BT.2446 método A anclada en el gris del 18 %, que no se mueve. La LUT y las curvas trabajan en PQ en una secuencia HDR (una LUT se interpreta como LUT de HDR10; lo que pasa de 203 nits ya no se recorta al borde de la tabla). La miniatura de la exportación y los osciloscopios recortan a SDR como el visor. «Visor HDR: Siempre» ya no quema la imagen en un monitor SDR: se pregunta a Windows (DisplayConfig) por el monitor de la ventana. Una secuencia SDR no cambia ni un bit.
+
 Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video real para Instagram.
 
 ### Añadido

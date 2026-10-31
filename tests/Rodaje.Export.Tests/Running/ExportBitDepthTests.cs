@@ -8,6 +8,7 @@ using Rodaje.Export.Running;
 using Rodaje.Media.Export;
 using Rodaje.Media.Probe;
 using Rodaje.Media.Proxies;
+using Rodaje.Render.Export;
 using Rodaje.TestMedia;
 using Xunit.Abstractions;
 
@@ -147,9 +148,50 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
         Assert.InRange(min, 56, 72);
     }
 
+    /// <summary>
+    /// Fase C, parte 3 (D-057): con «Medir MaxCLL/MaxFALL» la pasada previa mide la composición lineal y el archivo lleva lo medido en
+    /// vez de lo declarado: el parche de 1000 nits (código 723 ≈ 1004 nits) solo en el cuadro 10 y 203 nits en el resto dan un
+    /// MaxCLL de ≈ 1000 y un MaxFALL entre 203 y 1000 (la media del cuadro 10: un tercio negro, un tercio a 203 y un tercio a 1000).
+    /// </summary>
+    [BitDepthExportTheory]
+    [MemberData(nameof(PqPatchCases))]
+    public async Task Measured_light_levels_reach_the_file(string encoderId, string extension)
+    {
+        if (await ExportRampAsync(encoderId, extension, 10, SequenceColorSpace.HdrPq, null, pqPatch: true, patchFrame: 10, measureLight: true)
+            is not (ExportJob job, string path, _, _))
+        {
+            return;
+        }
+
+        string probe = await ProbeJsonAsync(path);
+        int maxContent = ProbeNumber(probe, "max_content");
+        int maxAverage = ProbeNumber(probe, "max_average");
+        ContentLight measured = Assert.IsType<ContentLight>(job.LightLevels);
+        output.WriteLine($"{encoderId} medidos: MaxCLL {measured.MaxCll}, MaxFALL {measured.MaxFall}; en el archivo: {maxContent}/{maxAverage}.");
+        Assert.InRange(measured.MaxCll, 995, 1012);
+        Assert.InRange(measured.MaxFall, 204, 999);
+        Assert.Equal(measured.MaxCll, maxContent);
+        Assert.Equal(measured.MaxFall, maxAverage);
+    }
+
+    private static int ProbeNumber(string probe, string field)
+    {
+        string label = $"\"{field}\": ";
+        int start = probe.IndexOf(label, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"ffprobe no informó {field}.");
+        start += label.Length;
+        int end = start;
+        while (end < probe.Length && char.IsAsciiDigit(probe[end]))
+        {
+            end++;
+        }
+
+        return int.Parse(probe.AsSpan(start, end - start), CultureInfo.InvariantCulture);
+    }
+
     /// <summary>Exporta la rampa (o el parche PQ) con un codificador; <c>null</c> si el codificador no está en este equipo.</summary>
     private async Task<(ExportJob Job, string Path, Project Project, VideoExportSettings Video)?> ExportRampAsync(string encoderId, string extension,
-        int bits, SequenceColorSpace space, ExportColor? color, bool pqPatch = false)
+        int bits, SequenceColorSpace space, ExportColor? color, bool pqPatch = false, int? patchFrame = null, bool measureLight = false)
     {
         FfmpegExecutable lgpl = Skip.ProxyExecutable!;
         FfmpegExecutable? gpl = encoderId.StartsWith("libx26", StringComparison.Ordinal) ? GplAddOn() : null;
@@ -173,7 +215,7 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
 
         string folder = ExportEndToEndTests.Folder();
         Project project = RampProject(pqPatch
-            ? await PqPatchAsync(lgpl, Path.Combine(folder, "parche pq.mkv"))
+            ? await PqPatchAsync(lgpl, Path.Combine(folder, "parche pq.mkv"), patchFrame)
             : await RampAsync(lgpl, Path.Combine(folder, "rampa 10 bits.mkv")));
         project.Sequences[0].ColorSpace = space;
         var video = new VideoExportSettings
@@ -190,6 +232,7 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
                 _ => RateControl.ConstantQuality(),
             },
             Color = color,
+            MeasureLightLevels = measureLight,
         };
         string path = Path.Combine(folder, $"salida {encoderId} {bits} {space}.{extension}");
         var runner = new ExportRunner(new ExportRunnerOptions { Ffmpeg = lgpl, GplFfmpeg = gpl });
@@ -252,30 +295,40 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
         return path;
     }
 
-    /// <summary>1 s de FFV1 yuv420p10le PQ BT.2020 limitado: un tercio negro (64), un tercio a 203 nits (573) y un tercio a 1000 nits (723).</summary>
-    private static async Task<string> PqPatchAsync(FfmpegExecutable ffmpeg, string path)
+    /// <summary>
+    /// 1 s de FFV1 yuv420p10le PQ BT.2020 limitado: un tercio negro (64), un tercio a 203 nits (573) y un tercio a 1000 nits (723).
+    /// Con <paramref name="patchFrame"/>, el tercio de 1000 nits solo está en ese cuadro; en los demás queda a 203.
+    /// </summary>
+    private static async Task<string> PqPatchAsync(FfmpegExecutable ffmpeg, string path, int? patchFrame = null)
     {
-        var frame = new byte[Width * Height * 3];
-        for (int y = 0; y < Height; y++)
+        byte[] Frame(bool patch)
         {
-            for (int x = 0; x < Width; x++)
+            var frame = new byte[Width * Height * 3];
+            for (int y = 0; y < Height; y++)
             {
-                ushort code = x < Width / 3 ? (ushort)64 : x < 2 * Width / 3 ? (ushort)573 : (ushort)723;
-                BitConverter.TryWriteBytes(frame.AsSpan(((y * Width) + x) * 2), code);
+                for (int x = 0; x < Width; x++)
+                {
+                    ushort code = x < Width / 3 ? (ushort)64 : x < 2 * Width / 3 || !patch ? (ushort)573 : (ushort)723;
+                    BitConverter.TryWriteBytes(frame.AsSpan(((y * Width) + x) * 2), code);
+                }
             }
+
+            for (int i = Width * Height * 2; i < frame.Length; i += 2)
+            {
+                BitConverter.TryWriteBytes(frame.AsSpan(i), (ushort)512);
+            }
+
+            return frame;
         }
 
-        for (int i = Width * Height * 2; i < frame.Length; i += 2)
-        {
-            BitConverter.TryWriteBytes(frame.AsSpan(i), (ushort)512);
-        }
-
+        byte[] withPatch = Frame(true);
+        byte[] withoutPatch = Frame(false);
         string raw = path + ".yuv";
         await using (FileStream file = File.Create(raw))
         {
             for (int i = 0; i < 30; i++)
             {
-                await file.WriteAsync(frame);
+                await file.WriteAsync(patchFrame is null || patchFrame == i ? withPatch : withoutPatch);
             }
         }
 

@@ -262,7 +262,13 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     /// <summary>Si la cadena del visor es scRGB: una secuencia HDR se ve en HDR. Si no, se ve en SDR recortando lo que pasa de 203 nits.</summary>
     public bool ViewerIsScRgb { get; private set; }
 
-    private bool UsesScRgb() => _gpu is not null && ViewerBitDepth.UsesScRgb(HdrViewer, CompositionSwapChain.HasHdrOutput(_gpu));
+    /// <summary>La ventana que aloja el visor, para saber si su monitor está en HDR (<see cref="DisplayHdr"/>); 0 mira todos los monitores.</summary>
+    public nint WindowHandle { get; set; }
+
+    // El monitor de la ventana por DisplayConfig; si no contesta, DXGI dice si algún monitor del adaptador está en HDR (y si
+    // ninguno lo está, queda sin saber: «Siempre» todavía puede forzar la cadena scRGB).
+    private bool UsesScRgb() => _gpu is not null
+        && ViewerBitDepth.UsesScRgb(HdrViewer, DisplayHdr.IsWindowMonitorInHdr(WindowHandle) ?? (CompositionSwapChain.HasHdrOutput(_gpu) ? true : (bool?)null));
 
     /// <summary>Efectos dibujados, saltados y contenido que faltó desde que se abrió el reproductor (para medir).</summary>
     public EffectTotals Effects

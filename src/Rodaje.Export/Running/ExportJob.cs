@@ -78,6 +78,9 @@ public sealed class ExportJob : IDisposable
     /// <summary>La sonoridad medida antes de normalizar y la ganancia aplicada, en dB.</summary>
     public (LoudnessMeasurement Measured, double GainDb)? Loudness { get; private set; }
 
+    /// <summary>MaxCLL y MaxFALL medidos en la pasada previa (<see cref="VideoExportSettings.MeasureLightLevels"/>); <c>null</c> sin pasada.</summary>
+    public ContentLight? LightLevels { get; private set; }
+
     /// <summary>Cambió el avance, el estado o la miniatura. Llega desde el hilo de la exportación.</summary>
     public event EventHandler? Changed;
 
@@ -267,6 +270,15 @@ public sealed class ExportJob : IDisposable
         bool alpha = format.PixelFormat.HasAlpha();
         bool blend = plan.ConvertsRate && settings.FrameRateConversion == FrameRateConversion.Blend;
         using var frames = new FrameSource(this, plan, timeline, gpu, titles, alpha, blend);
+        if (settings.MeasureLightLevels && format.Color.Transfer == ExportTransfer.Pq && timeline.ColorSpace != Rodaje.Core.Model.SequenceColorSpace.Sdr709)
+        {
+            ContentLight measured = MeasureLight(plan, frames, gpu, timeline, token);
+            LightLevels = measured;
+            format = new ExportVideoFormat(format.Width, format.Height, format.FrameRate, format.PixelFormat,
+                format.Color with { MaxCll = measured.MaxCll, MaxFall = measured.MaxFall });
+            request = request with { Video = format };
+        }
+
         ExportSourceRegion? region = settings.Crop is { } crop ? new ExportSourceRegion(crop.X, crop.Y, crop.Width, crop.Height) : null;
         using var converter = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter, region: region,
             source: timeline.ColorSpace);
@@ -319,6 +331,23 @@ public sealed class ExportJob : IDisposable
         }
 
         return result!;
+    }
+
+    /// <summary>Compone cada cuadro de la salida y mide max(R, G, B) en la composición lineal entera (sin recorte ni escala).</summary>
+    private ContentLight MeasureLight(ExportPlan plan, FrameSource frames, GpuDevice gpu, OfflineTimeline timeline, CancellationToken token)
+    {
+        Publish(ExportJobState.MeasuringLight, 0, force: true);
+        using var meter = new ContentLightMeter(gpu, timeline.Width, timeline.Height);
+        for (long i = 0; i < plan.FrameCount; i++)
+        {
+            token.ThrowIfCancellationRequested();
+            _frame = i;
+            frames.Measure(meter, i, token);
+            Publish(ExportJobState.MeasuringLight, i + 1);
+        }
+
+        _frame = -1;
+        return meter.Result;
     }
 
     private TitleRasterizer CreateTitles(GpuDevice gpu)
@@ -499,12 +528,35 @@ public sealed class ExportJob : IDisposable
 
         public void Submit(ExportFrameConverter converter, long index, CancellationToken token)
         {
+            (Compositor a, Compositor? b, float weight) = Compose(index, token);
+            if (b is null)
+            {
+                converter.Submit(a.Texture, index);
+            }
+            else
+            {
+                converter.SubmitBlend(a.Texture, b.Texture, weight, index);
+            }
+        }
+
+        /// <summary>Compone el cuadro <c>index</c> y lo mide; con mezcla de dos cuadros se miden los dos (cota superior de la mezcla).</summary>
+        public void Measure(ContentLightMeter meter, long index, CancellationToken token)
+        {
+            (Compositor a, Compositor? b, _) = Compose(index, token);
+            meter.Measure(a.ShaderResourceView);
+            if (b is not null)
+            {
+                meter.Measure(b.ShaderResourceView);
+            }
+        }
+
+        private (Compositor First, Compositor? Second, float Weight) Compose(long index, CancellationToken token)
+        {
             Time time = Time.FromFrames(_plan.FirstFrame + index, _plan.OutputRate);
             if (!_plan.ConvertsRate)
             {
                 Compose(_compositors[0], _timeline.Render(Math.Min(_plan.FirstFrame + index, _timeline.FrameCount - 1), token));
-                converter.Submit(_compositors[0].Texture, index);
-                return;
+                return (_compositors[0], null, 0);
             }
 
             Time last = _timeline.Duration - Time.FromTicks(1);
@@ -516,21 +568,19 @@ public sealed class ExportJob : IDisposable
             if (_compositors.Length == 1)
             {
                 Compose(_compositors[0], _timeline.RenderAt(time, token));
-                converter.Submit(_compositors[0].Texture, index);
-                return;
+                return (_compositors[0], null, 0);
             }
 
             long first = time.ToFrames(_timeline.FrameRate);
             double weight = (time - Time.FromFrames(first, _timeline.FrameRate)).ToSeconds() / _sequenceFrame.ToSeconds();
             if (weight < 1e-6 || first + 1 >= _timeline.FrameCount)
             {
-                converter.Submit(Hold(first, keep: -1, token).Texture, index);
-                return;
+                return (Hold(first, keep: -1, token), null, 0);
             }
 
             Compositor a = Hold(first, keep: first + 1, token);
             Compositor b = Hold(first + 1, keep: first, token);
-            converter.SubmitBlend(a.Texture, b.Texture, (float)Math.Clamp(weight, 0, 1), index);
+            return (a, b, (float)Math.Clamp(weight, 0, 1));
         }
 
         public void Dispose()

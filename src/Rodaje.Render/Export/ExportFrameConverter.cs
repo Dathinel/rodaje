@@ -610,7 +610,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         _convert = CreateShader(Output.Color.IsHdr ? ExportShaders.ConvertHdrVariant
             : Source != SequenceColorSpace.Sdr709 ? ExportShaders.ConvertToneMapVariant
             : ExportShaders.ConvertVariant);
-        _thumbnail = CreateShader(ExportShaders.ThumbnailVariant);
+        _thumbnail = CreateShader(Source != SequenceColorSpace.Sdr709 ? ExportShaders.ThumbnailToneMapVariant : ExportShaders.ThumbnailVariant);
         _scaleConstants = CreateConstants(sizeof(ScaleConstants));
         _convertConstants = CreateConstants(sizeof(ConvertConstants));
         _thumbnailConstants = CreateConstants(sizeof(ThumbnailConstants));

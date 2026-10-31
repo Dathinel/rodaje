@@ -12,8 +12,9 @@ internal static class RenderShaders
     // present: x > 0 pide muestreo con mipmaps (destino más pequeño que la fuente); z > 0, capa con perspectiva (anclaje de
     // esquinas): local[i].z es el w de cada esquina, que VsQuad pone en el vértice para que uv y local se interpolen con perspectiva;
     // w, en el presentador, cómo va la composición a la pantalla (PresentHdr).
-    // hdr: x = curva de la capa (HdrTransfer), y = blanco o pico de referencia en nits, z = primarios BT.2020, w = 1 si la
-    // secuencia es HDR (la composición es luz lineal BT.2020 con 1,0 = 203 nits; QuadPipeline.HdrMode).
+    // hdr: x = curva de la capa (HdrTransfer), y = blanco o pico de referencia en nits (en una capa SDR, el pico de «Expandir a
+    // HDR» o 0), z = primarios BT.2020, w = 1 si la secuencia es HDR (la composición es luz lineal BT.2020 con 1,0 = 203 nits;
+    // QuadPipeline.HdrMode).
     /// <summary>Constantes, planos, vértices y conversión de color comunes a todos los shaders.</summary>
     public const string Prelude = """
         cbuffer Quad : register(b0)
@@ -107,8 +108,41 @@ internal static class RenderShaders
             return float3(Bt709(light.r), Bt709(light.g), Bt709(light.b));
         }
 
+        // Luz lineal (1,0 = 203 nits) → PQ y vuelta, para que la LUT y las curvas trabajen en una señal acotada en HDR.
+        float3 LinearToPq(float3 light)
+        {
+            float3 y = pow(max(light, 0) * (203.0 / 10000), 0.1593017578125);
+            return pow((0.8359375 + 18.8515625 * y) / (1 + 18.6875 * y), 78.84375);
+        }
+
+        float3 PqToLinear(float3 pq)
+        {
+            float3 p = pow(saturate(pq), 1.0 / 78.84375);
+            return (10000.0 / 203) * pow(max(p - 0.8359375, 0) / max(18.8515625 - 18.6875 * p, 1e-6), 1.0 / 0.1593017578125);
+        }
+
+        // «Expandir a HDR» de una capa SDR (hdr.y = pico en nits, 203–1000): la curva inversa de BT.2446-1 método A normalizada
+        // al pico y anclada en el gris del 18 %, como SdrExpansion en Rodaje.Core (la referencia). ρ del SDR de 203 nits = 7,3085.
+        float ExpandNormalized(float y, float rhoHdr)
+        {
+            float yc = log(1 + 6.3085 * pow(y, 1.0 / 2.4)) / 1.98904;
+            float yp = yc <= 0.79688 ? yc / 1.0770
+                : yc < 0.99545 ? (2.7811 - sqrt(max(2.7811 * 2.7811 - 4 * 1.1510 * (0.6302 + yc), 0))) / (2 * 1.1510)
+                : 2 * yc - 1;
+            return pow(saturate((pow(rhoHdr, yp) - 1) / (rhoHdr - 1)), 2.4);
+        }
+
+        float3 ExpandSdr(float3 light)
+        {
+            float y = saturate(dot(light, float3(0.2126, 0.7152, 0.0722)));
+            float rhoHdr = 1 + 32 * pow(hdr.y / 10000, 1.0 / 2.4);
+            float anchor = ExpandNormalized(0.18, rhoHdr);
+            float s = saturate((ExpandNormalized(y, rhoHdr) - anchor) / (1 - anchor));
+            return light * (1 + (hdr.y / 203 - 1) * s);
+        }
+
         // Secuencia HDR (hdr.w > 0): luz lineal BT.2020 con 1,0 = 203 nits (BT.2408) y sin recortar por arriba. PQ y HLG
-        // por su curva, sin Hable; una capa SDR entra con el blanco en 203 nits, sin expandir.
+        // por su curva, sin Hable; una capa SDR entra con el blanco en 203 nits y, solo con «Expandir a HDR», sube hasta hdr.y.
         float3 ToLinear2020(float3 rgb)
         {
             float3 light;
@@ -119,7 +153,12 @@ internal static class RenderShaders
             }
             else
             {
-                light = mul(Bt709ToBt2020, float3(Bt709Linear(rgb.r), Bt709Linear(rgb.g), Bt709Linear(rgb.b)));
+                light = float3(Bt709Linear(rgb.r), Bt709Linear(rgb.g), Bt709Linear(rgb.b));
+                [branch] if (hdr.y > 0)
+                {
+                    light = ExpandSdr(light);
+                }
+                light = mul(Bt709ToBt2020, light);
             }
 
             return max(light, 0);

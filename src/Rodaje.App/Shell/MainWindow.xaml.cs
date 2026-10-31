@@ -91,6 +91,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         Theme.ThemeResources.ThemeChanged += (_, _) => Theme.ThemeResources.ApplyRequestedTheme(Root);
         _dispatcher = DispatcherQueue.GetForCurrentThread();
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        engine.WindowHandle = _hwnd;
         SetUpTitleBar();
         RestoreLayout();
         StartupSplash.PlaceOver(AppWindow, _hwnd);

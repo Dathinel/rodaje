@@ -144,7 +144,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         {
             case ExportJobState.Completed:
                 session.Notify(NotificationSeverity.Success, "Exportación terminada",
-                    $"«{entry.Title}» está listo ({ExportText.Duration(entry.Progress.Elapsed)}).",
+                    $"«{entry.Title}» está listo ({ExportText.Duration(entry.Progress.Elapsed)})." + (entry.Job?.MeasuredNote is { } note ? $" {note}." : ""),
                     new NotificationAction("Abrir carpeta", () => OpenFolder(entry)));
                 break;
             case ExportJobState.Failed when entry.Failure is { } failure:
@@ -283,7 +283,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
             int position = _entry.Job is null ? _owner._jobs?.QueuePosition(_entry) ?? 0 : 0;
             _status.Text = position > 0
                 ? $"En cola · {position}.º" + (_owner._jobs?.IsPaused == true ? " · la cola está en pausa" : "")
-                : ExportText.Status(progress);
+                : ExportText.Status(progress) + (progress.State == ExportJobState.Completed && _entry.Job?.MeasuredNote is { } note ? $" · {note}" : "");
             _bar.Value = progress.Fraction;
             _bar.IsIndeterminate = progress.State is ExportJobState.Preparing or ExportJobState.MeasuringLoudness or ExportJobState.MixingAudio
                 or ExportJobState.Finalizing;

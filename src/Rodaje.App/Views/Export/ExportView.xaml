@@ -147,6 +147,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
                             <TextBlock Text="Códec" Style="{StaticResource FieldLabelStyle}" />
                             <ComboBox x:Name="VideoCodecBox" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnVideoCodecChanged" DropDownClosed="OnDropDownClosed" />
@@ -176,6 +177,8 @@
                                 <NumberBox x:Name="KeyframeBox" Width="96" SpinButtonPlacementMode="Hidden" Minimum="0.1" Maximum="60" ValueChanged="OnKeyframeChanged" />
                                 <TextBlock Text="s" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
                             </StackPanel>
+                            <CheckBox x:Name="MeasureLightBox" Grid.Row="10" Grid.Column="1" Grid.ColumnSpan="2" Content="Medir MaxCLL/MaxFALL antes de codificar" Click="OnMeasureLightClick"
+                                      ToolTipService.ToolTip="HDR10: una pasada previa mide el brillo máximo y la media por cuadro de la composición y los escribe en el archivo en vez de los valores declarados (1000/400). Compone cada cuadro dos veces." />
                         </Grid>
 
                         <Grid ColumnSpacing="8">
