@@ -171,10 +171,10 @@ public sealed unsafe class ContentLightMeter : IDisposable
         Check(_device->CreateBuffer(&constants, null, &buffer), "CreateBuffer(constantes de luz)");
         _constants = buffer;
 
-        uint bytes = (uint)(_tileCount * 8);
+        uint size = (uint)(_tileCount * 8);
         var tiles = new D3D11_BUFFER_DESC
         {
-            ByteWidth = bytes,
+            ByteWidth = size,
             Usage = D3D11_USAGE.D3D11_USAGE_DEFAULT,
             BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_UNORDERED_ACCESS,
             MiscFlags = (uint)D3D11_RESOURCE_MISC_FLAG.D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS,
@@ -187,7 +187,7 @@ public sealed unsafe class ContentLightMeter : IDisposable
             ViewDimension = D3D11_UAV_DIMENSION.D3D11_UAV_DIMENSION_BUFFER,
         };
         viewDesc.Buffer.FirstElement = 0;
-        viewDesc.Buffer.NumElements = bytes / 4;
+        viewDesc.Buffer.NumElements = size / 4;
         viewDesc.Buffer.Flags = (uint)D3D11_BUFFER_UAV_FLAG.D3D11_BUFFER_UAV_FLAG_RAW;
         ID3D11UnorderedAccessView* view;
         Check(_device->CreateUnorderedAccessView((ID3D11Resource*)_buffer, &viewDesc, &view), "CreateUnorderedAccessView(teselas de luz)");
@@ -195,7 +195,7 @@ public sealed unsafe class ContentLightMeter : IDisposable
 
         var staging = new D3D11_BUFFER_DESC
         {
-            ByteWidth = bytes,
+            ByteWidth = size,
             Usage = D3D11_USAGE.D3D11_USAGE_STAGING,
             CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_READ,
         };
