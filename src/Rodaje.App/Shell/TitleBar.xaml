@@ -142,6 +142,7 @@
             <MenuBarItem Title="Ayuda">
                 <MenuFlyoutItem Text="Recorrido inicial" Tag="help.tour" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Volver a mostrar las pistas" Tag="help.resetHints" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Hoja de atajos (imprimible)..." Tag="help.shortcutSheet" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Acerca de Rodaje..." Click="OnAboutClick" />
                 <MenuFlyoutItem Text="Repositorio oficial" Click="OnUpstreamClick" />

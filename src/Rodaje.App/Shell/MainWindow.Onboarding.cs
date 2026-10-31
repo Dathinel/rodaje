@@ -14,8 +14,8 @@ namespace Rodaje.App.Shell;
 internal sealed partial class MainWindow
 #pragma warning restore CA1001
 {
-    private const string TourActionId = "help.tour";
-    private const string ResetHintsActionId = "help.resetHints";
+    private const string TourActionId = ShellShortcuts.Tour;
+    private const string ResetHintsActionId = ShellShortcuts.ResetHints;
 
     private TeachingTip? _tourTip;
     private TeachingTip? _hintTip;
@@ -24,9 +24,9 @@ internal sealed partial class MainWindow
 
     private void AttachOnboarding()
     {
-        ShortcutRegistry registry = _router.Registry;
-        registry.Register(new ShortcutAction(TourActionId, "Recorrido inicial", ShortcutGroups.Windows, []));
-        registry.Register(new ShortcutAction(ResetHintsActionId, "Volver a mostrar las pistas", ShortcutGroups.Windows, []));
+        // Las acciones de la ventana (recorrido, pistas, hoja de atajos, espacios de trabajo, carpetas vigiladas) vienen del catálogo.
+        _router.Registry.RegisterRange(ShellShortcuts.Catalog);
+        _bindings.Add(_router.Bind(ShellShortcuts.ShortcutSheet, () => UiTask.Run(SaveShortcutSheetAsync())));
         _bindings.Add(_router.Bind(TourActionId, () => StartTour()));
         _bindings.Add(_router.Bind(ResetHintsActionId, () =>
         {
