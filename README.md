@@ -20,9 +20,9 @@
 
 ## Descargar
 
-La última versión es la **[1.0.1](https://github.com/Dathinel/rodaje/releases/latest)** (16-oct-2026). Hay tres descargas: el **instalador** (recomendado, por usuario y sin permisos de administrador), el **portable** (descomprimir y abrir) y el **completo** (portable con los complementos y los módulos de IA ya dentro). Detalle en [Instalar Rodaje](docs/guia/instalar.md).
+La última versión es la **[1.0.2](https://github.com/Dathinel/rodaje/releases/latest)** (31-oct-2026). Hay tres descargas: el **instalador** (recomendado, por usuario y sin permisos de administrador), el **portable** (descomprimir y abrir) y el **completo** (portable con los complementos y los módulos de IA ya dentro). Detalle en [Instalar Rodaje](docs/guia/instalar.md).
 
-Lo nuevo de la 1.0.1: interfaz reorganizada (menús Herramientas y Secuencia, Preferencias con `Ctrl+,`, inspector con pestañas Propiedades, Transición y Seguimiento), funciones de IA que se aplican con un solo clic, «Quitar silencios» con detección de voz y muchas correcciones de estabilidad. Todo en el [historial de cambios](CHANGELOG.md).
+Lo nuevo de la 1.0.2: personalización (temas Grafito, Claro y Alto contraste, acento, escala), imágenes fijas y Ken Burns, selección múltiple en el inspector, gráfica de fotogramas clave, secuencias HDR10 y HLG de punta a punta, y las correcciones de una pasada completa con el ratón y una auditoría de 96 hallazgos. Todo en el [historial de cambios](CHANGELOG.md).
 
 ## Qué es y qué hace
 
@@ -82,7 +82,7 @@ Medidas en banco de pruebas estándar (AMD Ryzen 7 7435HS, NVIDIA RTX 3050 Lapto
 ## Documentación
 
 - **[Guía de usuario completa](docs/guia/README.md):** [Instalación](docs/guia/instalar.md), [Primer proyecto](docs/guia/primer-proyecto.md), [Edición](docs/guia/edicion.md), [Color e imagen](docs/guia/imagen.md), [Audio](docs/guia/audio.md), [Títulos y subtítulos](docs/guia/titulos-y-subtitulos.md), [IA local](docs/guia/ia-local.md), [Exportación](docs/guia/exportar.md), [Atajos](docs/guia/atajos.md) y [Solución de problemas](docs/guia/solucion-de-problemas.md).
-- **[Historial de cambios](CHANGELOG.md):** Novedades de la versión 1.0.1 y versiones previas.
+- **[Historial de cambios](CHANGELOG.md):** Novedades de la versión 1.0.2 y versiones previas.
 - **[Cómo contribuir](CONTRIBUTING.md):** Entorno de trabajo, convención de commits, firma DCO y flujo de pull requests.
 - **[Arquitectura interna](docs/README.md):** Documentación técnica detallada de cada capa (`Core`, `Media`, `Engine`, `Audio`, `Playback`, `Render`, `Export`, `App`).
 
