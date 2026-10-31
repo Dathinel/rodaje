@@ -1,5 +1,14 @@
 Rodaje {{VERSION}} ({{FECHA}}): editor de video nativo para Windows, compilado de antemano (Native AOT). No necesita .NET ni nada instalado aparte.
 
+## Novedades de la {{VERSION}}
+
+- **Personalización:** temas Grafito, Claro, Alto contraste y «Seguir a Windows», acento, escala de la interfaz, editor de temas propios y perfiles exportables.
+- **Imágenes fijas** como clips (PNG, JPEG, WebP, BMP, TIFF) con efecto Ken Burns, y captura rápida de fotograma.
+- **Selección múltiple** en el inspector, pistas que se eliminan y reordenan, y la **gráfica de fotogramas clave**.
+- **HDR de punta a punta:** secuencias HDR10 y HLG compuestas en lineal BT.2020, exportación HEVC/AV1/ProRes con metadatos, visor HDR en scRGB y conversión HDR → SDR con mapeo de tonos.
+- **Rendimiento:** CPU en reposo del reproductor a la mitad, filas fuera de pantalla sin materializar.
+- **Más de 90 correcciones** de una pasada completa con el ratón y una auditoría por partes: Salir pregunta por los cambios, un solo aviso de fallo, exportar «Varias versiones» sin sobrescribir, el cuadro numérico del inspector se aplica al clip correcto. Todo en el historial de cambios del repositorio.
+
 ## Qué trae
 
 - **Edición por capas** al cuadro exacto: cuchilla, ripple, roll, slip, slide y rango; edición de tres y cuatro puntos con insertar, sobrescribir, reemplazar, ajustar y superponer; grupos, colores de clip, búsqueda y cierre de huecos, aviso y arreglo de desincronía; multicámara y sincronía de audio externo por forma de onda. Todo se deshace con Ctrl+Z, con autoguardado y recuperación.
