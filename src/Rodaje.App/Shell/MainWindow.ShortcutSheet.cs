@@ -7,7 +7,9 @@ using Rodaje.App.Services.Shortcuts;
 namespace Rodaje.App.Shell;
 
 /// <summary>Ayuda › Hoja de atajos (imprimible): todos los atajos del estilo actual en un HTML en Documentos.</summary>
+#pragma warning disable CA1001 // Lo descartable se libera en OnClosed (MainWindow.xaml.cs).
 internal sealed partial class MainWindow
+#pragma warning restore CA1001
 {
     private const string SheetFileName = "Atajos de Rodaje (completa).html";
 

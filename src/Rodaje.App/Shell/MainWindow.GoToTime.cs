@@ -8,7 +8,9 @@ using Rodaje.Engine.Presentation;
 namespace Rodaje.App.Shell;
 
 /// <summary>«Ir a tiempo» (Ctrl+J): un cuadro para escribir un tiempo o un salto y llevar ahí el cursor.</summary>
+#pragma warning disable CA1001 // Lo descartable se libera en OnClosed (MainWindow.xaml.cs).
 internal sealed partial class MainWindow
+#pragma warning restore CA1001
 {
     private async Task GoToTimeAsync()
     {
