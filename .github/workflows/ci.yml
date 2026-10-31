@@ -98,7 +98,15 @@ jobs:
           RODAJE_DATOS: ${{ github.workspace }}\TestResults\autoprueba-ci
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File build\app.ps1 -SinPublicar -Autoprueba
-          exit $LASTEXITCODE
+          $codigo = $LASTEXITCODE
+          if ($codigo -ne 0) {
+            # El informe de fallo va al registro del trabajo, no solo al artefacto.
+            Get-ChildItem -LiteralPath "$env:RODAJE_DATOS\fallos" -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+              "--- $($_.FullName)"
+              Get-Content -LiteralPath $_.FullName -Encoding UTF8
+            }
+          }
+          exit $codigo
 
       # Sin RODAJE_PRUEBAS_LARGAS las largas y las de hardware se omiten solas (tests/Rodaje.TestMedia/Skip.cs);
       # TiempoReal y Rendimiento se excluyen igual que en Linux. Una prueba colgada se corta a los 10 minutos con su nombre

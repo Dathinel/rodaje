@@ -118,6 +118,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private int _previewDowngrades;
     private long _editMark;
     private EffectTotals _effectTotals;
+    private string? _shaderFailure;
     private long _editMarkTaken;
     private long _editAppliedAt;
     private double _lastWaitMs;
@@ -167,6 +168,12 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
     /// <summary>El error que detuvo el motor, por si llegó antes de que alguien escuchara <see cref="Failed"/>.</summary>
     public string? FailureMessage { get; private set; }
+
+    /// <summary>
+    /// Por qué no compilaron los shaders de efectos del compositor (nulo mientras compilan o si compilaron): sin ellos los
+    /// títulos y los efectos no se dibujan y el visor sigue andando como si nada. Lo mira la autoprueba.
+    /// </summary>
+    public string? ShaderFailure => Volatile.Read(ref _shaderFailure);
 
     /// <summary>Los proxies de la vista previa, cuando el hilo de render ya los creó; para la pestaña Trabajos.</summary>
     public Rodaje.Media.Proxies.MediaSourceResolver? ProxyResolver => Volatile.Read(ref _proxies)?.Resolver;
@@ -945,6 +952,12 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         _compositor?.Dispose();
         _compositor = null;
         _compositor = new Compositor(_gpu, width, height) { Resources = _content, Titles = _titles, ColorSpace = _session.ColorSpace };
+        _compositor.ShadersReady.ContinueWith(ready =>
+        {
+            string message = ready.Exception?.GetBaseException().Message ?? "error desconocido";
+            Volatile.Write(ref _shaderFailure, message);
+            _metrics.Note("shaders de efectos: " + message);
+        }, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     /// <summary>Una LUT terminó de cargar o cambiaron los paquetes: en pausa también hay que volver a componer.</summary>
