@@ -6,6 +6,13 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ---
 
+## [Sin publicar · 1.1]
+
+Lo que va a la 1.1 y no entra en la 1.0.2.
+
+### Añadido
+- **Personalización, segunda vuelta** (D-057): «Seguir a Windows» cambia al momento cuando Windows pasa de claro a oscuro o al revés con la app abierta; las pistas de video y de audio tienen su color de fondo en el editor de temas (el `.rodaje-tema` pasa a la versión 2 y los de la versión 1 se migran solos); los controles de WinUI toman el tinte del tema por niveles, así un tema de paneles azulados no deja botones ni menús en gris; el tamaño del texto de la línea de tiempo se aplica al guardar Preferencias a lo ya dibujado; la zona de arrastre de la barra de título se calcula con la escala de la interfaz (90–125 %).
+
 ## [Sin publicar]
 
 Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video real para Instagram.

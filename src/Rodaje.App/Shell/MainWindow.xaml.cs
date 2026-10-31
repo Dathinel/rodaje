@@ -622,20 +622,49 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
     }
 
+    /// <summary>
+    /// La barra de título propia. La región de arrastre no se deja a <c>SetTitleBar</c>: con la escala de la interfaz
+    /// (Preferencias) la raíz se dibuja transformada y la región se calcula aquí en píxeles con esa escala y la del monitor
+    /// (<see cref="TitleBarDragRegion"/>), y se recalcula al cambiar el tamaño de la ventana, de la barra o la escala.
+    /// </summary>
     private void SetUpTitleBar()
     {
-        ExtendsContentIntoTitleBar = true;
-        SetTitleBar(TitleBar.DragRegion);
-        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, AppIcon.FileName));
         AppWindowTitleBar bar = AppWindow.TitleBar;
+        bar.ExtendsContentIntoTitleBar = true;
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, AppIcon.FileName));
         bar.PreferredHeightOption = TitleBarHeightOption.Tall;
         bar.ButtonBackgroundColor = Colors.Transparent;
         bar.ButtonInactiveBackgroundColor = Colors.Transparent;
+        ApplyTitleBarColors();
+        Theme.ThemeResources.ThemeChanged += (_, _) => ApplyTitleBarColors();
+        TitleBar.DragRegion.SizeChanged += (_, _) => UpdateDragRegion();
+    }
+
+    // Los botones de la ventana (minimizar, maximizar, cerrar) siguen al tema, también cuando cambia en caliente.
+    private void ApplyTitleBarColors()
+    {
+        AppWindowTitleBar bar = AppWindow.TitleBar;
         bar.ButtonForegroundColor = Theme.ThemeResources.SolidColor("TextBrush");
         bar.ButtonHoverForegroundColor = Theme.ThemeResources.SolidColor("TextBrush");
         bar.ButtonHoverBackgroundColor = Theme.ThemeResources.SolidColor("ControlHoverBrush");
         bar.ButtonPressedBackgroundColor = Theme.ThemeResources.SolidColor("ControlPressedBrush");
         bar.ButtonInactiveForegroundColor = Theme.ThemeResources.SolidColor("TextMutedBrush");
+    }
+
+    private void UpdateDragRegion()
+    {
+        if (_closed)
+        {
+            return;
+        }
+
+        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        global::Windows.Foundation.Point origin = TitleBar.DragRegion.TransformToVisual(Root).TransformPoint(new global::Windows.Foundation.Point(0, 0));
+        AppWindowTitleBar bar = AppWindow.TitleBar;
+        TitleBarDragRegion.Rect? region = TitleBarDragRegion.Compute(origin.X, origin.Y, TitleBar.DragRegion.ActualWidth, TitleBar.DragRegion.ActualHeight,
+            _settings.Current.UiScale / 100.0, Math.Max(1u, dpi) / 96.0, AppWindow.ClientSize.Width, bar.LeftInset, bar.RightInset);
+        RectInt32[] rects = region is { } r ? [new RectInt32(r.X, r.Y, r.Width, r.Height)] : [];
+        bar.SetDragRectangles(rects);
     }
 
     private void RestoreLayout()
@@ -672,6 +701,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         double scale = _settings.Current.UiScale / 100.0;
         if (scale == 1 && Root.RenderTransform is null)
         {
+            UpdateDragRegion();
             return;
         }
 
@@ -685,14 +715,18 @@ internal sealed partial class MainWindow : Window, IShellHost
             Root.Height = double.NaN;
             Root.HorizontalAlignment = HorizontalAlignment.Stretch;
             Root.VerticalAlignment = VerticalAlignment.Stretch;
-            return;
+        }
+        else
+        {
+            Root.RenderTransform = new ScaleTransform { ScaleX = scale, ScaleY = scale };
+            Root.HorizontalAlignment = HorizontalAlignment.Left;
+            Root.VerticalAlignment = VerticalAlignment.Top;
+            Root.Width = width / scale;
+            Root.Height = height / scale;
         }
 
-        Root.RenderTransform = new ScaleTransform { ScaleX = scale, ScaleY = scale };
-        Root.HorizontalAlignment = HorizontalAlignment.Left;
-        Root.VerticalAlignment = VerticalAlignment.Top;
-        Root.Width = width / scale;
-        Root.Height = height / scale;
+        // La barra no cambia de tamaño al escalar (la raíz mide lo mismo dividido por la escala): la región se recalcula aquí.
+        UpdateDragRegion();
     }
 
     /// <summary>
@@ -975,6 +1009,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         // Escala de la interfaz: si aún no se conoce (0), GridLength con infinito lanzaría.
         double scale = Root.XamlRoot?.RasterizationScale is double s && s > 0 && double.IsFinite(s) ? s : 1;
         TitleBar.CaptionInset.Width = new GridLength(Math.Max(0, AppWindow.TitleBar.RightInset / scale));
+        UpdateDragRegion();
+        Theme.ThemeResources.FollowWindows(_dispatcher, () => _settings.Current);
     }
 
     private void OnRendering(object? sender, object e) => Session.UpdateTransport(_engine.Snapshot);
