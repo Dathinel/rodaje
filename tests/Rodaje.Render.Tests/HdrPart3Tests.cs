@@ -77,6 +77,36 @@ public sealed class HdrPart3Tests
         Assert.Equal(plain, expanded);
     }
 
+    /// <summary>
+    /// La regla de oro con la LUT y las curvas: en una secuencia SDR siguen trabajando en la señal codificada (sin pasar por PQ),
+    /// así que una LUT y una curva maestra de identidad dejan la imagen como estaba. Además compila la variante avanzada con
+    /// LUT de <c>PsGraded</c>, la que dibuja los títulos: si no compila, el visor se queda sin ellos sin avisar.
+    /// </summary>
+    [GpuFact]
+    public void An_sdr_sequence_grades_with_the_lut_and_the_curves_as_before()
+    {
+        using GpuDevice gpu = GpuDevice.Create();
+        var image = new YuvImage(32, 16, false);
+        image.Fill(0, 0, 8, 16, new YuvCode(16, 128, 128));
+        image.Fill(8, 0, 8, 16, new YuvCode(Gray18, 90, 160));
+        image.Fill(16, 0, 8, 16, new YuvCode(180, 128, 128));
+        image.Fill(24, 0, 8, 16, new YuvCode(235, 128, 128));
+        byte[] plain = Readback(gpu, SequenceColorSpace.Sdr709, Layers.From(gpu, image, VideoColor.Bt709Limited));
+        string key = ToneCurve.Key(new Dictionary<string, string>(StringComparer.Ordinal) { [BuiltInEffects.CurvesOptions.Master] = "0,0;0.5,0.5;1,1" });
+        var look = new LayerLook([
+            Fx.ColorWithLut("identidad", 1),
+            new LayerEffect(EffectRegistry.Find(BuiltInEffects.Curves)!.Code, default, new ResourceKey(key)),
+        ]);
+        byte[] graded = Readback(gpu, SequenceColorSpace.Sdr709, Layers.From(gpu, image, VideoColor.Bt709Limited, look),
+            c => c.Resources = new FakeResources().Add("identidad", Luts.Identity(17)));
+
+        Assert.Equal(plain.Length, graded.Length);
+        for (int i = 0; i < plain.Length; i++)
+        {
+            Assert.InRange(graded[i], plain[i] - 1, plain[i] + 1);
+        }
+    }
+
     [GpuFact]
     public void A_lut_and_curves_keep_a_1000_nit_patch_in_an_hdr_sequence()
     {
@@ -196,12 +226,13 @@ public sealed class HdrPart3Tests
         return ExportCheck.ReadOne(converter, 0)[0];
     }
 
-    private static byte[] Readback(GpuDevice gpu, SequenceColorSpace space, LayerFrame layer)
+    private static byte[] Readback(GpuDevice gpu, SequenceColorSpace space, LayerFrame layer, Action<Compositor>? setup = null)
     {
         using var compositor = new Compositor(gpu, 32, 16) { ColorSpace = space };
+        setup?.Invoke(compositor);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         using CompositionFrame frame = Layers.Frame(32, 16, layer);
-        compositor.RenderStrict(frame);
+        Assert.Equal(0, compositor.RenderStrict(frame).EffectsSkipped);
         return compositor.ReadbackRgba();
     }
 

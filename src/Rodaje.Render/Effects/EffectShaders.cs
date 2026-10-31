@@ -317,14 +317,21 @@ internal static class EffectShaders
             return rgb;
         }
 
+        // Una sola salida: con un return dentro del [branch] fxc da X4000 («potentially uninitialized variable») y, con los
+        // avisos como errores, PsGraded no compila y el visor se queda sin títulos ni efectos.
         float3 Curves(float3 rgb)
         {
+            float3 graded;
             [branch] if (hdr.w > 0)
             {
-                return PqToLinear(CurvesCoded(LinearToPq(rgb)));
+                graded = PqToLinear(CurvesCoded(LinearToPq(rgb)));
+            }
+            else
+            {
+                graded = CurvesCoded(rgb);
             }
 
-            return CurvesCoded(rgb);
+            return graded;
         }
 
         // Con redondez 0 y el centro en el medio es la elipse del cuadro (d = 1 en las esquinas); con 1, un círculo en píxeles.
