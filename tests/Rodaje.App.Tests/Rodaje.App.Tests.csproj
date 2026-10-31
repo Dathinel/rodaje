@@ -58,6 +58,7 @@
     <Compile Include="..\..\src\Rodaje.App\Views\Player\Logic\**\*.cs" Link="PlayerLogic\%(RecursiveDir)%(Filename)%(Extension)" />
     <!-- La cadena de intercambio del visor (DXGI sin WinUI): formato de 10 bits y scRGB en WARP. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Player\CompositionSwapChain.cs" Link="PlayerLogic\CompositionSwapChain.cs" />
+    <Compile Include="..\..\src\Rodaje.App\Views\Player\DisplayHdr.cs" Link="PlayerLogic\DisplayHdr.cs" />
     <!-- Estabilizar y color automático: la caché de análisis y las ediciones, sin WinUI. -->
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\StabilizationStore.cs" Link="Analysis\StabilizationStore.cs" />
     <Compile Include="..\..\src\Rodaje.App\Views\Analysis\VideoAnalysisEdits.cs" Link="Analysis\VideoAnalysisEdits.cs" />

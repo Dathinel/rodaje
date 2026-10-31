@@ -34,8 +34,8 @@ public class ViewerBitDepthTests
     public void Display_config_answers_nothing_without_a_window()
     {
         Assert.Null(DisplayHdr.IsWindowMonitorInHdr(0));
-        bool? primary = DisplayHdr.IsWindowMonitorInHdr(GetDesktopWindow());
-        Assert.True(primary is null or true or false);
+        // Con el escritorio de la CI contesta null (sin ruta activa) o un valor; lo que no puede hacer es fallar.
+        _ = DisplayHdr.IsWindowMonitorInHdr(GetDesktopWindow());
     }
 
     [System.Runtime.InteropServices.DllImport("user32.dll")]
