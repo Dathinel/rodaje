@@ -12,6 +12,7 @@ Funciones de calidad de vida para la 1.1.
 
 ### Añadido
 - **Proyectos recientes:** Archivo › Proyectos recientes lista los últimos diez proyectos con la ruta abreviada; los que ya no existen se quitan solos y «Vaciar la lista» la limpia.
+- **Autoguardado configurable:** Preferencias › General › Autoguardado fija cada cuántos minutos (1 a 30) se hace una copia mientras se edita, y la barra de estado dice «Guardado hace N min» (o «Copia automática hace N min» si la copia es más nueva que el guardado).
 
 ## [1.0.2] - 2026-10-31
 

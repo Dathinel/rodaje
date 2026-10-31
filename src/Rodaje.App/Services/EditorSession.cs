@@ -138,6 +138,29 @@ public sealed partial class EditorSession : ObservableObject
     /// <summary>Texto corto para la barra de título.</summary>
     public string SaveStateText => IsDirty ? "Sin guardar" : FilePath is null ? "Nuevo" : "Guardado";
 
+    /// <summary>
+    /// Cuándo se escribió por última vez el archivo del proyecto: al guardar, ahora; al abrir, la fecha del archivo.
+    /// <c>null</c> si el proyecto nunca se guardó. La barra de estado lo muestra como «Guardado hace N min».
+    /// </summary>
+    public DateTimeOffset? LastSavedAt { get; private set; }
+
+    private static DateTimeOffset? LastWriteOf(string? path)
+    {
+        if (path is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return File.Exists(path) ? new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Hay una apertura, un guardado o una importación en curso.</summary>
     public bool IsBusy => _busy > 0;
 
@@ -466,6 +489,7 @@ public sealed partial class EditorSession : ObservableObject
         _selectedTransition = null;
         _editVersion++;
         FilePath = filePath;
+        LastSavedAt = LastWriteOf(filePath);
         _previewOff.Clear();
         _playback.Load(project.Clone(), sequenceId);
         RaiseHistoryProperties();

@@ -72,6 +72,10 @@
         </Grid>
 
         <Border Grid.Row="5" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0" Padding="8,4">
+            <Grid>
+            <!-- «Guardado hace N min» o «Copia automática hace N min»: lo refresca el temporizador de ajustes (SaveAge). -->
+            <TextBlock x:Name="SaveStatusText" HorizontalAlignment="Left" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}"
+                       AutomationProperties.Name="Último guardado" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="8">
                 <Button x:Name="HistoryButton" Content="Historial" ToolTipService.ToolTip="Historial del proyecto (Ctrl+H)">
                     <Button.Flyout>
@@ -95,6 +99,7 @@
                     </Button.Flyout>
                 </Button>
             </StackPanel>
+            </Grid>
         </Border>
 
         <Grid x:Name="ModalLayer" Grid.RowSpan="6" Visibility="Collapsed" Background="{StaticResource ScrimBrush}">
