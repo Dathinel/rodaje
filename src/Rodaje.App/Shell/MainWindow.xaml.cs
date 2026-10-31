@@ -181,6 +181,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(_router.Bind(ActionIds.Export, () => ShowPage(ShellPage.Export)));
         _bindings.Add(Views.Export.StillExportCommand.Bind(_router, _services, _hwnd));
         _bindings.Add(_router.Bind(ActionIds.ShowShortcuts, () => ShowPage(ShellPage.Shortcuts)));
+        _bindings.Add(_router.Bind(ActionIds.GoToTime, () => UiTask.Run(GoToTimeAsync())));
         _bindings.Add(_router.Bind(ActionIds.ShowPreferences, ShowPreferences));
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
         _bindings.Add(_router.Bind(ActionIds.ShowMixer, ToggleMixer));

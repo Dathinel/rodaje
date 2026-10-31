@@ -389,6 +389,21 @@ public sealed partial class EditorSession : ObservableObject
         _playback.Seek(position < Time.Zero ? Time.Zero : position > end ? end : position);
     }
 
+    /// <summary>
+    /// «Ir a tiempo»: lleva el cursor a lo escrito (<see cref="TimeInput"/>), con los saltos relativos desde la posición
+    /// del programa. <c>false</c> si el texto no es un tiempo; entonces no se mueve.
+    /// </summary>
+    public bool GoToTime(string? text)
+    {
+        if (!TimeInput.TryParse(text, Sequence.FrameRate, ProgramPosition, out Time target))
+        {
+            return false;
+        }
+
+        Seek(target);
+        return true;
+    }
+
     public void SeekToStart() => Seek(Time.Zero);
 
     public void SeekToEnd() => Seek(PlaybackDuration);

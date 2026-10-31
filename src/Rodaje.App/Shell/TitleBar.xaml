@@ -55,6 +55,8 @@
                 <MenuFlyoutItem Text="Recortar el final hasta el cursor" Tag="edit.trimEnd" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Borrar" Tag="edit.delete" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Seleccionar todo" Tag="edit.selectAll" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Ir a tiempo..." Tag="playback.goToTime" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Secuencia">
                 <MenuFlyoutItem Text="Formato del proyecto…" Tag="project.format" Click="OnActionClick" />
