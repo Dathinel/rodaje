@@ -56,6 +56,10 @@
                 <MenuFlyoutItem Text="Borrar" Tag="edit.delete" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Seleccionar todo" Tag="edit.selectAll" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Copiar clips" Tag="edit.copy" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Duplicar clip" Tag="edit.duplicate" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Pegar en el cursor" Tag="edit.pasteAtCursor" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Ir a tiempo..." Tag="playback.goToTime" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Secuencia">

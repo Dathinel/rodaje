@@ -14,6 +14,7 @@ Funciones de calidad de vida para la 1.1.
 - **Proyectos recientes:** Archivo › Proyectos recientes lista los últimos diez proyectos con la ruta abreviada; los que ya no existen se quitan solos y «Vaciar la lista» la limpia.
 - **Autoguardado configurable:** Preferencias › General › Autoguardado fija cada cuántos minutos (1 a 30) se hace una copia mientras se edita, y la barra de estado dice «Guardado hace N min» (o «Copia automática hace N min» si la copia es más nueva que el guardado).
 - **Ir a tiempo (Ctrl+J, Editar › Ir a tiempo…):** un cuadro para escribir `1:23`, `1:23.5`, `83`, `120f` o un salto (`+10`, `-2s`) y llevar el cursor ahí. Ctrl+G sigue siendo Agrupar.
+- **Copiar, duplicar y pegar clips:** Ctrl+C copia la selección con sus enlazados y grupos, Ctrl+D (Ctrl+Mayús+D en Clásico) la duplica justo a continuación en sus pistas y Ctrl+Mayús+V (o Ctrl+V) la pega en el cursor tapando lo que haya; en Editar y en el menú del clip, un paso de deshacer cada uno.
 
 ## [1.0.2] - 2026-10-31
 

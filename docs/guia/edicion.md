@@ -51,6 +51,13 @@ Clic selecciona (dentro de una selección, deja solo ese clip; arrastrar mueve l
 - En los dos, el puntero lleva su marca («]|[» roll, «[↔]» slide), un globo dice cuántos cuadros se corrió y el **visor muestra lado a lado los dos cuadros del corte**: en el roll, el último del clip que sale y el primero del que entra; en el slide, el último del vecino de la izquierda y el primero del de la derecha. Van con los enlazados, se pegan al cuadro y a los puntos de ajuste y no pasan del material que haya.
 - **Esc** cancela cualquier arrastre en curso.
 
+## Copiar, duplicar y pegar
+
+- **Copiar clips (Ctrl+C)** guarda la selección con sus enlazados y su grupo (con **ignorar grupos**, solo los clips elegidos). Es un portapapeles de Rodaje, no el de Windows: sobrevive a abrir otro proyecto siempre que los medios sigan en él.
+- **Duplicar clip (Ctrl+D**; Ctrl+Mayús+D en Clásico**)** pone una copia de la selección justo a continuación, en sus mismas pistas y con la misma distancia entre clips; si el sitio está ocupado, avisa y no mueve nada. Las copias quedan seleccionadas.
+- **Pegar en el cursor (Ctrl+Mayús+V o Ctrl+V)** pone lo copiado con el primer clip en el cursor y los demás a su distancia, cada uno en la pista con el mismo número (o la última de su tipo si ya no hay tantas), tapando lo que haya en ese tramo como un Sobrescribir. Los efectos, enlaces y grupos se copian; un clip compuesto no se copia ni se duplica.
+- Los tres están en **Editar** y en el menú del clip; cada uno es un paso del historial.
+
 ## Grupos, colores y huecos
 
 - **Agrupar (Ctrl+G)** junta los clips elegidos: un clic en uno elige el grupo entero y arrastrarlo mueve a todos, también si están en la misma pista. **Desagrupar (Ctrl+Mayús+G)** los suelta; los enlaces de audio y video siguen. Con **ignorar grupos** se mueve solo el clip agarrado.

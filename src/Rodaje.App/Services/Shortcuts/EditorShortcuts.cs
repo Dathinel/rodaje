@@ -21,6 +21,9 @@ public static class ActionIds
     public const string TrimStart = "edit.trimStart";
     public const string TrimEnd = "edit.trimEnd";
     public const string SelectAll = "edit.selectAll";
+    public const string CopyClips = "edit.copy";
+    public const string DuplicateClips = "edit.duplicate";
+    public const string PasteAtCursor = "edit.pasteAtCursor";
 
     public const string ClipSpeed = "clip.speed";
 
@@ -119,6 +122,9 @@ public static partial class EditorShortcuts
         new(ActionIds.TrimStart, "Borrar a la izquierda del cursor", ShortcutGroups.Edit, ["Q"], classic: ["Alt+["]) { ShortLabel = "Borrar izquierda", Description = "Quita del clip lo que hay antes del cursor; en la principal no deja hueco." },
         new(ActionIds.TrimEnd, "Borrar a la derecha del cursor", ShortcutGroups.Edit, ["W"], classic: ["Alt+]"]) { ShortLabel = "Borrar derecha", Description = "Quita del clip lo que hay después del cursor; en la principal no deja hueco." },
         new(ActionIds.SelectAll, "Seleccionar todo", ShortcutGroups.Edit, ["Ctrl+A"]) { ShortLabel = "Todo", Description = "Selecciona todos los clips de la secuencia." },
+        new(ActionIds.CopyClips, "Copiar clips", ShortcutGroups.Edit, ["Ctrl+C"]) { ShortLabel = "Copiar", Description = "Copia los clips seleccionados (con sus enlazados y grupos) para pegarlos en el cursor." },
+        new(ActionIds.DuplicateClips, "Duplicar clip", ShortcutGroups.Edit, ["Ctrl+D"], classic: ["Ctrl+Mayús+D"]) { ShortLabel = "Duplicar", Description = "Pone una copia de la selección justo a continuación, en sus mismas pistas, si hay sitio." },
+        new(ActionIds.PasteAtCursor, "Pegar en el cursor", ShortcutGroups.Edit, ["Ctrl+Mayús+V", "Ctrl+V"]) { ShortLabel = "Pegar", Description = "Pone lo copiado con el primer clip en el cursor y tapa lo que haya en ese tramo." },
         new(ActionIds.ShowHistory, "Historial", ShortcutGroups.Edit, ["Ctrl+H"]) { Description = "Abre el historial de cambios del proyecto." },
         new(ActionIds.AddTransition, "Transición por defecto", ShortcutGroups.Edit, ["Ctrl+T"]) { ShortLabel = "Transición", Description = "Pone la transición por defecto en el corte más cercano o en el del clip elegido." },
         new(ActionIds.ClipSpeed, "Velocidad del clip…", ShortcutGroups.Edit, ["Ctrl+R"]) { ShortLabel = "Velocidad", Description = "Abre la pestaña Velocidad del clip seleccionado o del que está bajo el cursor." },
@@ -193,6 +199,9 @@ public static partial class EditorShortcuts
             router.Bind(ActionIds.TrimStart, () => session.DeleteLeftOfPlayhead()),
             router.Bind(ActionIds.TrimEnd, () => session.DeleteRightOfPlayhead()),
             router.Bind(ActionIds.SelectAll, session.SelectAll),
+            router.Bind(ActionIds.CopyClips, () => session.CopySelection(), () => session.SelectedClipIds.Count > 0),
+            router.Bind(ActionIds.DuplicateClips, () => session.DuplicateSelection(), () => session.SelectedClipIds.Count > 0),
+            router.Bind(ActionIds.PasteAtCursor, () => session.PasteAtPlayhead(), () => session.CanPaste),
             router.Bind(ActionIds.ClipSpeed, () => session.ShowClipSpeed()),
             router.Bind(ActionIds.FreezeFrame, () => session.FreezeFrameAtPlayhead()),
             router.Bind(ActionIds.SpeedUp, () => session.StepSpeed(faster: true)),

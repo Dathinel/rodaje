@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.Shortcuts;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Editing;
 using Windows.Foundation;
@@ -40,6 +41,23 @@ internal sealed partial class TimelineView
         var detach = new MenuFlyoutItem { Text = "Separar audio", IsEnabled = session.CanDetachAudio };
         detach.Click += (_, _) => session.DetachAudioOfSelection();
         menu.Items.Add(detach);
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        ShortcutRegistry registry = _services!.ShortcutRegistry;
+        var copyClips = new MenuFlyoutItem { Text = "Copiar clips", KeyboardAcceleratorTextOverride = registry.GetKeyText(ActionIds.CopyClips) };
+        copyClips.Click += (_, _) => session.CopySelection();
+        menu.Items.Add(copyClips);
+        var duplicate = new MenuFlyoutItem { Text = "Duplicar clip", KeyboardAcceleratorTextOverride = registry.GetKeyText(ActionIds.DuplicateClips) };
+        duplicate.Click += (_, _) => session.DuplicateSelection();
+        menu.Items.Add(duplicate);
+        var pasteClips = new MenuFlyoutItem
+        {
+            Text = "Pegar en el cursor",
+            IsEnabled = session.CanPaste,
+            KeyboardAcceleratorTextOverride = registry.GetKeyText(ActionIds.PasteAtCursor),
+        };
+        pasteClips.Click += (_, _) => session.PasteAtPlayhead();
+        menu.Items.Add(pasteClips);
         menu.Items.Add(new MenuFlyoutSeparator());
 
         var copy = new MenuFlyoutItem { Text = "Copiar atributos" };
