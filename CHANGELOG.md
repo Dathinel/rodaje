@@ -8,7 +8,11 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ## [Sin publicar]
 
-Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video real para Instagram.
+Nada todavía.
+
+## [1.0.2] - 2026-10-31
+
+Buena parte sale de editar un video real para Instagram.
 
 ### Añadido
 - **Personalización** (#456): pestañas «Personalización» y «Temas» en Preferencias. Tema Grafito, Claro, Alto contraste o «Seguir a Windows»; acento de ocho colores o personalizado con ajuste automático a 3:1; escala de la interfaz (90–125 %) y tamaño del texto de la línea de tiempo. Editor de temas propios por grupos con vista previa en vivo, comprobación AA, duplicar, renombrar, eliminar, importar y exportar `.rodaje-tema`. Espacios de trabajo desde Preferencias, formato y carpeta de los proyectos nuevos, y perfil `.rodaje-perfil` con todo lo anterior más atajos y ratón; «Restablecer todo» con confirmación (D-056).
@@ -52,6 +56,7 @@ Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video rea
 - **Cuadro numérico del inspector:** un valor largo (7051 en Escala) se ve entero y, tras confirmar, el cuadro muestra el valor realmente aplicado; con el foco en un cuadro de texto, Ctrl+A y Fin actúan sobre el texto y no sobre los clips (#452).
 - **Informe de fallo con el equipo sobrecargado:** el error y la pila ya no salen tapados por «se agotó el tiempo del limpiador»; el tope del limpiador cuenta trabajo, no segundos (#474).
 - **Informe de fallo con un disco lento:** si escribir el informe tarda más de 10 s, las repeticiones del mismo error se cuentan en ese informe en vez de abrir uno nuevo y otro aviso cada vez (#474).
+- **Módulos de IA:** si un módulo no se conecta a tiempo, el error incluye lo que el módulo escribió en su salida de error, para saber por qué.
 - **Cierre:** un refresco de complementos que terminaba después de cerrar la ventana podía tumbar la app (`ObjectDisposedException` en el reproductor) (#450).
 - **Nombres con acentos dañados** («SubtÃ­tulos») en proyectos tocados con una herramienta externa se reparan al abrir (#450).
 - **Barra de la línea de tiempo a 1366 px:** marcadores, regiones y los interruptores secundarios se pliegan en un botón «…» antes que Deshacer y Rehacer, que ya no desaparecen (#450).
