@@ -126,17 +126,17 @@ internal static class RenderShaders
         // tramos se cruzan de verdad). ρ del SDR de 203 nits = 7,3085.
         float ExpandNormalized(float y, float rhoHdr)
         {
-            float yc = log(1 + 6.3085 * pow(y, 1.0 / 2.4)) / 1.98904;
+            float yc = log(1 + 6.3085 * pow(max(y, 0), 1.0 / 2.4)) / 1.98904;
             float yp = yc <= 0.82089 ? yc / 1.0770
                 : yc < 0.99545 ? (2.7811 - sqrt(max(2.7811 * 2.7811 - 4 * 1.1510 * (0.6302 + yc), 0))) / (2 * 1.1510)
                 : 2 * yc - 1;
-            return pow(saturate((pow(rhoHdr, yp) - 1) / (rhoHdr - 1)), 2.4);
+            return pow(saturate((pow(max(rhoHdr, 1), yp) - 1) / max(rhoHdr - 1, 1e-6)), 2.4);
         }
 
         float3 ExpandSdr(float3 light)
         {
             float y = saturate(dot(light, float3(0.2126, 0.7152, 0.0722)));
-            float rhoHdr = 1 + 32 * pow(hdr.y / 10000, 1.0 / 2.4);
+            float rhoHdr = 1 + 32 * pow(max(hdr.y, 0) / 10000, 1.0 / 2.4);
             float anchor = ExpandNormalized(0.18, rhoHdr);
             float s = saturate((ExpandNormalized(y, rhoHdr) - anchor) / (1 - anchor));
             return light * (1 + (hdr.y / 203 - 1) * s);
