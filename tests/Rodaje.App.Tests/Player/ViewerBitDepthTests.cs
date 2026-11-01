@@ -16,13 +16,30 @@ public class ViewerBitDepthTests
     public void Auto_follows_the_monitor_and_the_switch_overrides_it(TenBitViewer setting, int bitsPerColor, bool tenBits) =>
         Assert.Equal(tenBits, ViewerBitDepth.UsesTenBits(setting, bitsPerColor));
 
+    /// <summary>«Siempre» fuerza scRGB solo si no se sabe que el monitor de la ventana está en SDR: en SDR la imagen se vería quemada.</summary>
     [Theory]
     [InlineData(HdrViewer.Auto, false, false)]
     [InlineData(HdrViewer.Auto, true, true)]
-    [InlineData(HdrViewer.On, false, true)]
+    [InlineData(HdrViewer.Auto, null, false)]
+    [InlineData(HdrViewer.On, false, false)]
+    [InlineData(HdrViewer.On, true, true)]
+    [InlineData(HdrViewer.On, null, true)]
     [InlineData(HdrViewer.Off, true, false)]
-    public void The_hdr_viewer_follows_the_windows_hdr_mode_and_the_switch_overrides_it(HdrViewer setting, bool monitorInHdr, bool scRgb) =>
+    [InlineData(HdrViewer.Off, null, false)]
+    public void The_hdr_viewer_follows_the_window_monitor_and_the_switch_overrides_it(HdrViewer setting, bool? monitorInHdr, bool scRgb) =>
         Assert.Equal(scRgb, ViewerBitDepth.UsesScRgb(setting, monitorInHdr));
+
+    /// <summary>Sin ventana no hay monitor que consultar; con un escritorio real DisplayConfig contesta sí o no por el monitor principal.</summary>
+    [Fact]
+    public void Display_config_answers_nothing_without_a_window()
+    {
+        Assert.Null(DisplayHdr.IsWindowMonitorInHdr(0));
+        // Con el escritorio de la CI contesta null (sin ruta activa) o un valor; lo que no puede hacer es fallar.
+        _ = DisplayHdr.IsWindowMonitorInHdr(GetDesktopWindow());
+    }
+
+    [System.Runtime.InteropServices.DllImport("user32.dll")]
+    private static extern nint GetDesktopWindow();
 
     [Fact]
     public void The_default_is_auto_and_an_unknown_value_falls_back_to_it()

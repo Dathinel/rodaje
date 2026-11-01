@@ -12,6 +12,9 @@ public readonly record struct LayerTransform(double X, double Y, double Scale, d
     /// <summary>Blanco PQ o pico HLG en nits; cero elige 100 para PQ y 1000 para HLG.</summary>
     public double HdrReferenceNits { get; init; }
 
+    /// <summary>«Expandir a HDR» de una capa SDR en una secuencia HDR: el pico en nits (203–1000); 0, sin expandir.</summary>
+    public double HdrExpandNits { get; init; }
+
     /// <summary>Corrección de «Estabilizar» del cuadro, que va antes de esta transformación; nula sin estabilizar.</summary>
     public LayerStabilization? Stabilization { get; init; }
 

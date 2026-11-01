@@ -131,7 +131,17 @@
                         <local:ParameterRow x:Name="OpacityRow" />
                         <local:ParameterRow x:Name="HdrRow" ToolTipService.ToolTip="0: automático (blanco PQ de 100 nits; pico HLG de 1000 nits). Solo afecta a HDR." />
                         <TextBlock Style="{StaticResource CaptionTextStyle}" Margin="12,2,12,4" TextWrapping="Wrap" TextTrimming="None"
-                                   Text="Brillo de referencia HDR: 0 usa 100 nits en PQ o 1000 nits en HLG. No afecta a SDR." />
+                                   Text="Brillo de referencia HDR: 0 usa 100 nits en PQ o 1000 nits en HLG. En un clip SDR con «Expandir a HDR», el pico (203–1000; 0 usa 1000)." />
+                        <Grid x:Name="HdrExpandRow" Padding="12,3,6,3" ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="76" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Expandir" Style="{StaticResource LabelTextStyle}" ToolTipService.ToolTip="Expandir a HDR" />
+                            <ToggleSwitch x:Name="HdrExpandSwitch" Grid.Column="1" MinWidth="0" OnContent="Sí" OffContent="No"
+                                          Toggled="OnHdrExpandToggled" AutomationProperties.Name="Expandir a HDR"
+                                          ToolTipService.ToolTip="Solo en una secuencia HDR y con un clip SDR: las luces suben hasta el pico (curva inversa de BT.2446 A); el gris del 18 % no se mueve. No recupera lo recortado ni añade gama" />
+                        </Grid>
                         <Grid Padding="12,4,8,4" ColumnSpacing="4">
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="76" />

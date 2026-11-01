@@ -281,7 +281,7 @@ internal static partial class SelfTestRun
         Program.Metrics.Note($"autoprueba: el título profesional cambia {changed} píxeles respecto del simple");
         if (changed < 500)
         {
-            throw new InvalidOperationException($"El título profesional se ve igual que el simple ({changed} píxeles distintos).");
+            throw new InvalidOperationException($"El título profesional se ve igual que el simple ({changed} píxeles distintos; {Viewer(engine, pro, box)}).");
         }
 
         session.Undo();
@@ -289,13 +289,29 @@ internal static partial class SelfTestRun
         await Task.Delay(200);
     }
 
-    /// <summary>Con la caché de sombreadores vacía (primer arranque, CI) el cuadro nuevo tarda en llegar: se reintenta hasta 10 s.</summary>
+    /// <summary>Lo que explica una captura sin cambios: shaders de efectos, capas saltadas, tamaño del cuadro y caja del título.</summary>
+    private static string Viewer(PlayerEngine engine, FrameCapture frame, TitleBox box)
+    {
+        PlayerEngine.EffectTotals totals = engine.Effects;
+        return $"shaders de efectos: {engine.ShaderFailure ?? "bien"}; cuadros {totals.Frames}, efectos saltados {totals.Skipped}, contenido que faltó {totals.Missing}; "
+            + $"captura {frame.Width}×{frame.Height}; caja {box.Width:0}×{box.Height:0} en ({box.Transform.X:0}, {box.Transform.Y:0}); scRGB {engine.ViewerIsScRgb}";
+    }
+
+    /// <summary>
+    /// Con la caché de sombreadores vacía (primer arranque, CI) el cuadro nuevo tarda en llegar: se reintenta hasta 10 s. Si los
+    /// shaders de efectos no compilaron, ningún título se dibuja y se dice eso en vez de «no cambia».
+    /// </summary>
     private static async Task<(FrameCapture Frame, int Changed)> CaptureChangedAsync(PlayerEngine engine, FrameCapture reference, TitleBox box, Sequence sequence)
     {
         FrameCapture frame = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
         int changed = ChangedPixels(reference, frame, box, sequence.Width, sequence.Height);
         for (int i = 0; i < 40 && changed < 500; i++)
         {
+            if (engine.ShaderFailure is { } failure)
+            {
+                throw new InvalidOperationException("Los shaders de efectos no compilaron y el visor no dibuja títulos: " + failure);
+            }
+
             await Task.Delay(250);
             frame = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
             changed = ChangedPixels(reference, frame, box, sequence.Width, sequence.Height);

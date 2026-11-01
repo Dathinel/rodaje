@@ -168,6 +168,12 @@ public sealed record VideoExportSettings
     /// <summary><c>null</c>: BT.709 limitado (BT.601 en SD, sRGB en imágenes), según <see cref="ExportColor.For"/>.</summary>
     public ExportColor? Color { get; init; }
 
+    /// <summary>
+    /// HDR10: medir MaxCLL y MaxFALL sobre la composición en una pasada previa (compone cada cuadro dos veces) en vez de
+    /// declarar los de <see cref="Color"/>. Solo actúa si la salida va en PQ desde una secuencia HDR.
+    /// </summary>
+    public bool MeasureLightLevels { get; init; }
+
     /// <summary><c>null</c>: la tasa de la secuencia.</summary>
     public Rational? FrameRate { get; init; }
 
