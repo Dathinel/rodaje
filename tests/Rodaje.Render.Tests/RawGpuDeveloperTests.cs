@@ -14,8 +14,12 @@ namespace Rodaje.Render.Tests;
 /// </summary>
 public sealed class RawGpuDeveloperTests(ITestOutputHelper output)
 {
-    /// <summary>Un código rgba16f de 12 bits en [0, 1] vale 1/4096 y media precisión tiene 11 bits de mantisa: ±1/2048 cubre los dos.</summary>
-    private const double Tolerance = 1.0 / 2048;
+    /// <summary>
+    /// Una unidad de media precisión del valor de la CPU (11 bits de mantisa: 1/2048 por debajo de 1, 1/1024 de 1 a 2, que es donde
+    /// llega la exposición), y nunca menos de 1/2048: la GPU y la CPU redondean el mismo resultado en float a rgba16f y pueden caer
+    /// en vecinos distintos.
+    /// </summary>
+    private static double Tolerance(double value) => Math.Max(1.0 / 2048, Math.Abs(value) / 1024);
 
     private static Half[] Gpu(GpuDevice gpu, SyntheticDng dng, RawDevelopParameters parameters)
     {
@@ -33,13 +37,14 @@ public sealed class RawGpuDeveloperTests(ITestOutputHelper output)
         return MemoryMarshal.Cast<byte, Half>(bytes).ToArray();
     }
 
+    /// <summary>La peor diferencia en unidades de media precisión (1 = un vecino).</summary>
     private static double Compare(Half[] gpu, Half[] cpu)
     {
         Assert.Equal(cpu.Length, gpu.Length);
         double worst = 0;
         for (int i = 0; i < cpu.Length; i++)
         {
-            worst = Math.Max(worst, Math.Abs((double)gpu[i] - (double)cpu[i]));
+            worst = Math.Max(worst, Math.Abs((double)gpu[i] - (double)cpu[i]) / Tolerance((double)cpu[i]));
         }
 
         return worst;
@@ -69,8 +74,8 @@ public sealed class RawGpuDeveloperTests(ITestOutputHelper output)
         SyntheticDng dng = SyntheticDng.Chart(96, 48);
         RawDevelopParameters parameters = dng.DevelopParameters(exposure, curve);
         double worst = Compare(Gpu(gpu, dng, parameters), Cpu(dng, parameters));
-        output.WriteLine($"{curve} {exposure:+0.0;-0.0;0} EV: diferencia máxima GPU − CPU {worst:0.00000}");
-        Assert.True(worst <= Tolerance, $"Diferencia máxima {worst:0.00000}.");
+        output.WriteLine($"{curve} {exposure:+0.0;-0.0;0} EV: diferencia máxima GPU − CPU {worst:0.00} unidades de media precisión");
+        Assert.True(worst <= 1, $"Diferencia máxima {worst:0.00} unidades de media precisión.");
     }
 
     [Fact]
@@ -88,8 +93,8 @@ public sealed class RawGpuDeveloperTests(ITestOutputHelper output)
             Assert.True(BayerPattern.TryParse(text, out BayerPattern pattern));
             RawDevelopParameters parameters = chart with { Pattern = pattern };
             double worst = Compare(Gpu(gpu, dng, parameters), Cpu(dng, parameters));
-            output.WriteLine($"{text}: diferencia máxima GPU − CPU {worst:0.00000}");
-            Assert.True(worst <= Tolerance, $"{text}: diferencia máxima {worst:0.00000}.");
+            output.WriteLine($"{text}: diferencia máxima GPU − CPU {worst:0.00} unidades de media precisión");
+            Assert.True(worst <= 1, $"{text}: diferencia máxima {worst:0.00} unidades de media precisión.");
         }
     }
 
