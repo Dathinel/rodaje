@@ -222,17 +222,3 @@ public sealed class ShortcutStore
         registry.Restore(new ShortcutSnapshot(keys, mouse));
     }
 }
-
-internal sealed class ShortcutFile
-{
-    public int Version { get; set; } = ShortcutStore.CurrentVersion;
-
-    public Dictionary<string, Dictionary<string, List<string>>> Presets { get; set; } = new(StringComparer.Ordinal);
-
-    /// <summary>Por estilo y zona («timeline», «viewer», «library»): combinación → acción, o <c>null</c> sin acción.</summary>
-    public Dictionary<string, Dictionary<string, Dictionary<string, string?>>> Mouse { get; set; } = new(StringComparer.Ordinal);
-}
-
-[JsonSourceGenerationOptions(WriteIndented = true, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase)]
-[JsonSerializable(typeof(ShortcutFile))]
-internal sealed partial class ShortcutJsonContext : JsonSerializerContext;

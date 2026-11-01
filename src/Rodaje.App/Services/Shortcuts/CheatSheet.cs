@@ -2,9 +2,6 @@ using System.Text;
 
 namespace Rodaje.App.Services.Shortcuts;
 
-/// <summary>Una línea de la hoja rápida.</summary>
-public sealed record CheatSheetEntry(string ActionId, string Label, string Group, IReadOnlyList<string> Keys);
-
 /// <summary>
 /// La hoja rápida: los atajos más útiles del estilo actual, para tenerlos a mano o imprimirlos. Sale en la página de
 /// atajos y se exporta como HTML (imprimible) o PNG.

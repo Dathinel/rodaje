@@ -4,10 +4,9 @@ using Rodaje.App.Services.Settings;
 namespace Rodaje.App.Services.Shortcuts;
 
 /// <summary>
-/// Las acciones que registran la línea de tiempo, el reproductor, los subtítulos y la ventana, con sus teclas de fábrica.
-/// Viven aquí y no en las vistas para que el catálogo entero se arme sin WinUI: la guía <c>docs/guia/atajos.md</c> y la
-/// hoja de atajos de Ayuda salen de <see cref="ShortcutCatalog.All"/>, y una prueba comprueba que la guía esté al día.
-/// Las vistas registran su lista con <see cref="ShortcutRegistry.RegisterRange"/> y unen cada acción con lo que hace.
+/// Las acciones que registra la línea de tiempo, con sus teclas de fábrica. Viven aquí y no en la vista para que el
+/// catálogo entero se arme sin WinUI (<see cref="ShortcutCatalog"/>); la vista registra la lista con
+/// <see cref="ShortcutRegistry.RegisterRange"/> y une cada acción con lo que hace.
 /// </summary>
 public static class TimelineShortcuts
 {
@@ -73,87 +72,4 @@ public static class TimelineShortcuts
         new(OverwriteSource, "Sobrescribir desde el origen", ShortcutGroups.Edit, ["."]) { ShortLabel = "Sobrescribir", Description = "Pone el tramo marcado del origen encima de lo que haya; con un borde elegido, lo recorta un fotograma a la derecha." },
         new(ToggleSource, "Visor de origen o de programa", ShortcutGroups.View, ["Mayús+2"]) { ShortLabel = "Origen", Description = "Cambia el reproductor entre el medio del origen y la secuencia." },
     ];
-}
-
-/// <summary>Las acciones del reproductor (además de las de reproducción del armazón).</summary>
-public static class PlayerShortcuts
-{
-    public const string FullScreen = "view.playerFullScreen";
-    public const string SafeAreas = "view.safeAreas";
-    public const string ProjectFormat = "project.format";
-    public const string SecondScreen = "view.secondScreen";
-
-    public static IReadOnlyList<ShortcutAction> Catalog { get; } =
-    [
-        new(ActionIds.ShuttleReverse, "Lanzadera hacia atrás (más rápido con cada pulsación)", ShortcutGroups.Playback, ["J"]) { ShortLabel = "Atrás" },
-        new(ActionIds.ShuttleStop, "Lanzadera: detener", ShortcutGroups.Playback, ["K"]) { ShortLabel = "Detener" },
-        new(ActionIds.ShuttleForward, "Lanzadera hacia adelante (más rápido con cada pulsación)", ShortcutGroups.Playback, ["L"]) { ShortLabel = "Adelante" },
-        new(FullScreen, "Reproductor en pantalla completa", ShortcutGroups.View, ["F"]) { ShortLabel = "Pantalla completa" },
-        new(SafeAreas, "Mostrar u ocultar las zonas seguras", ShortcutGroups.View, []) { ShortLabel = "Zonas seguras" },
-        new(ProjectFormat, "Formato del proyecto…", ShortcutGroups.View, []) { ShortLabel = "Formato" },
-        new(SecondScreen, "Visor en otra pantalla (abrir o cerrar)", ShortcutGroups.View, []) { ShortLabel = "Otra pantalla" },
-    ];
-}
-
-/// <summary>Importar y exportar archivos de subtítulos. Sin tecla de fábrica.</summary>
-public static class SubtitleShortcuts
-{
-    public const string Import = "file.importSubtitles";
-    public const string Export = "file.exportSubtitles";
-
-    public static IReadOnlyList<ShortcutAction> Catalog { get; } =
-    [
-        new(Import, "Importar subtítulos", ShortcutGroups.File, []) { Description = "Trae un archivo .srt o .vtt a una pista de subtítulos nueva." },
-        new(Export, "Exportar subtítulos", ShortcutGroups.File, []) { Description = "Guarda la pista de subtítulos como archivo .srt o .vtt." },
-    ];
-}
-
-/// <summary>Las acciones de la ventana: recorrido inicial, pistas, carpetas vigiladas y los espacios de trabajo de fábrica.</summary>
-public static class ShellShortcuts
-{
-    public const string Tour = "help.tour";
-    public const string ResetHints = "help.resetHints";
-    public const string WatchedFolders = "file.watchedFolders";
-    public const string ShortcutSheet = "help.shortcutSheet";
-    public const string CheckUpdates = "help.checkUpdates";
-    public const string WorkspacePrefix = "view.workspace.";
-
-    /// <summary>El identificador de la acción que aplica un espacio de trabajo de fábrica.</summary>
-    public static string Workspace(WorkspaceProfile profile)
-    {
-        ArgumentNullException.ThrowIfNull(profile);
-        return WorkspacePrefix + profile.Id["fabrica.".Length..];
-    }
-
-    public static IReadOnlyList<ShortcutAction> Catalog { get; } =
-    [
-        new(Tour, "Recorrido inicial", ShortcutGroups.View, []) { ShortLabel = "Recorrido" },
-        new(ResetHints, "Volver a mostrar las pistas", ShortcutGroups.View, []) { ShortLabel = "Pistas" },
-        new(ShortcutSheet, "Hoja de atajos (imprimible)", ShortcutGroups.View, []) { ShortLabel = "Hoja", Description = "Guarda en Documentos una página con todos los atajos del estilo actual, lista para imprimir." },
-        new(CheckUpdates, "Buscar actualizaciones…", ShortcutGroups.View, []) { ShortLabel = "Actualizar", Description = "Consulta ahora mismo si hay una versión nueva de Rodaje en GitHub." },
-        .. WorkspaceProfiles.Factory.Select(profile => new ShortcutAction(Workspace(profile), $"Espacio de trabajo «{profile.Name}»", ShortcutGroups.View, []) { ShortLabel = profile.Name }),
-        new(WatchedFolders, "Carpetas vigiladas…", ShortcutGroups.File, []) { ShortLabel = "Vigiladas" },
-    ];
-}
-
-/// <summary>Todas las acciones con teclado de Rodaje, en el orden en que la app las registra.</summary>
-public static class ShortcutCatalog
-{
-    public static IReadOnlyList<ShortcutAction> All { get; } =
-    [
-        .. EditorShortcuts.Catalog,
-        .. TimelineShortcuts.Catalog,
-        .. PlayerShortcuts.Catalog,
-        .. SubtitleShortcuts.Catalog,
-        .. ShellShortcuts.Catalog,
-    ];
-
-    /// <summary>Un registro con el catálogo entero y las teclas de fábrica del estilo pedido.</summary>
-    public static ShortcutRegistry CreateRegistry(ShortcutPreset preset = ShortcutPreset.Rodaje)
-    {
-        var registry = new ShortcutRegistry();
-        registry.RegisterRange(All);
-        registry.Preset = preset;
-        return registry;
-    }
 }

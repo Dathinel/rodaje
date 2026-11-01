@@ -1,34 +1,43 @@
 using System.ComponentModel;
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using System.Text;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 
 namespace Rodaje.App.Shell;
 
-/// <summary>Ayuda › Hoja de atajos (imprimible): todos los atajos del estilo actual en un HTML en Documentos.</summary>
+/// <summary>
+/// Ayuda › Hoja de atajos (imprimible)…: todos los atajos del estilo actual en un HTML, donde diga el diálogo de guardar
+/// (Documentos la primera vez; después, la última carpeta elegida para las hojas y los mapas de atajos).
+/// </summary>
 #pragma warning disable CA1001 // Lo descartable se libera en OnClosed (MainWindow.xaml.cs).
 internal sealed partial class MainWindow
 #pragma warning restore CA1001
 {
-    private const string SheetFileName = "Atajos de Rodaje (completa).html";
-
     private async Task SaveShortcutSheetAsync()
     {
-        string folder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        if (string.IsNullOrEmpty(folder))
+        string? path;
+        try
         {
-            folder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            path = FileDialogs.Save(_hwnd, "Guardar la hoja de atajos", SheetFiles.FullSheetName, "html",
+                FileDialogFolderPolicy.SaveFolder(_settings.Current, SaveDialogKind.Shortcuts), SheetFiles.HtmlFilter);
+        }
+        catch (Exception ex) when (ex is COMException or InvalidOperationException)
+        {
+            Session.Notify(NotificationSeverity.Warning, "Hoja de atajos", $"No se pudo abrir el diálogo: {ex.Message}");
+            return;
         }
 
-        string path = Path.Combine(folder, SheetFileName);
-        ShortcutRegistry registry = _router.Registry;
-        string preset = registry.Preset switch
+        if (path is null)
         {
-            ShortcutPreset.Agile => "Ágil",
-            ShortcutPreset.Classic => "Clásico",
-            _ => "Rodaje",
-        };
+            return;
+        }
+
+        FileDialogFolderPolicy.RememberSave(_settings.Current, SaveDialogKind.Shortcuts, path);
+        ShortcutRegistry registry = _router.Registry;
+        string preset = ShortcutPresetNames.Display(registry.Preset);
         string html = ShortcutGuide.ToHtml(registry, $"Estilo {preset}, con tus cambios · {DateTime.Now:d}");
         try
         {
@@ -51,6 +60,8 @@ internal sealed partial class MainWindow
                 Session.Notify(NotificationSeverity.Warning, "Hoja de atajos", $"No se pudo abrir «{path}»: {ex.Message}");
             }
         });
-        Session.Notify(NotificationSeverity.Success, "Hoja de atajos guardada", $"«{SheetFileName}» está en «{folder}». Ábrela en el navegador e imprímela.", open);
+        string name = Path.GetFileName(path);
+        string folder = Path.GetDirectoryName(path) ?? path;
+        Session.Notify(NotificationSeverity.Success, "Hoja de atajos guardada", $"«{name}» está en «{folder}». Ábrela en el navegador e imprímela.", open);
     }
 }

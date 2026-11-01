@@ -42,13 +42,18 @@ public sealed class AutosaveSchedule
     public const int DefaultIntervalMinutes = 2;
 
     /// <summary>
-    /// Cambia el intervalo (Preferencias › General). Lo pendiente sigue pendiente y se mide con el intervalo nuevo
-    /// desde su primer cambio: acortarlo puede hacer que toque enseguida; alargarlo, que espere.
+    /// Cambia el intervalo (Preferencias › General). Lo pendiente sigue pendiente, pero el intervalo nuevo se cuenta
+    /// desde <paramref name="now"/>, no desde el primer cambio: acortarlo no dispara una copia en el acto y alargarlo
+    /// espera lo elegido desde este momento. La copia por calma (<see cref="QuietPeriod"/>) sigue igual.
     /// </summary>
-    public void SetInterval(TimeSpan interval)
+    public void SetInterval(TimeSpan interval, DateTimeOffset now)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
         Interval = interval;
+        if (_firstPendingEdit is not null)
+        {
+            _firstPendingEdit = now;
+        }
     }
 
     /// <summary>Minutos acotados a lo que admite Preferencias.</summary>

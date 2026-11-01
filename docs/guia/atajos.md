@@ -73,6 +73,8 @@ En las tablas, «=» significa «igual que Rodaje» y «(sin tecla)», que ese e
 
 Sin tecla de fábrica (se asignan en el panel): Invertir, Fundido de entrada hasta el cursor, Fundido de salida desde el cursor.
 
+**Pegar en el cursor** tiene dos teclas que hacen lo mismo: **Ctrl+Mayús+V**, la de fábrica, y **Ctrl+V**, la de costumbre. Con el foco en una lista (las fichas de la biblioteca, los marcadores), Ctrl+C y Ctrl+V son de la lista, como Supr y Ctrl+A, y no copian ni pegan clips; Ctrl+Mayús+V pega en el cursor desde cualquier sitio salvo un campo de texto.
+
 ## Línea de tiempo
 
 | Acción | Rodaje | Ágil | Clásico |
@@ -113,7 +115,7 @@ Sin tecla de fábrica (se asignan en el panel): Herramienta de selección.
 | Visor de origen o de programa | Mayús+2 | = | = |
 | Reproductor en pantalla completa | F | = | = |
 
-Sin tecla de fábrica (se asignan en el panel): Complementos, Distribución equilibrada, Más visor, Más línea de tiempo, Mostrar u ocultar las zonas seguras, Formato del proyecto…, Visor en otra pantalla (abrir o cerrar), Recorrido inicial, Volver a mostrar las pistas, Hoja de atajos (imprimible), Buscar actualizaciones…, Espacio de trabajo «Edición», Espacio de trabajo «Color», Espacio de trabajo «Audio».
+Sin tecla de fábrica (se asignan en el panel): Complementos, Distribución equilibrada, Más visor, Más línea de tiempo, Mostrar u ocultar las zonas seguras, Formato del proyecto…, Visor en otra pantalla (abrir o cerrar), Recorrido inicial, Volver a mostrar las pistas, Hoja de atajos (imprimible)…, Buscar actualizaciones…, Espacio de trabajo «Edición», Espacio de trabajo «Color», Espacio de trabajo «Audio».
 
 ## Archivo
 
@@ -171,4 +173,4 @@ En **Archivo › Atajos de teclado...** (Ctrl+Alt+K) cada acción muestra sus te
 
 ## Hojas para imprimir
 
-En el panel, **Hoja rápida** junta los 15 atajos más útiles del estilo actual y los guarda en Documentos como «Atajos de Rodaje.html» (imprimible) o «Atajos de Rodaje.png». **Ayuda › Hoja de atajos (imprimible)...** guarda todos los atajos del estilo actual, con los cambios de cada uno, como «Atajos de Rodaje (completa).html».
+En el panel, **Hoja rápida** junta los 15 atajos más útiles del estilo actual y los guarda donde elijas, como página imprimible («Atajos de Rodaje.html») o como imagen («Atajos de Rodaje.png»). **Ayuda › Hoja de atajos (imprimible)...** pregunta dónde guardar todos los atajos del estilo actual, con los cambios de cada uno («Atajos de Rodaje (completa).html»). Los diálogos proponen Documentos la primera vez y después la última carpeta elegida.

@@ -11,7 +11,6 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Autosave;
-using Rodaje.Core.Serialization;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Packages;

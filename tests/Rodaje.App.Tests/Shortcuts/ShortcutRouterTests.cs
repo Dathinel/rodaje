@@ -71,6 +71,27 @@ public class ShortcutRouterTests
     }
 
     [Fact]
+    public void EnUnaLista_CtrlCYCtrlVSonDeLaListaPeroCtrlMayusVPega()
+    {
+        ShortcutRouter router = Router();
+        router.Registry.Register(new ShortcutAction("copy", "Copiar clips", "E", ["Ctrl+C"]));
+        router.Registry.Register(new ShortcutAction("paste", "Pegar en el cursor", "E", ["Ctrl+Mayús+V", "Ctrl+V"]));
+        var invoked = new List<string>();
+        router.Bind("copy", () => invoked.Add("copy"));
+        router.Bind("paste", () => invoked.Add("paste"));
+
+        Assert.False(router.Dispatch(K("Ctrl+C"), false, KeyFocus.List));
+        Assert.False(router.Dispatch(K("Ctrl+V"), false, KeyFocus.List));
+        Assert.True(router.Dispatch(K("Ctrl+Mayús+V"), false, KeyFocus.List));
+        Assert.True(router.Dispatch(K("Ctrl+C"), false, KeyFocus.Other));
+        Assert.True(router.Dispatch(K("Ctrl+V"), false, KeyFocus.Other));
+
+        Assert.Equal(["paste", "copy", "paste"], invoked);
+        Assert.Contains(K("Ctrl+C"), ShortcutRouter.ListKeys);
+        Assert.Contains(K("Ctrl+V"), ShortcutRouter.ListKeys);
+    }
+
+    [Fact]
     public void EnUnaLista_SuprYCtrlASonDeLaLista()
     {
         ShortcutRouter router = Router();
