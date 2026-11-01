@@ -106,6 +106,8 @@ Selecciona el clip con sonido y pulsa **Quitar silencios** (**Herramientas › A
 
 Selecciona la música y pulsa **Detectar ritmo** (**Herramientas › Audio › Detectar ritmo…**, la barra rápida o el menú contextual del clip). Muestra «Tempo: 120,0 BPM · N pulsos». «Poner un marcador en cada pulso» deja marcadores «Pulso» (para cortar a ritmo con el ajuste encendido); «Cortar el clip al ritmo» corta cada pulso, cada 2, cada 4 (compás) o cada 8.
 
+**Montaje al ritmo.** Si además de la música seleccionas los clips del montaje (las tomas o las fotos de la pista principal, con Ctrl+clic), aparece **«Ajustar al ritmo los otros N clips seleccionados»**: cada clip, de izquierda a derecha, pasa a terminar en el pulso que le toca (cada pulso, cada 2, cada 4…) y lo que sigue en su pista se corre para quedar pegado, así todos los cortes caen en la música. Un clip no crece más allá de su material (si le faltan cuadros, se queda hasta donde llega), los títulos y las fotos no tienen tope, y los clips con reversa, curva o congelado solo se acortan. Los enlazados van juntos y todo se deshace en un paso con Ctrl+Z.
+
 ## Reducir ruido
 
 Necesita el módulo «Audio con IA». Selecciona el clip con voz: puedes abrirlo de inmediato desde el menú contextual del clip (**Reducir ruido…**), desde **Herramientas › Audio › Reducir ruido…** o desde la barra rápida. El diálogo limpia la voz y deja escuchar «A: original» y «B: limpio»; «Cuánto ruido se quita» va de 6 a 48 dB (todo). Con menos intensidad queda algo del ambiente y la voz suena más natural. Al aplicar, el clip pasa a un WAV nuevo «<nombre> (sin ruido)»; el original no se toca. Límite: una hora por clip.

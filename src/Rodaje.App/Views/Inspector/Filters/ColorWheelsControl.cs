@@ -13,28 +13,30 @@ using Path = Microsoft.UI.Xaml.Shapes.Path;
 namespace Rodaje.App.Views.Inspector.Filters;
 
 /// <summary>
-/// Tres ruedas (sombras, medios y luces): el punto marca el tinte de la zona. Arrastrarlo cambia el tinte (un paso del
-/// historial por arrastre, lo junta quien escucha) y el doble clic lo vuelve al centro. La cuenta está en <see cref="WheelMath"/>.
+/// Cuatro ruedas (sombras, medios, luces y desplazamiento): el punto marca el tinte de la zona. Arrastrarlo cambia el
+/// tinte (un paso del historial por arrastre, lo junta quien escucha) y el doble clic lo vuelve al centro. La cuenta está
+/// en <see cref="WheelMath"/>, que también dice cuántas ruedas hay y cómo se llaman.
 /// </summary>
 internal sealed partial class ColorWheelsControl : Grid
 {
-    private const double Size = 92;
+    private const double Size = 70;
     private const int Wedges = 48;
-    private static readonly string[] Labels = ["Sombras", "Medios", "Luces"];
+    private static readonly IReadOnlyList<string> Labels = WheelMath.Labels;
+    private static readonly int Count = WheelMath.Wheels.Count;
 
-    private readonly Ellipse[] _pucks = new Ellipse[3];
-    private readonly Grid[] _wheels = new Grid[3];
+    private readonly Ellipse[] _pucks = new Ellipse[Count];
+    private readonly Grid[] _wheels = new Grid[Count];
     private int? _dragging;
 
     public ColorWheelsControl()
     {
-        ColumnSpacing = 8;
+        ColumnSpacing = 6;
         Padding = new Thickness(12, 4, 6, 6);
-        for (int i = 0; i < 3; i++)
+        for (int i = 0; i < Count; i++)
         {
             ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             var stack = new StackPanel { Spacing = 4, HorizontalAlignment = HorizontalAlignment.Center };
-            stack.Children.Add(new TextBlock { Text = Labels[i], HorizontalAlignment = HorizontalAlignment.Center, FontSize = ThemeResources.Size("BodyFontSize") });
+            stack.Children.Add(new TextBlock { Text = Labels[i], HorizontalAlignment = HorizontalAlignment.Center, FontSize = ThemeResources.Size("CaptionFontSize"), TextTrimming = TextTrimming.CharacterEllipsis });
             Grid wheel = Wheel();
             int index = i;
             _pucks[i] = new Ellipse
@@ -66,10 +68,10 @@ internal sealed partial class ColorWheelsControl : Grid
     /// <summary>Un punto movido (x, y de −1 a 1, y hacia arriba); <see cref="WheelChange.Final"/> al soltar o al reiniciar.</summary>
     public event EventHandler<WheelChange>? WheelChanged;
 
-    /// <summary>Pone los tres puntos donde dicen los parámetros (x, y de −1 a 1 por rueda).</summary>
+    /// <summary>Pone los puntos donde dicen los parámetros (x, y de −1 a 1 por rueda).</summary>
     public void Show(IReadOnlyList<(double X, double Y)> positions)
     {
-        for (int i = 0; i < 3 && i < positions.Count; i++)
+        for (int i = 0; i < Count && i < positions.Count; i++)
         {
             if (_dragging == i)
             {

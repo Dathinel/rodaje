@@ -45,7 +45,7 @@ public sealed class TitleBarMenuTests
         Assert.Equal("Secuencia", ParentMenu(menu, "timeline.subtitleTrack"));
         string[] actionIds =
         [
-            "analysis.silences", "analysis.beats", "analysis.ducking", "analysis.noise",
+            "analysis.silences", "analysis.beats", "analysis.ducking", "analysis.syncAudio", "analysis.noise",
             "analysis.stabilize", "analysis.autocolor", "analysis.whitebalance", "vision.removeBackground", "vision.reframe",
             "tools.autoSubtitles", "tools.translateTrack", "voice.textToSpeech", "audio.voiceOver",
         ];
@@ -53,9 +53,9 @@ public sealed class TitleBarMenuTests
         Assert.Equal(quickToolIds.Append("tools.translateTrack").Order(), actionIds.Order());
         Assert.All(actionIds, id => Assert.Equal("Herramientas", ParentMenu(menu, id)));
         Assert.Equal("Herramientas", ParentNamedElement(menu, "AiQualityAuto"));
-        Assert.All(actionIds.Take(4), id => Assert.Equal("Audio", ParentSubMenu(menu, id)));
-        Assert.All(actionIds.Skip(4).Take(5), id => Assert.Equal("Imagen", ParentSubMenu(menu, id)));
-        Assert.All(actionIds.Skip(9), id => Assert.Equal("Texto y voz", ParentSubMenu(menu, id)));
+        Assert.All(actionIds.Take(5), id => Assert.Equal("Audio", ParentSubMenu(menu, id)));
+        Assert.All(actionIds.Skip(5).Take(5), id => Assert.Equal("Imagen", ParentSubMenu(menu, id)));
+        Assert.All(actionIds.Skip(10), id => Assert.Equal("Texto y voz", ParentSubMenu(menu, id)));
         Assert.DoesNotContain("analysis.silences", ItemsUnder(menu, "Editar"));
     }
 

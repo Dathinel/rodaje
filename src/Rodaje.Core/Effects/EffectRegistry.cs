@@ -265,6 +265,10 @@ public static class EffectRegistry
             new(W.GainGreen, 0, -1, 1),
             new(W.GainBlue, 0, -1, 1),
             new(W.Gain, 0, -1, 1),
+            new(W.OffsetRed, 0, -0.5, 0.5),
+            new(W.OffsetGreen, 0, -0.5, 0.5),
+            new(W.OffsetBlue, 0, -0.5, 0.5),
+            new(W.Offset, 0, -0.5, 0.5),
         ]),
         new(BuiltInEffects.Curves, 14, EffectTarget.Video, EffectStage.PerPixel, [],
         [

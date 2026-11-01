@@ -168,12 +168,15 @@
                             <ComboBox x:Name="FrameRateBox" Grid.Row="5" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnFrameRateChanged" DropDownClosed="OnDropDownClosed" />
                             <TextBlock Grid.Row="6" Text="Bits por canal" Style="{StaticResource FieldLabelStyle}" />
                             <ComboBox x:Name="BitDepthBox" Grid.Row="6" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnBitDepthChanged" DropDownClosed="OnDropDownClosed" />
-                            <TextBlock Grid.Row="7" Text="Perfil" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="ProfileBox" Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnProfileChanged" DropDownClosed="OnDropDownClosed" />
-                            <TextBlock Grid.Row="8" Text="Velocidad del codificador" Style="{StaticResource FieldLabelStyle}" />
-                            <ComboBox x:Name="SpeedPresetBox" Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSpeedPresetChanged" DropDownClosed="OnDropDownClosed" />
-                            <TextBlock Grid.Row="9" Text="Fotograma clave cada" Style="{StaticResource FieldLabelStyle}" />
-                            <StackPanel Grid.Row="9" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
+                            <TextBlock Grid.Row="7" Text="Muestreo de color" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="ChromaBox" Grid.Row="7" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnChromaChanged" DropDownClosed="OnDropDownClosed"
+                                      ToolTipService.ToolTip="4:2:0 es lo que reproducen todos los dispositivos; 4:2:2 y 4:4:4 conservan más color para seguir editando o para croma y texto fino (solo en los codificadores que lo admiten)." />
+                            <TextBlock Grid.Row="8" Text="Perfil" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="ProfileBox" Grid.Row="8" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnProfileChanged" DropDownClosed="OnDropDownClosed" />
+                            <TextBlock Grid.Row="9" Text="Velocidad del codificador" Style="{StaticResource FieldLabelStyle}" />
+                            <ComboBox x:Name="SpeedPresetBox" Grid.Row="9" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSpeedPresetChanged" DropDownClosed="OnDropDownClosed" />
+                            <TextBlock Grid.Row="10" Text="Fotograma clave cada" Style="{StaticResource FieldLabelStyle}" />
+                            <StackPanel Grid.Row="10" Grid.Column="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="8">
                                 <NumberBox x:Name="KeyframeBox" Width="96" SpinButtonPlacementMode="Hidden" Minimum="0.1" Maximum="60" ValueChanged="OnKeyframeChanged" />
                                 <TextBlock Text="s" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
                             </StackPanel>
@@ -217,6 +220,12 @@
                             <ComboBox x:Name="LoudnessBox" Grid.Row="4" Grid.Column="1" Grid.ColumnSpan="2" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnLoudnessChanged" DropDownClosed="OnDropDownClosed" />
                         </Grid>
 
+                        <!-- Lo que recibe ffmpeg.exe con estos ajustes, para leerlo o pegarlo en una consola. -->
+                        <StackPanel Orientation="Horizontal" Spacing="8" Margin="0,8,0,0">
+                            <HyperlinkButton x:Name="CommandButton" Content="Copiar la línea de ffmpeg" Padding="0,2" Click="OnCopyCommandClick"
+                                             ToolTipService.ToolTip="Copia al portapapeles los argumentos con los que Rodaje lanza ffmpeg.exe: codificador, control de tasa, perfil, muestreo, audio y contenedor. La imagen entra cruda por una tubería (pipe:0) y la mezcla por un WAV temporal." />
+                            <TextBlock Text="(lo que recibe ffmpeg.exe con estos ajustes)" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
+                        </StackPanel>
                     </StackPanel>
                 </StackPanel>
 
@@ -257,12 +266,15 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="FooterNote" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" TextTrimming="None" />
             <Button Grid.Column="1" Content="Cancelar" Click="OnCancelClick" />
-            <Button x:Name="VersionsButton" Grid.Column="2" Content="Varias versiones…" Click="OnVersionsClick"
+            <Button x:Name="ProjectsButton" Grid.Column="2" Content="Otros proyectos…" Click="OnProjectsClick"
+                    ToolTipService.ToolTip="Elegir varios archivos .rodaje y exportarlos todos con estos ajustes, cada uno junto a su archivo (lote)" />
+            <Button x:Name="VersionsButton" Grid.Column="3" Content="Varias versiones…" Click="OnVersionsClick"
                     ToolTipService.ToolTip="Elegir varios preajustes y exportarlos todos de una vez (por ejemplo, web 16:9 y vertical 9:16)" />
-            <Button x:Name="ExportButton" Grid.Column="3" Content="Exportar" Style="{StaticResource AccentButtonStyle}" MinWidth="110" Click="OnExportClick" />
+            <Button x:Name="ExportButton" Grid.Column="4" Content="Exportar" Style="{StaticResource AccentButtonStyle}" MinWidth="110" Click="OnExportClick" />
         </Grid>
     </Grid>
 </UserControl>

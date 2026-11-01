@@ -290,6 +290,33 @@ public sealed class ExportDialogModel
             throw new InvalidOperationException(string.Join(" ", Problems));
         }
 
+        ExportPresetLibrary.Remember(_preferences, PresetId == ExportPresetLibrary.CustomId ? null : PresetId, Settings with { Performance = Performance },
+            OutputPath);
+        return new ExportRequest(projectCopy, sequenceId, OutputPath, ResolvedSettings(), Ranges[RangeIndex].Range) { ProjectDirectory = projectDirectory };
+    }
+
+    /// <summary>
+    /// La misma petición que <see cref="CreateRequest"/> pero sin recordar nada: para armar la línea de ffmpeg o para
+    /// exportar otros proyectos con estos ajustes. <see cref="CanExport"/> debe ser cierto.
+    /// </summary>
+    public ExportRequest CreatePreviewRequest(Project projectCopy, string sequenceId, string? projectDirectory, string? outputPath = null,
+        ExportRange? range = null)
+    {
+        ArgumentNullException.ThrowIfNull(projectCopy);
+        if (!CanExport)
+        {
+            throw new InvalidOperationException(string.Join(" ", Problems));
+        }
+
+        return new ExportRequest(projectCopy, sequenceId, outputPath ?? OutputPath, ResolvedSettings(), range ?? Ranges[RangeIndex].Range)
+        {
+            ProjectDirectory = projectDirectory,
+        };
+    }
+
+    /// <summary>Los ajustes con el rendimiento y los codificadores concretos que se usarán.</summary>
+    public ExportSettings ResolvedSettings()
+    {
         ExportSettings settings = Settings with { Performance = Performance };
         if (settings.Video is { } video && settings.Container is not ExportContainer.ImageSequence && VideoEncoder is { } encoder)
         {
@@ -301,9 +328,7 @@ public sealed class ExportDialogModel
             settings = settings with { Audio = audio with { EncoderId = audioEncoder.Id } };
         }
 
-        ExportPresetLibrary.Remember(_preferences, PresetId == ExportPresetLibrary.CustomId ? null : PresetId, Settings with { Performance = Performance },
-            OutputPath);
-        return new ExportRequest(projectCopy, sequenceId, OutputPath, settings, Ranges[RangeIndex].Range) { ProjectDirectory = projectDirectory };
+        return settings;
     }
 
     /// <summary>

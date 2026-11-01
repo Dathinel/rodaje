@@ -13,6 +13,7 @@ using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Timing;
 using Rodaje.Export;
+using Rodaje.Export.Running;
 using Rodaje.Media.Export;
 
 namespace Rodaje.App.Views.Export;
@@ -48,6 +49,7 @@ internal sealed partial class ExportView : UserControl
     private IReadOnlyList<RateChoice> _rates = [];
     private IReadOnlyList<SizeChoice> _sizes = [];
     private IReadOnlyList<int> _bitDepths = [];
+    private IReadOnlyList<ChromaSubsampling> _chromas = [];
     private IReadOnlyList<string?> _profiles = [];
     private IReadOnlyList<string?> _speedPresets = [];
     private IReadOnlyList<ExportCodec> _audioCodecs = [];
@@ -121,6 +123,7 @@ internal sealed partial class ExportView : UserControl
     {
         EditorSession session = _services.Session;
         ExportButton.IsEnabled = false;
+        ProjectsButton.IsEnabled = false;
         VersionsButton.IsEnabled = false;
         FooterNote.Text = "Comprobando los codificadores de este equipo…";
         IReadOnlyList<EncoderSpec> encoders = await _jobs.Runner.GetEncodersAsync();
@@ -307,6 +310,9 @@ internal sealed partial class ExportView : UserControl
 
         _bitDepths = ExportChoices.BitDepths(encoder);
         Fill(BitDepthBox, _bitDepths.Select(b => $"{b} bits"), Index(_bitDepths, video.BitDepth));
+        _chromas = ExportChoices.Chromas(encoder, video.BitDepth);
+        Fill(ChromaBox, _chromas.Select(ExportChoices.ChromaName), Math.Max(0, Index(_chromas, video.Chroma)));
+        ChromaBox.IsEnabled = _chromas.Count > 1;
         ExportPixelFormat? pixels = encoder.PixelFormatFor(video.BitDepth, video.Chroma, video.Alpha);
         _profiles = [null, .. ExportChoices.Profiles(encoder, pixels).Select(p => p.Id)];
         Fill(ProfileBox, _profiles.Select(id => id is null ? "Automático" : encoder.Profiles.First(p => p.Id == id).Name), Index(_profiles, video.Profile));
@@ -399,6 +405,7 @@ internal sealed partial class ExportView : UserControl
         ProblemsText.Text = string.Join("\n", problems);
         ProblemsText.Visibility = problems.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ExportButton.IsEnabled = problems.Count == 0;
+        ProjectsButton.IsEnabled = problems.Count == 0;
         VersionsButton.IsEnabled = model.VersionProblems.Count == 0;
         FooterNote.Text = _jobs.Runner.IsSimulation
             ? "Simulación: no se escribe ningún archivo."
@@ -420,6 +427,11 @@ internal sealed partial class ExportView : UserControl
             if (video.BitDepth != 8)
             {
                 parts.Add($"{video.BitDepth} bits");
+            }
+
+            if (video.Chroma != ChromaSubsampling.Chroma420)
+            {
+                parts.Add(ExportChoices.ChromaName(video.Chroma));
             }
 
             RateControl rate = video.RateControl;
@@ -713,6 +725,51 @@ internal sealed partial class ExportView : UserControl
             int bits = _bitDepths[index];
             UpdateVideo(v => v with { BitDepth = bits });
         }
+    }
+
+    private void OnChromaChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (TryChange(ChromaBox, out int index) && index < _chromas.Count)
+        {
+            ChromaSubsampling chroma = _chromas[index];
+            UpdateVideo(v => v with { Chroma = chroma });
+        }
+    }
+
+    /// <summary>«Copiar la línea de ffmpeg»: los argumentos de la exportación con estos ajustes, al portapapeles.</summary>
+    private void OnCopyCommandClick(object sender, RoutedEventArgs e)
+    {
+        if (_model is not { } model)
+        {
+            return;
+        }
+
+        model.SetOutputPath(PathBox.Text);
+        if (!model.CanExport)
+        {
+            _services.Session.Notify(NotificationSeverity.Informational, "Línea de ffmpeg", "Arregla primero lo que impide exportar: la línea sale de los ajustes válidos.");
+            return;
+        }
+
+        EditorSession session = _services.Session;
+        string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
+        string text;
+        try
+        {
+            ExportRequest request = model.CreatePreviewRequest(session.Project.Clone(), session.SequenceId, projectFolder);
+            text = ExportCommandLine.Text(ExportPlan.Create(request, model.Encoders));
+        }
+        catch (Exception ex) when (ex is ExportException or ArgumentException or InvalidOperationException)
+        {
+            session.Notify(NotificationSeverity.Warning, "No se pudo armar la línea de ffmpeg", ex.Message);
+            return;
+        }
+
+        var package = new global::Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(text);
+        global::Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        session.Notify(NotificationSeverity.Success, "Línea de ffmpeg copiada",
+            "Es lo que recibe ffmpeg.exe: la imagen entra compuesta por la tubería (pipe:0) y la mezcla por «mezcla.wav», sin capítulos ni pistas de subtítulos.");
     }
 
     private void OnProfileChanged(object sender, SelectionChangedEventArgs e)

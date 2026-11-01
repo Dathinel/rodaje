@@ -110,7 +110,8 @@ internal static class EffectShaders
     // fx0, fx1, fx2: PsFx (FxOp en fx0.x); en RegionMix, fx2 es el mapa de la máscara de efectos (t7).
     // Con ADVANCED: extra = croma, ruedas y curvas encendidos (0 o 1). key0 = Cb y Cr de la clave, tolerancia, suavidad;
     // key1 = derrame, recorte del borde (0–0,45), dirección unitaria de la clave en CbCr. lift, gain: por canal (ya sumado
-    // el general); gammaExp: exponente 2^−gamma por canal. Curvas: tabla de 1024 × 1 en t10 (canal y luego general).
+    // el general); gammaExp: exponente 2^−gamma por canal; lift.w, gammaExp.w y gain.w: el desplazamiento (rojo, verde y
+    // azul), que se suma antes que todo. Curvas: tabla de 1024 × 1 en t10 (canal y luego general).
     private const string Source = RenderShaders.Prelude + """
         cbuffer Effects : register(b1)
         {
@@ -287,6 +288,7 @@ internal static class EffectShaders
 
         float3 Wheels(float3 rgb)
         {
+            rgb = rgb + float3(lift.w, gammaExp.w, gain.w);
             rgb = rgb + lift.rgb * (1.0 - rgb);
             rgb = rgb * gain.rgb;
             return Clip(pow(max(rgb, 0.0), gammaExp.rgb));

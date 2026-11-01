@@ -780,6 +780,13 @@ public static partial class BuiltInEffects
 
         /// <summary>Luces: <c>c·(1 + gain)</c>.</summary>
         public const string Gain = "gain";
+
+        public const string OffsetRed = "offsetRed";
+        public const string OffsetGreen = "offsetGreen";
+        public const string OffsetBlue = "offsetBlue";
+
+        /// <summary>Desplazamiento: <c>c + offset</c> antes de las demás ruedas; sube o baja toda la imagen por igual (negros incluidos).</summary>
+        public const string Offset = "offset";
     }
 
     /// <summary>Curvas: una general y una por canal, con puntos que se unen con una cúbica monótona (<see cref="Effects.ToneCurve"/>).</summary>
