@@ -11,7 +11,7 @@ internal static class HeaderSignature
     {
         ArgumentNullException.ThrowIfNull(layout);
         return string.Join("|", layout.Rows.Select(r =>
-            $"{r.TrackId}:{r.Track.Name}:{r.Track.Role}:{r.Track.Hidden}:{r.Track.Muted}:{r.Track.Locked}:{r.IsMain}:{r.Top}:{r.Height}"))
+            $"{r.TrackId}:{r.Track.Name}:{r.Track.Role}:{r.Track.Hidden}:{r.Track.Muted}:{r.Track.Solo}:{r.Track.Locked}:{r.IsMain}:{r.Top}:{r.Height}"))
             + $"|{magnetic}|{width}|{fontScale}";
     }
 }

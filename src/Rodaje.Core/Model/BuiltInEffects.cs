@@ -109,6 +109,25 @@ public static partial class BuiltInEffects
         public const string Balance = "balance";
     }
 
+    /// <summary>Opciones de <see cref="Audio"/>.</summary>
+    public static class AudioOptions
+    {
+        /// <summary>
+        /// Curva de los fundidos de entrada y salida: uno de <see cref="Effects.EffectRegistry.FadeShapes"/>. Por defecto
+        /// <c>power</c> (potencia constante, seno y coseno); <c>linear</c> es ganancia constante y <c>exponential</c>,
+        /// lineal en decibelios. Una versión anterior de Rodaje la ignora y funde en potencia constante.
+        /// </summary>
+        public const string FadeShape = "fadeShape";
+    }
+
+    /// <summary>Valores de <see cref="AudioOptions.FadeShape"/>.</summary>
+    public static class FadeShapes
+    {
+        public const string Power = "power";
+        public const string Linear = "linear";
+        public const string Exponential = "exponential";
+    }
+
     /// <summary>Ecualizador paramétrico de cinco bandas de un clip o de una pista de audio (sin keyframes).</summary>
     public const string Equalizer = "rodaje.equalizer";
 

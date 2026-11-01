@@ -494,6 +494,14 @@ public static class EffectUi
         ("colorBurn", "Subexponer color"),
     ];
 
+    /// <summary>Las curvas de los fundidos de audio en el orden del registro, con su nombre.</summary>
+    public static IReadOnlyList<(string Value, string Name)> FadeShapes { get; } =
+    [
+        (BuiltInEffects.FadeShapes.Power, "Potencia constante"),
+        (BuiltInEffects.FadeShapes.Linear, "Lineal"),
+        (BuiltInEffects.FadeShapes.Exponential, "Exponencial"),
+    ];
+
     /// <summary>Degradados de fábrica de <see cref="Tr.Luma"/>, en el orden del registro.</summary>
     public static IReadOnlyList<(string Value, string Name)> LumaGradients { get; } =
     [

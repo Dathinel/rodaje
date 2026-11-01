@@ -18,11 +18,17 @@ internal enum TrackToggle
     Hidden,
     Muted,
     Locked,
+
+    /// <summary>Solo de una pista de audio: con alguno puesto, solo suenan las pistas con solo.</summary>
+    Solo,
+
+    /// <summary>Ctrl+clic en el solo: la pista queda como única con solo (o, si ya lo era, se quitan todos).</summary>
+    SoloExclusive,
 }
 
 /// <summary>
-/// Las cabeceras de pista: nombre, tipo («principal · magnética» o «libre») y los interruptores de ocultar, silenciar y
-/// bloquear. Se rearman solo cuando cambian las pistas o su estado, no al editar clips. Las de audio muestran el volumen
+/// Las cabeceras de pista: nombre, tipo («principal · magnética» o «libre») y los interruptores de ocultar, silenciar,
+/// solo y bloquear. Se rearman solo cuando cambian las pistas o su estado, no al editar clips. Las de audio muestran el volumen
 /// de la pista: arrastrarlo a los lados lo cambia (0,25 dB por píxel, con Mayús 0,05) y el doble clic lo vuelve a 0 dB.
 /// </summary>
 internal sealed class TrackHeaders
@@ -266,6 +272,7 @@ internal sealed class TrackHeaders
             };
             toggles.Children.Add(record);
             toggles.Children.Add(Toggle(track, TrackToggle.Muted, track.Muted, track.Muted ? "" : "", track.Muted ? "Activar sonido" : "Silenciar pista"));
+            toggles.Children.Add(SoloToggle(track));
         }
 
         toggles.Children.Add(Toggle(track, TrackToggle.Locked, track.Locked, track.Locked ? "" : "", track.Locked ? "Desbloquear pista" : "Bloquear pista"));
@@ -482,6 +489,16 @@ internal sealed class TrackHeaders
 
         if (row.Kind == TrackKind.Audio)
         {
+            var solo = new ToggleMenuFlyoutItem { Text = "Solo", IsChecked = row.Track.Solo };
+            string soloTrack = row.TrackId;
+            solo.Click += (_, _) => Toggled?.Invoke(soloTrack, TrackToggle.Solo);
+            solo.KeyboardAcceleratorTextOverride = Key(TimelineShortcuts.SoloTrack);
+            var exclusive = new MenuFlyoutItem { Text = "Solo exclusivo (solo esta pista)" };
+            exclusive.Click += (_, _) => Toggled?.Invoke(soloTrack, TrackToggle.SoloExclusive);
+            menu.Items.Add(new MenuFlyoutSeparator());
+            menu.Items.Add(solo);
+            menu.Items.Add(exclusive);
+
             var effects = new MenuFlyoutSubItem { Text = "Preajuste de audio", Icon = new FontIcon { Glyph = "\uE9E9" } };
             var dynamics = new MenuFlyoutItem { Text = "Compresor de la pista\u2026" };
             string dynamicsTrack = row.TrackId;
@@ -631,7 +648,8 @@ internal sealed class TrackHeaders
     {
         if (row.Kind == TrackKind.Audio)
         {
-            return row.Track.Locked ? "Audio · bloqueada" : "Audio";
+            string audio = row.Track.Solo ? "Audio · solo" : "Audio";
+            return row.Track.Locked ? audio + " · bloqueada" : audio;
         }
 
         string kind = row.IsMain ? (magnetic ? "Principal · magnética" : "Principal · libre")
@@ -654,6 +672,36 @@ internal sealed class TrackHeaders
         ToolTipService.SetToolTip(button, tip);
         string trackId = track.Id;
         button.Click += (_, _) => Toggled?.Invoke(trackId, which);
+        return button;
+    }
+
+    /// <summary>
+    /// El «S» del solo, como en el mezclador: un clic lo pone o lo quita; con Ctrl, solo exclusivo (esta pista como única
+    /// con solo). Se ve con el acento mientras está puesto.
+    /// </summary>
+    private ToggleButton SoloToggle(Track track)
+    {
+        var button = new ToggleButton
+        {
+            Style = _toggleStyle,
+            Width = 24,
+            Height = 24,
+            FontSize = ThemeResources.TimelineSize("BodyFontSize"),
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Content = "S",
+            IsChecked = track.Solo,
+            Foreground = track.Solo ? _brushes.Accent : _brushes.Text,
+        };
+        TimelineView.KeepOffFocus(button);
+        ToolTipService.SetToolTip(button, track.Solo ? "Quitar el solo" : "Solo: suena esta pista y las demás callan (Ctrl+clic: solo esta)");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, "Solo de la pista");
+        string trackId = track.Id;
+        button.Click += (_, _) =>
+        {
+            bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            Toggled?.Invoke(trackId, ctrl ? TrackToggle.SoloExclusive : TrackToggle.Solo);
+        };
         return button;
     }
 }

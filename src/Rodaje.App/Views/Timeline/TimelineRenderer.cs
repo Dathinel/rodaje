@@ -301,6 +301,7 @@ internal sealed class TimelineRenderer
             }
 
             List<Clip> clips = row.Track.Clips;
+            bool silencedBySolo = ClipDecorations.SilencedBySolo(scene.Sequence, row.Track);
             for (int i = TimelineHitTest.FirstEndingAfter(clips, from); i < clips.Count && clips[i].Start < to; i++)
             {
                 Clip clip = clips[i];
@@ -322,9 +323,10 @@ internal sealed class TimelineRenderer
                     _windowLeft,
                     visibleLeft,
                     scene.Selection.Contains(clip.Id),
-                    ClipDecorations.Veil(clip, row.Track),
+                    ClipDecorations.Veil(clip, row.Track, silencedBySolo),
                     scene.ShowEnvelopes,
-                    sync.GetValueOrDefault(clip.Id));
+                    sync.GetValueOrDefault(clip.Id),
+                    FadeHandles.HasHandles(clip, row.Track));
                 ClipAt(used++).Update(draw, scene.Visuals);
             }
         }

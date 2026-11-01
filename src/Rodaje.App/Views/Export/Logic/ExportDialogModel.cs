@@ -15,8 +15,9 @@ public sealed class ExportDialogModel
     private readonly ExportPreferences _preferences;
     private readonly Sequence _sequence;
 
+    /// <param name="marks">Las marcas I y O de la secuencia: con ellas, el rango propuesto es «Entre la entrada y la salida».</param>
     public ExportDialogModel(ExportPreferences preferences, Sequence sequence, IReadOnlyCollection<string> selectedClipIds,
-        IReadOnlyList<EncoderSpec> encoders, string projectName, string? projectFolder)
+        IReadOnlyList<EncoderSpec> encoders, string projectName, string? projectFolder, SequenceMarks marks = default)
     {
         ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(sequence);
@@ -24,7 +25,8 @@ public sealed class ExportDialogModel
         _preferences = preferences;
         _sequence = sequence;
         Encoders = encoders;
-        Ranges = ExportRanges.Choices(sequence, selectedClipIds ?? []);
+        Ranges = ExportRanges.Choices(sequence, selectedClipIds ?? [], marks);
+        RangeIndex = ExportRanges.DefaultIndex(Ranges);
         Performance = preferences.Performance;
 
         ExportPreset? remembered = ExportPresetLibrary.Find(preferences, preferences.PresetId);
