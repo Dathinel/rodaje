@@ -83,3 +83,9 @@ La lógica (comparar versiones, 24 h, versión descartada) está probada en `tes
 2. Arrastra el punto de Desplazamiento hacia el azul: toda la imagen se tiñe, también el negro puro (compáralo con Sombras, que no toca el blanco, y con Luces, que no toca el negro). El monitor de forma de onda sube entero con el deslizador «Desplazamiento».
 3. Doble clic en la rueda la devuelve al centro; cada arrastre es un paso de **Ctrl+Z**.
 4. Abre un proyecto de la 1.0.2 con ruedas: se ve igual que antes (el desplazamiento vale 0) y se guarda sin cambiar el formato.
+
+## Resultado del repaso del 1-nov (Claude con el ratón, build 1.1 de `dist\Rodaje`)
+
+Pasaron: exportar entre entrada y salida (archivo de 4,1 s; «Toda la secuencia» al quitar las marcas), línea de ffmpeg copiada (empieza por `ffmpeg -hide_banner`, `-f rawvideo`, `-i pipe:0`, `-c:v:0 h264_nvenc`, `-pix_fmt:v:0 nv12`, ruta entre comillas), asas de fundido (globo «Entrada 1,17 s», Propiedades 1,2 s, Ctrl+Z/Ctrl+Y en un paso), Ayuda › Buscar actualizaciones («Tienes la última versión, 1.0.2», `lastUpdateCheck` en UTC, sin `rodaje-error.txt`), ruedas de color (Desplazamiento tiñe también el negro; doble clic centra).
+Sin probar: solo de pista, sincronizar por el sonido, montaje al ritmo, lote, «Más tarde» y sin red.
+Fallos: (1) tras **Alt+X** la barra de contexto desaparece pero la regla sigue sombreando el tramo entre las marcas viejas hasta el siguiente repintado; (2) el asa de fundido mide unos 5 px con el zoom por defecto y es fácil arrastrar el clip en su lugar (valorar un área de agarre de 8-10 px).
