@@ -421,6 +421,10 @@ public static class EffectUi
             [(BuiltInEffects.ColorWheels, Wh.GainGreen)] = Percent with { Label = "Luces verde", Description = "Cambiar el tinte de las luces" },
             [(BuiltInEffects.ColorWheels, Wh.GainBlue)] = Percent with { Label = "Luces azul", Description = "Cambiar el tinte de las luces" },
             [(BuiltInEffects.ColorWheels, Wh.Gain)] = Percent with { Label = "Luces", Description = "Cambiar las luces" },
+            [(BuiltInEffects.ColorWheels, Wh.OffsetRed)] = Percent with { Label = "Desplazamiento rojo", Description = "Cambiar el tinte del desplazamiento" },
+            [(BuiltInEffects.ColorWheels, Wh.OffsetGreen)] = Percent with { Label = "Desplazamiento verde", Description = "Cambiar el tinte del desplazamiento" },
+            [(BuiltInEffects.ColorWheels, Wh.OffsetBlue)] = Percent with { Label = "Desplazamiento azul", Description = "Cambiar el tinte del desplazamiento" },
+            [(BuiltInEffects.ColorWheels, Wh.Offset)] = Percent with { Label = "Desplazamiento", Description = "Cambiar el desplazamiento" },
 
             [(Tr.Dip, Tr.DipParameters.Red)] = Percent with { Label = "Rojo", Description = "Cambiar color del fundido" },
             [(Tr.Dip, Tr.DipParameters.Green)] = Percent with { Label = "Verde", Description = "Cambiar color del fundido" },

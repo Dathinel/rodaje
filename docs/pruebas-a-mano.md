@@ -31,3 +31,10 @@ Lo que conviene probar con la app abierta antes de dar por buena una función, a
 2. Elige los archivos `.rodaje` guardados (y, a propósito, el del proyecto abierto y un `.rodaje` roto o vacío). El diálogo lista una salida por proyecto («Boda.mp4») y, en «Se saltan», el abierto y el roto con su motivo.
 3. **Exportar**: la página se cierra, el aviso dice cuántos entraron y **Trabajos** muestra un trabajo por proyecto, cada uno con el nombre de su archivo; al terminar, «Abrir carpeta» lleva a la carpeta del `.rodaje` correspondiente.
 4. Repite con un preajuste de otra forma (Vertical 9:16): cada salida mantiene la forma de su propio proyecto si el preajuste solo fija un lado.
+
+## Rueda de desplazamiento
+
+1. Añade **Ruedas de color** a un clip (Biblioteca › Filtros). En Filtros se ven cuatro ruedas: Sombras, Medios, Luces y Desplazamiento, y debajo las filas de nivel de cada una.
+2. Arrastra el punto de Desplazamiento hacia el azul: toda la imagen se tiñe, también el negro puro (compáralo con Sombras, que no toca el blanco, y con Luces, que no toca el negro). El monitor de forma de onda sube entero con el deslizador «Desplazamiento».
+3. Doble clic en la rueda la devuelve al centro; cada arrastre es un paso de **Ctrl+Z**.
+4. Abre un proyecto de la 1.0.2 con ruedas: se ve igual que antes (el desplazamiento vale 0) y se guarda sin cambiar el formato.

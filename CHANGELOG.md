@@ -11,6 +11,7 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 Funciones de calidad de vida para la 1.1 e ideas tomadas de los editores de referencia.
 
 ### Añadido
+- **Ruedas de color: rueda de Desplazamiento:** una cuarta rueda y su nivel (`offset`, de −0,5 a 0,5) corren toda la imagen por igual, negros incluidos, antes de sombras, medios y luces; los proyectos sin el parámetro siguen igual.
 - **Exportar › «Otros proyectos…»:** elige varios archivos `.rodaje` y entran todos a la cola con los ajustes de ahora, cada uno con su secuencia entera y junto a su archivo (con un número si ya existe); un diálogo lista lo que sale y lo que se salta, y los trabajos siguen en Trabajos como siempre.
 - **Montaje al ritmo** (en Detectar ritmo): con la música y los clips del montaje seleccionados, «Ajustar al ritmo los otros N clips seleccionados» hace que cada clip termine en el pulso que le toca (cada pulso, cada 2, cada 4, cada 8) y corre lo que sigue en su pista; sin pasar del material de cada clip, con los enlazados y en un paso del historial.
 - **Sincronizar por el sonido** (Herramientas › Audio, menú del clip y barra «Herramientas»): con dos o más clips con sonido elegidos en la línea de tiempo (la cámara y la grabadora, dos cámaras), compara sus formas de onda y mueve los demás, con sus enlazados, para que suenen a la vez que el que empieza antes; un paso del historial, con el desfase en fotogramas en el aviso.
