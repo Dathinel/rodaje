@@ -16,36 +16,20 @@ namespace Rodaje.App.Views.Timeline;
 /// </summary>
 internal sealed partial class TimelineView
 {
-    private const string GroupId = "clip.group";
-    private const string UngroupId = "clip.ungroup";
-    private const string NudgeLeftId = "clip.nudgeLeft";
-    private const string NudgeRightId = "clip.nudgeRight";
-    private const string CloseGapsId = "timeline.closeGaps";
-    private const string NextGapId = "timeline.nextGap";
-    private const string PreviousGapId = "timeline.previousGap";
-    private const string ReplaceId = "edit.replaceSource";
-    private const string FitToFillId = "edit.fitToFillSource";
-    private const string SuperimposeId = "edit.superimposeSource";
-    private const string AngleIdPrefix = "multicam.angle";
+    private const string GroupId = TimelineShortcuts.Group;
+    private const string UngroupId = TimelineShortcuts.Ungroup;
+    private const string NudgeLeftId = TimelineShortcuts.NudgeLeft;
+    private const string NudgeRightId = TimelineShortcuts.NudgeRight;
+    private const string CloseGapsId = TimelineShortcuts.CloseGaps;
+    private const string NextGapId = TimelineShortcuts.NextGap;
+    private const string PreviousGapId = TimelineShortcuts.PreviousGap;
+    private const string ReplaceId = TimelineShortcuts.ReplaceSource;
+    private const string FitToFillId = TimelineShortcuts.FitToFillSource;
+    private const string SuperimposeId = TimelineShortcuts.SuperimposeSource;
+    private const string AngleIdPrefix = TimelineShortcuts.AnglePrefix;
 
     private void RegisterProActions(EditorServices services)
     {
-        ShortcutRegistry registry = services.ShortcutRegistry;
-        registry.Register(new ShortcutAction(GroupId, "Agrupar", ShortcutGroups.Edit, ["Ctrl+G"], agile: []) { Description = "Junta los clips elegidos: se seleccionan y se mueven juntos, aunque estén en la misma pista." });
-        registry.Register(new ShortcutAction(UngroupId, "Desagrupar", ShortcutGroups.Edit, ["Ctrl+Mayús+G"], agile: []) { Description = "Separa los clips del grupo; los enlaces de audio y video se mantienen." });
-        registry.Register(new ShortcutAction(NudgeLeftId, "Mover clip un fotograma a la izquierda", ShortcutGroups.Edit, ["Alt+←"], classic: ["Ctrl+Alt+←"]) { ShortLabel = "Empujar ←", Repeats = true, Description = "Corre la selección (con sus enlazados y su grupo) un fotograma, sin pisar nada." });
-        registry.Register(new ShortcutAction(NudgeRightId, "Mover clip un fotograma a la derecha", ShortcutGroups.Edit, ["Alt+→"], classic: ["Ctrl+Alt+→"]) { ShortLabel = "Empujar →", Repeats = true, Description = "Corre la selección (con sus enlazados y su grupo) un fotograma, sin pisar nada." });
-        registry.Register(new ShortcutAction(CloseGapsId, "Cerrar todos los huecos", ShortcutGroups.Timeline, []) { ShortLabel = "Sin huecos", Description = "Junta los clips de la pista elegida (o de la principal) sin desincronizar los enlazados." });
-        registry.Register(new ShortcutAction(NextGapId, "Ir al hueco siguiente", ShortcutGroups.Timeline, []) { ShortLabel = "Hueco →", Description = "Lleva el cursor al próximo tramo vacío de cualquier pista." });
-        registry.Register(new ShortcutAction(PreviousGapId, "Ir al hueco anterior", ShortcutGroups.Timeline, []) { ShortLabel = "← Hueco", Description = "Lleva el cursor al tramo vacío anterior de cualquier pista." });
-        registry.Register(new ShortcutAction(ReplaceId, "Reemplazar desde el origen", ShortcutGroups.Edit, ["Mayús+."]) { ShortLabel = "Reemplazar", Description = "Cambia el clip bajo el cursor por el origen, en su lugar y con su duración, alineando los dos cursores." });
-        registry.Register(new ShortcutAction(FitToFillId, "Ajustar a rellenar desde el origen", ShortcutGroups.Edit, ["Ctrl+Mayús+."]) { ShortLabel = "Ajustar", Description = "El tramo del origen llena el clip bajo el cursor (o las marcas de la secuencia) cambiando la velocidad." });
-        registry.Register(new ShortcutAction(SuperimposeId, "Superponer desde el origen", ShortcutGroups.Edit, ["Mayús+,"]) { ShortLabel = "Superponer", Description = "Pone la imagen del origen encima, en la primera pista de video libre." });
-        for (int i = 1; i <= 9; i++)
-        {
-            registry.Register(new ShortcutAction(AngleIdPrefix + i, $"Ángulo {i} de la multicámara", ShortcutGroups.Edit, [i.ToString(System.Globalization.CultureInfo.InvariantCulture)]) { ShortLabel = $"Ángulo {i}", Description = "Corta en el cursor al ángulo con ese número; también mientras se reproduce." });
-        }
-
         ShortcutRouter router = services.Shortcuts;
         router.Bind(GroupId, () => Session!.GroupSelection(), () => Session?.SelectedClipIds.Count > 1);
         router.Bind(UngroupId, () => Session!.UngroupSelection(), () => Session?.SelectedClipIds.Count > 0);
@@ -114,11 +98,11 @@ internal sealed partial class TimelineView
 
         menu.Items.Add(color);
         ShortcutRegistry registry = _services!.ShortcutRegistry;
-        var group = new MenuFlyoutItem { Text = WithKey(registry, "Agrupar", GroupId), IsEnabled = session.SelectedClipIds.Count > 1 };
+        var group = new MenuFlyoutItem { Text = "Agrupar", IsEnabled = session.SelectedClipIds.Count > 1, KeyboardAcceleratorTextOverride = registry.GetKeyText(GroupId) };
         group.Click += (_, _) => session.GroupSelection();
         menu.Items.Add(group);
         bool grouped = session.SelectedClipIds.Any(id => session.Sequence.FindClip(id)?.Clip.GroupId is not null);
-        var ungroup = new MenuFlyoutItem { Text = WithKey(registry, "Desagrupar", UngroupId), IsEnabled = grouped };
+        var ungroup = new MenuFlyoutItem { Text = "Desagrupar", IsEnabled = grouped, KeyboardAcceleratorTextOverride = registry.GetKeyText(UngroupId) };
         ungroup.Click += (_, _) => session.UngroupSelection();
         menu.Items.Add(ungroup);
 
@@ -136,13 +120,10 @@ internal sealed partial class TimelineView
             menu.Items.Add(resync);
         }
 
-        var gaps = new MenuFlyoutItem { Text = "Cerrar todos los huecos de la pista" };
+        var gaps = new MenuFlyoutItem { Text = "Cerrar todos los huecos de la pista", KeyboardAcceleratorTextOverride = registry.GetKeyText(CloseGapsId) };
         gaps.Click += (_, _) => session.CloseAllGaps();
         menu.Items.Add(gaps);
     }
-
-    private static string WithKey(ShortcutRegistry registry, string text, string actionId) =>
-        registry.GetKeyText(actionId) is { Length: > 0 } key ? $"{text} ({key})" : text;
 
     /// <summary>El borde elegido se marca con la línea de corte de la pista.</summary>
     private void ShowSelectedEdge()

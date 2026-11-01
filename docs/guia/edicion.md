@@ -38,6 +38,7 @@ Clic selecciona (dentro de una selección, deja solo ese clip; arrastrar mueve l
 - **J, K, L**: lanzadera hacia atrás, detener y hacia adelante; cada pulsación dobla la velocidad hasta ×8.
 - **Elegir un borde:** un clic (sin arrastrar) en el borde de un clip lo marca con una línea. **,** y **.** lo recortan un cuadro a la izquierda o a la derecha (con **Recorte Ripple**, ripple global o en la pista principal magnética, corre lo que sigue). Sin borde elegido, **,** y **.** insertan y sobrescriben desde el origen.
 - **Alt+← / Alt+→** corre la selección un cuadro (con sus enlazados y su grupo), sin pisar nada; mantenla para seguir. Los empujones seguidos son un paso del historial.
+- **Ir a tiempo (Ctrl+J**, también en Editar**):** escribe `1:23`, `1:23.5`, `83` (segundos) o `120f` (fotogramas) e Intro lleva el cursor ahí; con `+` o `-` delante salta desde donde está (`+10`, `-2s`, `+24f`). El cursor queda al inicio del fotograma.
 
 ## Mover, recortar, slip, roll y slide
 
@@ -49,6 +50,13 @@ Clic selecciona (dentro de una selección, deja solo ese clip; arrastrar mueve l
 - **Slide:** con la herramienta de slide (U; Mayús+U en Ágil), o con **Ctrl+Alt** sobre el cuerpo, el clip corre entre sus vecinos pegados, que se recortan para seguir tocándolo; su contenido no cambia.
 - En los dos, el puntero lleva su marca («]|[» roll, «[↔]» slide), un globo dice cuántos cuadros se corrió y el **visor muestra lado a lado los dos cuadros del corte**: en el roll, el último del clip que sale y el primero del que entra; en el slide, el último del vecino de la izquierda y el primero del de la derecha. Van con los enlazados, se pegan al cuadro y a los puntos de ajuste y no pasan del material que haya.
 - **Esc** cancela cualquier arrastre en curso.
+
+## Copiar, duplicar y pegar
+
+- **Copiar clips (Ctrl+C)** guarda la selección con sus enlazados y su grupo (con **ignorar grupos**, solo los clips elegidos). Es un portapapeles de Rodaje, no el de Windows: sobrevive a abrir otro proyecto siempre que los medios sigan en él.
+- **Duplicar clip (Ctrl+D**; Ctrl+Mayús+D en Clásico**)** pone una copia de la selección justo a continuación, en sus mismas pistas y con la misma distancia entre clips; si el sitio está ocupado, avisa y no mueve nada. Las copias quedan seleccionadas.
+- **Pegar en el cursor (Ctrl+Mayús+V o Ctrl+V)** pone lo copiado con el primer clip en el cursor y los demás a su distancia, cada uno en la pista con el mismo número (o la última de su tipo si ya no hay tantas), tapando lo que haya en ese tramo como un Sobrescribir. Los efectos, enlaces y grupos se copian; un clip compuesto no se copia ni se duplica.
+- Los tres están en **Editar** y en el menú del clip; cada uno es un paso del historial.
 
 ## Grupos, colores y huecos
 
@@ -140,9 +148,10 @@ Pestaña **Velocidad** del panel derecho (Ctrl+R la abre con el clip seleccionad
 ## Proyecto, guardado y recuperación
 
 - **Ctrl+N** nuevo (pregunta «¿Guardar los cambios?» si hay), **Ctrl+O** abrir, **Ctrl+S** guardar, **Ctrl+Mayús+S** guardar como. El `.rodaje` es JSON legible; los medios se referencian por ruta.
+- **Archivo › Proyectos recientes:** los últimos diez proyectos abiertos o guardados, el más reciente arriba, con la ruta abreviada (la completa se lee al pasar el ratón). Los archivos que ya no existen desaparecen de la lista solos; «Vaciar la lista» la deja en blanco.
 - **Guardado atómico y copias `.bak`:** cada guardado escribe primero en un archivo temporal seguro y crea una copia de respaldo `.bak` previa en la misma carpeta del proyecto. Se evitan pérdidas o corrupciones de proyecto ante cortes repentinos o bloqueos de sincronizadores en la nube (como OneDrive).
 - **Plantillas:** Archivo › Proyecto nuevo desde plantilla (Horizontal 16:9 1080p y 4K, Vertical 9:16, Cuadrado 1:1, Retrato 4:5, más las tuyas) y Guardar como plantilla...
-- **Autoguardado:** copias en `%LOCALAPPDATA%\Rodaje\Autoguardado` tras 5 s sin cambios y como mucho cada 2 min (10 por sesión). Tras un cierre inesperado, al abrir Rodaje avisa «Hay una copia de «X» del … con cambios sin guardar» con **Recuperar**, que la valida y guarda como «X (recuperado).rodaje».
+- **Autoguardado:** copias en `%LOCALAPPDATA%\Rodaje\Autoguardado` tras 5 s sin cambios y, si no paras de editar, como mucho cada 2 min (10 por sesión). El intervalo se cambia en **Preferencias › General › Autoguardado** (de 1 a 30 min). La barra de estado, abajo a la izquierda, dice «Guardado hace N min» y, con cambios sin guardar y una copia más nueva, «Copia automática hace N min». Tras un cierre inesperado, al abrir Rodaje avisa «Hay una copia de «X» del … con cambios sin guardar» con **Recuperar**, que la valida y guarda como «X (recuperado).rodaje».
 - **Formato del proyecto:** menú **Secuencia › Formato del proyecto…** o el botón de la cabecera del reproductor (16:9, 9:16, 1:1, 4:5, 4:3, 21:9 o Personalizado), cuadros por segundo (23,976 a 60) y «Resolución y más opciones…» (720p a 4K o ancho y alto propios de 16 a 8192, pares).
 - **Espacios de trabajo:** Ver › Espacio de trabajo: Edición, Color (panel derecho ancho en Filtros), Audio (línea de tiempo alta) y los tuyos («Guardar la distribución actual como…»).
 - **Pantalla completa:** F o doble clic en el visor; mover el ratón muestra los controles; Esc sale. **Visor en otra pantalla** (Ver) abre el visor a pantalla completa en el monitor más grande donde no está el editor.

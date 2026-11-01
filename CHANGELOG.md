@@ -15,7 +15,18 @@ Lo que va a la 1.1 y no entra en la 1.0.2.
 
 ## [Sin publicar]
 
-Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video real para Instagram.
+Funciones de calidad de vida para la 1.1.
+
+### Añadido
+- **Proyectos recientes:** Archivo › Proyectos recientes lista los últimos diez proyectos con la ruta abreviada; los que ya no existen se quitan solos y «Vaciar la lista» la limpia.
+- **Autoguardado configurable:** Preferencias › General › Autoguardado fija cada cuántos minutos (1 a 30) se hace una copia mientras se edita, y la barra de estado dice «Guardado hace N min» (o «Copia automática hace N min» si la copia es más nueva que el guardado).
+- **Ir a tiempo (Ctrl+J, Editar › Ir a tiempo…):** un cuadro para escribir `1:23`, `1:23.5`, `83`, `120f` o un salto (`+10`, `-2s`) y llevar el cursor ahí. Ctrl+G sigue siendo Agrupar.
+- **Copiar, duplicar y pegar clips:** Ctrl+C copia la selección con sus enlazados y grupos, Ctrl+D (Ctrl+Mayús+D en Clásico) la duplica justo a continuación en sus pistas y Ctrl+Mayús+V (o Ctrl+V) la pega en el cursor tapando lo que haya; en Editar y en el menú del clip, un paso de deshacer cada uno.
+- **Atajos visibles:** los menús del clip y de la cabecera de pista muestran la tecla vigente de cada acción, como ya hacían los menús de arriba; Ayuda › Hoja de atajos (imprimible)… guarda en Documentos una página con todos los atajos del estilo actual; y la guía `docs/guia/atajos.md` se genera desde el catálogo de la app (una prueba la compara), así nunca se desincroniza.
+
+## [1.0.2] - 2026-10-31
+
+Buena parte sale de editar un video real para Instagram.
 
 ### Añadido
 - **Personalización** (#456): pestañas «Personalización» y «Temas» en Preferencias. Tema Grafito, Claro, Alto contraste o «Seguir a Windows»; acento de ocho colores o personalizado con ajuste automático a 3:1; escala de la interfaz (90–125 %) y tamaño del texto de la línea de tiempo. Editor de temas propios por grupos con vista previa en vivo, comprobación AA, duplicar, renombrar, eliminar, importar y exportar `.rodaje-tema`. Espacios de trabajo desde Preferencias, formato y carpeta de los proyectos nuevos, y perfil `.rodaje-perfil` con todo lo anterior más atajos y ratón; «Restablecer todo» con confirmación (D-056).
@@ -59,6 +70,7 @@ Lo que ya está en `main` para la 1.0.2. Buena parte sale de editar un video rea
 - **Cuadro numérico del inspector:** un valor largo (7051 en Escala) se ve entero y, tras confirmar, el cuadro muestra el valor realmente aplicado; con el foco en un cuadro de texto, Ctrl+A y Fin actúan sobre el texto y no sobre los clips (#452).
 - **Informe de fallo con el equipo sobrecargado:** el error y la pila ya no salen tapados por «se agotó el tiempo del limpiador»; el tope del limpiador cuenta trabajo, no segundos (#474).
 - **Informe de fallo con un disco lento:** si escribir el informe tarda más de 10 s, las repeticiones del mismo error se cuentan en ese informe en vez de abrir uno nuevo y otro aviso cada vez (#474).
+- **Módulos de IA:** si un módulo no se conecta a tiempo, el error incluye lo que el módulo escribió en su salida de error, para saber por qué.
 - **Cierre:** un refresco de complementos que terminaba después de cerrar la ventana podía tumbar la app (`ObjectDisposedException` en el reproductor) (#450).
 - **Nombres con acentos dañados** («SubtÃ­tulos») en proyectos tocados con una herramienta externa se reparan al abrir (#450).
 - **Barra de la línea de tiempo a 1366 px:** marcadores, regiones y los interruptores secundarios se pliegan en un botón «…» antes que Deshacer y Rehacer, que ya no desaparecen (#450).
