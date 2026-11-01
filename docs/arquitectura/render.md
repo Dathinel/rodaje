@@ -170,6 +170,7 @@ Con `Map` síncrono, bajar un NV12 1080p cuesta 3,2–3,3 ms; con el anillo son 
 | [`Compositor.cs`](../../src/Rodaje.Render/Compositor.cs) | `Render(frame) → CompositeResult`, `RenderStrict` para exportar, `TransparentBackground`, `Resources` (LUT), `ShadersReady`, `ReadbackRgba()`, `TrimCachedViews()` en pausa |
 | [`Export/`](../../src/Rodaje.Render/Export) | `ExportFrameConverter`, sus shaders, la geometría de escala y forma y la disposición de los planos |
 | [`LayerRenderer.cs`](../../src/Rodaje.Render/LayerRenderer.cs), [`LayerRenderer.Effects.cs`](../../src/Rodaje.Render/LayerRenderer.Effects.cs) | Camino rápido, efectos por píxel, intermedios, mezclas y transiciones |
+| [`Raw/`](../../src/Rodaje.Render/Raw) | `GpuRawDeveloper` y su shader: el mosaico de Bayer de un CinemaDNG revelado en la GPU (balance, Malvar-He-Cutler, matriz, exposición y curva), la misma receta que `MosaicDeveloper` del núcleo ([D-059](../decisiones.md), [hdr.md](../hdr.md)) |
 | [`Effects/`](../../src/Rodaje.Render/Effects) | HLSL de los efectos, `EffectPipeline` (constantes, estados de mezcla, shaders), `LutTextures`, `GpuEffectRegistry` |
 | [`RenderTargetPool.cs`](../../src/Rodaje.Render/RenderTargetPool.cs) | Intermedios con tope |
 | [`Shaders/ShaderCache.cs`](../../src/Rodaje.Render/Shaders/ShaderCache.cs) | Caché de bytecode en memoria y disco |
@@ -192,6 +193,7 @@ Con `Map` síncrono, bajar un NV12 1080p cuesta 3,2–3,3 ms; con el anillo son 
 - **`TransitionMixTests`**: las nueve mezclas nuevas en 0,25, 0,5 y 0,8 y con obturador, el barrido y la luma con borde de color, los seis degradados, la imagen gris (y la que falta, contada), el empuje con desenfoque de movimiento y el rebote que se pasa, contra la referencia en la CPU en la GPU y en WARP: todo píxel a ≤2/255 y error medio ≤0,5/255.
 - **`DecoderCompositionTests`** (`[HardwareFact]`): compone superficies reales del decodificador D3D11VA y lee el código de cuadro de cada capa.
 - **`EffectPipelineTests`**: la tabla de la GPU coincide con el registro; un cuadro no espera a un shader; el pool lleno salta efectos sin fallar.
+- **`RawGpuDeveloperTests`**: el revelado de Bayer en WARP contra `MosaicDeveloper` (la carta, ruido con matriz de color y los cuatro patrones, curvas y exposiciones, ±1/2048 en rgba16f), la carta desde la GPU y la rampa de 12 bits; con GPU, el tiempo por cuadro en 1080p y 4K.
 - **`ShaderCompileTests`**: todas las variantes compilan con las advertencias como errores; la caché en disco se lee en otra sesión.
 - **`EffectPerformanceTests`** y **`CompositorPerformanceTests`** miden con `GpuTimer`; los objetivos se exigen con `RODAJE_PRUEBAS_LARGAS=1`.
 - **`ImageEffectTests`** y **`SecondaryColorTests`**: cada pasada nueva y el calificador, las curvas de tono, la protección de piel y la viñeta con forma contra su referencia en la CPU, píxel a píxel (≤2/255; 42 casos, también en WARP); el calificador con máscaras conocidas («ver máscara»); la reducción de ruido temporal con dos cuadros seguidos, el mismo otra vez y un salto; la zona de las máscaras que limitan efectos.

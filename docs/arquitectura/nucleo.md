@@ -51,6 +51,10 @@ Los clips con el mismo `LinkId` (por ejemplo, el video y el audio de una toma) s
 
 **Texto (`Text/`).** Lo que comparten el motor, el render y la interfaz para los títulos profesionales (D-039): [`TextAnimator`](../../src/Rodaje.Core/Text/TextAnimator.cs) evalúa la pose de cada unidad (desfase, orden fijo, las interpolaciones de `KeyframeMath`) sin reservar memoria; [`TextAnimationPresets`](../../src/Rodaje.Core/Text/TextAnimationPresets.cs) son las diez animaciones de fábrica (la salida es la entrada al revés) y `Match` reconoce una; [`TextSpans`](../../src/Rodaje.Core/Text/TextSpans.cs) aplica formato a un trozo, normaliza y mueve los tramos con el texto (`Remap`); [`TextCasing`](../../src/Rodaje.Core/Text/TextCasing.cs) pone mayúsculas sin cambiar el largo. `TitleEdits.SetText` mueve los tramos y `FormatText` (comando `Edits.FormatTitleText`) da formato a un trozo.
 
+## Revelado RAW (`Raw/`)
+
+[`MosaicDeveloper`](../../src/Rodaje.Core/Raw/MosaicDeveloper.cs) revela un mosaico de Bayer (códigos de 16 bits con el negro restado) en la CPU con los pasos de `dcraw_process` sin recuperar las luces: balance con recorte a 1, interpolado de Malvar-He-Cutler (5×5, bordes reflejados), matriz de la cámara recortada a [0, 1], exposición y curva. Es la referencia del shader `GpuRawDeveloper` del render y lo que sale de `modulo-raw`; [`RawDevelopParameters`](../../src/Rodaje.Core/Raw/RawDevelopParameters.cs) (con [`BayerPattern`](../../src/Rodaje.Core/Raw/BayerPattern.cs)) es el contrato entre los tres ([D-059](../decisiones.md), [hdr.md](../hdr.md)). Pruebas en `Raw/` (corren en Linux).
+
 ## Operaciones de edición (`Editing/`)
 
 `TimelineEdits` (repartida en `.Trimming`, `.Placement`, `.Tracks`, `.Markers` y `.Speed`) modifica la secuencia en el sitio, respeta los enlaces, rechaza tocar pistas bloqueadas y termina siempre con `EditContext.EnsureValid()`. Si no puede hacer algo, lanza [`EditException`](../../src/Rodaje.Core/Editing/EditException.cs) con un mensaje listo para mostrar. Un `delta` positivo mueve a la derecha.
@@ -131,7 +135,7 @@ JSON UTF-8 legible, con tiempos en ticks y tasas como `{"num":30000,"den":1001}`
 
 ## Pruebas
 
-- [`tests/Rodaje.Core.Tests`](../../tests/Rodaje.Core.Tests) tiene una carpeta por área (`Timing`, `Model`, `Editing/Trimming`, `Editing/Placement`, `Editing/Speed`, `Commands`, `Serialization`, `Fuzz`) con casos normales, bordes y mensajes de error.
+- [`tests/Rodaje.Core.Tests`](../../tests/Rodaje.Core.Tests) tiene una carpeta por área (`Timing`, `Model`, `Editing/Trimming`, `Editing/Placement`, `Editing/Speed`, `Commands`, `Serialization`, `Raw`, `Fuzz`) con casos normales, bordes y mensajes de error.
 - `Properties/EditPropertiesTests` (CsCheck) genera 10 000 proyectos aleatorios con hasta 40 operaciones (también de efectos, transiciones y velocidad), con deshacer y rehacer intercalados, y comprueba:
   - que un rechazo deja el proyecto idéntico byte a byte;
   - que el proyecto siempre es válido;

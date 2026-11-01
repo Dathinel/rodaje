@@ -1,10 +1,15 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using Rodaje.App.Services.Modules;
+using Rodaje.Core.Raw;
+using Rodaje.Media.Gpu;
 using Rodaje.Media.Proxies;
 using Rodaje.Modules.Protocol;
+using Rodaje.Render;
+using Rodaje.Render.Raw;
 using ModuleCall = Rodaje.App.Services.Modules.ModuleCall;
 
 namespace Rodaje.App.Views.Raw;
@@ -20,23 +25,48 @@ internal sealed record CinemaDngFolder(string Folder, IReadOnlyList<string> Fram
 /// <param name="Exposure">Pasos (EV) en luz lineal.</param>
 internal sealed record CinemaDngOptions(string Balance = "camara", double Exposure = 0, bool HighQuality = true);
 
-/// <summary>Lo que quedó: el archivo intermedio y lo que dijo el módulo del primer cuadro.</summary>
-internal sealed record CinemaDngResult(string Path, int Width, int Height, int Frames, int RateNumerator, int RateDenominator, string Camera);
+/// <summary>Lo que quedó: el archivo intermedio, lo que dijo el módulo del primer cuadro y cómo se reveló.</summary>
+/// <param name="Developer">«GPU (nombre del adaptador)» o «CPU (LibRaw)».</param>
+/// <param name="MillisecondsPerFrame">Tiempo medio por fotograma de leer o revelar (sin contar la escritura del ProRes).</param>
+internal sealed record CinemaDngResult(string Path, int Width, int Height, int Frames, int RateNumerator, int RateDenominator, string Camera,
+    string Developer, double MillisecondsPerFrame);
 
 /// <summary>
-/// Importar una carpeta CinemaDNG como un medio, sin tocar el motor: el editor lee cada DNG a memoria compartida,
-/// <c>modulo-raw</c> lo revela (lotes en paralelo, rgba16f con la curva Rec.709) y el <c>ffmpeg.exe</c> LGPL lo guarda
-/// como ProRes 422 HQ de 10 bits (con el WAV de la toma, si hay) en la carpeta de medios generados. Ese archivo entra a la
-/// biblioteca como cualquier video; para revelar con otros ajustes se vuelve a importar. Cancelar o un fallo no deja nada.
+/// Importar una carpeta CinemaDNG como un medio, sin tocar el motor: el editor lee cada DNG a memoria compartida y
+/// <c>modulo-raw</c> lo lee (lotes en paralelo). Con una GPU, el módulo entrega el mosaico de Bayer sin interpolar
+/// («mosaico») y <see cref="GpuRawDeveloper"/> lo revela en Direct3D 11 a rgba16f con la curva Rec.709 (docs/hdr.md, fase
+/// D); sin GPU, o si el cuadro no es un mosaico de Bayer, el módulo lo revela con LibRaw («revelar») como antes. El
+/// <c>ffmpeg.exe</c> LGPL lo guarda como ProRes 422 HQ de 10 bits (con el WAV de la toma, si hay) en la carpeta de medios
+/// generados. Ese archivo entra a la biblioteca como cualquier video; para revelar con otros ajustes se vuelve a importar.
+/// Cancelar o un fallo no deja nada.
 /// </summary>
 internal static class CinemaDngImport
 {
     public const string Function = "revelar";
 
+    /// <summary>La función del módulo que entrega el mosaico para la GPU; un módulo anterior a la 1.1 no la tiene.</summary>
+    public const string MosaicFunction = "mosaico";
+
     /// <summary>Lo que se reserva de memoria compartida como mucho (archivos y cuadros revelados de un lote).</summary>
     public const long MaxBatchBytes = 512L * 1024 * 1024;
 
     private const int MaxBatchFrames = 8;
+
+    /// <summary>
+    /// El dispositivo Direct3D 11 por hardware para revelar, o <c>null</c> si no hay (WARP no cuenta: en una máquina sin GPU
+    /// LibRaw es más rápido que Direct3D por software).
+    /// </summary>
+    public static GpuDevice? HardwareDevice()
+    {
+        GpuDevice? gpu = GpuDevice.TryCreate(out _);
+        if (gpu is { IsSoftware: true })
+        {
+            gpu.Dispose();
+            return null;
+        }
+
+        return gpu;
+    }
 
     /// <summary>
     /// La carpeta de <paramref name="pickedPath"/> (un DNG de la secuencia o la carpeta misma), o <c>null</c> si no tiene
@@ -109,21 +139,25 @@ internal static class CinemaDngImport
     /// Revela <paramref name="sequence"/> y deja el intermedio en <paramref name="outputFolder"/>. Es un trabajo de Trabajos
     /// (avance por lote y cancelar); el archivo aparece entero o no aparece.
     /// </summary>
+    /// <param name="createDevice">
+    /// Da el dispositivo con el que revelar en la GPU (se desecha al terminar) o <c>null</c> para revelar con LibRaw; sin él,
+    /// <see cref="HardwareDevice"/>. Las pruebas pasan WARP.
+    /// </param>
     /// <exception cref="ModuleException">El módulo falló (un DNG que no entiende, por ejemplo).</exception>
     /// <exception cref="IOException">No se pudo leer un DNG o escribir el intermedio.</exception>
     public static Task<CinemaDngResult> RunAsync(ModuleManager modules, ModuleDescriptor module, FfmpegExecutable ffmpeg, CinemaDngFolder sequence,
-        CinemaDngOptions options, string outputFolder, string title, CancellationToken cancellationToken = default)
+        CinemaDngOptions options, string outputFolder, string title, CancellationToken cancellationToken = default, Func<GpuDevice?>? createDevice = null)
     {
         ArgumentNullException.ThrowIfNull(modules);
         ArgumentNullException.ThrowIfNull(module);
         ArgumentNullException.ThrowIfNull(ffmpeg);
         ArgumentNullException.ThrowIfNull(sequence);
         ArgumentNullException.ThrowIfNull(options);
-        return modules.RunAsync(module.Id, title, call => DevelopAsync(call, ffmpeg, sequence, options, outputFolder), cancellationToken);
+        return modules.RunAsync(module.Id, title, call => DevelopAsync(call, ffmpeg, sequence, options, outputFolder, createDevice ?? HardwareDevice), cancellationToken);
     }
 
     private static async Task<CinemaDngResult> DevelopAsync(ModuleCall call, FfmpegExecutable ffmpeg, CinemaDngFolder sequence, CinemaDngOptions options,
-        string outputFolder)
+        string outputFolder, Func<GpuDevice?> createDevice)
     {
         CancellationToken token = call.CancellationToken;
         call.Report(0, "Leyendo el primer fotograma");
@@ -132,17 +166,25 @@ internal static class CinemaDngImport
         ModuleResult info = await call.InvokeAsync("info", null, [firstFile], 0, 0).ConfigureAwait(false);
         (int width, int height, int num, int den, string camera) = ReadInfo(info.Value);
 
+        // La GPU solo si el módulo sabe dar el mosaico, el cuadro es un mosaico de Bayer (que cabe en un arreglo) y hay un
+        // dispositivo por hardware; si no, o si Direct3D no puede crear el revelador, LibRaw como siempre.
         long frameBytes = (long)width * height * PixelFormats.BytesPerPixel(PixelFormats.Rgba16F);
-        int batch = BatchSize(frameBytes, sequence.LargestFrameBytes);
-        SharedMemoryRegion region = call.CreateRegion(batch * (sequence.LargestFrameBytes + frameBytes));
+        using GpuDevice? gpu = call.Info.Functions.Any(f => f.Id == MosaicFunction) && IsBayer(info.Value) && frameBytes <= int.MaxValue ? createDevice() : null;
+        using GpuRawDeveloper? developer = gpu is null ? null : TryCreateDeveloper(gpu, width, height);
+        bool onGpu = developer is not null;
+        long moduleBytes = onGpu ? (long)width * height * 2 : frameBytes;
+        int batch = BatchSize(moduleBytes, sequence.LargestFrameBytes);
+        SharedMemoryRegion region = call.CreateRegion(batch * (sequence.LargestFrameBytes + moduleBytes));
+        byte[]? developed = onGpu ? GC.AllocateUninitializedArray<byte>((int)frameBytes) : null;
 
         Directory.CreateDirectory(outputFolder);
         string final = UniquePath(outputFolder, sequence.Name, ".mov");
         string temporary = final + ".rodaje-tmp";
-        using JsonDocument parameters = Parameters(options);
+        using JsonDocument parameters = onGpu ? MosaicParameters(options, width, height) : Parameters(options);
         using Process encoder = StartEncoder(ffmpeg, width, height, num, den, sequence.Audio, temporary);
         Task<string> errors = encoder.StandardError.ReadToEndAsync(CancellationToken.None);
         bool done = false;
+        double moduleMilliseconds = 0;
         try
         {
             Stream stdin = encoder.StandardInput.BaseStream;
@@ -157,20 +199,30 @@ internal static class CinemaDngImport
                 {
                     pairs.Add(await ReadAsync(sequence.Frames[start + i], region, at, sequence.LargestFrameBytes, token).ConfigureAwait(false));
                     at += sequence.LargestFrameBytes;
-                    pairs.Add(region.Describe(at, frameBytes, new VideoLayout(width, height, width * 8, PixelFormats.Rgba16F)));
-                    at += frameBytes;
+                    pairs.Add(onGpu ? region.Describe(at, moduleBytes) : region.Describe(at, frameBytes, new VideoLayout(width, height, width * 8, PixelFormats.Rgba16F)));
+                    at += moduleBytes;
                 }
 
                 double from = 0.98 * start / total, to = 0.98 * (start + count) / total;
-                ModuleResult result = await call.InvokeAsync(Function, parameters.RootElement, pairs, from, to).ConfigureAwait(false);
+                string function = onGpu ? MosaicFunction : Function;
+                ModuleResult result = await call.InvokeAsync(function, parameters.RootElement, pairs, from, to).ConfigureAwait(false);
                 if (result.Buffers.Count != count)
                 {
-                    throw new ModuleProtocolException("«revelar» devolvió otra cantidad de fotogramas.");
+                    throw new ModuleProtocolException($"«{function}» devolvió otra cantidad de fotogramas.");
                 }
 
+                moduleMilliseconds += Milliseconds(result.Value);
                 try
                 {
-                    await Task.Run(() => Write(call, result.Buffers, frameBytes, stdin), token).ConfigureAwait(false);
+                    if (onGpu)
+                    {
+                        IReadOnlyList<RawDevelopParameters> frames = ReadMosaicParameters(result.Value, count, options);
+                        await Task.Run(() => DevelopAndWrite(call, result.Buffers, frames, developer!, developed!, stdin), token).ConfigureAwait(false);
+                    }
+                    else
+                    {
+                        await Task.Run(() => Write(call, result.Buffers, frameBytes, stdin), token).ConfigureAwait(false);
+                    }
                 }
                 catch (IOException)
                 {
@@ -191,7 +243,8 @@ internal static class CinemaDngImport
 
             File.Move(temporary, final);
             done = true;
-            return new CinemaDngResult(final, width, height, sequence.Frames.Count, num, den, camera);
+            double perFrame = (moduleMilliseconds + (developer?.Elapsed.TotalMilliseconds ?? 0)) / Math.Max(1, total);
+            return new CinemaDngResult(final, width, height, total, num, den, camera, onGpu ? $"GPU ({gpu!.AdapterName})" : "CPU (LibRaw)", perFrame);
         }
         finally
         {
@@ -200,6 +253,19 @@ internal static class CinemaDngImport
                 Kill(encoder);
                 TryDelete(temporary);
             }
+        }
+    }
+
+    /// <summary>El revelador de la GPU, o <c>null</c> si Direct3D no pudo crearlo (se revela con LibRaw).</summary>
+    private static GpuRawDeveloper? TryCreateDeveloper(GpuDevice gpu, int width, int height)
+    {
+        try
+        {
+            return new GpuRawDeveloper(gpu, width, height);
+        }
+        catch (Exception ex) when (ex is RenderException or ArgumentOutOfRangeException)
+        {
+            return null;
         }
     }
 
@@ -214,6 +280,109 @@ internal static class CinemaDngImport
             }
 
             stdin.Write(pixels);
+        }
+    }
+
+    private static void DevelopAndWrite(ModuleCall call, IReadOnlyList<SharedBufferRef> mosaics, IReadOnlyList<RawDevelopParameters> frames,
+        GpuRawDeveloper developer, byte[] developed, Stream stdin)
+    {
+        for (int i = 0; i < mosaics.Count; i++)
+        {
+            Span<byte> bytes = call.Map(mosaics[i]);
+            if (bytes.Length != developer.Width * developer.Height * 2)
+            {
+                throw new ModuleProtocolException("«mosaico» devolvió un fotograma de otro tamaño.");
+            }
+
+            developer.Develop(MemoryMarshal.Cast<byte, ushort>(bytes), frames[i], developed, developer.Width * 8);
+            stdin.Write(developed);
+        }
+    }
+
+    /// <summary>Si «info» dice que el cuadro es un mosaico de Bayer que «mosaico» puede dar.</summary>
+    internal static bool IsBayer(JsonElement? value) =>
+        value is { ValueKind: JsonValueKind.Object } v && v.TryGetProperty("bayer", out JsonElement bayer) && bayer.ValueKind == JsonValueKind.True;
+
+    /// <summary>La suma de «ms» de una respuesta de «revelar» o «mosaico» (0 si no viene).</summary>
+    private static double Milliseconds(JsonElement? value)
+    {
+        if (value is not { ValueKind: JsonValueKind.Object } v || !v.TryGetProperty("ms", out JsonElement ms) || ms.ValueKind != JsonValueKind.Array)
+        {
+            return 0;
+        }
+
+        double total = 0;
+        foreach (JsonElement item in ms.EnumerateArray())
+        {
+            total += item.ValueKind == JsonValueKind.Number && item.TryGetDouble(out double d) && double.IsFinite(d) ? d : 0;
+        }
+
+        return total;
+    }
+
+    /// <summary>
+    /// Los parámetros de revelado de cada cuadro de una respuesta de «mosaico» (<c>cuadros</c>: patrón, blanco, balance y
+    /// matriz), con la exposición de <paramref name="options"/> y la curva Rec.709 de la importación.
+    /// </summary>
+    /// <exception cref="ModuleProtocolException">No trae <paramref name="count"/> cuadros válidos.</exception>
+    internal static IReadOnlyList<RawDevelopParameters> ReadMosaicParameters(JsonElement? value, int count, CinemaDngOptions options)
+    {
+        ArgumentNullException.ThrowIfNull(options);
+        if (value is not { ValueKind: JsonValueKind.Object } v || !v.TryGetProperty("cuadros", out JsonElement frames)
+            || frames.ValueKind != JsonValueKind.Array || frames.GetArrayLength() != count)
+        {
+            throw new ModuleProtocolException("«mosaico» no devolvió los parámetros de cada fotograma.");
+        }
+
+        var list = new List<RawDevelopParameters>(count);
+        foreach (JsonElement frame in frames.EnumerateArray())
+        {
+            if (frame.ValueKind != JsonValueKind.Object
+                || !frame.TryGetProperty("patron", out JsonElement pattern) || !BayerPattern.TryParse(pattern.ValueKind == JsonValueKind.String ? pattern.GetString() : null, out BayerPattern bayer)
+                || !frame.TryGetProperty("blanco", out JsonElement white) || white.ValueKind != JsonValueKind.Number || !white.TryGetInt32(out int whiteCode)
+                || Floats(frame, "balance") is not { Count: 3 } multipliers || Floats(frame, "matriz") is not { Count: 9 } matrix)
+            {
+                throw new ModuleProtocolException("«mosaico» devolvió parámetros de revelado que no se entienden.");
+            }
+
+            var parameters = new RawDevelopParameters
+            {
+                Pattern = bayer,
+                White = whiteCode,
+                Multipliers = multipliers,
+                Matrix = matrix,
+                Exposure = Math.Clamp(options.Exposure, -6, 6),
+                Curve = RawOutputCurve.Rec709,
+            };
+            if (parameters.Validate() is { } problem)
+            {
+                throw new ModuleProtocolException($"«mosaico» devolvió parámetros de revelado no válidos: {problem}.");
+            }
+
+            list.Add(parameters);
+        }
+
+        return list;
+
+        static List<float>? Floats(JsonElement o, string name)
+        {
+            if (!o.TryGetProperty(name, out JsonElement array) || array.ValueKind != JsonValueKind.Array)
+            {
+                return null;
+            }
+
+            var values = new List<float>();
+            foreach (JsonElement item in array.EnumerateArray())
+            {
+                if (item.ValueKind != JsonValueKind.Number || !item.TryGetDouble(out double d) || !double.IsFinite(d))
+                {
+                    return null;
+                }
+
+                values.Add((float)d);
+            }
+
+            return values;
         }
     }
 
@@ -255,6 +424,10 @@ internal static class CinemaDngImport
 
     private static JsonDocument Parameters(CinemaDngOptions options) => JsonDocument.Parse(string.Create(CultureInfo.InvariantCulture,
         $$"""{"balance":"{{(options.Balance == "luz-dia" ? "luz-dia" : "camara")}}","exposicion":{{Math.Clamp(options.Exposure, -6, 6):0.###}},"espacio":"rec709","curva":"rec709","calidad":"{{(options.HighQuality ? "alta" : "rapida")}}"}"""));
+
+    /// <summary>Los de «mosaico»: el balance y el tamaño; la exposición y la curva van en la GPU.</summary>
+    internal static JsonDocument MosaicParameters(CinemaDngOptions options, int width, int height) => JsonDocument.Parse(string.Create(CultureInfo.InvariantCulture,
+        $$"""{"balance":"{{(options.Balance == "luz-dia" ? "luz-dia" : "camara")}}","espacio":"rec709","ancho":{{width}},"alto":{{height}}}"""));
 
     /// <summary>Argumentos de <c>ffmpeg.exe</c>: rgba16f por la entrada estándar → ProRes 422 HQ de 10 bits en MOV, Rec.709.</summary>
     public static IReadOnlyList<string> EncoderArguments(int width, int height, int num, int den, string? audio, string output)

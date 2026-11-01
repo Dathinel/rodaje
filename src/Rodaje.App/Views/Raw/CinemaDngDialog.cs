@@ -10,8 +10,10 @@ using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
 using Rodaje.App.Views.Shared;
 using Rodaje.Core.Model;
+using Rodaje.Media.Gpu;
 using Rodaje.Media.Proxies;
 using Rodaje.Modules.Protocol;
+using Rodaje.Render;
 
 namespace Rodaje.App.Views.Raw;
 
@@ -62,6 +64,8 @@ internal static class CinemaDngDialog
             return;
         }
 
+        // Con GPU, el módulo entrega el mosaico y se revela en Direct3D (docs/hdr.md, fase D); sin ella, LibRaw en la CPU.
+        using GpuDevice? gpu = await Task.Run(CinemaDngImport.HardwareDevice);
         var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
         panel.Children.Add(new TextBlock
         {
@@ -77,13 +81,19 @@ internal static class CinemaDngDialog
         Slider? slider = null;
         slider = AnalysisUi.Slider(panel, "Exposición", -3, 3, 0, 0.1,
             v => string.Create(SpanishNumbers.Format, $"{v:+0.0;−0.0;0} EV"), () => exposure = slider!.Value);
-        var quality = new ComboBox { Header = "Calidad del revelado", Width = AnalysisUi.PreviewWidth, SelectedIndex = 0 };
-        quality.Items.Add("Alta (más nítido, más lento)");
-        quality.Items.Add("Rápida (para revisar)");
-        panel.Children.Add(quality);
+        ComboBox? quality = null;
+        if (gpu is null)
+        {
+            quality = new ComboBox { Header = "Calidad del revelado", Width = AnalysisUi.PreviewWidth, SelectedIndex = 0 };
+            quality.Items.Add("Alta (más nítido, más lento)");
+            quality.Items.Add("Rápida (para revisar)");
+            panel.Children.Add(quality);
+        }
+
         panel.Children.Add(new TextBlock
         {
-            Text = "Se guarda una copia ProRes 422 HQ; los DNG no cambian. Para revelar con otros ajustes, vuelve a importar.",
+            Text = (gpu is null ? "Se revela en la CPU con LibRaw. " : $"Se revela en la GPU ({GpuNameFormatter.Abbreviate(gpu.AdapterName)}). ")
+                + "Se guarda una copia ProRes 422 HQ; los DNG no cambian. Para revelar con otros ajustes, vuelve a importar.",
             TextWrapping = TextWrapping.Wrap,
             Opacity = 0.8,
         });
@@ -98,13 +108,13 @@ internal static class CinemaDngDialog
         }
 
         services.Settings.Current.LastMediaFolder = sequence.Folder;
-        var options = new CinemaDngOptions(balance.SelectedIndex == 1 ? "luz-dia" : "camara", exposure, quality.SelectedIndex == 0);
+        var options = new CinemaDngOptions(balance.SelectedIndex == 1 ? "luz-dia" : "camara", exposure, quality is null || quality.SelectedIndex == 0);
         scope.Report(null, $"Revelando «{sequence.Name}»…");
         CinemaDngResult result;
         try
         {
             result = await CinemaDngImport.RunAsync(services.Modules, module, ffmpeg, sequence, options,
-                saveIn.Folder, $"CinemaDNG «{sequence.Name}»", scope.Token);
+                saveIn.Folder, $"CinemaDNG «{sequence.Name}»", scope.Token, () => gpu);
         }
         catch (OperationCanceledException)
         {
@@ -115,7 +125,7 @@ internal static class CinemaDngDialog
             // El ModuleManager ya lo avisó con un texto para la persona.
             return;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or RenderException)
         {
             session.Notify(NotificationSeverity.Error, Title, "No se pudo importar: " + ex.Message);
             return;
@@ -138,7 +148,8 @@ internal static class CinemaDngDialog
         {
             session.Notify(NotificationSeverity.Success, Title, string.Create(SpanishNumbers.Format,
                 $"«{sequence.Name}»: {result.Frames} fotogramas de {result.Width}×{result.Height} a {(double)result.RateNumerator / result.RateDenominator:0.###} cuadros/s")
-                + (result.Camera.Length > 0 ? $" ({result.Camera})." : "."));
+                + (result.Camera.Length > 0 ? $" ({result.Camera})" : "")
+                + string.Create(SpanishNumbers.Format, $". Revelado en la {result.Developer}: {result.MillisecondsPerFrame:0} ms por fotograma."));
         }
     }
 }

@@ -83,3 +83,10 @@ La lógica (comparar versiones, 24 h, versión descartada) está probada en `tes
 2. Arrastra el punto de Desplazamiento hacia el azul: toda la imagen se tiñe, también el negro puro (compáralo con Sombras, que no toca el blanco, y con Luces, que no toca el negro). El monitor de forma de onda sube entero con el deslizador «Desplazamiento».
 3. Doble clic en la rueda la devuelve al centro; cada arrastre es un paso de **Ctrl+Z**.
 4. Abre un proyecto de la 1.0.2 con ruedas: se ve igual que antes (el desplazamiento vale 0) y se guarda sin cambiar el formato.
+
+## CinemaDNG revelado en la GPU
+
+1. Con el módulo «RAW de cine» 1.1.0 instalado (o el de `modules\` en desarrollo), Archivo › **Importar CinemaDNG…** y elige un DNG de una carpeta. El diálogo debe decir «Se revela en la GPU (RTX 3050 Laptop)» y no mostrar «Calidad del revelado».
+2. Importa con exposición +1 EV. Al terminar, la notificación trae «Revelado en la GPU (…): N ms por fotograma»; apunta N en `docs/hdr.md` (fase D, cifras). El clip de la biblioteca se ve como antes (balance de la toma, gris del 18 % en su sitio, un paso más claro).
+3. Repite con `RODAJE_FORZAR_WARP=1` (o en una máquina sin GPU): el diálogo dice «Se revela en la CPU con LibRaw», ofrece la calidad y la notificación dice «Revelado en la CPU (LibRaw)». Los dos ProRes deben verse iguales a simple vista (solo cambia el interpolado en los bordes finos).
+4. Con el módulo 1.0.0 instalado (sin `mosaico`) todo sigue por la CPU sin ningún aviso.
