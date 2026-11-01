@@ -24,6 +24,7 @@ public static class ActionIds
     public const string CopyClips = "edit.copy";
     public const string DuplicateClips = "edit.duplicate";
     public const string PasteAtCursor = "edit.pasteAtCursor";
+    public const string PasteInsert = "edit.pasteInsert";
 
     public const string ClipSpeed = "clip.speed";
 

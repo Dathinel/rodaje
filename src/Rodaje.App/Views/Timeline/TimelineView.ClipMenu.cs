@@ -1,6 +1,7 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.Core.Effects;
@@ -56,8 +57,16 @@ internal sealed partial class TimelineView
             IsEnabled = session.CanPaste,
             KeyboardAcceleratorTextOverride = registry.GetKeyText(ActionIds.PasteAtCursor),
         };
-        pasteClips.Click += (_, _) => session.PasteAtPlayhead();
+        pasteClips.Click += (_, _) => UiTask.Run(session.PasteAtPlayheadAsync());
         menu.Items.Add(pasteClips);
+        var pasteInsert = new MenuFlyoutItem
+        {
+            Text = "Pegar insertando",
+            IsEnabled = session.CanPaste,
+            KeyboardAcceleratorTextOverride = registry.GetKeyText(ActionIds.PasteInsert),
+        };
+        pasteInsert.Click += (_, _) => UiTask.Run(session.PasteAtPlayheadAsync(insert: true));
+        menu.Items.Add(pasteInsert);
         menu.Items.Add(new MenuFlyoutSeparator());
 
         // Fundidos de audio hasta el cursor: para clips de audio o videos con su audio enlazado.

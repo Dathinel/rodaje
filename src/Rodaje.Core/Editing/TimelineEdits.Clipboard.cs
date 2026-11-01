@@ -9,20 +9,23 @@ public static partial class TimelineEdits
     /// <summary>
     /// Pone copias de los clips a continuación de la selección (del último fin), en sus mismas pistas, sin pisar nada:
     /// si no hay sitio, no se duplica ninguno. Con <paramref name="alone"/>, solo los pedidos, sin enlazados ni grupos.
+    /// Las transiciones entre los clips duplicados se duplican con ellos.
     /// </summary>
     /// <returns>Los identificadores de los clips nuevos, en orden de tiempo.</returns>
     public static IReadOnlyList<string> DuplicateClips(EditContext ctx, IEnumerable<string> clipIds, bool alone = false)
     {
         ArgumentNullException.ThrowIfNull(ctx);
-        ClipClipboard copied = ClipClipboard.Capture(ctx.Sequence, clipIds, alone)
+        ClipClipboard copied = ClipClipboard.Capture(ctx.Sequence, clipIds, alone, ctx.Project)
             ?? throw new EditException("No hay ningún clip seleccionado.");
         return Paste(ctx, copied, copied.Origin + copied.Length, PlacementMode.Strict);
     }
 
     /// <summary>
     /// Pega lo copiado con el primero en <paramref name="at"/> y los demás a su distancia, cada uno en la pista con el
-    /// mismo número que la suya (o la última de su tipo si ya no hay tantas). En <see cref="PlacementMode.Overwrite"/>
-    /// tapa lo que haya en ese tramo; en <see cref="PlacementMode.Strict"/> exige que esté libre.
+    /// mismo número que la suya (o la última de su tipo si ya no hay tantas), y las transiciones que había entre ellos.
+    /// En <see cref="PlacementMode.Overwrite"/> tapa lo que haya en ese tramo; en <see cref="PlacementMode.Insert"/> abre
+    /// un espacio del largo de lo copiado en las pistas donde cae (con los enlazados de lo que se corre, como al mover
+    /// insertando) y corre lo que sigue; en <see cref="PlacementMode.Strict"/> exige que esté libre.
     /// </summary>
     /// <returns>Los identificadores de los clips nuevos, en el orden de lo copiado.</returns>
     public static IReadOnlyList<string> Paste(EditContext ctx, ClipClipboard copied, Time at, PlacementMode mode = PlacementMode.Overwrite)
@@ -40,6 +43,7 @@ public static partial class TimelineEdits
         }
 
         var groups = new Dictionary<string, string>(StringComparer.Ordinal);
+        var renamed = new Dictionary<string, string>(StringComparer.Ordinal);
         var placed = new List<(Track Track, Clip Clip)>(copied.Items.Count);
         foreach (CopiedClip item in copied.Items)
         {
@@ -57,6 +61,7 @@ public static partial class TimelineEdits
             }
 
             clip.Id = ctx.Ids.NewId("clip");
+            renamed[item.Clip.Id] = clip.Id;
             clip.LinkId = ctx.DerivedLinkId(clip.LinkId);
             clip.GroupId = Renamed(groups, clip.GroupId, "group", ctx);
             MaskEdits.RenewIds(ctx, clip.Effects, "fx");
@@ -77,12 +82,22 @@ public static partial class TimelineEdits
             }
         }
 
-        if (mode == PlacementMode.Strict)
+        switch (mode)
         {
-            foreach ((Track track, Clip clip) in placed)
-            {
-                TrackOps.EnsureFree(track, clip.Start, clip.End);
-            }
+            case PlacementMode.Strict:
+                foreach ((Track track, Clip clip) in placed)
+                {
+                    TrackOps.EnsureFree(track, clip.Start, clip.End);
+                }
+
+                break;
+            case PlacementMode.Insert:
+                // Un solo espacio, del cursor al final de lo copiado, en las pistas donde cae algo: lo que sigue se corre
+                // junto y nada se desincroniza, aunque entre los clips copiados hubiera huecos.
+                TrackOps.InsertSpaceLinked(ctx, [.. placed.Select(p => p.Track).Distinct()], at, copied.Length);
+                break;
+            default:
+                break;
         }
 
         foreach ((Track track, Clip clip) in placed)
@@ -95,8 +110,37 @@ public static partial class TimelineEdits
             TrackOps.AddClipSorted(track, clip);
         }
 
+        PasteTransitions(ctx, copied, placed, renamed);
         ctx.EnsureValid();
         return [.. placed.Select(p => p.Clip.Id)];
+    }
+
+    /// <summary>
+    /// Pone en las copias las transiciones que había entre los clips copiados, cuando las dos copias cayeron en la misma
+    /// pista; <see cref="EditContext.EnsureValid"/> las concilia después con sus cortes (las acota o las quita si el corte
+    /// no existe).
+    /// </summary>
+    private static void PasteTransitions(EditContext ctx, ClipClipboard copied, List<(Track Track, Clip Clip)> placed, Dictionary<string, string> renamed)
+    {
+        foreach (CopiedTransition item in copied.Transitions)
+        {
+            if (!renamed.TryGetValue(item.Transition.From, out string? from) || !renamed.TryGetValue(item.Transition.To, out string? to))
+            {
+                continue;
+            }
+
+            Track fromTrack = placed.First(p => p.Clip.Id == from).Track;
+            if (placed.First(p => p.Clip.Id == to).Track != fromTrack || fromTrack.TransitionFrom(from) is not null)
+            {
+                continue;
+            }
+
+            TransitionInstance transition = item.Transition.Clone();
+            transition.Id = ctx.Ids.NewId("transition");
+            transition.From = from;
+            transition.To = to;
+            fromTrack.Transitions.Add(transition);
+        }
     }
 
     private static Track TargetTrack(Sequence sequence, TrackKind kind, int index)

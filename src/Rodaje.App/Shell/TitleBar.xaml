@@ -59,6 +59,7 @@
                 <MenuFlyoutItem Text="Copiar clips" Tag="edit.copy" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Duplicar clip" Tag="edit.duplicate" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Pegar en el cursor" Tag="edit.pasteAtCursor" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Pegar insertando" Tag="edit.pasteInsert" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Reproducción">
                 <MenuFlyoutItem Text="Reproducir o pausar" Tag="playback.togglePlay" Click="OnActionClick" />

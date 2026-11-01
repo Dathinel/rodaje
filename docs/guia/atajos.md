@@ -40,6 +40,7 @@ En las tablas, «=» significa «igual que Rodaje» y «(sin tecla)», que ese e
 | Copiar clips | Ctrl+C | = | = |
 | Duplicar clip | Ctrl+D | = | Ctrl+Mayús+D |
 | Pegar en el cursor | Ctrl+Mayús+V, Ctrl+V | = | = |
+| Pegar insertando | Ctrl+Alt+V | = | = |
 | Historial | Ctrl+H | = | = |
 | Transición por defecto | Ctrl+T | = | = |
 | Velocidad del clip… | Ctrl+R | = | = |

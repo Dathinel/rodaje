@@ -84,6 +84,14 @@ La lógica (comparar versiones, 24 h, versión descartada) está probada en `tes
 3. Doble clic en la rueda la devuelve al centro; cada arrastre es un paso de **Ctrl+Z**.
 4. Abre un proyecto de la 1.0.2 con ruedas: se ve igual que antes (el desplazamiento vale 0) y se guarda sin cambiar el formato.
 
+## Portapapeles: pegar insertando, transiciones y otro proyecto
+
+1. Con dos clips seguidos en V1 y una transición entre ellos (**Ctrl+T** en el corte), selecciona los dos y **Ctrl+C**. Lleva el cursor más allá y **Ctrl+Mayús+V**: las copias traen la transición, con su tipo y su duración. **Ctrl+D** sobre los dos originales también la duplica.
+2. Copia un solo clip, pon el cursor en medio de otro clip y pulsa **Ctrl+Alt+V** (Editar › Pegar insertando): el clip de debajo se parte en el cursor y su mitad derecha, con todo lo que sigue en esa pista y en la de su audio, se corre lo que dura lo pegado; nada se tapa. **Ctrl+Z** lo deshace en un paso («Pegar insertando»).
+3. Bloquea la pista de audio y repite el paso 2 en un punto donde haya que correr audio enlazado: avisa «No se pudo hacer» y no cambia nada.
+4. Copia un clip, **Ctrl+N** (descarta los cambios) y **Ctrl+V** en el proyecto vacío: el medio aparece en la biblioteca (paso «Importar medio» en el historial) y el clip se pega con él. Si importas antes ese mismo archivo a mano, no se repite en la biblioteca.
+5. Repite el paso 4 después de mover o renombrar el archivo de video: aviso «No se pudo pegar» con la ruta que falta, y la línea de tiempo y la biblioteca quedan como estaban.
+
 ## Resultado del repaso del 1-nov (Claude con el ratón, build 1.1 de `dist\Rodaje`)
 
 Pasaron: exportar entre entrada y salida (archivo de 4,1 s; «Toda la secuencia» al quitar las marcas), línea de ffmpeg copiada (empieza por `ffmpeg -hide_banner`, `-f rawvideo`, `-i pipe:0`, `-c:v:0 h264_nvenc`, `-pix_fmt:v:0 nv12`, ruta entre comillas), asas de fundido (globo «Entrada 1,17 s», Propiedades 1,2 s, Ctrl+Z/Ctrl+Y en un paso), Ayuda › Buscar actualizaciones («Tienes la última versión, 1.0.2», `lastUpdateCheck` en UTC, sin `rodaje-error.txt`), ruedas de color (Desplazamiento tiñe también el negro; doble clic centra).
