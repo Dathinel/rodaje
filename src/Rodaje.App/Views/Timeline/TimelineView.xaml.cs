@@ -166,6 +166,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         Session.SelectionChanged += (_, _) => OnSelectionChanged();
         Session.TransportChanged += (_, _) => OnTransportChanged();
         State.PropertyChanged += OnStateChanged;
+        Theme.ThemeResources.ThemeChanged += (_, _) => OnThemeChanged();
 
         LanesHost.SizeChanged += (_, _) => OnLanesResized();
         RulerCanvas.SizeChanged += (_, _) => ClipToBounds(RulerCanvas);
@@ -296,6 +297,19 @@ internal sealed partial class TimelineView : UserControl, IEditorView
             SelectedTransitionId = session.SelectedTransitionId,
             Visuals = _visuals,
         };
+    }
+
+    // Se guardó (o se canceló) Preferencias: el tamaño del texto de la línea de tiempo se aplica a lo ya dibujado, sin
+    // esperar a que cambie el proyecto; las cabeceras se rearman solo si su firma cambió.
+    private void OnThemeChanged()
+    {
+        if (Session is null || _renderer is null)
+        {
+            return;
+        }
+
+        _renderer.RefreshFonts();
+        RebuildLayout();
     }
 
     private void RebuildLayout()
