@@ -359,6 +359,23 @@ internal sealed class TimelineRenderer
         return any;
     }
 
+    /// <summary>
+    /// El tamaño del texto de la línea de tiempo cambió en Preferencias: los rótulos ya creados (regla, marcadores, globo,
+    /// cursor) toman el nuevo; los clips lo hacen solos al volver a dibujarse.
+    /// </summary>
+    public void RefreshFonts()
+    {
+        double micro = ThemeResources.TimelineSize("MicroFontSize");
+        double caption = ThemeResources.TimelineSize("CaptionFontSize");
+        foreach (TextBlock label in _rulerLabels.Concat(_markerNames))
+        {
+            label.FontSize = micro;
+        }
+
+        _balloonText.FontSize = caption;
+        _cursorBadgeText.FontSize = caption;
+    }
+
     private ClipVisual ClipAt(int index)
     {
         if (index == _clips.Count)
@@ -379,7 +396,7 @@ internal sealed class TimelineRenderer
             Rectangle rect = Pooled(_rows, _rowsCanvas, i);
             rect.Width = width;
             rect.Height = row.Height;
-            rect.Fill = row.IsMain ? _brushes.MainLane : _brushes.Panel;
+            rect.Fill = row.IsMain ? _brushes.MainLane : _brushes.TrackFill(row.Kind);
             rect.Opacity = row.Track.Locked ? 0.6 : 1;
             Canvas.SetTop(rect, row.Top);
         }

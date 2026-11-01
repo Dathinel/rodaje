@@ -154,7 +154,7 @@ internal sealed class TrackHeaders
     }
 
     private Brush HeaderBackground(TrackRow row) =>
-        row.TrackId == SelectedTrackId ? _brushes.AccentSubtle : row.IsMain ? _brushes.Control : _brushes.Panel;
+        row.TrackId == SelectedTrackId ? _brushes.AccentSubtle : row.IsMain ? _brushes.Control : _brushes.TrackFill(row.Kind);
 
     public void Update(TrackLayout layout, bool magnetic, double width)
     {
@@ -163,8 +163,7 @@ internal sealed class TrackHeaders
             SelectedTrackId = null;
         }
 
-        string signature = string.Join("|", layout.Rows.Select(r =>
-            $"{r.TrackId}:{r.Track.Name}:{r.Track.Role}:{r.Track.Hidden}:{r.Track.Muted}:{r.Track.Locked}:{r.IsMain}:{r.Top}:{r.Height}")) + $"|{magnetic}|{width}";
+        string signature = HeaderSignature.Of(layout, magnetic, width, ThemeResources.TimelineFontScale);
         _lastLayout = layout;
         _lastWidth = width;
         _lastMagnetic = magnetic;
