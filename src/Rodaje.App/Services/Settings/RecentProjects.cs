@@ -3,20 +3,19 @@ namespace Rodaje.App.Services.Settings;
 /// <summary>Una entrada del menú Archivo › Proyectos recientes: la ruta completa y cómo se muestra.</summary>
 public sealed record RecentProjectEntry(string Path, string Label);
 
-/// <summary>Arma la lista de proyectos recientes del menú: quita los que ya no existen y abrevia las rutas largas.</summary>
+/// <summary>Arma la lista de proyectos recientes del menú y abrevia las rutas largas.</summary>
 public static class RecentProjects
 {
     /// <summary>Lo más larga que se muestra una ruta en el menú.</summary>
     public const int MaxLabelLength = 60;
 
     /// <summary>
-    /// Las entradas del menú en el orden de <paramref name="paths"/> (el más reciente primero), solo con los archivos que
-    /// <paramref name="exists"/> confirma, sin repetidos y hasta <paramref name="max"/>.
+    /// Las entradas del menú en el orden de <paramref name="paths"/> (el más reciente primero), sin repetidos y hasta
+    /// <paramref name="max"/>. No comprueba que existan: eso bloquearía la interfaz con una unidad de red caída.
     /// </summary>
-    public static IReadOnlyList<RecentProjectEntry> Build(IEnumerable<string> paths, Func<string, bool> exists, int max = AppSettings.MaxRecentProjects)
+    public static IReadOnlyList<RecentProjectEntry> Build(IEnumerable<string> paths, int max = AppSettings.MaxRecentProjects)
     {
         ArgumentNullException.ThrowIfNull(paths);
-        ArgumentNullException.ThrowIfNull(exists);
         var entries = new List<RecentProjectEntry>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (string path in paths)
@@ -26,7 +25,7 @@ public static class RecentProjects
                 break;
             }
 
-            if (string.IsNullOrWhiteSpace(path) || !seen.Add(path) || !exists(path))
+            if (string.IsNullOrWhiteSpace(path) || !seen.Add(path))
             {
                 continue;
             }
