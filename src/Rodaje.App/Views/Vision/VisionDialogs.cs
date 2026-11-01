@@ -39,8 +39,8 @@ internal static class VisionDialogs
                 && session.Project.FindMedia(found.Clip.MediaId) is { HasVideo: true, FrameRate: not null, Width: > 0, Height: > 0 } media)
             {
                 return found.Clip.Speed is { Freeze: true }
-                    ? (null, null, "Un cuadro congelado no se puede analizar: hazlo sobre el clip original.")
-                    : (found.Clip, media, null);
+                    ? (null, null, "Un fotograma congelado no se puede analizar: hazlo sobre el clip original.")
+                    : QuickTools.Locked(session.Sequence, found.Clip.Id) is { } locked ? (null, null, locked) : (found.Clip, media, null);
             }
         }
 
@@ -75,7 +75,7 @@ internal static class VisionDialogs
         var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
         panel.Children.Add(new TextBlock
         {
-            Text = string.Create(SpanishNumbers.Format, $"«{media.Name}»: {frames} cuadros. El sujeto queda y el fondo se vuelve transparente; debajo se ve la pista de abajo."),
+            Text = string.Create(SpanishNumbers.Format, $"«{media.Name}»: {frames} fotogramas. El sujeto queda y el fondo se vuelve transparente; debajo se ve la pista de abajo."),
             TextWrapping = TextWrapping.Wrap,
         });
         var quality = new ComboBox { Header = "Calidad", Width = AnalysisUi.PreviewWidth, SelectedIndex = 0 };
@@ -112,9 +112,11 @@ internal static class VisionDialogs
         dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(AnalyzeBeforeApply(args));
         async Task AnalyzeBeforeApply(ContentDialogButtonClickEventArgs args)
         {
+            // Apagado mientras corre el módulo: un segundo clic no lanza otro Run. Si falló, vuelve para reintentar.
             ContentDialogButtonClickDeferral deferral = args.GetDeferral();
+            dialog.IsPrimaryButtonEnabled = false;
             try { if (matte is null) { work = Run(); await work; } args.Cancel = matte is null; }
-            finally { deferral.Complete(); }
+            finally { dialog.IsPrimaryButtonEnabled = true; deferral.Complete(); }
         }
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();
@@ -169,6 +171,7 @@ internal static class VisionDialogs
             {
                 timer.Stop();
                 progress.Visibility = Visibility.Collapsed;
+                quality.IsEnabled = matte is null;
             }
         }
     }
@@ -240,9 +243,11 @@ internal static class VisionDialogs
         dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(AnalyzeBeforeApply(args));
         async Task AnalyzeBeforeApply(ContentDialogButtonClickEventArgs args)
         {
+            // Apagado mientras corre el módulo: un segundo clic no lanza otro Run. Si falló, vuelve para reintentar.
             ContentDialogButtonClickDeferral deferral = args.GetDeferral();
+            dialog.IsPrimaryButtonEnabled = false;
             try { if (plan is null) { work = Run(); await work; } args.Cancel = plan is null; }
-            finally { deferral.Complete(); }
+            finally { dialog.IsPrimaryButtonEnabled = true; deferral.Complete(); }
         }
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();
@@ -289,7 +294,7 @@ internal static class VisionDialogs
                     $"Reencuadre de «{media.Name}»", cancel.Token, j => job = j);
                 status.Text = double.IsNaN(plan.Inside)
                     ? string.Create(SpanishNumbers.Format, $"{plan.Keys.Count} keyframes. Aplica para verlo; un Ctrl+Z lo quita.")
-                    : string.Create(SpanishNumbers.Format, $"{plan.Keys.Count} keyframes; el sujeto queda dentro del recorte en el {plan.Inside * 100:0} % de los cuadros. Aplica para verlo; un Ctrl+Z lo quita.");
+                    : string.Create(SpanishNumbers.Format, $"{plan.Keys.Count} keyframes; el sujeto queda dentro del recorte en el {plan.Inside * 100:0} % de los fotogramas. Aplica para verlo; un Ctrl+Z lo quita.");
                 dialog.IsPrimaryButtonEnabled = true;
             }
             catch (OperationCanceledException)
@@ -304,6 +309,7 @@ internal static class VisionDialogs
             {
                 timer.Stop();
                 progress.Visibility = Visibility.Collapsed;
+                aspect.IsEnabled = subject.IsEnabled = plan is null;
             }
         }
     }

@@ -64,7 +64,12 @@ public sealed partial class EditorSession : ObservableObject
     // Cuántas veces cambió el historial: dice si una excepción llegó antes o después de aplicar la edición.
     private long _historyChanges;
 
-    public EditorSession(IPlaybackEngine playback, IMediaProber prober, IEditorDialogs dialogs, IIdGenerator? ids = null, NewProjectTracks? newProjectTracks = null)
+    // Durante un gesto el reproductor recibe como mucho una copia por cuadro: ya salió la de este cuadro, y hay cambios
+    // que todavía no tiene.
+    private bool _playbackFrame;
+    private bool _playbackStale;
+
+    public EditorSession(IPlaybackEngine playback, IMediaProber prober, IEditorDialogs dialogs, IIdGenerator? ids = null, NewProjectTracks? newProjectTracks = null, Settings.NewProjectFormat? newProjectFormat = null)
     {
         ArgumentNullException.ThrowIfNull(playback);
         ArgumentNullException.ThrowIfNull(prober);
@@ -74,6 +79,7 @@ public sealed partial class EditorSession : ObservableObject
         _dialogs = dialogs;
         _ids = ids ?? GuidIdGenerator.Instance;
         NewProjectTracks = newProjectTracks ?? NewProjectTracks.Default;
+        NewProjectFormat = newProjectFormat;
         _threadId = Environment.CurrentManagedThreadId;
         Project project = CreateEmptyProject();
         Project = project;
@@ -136,6 +142,29 @@ public sealed partial class EditorSession : ObservableObject
 
     /// <summary>Texto corto para la barra de título.</summary>
     public string SaveStateText => IsDirty ? "Sin guardar" : FilePath is null ? "Nuevo" : "Guardado";
+
+    /// <summary>
+    /// Cuándo se escribió por última vez el archivo del proyecto: al guardar, ahora; al abrir, la fecha del archivo.
+    /// <c>null</c> si el proyecto nunca se guardó. La barra de estado lo muestra como «Guardado hace N min».
+    /// </summary>
+    public DateTimeOffset? LastSavedAt { get; private set; }
+
+    private static DateTimeOffset? LastWriteOf(string? path)
+    {
+        if (path is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return File.Exists(path) ? new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
 
     /// <summary>Hay una apertura, un guardado o una importación en curso.</summary>
     public bool IsBusy => _busy > 0;
@@ -311,6 +340,10 @@ public sealed partial class EditorSession : ObservableObject
         }
 
         History.BreakMerge();
+        if (_playbackStale)
+        {
+            ReloadPlayback();
+        }
     }
 
     /// <summary>Revierte todo lo del gesto abierto (por ejemplo, Esc mientras se arrastra).</summary>
@@ -365,6 +398,21 @@ public sealed partial class EditorSession : ObservableObject
         _playback.Seek(position < Time.Zero ? Time.Zero : position > end ? end : position);
     }
 
+    /// <summary>
+    /// «Ir a tiempo»: lleva el cursor a lo escrito (<see cref="TimeInput"/>), con los saltos relativos desde la posición
+    /// del programa. <c>false</c> si el texto no es un tiempo; entonces no se mueve.
+    /// </summary>
+    public bool GoToTime(string? text)
+    {
+        if (!TimeInput.TryParse(text, Sequence.FrameRate, ProgramPosition, out Time target))
+        {
+            return false;
+        }
+
+        Seek(target);
+        return true;
+    }
+
     public void SeekToStart() => Seek(Time.Zero);
 
     public void SeekToEnd() => Seek(PlaybackDuration);
@@ -402,9 +450,9 @@ public sealed partial class EditorSession : ObservableObject
         TransportChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Muestra un aviso en la ventana, con un botón si se da <paramref name="action"/>.</summary>
-    public void Notify(NotificationSeverity severity, string title, string message, NotificationAction? action = null) =>
-        Notified?.Invoke(this, new EditorNotification(severity, title, message, action));
+    /// <summary>Muestra un aviso en la ventana, con botones opcionales si se dan <paramref name="action"/> y <paramref name="secondaryAction"/>.</summary>
+    public void Notify(NotificationSeverity severity, string title, string message, NotificationAction? action = null, NotificationAction? secondaryAction = null) =>
+        Notified?.Invoke(this, new EditorNotification(severity, title, message, action, secondaryAction));
 
     /// <summary>Falla si se llama fuera del hilo que creó la sesión (el de la interfaz).</summary>
     public void VerifyAccess()
@@ -421,7 +469,58 @@ public sealed partial class EditorSession : ObservableObject
     /// <summary>La copia del proyecto que recibe el reproductor.</summary>
     private Project PlaybackProject() => IsSourceActive && SourceMedia is { } media ? SourceProject(media) : WithPreviewOff(Project.Clone());
 
-    private Project CreateEmptyProject() => NewProjectTracks.CreateProject(UntitledName, _ids);
+    /// <summary>
+    /// Programa una acción para el próximo cuadro de la interfaz. Con él, los pasos de un gesto llegan al reproductor como
+    /// mucho una vez por cuadro (el primero enseguida); sin él, cada uno enseguida.
+    /// </summary>
+    public Action<Action>? NextFrame { get; init; }
+
+    private void ReloadPlayback()
+    {
+        if (History.IsInGroup && NextFrame is { } nextFrame)
+        {
+            if (_playbackFrame)
+            {
+                _playbackStale = true;
+                return;
+            }
+
+            _playbackFrame = true;
+            nextFrame(OnPlaybackFrame);
+        }
+
+        _playbackStale = false;
+        _playback.Reload(PlaybackProject());
+    }
+
+    private void OnPlaybackFrame()
+    {
+        _playbackFrame = false;
+        if (_playbackStale)
+        {
+            ReloadPlayback();
+        }
+    }
+
+    /// <summary>Formato de los proyectos nuevos (Preferencias › Personalización); nulo deja 1080p a 30.</summary>
+    public Settings.NewProjectFormat? NewProjectFormat { get; set; }
+
+    private Project CreateEmptyProject()
+    {
+        Project project = NewProjectTracks.CreateProject(UntitledName, _ids);
+        if (NewProjectFormat is { } format)
+        {
+            Sequence sequence = project.Sequences[0];
+            (sequence.Width, sequence.Height, sequence.FrameRate) = (format.Width, format.Height, format.FrameRate);
+            // Un formato elegido en Preferencias se respeta como el de una plantilla: el primer video no lo pisa.
+            if (format != Settings.NewProjectFormat.Factory)
+            {
+                _templateProject = project;
+            }
+        }
+
+        return project;
+    }
 
     /// <summary>
     /// Cambia de proyecto: historial nuevo, selección vacía y el reproductor desde el principio. Con
@@ -447,7 +546,9 @@ public sealed partial class EditorSession : ObservableObject
         _selectedTransition = null;
         _editVersion++;
         FilePath = filePath;
+        LastSavedAt = LastWriteOf(filePath);
         _previewOff.Clear();
+        _playbackStale = false;
         _playback.Load(project.Clone(), sequenceId);
         RaiseHistoryProperties();
         OnPropertyChanged(nameof(Project));
@@ -490,11 +591,12 @@ public sealed partial class EditorSession : ObservableObject
 
         if (LeaveRemovedSequences() | lostSource)
         {
+            _playbackStale = false;
             _playback.Load(PlaybackProject(), PlaybackSequenceId);
         }
         else
         {
-            _playback.Reload(PlaybackProject());
+            ReloadPlayback();
         }
 
         try

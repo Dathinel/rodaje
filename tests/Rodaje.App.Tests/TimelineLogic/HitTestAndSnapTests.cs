@@ -102,6 +102,9 @@ public class HitTestAndSnapTests
 
         // Los bordes de «b» (10 y 15) no cuentan: 15 no está, 10 sí por ser el final de «a».
         Assert.Null(snaps.Nearest(S(15.01), S(0.08)));
+
+        // El marcador que se arrastra no se atrae a sí mismo.
+        Assert.Null(SnapPoints.Collect(sequence, new HashSet<string> { "m1" }, null).Nearest(S(30.01), S(0.08)));
     }
 
     [Fact]

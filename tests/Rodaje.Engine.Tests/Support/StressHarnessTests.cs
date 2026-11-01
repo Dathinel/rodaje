@@ -1,10 +1,24 @@
 namespace Rodaje.Engine.Tests.Support;
 
 /// <summary>
+/// <see cref="StressHarnessTests.Un_hilo_trabado_que_no_saca_numeros_se_da_por_interbloqueo"/> toma una instantánea de
+/// todo el proceso (<c>PssCaptureSnapshot</c>, que lo suspende mientras clona su memoria) para comprobar el volcado; corre
+/// sin pruebas en paralelo para no congelar mientras tanto a las que miden tiempo real (<c>MixerTests</c>,
+/// <c>TimelineStressTests</c>): en la CI de Windows el vigilante del arnés llegó a estar 13,6 s sin mirar y una
+/// instantánea pasó de 60 s.
+/// </summary>
+[CollectionDefinition(Name, DisableParallelization = true)]
+public sealed class StressHarnessGroup
+{
+    public const string Name = "Arnés de estrés";
+}
+
+/// <summary>
 /// El propio arnés de estrés: que su detector de «sin avance» falle de verdad con un hilo trabado y que una corrida de
 /// cero vueltas no pase en verde. Sin reloj que medir: la prueba del hilo trabado avanza a mano el reloj del arnés, en
 /// paso cerrado con el hilo sano, y lo que se comprueba es que la corrida falla, no cuánto tarda.
 /// </summary>
+[Collection(StressHarnessGroup.Name)]
 public sealed class StressHarnessTests
 {
     /// <summary>
@@ -36,6 +50,7 @@ public sealed class StressHarnessTests
                 5,
                 TimeSpan.FromSeconds(30),
                 Clock,
+                TimeSpan.MaxValue,
                 ("sano", (random, stop) =>
                 {
                     while (true)
@@ -90,6 +105,41 @@ public sealed class StressHarnessTests
     private static void StuckWorker(ManualResetEventSlim unblock) =>
         // Sin mirar la señal de parada, como un interbloqueo.
         unblock.Wait(CancellationToken.None);
+
+    /// <summary>
+    /// Tras la parada, un hilo que termina su última vuelta (cerrar la sesión) sin sacar números no es un interbloqueo,
+    /// aunque tarde más que el tope de «sin avance»: lo vigilan <see cref="Stress.Deadline"/> y su propio
+    /// <c>Stress.Within</c>. Antes saltaba el detector (TimelineStressTests, semilla 101, en la CI de Windows). El reloj
+    /// del arnés avanza 10 s por vuelta de vigilancia y el presupuesto vencido enciende la parada en la primera.
+    /// </summary>
+    [Fact]
+    public void Un_hilo_que_tarda_en_salir_tras_la_parada_no_es_un_interbloqueo()
+    {
+        using var late = new ManualResetEventSlim();
+        int seconds = 0;
+        TimeSpan Clock()
+        {
+            seconds += 10;
+            if (seconds > 120)
+            {
+                late.Set();
+            }
+
+            return TimeSpan.FromSeconds(seconds);
+        }
+
+        Stress.Run(
+            11,
+            TimeSpan.FromSeconds(30),
+            Clock,
+            TimeSpan.Zero,
+            ("cierre", (random, stop) =>
+            {
+                _ = random.Next();
+                stop.WaitHandle.WaitOne();
+                late.Wait(CancellationToken.None);
+            }));
+    }
 
     [Fact]
     public void Una_corrida_sin_ninguna_vuelta_falla()

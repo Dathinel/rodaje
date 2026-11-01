@@ -63,6 +63,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
     private ChoiceList<string?> _targets = new();
     private readonly ClosedListRetry _targetsRetry = new();
     private Time _shownPosition;
+    private string? _shownTrack;
 
     public TrackingPanel()
     {
@@ -124,7 +125,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         foreach (string id in _services.Session.SelectedClipIds)
         {
             if (_services.Session.Sequence.FindClip(id) is { Track.Kind: TrackKind.Video } found && found.Clip.Generator is null && !found.Clip.IsCompound
-                && _services.Session.Project.FindMedia(found.Clip.MediaId) is { Width: > 0 })
+                && _services.Session.Project.FindMedia(found.Clip.MediaId) is { Width: > 0 } media && !media.IsStillImage)
             {
                 return found.Clip;
             }
@@ -146,6 +147,12 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         {
             _clipId = null;
             Items.Clear();
+            bool isStillSelected = _services.Session.SelectedClipIds.Any(id =>
+                _services.Session.Sequence.FindClip(id) is { } found
+                && _services.Session.Project.FindMedia(found.Clip.MediaId)?.IsStillImage == true);
+            EmptyText.Text = isStillSelected
+                ? "No aplica a imágenes fijas."
+                : "Selecciona un clip de video y lleva el cursor sobre él para seguir un punto, dos, cuatro esquinas o una región.";
             EmptyText.Visibility = Visibility.Visible;
             Header.Visibility = Visibility.Collapsed;
             Details.Visibility = Visibility.Collapsed;
@@ -171,7 +178,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         {
             PointTrackKind kind = PointTrack.ParseKind(effect.Options.GetValueOrDefault(O.Kind));
             int frames = PointTrack.ParseCached(effect.Options.GetValueOrDefault(O.Samples))?.Count ?? 0;
-            string note = KindName(kind) + (frames > 0 ? $" · {frames} cuadros" : " · sin seguir");
+            string note = KindName(kind) + (frames > 0 ? " · " + Frames(frames) : " · sin seguir");
             next.Add(new TrackItem(effect.Id, effect.Options.GetValueOrDefault(O.Name) ?? "Seguimiento", note,
                 new SolidColorBrush(Color(effect.Options.GetValueOrDefault(O.Color)))));
         }
@@ -205,6 +212,13 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
 
     private void ShowSelected(Clip clip)
     {
+        // El resultado de seguir o aplicar es de un seguimiento: no queda a la vista al pasar a otro.
+        if (_shownTrack != $"{_clipId}|{_trackId}")
+        {
+            _shownTrack = $"{_clipId}|{_trackId}";
+            RunText.Text = ApplyText.Text = "";
+        }
+
         if (CurrentTrack() is not { } track)
         {
             Selected.Visibility = Visibility.Collapsed;
@@ -222,6 +236,8 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         DrawGraph();
         ShowRunning();
     }
+
+    private static string Frames(int count) => count == 1 ? "1 fotograma" : $"{count} fotogramas";
 
     private static double Threshold(EffectInstance track) =>
         track.Parameters.TryGetValue(BuiltInEffects.TrackParameters.Threshold, out Parameter? p) ? p.Value : 0.7;
@@ -310,7 +326,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         Item("Renombrar…", () => Rename(button, clip, track));
         Item("Borrar lo seguido", () => Session.Execute(TrackEdits.SetSamples(Session.SequenceId, clip.Id, id, null, "Borrar lo seguido")));
         menu.Items.Add(new MenuFlyoutSeparator());
-        Item("Quitar", () => Session.Execute(Edits.RemoveEffect(Session.SequenceId, clip.Id, id)));
+        Item("Quitar", () => Session.Execute(Edits.RemoveEffect(Session.SequenceId, clip.Id, id, description: "Quitar seguimiento")));
         menu.ShowAt(button);
     }
 
@@ -327,7 +343,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
                 string name = box.Text.Trim();
                 if (name.Length > 0)
                 {
-                    Session.Execute(Edits.SetEffectOption(Session.SequenceId, clip.Id, track.Id, O.Name, name));
+                    Session.Execute(Edits.SetEffectOption(Session.SequenceId, clip.Id, track.Id, O.Name, name, description: "Renombrar seguimiento"));
                 }
             }
         };
@@ -377,7 +393,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
 
         if (clip.Speed is { Freeze: true } || !_editor.IsPlayheadInside(clip))
         {
-            Session.Notify(NotificationSeverity.Informational, "Seguir", "Lleva el cursor sobre el clip (no un cuadro congelado) para seguir.");
+            Session.Notify(NotificationSeverity.Informational, "Seguir", "Lleva el cursor sobre el clip (no un fotograma congelado) para seguir.");
             return;
         }
 
@@ -404,16 +420,26 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         var collected = new SortedDictionary<Time, TrackSample[]>();
         string clipId = clip.Id, trackId = track.Id;
         _runMerge = $"seguimiento-seguir|{trackId}|{++_runs}";
-        int pending = 0, lost = 0, doubtful = 0;
-        bool gone = false;
+        int pending = 0, lost = 0, doubtful = 0, saved = 0;
+        bool gone = false, unsaved = false;
         float threshold = request.Threshold;
         void Commit()
         {
-            if (collected.Count > 0)
+            // Solo el cuadro de partida no es nada seguido: no deja paso en el historial.
+            if (collected.Count > 1 && !unsaved)
             {
                 var update = new PointTrack([.. collected.Keys], [.. collected.Values]);
-                Session.TryExecute(TrackEdits.SetSamples(Session.SequenceId, clipId, trackId, existing?.Merge(update) ?? update,
-                    forward ? "Seguir hacia adelante" : "Seguir hacia atrás", _runMerge));
+                if (Session.TryExecute(TrackEdits.SetSamples(Session.SequenceId, clipId, trackId, existing?.Merge(update) ?? update,
+                    forward ? "Seguir hacia adelante" : "Seguir hacia atrás", _runMerge)))
+                {
+                    saved = collected.Count - 1;
+                }
+                else
+                {
+                    // Ya no cabe (o el clip ya no está): seguir sería perder el cálculo sin aviso.
+                    unsaved = true;
+                    _services?.LongActions.Cancel(RunActionId);
+                }
             }
 
             pending = 0;
@@ -468,9 +494,11 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
 
         Session.BreakMerge();
         int frames = Math.Max(0, collected.Count - 1);
-        RunText.Text = frames == 0
-            ? "No había cuadros para seguir en esa dirección."
-            : $"Seguidos {frames} cuadros hacia {(forward ? "adelante" : "atrás")}"
+        RunText.Text = unsaved
+            ? $"Se detuvo: lo seguido ya no se pudo guardar (es demasiado largo o el clip ya no está). Quedaron guardados {Frames(saved)}."
+            : frames == 0
+            ? "No había fotogramas para seguir en esa dirección."
+            : $"Seguidos {Frames(frames)} hacia {(forward ? "adelante" : "atrás")}"
                 + (doubtful > 0 ? $"; {doubtful} dudosos" : "")
                 + (lost > 0 ? $"; en {lost} se perdió algún punto y se estimó" : "")
                 + (gone ? ". Se detuvo porque no se encontraba ningún punto." : ".");
@@ -533,7 +561,7 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         Graph.Children.Add(new Line { X1 = cursor, X2 = cursor, Y1 = 0, Y2 = height, Stroke = (Brush)Application.Current.Resources["TextBrush"], StrokeThickness = 1 });
         GraphText.Text = samples is null
             ? "Todavía no se siguió nada."
-            : $"{samples.Count} cuadros · {doubtful} dudosos · {lost} perdidos (línea punteada: umbral)";
+            : $"{Frames(samples.Count)} · {doubtful} dudosos · {lost} perdidos (línea punteada: umbral)";
         ConfidenceSection.Summary = samples is null ? "" : lost + doubtful == 0 ? "todo bien" : $"{lost + doubtful} por revisar";
         PreviousDoubtButton.IsEnabled = NextDoubtButton.IsEnabled = lost + doubtful > 0;
     }

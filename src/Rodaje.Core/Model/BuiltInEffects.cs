@@ -12,6 +12,8 @@ public static partial class BuiltInEffects
     /// <summary>Parámetros de <see cref="Transform"/> y su valor cuando faltan.</summary>
     public static class TransformParameters
     {
+        public const string HdrReferenceNits = "hdrReferenceNits";
+
         /// <summary>Desplazamiento horizontal del centro, en píxeles de la secuencia. Por defecto 0.</summary>
         public const string X = "x";
 
@@ -76,6 +78,13 @@ public static partial class BuiltInEffects
 
         /// <summary>Voltear en vertical alrededor del centro de la imagen: <c>off</c> u <c>on</c>.</summary>
         public const string FlipY = "flipY";
+
+        /// <summary>
+        /// Expandir un clip SDR a HDR en una secuencia HDR (<c>off</c> u <c>on</c>): las luces suben hasta el pico de
+        /// <see cref="TransformParameters.HdrReferenceNits"/> (203–1000 nits; 0 elige 1000) con la curva inversa de BT.2446 método A
+        /// anclada en el gris del 18 % (<c>Effects.SdrExpansion</c>). En una secuencia SDR no hace nada.
+        /// </summary>
+        public const string HdrExpand = "hdrExpand";
     }
 
     /// <summary>Volumen y fundidos de un clip o de una pista de audio.</summary>
@@ -98,6 +107,25 @@ public static partial class BuiltInEffects
 
         /// <summary>Balance estéreo, de −100 (solo la izquierda) a 100 (solo la derecha), animable. Por defecto 0.</summary>
         public const string Balance = "balance";
+    }
+
+    /// <summary>Opciones de <see cref="Audio"/>.</summary>
+    public static class AudioOptions
+    {
+        /// <summary>
+        /// Curva de los fundidos de entrada y salida: uno de <see cref="Effects.EffectRegistry.FadeShapes"/>. Por defecto
+        /// <c>power</c> (potencia constante, seno y coseno); <c>linear</c> es ganancia constante y <c>exponential</c>,
+        /// lineal en decibelios. Una versión anterior de Rodaje la ignora y funde en potencia constante.
+        /// </summary>
+        public const string FadeShape = "fadeShape";
+    }
+
+    /// <summary>Valores de <see cref="AudioOptions.FadeShape"/>.</summary>
+    public static class FadeShapes
+    {
+        public const string Power = "power";
+        public const string Linear = "linear";
+        public const string Exponential = "exponential";
     }
 
     /// <summary>Ecualizador paramétrico de cinco bandas de un clip o de una pista de audio (sin keyframes).</summary>
@@ -752,6 +780,13 @@ public static partial class BuiltInEffects
 
         /// <summary>Luces: <c>c·(1 + gain)</c>.</summary>
         public const string Gain = "gain";
+
+        public const string OffsetRed = "offsetRed";
+        public const string OffsetGreen = "offsetGreen";
+        public const string OffsetBlue = "offsetBlue";
+
+        /// <summary>Desplazamiento: <c>c + offset</c> antes de las demás ruedas; sube o baja toda la imagen por igual (negros incluidos).</summary>
+        public const string Offset = "offset";
     }
 
     /// <summary>Curvas: una general y una por canal, con puntos que se unen con una cúbica monótona (<see cref="Effects.ToneCurve"/>).</summary>

@@ -497,13 +497,14 @@ internal sealed partial class TimelinePlan
         Fade fadeOut = default;
         Fade crossIn = default;
         Fade crossOut = default;
+        FadeShape shape = ClipFadeShape(audio);
         if (entering is { } e)
         {
             crossIn = Cross(e, fadeOut: false);
         }
         else
         {
-            fadeIn = new Fade(clipStart, Math.Min(length, Samples(audio, BuiltInEffects.AudioParameters.FadeIn)), Out: false);
+            fadeIn = new Fade(clipStart, Math.Min(length, Samples(audio, BuiltInEffects.AudioParameters.FadeIn)), Out: false) { Shape = shape };
         }
 
         if (leaving is { } l)
@@ -513,7 +514,7 @@ internal sealed partial class TimelinePlan
         else
         {
             long fade = Math.Min(length, Samples(audio, BuiltInEffects.AudioParameters.FadeOut));
-            fadeOut = new Fade(clipEnd - fade, fade, Out: true);
+            fadeOut = new Fade(clipEnd - fade, fade, Out: true) { Shape = shape };
         }
 
         var gain = new GainPlan(GainCurve(clip.Effects, Time.Zero), null, fadeIn, fadeOut, crossIn, crossOut)
@@ -536,6 +537,15 @@ internal sealed partial class TimelinePlan
             Ease = transition.Ease,
         };
     }
+
+    /// <summary>La curva de los fundidos propios del clip (<c>fadeShape</c>); sin opción o con una desconocida, potencia constante.</summary>
+    private static FadeShape ClipFadeShape(EffectInstance? audio) =>
+        audio?.Options.GetValueOrDefault(BuiltInEffects.AudioOptions.FadeShape) switch
+        {
+            BuiltInEffects.FadeShapes.Linear => FadeShape.Gain,
+            BuiltInEffects.FadeShapes.Exponential => FadeShape.Exponential,
+            _ => FadeShape.Power,
+        };
 
     private static long Samples(EffectInstance? audio, string parameter)
     {

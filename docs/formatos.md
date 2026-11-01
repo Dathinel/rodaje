@@ -85,7 +85,10 @@ Se probó en MP4 H.264/AAC, MKV HEVC 10 bits/Opus, WebM VP9/Opus, MOV ProRes 422
 
 ## Límites conocidos
 
-- **HDR (PQ y HLG).** No hay mapeo de tonos: se decodifica y se exporta como BT.709, con los colores apagados. Desde esta versión, la importación lo avisa.
+- **HDR (PQ y HLG).** Se convierte a SDR BT.709 antes de los efectos, con el mismo shader en vista previa y exportación (D-052). Se leen la transferencia y los primarios del cuadro, con los del flujo como respaldo: PQ (ST 2084) pasa a nits; HLG (ARIB STD-B67) pasa a luz lineal con la OOTF de BT.2100; los primarios BT.2020 pasan a BT.709 y Hable comprime el brillo antes de aplicar la curva BT.709. SDR conserva su camino y sus bytes.
+  - En **Propiedades › Opacidad y mezcla**, «Brillo de referencia HDR» acepta nits y keyframes. **0 es automático: 100 nits de blanco para PQ y 1000 nits de pico para HLG**. Un valor positivo sustituye esa referencia (1–10000 nits). No afecta a SDR. Se guarda como parámetro de la transformación y comparte su activación y sus curvas.
+  - El blanco elegido llega al blanco SDR. En PQ, los valores por encima de él se recortan al límite SDR: aumenta la referencia para recuperar luces altas. En HLG, el valor representa el pico de pantalla y también adapta la gamma de sistema. Los colores fuera de BT.709 se limitan a su gama; no se conserva una salida HDR ni se interpretan metadatos dinámicos Dolby Vision/HDR10+.
+  - La importación informa: «HDR: se convierte a SDR; ajusta el brillo en Propiedades». La igualdad de bytes se comprueba a igual resolución y ajustes, antes de compresión con pérdidas; para comparar RGBA se desactiva el tramado de exportación.
 - **Intermedios en la CPU.** ProRes, DNxHR, H.264 4:4:4 y AV1 se decodifican en la CPU. En 1080p, ProRes y DNxHR van a 14–30 fps, así que para editarlos con fluidez conviene usar proxies. La GPU del equipo decodifica AV1, pero FFmpeg usa dav1d.
 - **VFR muy irregular.** La secuencia toma la tasa mediana medida, por ejemplo 90000/3061 (29,4 fps). Cada índice muestra el cuadro más cercano y puede repetir o saltar uno.
 - **MKV con audio más largo que el video.** El número de cuadros sale de la duración del contenedor: los índices de más repiten el último cuadro.

@@ -30,6 +30,9 @@ public sealed partial class ExportEntry
 
     public string OutputPath => Request.OutputPath;
 
+    /// <summary>Si la salida sigue en disco: un archivo, o la carpeta de una secuencia de imágenes.</summary>
+    public static bool OutputExists(string outputPath) => File.Exists(outputPath) || Directory.Exists(outputPath);
+
     public string Title => Path.GetFileName(Request.OutputPath);
 
     public ExportProgress Progress => Job?.Progress ?? new ExportProgress(ExportJobState.Queued, 0, 0, 0, TimeSpan.Zero, null, 0);
@@ -53,13 +56,13 @@ public sealed partial class ExportEntry
 
         Project project = Request.Project;
         Request = Request with { Project = new Project { Id = project.Id, Name = project.Name } };
-        Job = new FinishedJob(Request, job.Progress, job.Failure, job.Thumbnail);
+        Job = new FinishedJob(Request, job.Progress, job.Failure, job.Thumbnail, job.MeasuredNote);
         job.Dispose();
         IsReleased = true;
     }
 
     /// <summary>Lo que queda de un trabajo completado: no se mueve más.</summary>
-    private sealed partial class FinishedJob(ExportRequest request, ExportProgress progress, ExportException? failure, BgraImage? thumbnail) : IExportJob
+    private sealed partial class FinishedJob(ExportRequest request, ExportProgress progress, ExportException? failure, BgraImage? thumbnail, string? note) : IExportJob
     {
         public event EventHandler? Changed
         {
@@ -74,6 +77,8 @@ public sealed partial class ExportEntry
         public ExportException? Failure { get; } = failure;
 
         public BgraImage? Thumbnail { get; } = thumbnail;
+
+        public string? MeasuredNote { get; } = note;
 
         public Task Completion => Task.CompletedTask;
 
@@ -209,10 +214,19 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
     /// Con <paramref name="current"/> (el proyecto abierto) y si es el mismo proyecto con la misma secuencia, exporta su estado
     /// de ahora: lo que se arregló después del fallo (un clip o medio quitado) ya no está en la copia que se repite.
     /// </summary>
+    /// <remarks>
+    /// Si ya no está en la lista o no terminó (se reintentó desde la tarjeta y luego desde el aviso), no hace nada y la
+    /// devuelve tal cual: no se encola dos veces la misma exportación.
+    /// </remarks>
     /// <exception cref="InvalidOperationException">Una completada (<see cref="ExportEntry.IsReleased"/>) sin ese proyecto abierto.</exception>
     public ExportEntry Retry(ExportEntry entry, bool continueWithoutMissing = false, Project? current = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        if (!entry.IsFinished || !_entries.Contains(entry))
+        {
+            return entry;
+        }
+
         ExportRequest request = entry.Request;
         if (current is { Id.Length: > 0 } && current.Id == request.Project.Id && current.Sequences.Exists(s => s.Id == request.SequenceId))
         {
@@ -282,8 +296,10 @@ public sealed partial class ExportJobList(IExportRunner runner, SynchronizationC
         {
             // La más antigua que espera: la lista va de la más reciente a la más antigua.
             ExportEntry? next = _entries.LastOrDefault(e => e.Job is null);
-            ExportSettings[] running = [.. _entries.Where(e => e.Job is { } job && !job.Progress.State.IsFinished()).Select(e => e.Request.Settings)];
-            if (next is null || !Concurrency.Allows(running, next.Request.Settings))
+            ExportEntry[] running = [.. _entries.Where(e => e.Job is { } job && !job.Progress.State.IsFinished())];
+            // Dos a la misma salida pisarían el mismo temporal: la segunda espera a que termine la primera.
+            if (next is null || running.Any(e => string.Equals(e.OutputPath, next.OutputPath, StringComparison.OrdinalIgnoreCase))
+                || !Concurrency.Allows([.. running.Select(e => e.Request.Settings)], next.Request.Settings))
             {
                 return;
             }

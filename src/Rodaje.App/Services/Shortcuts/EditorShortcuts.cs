@@ -2,95 +2,6 @@ using Rodaje.App.Services.Crashes;
 
 namespace Rodaje.App.Services.Shortcuts;
 
-/// <summary>Identificadores estables de las acciones del armazón; se guardan en <c>atajos.json</c>, no se renombran.</summary>
-public static class ActionIds
-{
-    public const string NewProject = "file.new";
-    public const string OpenProject = "file.open";
-    public const string Save = "file.save";
-    public const string SaveAs = "file.saveAs";
-    public const string Import = "file.import";
-    public const string Export = "file.export";
-    public const string ExportFrame = "file.exportFrame";
-
-    public const string Undo = "edit.undo";
-    public const string Redo = "edit.redo";
-    public const string Split = "edit.split";
-    public const string SplitAllTracks = "edit.splitAll";
-    public const string Delete = "edit.delete";
-    public const string TrimStart = "edit.trimStart";
-    public const string TrimEnd = "edit.trimEnd";
-    public const string SelectAll = "edit.selectAll";
-
-    public const string ClipSpeed = "clip.speed";
-
-    /// <summary>La transición por defecto en el corte (Ctrl+T); la une <c>TransitionCommands</c>, que tiene los ajustes.</summary>
-    public const string AddTransition = "edit.transition";
-    public const string FreezeFrame = "clip.freeze";
-    public const string SpeedUp = "clip.faster";
-    public const string SlowDown = "clip.slower";
-    public const string Reverse = "clip.reverse";
-    public const string AddText = "clip.addText";
-    public const string AddSubtitleTrack = "timeline.subtitleTrack";
-    public const string AddVideoTrack = "timeline.videoTrack";
-    public const string AddAudioTrack = "timeline.audioTrack";
-
-    public const string TogglePlay = "playback.togglePlay";
-    public const string PreviousFrame = "playback.previousFrame";
-    public const string NextFrame = "playback.nextFrame";
-    public const string GoToStart = "playback.start";
-    public const string GoToEnd = "playback.end";
-
-    // Las registra el reproductor; aquí para que la vista esencial de la página de atajos las nombre.
-    public const string ShuttleReverse = "playback.shuttleReverse";
-    public const string ShuttleStop = "playback.shuttleStop";
-    public const string ShuttleForward = "playback.shuttleForward";
-
-    public const string AddMarker = "timeline.marker";
-    public const string AddRegion = "timeline.region";
-    public const string ZoomIn = "timeline.zoomIn";
-    public const string ZoomOut = "timeline.zoomOut";
-    public const string ZoomToFit = "timeline.zoomFit";
-    public const string ZoomToSelection = "timeline.zoomSelection";
-    public const string ToggleSnapping = "timeline.snapping";
-    public const string ToggleAutoRipple = "timeline.autoRipple";
-    public const string ToggleMagneticMain = "timeline.magneticMain";
-
-    public const string NormalTool = "tool.normal";
-    public const string EnvelopeTool = "tool.envelope";
-    public const string SelectionTool = "tool.selection";
-    public const string ZoomTool = "tool.zoom";
-    public const string RollTool = "tool.roll";
-    public const string SlideTool = "tool.slide";
-    public const string BladeTool = "tool.blade";
-    public const string RippleTool = "tool.ripple";
-    public const string SlipTool = "tool.slip";
-    public const string RangeTool = "tool.range";
-
-    public const string ShowShortcuts = "view.shortcuts";
-    public const string ShowPlugins = "view.plugins";
-    public const string ShowMixer = "view.mixer";
-    public const string ShowHistory = "view.history";
-    public const string ShowPreferences = "view.preferences";
-}
-
-/// <summary>Grupos de la página de atajos, en el orden en que se muestran.</summary>
-public static class ShortcutGroups
-{
-    public const string Playback = "Reproducción";
-    public const string Edit = "Edición";
-    public const string Timeline = "Línea de tiempo";
-    public const string Tools = "Herramientas";
-    public const string View = "Vista";
-    public const string File = "Archivo";
-
-    /// <summary>Páginas y paneles: ahora forman parte de <see cref="View"/>.</summary>
-    public const string Windows = View;
-
-    /// <summary>Orden de la página; los grupos que registren las vistas y no estén aquí van al final.</summary>
-    public static IReadOnlyList<string> Order { get; } = [Playback, Edit, Timeline, Tools, View, File];
-}
-
 /// <summary>Las acciones del armazón con sus teclas de fábrica en cada estilo, y su unión con la sesión.</summary>
 public static partial class EditorShortcuts
 {
@@ -104,7 +15,7 @@ public static partial class EditorShortcuts
         new(ActionIds.Import, "Importar medios", ShortcutGroups.File, ["Ctrl+I"]) { ShortLabel = "Importar", Description = "Trae videos, audios o imágenes a la biblioteca." },
         new(ActionIds.Export, "Exportar", ShortcutGroups.File, ["Ctrl+E", "Ctrl+M"], agile: ["Ctrl+E"], classic: ["Ctrl+M"]) { WorksInTextInput = true, Description = "Convierte el proyecto en un video terminado." },
         new(ActionIds.ShowPreferences, "Preferencias", ShortcutGroups.File, ["Ctrl+,"]) { WorksInTextInput = true, Description = "Configura las preferencias de Rodaje." },
-        new(ActionIds.ExportFrame, "Exportar fotograma", ShortcutGroups.File, ["Ctrl+Mayús+E"]) { ShortLabel = "Fotograma", Description = "Guarda como imagen PNG o JPEG el cuadro que está bajo el cursor." },
+        new(ActionIds.ExportFrame, "Exportar fotograma", ShortcutGroups.File, ["Ctrl+Mayús+E"]) { ShortLabel = "Fotograma", Description = "Guarda como imagen PNG o JPEG el fotograma que está bajo el cursor." },
 
         new(ActionIds.Undo, "Deshacer", ShortcutGroups.Edit, ["Ctrl+Z"]) { Repeats = true, Description = "Vuelve atrás el último cambio." },
         new(ActionIds.Redo, "Rehacer", ShortcutGroups.Edit, ["Ctrl+Mayús+Z", "Ctrl+Y"], agile: ["Ctrl+Mayús+Z"], classic: ["Ctrl+Y", "Ctrl+Mayús+Z"]) { Repeats = true, Description = "Repite lo que acabas de deshacer." },
@@ -114,20 +25,26 @@ public static partial class EditorShortcuts
         new(ActionIds.TrimStart, "Borrar a la izquierda del cursor", ShortcutGroups.Edit, ["Q"], classic: ["Alt+["]) { ShortLabel = "Borrar izquierda", Description = "Quita del clip lo que hay antes del cursor; en la principal no deja hueco." },
         new(ActionIds.TrimEnd, "Borrar a la derecha del cursor", ShortcutGroups.Edit, ["W"], classic: ["Alt+]"]) { ShortLabel = "Borrar derecha", Description = "Quita del clip lo que hay después del cursor; en la principal no deja hueco." },
         new(ActionIds.SelectAll, "Seleccionar todo", ShortcutGroups.Edit, ["Ctrl+A"]) { ShortLabel = "Todo", Description = "Selecciona todos los clips de la secuencia." },
+        new(ActionIds.CopyClips, "Copiar clips", ShortcutGroups.Edit, ["Ctrl+C"]) { ShortLabel = "Copiar", Description = "Copia la selección con enlazados, grupos y transiciones para pegarla después." },
+        new(ActionIds.DuplicateClips, "Duplicar clip", ShortcutGroups.Edit, ["Ctrl+D"], classic: ["Ctrl+Mayús+D"]) { ShortLabel = "Duplicar", Description = "Pone una copia de la selección a continuación, en sus pistas, si hay sitio." },
+        new(ActionIds.PasteAtCursor, "Pegar en el cursor", ShortcutGroups.Edit, ["Ctrl+Mayús+V", "Ctrl+V"]) { ShortLabel = "Pegar", Description = "Pone lo copiado con el primer clip en el cursor y tapa lo que haya ahí." },
+        new(ActionIds.PasteInsert, "Pegar insertando", ShortcutGroups.Edit, ["Ctrl+Alt+V"]) { ShortLabel = "Pegar ins.", Description = "Pone lo copiado en el cursor y corre lo que sigue para hacerle sitio." },
         new(ActionIds.ShowHistory, "Historial", ShortcutGroups.Edit, ["Ctrl+H"]) { Description = "Abre el historial de cambios del proyecto." },
         new(ActionIds.AddTransition, "Transición por defecto", ShortcutGroups.Edit, ["Ctrl+T"]) { ShortLabel = "Transición", Description = "Pone la transición por defecto en el corte más cercano o en el del clip elegido." },
         new(ActionIds.ClipSpeed, "Velocidad del clip…", ShortcutGroups.Edit, ["Ctrl+R"]) { ShortLabel = "Velocidad", Description = "Abre la pestaña Velocidad del clip seleccionado o del que está bajo el cursor." },
-        new(ActionIds.FreezeFrame, "Congelar cuadro", ShortcutGroups.Edit, ["Mayús+R"]) { ShortLabel = "Congelar", Description = "Detiene la imagen del cursor 3 segundos y corre lo que sigue." },
+        new(ActionIds.FreezeFrame, "Congelar fotograma", ShortcutGroups.Edit, ["Mayús+R"]) { ShortLabel = "Congelar", Description = "Detiene la imagen del cursor 3 segundos y corre lo que sigue." },
         new(ActionIds.SpeedUp, "Más rápido", ShortcutGroups.Edit, ["Ctrl+Alt+."]) { Repeats = true, Description = "Sube un escalón la velocidad del clip (1,25×, 1,5×, 2×…)." },
         new(ActionIds.SlowDown, "Más lento", ShortcutGroups.Edit, ["Ctrl+Alt+,"]) { Repeats = true, Description = "Baja un escalón la velocidad del clip (0,75×, 0,5×, 0,25×…)." },
         new(ActionIds.Reverse, "Invertir", ShortcutGroups.Edit, []) { Description = "Reproduce el clip hacia atrás; otra vez lo vuelve a poner hacia adelante." },
         new(ActionIds.AddText, "Añadir texto", ShortcutGroups.Edit, ["T"]) { ShortLabel = "Texto", Description = "Pone un título de 5 segundos en el cursor, en la pista de arriba que esté libre." },
 
         new(ActionIds.TogglePlay, "Reproducir o pausar", ShortcutGroups.Playback, ["Espacio"]) { ShortLabel = "Reproducir", Description = "Arranca o detiene la reproducción desde el cursor." },
-        new(ActionIds.PreviousFrame, "Cuadro anterior", ShortcutGroups.Playback, ["←"], classic: ["Alt+←"]) { ShortLabel = "Cuadro atrás", Repeats = true, Description = "Retrocede una imagen; mantenla para ir más atrás." },
-        new(ActionIds.NextFrame, "Cuadro siguiente", ShortcutGroups.Playback, ["→"], classic: ["Alt+→"]) { ShortLabel = "Cuadro adelante", Repeats = true, Description = "Avanza una imagen; mantenla para seguir avanzando." },
+        new(ActionIds.PreviousFrame, "Fotograma anterior", ShortcutGroups.Playback, ["←"], classic: ["Alt+←"]) { ShortLabel = "Fotograma ant.", Repeats = true, Description = "Retrocede una imagen; mantenla para ir más atrás." },
+        new(ActionIds.NextFrame, "Fotograma siguiente", ShortcutGroups.Playback, ["→"], classic: ["Alt+→"]) { ShortLabel = "Fotograma sig.", Repeats = true, Description = "Avanza una imagen; mantenla para seguir avanzando." },
         new(ActionIds.GoToStart, "Ir al inicio", ShortcutGroups.Playback, ["Inicio"]) { ShortLabel = "Inicio", Description = "Lleva el cursor al principio de la secuencia." },
         new(ActionIds.GoToEnd, "Ir al final", ShortcutGroups.Playback, ["Fin"]) { ShortLabel = "Final", Description = "Lleva el cursor al final del último clip." },
+        new(ActionIds.CaptureFrame, "Capturar fotograma", ShortcutGroups.Playback, ["Ctrl+Mayús+C"]) { ShortLabel = "Captura", Description = "Guarda de inmediato el fotograma actual como imagen PNG." },
+        new(ActionIds.GoToTime, "Ir a tiempo…", ShortcutGroups.Playback, ["Ctrl+J"]) { ShortLabel = "Ir a", Description = "Escribe un tiempo (1:23, 83, 120f) o un salto (+10, -2s) y el cursor va ahí." },
 
         new(ActionIds.AddMarker, "Añadir marcador", ShortcutGroups.Timeline, ["M"]) { ShortLabel = "Marcador", Description = "Deja una marca en el cursor para volver a ese punto." },
         new(ActionIds.AddRegion, "Añadir región", ShortcutGroups.Timeline, ["R"], agile: []) { ShortLabel = "Región", Description = "Marca un tramo de la secuencia con nombre." },
@@ -151,11 +68,14 @@ public static partial class EditorShortcuts
 
         new(ActionIds.ZoomIn, "Acercar", ShortcutGroups.View, ["Ctrl++", "Ctrl+Num +"], classic: ["↑"]) { Repeats = true, Description = "Agranda la línea de tiempo para ver más detalle." },
         new(ActionIds.ZoomOut, "Alejar", ShortcutGroups.View, ["Ctrl+-", "Ctrl+Num -"], classic: ["↓"]) { Repeats = true, Description = "Achica la línea de tiempo para ver más tiempo a la vez." },
-        new(ActionIds.ZoomToFit, "Ajustar a la ventana", ShortcutGroups.View, ["Mayús+Z"]) { ShortLabel = "Ver todo", Description = "Ajusta el zoom para que todo el proyecto quepa en la vista." },
+        new(ActionIds.ZoomToFit, "Ajustar a la secuencia", ShortcutGroups.View, ["Mayús+Z"]) { ShortLabel = "Ver todo", Description = "Ajusta el zoom para que toda la secuencia quepa en la vista." },
         new(ActionIds.ZoomToSelection, "Zoom a la selección", ShortcutGroups.View, ["Ctrl+Alt+Z"]) { ShortLabel = "Ver selección", Description = "Acerca hasta que los clips seleccionados o el tramo marcado llenen la vista." },
         new(ActionIds.ShowShortcuts, "Atajos de teclado", ShortcutGroups.View, ["Ctrl+Alt+K"]) { ShortLabel = "Atajos", Description = "Abre esta página para ver y cambiar las teclas." },
         new(ActionIds.ShowPlugins, "Complementos", ShortcutGroups.View, []) { Description = "Abre el gestor de paquetes y módulos de IA." },
         new(ActionIds.ShowMixer, "Mezclador", ShortcutGroups.View, ["Alt+M"]) { Description = "Cambia la línea de tiempo por el mezclador de pistas y buses; otra vez vuelve." },
+        new(ActionIds.LayoutBalanced, "Distribución equilibrada", ShortcutGroups.View, []) { ShortLabel = "Equilibrada", Description = "La línea de tiempo ocupa el 42 % del alto de la ventana." },
+        new(ActionIds.LayoutMoreViewer, "Más visor", ShortcutGroups.View, []) { Description = "La línea de tiempo baja al 30 % del alto y el visor crece." },
+        new(ActionIds.LayoutMoreTimeline, "Más línea de tiempo", ShortcutGroups.View, []) { ShortLabel = "Más línea", Description = "La línea de tiempo sube al 55 % del alto para ver más pistas." },
     ];
 
     /// <summary>
@@ -183,6 +103,10 @@ public static partial class EditorShortcuts
             router.Bind(ActionIds.TrimStart, () => session.DeleteLeftOfPlayhead()),
             router.Bind(ActionIds.TrimEnd, () => session.DeleteRightOfPlayhead()),
             router.Bind(ActionIds.SelectAll, session.SelectAll),
+            router.Bind(ActionIds.CopyClips, () => session.CopySelection(), () => session.SelectedClipIds.Count > 0),
+            router.Bind(ActionIds.DuplicateClips, () => session.DuplicateSelection(), () => session.SelectedClipIds.Count > 0),
+            router.Bind(ActionIds.PasteAtCursor, () => Run(session, () => session.PasteAtPlayheadAsync()), () => session.CanPaste),
+            router.Bind(ActionIds.PasteInsert, () => Run(session, () => session.PasteAtPlayheadAsync(insert: true)), () => session.CanPaste),
             router.Bind(ActionIds.ClipSpeed, () => session.ShowClipSpeed()),
             router.Bind(ActionIds.FreezeFrame, () => session.FreezeFrameAtPlayhead()),
             router.Bind(ActionIds.SpeedUp, () => session.StepSpeed(faster: true)),

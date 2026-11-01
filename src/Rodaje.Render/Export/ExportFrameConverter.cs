@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
+using Rodaje.Core.Model;
 using Rodaje.Media.Export;
 using Rodaje.Media.Gpu;
 using Rodaje.Render.Shaders;
@@ -90,18 +91,24 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     /// <param name="filter">Filtro de escala.</param>
     /// <param name="ringSize">Búferes <c>Staging</c> en vuelo (2 a 8).</param>
     /// <param name="region">Recorte de la composición antes de escalar; <c>null</c> la exporta entera.</param>
+    /// <param name="source">
+    /// Espacio de color de la composición (<see cref="Compositor.ColorSpace"/>): en HDR es luz lineal BT.2020 con 1,0 = 203 nits y se
+    /// codifica a PQ/HLG o se recorta a SDR BT.709 según <paramref name="output"/>; en SDR, la de siempre.
+    /// </param>
     public ExportFrameConverter(GpuDevice gpu, int sourceWidth, int sourceHeight, ExportVideoFormat output,
         ExportFit fit = ExportFit.Bars, ExportScaleFilter filter = ExportScaleFilter.Auto, int ringSize = DefaultRingSize,
-        ExportSourceRegion? region = null)
+        ExportSourceRegion? region = null, SequenceColorSpace source = SequenceColorSpace.Sdr709)
         : this(gpu ?? throw new ArgumentNullException(nameof(gpu)), gpu.NativeDevice, gpu.NativeContext, sourceWidth, sourceHeight,
-            output, fit, filter, ringSize, ShaderCache.Default, TimeProvider.System, region)
+            output, fit, filter, ringSize, ShaderCache.Default, TimeProvider.System, region, source)
     {
     }
 
     /// <summary>Con un dispositivo propio (WARP en las pruebas): sin <paramref name="gpu"/> no se toma ningún candado.</summary>
     internal ExportFrameConverter(GpuDevice? gpu, nint device, nint context, int sourceWidth, int sourceHeight, ExportVideoFormat output,
-        ExportFit fit, ExportScaleFilter filter, int ringSize, ShaderCache shaders, TimeProvider time, ExportSourceRegion? region = null)
+        ExportFit fit, ExportScaleFilter filter, int ringSize, ShaderCache shaders, TimeProvider time, ExportSourceRegion? region = null,
+        SequenceColorSpace source = SequenceColorSpace.Sdr709)
     {
+        Source = source;
         ArgumentNullException.ThrowIfNull(output);
         ArgumentOutOfRangeException.ThrowIfZero(device);
         ArgumentOutOfRangeException.ThrowIfZero(context);
@@ -165,6 +172,9 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     public ExportSourceRegion Region { get; }
 
     public ExportVideoFormat Output { get; }
+
+    /// <summary>Espacio de color de la composición que entra (<see cref="Compositor.ColorSpace"/>).</summary>
+    public SequenceColorSpace Source { get; }
 
     public ExportFit Fit { get; }
 
@@ -445,8 +455,18 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         int bits = pixels.BitDepth();
         double max = (1 << bits) - 1;
         double unit = Math.Pow(2, bits - 8);
-        (double kr, double kb) = format.Color.Matrix == ExportMatrix.Bt601 ? (0.299, 0.114) : (0.2126, 0.0722);
-        uint flags = 0;
+        (double kr, double kb) = format.Color.Matrix switch
+        {
+            ExportMatrix.Bt601 => (0.299, 0.114),
+            ExportMatrix.Bt2020 => (0.2627, 0.0593),
+            _ => (0.2126, 0.0722),
+        };
+        uint flags = format.Color.Transfer switch { ExportTransfer.Pq => 16u, ExportTransfer.Hlg => 32u, _ => 0u };
+        if (flags != 0 && Source == SequenceColorSpace.Sdr709)
+        {
+            flags |= 64;
+        }
+
         if (Dither && bits == 8)
         {
             flags |= 1;
@@ -587,8 +607,10 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     private void CreateResources()
     {
         _scale = CreateShader(ExportShaders.ScaleVariant);
-        _convert = CreateShader(ExportShaders.ConvertVariant);
-        _thumbnail = CreateShader(ExportShaders.ThumbnailVariant);
+        _convert = CreateShader(Output.Color.IsHdr ? ExportShaders.ConvertHdrVariant
+            : Source != SequenceColorSpace.Sdr709 ? ExportShaders.ConvertToneMapVariant
+            : ExportShaders.ConvertVariant);
+        _thumbnail = CreateShader(Source != SequenceColorSpace.Sdr709 ? ExportShaders.ThumbnailToneMapVariant : ExportShaders.ThumbnailVariant);
         _scaleConstants = CreateConstants(sizeof(ScaleConstants));
         _convertConstants = CreateConstants(sizeof(ConvertConstants));
         _thumbnailConstants = CreateConstants(sizeof(ThumbnailConstants));

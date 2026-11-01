@@ -67,6 +67,23 @@ public static partial class Edits
             mergeKey is null ? null : $"title-style:{clipId}:{mergeKey}");
     }
 
+    /// <summary>Sustituye la copia del estilo en varios clips en un único paso de deshacer.</summary>
+    public static SequenceEditCommand SetTitleStyles(
+        string sequenceId,
+        IEnumerable<(string ClipId, TextStyle Style)> targets,
+        string? mergeKey = null,
+        IIdGenerator? ids = null)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        (string ClipId, TextStyle Style)[] list = targets.Select(t => (t.ClipId, t.Style.Clone())).ToArray();
+        return new(
+            "Cambiar estilo del texto",
+            sequenceId,
+            ctx => TitleEdits.SetStyles(ctx, list),
+            ids,
+            mergeKey is null ? null : $"title-styles:{mergeKey}");
+    }
+
     public static SequenceEditCommand SetTitleEdges(string sequenceId, string clipId, bool? animateIn, bool? animateOut, IIdGenerator? ids = null) =>
         new("Animación de los bordes", sequenceId, ctx => TitleEdits.SetEdges(ctx, clipId, animateIn, animateOut), ids);
 

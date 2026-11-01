@@ -13,7 +13,8 @@
 #   ... -Publicar        recompila aunque src\ no haya cambiado
 #   ... -SoloPublicar    recompila si hace falta y no abre la app (para dejarla lista de antemano)
 #   ... -Autoprueba      abre el exe publicado con --autoprueba (clip de prueba, todas las pestañas del inspector, un
-#                        segundo de reproducción) y falla si no sale con 0 o si deja rodaje-error.txt
+#                        segundo de reproducción), comprueba antes que la ventana queda lista y falla si no sale con 0,
+#                        deja rodaje-error.txt o un informe en fallos\. Sin audio, con datos aislados y hasta 180 s.
 # Los videos se importan y se ponen seguidos en la pista principal; un .rodaje se abre.
 # Solo recompila si el exe falta o algún fuente de src\ es más nuevo que él. Sale con 0 si todo fue bien.
 [CmdletBinding(PositionalBinding = $false)]
@@ -64,9 +65,9 @@ function Publicar {
     if (Test-Path -LiteralPath $Salida) { Remove-Item -LiteralPath $Salida -Recurse -Force }
 
     # Sin -r: el RID ya está en el .csproj; como propiedad global cambiaría los packages.lock.json de las bibliotecas.
-    $r = Invocar-Dotnet $log @('publish', $Proyecto, '-c', 'Release', '-o', $Carpeta, '--nologo')
+    $r = Invocar-Dotnet $log @('publish', $Proyecto, '-c', 'Release', '-o', $Carpeta, '--nologo', '-m:4')
     $tmpLanzador = Join-Path $resultados 'lanzador'
-    $l = Invocar-Dotnet (Join-Path $resultados 'app-lanzador.log') @('publish', (Join-Path $Raiz 'src\Rodaje.Launcher\Rodaje.Launcher.csproj'), '-c', 'Release', '-o', $tmpLanzador, '--nologo')
+    $l = Invocar-Dotnet (Join-Path $resultados 'app-lanzador.log') @('publish', (Join-Path $Raiz 'src\Rodaje.Launcher\Rodaje.Launcher.csproj'), '-c', 'Release', '-o', $tmpLanzador, '--nologo', '-m:4')
     $lineas = New-Object System.Collections.Generic.List[string]
     $lineas.AddRange([string[]]@($r.Lineas)); $lineas.AddRange([string[]]@($l.Lineas))
     $errores = Diagnosticos-De $lineas 'error'
@@ -160,26 +161,39 @@ foreach ($a in @($Archivos | Where-Object { $_ })) {
 Remove-Item Env:DOTNET_ROOT -ErrorAction SilentlyContinue
 
 if ($Autoprueba) {
+    Import-Module (Join-Path $PSScriptRoot 'autoprueba.psm1') -DisableNameChecking -Force
     $errorTxt = Join-Path $Carpeta 'rodaje-error.txt'
     Remove-Item -LiteralPath $errorTxt -ErrorAction SilentlyContinue
-    # El módulo eco con AOT (no necesita el runtime de .NET) para el paso de IA: Rodaje lo encuentra porque corre desde el repositorio.
-    Usar-DotnetLocal $E
-    Agregar-Vswhere | Out-Null
     New-Item -ItemType Directory -Force -Path (Join-Path $Raiz 'TestResults') | Out-Null
-    $eco = Invocar-Dotnet (Join-Path $Raiz 'TestResults\app-modulo-eco.log') @('publish', (Join-Path $Raiz 'modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj'), '-c', 'Release', '-o', (Join-Path $Raiz 'modules\Rodaje.Module.Echo\bin\aot'), '--nologo', '-v', 'q')
-    if ($eco.Codigo -ne 0) { Nota 'No se pudo compilar el módulo eco: la autoprueba sigue sin el paso de IA.' }
+    # Cada corrida usa datos propios: ni lee ajustes personales ni confunde fallos antiguos con los de esta prueba.
+    if (-not $env:RODAJE_DATOS) { $env:RODAJE_DATOS = Join-Path $Raiz ('TestResults\autoprueba-' + [guid]::NewGuid().ToString('N')) }
+    $fallos = Join-Path $env:RODAJE_DATOS 'fallos'
+    $registro = Join-Path $Raiz 'TestResults\app-arranque.txt'
+    Remove-Item -LiteralPath $registro -ErrorAction SilentlyContinue
+    # El módulo eco con AOT (no necesita el runtime de .NET) para el paso de IA: Rodaje lo encuentra porque corre desde el repositorio.
+    if (-not $SinPublicar) {
+        Usar-DotnetLocal $E
+        Agregar-Vswhere | Out-Null
+        $eco = Invocar-Dotnet (Join-Path $Raiz 'TestResults\app-modulo-eco.log') @('publish', (Join-Path $Raiz 'modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj'), '-c', 'Release', '-o', (Join-Path $Raiz 'modules\Rodaje.Module.Echo\bin\aot'), '--nologo', '-v', 'q', '-m:4')
+        if ($eco.Codigo -ne 0) { Nota 'No se pudo compilar el módulo eco: la autoprueba sigue sin el paso de IA.' }
+    }
     Remove-Item Env:DOTNET_ROOT -ErrorAction SilentlyContinue
     Titulo 'Autoprueba del exe publicado (la ventana se abre y se cierra sola)...'
     $reloj = [System.Diagnostics.Stopwatch]::StartNew()
-    $p = Start-Process -FilePath $Exe -ArgumentList (@('--autoprueba') + $argumentos) -PassThru
-    if (-not $p.WaitForExit(90000)) { $p.Kill(); Mal 'Rodaje no terminó la autoprueba en 90 s.'; exit 1 }
-    $codigo = $p.ExitCode
-    if (Test-Path -LiteralPath $errorTxt) {
-        Mal "Rodaje dejó $(Corto $errorTxt):"
-        Get-Content -LiteralPath $errorTxt -Encoding UTF8 | Select-Object -First 15 | ForEach-Object { Nota ('  ' + $_) }
-        exit 1
-    }
-    if ($codigo -ne 0) { Mal "La autoprueba terminó con código $codigo."; exit 1 }
+    # La sonda exige el primer render y la cola de UI disponible; salir con 0 antes de crear la ventana no basta.
+    $p = Start-Process -FilePath $Exe -ArgumentList @('--arranque', '--sin-audio', '--registro', ('"' + $registro + '"')) -PassThru
+    $null = $p.Handle
+    if (-not $p.WaitForExit(45000)) { $p.Kill(); Mal 'La ventana no llegó a estar lista en 45 s.'; exit 1 }
+    $p.Refresh()
+    Confirmar-Autoprueba -Codigo $p.ExitCode -ErrorTxt $errorTxt -Fallos $fallos -Registro $registro
+    $p.Dispose()
+    $p = Start-Process -FilePath $Exe -ArgumentList (@('--autoprueba', '--sin-audio') + $argumentos) -PassThru
+    $null = $p.Handle
+    $restante = [math]::Max(1, 180000 - [int]$reloj.ElapsedMilliseconds)
+    if (-not $p.WaitForExit($restante)) { $p.Kill(); Mal 'Rodaje no terminó la autoprueba en 180 s.'; exit 1 }
+    $p.Refresh()
+    Confirmar-Autoprueba -Codigo $p.ExitCode -ErrorTxt $errorTxt -Fallos $fallos
+    $p.Dispose()
     # La versión de los informes de fallo: si sale «?», la app lo deja en rodaje-error.txt y falla arriba.
     Bien ("El exe de Native AOT arrancó, abrió todas las pestañas del inspector, reprodujo y cerró en {0:0.0} s (con la versión en los informes de fallo)." -f $reloj.Elapsed.TotalSeconds)
     exit 0

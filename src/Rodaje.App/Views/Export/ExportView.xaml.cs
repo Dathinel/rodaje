@@ -6,12 +6,14 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Timing;
 using Rodaje.Export;
+using Rodaje.Export.Running;
 using Rodaje.Media.Export;
 
 namespace Rodaje.App.Views.Export;
@@ -32,7 +34,7 @@ internal sealed partial class ExportView : UserControl
     ];
 
     private static readonly (string Label, ExportFit Value)[] FitChoices =
-        [("Barras (la imagen entera)", ExportFit.Bars), ("Recortar (llena el cuadro)", ExportFit.Crop), ("Estirar (deforma)", ExportFit.Stretch)];
+        [("Barras (la imagen entera)", ExportFit.Bars), ("Recortar (llena el fotograma)", ExportFit.Crop), ("Estirar (deforma)", ExportFit.Stretch)];
 
     private readonly EditorServices _services;
     private readonly ExportJobList _jobs;
@@ -47,6 +49,7 @@ internal sealed partial class ExportView : UserControl
     private IReadOnlyList<RateChoice> _rates = [];
     private IReadOnlyList<SizeChoice> _sizes = [];
     private IReadOnlyList<int> _bitDepths = [];
+    private IReadOnlyList<ChromaSubsampling> _chromas = [];
     private IReadOnlyList<string?> _profiles = [];
     private IReadOnlyList<string?> _speedPresets = [];
     private IReadOnlyList<ExportCodec> _audioCodecs = [];
@@ -120,11 +123,13 @@ internal sealed partial class ExportView : UserControl
     {
         EditorSession session = _services.Session;
         ExportButton.IsEnabled = false;
+        ProjectsButton.IsEnabled = false;
+        VersionsButton.IsEnabled = false;
         FooterNote.Text = "Comprobando los codificadores de este equipo…";
         IReadOnlyList<EncoderSpec> encoders = await _jobs.Runner.GetEncodersAsync();
         string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
         _model = new ExportDialogModel(_services.Settings.Current.Export, session.Sequence, session.SelectedClipIds, encoders, session.ProjectName,
-            projectFolder);
+            projectFolder, new SequenceMarks(session.SequenceIn, session.SequenceOut)) { PendingOutputs = [.. _jobs.Entries.Where(e => !e.IsFinished).Select(e => e.OutputPath)] };
         _model.Changed += (_, _) => QueueRefresh();
         ShowAdvanced(_services.Settings.Current.Export.AdvancedOpen);
         Refresh();
@@ -251,7 +256,8 @@ internal sealed partial class ExportView : UserControl
         PresetShapeText.Text = presetNote ?? "";
         PresetShapePanel.Visibility = presetNote is null ? Visibility.Collapsed : Visibility.Visible;
         ProjectFormatText.Text = $"Formato del proyecto: {ExportGeometry.AspectName(model.SequenceWidth, model.SequenceHeight)} · "
-            + $"{model.SequenceWidth}×{model.SequenceHeight} · {ExportText.Number(model.SequenceFrameRate.ToDouble(), 3)} fps";
+            + $"{model.SequenceWidth}×{model.SequenceHeight} · {ExportText.Number(model.SequenceFrameRate.ToDouble(), 3)} fps"
+            + (model.HdrNote is { } hdr ? $" · {ProjectFormats.ColorSpaceName(model.SequenceColorSpace)}. {hdr}" : "");
     }
 
     private void RefreshVideo(ExportDialogModel model)
@@ -304,6 +310,9 @@ internal sealed partial class ExportView : UserControl
 
         _bitDepths = ExportChoices.BitDepths(encoder);
         Fill(BitDepthBox, _bitDepths.Select(b => $"{b} bits"), Index(_bitDepths, video.BitDepth));
+        _chromas = ExportChoices.Chromas(encoder, video.BitDepth);
+        Fill(ChromaBox, _chromas.Select(ExportChoices.ChromaName), Math.Max(0, Index(_chromas, video.Chroma)));
+        ChromaBox.IsEnabled = _chromas.Count > 1;
         ExportPixelFormat? pixels = encoder.PixelFormatFor(video.BitDepth, video.Chroma, video.Alpha);
         _profiles = [null, .. ExportChoices.Profiles(encoder, pixels).Select(p => p.Id)];
         Fill(ProfileBox, _profiles.Select(id => id is null ? "Automático" : encoder.Profiles.First(p => p.Id == id).Name), Index(_profiles, video.Profile));
@@ -314,6 +323,8 @@ internal sealed partial class ExportView : UserControl
         SpeedPresetBox.IsEnabled = _speedPresets.Count > 1;
         KeyframeBox.IsEnabled = !encoder.IntraOnly;
         KeyframeBox.Value = video.Gop.KeyframeSeconds ?? double.NaN;
+        MeasureLightBox.Visibility = model.OffersLightMeasurement ? Visibility.Visible : Visibility.Collapsed;
+        MeasureLightBox.IsChecked = video.MeasureLightLevels;
     }
 
     private void ShowRateValues(RateControl rate, RateChoice choice, EncoderSpec encoder)
@@ -394,6 +405,8 @@ internal sealed partial class ExportView : UserControl
         ProblemsText.Text = string.Join("\n", problems);
         ProblemsText.Visibility = problems.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ExportButton.IsEnabled = problems.Count == 0;
+        ProjectsButton.IsEnabled = problems.Count == 0;
+        VersionsButton.IsEnabled = model.VersionProblems.Count == 0;
         FooterNote.Text = _jobs.Runner.IsSimulation
             ? "Simulación: no se escribe ningún archivo."
             : _jobs.ActiveCount > 0 ? "Hay otra exportación en curso: esta esperará su turno." : "";
@@ -414,6 +427,11 @@ internal sealed partial class ExportView : UserControl
             if (video.BitDepth != 8)
             {
                 parts.Add($"{video.BitDepth} bits");
+            }
+
+            if (video.Chroma != ChromaSubsampling.Chroma420)
+            {
+                parts.Add(ExportChoices.ChromaName(video.Chroma));
             }
 
             RateControl rate = video.RateControl;
@@ -440,7 +458,8 @@ internal sealed partial class ExportView : UserControl
             parts.Add("sin audio");
         }
 
-        return string.Join(" · ", parts);
+        // Con una secuencia HDR, si sale en HDR o cae a SDR se dice aquí y no solo en Avanzado, que suele estar plegado.
+        return string.Join(" · ", parts) + (model.HdrNote is { } hdr ? $"\n{hdr}" : "");
     }
 
     /// <summary>Pone las opciones y la elegida; si las opciones no cambiaron, solo mueve la elección (ver <see cref="QueueRefresh"/>).</summary>
@@ -708,6 +727,51 @@ internal sealed partial class ExportView : UserControl
         }
     }
 
+    private void OnChromaChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (TryChange(ChromaBox, out int index) && index < _chromas.Count)
+        {
+            ChromaSubsampling chroma = _chromas[index];
+            UpdateVideo(v => v with { Chroma = chroma });
+        }
+    }
+
+    /// <summary>«Copiar la línea de ffmpeg»: los argumentos de la exportación con estos ajustes, al portapapeles.</summary>
+    private void OnCopyCommandClick(object sender, RoutedEventArgs e)
+    {
+        if (_model is not { } model)
+        {
+            return;
+        }
+
+        model.SetOutputPath(PathBox.Text);
+        if (!model.CanExport)
+        {
+            _services.Session.Notify(NotificationSeverity.Informational, "Línea de ffmpeg", "Arregla primero lo que impide exportar: la línea sale de los ajustes válidos.");
+            return;
+        }
+
+        EditorSession session = _services.Session;
+        string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
+        string text;
+        try
+        {
+            ExportRequest request = model.CreatePreviewRequest(session.Project.Clone(), session.SequenceId, projectFolder);
+            text = ExportCommandLine.Text(ExportPlan.Create(request, model.Encoders));
+        }
+        catch (Exception ex) when (ex is ExportException or ArgumentException or InvalidOperationException)
+        {
+            session.Notify(NotificationSeverity.Warning, "No se pudo armar la línea de ffmpeg", ex.Message);
+            return;
+        }
+
+        var package = new global::Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(text);
+        global::Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        session.Notify(NotificationSeverity.Success, "Línea de ffmpeg copiada",
+            "Es lo que recibe ffmpeg.exe: la imagen entra compuesta por la tubería (pipe:0) y la mezcla por «mezcla.wav», sin capítulos ni pistas de subtítulos.");
+    }
+
     private void OnProfileChanged(object sender, SelectionChangedEventArgs e)
     {
         if (TryChange(ProfileBox, out int index))
@@ -725,6 +789,8 @@ internal sealed partial class ExportView : UserControl
             UpdateVideo(v => v with { SpeedPreset = preset });
         }
     }
+
+    private void OnMeasureLightClick(object sender, RoutedEventArgs e) => UpdateVideo(v => v with { MeasureLightLevels = MeasureLightBox.IsChecked == true });
 
     private void OnKeyframeChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
@@ -801,11 +867,25 @@ internal sealed partial class ExportView : UserControl
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot, Title = "Guardar como preajuste", Content = name, PrimaryButtonText = "Guardar", CloseButtonText = "Cancelar",
-            DefaultButton = ContentDialogButton.Primary, RequestedTheme = ElementTheme.Dark,
+            DefaultButton = ContentDialogButton.Primary,
         };
         if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(name.Text))
         {
             return;
+        }
+
+        if (ExportPresetLibrary.FindUserPreset(_services.Settings.Current.Export, name.Text) is { } existing && XamlRoot is not null)
+        {
+            var confirm = new ContentDialog
+            {
+                XamlRoot = XamlRoot, Title = $"¿Reemplazar «{existing.Name}»?",
+                Content = "Ya hay un preajuste propio con ese nombre. Si guardas, sus ajustes se cambian por los de ahora.",
+                PrimaryButtonText = "Reemplazar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Close,
+            };
+            if (await DialogGate.ShowAsync(confirm) != ContentDialogResult.Primary)
+            {
+                return;
+            }
         }
 
         try
@@ -895,7 +975,6 @@ internal sealed partial class ExportView : UserControl
             PrimaryButtonText = "Quitar preajuste",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
         };
         if (await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary
             && ReferenceEquals(_model, model) && model.PresetId == preset.Id)
@@ -926,9 +1005,8 @@ internal sealed partial class ExportView : UserControl
             var confirm = new ContentDialog
             {
                 XamlRoot = XamlRoot, Title = "¿Reemplazar el archivo?",
-                Content = $"Ya existe «{Path.GetFileName(model.OutputPath)}» en esa carpeta. Si exportas, se reemplaza al terminar.",
+                Content = $"Ya existe «{Path.GetFileName(model.OutputPath)}» en esa carpeta, o lo escribirá otra exportación de la cola. Si exportas, se reemplaza al terminar.",
                 PrimaryButtonText = "Reemplazar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Close,
-                RequestedTheme = ElementTheme.Dark,
             };
             if (await DialogGate.ShowAsync(confirm) != ContentDialogResult.Primary)
             {

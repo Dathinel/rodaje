@@ -20,7 +20,7 @@ public sealed class SnapPoints
 
     public int Count => _points.Length;
 
-    /// <param name="exclude">Clips que se arrastran: sus bordes no cuentan.</param>
+    /// <param name="exclude">Clips (o el marcador) que se arrastran: sus bordes no cuentan.</param>
     public static SnapPoints Collect(Sequence sequence, IReadOnlySet<string> exclude, Time? playhead)
     {
         ArgumentNullException.ThrowIfNull(sequence);
@@ -43,7 +43,7 @@ public sealed class SnapPoints
             points.Add(p.Ticks);
         }
 
-        points.AddRange(sequence.Markers.Select(m => m.Time.Ticks));
+        points.AddRange(sequence.Markers.Where(m => !exclude.Contains(m.Id)).Select(m => m.Time.Ticks));
         foreach (Region region in sequence.Regions)
         {
             points.Add(region.Start.Ticks);

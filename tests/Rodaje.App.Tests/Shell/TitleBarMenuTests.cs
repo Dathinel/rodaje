@@ -45,7 +45,7 @@ public sealed class TitleBarMenuTests
         Assert.Equal("Secuencia", ParentMenu(menu, "timeline.subtitleTrack"));
         string[] actionIds =
         [
-            "analysis.silences", "analysis.beats", "analysis.ducking", "analysis.noise",
+            "analysis.silences", "analysis.beats", "analysis.ducking", "analysis.syncAudio", "analysis.noise",
             "analysis.stabilize", "analysis.autocolor", "analysis.whitebalance", "vision.removeBackground", "vision.reframe",
             "tools.autoSubtitles", "tools.translateTrack", "voice.textToSpeech", "audio.voiceOver",
         ];
@@ -53,9 +53,9 @@ public sealed class TitleBarMenuTests
         Assert.Equal(quickToolIds.Append("tools.translateTrack").Order(), actionIds.Order());
         Assert.All(actionIds, id => Assert.Equal("Herramientas", ParentMenu(menu, id)));
         Assert.Equal("Herramientas", ParentNamedElement(menu, "AiQualityAuto"));
-        Assert.All(actionIds.Take(4), id => Assert.Equal("Audio", ParentSubMenu(menu, id)));
-        Assert.All(actionIds.Skip(4).Take(5), id => Assert.Equal("Imagen", ParentSubMenu(menu, id)));
-        Assert.All(actionIds.Skip(9), id => Assert.Equal("Texto y voz", ParentSubMenu(menu, id)));
+        Assert.All(actionIds.Take(5), id => Assert.Equal("Audio", ParentSubMenu(menu, id)));
+        Assert.All(actionIds.Skip(5).Take(5), id => Assert.Equal("Imagen", ParentSubMenu(menu, id)));
+        Assert.All(actionIds.Skip(10), id => Assert.Equal("Texto y voz", ParentSubMenu(menu, id)));
         Assert.DoesNotContain("analysis.silences", ItemsUnder(menu, "Editar"));
     }
 
@@ -70,6 +70,28 @@ public sealed class TitleBarMenuTests
 
         Assert.All(expected, id => Assert.Equal("Secuencia", ParentMenu(menu, id)));
         Assert.Equal(expected, ItemsUnder(menu, "Secuencia").Take(expected.Length));
+    }
+
+    [Fact]
+    public void PlaybackActionsHaveTheirOwnMenuAndGoToTimeLeftEdit()
+    {
+        string root = RepositoryRoot();
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XElement menu = XDocument.Load(Path.Combine(root, "src", "Rodaje.App", "Shell", "TitleBar.xaml"))
+            .Descendants(xaml + "MenuBar").Single();
+        string[] expected =
+        [
+            "playback.togglePlay", "playback.previousFrame", "playback.nextFrame", "playback.start", "playback.end",
+            "playback.goToTime", "playback.captureFrame",
+        ];
+
+        Assert.Equal(["Archivo", "Editar", "Reproducción", "Secuencia"], menu.Elements(xaml + "MenuBarItem").Take(4).Select(item => (string?)item.Attribute("Title")));
+        Assert.Equal(expected, ItemsUnder(menu, "Reproducción"));
+        Assert.All(expected, id => Assert.Equal("Reproducción", ParentMenu(menu, id)));
+        Assert.DoesNotContain("playback.goToTime", ItemsUnder(menu, "Editar"));
+        XElement goToTime = menu.Descendants(xaml + "MenuFlyoutItem").Single(item => (string?)item.Attribute("Tag") == "playback.goToTime");
+        Assert.Equal("Ir a tiempo...", (string?)goToTime.Attribute("Text"));
+        Assert.Equal("OnActionClick", (string?)goToTime.Attribute("Click"));
     }
 
     private static string? ParentMenu(XElement menu, string tag) => menu

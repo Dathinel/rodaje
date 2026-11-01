@@ -15,7 +15,8 @@ namespace Rodaje.App.Views.Analysis;
 
 /// <summary>
 /// «Detectar ritmo»: tempo y pulsos del clip de música. Pone marcadores en los pulsos y, si se pide, corta el clip
-/// elegido cada N pulsos («cortar al ritmo»); todo en un paso del historial.
+/// elegido cada N pulsos («cortar al ritmo») o ajusta los demás clips seleccionados para que cada uno termine en el pulso
+/// que toca («montaje al ritmo»); todo en un paso del historial.
 /// </summary>
 internal static class RhythmDialog
 {
@@ -34,12 +35,20 @@ internal static class RhythmDialog
         Canvas preview = AnalysisUi.Preview();
         var markers = new CheckBox { Content = "Poner un marcador en cada pulso", IsChecked = true };
         var cut = new CheckBox { Content = "Cortar el clip al ritmo" };
+        IReadOnlyList<string> others = OtherSelectedClips(session, clip);
+        var fit = new CheckBox
+        {
+            Content = others.Count == 1 ? "Ajustar al ritmo el otro clip seleccionado" : $"Ajustar al ritmo los otros {others.Count} clips seleccionados",
+            Visibility = others.Count > 0 ? Visibility.Visible : Visibility.Collapsed,
+        };
+        ToolTipService.SetToolTip(fit, "Cada clip termina en el pulso que toca y lo que sigue se corre, así los cortes caen en la música. Un clip no crece más allá de su material.");
         var every = new ComboBox { ItemsSource = new[] { "cada pulso", "cada 2 pulsos", "cada 4 pulsos (compás)", "cada 8 pulsos" }, SelectedIndex = 2 };
         panel.Children.Add(status);
         panel.Children.Add(progress);
         panel.Children.Add(preview);
         panel.Children.Add(markers);
         panel.Children.Add(cut);
+        panel.Children.Add(fit);
         panel.Children.Add(every);
 
         ContentDialog dialog = AnalysisUi.Dialog(root, "Detectar ritmo", "Aplicar", panel);
@@ -77,11 +86,27 @@ internal static class RhythmDialog
             {
                 session.Execute(Edits.CutToBeats(session.SequenceId, clip.Id, beats.Where((_, i) => i % step == 0)));
             }
+
+            if (fit.IsChecked == true && others.Count > 0)
+            {
+                session.Execute(Edits.FitClipsToBeats(session.SequenceId, others, beats, step));
+            }
         }
         finally
         {
             session.EndGesture();
         }
+
+        if (fit.IsChecked == true && others.Count > 0)
+        {
+            session.Notify(NotificationSeverity.Success, "Montaje al ritmo",
+                others.Count == 1 ? "El clip termina en el pulso que le toca." : $"{others.Count} clips terminan en el pulso que les toca; Ctrl+Z deshace todo.");
+        }
+
+        /// <summary>Los clips seleccionados que no son la música ni su grupo enlazado: los que se ajustan al ritmo.</summary>
+        static IReadOnlyList<string> OtherSelectedClips(EditorSession session, Clip music) =>
+            [.. session.SelectedClipIds.Where(id => id != music.Id && session.Sequence.FindClip(id) is { } found
+                && (music.LinkId is null || found.Clip.LinkId != music.LinkId))];
 
         async Task Analyze()
         {
@@ -90,6 +115,7 @@ internal static class RhythmDialog
                 await ClipAudioSource.AnalyzeAsync(session, clip, envelope, new Progress<double>(p => scope?.Report(progress.Value = p, "Analizando el audio…")), cancel.Token);
                 result = await Task.Run(() => BeatTracker.Track(envelope), cancel.Token);
                 progress.Visibility = Visibility.Collapsed;
+                scope?.Report(1, "Análisis listo");
                 double width = Math.Max(0.02, result.Duration / AnalysisUi.PreviewWidth);
                 AnalysisUi.DrawRanges(preview, result.Duration, result.Beats.Select(b => new TimeRange(b, b + width)), ThemeResources.Color("BeatMarkColor"));
                 status.Text = result.Beats.Count == 0

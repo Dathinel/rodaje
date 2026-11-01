@@ -86,28 +86,30 @@ internal sealed partial class FiltersPanel
 
     private void OnAspectSelected(object sender, SelectionChangedEventArgs e)
     {
-        if (_updating || AspectBox.SelectedIndex < 0 || _services is null || _editor is null || CurrentClip() is not { } clip
-            || _effectId is not { } effectId || clip.Effects.Find(x => x.Id == effectId) is not { } effect)
+        if (_updating || AspectBox.SelectedIndex < 0 || _services is not { } services || _editor is not { } editor || _effectId is not { } effectId)
         {
             return;
         }
 
         string aspect = EffectRegistry.CropAspects[AspectBox.SelectedIndex];
         double? ratio = CropGeometry.Ratio(aspect);
-        Time at = _editor.IsPlayheadInside(clip) ? _editor.KeyframeTimeAtPlayhead(clip) : clip.ToEffectTime(clip.Start);
-        CropRect current = CropGeometry.Evaluate(effect, at);
-        CropRect? fitted = ratio is { } r && _services.Session.Project.FindMedia(clip.MediaId) is { Width: > 0, Height: > 0 } media
-            ? CropGeometry.FitAspect(current, r, media.Width, media.Height)
-            : null;
-        string clipId = clip.Id;
-        _services.Session.Execute(new SequenceEditCommand("Proporción del recorte", _services.Session.SequenceId, ctx =>
+        RunOnSameFilter(effectId, (sequence, clipId, id) =>
         {
-            EffectEdits.SetOption(ctx, clipId, effectId, BuiltInEffects.CropOptions.Aspect, aspect);
-            if (fitted is { } crop)
+            Clip clip = services.Session.Sequence.GetClip(clipId).Clip;
+            Time at = editor.IsPlayheadInside(clip) ? editor.KeyframeTimeAtPlayhead(clip) : clip.ToEffectTime(clip.Start);
+            CropRect current = CropGeometry.Evaluate(clip.Effects.Find(x => x.Id == id)!, at);
+            CropRect? fitted = ratio is { } r && services.Session.Project.FindMedia(clip.MediaId) is { Width: > 0, Height: > 0 } media
+                ? CropGeometry.FitAspect(current, r, media.Width, media.Height)
+                : null;
+            return new SequenceEditCommand("Proporción del recorte", sequence, ctx =>
             {
-                Player.PlayerView.SetCrop(ctx, clipId, effectId, crop, at);
-            }
-        }));
+                EffectEdits.SetOption(ctx, clipId, id, BuiltInEffects.CropOptions.Aspect, aspect);
+                if (fitted is { } crop)
+                {
+                    Player.PlayerView.SetCrop(ctx, clipId, id, crop, at);
+                }
+            });
+        });
     }
 
     private void OnPickKeyClick(object sender, RoutedEventArgs e)
@@ -120,32 +122,42 @@ internal sealed partial class FiltersPanel
 
     private void OnWheelChanged(object? sender, WheelChange change)
     {
-        if (_services is null || _editor is null || CurrentClip() is not { } clip || _effectId is not { } effectId)
+        if (_services is null || _editor is not { } editor || CurrentClip() is not { } clip || _effectId is not { } effectId)
         {
             return;
         }
 
         (string red, string green, string blue, double scale) = WheelMath.Wheels[change.Wheel];
         (double r, double g, double b) = WheelMath.Tint(change.X, change.Y, scale);
-        Time at = _editor.IsPlayheadInside(clip) ? _editor.KeyframeTimeAtPlayhead(clip) : Time.Zero;
-        string clipId = clip.Id;
+        Time at = editor.IsPlayheadInside(clip) ? editor.KeyframeTimeAtPlayhead(clip) : Time.Zero;
+        var targets = SameFilter(effectId).ConvertAll(t =>
+            (t.Clip.Id, t.EffectId, At: editor.IsPlayheadInside(t.Clip) ? editor.KeyframeTimeAtPlayhead(t.Clip) : Time.Zero));
         RunImageEdit("Ruedas de color", $"ruedas|{effectId}|{change.Wheel}|{at.Ticks}", change.Final, ctx =>
         {
-            EffectEdits.SetParameter(ctx, clipId, effectId, red, Math.Round(r, 4), at);
-            EffectEdits.SetParameter(ctx, clipId, effectId, green, Math.Round(g, 4), at);
-            EffectEdits.SetParameter(ctx, clipId, effectId, blue, Math.Round(b, 4), at);
+            foreach ((string clipId, string id, Time when) in targets)
+            {
+                EffectEdits.SetParameter(ctx, clipId, id, red, Math.Round(r, 4), when);
+                EffectEdits.SetParameter(ctx, clipId, id, green, Math.Round(g, 4), when);
+                EffectEdits.SetParameter(ctx, clipId, id, blue, Math.Round(b, 4), when);
+            }
         });
     }
 
     private void OnCurveChanged(object? sender, (string Option, string Text, bool Final) change)
     {
-        if (_services is null || _clipId is not { } clipId || _effectId is not { } effectId)
+        if (_services is null || _effectId is not { } effectId)
         {
             return;
         }
 
-        RunImageEdit("Cambiar la curva", $"curva|{effectId}|{change.Option}", change.Final,
-            ctx => EffectEdits.SetOption(ctx, clipId, effectId, change.Option, change.Text));
+        var targets = SameFilter(effectId).ConvertAll(t => (t.Clip.Id, t.EffectId));
+        RunImageEdit("Cambiar la curva", $"curva|{effectId}|{change.Option}", change.Final, ctx =>
+        {
+            foreach ((string clipId, string id) in targets)
+            {
+                EffectEdits.SetOption(ctx, clipId, id, change.Option, change.Text);
+            }
+        });
     }
 
     /// <summary>Un arrastre de rueda o de curva: abre un gesto al primer cambio y lo cierra al soltar.</summary>

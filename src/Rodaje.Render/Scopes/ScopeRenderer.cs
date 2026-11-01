@@ -159,6 +159,9 @@ public sealed unsafe class ScopeRenderer : IDisposable
         return true;
     }
 
+    /// <summary>Hay alguna medición encolada que <see cref="TryRead"/> todavía no recogió.</summary>
+    public bool HasPending => _read < _submitted;
+
     /// <summary>La imagen más nueva que la GPU ya terminó, o <c>null</c> si no hay ninguna nueva. Nunca espera.</summary>
     public ScopeImage? TryRead()
     {
@@ -260,6 +263,7 @@ public sealed unsafe class ScopeRenderer : IDisposable
             Gain = Gain,
             PixelsPerColumn = (float)measuredWidth * measuredHeight / Math.Min(Columns, measuredWidth),
             TotalPixels = (float)measuredWidth * measuredHeight,
+            Hdr = compositor.ColorSpace != Rodaje.Core.Model.SequenceColorSpace.Sdr709 ? 1 : 0,
         };
         D3D11_MAPPED_SUBRESOURCE mapped;
         Check(_context->Map((ID3D11Resource*)_constants, 0, D3D11_MAP.D3D11_MAP_WRITE_DISCARD, 0, &mapped), "Map(constantes de monitores)");
@@ -415,5 +419,9 @@ public sealed unsafe class ScopeRenderer : IDisposable
         public float Gain;
         public float PixelsPerColumn;
         public float TotalPixels;
+        public float Hdr;
+        public float Unused0;
+        public float Unused1;
+        public float Unused2;
     }
 }

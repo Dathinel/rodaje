@@ -3,13 +3,17 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Format;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
 using Rodaje.App.Views.Shared;
+using Rodaje.Core.Model;
+using Rodaje.Media.Gpu;
 using Rodaje.Media.Proxies;
 using Rodaje.Modules.Protocol;
+using Rodaje.Render;
 
 namespace Rodaje.App.Views.Raw;
 
@@ -19,11 +23,13 @@ namespace Rodaje.App.Views.Raw;
 /// </summary>
 internal static class CinemaDngDialog
 {
-    private const string Title = "Importar CinemaDNG";
+    public const string Title = "Importar CinemaDNG";
 
-    public static async Task ShowAsync(EditorServices services)
+    public static async Task ShowAsync(EditorServices services, LongActionScope scope)
     {
+        ArgumentNullException.ThrowIfNull(scope);
         EditorSession session = services.Session;
+        Project project = session.Project;
         if (services.Modules?.FindByFunction(CinemaDngImport.Function) is not { } module)
         {
             session.Notify(NotificationSeverity.Informational, Title, "Hace falta el módulo «RAW de cine». Instálalo desde Complementos › Módulos de IA.");
@@ -36,7 +42,7 @@ internal static class CinemaDngDialog
         }
 
         nint owner = root.ContentIslandEnvironment is { } environment ? Win32Interop.GetWindowFromWindowId(environment.AppWindowId) : 0;
-        IReadOnlyList<string> picked = FileDialogs.Open(owner, "Elige un cuadro de la carpeta CinemaDNG", multiple: false,
+        IReadOnlyList<string> picked = FileDialogs.Open(owner, "Elige un fotograma de la carpeta CinemaDNG", multiple: false,
             FileDialogFolderPolicy.OpenFolder(services.Settings.Current), ("CinemaDNG", "*.dng"), FileDialogs.AllFilter);
         FileDialogFolderPolicy.RememberOpen(services.Settings.Current, picked.Count > 0 ? picked[0] : null);
         if (picked.Count == 0)
@@ -47,7 +53,7 @@ internal static class CinemaDngDialog
         CinemaDngFolder? sequence = await Task.Run(() => CinemaDngImport.Scan(picked[0]));
         if (sequence is null)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "La carpeta no tiene cuadros .dng.");
+            session.Notify(NotificationSeverity.Informational, Title, "La carpeta no tiene fotogramas .dng.");
             return;
         }
 
@@ -58,10 +64,13 @@ internal static class CinemaDngDialog
             return;
         }
 
+        // Antes de leer «info», el cuadro todavía puede exigir LibRaw: se conserva la elección de calidad para ese caso.
+        using GpuDevice? gpu = await Task.Run(CinemaDngImport.HardwareDevice);
+        CinemaDngDevelopChoice develop = CinemaDngDevelopChoice.Decide(gpu is not null, module.Offers(CinemaDngImport.MosaicFunction), isBayer: null);
         var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
         panel.Children.Add(new TextBlock
         {
-            Text = string.Create(SpanishNumbers.Format, $"«{sequence.Name}»: {sequence.Frames.Count} cuadros")
+            Text = string.Create(SpanishNumbers.Format, $"«{sequence.Name}»: {sequence.Frames.Count} fotogramas")
                 + (sequence.Audio is null ? "." : $", con el sonido de «{Path.GetFileName(sequence.Audio)}»."),
             TextWrapping = TextWrapping.Wrap,
         });
@@ -73,13 +82,19 @@ internal static class CinemaDngDialog
         Slider? slider = null;
         slider = AnalysisUi.Slider(panel, "Exposición", -3, 3, 0, 0.1,
             v => string.Create(SpanishNumbers.Format, $"{v:+0.0;−0.0;0} EV"), () => exposure = slider!.Value);
-        var quality = new ComboBox { Header = "Calidad del revelado", Width = AnalysisUi.PreviewWidth, SelectedIndex = 0 };
-        quality.Items.Add("Alta (más nítido, más lento)");
-        quality.Items.Add("Rápida (para revisar)");
-        panel.Children.Add(quality);
+        ComboBox? quality = null;
+        if (develop.OfferQuality)
+        {
+            quality = new ComboBox { Header = "Calidad del revelado", Width = AnalysisUi.PreviewWidth, SelectedIndex = 0 };
+            quality.Items.Add("Alta (más nítido, más lento)");
+            quality.Items.Add("Rápida (para revisar)");
+            panel.Children.Add(quality);
+        }
+
         panel.Children.Add(new TextBlock
         {
-            Text = "Se guarda una copia ProRes 422 HQ; los DNG no cambian. Para revelar con otros ajustes, vuelve a importar.",
+            Text = develop.Description
+                + "Se guarda una copia ProRes 422 HQ; los DNG no cambian. Para revelar con otros ajustes, vuelve a importar.",
             TextWrapping = TextWrapping.Wrap,
             Opacity = 0.8,
         });
@@ -94,12 +109,13 @@ internal static class CinemaDngDialog
         }
 
         services.Settings.Current.LastMediaFolder = sequence.Folder;
-        var options = new CinemaDngOptions(balance.SelectedIndex == 1 ? "luz-dia" : "camara", exposure, quality.SelectedIndex == 0);
+        var options = new CinemaDngOptions(balance.SelectedIndex == 1 ? "luz-dia" : "camara", exposure, quality is null || quality.SelectedIndex == 0);
+        scope.Report(null, $"Revelando «{sequence.Name}»…");
         CinemaDngResult result;
         try
         {
             result = await CinemaDngImport.RunAsync(services.Modules, module, ffmpeg, sequence, options,
-                saveIn.Folder, $"CinemaDNG «{sequence.Name}»");
+                saveIn.Folder, $"CinemaDNG «{sequence.Name}»", () => gpu, scope.Token);
         }
         catch (OperationCanceledException)
         {
@@ -110,18 +126,31 @@ internal static class CinemaDngDialog
             // El ModuleManager ya lo avisó con un texto para la persona.
             return;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or RenderException)
         {
             session.Notify(NotificationSeverity.Error, Title, "No se pudo importar: " + ex.Message);
             return;
         }
 
-        ImportResult imported = await session.ImportMediaAsync([result.Path]);
+        // Un gesto en curso (arrastre) haría que ImportMediaAsync descartara el video en silencio: se espera a que acabe.
+        while (session.IsInGesture && ReferenceEquals(session.Project, project))
+        {
+            await Task.Delay(100, scope.Token);
+        }
+
+        if (!ReferenceEquals(session.Project, project))
+        {
+            session.Notify(NotificationSeverity.Informational, Title, $"Se abrió otro proyecto mientras se revelaba; el video quedó en «{result.Path}».");
+            return;
+        }
+
+        ImportResult imported = await session.ImportMediaAsync([result.Path], scope.Token);
         if (imported.MediaIds.Count > 0)
         {
             session.Notify(NotificationSeverity.Success, Title, string.Create(SpanishNumbers.Format,
-                $"«{sequence.Name}»: {result.Frames} cuadros de {result.Width}×{result.Height} a {(double)result.RateNumerator / result.RateDenominator:0.###} cuadros/s")
-                + (result.Camera.Length > 0 ? $" ({result.Camera})." : "."));
+                $"«{sequence.Name}»: {result.Frames} fotogramas de {result.Width}×{result.Height} a {(double)result.RateNumerator / result.RateDenominator:0.###} cuadros/s")
+                + (result.Camera.Length > 0 ? $" ({result.Camera})" : "")
+                + string.Create(SpanishNumbers.Format, $". Revelado en la {result.Developer}: {result.MillisecondsPerFrame:0} ms por fotograma."));
         }
     }
 }

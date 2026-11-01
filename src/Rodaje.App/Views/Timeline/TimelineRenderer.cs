@@ -45,6 +45,9 @@ internal sealed class TimelineOverlay
     /// <summary>Segundo fantasma (el sonido enlazado de un medio que se suelta).</summary>
     public (string TrackId, Time Start, Time End)? LinkedGhost { get; set; }
 
+    /// <summary>Fantasmas adicionales para el grupo arrastrado.</summary>
+    public IReadOnlyList<(string TrackId, Time Start, Time End)>? ExtraGhosts { get; set; }
+
     /// <summary>Corte de la pista magnética donde entraría el clip.</summary>
     public (string TrackId, Time At)? InsertLine { get; set; }
 
@@ -91,12 +94,13 @@ internal sealed class TimelineRenderer
     private readonly Path _ticks = new();
     private readonly Rectangle _playheadLine = new() { Width = 1 };
     private readonly Path _playheadHead = new();
-    private readonly TextBlock _balloonText = new() { FontSize = ThemeResources.Size("CaptionFontSize"), TextWrapping = TextWrapping.NoWrap };
+    private readonly TextBlock _balloonText = new() { FontSize = ThemeResources.TimelineSize("CaptionFontSize"), TextWrapping = TextWrapping.NoWrap };
     private readonly Border _balloon = new() { Padding = new Thickness(6, 2, 6, 3), IsHitTestVisible = false };
-    private readonly TextBlock _cursorBadgeText = new() { FontSize = ThemeResources.Size("CaptionFontSize"), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.NoWrap };
+    private readonly TextBlock _cursorBadgeText = new() { FontSize = ThemeResources.TimelineSize("CaptionFontSize"), FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.NoWrap };
     private readonly Border _cursorBadge = new() { Padding = new Thickness(4, 0, 4, 0), CornerRadius = ThemeResources.Corner("ControlCornerRadius"), IsHitTestVisible = false };
     private readonly Border _ghost = new() { CornerRadius = ThemeResources.Corner("ControlCornerRadius"), BorderThickness = new Thickness(1) };
     private readonly Border _linkedGhost = new() { CornerRadius = ThemeResources.Corner("ControlCornerRadius"), BorderThickness = new Thickness(1) };
+    private readonly List<Border> _extraGhosts = [];
     private readonly Rectangle _insertLine = new() { Width = 2 };
     private readonly Rectangle _snapGuide = new() { Width = 1 };
     private readonly Border _marquee = new() { BorderThickness = new Thickness(1) };
@@ -104,6 +108,8 @@ internal sealed class TimelineRenderer
     private readonly Rectangle _timeRangeRuler = new() { Height = 4 };
     private double _windowLeft;
     private double _windowRight;
+    private double _windowTop;
+    private double _windowBottom;
     private double _realizedPixelsPerSecond;
     private double _realizedWidth;
     private bool _contentDirty = true;
@@ -194,7 +200,8 @@ internal sealed class TimelineRenderer
 
         TimelineViewport vp = Viewport;
         double scale = vp.PixelsPerSecond / _realizedPixelsPerSecond;
-        bool outside = vp.ScrollX < _windowLeft * scale || vp.ScrollX + vp.Width > _windowRight * scale;
+        bool outside = vp.ScrollX < _windowLeft * scale || vp.ScrollX + vp.Width > _windowRight * scale
+            || ScrollY < _windowTop || ScrollY + LanesHeight > _windowBottom;
         bool zoomed = _realizedPixelsPerSecond != vp.PixelsPerSecond;
         bool preview = zoomed && ZoomPreview && scale is >= 1 / MaxPreviewScale and <= MaxPreviewScale;
         if (_contentDirty || outside || (zoomed && !preview) || _realizedWidth != vp.Width)
@@ -271,6 +278,9 @@ internal sealed class TimelineRenderer
         _realizedWidth = vp.Width;
         _windowLeft = Math.Max(0, vp.ScrollX - vp.Width);
         _windowRight = vp.ScrollX + (2 * vp.Width);
+        // Como la horizontal: una pantalla de margen arriba y abajo; las filas fuera no arman clips ni piden miniaturas u ondas.
+        _windowTop = ScrollY - LanesHeight;
+        _windowBottom = ScrollY + (2 * LanesHeight);
         Realizations++;
 
         double pps = vp.PixelsPerSecond;
@@ -285,7 +295,13 @@ internal sealed class TimelineRenderer
         int used = 0;
         foreach (TrackRow row in layout.Rows)
         {
+            if (!row.Overlaps(_windowTop, _windowBottom))
+            {
+                continue;
+            }
+
             List<Clip> clips = row.Track.Clips;
+            bool silencedBySolo = ClipDecorations.SilencedBySolo(scene.Sequence, row.Track);
             for (int i = TimelineHitTest.FirstEndingAfter(clips, from); i < clips.Count && clips[i].Start < to; i++)
             {
                 Clip clip = clips[i];
@@ -307,9 +323,10 @@ internal sealed class TimelineRenderer
                     _windowLeft,
                     visibleLeft,
                     scene.Selection.Contains(clip.Id),
-                    ClipDecorations.Veil(clip, row.Track),
+                    ClipDecorations.Veil(clip, row.Track, silencedBySolo),
                     scene.ShowEnvelopes,
-                    sync.GetValueOrDefault(clip.Id));
+                    sync.GetValueOrDefault(clip.Id),
+                    FadeHandles.HasHandles(clip, row.Track));
                 ClipAt(used++).Update(draw, scene.Visuals);
             }
         }
@@ -323,6 +340,42 @@ internal sealed class TimelineRenderer
         RealizeCrossfades(scene, layout, from, to);
         RealizeMarkers(scene, layout, from, to);
         RealizeRuler(scene, from, to);
+    }
+
+    /// <summary>
+    /// Llegaron miniaturas o picos de un medio: solo los clips armados de ese medio se vuelven a dibujar, sin rearmar la
+    /// ventana ni tocar los demás. Devuelve si había alguno.
+    /// </summary>
+    public bool RefreshMedia(string mediaId)
+    {
+        bool any = false;
+        foreach (ClipVisual clip in _clips)
+        {
+            if (clip.ClipId is not null && clip.MediaId == mediaId)
+            {
+                clip.Refresh();
+                any = true;
+            }
+        }
+
+        return any;
+    }
+
+    /// <summary>
+    /// El tamaño del texto de la línea de tiempo cambió en Preferencias: los rótulos ya creados (regla, marcadores, globo,
+    /// cursor) toman el nuevo; los clips lo hacen solos al volver a dibujarse.
+    /// </summary>
+    public void RefreshFonts()
+    {
+        double micro = ThemeResources.TimelineSize("MicroFontSize");
+        double caption = ThemeResources.TimelineSize("CaptionFontSize");
+        foreach (TextBlock label in _rulerLabels.Concat(_markerNames))
+        {
+            label.FontSize = micro;
+        }
+
+        _balloonText.FontSize = caption;
+        _cursorBadgeText.FontSize = caption;
     }
 
     private ClipVisual ClipAt(int index)
@@ -345,7 +398,7 @@ internal sealed class TimelineRenderer
             Rectangle rect = Pooled(_rows, _rowsCanvas, i);
             rect.Width = width;
             rect.Height = row.Height;
-            rect.Fill = row.IsMain ? _brushes.MainLane : _brushes.Panel;
+            rect.Fill = row.IsMain ? _brushes.MainLane : _brushes.TrackFill(row.Kind);
             rect.Opacity = row.Track.Locked ? 0.6 : 1;
             Canvas.SetTop(rect, row.Top);
         }
@@ -501,8 +554,10 @@ internal sealed class TimelineRenderer
             Label(ref names, region.Name, x0 + 4, -1, _brushes.Text);
         }
 
-        foreach (Marker marker in scene.Sequence.Markers)
+        List<Marker> sortedMarkers = [.. scene.Sequence.Markers.OrderBy(m => m.Time)];
+        for (int i = 0; i < sortedMarkers.Count; i++)
         {
+            Marker marker = sortedMarkers[i];
             if (marker.Time < from || marker.Time > to)
             {
                 continue;
@@ -520,9 +575,20 @@ internal sealed class TimelineRenderer
 
             Path flag = Pooled(_markerFlags, _rulerContent, flags++, () => new Path { Data = MarkerGeometry() });
             flag.Fill = color?.Solid ?? _brushes.Keyframe;
+            flag.IsHitTestVisible = true;
             Canvas.SetLeft(flag, x);
             Canvas.SetTop(flag, 0);
-            Label(ref names, marker.Name, x + 8, -1, color?.Solid ?? _brushes.Keyframe);
+            ToolTipService.SetToolTip(flag, string.IsNullOrEmpty(marker.Name) ? null : marker.Name);
+
+            double? nextX = i + 1 < sortedMarkers.Count
+                ? Math.Round((sortedMarkers[i + 1].Time.ToSeconds() * pps) - _windowLeft)
+                : null;
+            double available = MarkerLabelLayout.AvailableWidth(x, nextX);
+            string? text = MarkerLabelLayout.Truncate(marker.Name, available);
+            if (text is not null)
+            {
+                Label(ref names, text, x + 8, -1, color?.Solid ?? _brushes.Keyframe);
+            }
         }
 
         HideFrom(_regionBands, bands);
@@ -538,7 +604,7 @@ internal sealed class TimelineRenderer
                 return;
             }
 
-            TextBlock label = Pooled(_markerNames, _rulerContent, index++, () => new TextBlock { FontSize = ThemeResources.Size("MicroFontSize"), IsHitTestVisible = false });
+            TextBlock label = Pooled(_markerNames, _rulerContent, index++, () => new TextBlock { FontSize = ThemeResources.TimelineSize("MicroFontSize"), IsHitTestVisible = false });
             label.Text = text;
             label.Foreground = brush;
             Canvas.SetLeft(label, x);
@@ -577,7 +643,7 @@ internal sealed class TimelineRenderer
             {
                 TextBlock label = Pooled(_rulerLabels, _rulerContent, labels++, () => new TextBlock
                 {
-                    FontSize = ThemeResources.Size("MicroFontSize"),
+                    FontSize = ThemeResources.TimelineSize("MicroFontSize"),
                     Foreground = _brushes.TextMuted,
                     IsHitTestVisible = false,
                 });
@@ -599,6 +665,22 @@ internal sealed class TimelineRenderer
         TrackLayout layout = Layout!;
         PlaceGhost(_ghost, overlay.Ghost, layout);
         PlaceGhost(_linkedGhost, overlay.LinkedGhost, layout);
+        int extraCount = overlay.ExtraGhosts?.Count ?? 0;
+        for (int i = 0; i < extraCount; i++)
+        {
+            Border ghost = Pooled(_extraGhosts, _overlayCanvas, i, () => new Border
+            {
+                CornerRadius = ThemeResources.Corner("ControlCornerRadius"),
+                BorderThickness = new Thickness(1),
+                Background = _brushes.Ghost,
+                BorderBrush = _brushes.Accent,
+            });
+            PlaceGhost(ghost, overlay.ExtraGhosts![i], layout);
+        }
+        for (int i = extraCount; i < _extraGhosts.Count; i++)
+        {
+            _extraGhosts[i].Visibility = Visibility.Collapsed;
+        }
 
         if (overlay.InsertLine is { } insert && layout.Find(insert.TrackId) is { } insertRow)
         {

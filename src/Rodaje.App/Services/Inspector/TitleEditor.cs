@@ -57,7 +57,12 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
     public EditorSession Session { get; } = session ?? throw new ArgumentNullException(nameof(session));
 
     /// <summary>El título que se edita: el primero seleccionado.</summary>
-    public Clip? Target() => Session.SelectedTitle;
+    public Clip? Target() => InspectorTargets.First(Session, IsTitle)?.Clip;
+
+    /// <summary>Los clips de texto seleccionados.</summary>
+    public IReadOnlyList<Clip> Targets() => InspectorTargets.Selected(Session, IsTitle).ConvertAll(t => t.Clip);
+
+    private static bool IsTitle((Track Track, Clip Clip) target) => target.Clip.Generator is not null;
 
     /// <summary>Cambia el texto. Las teclas seguidas se funden en un paso; una pausa o <see cref="EndTyping"/> lo cierra.</summary>
     public bool SetText(string text)
@@ -104,19 +109,38 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
     {
         ArgumentNullException.ThrowIfNull(field);
         ArgumentNullException.ThrowIfNull(change);
-        if (Target() is not { Generator: { } generator } clip)
+        IReadOnlyList<Clip> targets = Targets();
+        if (targets.Count == 0)
         {
             return false;
         }
 
-        TextStyle style = generator.Style?.Clone() ?? TitleStyles.Default();
-        change(style);
-        if (generator.Style is { } current && current.ContentEquals(style))
+        if (targets.Count == 1)
         {
-            return false;
+            Clip clip = targets[0];
+            ClipGenerator generator = clip.Generator!;
+            TextStyle style = generator.Style?.Clone() ?? TitleStyles.Default();
+            change(style);
+            if (generator.Style is { } current && current.ContentEquals(style))
+            {
+                return false;
+            }
+
+            return Session.Execute(Edits.SetTitleStyle(Session.SequenceId, clip.Id, style, field));
         }
 
-        return Session.Execute(Edits.SetTitleStyle(Session.SequenceId, clip.Id, style, field));
+        var updates = new List<(string ClipId, TextStyle Style)>();
+        foreach (Clip clip in targets)
+        {
+            TextStyle style = clip.Generator!.Style?.Clone() ?? TitleStyles.Default();
+            change(style);
+            if (clip.Generator.Style is not { } current || !current.ContentEquals(style))
+            {
+                updates.Add((clip.Id, style));
+            }
+        }
+
+        return updates.Count > 0 && Session.Execute(Edits.SetTitleStyles(Session.SequenceId, updates, field));
     }
 
     /// <summary>Se soltó un deslizador o se confirmó un campo: el próximo cambio es otro paso.</summary>
@@ -151,16 +175,15 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
         return FormatText(start, length, s => set(s, !all), label);
     }
 
-    /// <summary>La caja del título (ajuste de línea y ajuste del tamaño): un paso del historial.</summary>
-    public bool SetBox(TextFrame? box)
+    /// <summary>
+    /// La caja de cada título (ajuste de línea y ajuste del tamaño), que <paramref name="change"/> saca de la que tenía: un
+    /// paso del historial.
+    /// </summary>
+    public bool SetBox(Func<TextFrame?, TextFrame?> change)
     {
-        if (Target() is not { Generator: { } } clip)
-        {
-            return false;
-        }
-
+        ArgumentNullException.ThrowIfNull(change);
         Session.BreakMerge();
-        return Session.Execute(Edits.SetTitleBox(Session.SequenceId, clip.Id, box));
+        return ExecuteOnTargets(Targets(), clip => Edits.SetTitleBox(Session.SequenceId, clip.Id, change(clip.Generator!.Box)));
     }
 
     /// <summary>Un cambio suelto (un desplegable, una casilla): un paso propio del historial.</summary>
@@ -172,11 +195,35 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
         return done;
     }
 
-    /// <summary>Sustituye todo el estilo (elegido de la lista de estilos).</summary>
+    /// <summary>Sustituye todo el estilo (elegido de la lista de estilos) en todos los títulos.</summary>
     public bool ApplyStyle(TextStyle style)
     {
         ArgumentNullException.ThrowIfNull(style);
-        return Target() is { } clip && Session.ApplyTitleStyle(clip.Id, style);
+        IReadOnlyList<Clip> targets = Targets();
+        return targets.Count switch
+        {
+            0 => false,
+            1 => Session.ApplyTitleStyle(targets[0].Id, style),
+            _ => Session.Execute(Edits.SetTitleStyles(Session.SequenceId, targets.Select(c => (c.Id, style)))),
+        };
+    }
+
+    /// <summary>
+    /// Una animación de la galería de entrada (<paramref name="entry"/>) o de salida: el estilo y, si se eligió una y ese
+    /// borde estaba apagado, encenderlo. Un paso del historial.
+    /// </summary>
+    public bool ChooseAnimation(string field, Action<TextStyle> change, bool entry, bool animated)
+    {
+        Session.BeginGesture("Animación del texto");
+        try
+        {
+            bool done = CommitStyle(field, change);
+            return (animated && SetEdges(entry ? true : null, entry ? null : true)) || done;
+        }
+        finally
+        {
+            Session.EndGesture();
+        }
     }
 
     /// <summary>
@@ -266,11 +313,21 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
         return clip.Start + (word.Start - clip.SourceIn);
     }
 
+    /// <summary>Enciende o apaga la animación de los bordes (nulo: ese no se toca) en los títulos en que cambia algo.</summary>
     public bool SetEdges(bool? animateIn, bool? animateOut) =>
-        Target() is { } clip && Session.Execute(Edits.SetTitleEdges(Session.SequenceId, clip.Id, animateIn, animateOut));
+        ExecuteOnTargets(
+            Targets().Where(c => (animateIn is { } entry && c.Generator!.Edges.In != entry) || (animateOut is { } exit && c.Generator!.Edges.Out != exit)),
+            clip => Edits.SetTitleEdges(Session.SequenceId, clip.Id, animateIn, animateOut));
 
+    /// <summary>Pasa a keyframes la entrada y la salida activas de cada título que las tiene.</summary>
     public bool ConvertToKeyframes() =>
-        Target() is { } clip && Session.Execute(Edits.ConvertTitleAnimation(Session.SequenceId, clip.Id));
+        ExecuteOnTargets(
+            Targets().Where(c => c.Generator is { Style: { } s, Edges: var e } && ((s.In is not null && e.In) || (s.Out is not null && e.Out))),
+            clip => Edits.ConvertTitleAnimation(Session.SequenceId, clip.Id));
+
+    // Una edición por título, todas en un solo paso del historial.
+    private bool ExecuteOnTargets(IEnumerable<Clip> clips, Func<Clip, ICommand> edit) =>
+        InspectorTargets.AsOneStep([.. clips.Select(edit)]) is { } command && Session.Execute(command);
 
     /// <summary>«Entrada 0,4 s · opacidad y posición», o null si no hay.</summary>
     public static string? DescribeAnimation(StyleAnimation? animation, bool entry)

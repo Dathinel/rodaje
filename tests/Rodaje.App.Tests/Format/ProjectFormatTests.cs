@@ -107,6 +107,28 @@ public class ProjectFormatTests
     }
 
     [Fact]
+    public void ElEspacioDeColor_CambiaEnElMismoPaso_YSeDeshace()
+    {
+        Project project = Landscape();
+        var undo = new UndoStack(project);
+        Sequence s = project.Sequences[0];
+        SequenceSnapshot before = SequenceSnapshot.Capture(s);
+
+        undo.Execute(SequenceFormatEdit.Command("sec", s.Width, s.Height, s.FrameRate, ClipFit.Fit, SequenceColorSpace.HdrPq));
+        Assert.Equal(SequenceColorSpace.HdrPq, s.ColorSpace);
+        Assert.Contains("HDR10 (PQ)", ProjectFormats.Describe(s), StringComparison.Ordinal);
+
+        // Sin espacio de color, el comando deja el que hay.
+        undo.Execute(SequenceFormatEdit.Command("sec", 1080, 1920, s.FrameRate, ClipFit.Fit));
+        Assert.Equal(SequenceColorSpace.HdrPq, s.ColorSpace);
+
+        Assert.True(undo.Undo());
+        Assert.True(undo.Undo());
+        Assert.Equal(SequenceColorSpace.Sdr709, s.ColorSpace);
+        Assert.True(before.Matches(s));
+    }
+
+    [Fact]
     public void UnTamanoImpar_SeRechaza()
     {
         Assert.Throws<ArgumentException>(() => SequenceFormatEdit.Command("sec", 1081, 1920, Rational.Fps30, ClipFit.Fit));

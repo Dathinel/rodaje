@@ -121,7 +121,7 @@ public class SpeedShortcutTests
         Assert.True(frozen.Speed!.Freeze);
         Assert.Equal(S(2), frozen.SourceIn);
         Assert.Equal(steps + 1, session.History.Count);
-        Assert.Equal("Congelar cuadro", session.UndoDescription);
+        Assert.Equal("Congelar fotograma", session.UndoDescription);
 
         Assert.False(session.FreezeFrameAtPlayhead());
         Assert.False(session.StepSpeed(faster: true));

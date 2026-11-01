@@ -19,6 +19,19 @@ public static partial class Edits
         IIdGenerator? ids = null) =>
         new("Cambiar velocidad", sequenceId, ctx => TimelineEdits.SetSpeed(ctx, clipId, rate, scope), ids, $"speed:{clipId}");
 
+    /// <summary>Velocidad constante de varios clips y sus enlazados en un solo paso del historial.</summary>
+    public static SequenceEditCommand SetSpeedOnClips(
+        string sequenceId,
+        IEnumerable<string> clipIds,
+        Rational rate,
+        RippleScope scope = RippleScope.Track,
+        IIdGenerator? ids = null)
+    {
+        string[] idsArray = [.. clipIds];
+        return new("Cambiar velocidad", sequenceId, ctx => TimelineEdits.SetSpeed(ctx, idsArray, rate, scope), ids,
+            $"speed:{string.Join(",", idsArray)}");
+    }
+
     /// <summary>Alt + arrastrar un borde: cambia la duración con el mismo material. Se funde por clip y borde.</summary>
     public static SequenceEditCommand RateStretch(
         string sequenceId,
@@ -39,7 +52,7 @@ public static partial class Edits
         Time? duration = null,
         IIdGenerator? ids = null,
         RippleScope scope = RippleScope.Track) =>
-        new("Congelar cuadro", sequenceId, ctx => (IReadOnlyList<string>)[TimelineEdits.FreezeFrame(ctx, clipId, at, duration, scope)], ids);
+        new("Congelar fotograma", sequenceId, ctx => (IReadOnlyList<string>)[TimelineEdits.FreezeFrame(ctx, clipId, at, duration, scope)], ids);
 
     /// <summary>Curva de velocidad del clip y sus enlazados; <c>null</c> vuelve a 1×. Se funde por clip.</summary>
     public static SequenceEditCommand SetCurve(

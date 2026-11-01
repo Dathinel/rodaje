@@ -56,7 +56,7 @@ internal static class AutoSubtitlesDialog
 
         if (clip.Speed is { Freeze: true } || session.Project.FindMedia(clip.MediaId) is not { } media)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "Un cuadro congelado no tiene voz que transcribir.");
+            session.Notify(NotificationSeverity.Informational, Title, "Un fotograma congelado no tiene voz que transcribir.");
             return;
         }
 
@@ -186,7 +186,8 @@ internal static class AutoSubtitlesDialog
                 }
 
                 again.IsEnabled = draft.CanTranscribe(Selected());
-                dialog.IsPrimaryButtonEnabled = true;
+                // Activo mientras transcribe (aplica al terminar); después, solo si hay algo que aplicar.
+                dialog.IsPrimaryButtonEnabled = draft.CanApply;
             }
         }
 

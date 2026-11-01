@@ -9,23 +9,26 @@
     <Grid Background="{StaticResource BackgroundBrush}" Height="40">
         <Grid.ColumnDefinitions>
             <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
+            <ColumnDefinition x:Name="MenuColumn" Width="Auto" />
+            <ColumnDefinition x:Name="ProjectColumn" Width="*" />
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="Auto" />
             <ColumnDefinition x:Name="CaptionInset" x:FieldModifier="internal" Width="138" />
         </Grid.ColumnDefinitions>
 
-        <StackPanel Margin="12,0,8,0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+        <StackPanel x:Name="Brand" Margin="12,0,8,0" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
             <local:AppLogo Width="18" Height="18" />
             <TextBlock Text="Rodaje" FontWeight="SemiBold" FontSize="{StaticResource TitleFontSize}" Foreground="{StaticResource AccentBrush}" VerticalAlignment="Center" />
         </StackPanel>
 
-        <MenuBar x:Name="Menu" Grid.Column="1" VerticalAlignment="Center">
+        <ScrollViewer Grid.Column="1" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto"
+                      VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled" ZoomMode="Disabled">
+        <MenuBar x:Name="Menu" VerticalAlignment="Center">
             <MenuBarItem Title="Archivo">
                 <MenuFlyoutItem Text="Proyecto nuevo" Tag="file.new" Click="OnActionClick" />
                 <MenuFlyoutSubItem x:Name="TemplatesMenu" Text="Proyecto nuevo desde plantilla" />
                 <MenuFlyoutItem Text="Abrir proyecto..." Tag="file.open" Click="OnActionClick" />
+                <MenuFlyoutSubItem x:Name="RecentMenu" Text="Proyectos recientes" IsEnabled="False" />
                 <MenuFlyoutItem Text="Guardar" Tag="file.save" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Guardar como..." Tag="file.saveAs" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Guardar como plantilla..." Click="OnSaveTemplateClick" />
@@ -52,6 +55,21 @@
                 <MenuFlyoutItem Text="Recortar el final hasta el cursor" Tag="edit.trimEnd" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Borrar" Tag="edit.delete" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Seleccionar todo" Tag="edit.selectAll" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Copiar clips" Tag="edit.copy" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Duplicar clip" Tag="edit.duplicate" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Pegar en el cursor" Tag="edit.pasteAtCursor" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Pegar insertando" Tag="edit.pasteInsert" Click="OnActionClick" />
+            </MenuBarItem>
+            <MenuBarItem Title="Reproducción">
+                <MenuFlyoutItem Text="Reproducir o pausar" Tag="playback.togglePlay" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Fotograma anterior" Tag="playback.previousFrame" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Fotograma siguiente" Tag="playback.nextFrame" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Ir al inicio" Tag="playback.start" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Ir al final" Tag="playback.end" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Ir a tiempo..." Tag="playback.goToTime" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Capturar fotograma" Tag="playback.captureFrame" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Secuencia">
                 <MenuFlyoutItem Text="Formato del proyecto…" Tag="project.format" Click="OnActionClick" />
@@ -77,6 +95,7 @@
                     <MenuFlyoutItem Text="Quitar silencios..." Tag="analysis.silences" Click="OnActionClick" />
                     <MenuFlyoutItem Text="Detectar ritmo..." Tag="analysis.beats" Click="OnActionClick" />
                     <MenuFlyoutItem Text="Bajar música bajo la voz..." Tag="analysis.ducking" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Sincronizar por el sonido" Tag="analysis.syncAudio" Click="OnActionClick" />
                     <MenuFlyoutItem Text="Reducir ruido..." Tag="analysis.noise" Click="OnActionClick" />
                 </MenuFlyoutSubItem>
                 <MenuFlyoutSubItem Text="Imagen">
@@ -106,6 +125,7 @@
                     <MenuFlyoutItem Text="Velocidad" Tag="inspector:Speed" Click="OnInspectorClick" />
                     <MenuFlyoutItem Text="Filtros" Tag="inspector:Filters" Click="OnInspectorClick" />
                     <MenuFlyoutItem Text="Máscaras" Tag="inspector:Masks" Click="OnInspectorClick" />
+                    <MenuFlyoutItem Text="Gráfica" Tag="inspector:Graph" Click="OnInspectorClick" />
                     <MenuFlyoutItem Text="Seguimiento" Tag="inspector:Tracking" Click="OnInspectorClick" />
                     <MenuFlyoutItem Text="Dinámica" Tag="inspector:Dynamics" Click="OnInspectorClick" />
                     <MenuFlyoutItem Text="Transición" Tag="inspector:Transition" Click="OnInspectorClick" />
@@ -114,10 +134,14 @@
                 </MenuFlyoutSubItem>
                 <MenuFlyoutSeparator />
                 <MenuFlyoutSubItem x:Name="WorkspaceMenu" Text="Espacio de trabajo" />
+                <MenuFlyoutSubItem Text="Distribución">
+                    <MenuFlyoutItem Text="Equilibrada" Tag="view.layoutBalanced" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Más visor" Tag="view.layoutMoreViewer" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Más línea de tiempo" Tag="view.layoutMoreTimeline" Click="OnActionClick" />
+                </MenuFlyoutSubItem>
                 <MenuFlyoutItem Text="Mezclador" Tag="view.mixer" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Pantalla completa" Tag="view.playerFullScreen" Click="OnActionClick" />
-                <MenuFlyoutItem x:Name="SecondScreenItem" Text="Visor en otra pantalla" Tag="view.secondScreen" Click="OnActionClick" />
-                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Visor en otra pantalla" Tag="view.secondScreen" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Acercar" Tag="timeline.zoomIn" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Alejar" Tag="timeline.zoomOut" Click="OnActionClick" />
@@ -128,15 +152,18 @@
             <MenuBarItem Title="Ayuda">
                 <MenuFlyoutItem Text="Recorrido inicial" Tag="help.tour" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Volver a mostrar las pistas" Tag="help.resetHints" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Hoja de atajos (imprimible)..." Tag="help.shortcutSheet" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Buscar actualizaciones..." Tag="help.checkUpdates" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Acerca de Rodaje..." Click="OnAboutClick" />
                 <MenuFlyoutItem Text="Repositorio oficial" Click="OnUpstreamClick" />
             </MenuBarItem>
         </MenuBar>
+        </ScrollViewer>
 
         <Border x:Name="DragRegion" x:FieldModifier="internal" Grid.Column="2" Background="Transparent">
             <!-- En el centro y sin cortarse por los lados: con poco ancho, el nombre se acorta con puntos suspensivos. -->
-            <Grid ColumnSpacing="8" Margin="8,0">
+            <Grid x:Name="ProjectInfo" ColumnSpacing="8" Margin="8,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
@@ -147,10 +174,10 @@
             </Grid>
         </Border>
 
-        <StackPanel Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Spacing="12" Margin="0,0,12,0">
-            <!-- Crédito upstream obligatorio (LICENSE, términos adicionales 1 y 3): siempre visible y con enlace. -->
+        <StackPanel x:Name="CreditArea" Grid.Column="3" Orientation="Horizontal" VerticalAlignment="Center" Spacing="12" Margin="0,0,12,0">
+            <!-- Crédito upstream obligatorio (LICENSE, términos adicionales 1 y 3): con enlace; en ventanas estrechas sigue accesible en Ayuda > Acerca de. -->
             <HyperlinkButton x:Name="UpstreamCredit" x:FieldModifier="internal" Padding="4,2" FontSize="{StaticResource CaptionFontSize}" Foreground="{StaticResource TextMutedBrush}" Click="OnUpstreamClick" />
-            <TextBlock x:Name="StatsText" MaxWidth="220" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" />
+            <TextBlock x:Name="StatsText" MaxWidth="280" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" />
         </StackPanel>
 
         <Button x:Name="ExportButton" x:FieldModifier="internal" Grid.Column="4" Content="EXPORTAR" Margin="0,0,12,0"

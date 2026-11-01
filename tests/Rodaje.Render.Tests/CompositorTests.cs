@@ -5,6 +5,7 @@ using Rodaje.Playback;
 using Rodaje.Playback.Composition;
 using Rodaje.Render.Tests.Support;
 using Rodaje.TestMedia;
+using TerraFX.Interop.DirectX;
 
 namespace Rodaje.Render.Tests;
 
@@ -333,6 +334,42 @@ public sealed class CompositorTests
         using CompositionFrame frame = Layers.Frame(64, 64, Layers.From(other, YuvImage.Solid(64, 64, false, new YuvCode(235, 128, 128)), Bt709));
 
         Assert.Throws<ArgumentException>(() => compositor.Render(frame));
+    }
+
+    /// <summary>El visor de 10 bits (R10G10B10A2) y el de 8 (B8G8R8A8) reciben la misma imagen, también en WARP.</summary>
+    [Fact]
+    public void Presenter_draws_into_8_and_10_bit_targets_on_warp()
+    {
+        using GpuDevice gpu = GpuDevice.CreateWarp();
+        YuvCode gray = ReferenceColor.Encode(150, 150, 150, Bt709, false);
+        using var compositor = new Compositor(gpu, 64, 36);
+        using (CompositionFrame frame = Layers.Frame(64, 36, Layers.From(gpu, YuvImage.Solid(64, 36, false, gray), Bt709)))
+        {
+            compositor.Render(frame);
+        }
+
+        using var presenter = new Presenter(gpu);
+        Rgb expected = ReferenceColor.Decode(gray, Bt709, false);
+        foreach (DXGI_FORMAT format in new[] { DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT.DXGI_FORMAT_R10G10B10A2_UNORM })
+        {
+            using var target = new OffscreenTarget(gpu, 64, 36, format);
+            Assert.Equal(new PixelRect(0, 0, 64, 36), presenter.Draw(target.RenderTargetView, 64, 36, compositor));
+            target.Read().AssertColor(32, 18, expected);
+        }
+    }
+
+    /// <summary>En scRGB el gris de alrededor pasa a lineal con la escala de la imagen (en gamma salía más claro que el marco); en SDR va tal cual.</summary>
+    [Fact]
+    public void Presenter_surround_is_linear_in_scrgb_and_untouched_otherwise()
+    {
+        (float R, float G, float B) gray = (0x24 / 255f, 0x24 / 255f, 0x24 / 255f);
+        Assert.Equal(gray, Presenter.SurroundFor(gray, scRgb: false));
+        (float r, float g, float b) = Presenter.SurroundFor(gray, scRgb: true);
+        Assert.InRange(r, 0.085f, 0.088f);
+        Assert.Equal(r, g);
+        Assert.Equal(r, b);
+        Assert.Equal((0f, 0f, 0f), Presenter.SurroundFor((0f, 0f, 0f), scRgb: true));
+        Assert.InRange(Presenter.SurroundFor((1f, 1f, 1f), scRgb: true).R, 2.537f, 2.538f);
     }
 
     [GpuFact]

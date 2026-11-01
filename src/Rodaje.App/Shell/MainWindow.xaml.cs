@@ -58,7 +58,9 @@ internal sealed partial class MainWindow : Window, IShellHost
     private readonly InstanceRegistry _instance = InstanceRegistry.Register(InstanceRegistry.DefaultDirectory);
     private ShortcutsView? _shortcutsView;
     private NotificationAction? _notificationAction;
+    private NotificationAction? _notificationSecondaryAction;
     private readonly LongActionService _longActions;
+    private readonly ShellDialogs _dialogs;
 
     // La barra de avisos muestra el avance de una acción larga hasta que llega un aviso; al cerrarse ese aviso vuelve al avance.
     private bool _showingProgress;
@@ -85,8 +87,11 @@ internal sealed partial class MainWindow : Window, IShellHost
         Program.Metrics.Milestone("ventana_inicio");
         InitializeComponent();
         Program.Metrics.Milestone("ventana_xaml");
+        Theme.ThemeResources.ApplyRequestedTheme(Root);
+        Theme.ThemeResources.ThemeChanged += (_, _) => Theme.ThemeResources.ApplyRequestedTheme(Root);
         _dispatcher = DispatcherQueue.GetForCurrentThread();
         _hwnd = WinRT.Interop.WindowNative.GetWindowHandle(this);
+        engine.WindowHandle = _hwnd;
         SetUpTitleBar();
         RestoreLayout();
         StartupSplash.PlaceOver(AppWindow, _hwnd);
@@ -103,10 +108,12 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         EditorSession? session = null;
         var dialogs = new ShellDialogs(this, _hwnd, settings, () => session?.FilePath);
+        _dialogs = dialogs;
         session = new EditorSession(engine, prober, dialogs,
-            newProjectTracks: settings.Current.NewProjectTracks)
+            newProjectTracks: settings.Current.NewProjectTracks, newProjectFormat: settings.Current.NewProjectFormat)
         {
             LinkedAudioTracks = settings.Current.LinkedAudioTracks,
+            NextFrame = OnNextFrame,
         };
         _visuals = new ClipVisuals(id => session.Project.FindMedia(id)?.Path, new FfmpegVisualsSources(),
             new ClipVisualsOptions { CacheDirectory = ClipVisualsOptions.DefaultCacheDirectory }, SynchronizationContext.Current);
@@ -149,6 +156,11 @@ internal sealed partial class MainWindow : Window, IShellHost
         engine.SetTitleFonts(fonts);
         packages.Changed += (_, _) =>
         {
+            if (_closed)
+            {
+                return;
+            }
+
             IReadOnlyList<string> now = TitleFontFiles.Find(packages.Installed);
             if (!now.SequenceEqual(fonts, StringComparer.OrdinalIgnoreCase))
             {
@@ -170,6 +182,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(_router.Bind(ActionIds.Export, () => ShowPage(ShellPage.Export)));
         _bindings.Add(Views.Export.StillExportCommand.Bind(_router, _services, _hwnd));
         _bindings.Add(_router.Bind(ActionIds.ShowShortcuts, () => ShowPage(ShellPage.Shortcuts)));
+        _bindings.Add(_router.Bind(ActionIds.GoToTime, () => UiTask.Run(GoToTimeAsync())));
         _bindings.Add(_router.Bind(ActionIds.ShowPreferences, ShowPreferences));
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
         _bindings.Add(_router.Bind(ActionIds.ShowMixer, ToggleMixer));
@@ -187,7 +200,13 @@ internal sealed partial class MainWindow : Window, IShellHost
         TitleBar.Attach(_services);
         TitleBar.InspectorTabRequested += (_, tab) => Inspector.Show(tab);
         TitleBar.MarkersPanelRequested += (_, _) => Library.ShowMarkers();
-        TitleBar.ExitRequested += (_, _) => Close();
+        TitleBar.ExitRequested += (_, _) => RequestClose();
+        TitleBar.RecentProjectMissing += (_, path) =>
+        {
+            settings.Current.RecentProjects.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+            TitleBar.RefreshRecentProjects(settings.Current);
+        };
+        TitleBar.RefreshRecentProjects(settings.Current);
         Library.Attach(_services);
         Player.Attach(_services);
         Inspector.Attach(_services);
@@ -199,13 +218,18 @@ internal sealed partial class MainWindow : Window, IShellHost
         Timeline.MarkerContextRequested += (_, id) => Library.ShowMarkers(id);
         Mixer.Attach(_services);
         Timeline.ClipVisuals = _visuals;
-        Tools.Attach(_services);
         AttachWorkflow();
         Program.Metrics.Milestone("vistas_unidas");
 
         session.Notified += (_, n) => ShowNotification(n);
         session.ProjectOpened += (_, _) => RememberProject();
-        session.ProjectOpened += (_, _) => _visuals.ForgetRemovedMedia();
+        session.ProjectOpened += (_, _) =>
+        {
+            _visuals.ForgetRemovedMedia();
+            UiTask.Run(_visuals.RetryFailedAsync());
+        };
+        // Exportar se quedaría con la secuencia, el nombre y el rango del proyecto anterior (Ctrl+N y Ctrl+O siguen con ella abierta).
+        session.ProjectOpened += (_, _) => ClosePage();
         session.ProjectEdited += (_, _) => _visuals.ForgetRemovedMedia();
         session.PropertyChanged += (_, e) =>
         {
@@ -256,7 +280,10 @@ internal sealed partial class MainWindow : Window, IShellHost
         // Autoguardado (no en las mediciones ni en la autoprueba): el mismo temporizador decide si toca una copia.
         if (!options.IsAutomated)
         {
-            var autosave = new AutosaveService(session, dialogs, AutosaveService.DefaultRoot);
+            var autosave = new AutosaveService(session, dialogs, AutosaveService.DefaultRoot)
+            {
+                Interval = TimeSpan.FromMinutes(settings.Current.AutosaveMinutes),
+            };
             _autosave = autosave;
             if (autosave.Start())
             {
@@ -264,15 +291,24 @@ internal sealed partial class MainWindow : Window, IShellHost
             }
         }
 
+        _settingsTimer.Tick += (_, _) => UpdateSaveStatus();
+        session.HistoryChanged += (_, _) => UpdateSaveStatus();
         _settingsTimer.Start();
 
         LibrarySplitter.Resized += (_, size) => settings.Current.LibraryWidth = size;
         InspectorSplitter.Resized += (_, size) => settings.Current.InspectorWidth = size;
-        MainArea.SizeChanged += (_, _) => FitSidePanels();
-        TimelineSplitter.Resized += (_, size) => settings.Current.TimelineHeight = size;
+        Root.SizeChanged += (_, e) =>
+        {
+            FitSidePanels(e.NewSize.Width);
+            ApplyTimelineShare();
+        };
+        TimelineSplitter.MinSize = TimelineProportion.MinHeight;
+        TimelineSplitter.Resized += (_, size) => settings.Current.TimelineShare = TimelineProportion.ShareOf(size, Root.ActualHeight);
+        TimelineSplitter.DoubleClicked += (_, _) => SetTimelineShare(TimelineProportion.Toggle(settings.Current.TimelineShare));
         // Un aviso abierto empuja la página modal hacia abajo en lugar de taparle la cabecera.
         Notification.SizeChanged += (_, e) => ModalFrame.Margin = new Thickness(48, 56 + e.NewSize.Height, 48, 40);
         Activated += OnActivated;
+        SizeChanged += (_, _) => ApplyUiScale();
         AppWindow.Closing += OnClosing;
         Closed += OnClosed;
 
@@ -282,11 +318,6 @@ internal sealed partial class MainWindow : Window, IShellHost
             {
                 session.Notify(NotificationSeverity.Warning, "Ajustes", warning);
             }
-        }
-
-        if (_autosave is { IsActive: true })
-        {
-            UiTask.Run(_autosave.OfferRecoveryAsync());
         }
 
         if (options.Files.Count > 0 || options.SelfTest)
@@ -325,6 +356,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         UiTask.Run(_visuals.TrimDiskCacheAsync());
         UiTask.Run(OfferExportQueueAsync(Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale())));
         UiTask.Run(OfferTourAsync());
+        StartUpdateCheck();
         if (_options.StartupProbe)
         {
             UiTask.Run(StartupTrace.FinishProbeAsync(Program.Metrics, _options.LogPath, _options.Files.Count > 0, () => _engine.FailureMessage, Close));
@@ -344,7 +376,13 @@ internal sealed partial class MainWindow : Window, IShellHost
     private async Task ShowPreferencesAsync()
     {
         var view = new PreferencesView();
-        view.Attach(_settings.Current);
+        SaveLayout();
+        AppSettings current = _settings.Current;
+        view.Attach(current, _router.Registry, new WorkspaceProfile
+        {
+            LibraryWidth = current.LibraryWidth, InspectorWidth = current.InspectorWidth, TimelineShare = current.TimelineShare,
+            InspectorTab = Inspector.CurrentTabName, HiddenInspectorTabs = [.. current.HiddenInspectorTabs],
+        });
         var dialog = new ContentDialog
         {
             XamlRoot = Root.XamlRoot,
@@ -356,14 +394,41 @@ internal sealed partial class MainWindow : Window, IShellHost
         };
         if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary)
         {
+            view.Discard();
             return;
         }
 
+        PreviewQuality quality = _settings.Current.PreviewQuality;
         view.Apply();
+        if (_settings.Current.PreviewQuality != quality)
+        {
+            _services.SetPreviewQuality(_settings.Current.PreviewQuality);
+        }
+
         _services.Session.NewProjectTracks = _settings.Current.NewProjectTracks;
+        _services.Session.NewProjectFormat = _settings.Current.NewProjectFormat;
         _services.Session.LinkedAudioTracks = _settings.Current.LinkedAudioTracks;
         _services.Player.SetProxyUsage(_settings.Current.ProxyUsage);
+        _services.Player.TenBitViewer = _settings.Current.TenBitViewer;
+        _services.Player.HdrViewer = _settings.Current.HdrViewer;
         _router.Registry.Preset = _settings.Current.ShortcutPreset;
+        if (_autosave is { } autosave)
+        {
+            autosave.Interval = TimeSpan.FromMinutes(_settings.Current.AutosaveMinutes);
+        }
+
+        if (view.WorkspaceToApply is { } workspace)
+        {
+            ApplyWorkspace(workspace);
+        }
+
+        if (view.ProfileImported)
+        {
+            _shortcutStore.Save(_router.Registry);
+            TitleBar.RefreshWorkspaces();
+        }
+
+        ApplyUiScale();
         _settings.SaveIfChanged();
     }
 
@@ -394,8 +459,8 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     internal PluginsView? PluginsPage => _pluginsView;
 
-    /// <summary>La barra de herramientas rápidas, para la autoprueba.</summary>
-    internal Views.Tools.ToolsBar QuickTools => Tools;
+    /// <summary>El desplegable de herramientas rápidas, para la autoprueba.</summary>
+    internal Views.Tools.ToolsBar QuickTools => Timeline.QuickToolsMenu;
 
     internal ExportJobList Exports => _exports;
 
@@ -418,6 +483,12 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
         else if (page == ShellPage.Export)
         {
+            if (ModalContent.Content is ExportView)
+            {
+                // Ctrl+E con Exportar ya abierta no la rehace: se perdería lo cambiado en Avanzado.
+                return;
+            }
+
             if (_exportView is null)
             {
                 _exportView = new ExportView(_services, _exports, _hwnd);
@@ -477,15 +548,16 @@ internal sealed partial class MainWindow : Window, IShellHost
         var splitter = new GridLength(fullScreen ? 0 : 4);
         MainArea.ColumnDefinitions[1].Width = splitter;
         MainArea.ColumnDefinitions[3].Width = splitter;
-        Root.RowDefinitions[3].Height = splitter;
+        Root.RowDefinitions[3].Height = new GridLength(fullScreen ? 0 : 8);
         Visibility chrome = fullScreen ? Visibility.Collapsed : Visibility.Visible;
-        foreach (UIElement element in new UIElement[] { TitleBar, Library, LibrarySplitter, Inspector, InspectorSplitter, TimelineSplitter, Tools, Timeline })
+        foreach (UIElement element in new UIElement[] { TitleBar, Library, LibrarySplitter, Inspector, InspectorSplitter, TimelineSplitter, Timeline })
         {
             element.Visibility = chrome;
         }
 
         AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
         Player.SetFullScreen(fullScreen);
+        FitSidePanels();
         if (fullScreen)
         {
             ShowHint(Services.Onboarding.OnboardingGuide.FirstFullScreen);
@@ -570,15 +642,29 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
     }
 
+    /// <summary>
+    /// La barra de título propia. La región de arrastre no se deja a <c>SetTitleBar</c>: con la escala de la interfaz
+    /// (Preferencias) la raíz se dibuja transformada y la región se calcula aquí en píxeles con esa escala y la del monitor
+    /// (<see cref="TitleBarDragRegion"/>), y se recalcula al cambiar el tamaño de la ventana, de la barra o la escala.
+    /// </summary>
     private void SetUpTitleBar()
     {
-        ExtendsContentIntoTitleBar = true;
-        SetTitleBar(TitleBar.DragRegion);
-        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, AppIcon.FileName));
         AppWindowTitleBar bar = AppWindow.TitleBar;
+        bar.ExtendsContentIntoTitleBar = true;
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, AppIcon.FileName));
         bar.PreferredHeightOption = TitleBarHeightOption.Tall;
         bar.ButtonBackgroundColor = Colors.Transparent;
         bar.ButtonInactiveBackgroundColor = Colors.Transparent;
+        ApplyTitleBarColors();
+        Theme.ThemeResources.ThemeChanged += (_, _) => ApplyTitleBarColors();
+        TitleBar.DragRegion.Loaded += (_, _) => UpdateDragRegion();
+        TitleBar.DragRegion.SizeChanged += (_, _) => UpdateDragRegion();
+    }
+
+    // Los botones de la ventana (minimizar, maximizar, cerrar) siguen al tema, también cuando cambia en caliente.
+    private void ApplyTitleBarColors()
+    {
+        AppWindowTitleBar bar = AppWindow.TitleBar;
         bar.ButtonForegroundColor = Theme.ThemeResources.SolidColor("TextBrush");
         bar.ButtonHoverForegroundColor = Theme.ThemeResources.SolidColor("TextBrush");
         bar.ButtonHoverBackgroundColor = Theme.ThemeResources.SolidColor("ControlHoverBrush");
@@ -586,78 +672,161 @@ internal sealed partial class MainWindow : Window, IShellHost
         bar.ButtonInactiveForegroundColor = Theme.ThemeResources.SolidColor("TextMutedBrush");
     }
 
+    private void UpdateDragRegion()
+    {
+        // Antes de cargarse en el árbol (la activación llega antes), TransformToVisual lanza E_UNEXPECTED; Loaded lo repite.
+        if (_closed || !TitleBar.DragRegion.IsLoaded)
+        {
+            return;
+        }
+
+        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        global::Windows.Foundation.Point origin = TitleBar.DragRegion.TransformToVisual(Root).TransformPoint(new global::Windows.Foundation.Point(0, 0));
+        AppWindowTitleBar bar = AppWindow.TitleBar;
+        TitleBarDragRegion.Rect? region = TitleBarDragRegion.Compute(origin.X, origin.Y, TitleBar.DragRegion.ActualWidth, TitleBar.DragRegion.ActualHeight,
+            _settings.Current.UiScale / 100.0, Math.Max(1u, dpi) / 96.0, AppWindow.ClientSize.Width, bar.LeftInset, bar.RightInset);
+        RectInt32[] rects = region is { } r ? [new RectInt32(r.X, r.Y, r.Width, r.Height)] : [];
+        bar.SetDragRectangles(rects);
+    }
+
     private void RestoreLayout()
     {
         AppSettings s = _settings.Current;
         LibraryColumn.Width = new GridLength(s.LibraryWidth);
         InspectorColumn.Width = new GridLength(s.InspectorWidth);
-        TimelineRow.Height = new GridLength(s.TimelineHeight);
         uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
         double width = s.WindowWidth > 0 ? s.WindowWidth : 1440;
         double height = s.WindowHeight > 0 ? s.WindowHeight : 900;
-        AppWindow.Resize(new SizeInt32((int)(width * dpi / 96), (int)(height * dpi / 96)));
+        // 1440×900 en un portátil, o el tamaño guardado en un monitor más grande, no pueden pasar bajo la barra de tareas.
+        RectInt32 work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
+        var wanted = new ScreenRect(AppWindow.Position.X, AppWindow.Position.Y, (int)(width * dpi / 96), (int)(height * dpi / 96));
+        ScreenRect fit = wanted.FitInside(new ScreenRect(work.X, work.Y, work.Width, work.Height));
+        width = fit.Width * 96.0 / dpi;
+        height = fit.Height * 96.0 / dpi;
+        // Hasta el primer diseño no se sabe el alto de las demás filas: se estima y SizeChanged lo corrige.
+        TimelineRow.Height = new GridLength(TimelineProportion.Height(s.TimelineShare, height, 100));
+        AppWindow.MoveAndResize(new RectInt32(fit.X, fit.Y, fit.Width, fit.Height));
         if (s.WindowMaximized && AppWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.Maximize();
         }
+
+        FitSidePanels(width);
+    }
+
+    /// <summary>
+    /// Escala de la interfaz (Preferencias › Personalización): la raíz se dibuja escalada y mide el tamaño de la ventana
+    /// dividido por la escala, así todo se recoloca de verdad. Los diálogos y menús flotantes quedan al 100 %.
+    /// </summary>
+    private void ApplyUiScale()
+    {
+        double scale = _settings.Current.UiScale / 100.0;
+        if (scale == 1 && Root.RenderTransform is null)
+        {
+            UpdateDragRegion();
+            return;
+        }
+
+        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        double width = AppWindow.ClientSize.Width * 96.0 / Math.Max(1u, dpi);
+        double height = AppWindow.ClientSize.Height * 96.0 / Math.Max(1u, dpi);
+        if (scale == 1 || width <= 0 || height <= 0)
+        {
+            Root.RenderTransform = null;
+            Root.Width = double.NaN;
+            Root.Height = double.NaN;
+            Root.HorizontalAlignment = HorizontalAlignment.Stretch;
+            Root.VerticalAlignment = VerticalAlignment.Stretch;
+        }
+        else
+        {
+            Root.RenderTransform = new ScaleTransform { ScaleX = scale, ScaleY = scale };
+            Root.HorizontalAlignment = HorizontalAlignment.Left;
+            Root.VerticalAlignment = VerticalAlignment.Top;
+            Root.Width = width / scale;
+            Root.Height = height / scale;
+        }
+
+        // La barra no cambia de tamaño al escalar (la raíz mide lo mismo dividido por la escala): la región se recalcula aquí.
+        UpdateDragRegion();
     }
 
     /// <summary>
     /// Con la ventana estrecha los paneles laterales ceden (primero la biblioteca, luego el panel derecho) para que el
     /// reproductor conserve su mínimo y nada quede fuera de la ventana; al ensancharla vuelven a los anchos elegidos.
     /// </summary>
-    private void FitSidePanels()
+    private void FitSidePanels(double? availableWidth = null)
     {
-        if (_playerFullScreen || MainArea.ActualWidth <= 0)
+        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        double winWidth = dpi > 0 ? AppWindow.Size.Width * 96.0 / dpi : AppWindow.Size.Width;
+        double width = availableWidth > 0 ? availableWidth.Value : (winWidth > 0 ? winWidth : Root.ActualWidth);
+        if (_playerFullScreen || width <= 0)
         {
             return;
         }
 
-        const double LibraryMin = 220;
-        const double InspectorMin = 240;
         AppSettings s = _settings.Current;
-        double room = MainArea.ActualWidth - MainArea.ColumnDefinitions[1].ActualWidth - MainArea.ColumnDefinitions[3].ActualWidth
-            - MainArea.ColumnDefinitions[2].MinWidth;
-        double library = s.LibraryWidth;
-        double inspector = s.InspectorWidth;
-        double excess = library + inspector - room;
-        if (excess > 0)
+        var (library, inspector) = SidePanelLayout.Fit(width, s.LibraryWidth, s.InspectorWidth);
+        Library.Visibility = LibrarySplitter.Visibility = library > 0 ? Visibility.Visible : Visibility.Collapsed;
+        Inspector.Visibility = InspectorSplitter.Visibility = inspector > 0 ? Visibility.Visible : Visibility.Collapsed;
+        MainArea.ColumnDefinitions[1].Width = new GridLength(library > 0 ? 4 : 0);
+        MainArea.ColumnDefinitions[3].Width = new GridLength(inspector > 0 ? 4 : 0);
+        LibraryColumn.Width = new GridLength(library);
+        InspectorColumn.Width = new GridLength(inspector);
+    }
+
+    /// <summary>
+    /// El alto de la línea de tiempo sale de su proporción del alto de la ventana (<see cref="TimelineProportion"/>), así
+    /// se adapta al cambiar el tamaño; no con el visor a pantalla completa ni con el mezclador, que tienen su propio alto.
+    /// </summary>
+    private void ApplyTimelineShare()
+    {
+        if (_playerFullScreen || Mixer.Visibility == Visibility.Visible || Root.ActualHeight <= 0)
         {
-            double cut = Math.Min(excess, Math.Max(0, library - LibraryMin));
-            library -= cut;
-            excess -= cut;
+            return;
         }
 
-        if (excess > 0)
+        double others = 0;
+        for (int i = 0; i < Root.RowDefinitions.Count; i++)
         {
-            inspector = Math.Max(InspectorMin, inspector - excess);
+            if (i != 2 && i != 4)
+            {
+                others += Root.RowDefinitions[i].ActualHeight;
+            }
         }
 
-        if (LibraryColumn.Width.Value != library)
+        TimelineRow.Height = new GridLength(TimelineProportion.Height(_settings.Current.TimelineShare, Root.ActualHeight, others));
+    }
+
+    /// <summary>Ver › Distribución y el doble clic en el separador.</summary>
+    internal void SetTimelineShare(double share)
+    {
+        if (_playerFullScreen)
         {
-            LibraryColumn.Width = new GridLength(library);
+            SetPlayerFullScreen(false);
         }
 
-        if (InspectorColumn.Width.Value != inspector)
-        {
-            InspectorColumn.Width = new GridLength(inspector);
-        }
+        _settings.Current.TimelineShare = TimelineProportion.Normalize(share);
+        ApplyTimelineShare();
     }
 
     private void SaveLayout()
     {
         AppSettings s = _settings.Current;
-        bool maximized = AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized };
-        s.WindowMaximized = maximized;
-        if (!maximized && AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Restored })
+        // Con el visor a pantalla completa el presenter no dice si la ventana estaba maximizada: se queda lo guardado antes.
+        if (AppWindow.Presenter.Kind != AppWindowPresenterKind.FullScreen)
         {
-            uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
-            s.WindowWidth = AppWindow.Size.Width * 96.0 / dpi;
-            s.WindowHeight = AppWindow.Size.Height * 96.0 / dpi;
+            bool maximized = AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized };
+            s.WindowMaximized = maximized;
+            if (!maximized && AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Restored })
+            {
+                uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+                s.WindowWidth = AppWindow.Size.Width * 96.0 / dpi;
+                s.WindowHeight = AppWindow.Size.Height * 96.0 / dpi;
+            }
         }
 
-        // Los anchos de los paneles laterales se guardan al soltar su separador: aquí se verían los recortados por FitSidePanels.
-        s.TimelineHeight = _timelineBeforeMixer ?? TimelineRow.ActualHeight;
+        // Los anchos de los paneles laterales y la proporción de la línea de tiempo se guardan al soltar su separador.
         s.ShortcutPreset = _router.Registry.Preset;
     }
 
@@ -679,12 +848,26 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
     }
 
+    /// <summary>«Guardado hace N min» en la barra de estado; con cambios sin guardar y una copia más nueva, la copia.</summary>
+    private void UpdateSaveStatus()
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        TimeSpan? sinceSave = Session.LastSavedAt is { } saved ? now - saved : null;
+        TimeSpan? sinceCopy = _autosave?.LastCopyAt is { } copied ? now - copied : null;
+        string text = SaveAge.Format(sinceSave, sinceCopy, Session.IsDirty);
+        if (SaveStatusText.Text != text)
+        {
+            SaveStatusText.Text = text;
+        }
+    }
+
     private void RememberProject()
     {
         if (Session.FilePath is { } path)
         {
             _settings.Current.AddRecentProject(path);
             _settings.Current.LastProjectFolder = Path.GetDirectoryName(path);
+            TitleBar.RefreshRecentProjects(_settings.Current);
         }
     }
 
@@ -722,6 +905,10 @@ internal sealed partial class MainWindow : Window, IShellHost
         NotificationButton.Content = notification.Action?.Text;
         NotificationButton.Visibility = notification.Action is null ? Visibility.Collapsed : Visibility.Visible;
         AutomationProperties.SetName(NotificationButton, notification.Action?.Text ?? "");
+        _notificationSecondaryAction = notification.SecondaryAction;
+        NotificationSecondaryButton.Content = notification.SecondaryAction?.Text;
+        NotificationSecondaryButton.Visibility = notification.SecondaryAction is null ? Visibility.Collapsed : Visibility.Visible;
+        AutomationProperties.SetName(NotificationSecondaryButton, notification.SecondaryAction?.Text ?? "");
         Notification.IsOpen = true;
         FrameworkElementAutomationPeer.FromElement(Notification)?.RaiseNotificationEvent(
             AutomationNotificationKind.ActionCompleted, AutomationNotificationProcessing.ImportantMostRecent, notification.Message, "rodaje.aviso");
@@ -729,7 +916,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         if (notification.Severity is NotificationSeverity.Informational or NotificationSeverity.Success)
         {
             // Con botón dura más: da tiempo a leerlo y a decidir si se deshace.
-            _notificationTimer.Interval = TimeSpan.FromSeconds(notification.Action is null ? 6 : 10);
+            _notificationTimer.Interval = TimeSpan.FromSeconds(notification.Action is null && notification.SecondaryAction is null ? 6 : 10);
             _notificationTimer.Start();
         }
     }
@@ -749,6 +936,17 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         NotificationAction? action = _notificationAction;
         _notificationAction = null;
+        _notificationSecondaryAction = null;
+        _notificationTimer.Stop();
+        Notification.IsOpen = false;
+        action?.Run();
+    }
+
+    private void OnNotificationSecondaryButtonClick(object sender, RoutedEventArgs e)
+    {
+        NotificationAction? action = _notificationSecondaryAction;
+        _notificationAction = null;
+        _notificationSecondaryAction = null;
         _notificationTimer.Stop();
         Notification.IsOpen = false;
         action?.Run();
@@ -793,6 +991,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         bool fresh = started || !_showingProgress;
         _showingProgress = true;
         _notificationAction = null;
+        _notificationSecondaryAction = null;
+        NotificationSecondaryButton.Visibility = Visibility.Collapsed;
         _notificationTimer.Stop();
         Notification.Severity = InfoBarSeverity.Informational;
         Notification.Title = current.Title;
@@ -845,9 +1045,22 @@ internal sealed partial class MainWindow : Window, IShellHost
         // Escala de la interfaz: si aún no se conoce (0), GridLength con infinito lanzaría.
         double scale = Root.XamlRoot?.RasterizationScale is double s && s > 0 && double.IsFinite(s) ? s : 1;
         TitleBar.CaptionInset.Width = new GridLength(Math.Max(0, AppWindow.TitleBar.RightInset / scale));
+        UpdateDragRegion();
+        Theme.ThemeResources.FollowWindows(_dispatcher, () => _settings.Current);
     }
 
     private void OnRendering(object? sender, object e) => Session.UpdateTransport(_engine.Snapshot);
+
+    private static void OnNextFrame(Action action)
+    {
+        EventHandler<object>? handler = null;
+        handler = (_, _) =>
+        {
+            CompositionTarget.Rendering -= handler;
+            action();
+        };
+        CompositionTarget.Rendering += handler;
+    }
 
     private void OnDragOver(object sender, DragEventArgs e)
     {
@@ -869,21 +1082,8 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         try
         {
-            IReadOnlyList<IStorageItem> items = await e.DataView.GetStorageItemsAsync();
-            string[] paths = [.. items.OfType<StorageFile>().Select(f => f.Path).Where(p => !string.IsNullOrEmpty(p))];
-            if (paths.Length == 0)
-            {
-                return;
-            }
-
-            if (paths.Any(ProjectPaths.IsProjectFile))
-            {
-                await Session.OpenFilesAsync(paths);
-            }
-            else
-            {
-                await Session.ImportMediaAsync(paths);
-            }
+            // Como soltar en la biblioteca: los paquetes se instalan y una carpeta entra con sus medios.
+            await Views.Library.LibraryView.DropFilesAsync(_services, e.DataView);
         }
 #pragma warning disable CA1031 // Soltar archivos no debe tumbar la aplicación: el error se muestra en la ventana.
         catch (Exception ex)
@@ -898,10 +1098,15 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private void OnCloseModal(object sender, RoutedEventArgs e) => ClosePage();
 
-    // args.Cancel se pone antes del primer await: sigue dentro del evento.
-    private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args) => UiTask.Run(OnClosingAsync(args));
+    /// <summary>
+    /// «Recuperar» si la sesión anterior dejó cambios sin guardar, con <paramref name="also"/> en el mismo aviso (ver
+    /// <see cref="AutosaveService.OfferRecoveryAsync"/>); <c>null</c> si no hay nada que recuperar.
+    /// </summary>
+    internal Task<NotificationAction?> OfferRecoveryAsync(NotificationAction? also) =>
+        _autosave is { IsActive: true } autosave ? autosave.OfferRecoveryAsync(also) : Task.FromResult<NotificationAction?>(null);
 
-    private async Task OnClosingAsync(AppWindowClosingEventArgs args)
+    // args.Cancel se pone dentro del evento; las preguntas van después.
+    private void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         if (_allowClose || _options.IsAutomated)
         {
@@ -909,15 +1114,46 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         args.Cancel = true;
+        UiTask.Run(ConfirmCloseAsync());
+    }
+
+    // Archivo › Salir: Window.Close() no lanza AppWindow.Closing, así que pasa por las mismas preguntas que la X.
+    private void RequestClose()
+    {
+        if (_options.IsAutomated)
+        {
+            Close();
+        }
+        else
+        {
+            UiTask.Run(ConfirmCloseAsync());
+        }
+    }
+
+    /// <summary>
+    /// Para la X, Alt+F4 y Archivo › Salir: pregunta por los cambios sin guardar y por los trabajos en curso, y cierra.
+    /// </summary>
+    private async Task ConfirmCloseAsync()
+    {
         if (_closing)
         {
+            return;
+        }
+
+        if (DialogGate.IsOpen)
+        {
+            // Las preguntas no caben con otro diálogo abierto: sin el aviso parecería que la X no hace nada.
+            Session.Notify(NotificationSeverity.Informational, ClosingNotice.DialogOpenTitle, ClosingNotice.DialogOpen);
             return;
         }
 
         _closing = true;
         try
         {
-            if (await Session.ConfirmDiscardChangesAsync())
+            // Con el proyecto guardado, cerrar con una exportación, un módulo de IA o una acción larga en curso los mataría sin avisar.
+            if (await Session.ConfirmDiscardChangesAsync()
+                && (ClosingNotice.Describe(JobsPanel.ActiveCount + _longActions.Running.Count) is not { } busy
+                    || await _dialogs.ConfirmAsync(ClosingNotice.Title, busy, ClosingNotice.Confirm)))
             {
                 _allowClose = true;
                 Close();
@@ -960,13 +1196,6 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         SaveLayout();
-        if (wasFullScreen)
-        {
-            // Los paneles recién restaurados todavía no pasaron por el diseño: se guardan los tamaños de antes.
-            _settings.Current.LibraryWidth = _layoutBeforeFullScreen.Library.Value;
-            _settings.Current.InspectorWidth = _layoutBeforeFullScreen.Inspector.Value;
-            _settings.Current.TimelineHeight = _layoutBeforeFullScreen.Timeline.Value;
-        }
         try
         {
             _settings.Save();
@@ -1011,7 +1240,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     /// <summary>
     /// El mezclador ocupa el lugar de la línea de tiempo, con alto para sus faders (al menos 520 px si la ventana deja 240
-    /// al visor); otra vez vuelve a la línea de tiempo con el alto que tenía.
+    /// al visor); otra vez vuelve a la línea de tiempo con su proporción.
     /// </summary>
     internal void ToggleMixer()
     {
@@ -1020,16 +1249,12 @@ internal sealed partial class MainWindow : Window, IShellHost
         Timeline.Visibility = show ? Visibility.Collapsed : Visibility.Visible;
         if (show)
         {
-            _timelineBeforeMixer = TimelineRow.ActualHeight;
             double room = Root.ActualHeight - 240 - 80;
             TimelineRow.Height = new GridLength(Math.Max(TimelineRow.ActualHeight, Math.Min(520, room)));
         }
-        else if (_timelineBeforeMixer is { } height)
+        else
         {
-            TimelineRow.Height = new GridLength(height);
-            _timelineBeforeMixer = null;
+            ApplyTimelineShare();
         }
     }
-
-    private double? _timelineBeforeMixer;
 }

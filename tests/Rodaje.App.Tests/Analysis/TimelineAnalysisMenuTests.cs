@@ -8,13 +8,13 @@ public sealed class TimelineAnalysisMenuTests
     public void ElMenuDeClipSoloIncluyeHerramientasDelMedioYRecuperaReducirRuido()
     {
         Assert.Equal(
-            ["analysis.silences", "analysis.beats", "analysis.ducking", "analysis.noise"],
+            ["analysis.silences", "analysis.beats", "analysis.ducking", "analysis.syncAudio", "analysis.noise"],
             QuickTools.ContextMenuActionIds(hasAudio: true, hasVideo: false));
         Assert.Equal(
             ["analysis.stabilize", "analysis.autocolor", "analysis.whitebalance", QuickTools.RemoveBackground, QuickTools.Reframe],
             QuickTools.ContextMenuActionIds(hasAudio: false, hasVideo: true));
         Assert.Equal(
-            ["analysis.silences", "analysis.beats", "analysis.ducking", "analysis.noise", "analysis.stabilize", "analysis.autocolor", "analysis.whitebalance", QuickTools.RemoveBackground, QuickTools.Reframe],
+            ["analysis.silences", "analysis.beats", "analysis.ducking", "analysis.syncAudio", "analysis.noise", "analysis.stabilize", "analysis.autocolor", "analysis.whitebalance", QuickTools.RemoveBackground, QuickTools.Reframe],
             QuickTools.ContextMenuActionIds(hasAudio: true, hasVideo: true));
         Assert.Empty(QuickTools.ContextMenuActionIds(hasAudio: false, hasVideo: false));
     }

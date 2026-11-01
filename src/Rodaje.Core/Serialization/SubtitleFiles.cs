@@ -22,6 +22,9 @@ public sealed record SubtitleFileContent(IReadOnlyList<SubtitleCue> Cues, int Sk
 /// </summary>
 public static partial class SubtitleFiles
 {
+    /// <summary>Tamaño máximo de un archivo de subtítulos al leerlo (un .srt de película entera pesa unos cientos de KB).</summary>
+    public const long MaxFileBytes = 32L << 20;
+
     private const long TicksPerMillisecond = Time.TicksPerSecond / 1000;
 
     public static SubtitleFormat FormatOf(string path) =>
@@ -42,6 +45,11 @@ public static partial class SubtitleFiles
     /// <summary>Lee el archivo: UTF-8 o UTF-16 con BOM, UTF-8 sin BOM y, si no es UTF-8 válido, Windows Latin 1.</summary>
     public static SubtitleFileContent Read(string path)
     {
+        if (new FileInfo(path).Length > MaxFileBytes)
+        {
+            throw new InvalidDataException($"«{Path.GetFileName(path)}» pesa más de {MaxFileBytes >> 20} MB, demasiado para ser un archivo de subtítulos.");
+        }
+
         byte[] bytes = File.ReadAllBytes(path);
         return Parse(Decode(bytes));
     }

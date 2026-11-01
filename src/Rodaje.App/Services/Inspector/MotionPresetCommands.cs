@@ -16,27 +16,37 @@ public static class MotionPresetCommands
     /// transformación que el clip tiene en su primer cuadro. Los segundos de la animación son de la línea de tiempo y se
     /// llevan al tiempo de los keyframes del clip (<see cref="EffectCommands.KeyframeTime"/>).
     /// </summary>
-    public static SequenceEditCommand Apply(string sequenceId, string clipId, string presetId)
+    public static SequenceEditCommand Apply(string sequenceId, string clipId, string presetId) =>
+        Apply(sequenceId, [clipId], presetId);
+
+    /// <summary>
+    /// Aplica la animación a uno o varios clips en un solo paso del historial.
+    /// </summary>
+    public static SequenceEditCommand Apply(string sequenceId, IReadOnlyList<string> clipIds, string presetId)
     {
+        ArgumentNullException.ThrowIfNull(clipIds);
         MotionPreset preset = MotionPresets.Find(presetId) ?? throw new ArgumentException($"No hay una animación «{presetId}».", nameof(presetId));
         return new SequenceEditCommand($"Animación «{preset.Name}»", sequenceId, ctx =>
         {
             List<string> created = [];
-            if (EffectEdits.EnsureEffect(ctx, clipId, BuiltInEffects.Transform) is { } id)
+            foreach (string clipId in clipIds)
             {
-                created.Add(id);
-            }
+                if (EffectEdits.EnsureEffect(ctx, clipId, BuiltInEffects.Transform) is { } id)
+                {
+                    created.Add(id);
+                }
 
-            Clip clip = ctx.Sequence.GetClip(clipId).Clip;
-            EffectInstance effect = clip.Effects.Find(e => e.Type == BuiltInEffects.Transform && e.Enabled)
-                ?? clip.Effects.Find(e => e.Type == BuiltInEffects.Transform)!;
-            Time first = EffectCommands.KeyframeTime(clip, clip.Start);
-            var from = new MotionBase(Value(effect, T.X, first), Value(effect, T.Y, first), Value(effect, T.Scale, first), Value(effect, T.Rotation, first));
-            IReadOnlyDictionary<string, IReadOnlyList<MotionKey>> keys =
-                MotionPresets.Build(presetId, ctx.Sequence.Width, ctx.Sequence.Height, clip.Duration.ToSeconds(), from);
-            foreach ((string name, IReadOnlyList<MotionKey> list) in keys)
-            {
-                EffectEdits.ReplaceKeyframes(ctx, clipId, effect.Id, name, ToClip(clip, list));
+                Clip clip = ctx.Sequence.GetClip(clipId).Clip;
+                EffectInstance effect = clip.Effects.Find(e => e.Type == BuiltInEffects.Transform && e.Enabled)
+                    ?? clip.Effects.Find(e => e.Type == BuiltInEffects.Transform)!;
+                Time first = EffectCommands.KeyframeTime(clip, clip.Start);
+                var from = new MotionBase(Value(effect, T.X, first), Value(effect, T.Y, first), Value(effect, T.Scale, first), Value(effect, T.Rotation, first));
+                IReadOnlyDictionary<string, IReadOnlyList<MotionKey>> keys =
+                    MotionPresets.Build(presetId, ctx.Sequence.Width, ctx.Sequence.Height, clip.Duration.ToSeconds(), from);
+                foreach ((string name, IReadOnlyList<MotionKey> list) in keys)
+                {
+                    EffectEdits.ReplaceKeyframes(ctx, clipId, effect.Id, name, ToClip(clip, list));
+                }
             }
 
             return created;

@@ -404,6 +404,42 @@ public class EditorSessionTests
     });
 
     [Fact]
+    public void Importar_ConUnGestoAbierto_EsperaAQueTermineYEntra() => UiThread.Run(async () =>
+    {
+        var prober = new GatedProber(new FakeProber().Video("a.mp4"));
+        var session = new EditorSession(new FakePlayback(), prober, new FakeDialogs(), new SequentialIdGenerator());
+        Task<ImportResult> importing = session.ImportMediaAsync([Path.GetFullPath("a.mp4")]);
+        session.BeginGesture("Arrastrar un clip");
+        prober.Release();
+        // Deja de estar ocupada al terminar la lectura, y en esa misma vuelta la importación ya miró el gesto.
+        while (session.IsBusy)
+        {
+            await Task.Delay(10);
+        }
+
+        Assert.False(importing.IsCompleted);
+        Assert.Empty(session.Project.Media);
+        session.EndGesture();
+
+        Assert.Single((await importing).MediaIds);
+        Assert.Single(session.Project.Media);
+        Assert.Equal("Importar medio", session.UndoDescription);
+    });
+
+    [Fact]
+    public void Importar_ConUnAudioAntes_ElPrimerVideoTomaElFormato() => UiThread.Run(async () =>
+    {
+        var h = new Harness();
+        h.Prober.Audio("musica.mp3").Video("a.mp4", 10, 3840, 2160, new Rational(25, 1)).Video("b.mp4", 5);
+
+        await h.Session.ImportMediaAsync(["musica.mp3"]);
+        await h.Session.ImportMediaAsync(["a.mp4", "b.mp4"]);
+
+        Assert.Equal(3840, h.Session.Sequence.Width);
+        Assert.Equal(new Rational(25, 1), h.Session.Sequence.FrameRate);
+    });
+
+    [Fact]
     public void DosGuardadosSeguidos_VanEnFilaYQuedaElUltimo() => UiThread.Run(async () =>
     {
         using var dir = new TempDirectory();

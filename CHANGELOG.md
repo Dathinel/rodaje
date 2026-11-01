@@ -6,13 +6,109 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ---
 
+## [Sin publicar]
+
+Lo que va a la 1.1, con ideas tomadas de los editores de referencia.
+
+### Corregido
+- **Pegar tras importar:** si cambia el proyecto, la secuencia o el cursor mientras se leen los medios, se avisa y se descarta la importación sin alterar la biblioteca ni pegar en otro destino.
+- **RAW:** los patrones CFA deben repetir el bloque Bayer 2×2 en sus ocho filas; los demás se revelan en la CPU con LibRaw.
+- **Portapapeles:** copiar, reenlazar un medio y pegar en el mismo proyecto conserva su identificador aunque cambie la ruta del archivo.
+- **Autoguardado:** guardar Preferencias con el mismo intervalo conserva el vencimiento de los cambios pendientes.
+- **CinemaDNG:** el diálogo tiene en cuenta el soporte de mosaicos del módulo y mantiene visible la calidad mientras se desconoce si el cuadro permite revelar en la GPU; el texto explica el respaldo en CPU.
+
+### Añadido
+- **CinemaDNG revelado en la GPU** (D-059, `docs/hdr.md`, fase D): con GPU, Importar CinemaDNG pide el mosaico Bayer sin interpolar a `modulo-raw` (1.1.0) y lo revela en Direct3D 11 antes de escribir ProRes, reportando ms/cuadro. Sin GPU o con RAW no Bayer se respalda en LibRaw en CPU. Detalle de la receta y pruebas en `docs/hdr.md`.
+- **Secuencias HDR (parte 3)** (D-058, `docs/hdr.md`): «Medir MaxCLL/MaxFALL antes de codificar» en la exportación HDR10 (pasada previa que mide la composición en la GPU y escribe lo medido en el archivo; sin ella siguen los valores declarados). «Expandir a HDR» por clip en Propiedades › Opacidad y mezcla (apagado; pico en «Brillo de referencia HDR», 203–1000 nits): sube las luces de un clip SDR con la curva inversa de BT.2446 método A anclada en el gris del 18 %, que no se mueve. La LUT y las curvas trabajan en PQ en una secuencia HDR (una LUT se interpreta como LUT de HDR10; lo que pasa de 203 nits ya no se recorta al borde de la tabla). La miniatura de la exportación y los osciloscopios recortan a SDR como el visor. «Visor HDR: Siempre» ya no quema la imagen en un monitor SDR: se pregunta a Windows (DisplayConfig) por el monitor de la ventana. Una secuencia SDR no cambia ni un bit.
+- **Personalización, segunda vuelta** (D-057): «Seguir a Windows» cambia al momento cuando Windows pasa de claro a oscuro o al revés con la app abierta; las pistas de video y de audio tienen su color de fondo en el editor de temas (el `.rodaje-tema` pasa a la versión 2 y los de la versión 1 se migran solos); los controles de WinUI toman el tinte del tema por niveles, así un tema de paneles azulados no deja botones ni menús en gris; el tamaño del texto de la línea de tiempo se aplica al guardar Preferencias a lo ya dibujado; la zona de arrastre de la barra de título se calcula con la escala de la interfaz (90–125 %).
+- **Ruedas de color: rueda de Desplazamiento:** una cuarta rueda y su nivel (`offset`, de −0,5 a 0,5) corren toda la imagen por igual, negros incluidos, antes de sombras, medios y luces; los proyectos sin el parámetro siguen igual.
+- **Exportar › «Otros proyectos…»:** elige varios archivos `.rodaje` y entran todos a la cola con los ajustes de ahora, cada uno con su secuencia entera y junto a su archivo (con un número si ya existe); un diálogo lista lo que sale y lo que se salta, y los trabajos siguen en Trabajos como siempre.
+- **Montaje al ritmo** (en Detectar ritmo): con la música y los clips del montaje seleccionados, «Ajustar al ritmo los otros N clips seleccionados» hace que cada clip termine en el pulso que le toca (cada pulso, cada 2, cada 4, cada 8) y corre lo que sigue en su pista; sin pasar del material de cada clip, con los enlazados y en un paso del historial.
+- **Sincronizar por el sonido** (Herramientas › Audio, menú del clip y barra «Herramientas»): con dos o más clips con sonido elegidos en la línea de tiempo (la cámara y la grabadora, dos cámaras), compara sus formas de onda y mueve los demás, con sus enlazados, para que suenen a la vez que el que empieza antes; un paso del historial, con el desfase en fotogramas en el aviso.
+- **Exportar › Avanzado: «Muestreo de color» y «Copiar la línea de ffmpeg»:** el submuestreo (4:2:0, 4:2:2 o 4:4:4, según el codificador) se elige en Avanzado y se ve en la línea «Formato»; y un enlace copia al portapapeles los argumentos exactos con los que Rodaje lanza `ffmpeg.exe` con esos ajustes (codificador, control de tasa, perfil, GOP, `-pix_fmt`, color, audio y contenedor), para leerlos o repetirlos a mano.
+- **Proyectos recientes:** Archivo › Proyectos recientes lista los últimos diez proyectos con la ruta abreviada; los que ya no existen se quitan solos y «Vaciar la lista» la limpia.
+- **Autoguardado configurable:** Preferencias › General › Autoguardado fija cada cuántos minutos (1 a 30) se hace una copia mientras se edita, y la barra de estado dice «Guardado hace N min» (o «Copia automática hace N min» si la copia es más nueva que el guardado).
+- **Ir a tiempo (Ctrl+J, Reproducción › Ir a tiempo…):** un cuadro para escribir `1:23`, `1:23.5`, `83`, `120f` o un salto (`+10`, `-2s`) y llevar el cursor ahí. Ctrl+G sigue siendo Agrupar.
+- **Copiar, duplicar y pegar clips:** Ctrl+C copia la selección con sus enlazados y grupos, Ctrl+D (Ctrl+Mayús+D en Clásico) la duplica justo a continuación en sus pistas y Ctrl+Mayús+V (o Ctrl+V) la pega en el cursor tapando lo que haya; en Editar y en el menú del clip, un paso de deshacer cada uno.
+- **Portapapeles, segunda vuelta:** **Pegar insertando** (Ctrl+Alt+V) abre espacio en las pistas destino corriendo el resto en vez de taparlo; copiar y duplicar conservan las transiciones entre clips; y al pegar en otro proyecto se importan automáticamente los medios faltantes (`docs/guia/edicion.md`).
+- **Exportar entre la entrada y la salida:** con las marcas I y O de la secuencia (o un tramo marcado con la herramienta de rango), el panel de exportación ofrece «Entre la entrada y la salida» y se abre en ese rango; con una sola marca, la otra es el principio o el final de la secuencia.
+- **Solo desde la cabecera de pista:** la cabecera de cada pista de audio tiene la **S** del mezclador (Ctrl+clic: solo exclusivo), también en su menú; los clips de las pistas que callan por un solo se ven velados. Acciones «Silenciar u ocultar», «Solo» y «Bloquear la pista elegida» para el teclado, sin tecla de fábrica.
+- **Asas de fundido en los clips de audio:** dos cuadritos en las esquinas de arriba de cada clip de audio se arrastran para fijar los fundidos de entrada y de salida, con globo de segundos y la zona apagada dibujada sobre el clip; un arrastre es un paso del historial. Propiedades › Audio › **Curva** elige potencia constante, lineal o exponencial (opción `fadeShape` del efecto de audio, sin subir el formato: una versión anterior funde en potencia constante). En el menú del clip, «Fundido de entrada hasta el cursor» y «Fundido de salida desde el cursor» (acciones sin tecla de fábrica).
+- **Aviso de versión nueva:** al arrancar, como mucho una vez al día, Rodaje consulta la última release publicada en GitHub (sin enviar nada tuyo) y, si hay una más nueva, lo dice en la barra de avisos con «Ver novedades» (abre la página de la release) y «Más tarde» (no vuelve a avisar de esa versión). Se apaga en Preferencias › General › «Avisar cuando haya una versión nueva», y Ayuda › Buscar actualizaciones... consulta en el momento y responde también «Tienes la última versión» o «No se pudo comprobar».
+- **Atajos visibles:** los menús del clip y de la cabecera de pista muestran la tecla vigente de cada acción, como ya hacían los menús de arriba; Ayuda › Hoja de atajos (imprimible)… pregunta dónde guardar una página con todos los atajos del estilo actual; y la guía `docs/guia/atajos.md` se genera desde el catálogo de la app (una prueba la compara), así nunca se desincroniza.
+- **Menú Reproducción:** Reproducir o pausar, Fotograma anterior y siguiente, Ir al inicio, Ir al final, Ir a tiempo… y Capturar fotograma, en un menú propio entre Editar y Secuencia.
+
+### Cambiado
+- **Ctrl+C y Ctrl+V con el foco en una lista** (las fichas de la biblioteca, los marcadores) son de la lista, como Supr y Ctrl+A: no copian ni pegan clips de la línea de tiempo. Ctrl+Mayús+V sigue pegando en el cursor desde cualquier sitio salvo un campo de texto; la guía de atajos lo explica.
+- **Autoguardado:** al cambiar el intervalo en Preferencias, el intervalo nuevo se cuenta desde ese momento, no desde el primer cambio sin copia.
+- **Hojas de atajos:** «Guardar como página (HTML)…» y «Guardar como imagen (PNG)…» de la hoja rápida, y Ayuda › Hoja de atajos (imprimible)…, abren el diálogo de guardar en lugar de escribir en Documentos sin preguntar; se recuerda la carpeta elegida.
+
+## [1.0.2] - 2026-10-31
+
+Buena parte sale de editar un video real para Instagram.
+
+### Añadido
+- **Personalización** (#456): pestañas «Personalización» y «Temas» en Preferencias. Tema Grafito, Claro, Alto contraste o «Seguir a Windows»; acento de ocho colores o personalizado con ajuste automático a 3:1; escala de la interfaz (90–125 %) y tamaño del texto de la línea de tiempo. Editor de temas propios por grupos con vista previa en vivo, comprobación AA, duplicar, renombrar, eliminar, importar y exportar `.rodaje-tema`. Espacios de trabajo desde Preferencias, formato y carpeta de los proyectos nuevos, y perfil `.rodaje-perfil` con todo lo anterior más atajos y ratón; «Restablecer todo» con confirmación (D-056).
+- **Imágenes fijas como clips:** PNG, JPEG, WebP, BMP y TIFF, también con transparencia. Duración inicial configurable en Preferencias (5 s por defecto) y recorte libre. Respeta la orientación EXIF y reduce a 8192 px las imágenes más grandes (#430, #431, #434).
+- **Efecto Ken Burns** para fotos, con 4 preajustes en el menú del clip: acercar, alejar y desplazar a la izquierda o a la derecha (#434).
+- **Captura de fotograma rápida:** botón de cámara en el visor y `Ctrl+Mayús+C`. Guarda en la carpeta `Capturas` del proyecto sin diálogo y ofrece añadirla a la biblioteca (#434).
+- **Pistas:** eliminar desde el menú de la cabecera o con Supr, y reordenar arrastrando la cabecera o con Subir y Bajar pista (#437).
+- **Selección múltiple:** los clips seleccionados se mueven juntos, y posición, escala, rotación, opacidad, volumen y fundidos se editan a la vez en el inspector; los valores distintos se muestran como «—» (#436).
+- **Selección múltiple, parte 2:** restablecer, voltear, modo de mezcla, preajustes, velocidad fija, filtros, máscaras y estilo de texto se aplican a todos los clips seleccionados en un solo paso de deshacer, con «—» en los valores mixtos; la sombra de arrastre muestra el grupo entero (#448).
+- **Gráfica de fotogramas clave:** pestaña «Gráfica» en el inspector (y en Ver › Paneles) con la curva Bézier del parámetro elegido: puntos arrastrables en tiempo y valor, asas en todas las claves seleccionadas, selección por recuadro, Supr, copiar y pegar, y la rampa de velocidad del clip como un parámetro más. Cada arrastre es un paso de deshacer (#443, #446).
+- **HDR a SDR:** los videos PQ y HLG (BT.2020) se convierten a BT.709 con mapeo de tonos en la vista previa y en la exportación, con el parámetro animable «Brillo de referencia HDR» en Propiedades; antes salían con los colores apagados (#444, D-052).
+- **10 bits de punta a punta:** las fuentes de 12 bits y 4:4:4 (ProRes 4444, FFV1, DNxHR 444) ya no se bajan a 10 bits al decodificar, las imágenes fijas de 16 bits (PNG, TIFF, EXR) entran en 16 bits en vez de 8, y el visor usa 10 bits con un monitor de 10 bits (Preferencias › Rendimiento › «Visor de 10 bits»). Medido en `docs/hdr.md` (#447, #451, D-053 propuesta).
+- **Secuencias HDR (parte 1):** el formato de proyecto 15 guarda el espacio de color de la secuencia (`colorSpace`: `sdr-709`, `hdr-pq` o `hdr-hlg`; sin HDR se sigue guardando en 13 o 14). Una secuencia HDR se exporta en BT.2020 con PQ o HLG en HEVC Main 10, AV1 de 10 bits y ProRes, con el blanco SDR en 203 nits (BT.2408) y, en PQ, la pantalla de masterizado y MaxCLL/MaxFALL en el archivo. Las miniaturas y la tira de fotogramas de un medio HDR ya se ven convertidas a SDR. El compositor sigue en SDR: la selección en la interfaz, la mezcla en lineal y el visor HDR llegan en la parte 2 (D-054, `docs/hdr.md`).
+- **Secuencias HDR (parte 2)** (#455): una secuencia HDR10 o HLG se compone en luz lineal BT.2020 con el blanco SDR en 203 nits y sin recortar las luces: un clip PQ de 1000 nits llega entero al archivo, las capas SDR, títulos e imágenes entran a 203 nits y la mezcla y los efectos van en lineal. «Formato del proyecto…» ofrece el espacio de color (SDR BT.709, HDR10 (PQ), HLG). Con Windows en modo HDR el visor muestra la secuencia en HDR (scRGB; Preferencias › Rendimiento › «Visor HDR»); sin pantalla HDR la muestra en SDR recortando lo que pasa de 203 nits y lo dice en la barra. El panel de exportación avisa si la salida va en HDR10/HLG o por qué cae a SDR. Una secuencia SDR no cambia ni un bit (D-055, `docs/hdr.md`).
+- **Índice firmado:** tipo de entrada «app» para las herramientas que se descargan aparte (Subtitular, Rastrear, Lanzador); Rodaje las omite y sigue viendo solo complementos y módulos (#445).
+
+### Cambiado
+- **Video encima de otro:** su sonido va a la primera pista de audio libre, o a una nueva, sin tener que separarlo (#437).
+- **Quitar silencios** cierra los huecos por defecto (#435).
+- **Pegar atributos** copia también el estilo del texto y de los subtítulos (fuente, tamaño, color, contorno, fondo, animaciones) y las sombras, pero no las palabras (#435).
+- **Ventanas estrechas:** el inspector se pliega por debajo de 788 px de ancho y la biblioteca por debajo de 544. Las pestañas del inspector se desplazan y la barra de título se compacta (#428).
+- **Marcadores juntos en la regla:** sus nombres se recortan en lugar de pisarse. El nombre de la GPU se abrevia en la barra de título (#432).
+- **Línea de tiempo:** ocupa el 42 % del alto de la ventana (mínimo 268 px, 3 pistas), con divisor de 8 px y pestaña (doble clic alterna 30 % y 55 %; Ver › Distribución). La rueda sube y baja por las pistas, Mayús+rueda desplaza en el tiempo, Ctrl+rueda hace zoom y Alt+rueda cambia el alto de pista; el estilo Clásico no cambia. Mayús+Z es «Ajustar a la secuencia» y el zoom se ajusta al abrir un proyecto. Las herramientas de IA pasan a un desplegable «Herramientas ▾». Con el arrastre cerca de los bordes la vista se desplaza sola. El inspector sin selección muestra la secuencia y «Formato del proyecto…» (#439, D-051).
+- **Transición por defecto:** guarda defensiva si no hay transición configurada (#440).
+- **Etiqueta de Preferencias** más clara: «Traer también el audio de los medios que caigan en estas pistas de video» (#440).
+- **Formato de proyecto 14,** solo si el proyecto contiene fotos. Sin fotos se sigue guardando en el 13, que abre la 1.0.1 (D-050).
+- **CI:** la de Windows publica la app y la arranca (autoprueba con WARP, 3 min), y `release.yml` crea la release en borrador solo al lanzarlo a mano (#442). Las pruebas intermitentes se han asentado: la instantánea del arnés de estrés ya no corre en paralelo y las fugas de hilos se cuentan por mediana (#449).
+- **Rendimiento:** en pausa el reproductor espera por señal (CPU en reposo 1,5 → 0,9 %), las filas fuera de pantalla no se materializan y una miniatura nueva solo redibuja sus clips (p95 al desplazar 34 → 12 ms) (#460).
+
+### Corregido
+- **Archivo › Salir** pregunta por los cambios sin guardar y por los trabajos en curso como la X, y ya no borra la copia de autoguardado; tras un cierre inesperado sale un solo aviso con «Recuperar» y «Copiar informe»; la ventana se abre dentro de la pantalla (#465).
+- **Herramientas de IA:** Estabilizar empieza a analizar al abrir; Quitar fondo y Reencuadre no lanzan el módulo dos veces; Importar CinemaDNG tiene progreso y Cancelar; cerrar con trabajos en curso pide confirmación; los lectores de miniaturas sueltan el archivo al quitarlo del proyecto (#457, #470).
+- **Exportar:** «Varias versiones» ya no sobrescribe archivos ni ignora el modo de subtítulos, y no deja exportar si hay problemas; nombres con puntos, salidas aún en cola, carpetas de secuencias de imágenes y preajustes propios repetidos ya no se pisan; la captura de fotograma sale del visor de origen cuando está activo y no sobrescribe otra (#458, #463).
+- **Línea de tiempo:** borrar video y audio enlazados en la pista principal magnética; alto de pista estable al arrastrar; cortar con una selección que no pasa por el cursor avisa; empujar con «Ignorar grupos»; un marcador ya no se ajusta a sí mismo; un clic dentro de una selección deja solo ese clip (#458, #466).
+- **Inspector con varios clips:** velocidad, filtros, máscaras, rombo de keyframes, restablecer y estilo de texto se aplican a todos los seleccionados en un solo paso y sin pasos vacíos; la curva de velocidad se arrastra desde la instantánea del gesto (#459, #467, #471).
+- **Gráfica:** Retroceso borra puntos, el arrastre en grupo respeta los bordes del clip, el clic derecho selecciona el rombo, las asas vuelven a verse y el valor se lee al arrastrar; una curva plana ya no abre el eje a ±0,000001 (#462, #468).
+- **Visor:** el recuadro de transformación ya no se dibuja fuera del visor; un título con entrada añadido en pausa se ve (el cursor salta al final de la entrada); la calidad de la vista previa se aplica al guardar Preferencias; el visor de 10 bits y el HDR se cambian sin reiniciar (#459, #462, #464).
+- **Preferencias:** alto fijo (no salta al cambiar de pestaña); el perfil y los temas solo se aplican al pulsar Guardar; el tema Claro deja legibles los controles de WinUI (#456, #462, #472).
+- **Medios:** el aviso de carpetas vigiladas se ve aunque la biblioteca esté vacía; importar durante un gesto ya no se pierde; una foto ya no fija el formato de la secuencia; las miniaturas vuelven al reaparecer el archivo; se pueden soltar carpetas (#469).
+- **Inspector:** un número escrito sin pulsar Intro (Propiedades, Filtros, Dinámica y Texto) se aplica al clip que se estaba editando aunque el clic que saca el foco elija otro clip; antes iba al clip nuevo o se perdía (#475).
+- **Cuadro numérico del inspector:** un valor largo (7051 en Escala) se ve entero y, tras confirmar, el cuadro muestra el valor realmente aplicado; con el foco en un cuadro de texto, Ctrl+A y Fin actúan sobre el texto y no sobre los clips (#452).
+- **Informe de fallo con el equipo sobrecargado:** el error y la pila ya no salen tapados por «se agotó el tiempo del limpiador»; el tope del limpiador cuenta trabajo, no segundos (#474).
+- **Informe de fallo con un disco lento:** si escribir el informe tarda más de 10 s, las repeticiones del mismo error se cuentan en ese informe en vez de abrir uno nuevo y otro aviso cada vez (#474).
+- **Módulos de IA:** si un módulo no se conecta a tiempo, el error incluye lo que el módulo escribió en su salida de error, para saber por qué.
+- **Cierre:** un refresco de complementos que terminaba después de cerrar la ventana podía tumbar la app (`ObjectDisposedException` en el reproductor) (#450).
+- **Nombres con acentos dañados** («SubtÃ­tulos») en proyectos tocados con una herramienta externa se reparan al abrir (#450).
+- **Barra de la línea de tiempo a 1366 px:** marcadores, regiones y los interruptores secundarios se pliegan en un botón «…» antes que Deshacer y Rehacer, que ya no desaparecen (#450).
+- **Término único «fotograma»** en toda la interfaz (antes alternaba con «cuadro») (#450).
+- **Exportación:** las últimas filas podían salir negras en algunos equipos. Las texturas intermedias del render se reutilizaban sin limpiar (#433).
+- **Importación masiva:** ahora tiene un límite de análisis simultáneos y una ruta repetida ya no se analiza dos veces (#425).
+- **Automatización del mezclador:** la de tipo «tocar» respeta una curva Mantener tras el retorno (#389).
+- **Instalador:** ya no sale incompleto si la carpeta de la app estaba oculta (#427).
+- **Archivos hostiles:** tope de 256 MB para el `.rodaje` y de 32 MB para los subtítulos, con mensaje en español (#440).
+- **Menú y documentación:** separador duplicado y nombre huérfano en el menú, esquema v14 y texto del historial de la 1.0.1 sobre Preferencias (#440).
+- **Paneles con desbordes:** Exportar › Avanzado, Complementos y Biblioteca (#429).
+
 ## [1.0.1] - 2026-10-16
 
 Esta versión se centra en la estabilidad integral del motor de edición, la prevención de bloqueos ante fallos de hardware o archivos dañados, la compatibilidad hacia atrás del formato de proyecto, el blindaje de pruebas y la reorganización limpia de la interfaz (menús, preferencias y paneles contextuales).
 
 ### Añadido
 - **Menú Secuencia y Formato del proyecto:** Nuevo menú de nivel superior para ajustar propiedades de la secuencia activa, resolución y tasa de fotogramas sin depender de atajos ocultos.
-- **Ventana de Preferencias (`Ctrl+,`):** Diálogo centralizado para configurar carpetas de trabajo, caché de previsualización, límites de VRAM y comportamiento de autoguardado.
+- **Ventana de Preferencias (`Ctrl+,`):** Diálogo centralizado para configurar las pistas de los proyectos nuevos, las carpetas de medios generados y de capturas, los proxies, la calidad de la vista previa y el estilo de teclado.
 - **Acceso rápido a Reducción de ruido:** Integración directa en el menú contextual de clips de audio y en la barra de herramientas.
 - **Diagnóstico local de incidencias:** Informe de fallo en `%LOCALAPPDATA%\Rodaje\fallos\` ante cierres imprevistos, sin telemetría externa; al volver a abrir, la app avisa y deja copiar el informe.
 - **Edición de tres puntos en el menú Secuencia:** Insertar, Sobrescribir, Reemplazar, Ajustar a rellenar y Superponer desde el origen; además, Añadir pista de video y de audio y Cerrar todos los huecos.

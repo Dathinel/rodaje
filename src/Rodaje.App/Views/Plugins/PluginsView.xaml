@@ -33,9 +33,9 @@
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
                             Visibility="{x:Bind DownloadIdleVisibility, Mode=OneWay}">
-                    <Button Content="{x:Bind InstallText}" Visibility="{x:Bind InstallVisibility}" IsEnabled="{x:Bind CanDownload}" Click="OnInstallClick"
+                    <Button Content="{x:Bind InstallText}" Visibility="{x:Bind InstallVisibility}" IsEnabled="{x:Bind CanDownload, Mode=OneWay}" Click="OnInstallClick"
                             ToolTipService.ToolTip="{x:Bind InstallTooltip}" />
-                    <Button Content="Desinstalar" Visibility="{x:Bind UninstallVisibility}" IsEnabled="{x:Bind CanUninstallNow}" Click="OnUninstallClick" />
+                    <Button Content="Desinstalar" Visibility="{x:Bind UninstallVisibility}" IsEnabled="{x:Bind CanUninstallNow, Mode=OneWay}" Click="OnUninstallClick" />
                 </StackPanel>
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
                             Visibility="{x:Bind DownloadActiveVisibility, Mode=OneWay}">
@@ -55,7 +55,7 @@
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
-        <Grid ColumnSpacing="8">
+        <Grid Grid.Row="0" ColumnSpacing="8">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -82,8 +82,8 @@
             </StackPanel>
         </Border>
 
-        <ScrollViewer Grid.Row="3" HorizontalScrollMode="Disabled">
-            <StackPanel Spacing="8" Padding="0,0,12,0">
+        <ScrollViewer Grid.Row="3" HorizontalScrollMode="Disabled" VerticalScrollBarVisibility="Auto" VerticalScrollMode="Enabled">
+            <StackPanel Spacing="8" Padding="0,4,12,8">
                 <TextBlock Text="Contenido" Style="{StaticResource HeaderTextStyle}" Margin="0,4,0,2" />
                 <ItemsControl ItemsSource="{x:Bind ContentPackages}" ItemTemplate="{StaticResource PluginTemplate}" />
                 <Border x:Name="ContentEmptyState" Visibility="Collapsed" Background="{StaticResource ControlBrush}"

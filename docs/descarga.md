@@ -16,7 +16,7 @@ Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Decisi�
 ## Estado
 
 - **Clave**: la privada vive fuera del repositorio, en `%USERPROFILE%\.rodaje-claves\catalogo-privada.pem` de quien publica (`*.pem` está en `.gitignore`), con al menos dos respaldos físicos fuera del equipo; la pública, en `clave-catalogo.txt`. Si se pierde, los Rodaje ya publicados no aceptarán índices nuevos; si alguien la copia, se genera otra con `-NuevaClave -Reemplazar` y se publica una versión nueva de Rodaje.
-- **Catálogo**: `Dathinel/rodaje-catalogo` (público, CC0, sin código), release `v7` (13-oct, 80 entradas: la v6 sumó `rodaje-codificadores-gpl` 0.2.0 y la v7 `rodaje-transiciones` 1.2.0) con todo lo publicado:
+- **Catálogo**: `Dathinel/rodaje-catalogo` (público, CC0, sin código), release `v8` (25-oct, 83 entradas: la v6 sumó `rodaje-codificadores-gpl` 0.2.0, la v7 `rodaje-transiciones` 1.2.0 y la v8 las entradas `app` de Subtitular, Rastrear y Lanzador) con todo lo publicado:
 
 | Repositorio | Versiones | `.paquete` | Modelos |
 |---|---|---|---|

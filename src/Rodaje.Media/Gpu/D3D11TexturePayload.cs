@@ -27,7 +27,7 @@ public sealed unsafe class D3D11TexturePayload : IDisposable
     private FF.AVFrame* _frame;
     private ID3D11Texture2D* _ownedTexture;
 
-    private D3D11TexturePayload(GpuDevice device, ID3D11Texture2D* texture, int arraySlice, int width, int height)
+    private D3D11TexturePayload(GpuDevice device, ID3D11Texture2D* texture, int arraySlice, int width, int height, FramePixelFormat? pixelFormat = null)
     {
         D3D11_TEXTURE2D_DESC desc;
         texture->GetDesc(&desc);
@@ -35,10 +35,13 @@ public sealed unsafe class D3D11TexturePayload : IDisposable
         Texture = (nint)texture;
         ArraySlice = arraySlice;
         DxgiFormat = (int)desc.Format;
-        PixelFormat = desc.Format switch
+        PixelFormat = pixelFormat ?? desc.Format switch
         {
             DXGI_FORMAT.DXGI_FORMAT_NV12 => FramePixelFormat.Nv12,
             DXGI_FORMAT.DXGI_FORMAT_P010 => FramePixelFormat.P010,
+            DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM => FramePixelFormat.Bgra8,
+            DXGI_FORMAT.DXGI_FORMAT_P016 => FramePixelFormat.P016,
+            DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_UNORM => FramePixelFormat.Rgba16,
             _ => FramePixelFormat.Other,
         };
         CodedWidth = (int)desc.Width;
@@ -55,7 +58,7 @@ public sealed unsafe class D3D11TexturePayload : IDisposable
 
     public int ArraySlice { get; }
 
-    /// <summary>Valor de <c>DXGI_FORMAT</c>: 103 (NV12) o 104 (P010).</summary>
+    /// <summary>Valor de <c>DXGI_FORMAT</c>: 103 (NV12), 104 (P010), 105 (P016), 87 (BGRA) u 11 (RGBA16).</summary>
     public int DxgiFormat { get; }
 
     public FramePixelFormat PixelFormat { get; }
@@ -157,9 +160,13 @@ public sealed unsafe class D3D11TexturePayload : IDisposable
         return new D3D11TexturePayload(device, native, arraySlice, width, height) { _ownedTexture = native, Color = color };
     }
 
-    /// <summary>Envuelve una textura propia y se queda con su referencia.</summary>
-    internal static D3D11TexturePayload FromOwnedTexture(GpuDevice device, ID3D11Texture2D* texture, int width, int height, VideoColor color) =>
-        new(device, texture, 0, width, height) { _ownedTexture = texture, Color = color };
+    /// <summary>
+    /// Envuelve una textura propia y se queda con su referencia. <paramref name="pixelFormat"/> dice cómo leer las muestras
+    /// cuando no se deduce del formato DXGI (P016 guardado en una textura P010).
+    /// </summary>
+    internal static D3D11TexturePayload FromOwnedTexture(GpuDevice device, ID3D11Texture2D* texture, int width, int height, VideoColor color,
+        FramePixelFormat? pixelFormat = null) =>
+        new(device, texture, 0, width, height, pixelFormat) { _ownedTexture = texture, Color = color };
 
     private void Free()
     {

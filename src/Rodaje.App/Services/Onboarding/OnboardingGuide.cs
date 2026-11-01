@@ -38,7 +38,7 @@ public static class OnboardingGuide
         new(TourTarget.Player, "2 · Mira el resultado",
             "Espacio reproduce y pausa; J, K y L van hacia atrás, paran y avanzan. F o doble clic pone el visor en pantalla completa."),
         new(TourTarget.Tools, "3 · Herramientas rápidas",
-            "Quitar silencios, subtítulos automáticos, color, ruido… Cada una actúa sobre lo que tengas seleccionado."),
+            "El botón Herramientas abre quitar silencios, subtítulos automáticos, color, ruido… Cada una actúa sobre lo que tengas seleccionado."),
         new(TourTarget.Timeline, "4 · La línea de tiempo",
             "Arrastra los clips para moverlos, sus bordes para recortarlos y S corta en el cursor. Ctrl+Z deshace cualquier paso."),
         new(TourTarget.Inspector, "5 · Ajusta cada clip",

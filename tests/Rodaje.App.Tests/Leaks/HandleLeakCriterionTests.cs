@@ -27,6 +27,13 @@ public sealed class HandleLeakCriterionTests
         // Hilos que entran y salen en cada muestra.
         int[] oscillating = [40, 52, 41, 55, 40, 60, 42, 51, 40, 58];
         Assert.Null(HandleLeakCriterion.Find(HandleLeakCriterion.UnthreadedEvents(Events(oscillating, 0), oscillating, PerThread)));
+
+        // En la CI de Windows (tarea 316): EventLeakMeasureTests suma 3 hilos por muestra mientras caduca un hilo ocioso
+        // del grupo en el primer tramo (65 → 67 y luego +3). La mediana del piso sigue en 3 y los Event sin los de los
+        // hilos no dan fuga.
+        int[] ciThreads = [65, 67, 70, 73, 76, 79, 82, 85, 88, 91];
+        Assert.Equal(3, HandleLeakCriterion.MedianFloorStep(ciThreads));
+        Assert.Null(HandleLeakCriterion.Find(HandleLeakCriterion.UnthreadedEvents(Events(ciThreads, 0), ciThreads, PerThread)));
     }
 
     [Fact]

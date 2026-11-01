@@ -27,6 +27,7 @@
                         PointerMoved="OnTilePointerMoved" PointerExited="OnTilePointerExited">
                     <Grid>
                         <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconHeroFontSize}" Foreground="{StaticResource TextMutedBrush}" Visibility="{x:Bind GlyphVisibility, Mode=OneWay}" />
+                        <Image Source="{x:Bind Checkerboard, Mode=OneWay}" Visibility="{x:Bind CheckerboardVisibility, Mode=OneWay}" Stretch="UniformToFill" />
                         <Image Source="{x:Bind Displayed, Mode=OneWay}" Stretch="UniformToFill" />
                         <Border Background="{StaticResource ScrimBrush}" CornerRadius="{StaticResource ControlCornerRadius}" Padding="4,1" Margin="4"
                                 HorizontalAlignment="Left" VerticalAlignment="Bottom" Visibility="{x:Bind SubclipVisibility}">
@@ -77,7 +78,8 @@
                     <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconFontSize}" Foreground="{StaticResource TextMutedBrush}" />
-                <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}" />
+                <TextBlock Grid.Column="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}"
+                           TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Name}" />
                 <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="4">
                     <TextBlock Text="{x:Bind RatingText, Mode=OneWay}" Foreground="{StaticResource AccentBrush}" FontSize="{StaticResource MicroFontSize}" VerticalAlignment="Center" Visibility="{x:Bind RatingVisibility, Mode=OneWay}" />
                     <TextBlock Text="Sin conexión" Foreground="{StaticResource DangerBrush}" FontSize="{StaticResource MicroFontSize}" VerticalAlignment="Center" Visibility="{x:Bind OfflineVisibility, Mode=OneWay}" />
@@ -86,19 +88,25 @@
                 </StackPanel>
                 <Grid Grid.Row="1" Grid.ColumnSpan="3" ColumnSpacing="4" Opacity="{x:Bind TileOpacity, Mode=OneWay}">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" MinWidth="58" />
+                        <ColumnDefinition Width="*" MinWidth="48" />
+                        <ColumnDefinition Width="*" MinWidth="34" />
+                        <ColumnDefinition Width="*" MinWidth="48" />
+                        <ColumnDefinition Width="*" MinWidth="52" />
+                        <ColumnDefinition Width="*" MinWidth="44" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="{x:Bind ResolutionText}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
-                    <TextBlock Grid.Column="1" Text="{x:Bind DurationText}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
-                    <TextBlock Grid.Column="2" Text="{x:Bind FrameRateText}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
-                    <TextBlock Grid.Column="3" Text="{x:Bind Codecs, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
-                    <TextBlock Grid.Column="4" Text="{x:Bind DateText, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
-                    <TextBlock Grid.Column="5" Text="{x:Bind CameraText, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                    <TextBlock Text="{x:Bind ResolutionText}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind ResolutionText}" />
+                    <TextBlock Grid.Column="1" Text="{x:Bind DurationText}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind DurationText}" />
+                    <TextBlock Grid.Column="2" Text="{x:Bind FrameRateText}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind FrameRateText}" />
+                    <TextBlock Grid.Column="3" Text="{x:Bind Codecs, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Codecs, Mode=OneWay}" />
+                    <TextBlock Grid.Column="4" Text="{x:Bind DateText, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind DateText, Mode=OneWay}" />
+                    <TextBlock Grid.Column="5" Text="{x:Bind CameraText, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind CameraText, Mode=OneWay}" />
                 </Grid>
                 <TextBlock Grid.Row="2" Grid.ColumnSpan="3" Text="{x:Bind TagsText, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
                            Foreground="{StaticResource AccentBrush}" Visibility="{x:Bind TagsVisibility, Mode=OneWay}" />
@@ -141,8 +149,10 @@
                 </Rectangle>
                 <FontIcon Glyph="{x:Bind Glyph}" FontSize="{StaticResource IconFontSize}" HorizontalAlignment="Left" Foreground="{StaticResource TextMutedBrush}"
                           Visibility="{x:Bind GlyphVisibility, Mode=OneWay}" />
-                <TextBlock Grid.Row="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}" />
-                <TextBlock Grid.Row="2" Text="{x:Bind Source}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                <TextBlock Grid.Row="1" Text="{x:Bind Name}" Style="{StaticResource BodyTextStyle}" FontSize="{StaticResource CaptionFontSize}"
+                           TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Name}" />
+                <TextBlock Grid.Row="2" Text="{x:Bind Source}" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                           TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="{x:Bind Source}" />
             </Grid>
         </DataTemplate>
 
@@ -248,19 +258,25 @@
 
                 <Grid x:Name="DetailsHeader" Grid.Row="3" Padding="20,8,20,2" ColumnSpacing="4" Visibility="Collapsed">
                     <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
-                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="*" MinWidth="58" />
+                        <ColumnDefinition Width="*" MinWidth="48" />
+                        <ColumnDefinition Width="*" MinWidth="34" />
+                        <ColumnDefinition Width="*" MinWidth="48" />
+                        <ColumnDefinition Width="*" MinWidth="52" />
+                        <ColumnDefinition Width="*" MinWidth="44" />
                     </Grid.ColumnDefinitions>
-                    <TextBlock Text="Resolución" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
-                    <TextBlock Grid.Column="1" Text="Duración" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
-                    <TextBlock Grid.Column="2" Text="Fps" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
-                    <TextBlock Grid.Column="3" Text="Códec" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
-                    <TextBlock Grid.Column="4" Text="Fecha" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
-                    <TextBlock Grid.Column="5" Text="Cámara" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}" />
+                    <TextBlock Text="Resolución" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="Resolución" />
+                    <TextBlock Grid.Column="1" Text="Duración" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="Duración" />
+                    <TextBlock Grid.Column="2" Text="Fps" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="Fps" />
+                    <TextBlock Grid.Column="3" Text="Códec" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="Códec" />
+                    <TextBlock Grid.Column="4" Text="Fecha" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="Fecha" />
+                    <TextBlock Grid.Column="5" Text="Cámara" Style="{StaticResource CaptionTextStyle}" FontSize="{StaticResource MicroFontSize}"
+                               TextTrimming="CharacterEllipsis" ToolTipService.ToolTip="Cámara" />
                 </Grid>
 
                 <GridView x:Name="MediaGrid" Grid.Row="4" Padding="8" SelectionMode="Extended" IsDoubleTapEnabled="True"
@@ -272,22 +288,6 @@
                           CanDragItems="True" DragItemsStarting="OnMediaDragStarting" DoubleTapped="OnMediaDoubleTapped"
                           ContextRequested="OnMediaContextRequested"
                           ItemsSource="{x:Bind Media}" ItemTemplate="{StaticResource MediaRowTemplate}" />
-
-                <!-- Medios nuevos de las carpetas vigiladas (LibraryView.Watched): importar con un clic o descartar. -->
-                <Border x:Name="WatchedBanner" Grid.Row="4" VerticalAlignment="Bottom" Margin="8" Padding="12,8" Visibility="Collapsed" CornerRadius="{StaticResource ControlCornerRadius}"
-                        Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1">
-                    <Grid ColumnSpacing="8">
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <TextBlock x:Name="WatchedText" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" TextTrimming="None" />
-                        <Button Grid.Column="1" Content="Importar" Style="{StaticResource AccentButtonStyle}" Click="OnWatchedImportClick" />
-                        <Button Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Content="&#xE711;" Click="OnWatchedDismissClick"
-                                AutomationProperties.Name="Descartar" ToolTipService.ToolTip="Descartar: no se vuelven a ofrecer" />
-                    </Grid>
-                </Border>
             </Grid>
 
             <Grid x:Name="AudioPanel" Grid.Row="1" Visibility="Collapsed">
@@ -322,7 +322,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <GridView x:Name="ElementsGrid" Grid.Row="0" Padding="8" SelectionMode="Single" IsDoubleTapEnabled="True"
+                <GridView x:Name="ElementsGrid" Grid.Row="0" Padding="8,8,8,12" SelectionMode="Single" IsDoubleTapEnabled="True"
                           CanDragItems="True" DragItemsStarting="OnElementDragStarting" DoubleTapped="OnElementDoubleTapped"
                           ContextRequested="OnElementContextRequested"
                           ItemsSource="{x:Bind Elements}" ItemTemplate="{StaticResource ElementTileTemplate}" />
@@ -343,7 +343,7 @@
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
-                <ListView SelectionMode="None" ItemsSource="{x:Bind Modules}">
+                <ListView SelectionMode="None" ItemsSource="{x:Bind Modules}" Padding="0,0,0,16">
                     <ListView.ItemTemplate>
                         <DataTemplate x:DataType="local:ModuleItem">
                             <StackPanel Padding="0,8" Spacing="2" ToolTipService.ToolTip="{x:Bind Description}">
@@ -354,8 +354,10 @@
                         </DataTemplate>
                     </ListView.ItemTemplate>
                 </ListView>
-                <TextBlock Grid.Row="1" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
-                           Text="Cada módulo es un programa aparte con sus modelos: se instala desde Complementos y funciona sin internet." />
+                <Border Grid.Row="1" Margin="0,4,0,0" Padding="0,8,0,4" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
+                    <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
+                               Text="Cada módulo es un programa aparte con sus modelos: se instala desde Complementos y funciona sin internet." />
+                </Border>
             </Grid>
 
             <markers:MarkersPanel x:Name="MarkersView" Grid.Row="1" Visibility="Collapsed" />
@@ -365,6 +367,22 @@
                 <shell:AppLogo Width="48" Height="48" Opacity="0.5" />
                 <TextBlock x:Name="EmptyText" Style="{StaticResource PlaceholderTextStyle}" />
             </StackPanel>
+
+            <!-- Medios nuevos de las carpetas vigiladas (LibraryView.Watched): importar con un clic o descartar; también con la biblioteca vacía. -->
+            <Border x:Name="WatchedBanner" Grid.Row="1" VerticalAlignment="Bottom" Margin="8" Padding="12,8" Visibility="Collapsed" CornerRadius="{StaticResource ControlCornerRadius}"
+                    Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource AccentBrush}" BorderThickness="1">
+                <Grid ColumnSpacing="8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <TextBlock x:Name="WatchedText" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" TextTrimming="None" />
+                    <Button Grid.Column="1" Content="Importar" Style="{StaticResource AccentButtonStyle}" Click="OnWatchedImportClick" />
+                    <Button Grid.Column="2" Style="{StaticResource ToolButtonStyle}" Content="&#xE711;" Click="OnWatchedDismissClick"
+                            AutomationProperties.Name="Descartar" ToolTipService.ToolTip="Descartar: no se vuelven a ofrecer" />
+                </Grid>
+            </Border>
         </Grid>
     </Grid>
 </UserControl>

@@ -67,6 +67,24 @@ public class QuickToolsTests
     }
 
     [Fact]
+    public void ConLaPistaBloqueada_QuitarFondoReencuadreYRuidoLoDicenAntesDeCalcular()
+    {
+        Project p = Project();
+        Sequence s = p.Sequences[0];
+        s.VideoTracks[0].Locked = true;
+        s.AudioTracks[0].Locked = true;
+        QuickToolState State(string id) => QuickTools.State(id, p, s, ["cam"], true, visionModule: true, subtitleModule: true);
+
+        string reason = "La pista «Video 1» está bloqueada: desbloquéala para usar esta herramienta.";
+        Assert.Equal(new QuickToolState(false, reason), State(QuickTools.RemoveBackground));
+        Assert.Equal(new QuickToolState(false, reason), State(QuickTools.Reframe));
+        Assert.Contains("«Audio 1» está bloqueada", State("analysis.noise").Reason, StringComparison.Ordinal);
+        Assert.Equal(reason, QuickTools.Locked(s, "cam"));
+        Assert.Null(QuickTools.Locked(s, "musica"));
+        Assert.True(State("analysis.stabilize").Available, "Estabilizar no cambia el clip hasta aplicar y guarda su análisis.");
+    }
+
+    [Fact]
     public void SubtitulosAutomaticos_PidenUnClipConVozYElModulo()
     {
         Assert.True(State(QuickTools.AutoSubtitles, ["cam"]).Available);
@@ -74,6 +92,18 @@ public class QuickToolsTests
         Assert.Contains("módulo", State(QuickTools.AutoSubtitles, ["cam"], module: false).Reason, StringComparison.Ordinal);
         Assert.True(State(QuickTools.TextToSpeech, []).Available);
         Assert.True(State(QuickTools.VoiceOver, []).Available);
-        Assert.Equal(13, QuickTools.All.Count);
+        Assert.Equal(14, QuickTools.All.Count);
+    }
+
+    [Fact]
+    public void SincronizarPorElSonido_PideDosClipsConSonidoDeGruposDistintos()
+    {
+        Assert.Equal("Selecciona dos clips con sonido o más (la cámara y la grabadora).", State(QuickTools.SyncAudio, ["cam"]).Reason);
+        // El video y su audio enlazado son un solo grupo; el título no suena.
+        Assert.False(State(QuickTools.SyncAudio, ["cam", "voz", "txt"]).Available);
+        Assert.True(State(QuickTools.SyncAudio, ["cam", "musica"]).Available);
+        Assert.True(State(QuickTools.SyncAudio, ["musica", "voz"]).Available);
+        // Un clip por grupo enlazado («voz» representa al grupo de la cámara), en orden de inicio.
+        Assert.Equal(["musica", "voz"], QuickTools.SyncCandidates(Project().Sequences[0], ["musica", "voz", "cam"], c => c.Generator is null));
     }
 }

@@ -1,6 +1,10 @@
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.Shortcuts;
+using Rodaje.Core.Effects;
 using Rodaje.Core.Editing;
 using Windows.Foundation;
 
@@ -16,6 +20,8 @@ internal sealed partial class TimelineView
         (ClipAttributeKinds.Transform, "Transformación"),
         (ClipAttributeKinds.Speed, "Velocidad"),
         (ClipAttributeKinds.Volume, "Volumen"),
+        (ClipAttributeKinds.Text, "Estilo del texto"),
+        (ClipAttributeKinds.Shadow, "Sombras"),
     ];
 
     /// <summary>Abre el menú del clip en <paramref name="p"/>; la selección ya incluye el clip pulsado.</summary>
@@ -38,15 +44,72 @@ internal sealed partial class TimelineView
         menu.Items.Add(detach);
         menu.Items.Add(new MenuFlyoutSeparator());
 
+        ShortcutRegistry registry = _services!.ShortcutRegistry;
+        var copyClips = new MenuFlyoutItem { Text = "Copiar clips", KeyboardAcceleratorTextOverride = registry.GetKeyText(ActionIds.CopyClips) };
+        copyClips.Click += (_, _) => session.CopySelection();
+        menu.Items.Add(copyClips);
+        var duplicate = new MenuFlyoutItem { Text = "Duplicar clip", KeyboardAcceleratorTextOverride = registry.GetKeyText(ActionIds.DuplicateClips) };
+        duplicate.Click += (_, _) => session.DuplicateSelection();
+        menu.Items.Add(duplicate);
+        var pasteClips = new MenuFlyoutItem
+        {
+            Text = "Pegar en el cursor",
+            IsEnabled = session.CanPaste,
+            KeyboardAcceleratorTextOverride = registry.GetKeyText(ActionIds.PasteAtCursor),
+        };
+        pasteClips.Click += (_, _) => UiTask.Run(session.PasteAtPlayheadAsync());
+        menu.Items.Add(pasteClips);
+        var pasteInsert = new MenuFlyoutItem
+        {
+            Text = "Pegar insertando",
+            IsEnabled = session.CanPaste,
+            KeyboardAcceleratorTextOverride = registry.GetKeyText(ActionIds.PasteInsert),
+        };
+        pasteInsert.Click += (_, _) => UiTask.Run(session.PasteAtPlayheadAsync(insert: true));
+        menu.Items.Add(pasteInsert);
+        menu.Items.Add(new MenuFlyoutSeparator());
+
+        // Fundidos de audio hasta el cursor: para clips de audio o videos con su audio enlazado.
+        bool hasAudio = Rodaje.App.Services.Audio.LoudnessNormalizer.AudioClips(session).Count > 0;
+        var fadeIn = new MenuFlyoutItem
+        {
+            Text = "Fundido de entrada hasta el cursor",
+            IsEnabled = hasAudio,
+            KeyboardAcceleratorTextOverride = registry.GetKeyText(TimelineShortcuts.FadeInToCursor),
+        };
+        fadeIn.Click += (_, _) => session.FadeToPlayhead(FadeHandle.In);
+        menu.Items.Add(fadeIn);
+        var fadeOut = new MenuFlyoutItem
+        {
+            Text = "Fundido de salida desde el cursor",
+            IsEnabled = hasAudio,
+            KeyboardAcceleratorTextOverride = registry.GetKeyText(TimelineShortcuts.FadeOutFromCursor),
+        };
+        fadeOut.Click += (_, _) => session.FadeToPlayhead(FadeHandle.Out);
+        menu.Items.Add(fadeOut);
+        menu.Items.Add(new MenuFlyoutSeparator());
+
         var copy = new MenuFlyoutItem { Text = "Copiar atributos" };
         copy.Click += (_, _) => session.CopyAttributes();
         menu.Items.Add(copy);
 
         ClipAttributeKinds available = session.CopiedAttributes?.Available ?? ClipAttributeKinds.None;
         var paste = new MenuFlyoutSubItem { Text = "Pegar atributos", IsEnabled = available != ClipAttributeKinds.None };
+        bool stillSelection = session.SelectedClipIds.Count > 0 && session.SelectedClipIds.All(id =>
+            session.Sequence.FindClip(id) is { Clip: { } clip } && session.Project.FindMedia(clip.MediaId)?.IsStillImage == true);
         foreach ((ClipAttributeKinds kind, string text) in PasteChoices)
         {
-            var item = new MenuFlyoutItem { Text = text, IsEnabled = (available & kind) != ClipAttributeKinds.None };
+            bool applies = kind != ClipAttributeKinds.Speed || !stillSelection;
+            var item = new MenuFlyoutItem
+            {
+                Text = text,
+                IsEnabled = (available & kind) != ClipAttributeKinds.None && applies,
+            };
+            if (!applies)
+            {
+                ToolTipService.SetToolTip(item, "No aplica a imágenes fijas.");
+            }
+
             item.Click += (_, _) => session.PasteAttributes(kind);
             paste.Items.Add(item);
             if (kind == ClipAttributeKinds.All)
@@ -56,9 +119,39 @@ internal sealed partial class TimelineView
         }
 
         menu.Items.Add(paste);
+        AddKenBurnsItems(menu);
         AddCompoundItems(menu);
         AddOrganizeItems(menu);
         AddAnalysisItems(menu);
         menu.ShowAt(LanesHost, new FlyoutShowOptions { Position = p });
+    }
+
+    private void AddKenBurnsItems(MenuFlyout menu)
+    {
+        EditorSession session = Session!;
+        List<string> photoClips = [.. session.SelectedClipIds.Where(id =>
+            session.Sequence.FindClip(id) is { Clip: { } clip } && session.Project.FindMedia(clip.MediaId)?.IsStillImage == true)];
+        if (photoClips.Count == 0)
+        {
+            return;
+        }
+
+        var kenBurns = new MenuFlyoutSubItem { Text = "Efecto Ken Burns…" };
+        (string Id, string Text)[] choices =
+        [
+            (MotionPresets.KenBurnsZoomIn, "Acercar"),
+            (MotionPresets.KenBurnsZoomOut, "Alejar"),
+            (MotionPresets.KenBurnsPanLeft, "Desplazar a la izquierda"),
+            (MotionPresets.KenBurnsPanRight, "Desplazar a la derecha"),
+        ];
+
+        foreach ((string id, string text) in choices)
+        {
+            var item = new MenuFlyoutItem { Text = text };
+            item.Click += (_, _) => session.Execute(MotionPresetCommands.Apply(session.SequenceId, photoClips, id));
+            kenBurns.Items.Add(item);
+        }
+
+        menu.Items.Add(kenBurns);
     }
 }

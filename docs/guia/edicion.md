@@ -5,19 +5,21 @@ Todo lo que pasa en la línea de tiempo. Los atajos son los del estilo Rodaje; l
 ## La línea de tiempo
 
 - **Barra de herramientas** (de izquierda a derecha): herramienta normal (V), envolvente (E), selección, zoom (Z), roll (Y), slide (U), cuchilla (C), **Recorte Ripple** (B), slip (D) y rango (G), cada una con su marca junto al puntero; el selector de huecos (**Dejar huecos**, **Pista principal magnética** o **Ripple global**), **ajuste** (N) y el ámbito del ripple (pistas afectadas, todas las pistas o todas las pistas con marcadores y regiones); **fundido cruzado automático**, **bloquear envolventes** e **ignorar grupos**; las acciones cortar (S), recortar inicio (Q) y final (W), borrar (Supr), marcador (M), región (R), deshacer y rehacer; y el zoom.
-- **Pistas.** Cada cabecera tiene el nombre, ocultar o silenciar y bloquear. **Alto:** arrastra el borde de abajo de la cabecera (doble clic vuelve al de siempre) o elige Compacta, Normal, Alta o Muy alta en su menú; se guarda con el proyecto. La primera pista de video es la **principal**; las de audio muestran su volumen («Volumen 0,0 dB»). Clic derecho en una cabecera: añadir pista de subtítulos, usar una pista de video para subtítulos, grabar voz en off, ecualizador y compresor de la pista. También puedes gestionar pistas desde el menú **Secuencia** (**Añadir pista de video**, **Añadir pista de audio** y **Añadir pista de subtítulos**).
-- **Clips.** Color por tipo, nombre, tira de película o forma de onda, rombos de keyframes, envolvente de volumen. Delante del nombre, un indicador de velocidad cuando no es 1× («2,0×», «◀ 0,5×», «❚❚ Congelado» o la mini curva).
-- **Zoom y desplazamiento.** Rueda desplaza en el tiempo, Mayús+rueda cambia de pistas, Ctrl+rueda hace zoom alrededor del puntero. Ctrl++ y Ctrl+- acercan y alejan; Mayús+Z ajusta todo a la ventana; Ctrl+Alt+Z hace zoom a la selección. El botón central arrastra la vista.
+- **Pistas.** Cada cabecera tiene el nombre, ocultar o silenciar (y en las de audio, **S** de solo; Ctrl+clic, solo exclusivo) y bloquear. **Alto:** arrastra el borde de abajo de la cabecera (doble clic vuelve al de siempre) o elige Compacta, Normal, Alta o Muy alta en su menú; se guarda con el proyecto. La primera pista de video es la **principal**; las de audio muestran su volumen («Volumen 0,0 dB»). Clic derecho en una cabecera: añadir pista de subtítulos, usar una pista de video para subtítulos, grabar voz en off, ecualizador y compresor de la pista. También puedes gestionar pistas desde el menú **Secuencia** (**Añadir pista de video**, **Añadir pista de audio** y **Añadir pista de subtítulos**).
+- **Clips.** Color por tipo, nombre, tira de película o forma de onda, rombos de keyframes, envolvente de volumen y, en los de audio, las asas de fundido en las esquinas de arriba (ver [Audio](audio.md#volumen)). Delante del nombre, un indicador de velocidad cuando no es 1× («2,0×», «◀ 0,5×», «❚❚ Congelado» o la mini curva).
+- **Zoom y desplazamiento.** La rueda sube y baja por las pistas (si se ven todas, desplaza en el tiempo), Mayús+rueda desplaza en el tiempo, Ctrl+rueda hace zoom alrededor del puntero y Alt+rueda cambia el alto de la pista bajo el puntero (con el estilo Clásico, la rueda hace zoom como en Premiere). Ctrl++ y Ctrl+- acercan y alejan; Mayús+Z ajusta toda la secuencia a la vista, cosa que también pasa sola al abrir un proyecto y con el primer clip; Ctrl+Alt+Z hace zoom a la selección. El botón central arrastra la vista y, al arrastrar un clip cerca de un borde, la vista se corre sola, más rápido cuanto más cerca.
+- **Alto de la línea de tiempo.** Ocupa el 42 % del alto de la ventana (nunca menos de lo que deja ver tres pistas) y se adapta al cambiar su tamaño. El separador con la pestaña se arrastra; doble clic alterna entre «Más visor» (30 %) y «Más línea de tiempo» (55 %), y las tres están en Ver › Distribución.
+- **Herramientas rápidas.** El botón «Herramientas» de la barra de la línea de tiempo abre silencios, ritmo, color, subtítulos, voz y texto por grupos; las que no aplican a lo seleccionado se ven atenuadas y dicen por qué.
 
 ## Seleccionar
 
-Clic selecciona; Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro y marca un rango. Ctrl+A selecciona todo. Un clic en una transición la selecciona (y vacía la selección de clips).
+Clic selecciona (dentro de una selección, deja solo ese clip; arrastrar mueve la selección entera); Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro y marca un rango. Ctrl+A selecciona todo. Un clic en una transición la selecciona (y vacía la selección de clips).
 
 ## Cortar y borrar
 
 | Qué | Cómo |
 |---|---|
-| Cortar en el cursor | S (o Ctrl+B): corta los clips seleccionados o el de la principal bajo el cursor |
+| Cortar en el cursor | S (o Ctrl+B): corta los clips seleccionados o el de la principal bajo el cursor; si ninguno de los seleccionados pasa por el cursor, lo avisa |
 | Cortar en todas las pistas | Ctrl+Mayús+B |
 | Recortar hasta el cursor | Q borra lo que queda a la izquierda del cursor; W, lo de la derecha |
 | Borrar | Supr o Retroceso. El selector de huecos determina si se deja un espacio, solo se imanta la pista principal o se corre lo que sigue con ripple global |
@@ -36,6 +38,7 @@ Clic selecciona; Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro 
 - **J, K, L**: lanzadera hacia atrás, detener y hacia adelante; cada pulsación dobla la velocidad hasta ×8.
 - **Elegir un borde:** un clic (sin arrastrar) en el borde de un clip lo marca con una línea. **,** y **.** lo recortan un cuadro a la izquierda o a la derecha (con **Recorte Ripple**, ripple global o en la pista principal magnética, corre lo que sigue). Sin borde elegido, **,** y **.** insertan y sobrescriben desde el origen.
 - **Alt+← / Alt+→** corre la selección un cuadro (con sus enlazados y su grupo), sin pisar nada; mantenla para seguir. Los empujones seguidos son un paso del historial.
+- **Ir a tiempo (Ctrl+J**, también en el menú Reproducción**):** escribe `1:23`, `1:23.5`, `83` (segundos) o `120f` (fotogramas) e Intro lleva el cursor ahí; con `+` o `-` delante salta desde donde está (`+10`, `-2s`, `+24f`). El cursor queda al inicio del fotograma.
 
 ## Mover, recortar, slip, roll y slide
 
@@ -47,6 +50,15 @@ Clic selecciona; Ctrl+clic suma o quita; arrastrar en vacío dibuja un recuadro 
 - **Slide:** con la herramienta de slide (U; Mayús+U en Ágil), o con **Ctrl+Alt** sobre el cuerpo, el clip corre entre sus vecinos pegados, que se recortan para seguir tocándolo; su contenido no cambia.
 - En los dos, el puntero lleva su marca («]|[» roll, «[↔]» slide), un globo dice cuántos cuadros se corrió y el **visor muestra lado a lado los dos cuadros del corte**: en el roll, el último del clip que sale y el primero del que entra; en el slide, el último del vecino de la izquierda y el primero del de la derecha. Van con los enlazados, se pegan al cuadro y a los puntos de ajuste y no pasan del material que haya.
 - **Esc** cancela cualquier arrastre en curso.
+
+## Copiar, duplicar y pegar
+
+- **Copiar clips (Ctrl+C)** guarda la selección con sus enlazados y su grupo (con **ignorar grupos**, solo los clips elegidos) y las transiciones que haya entre los clips copiados. Es un portapapeles de Rodaje, no el de Windows: sobrevive a abrir otro proyecto.
+- **Duplicar clip (Ctrl+D**; Ctrl+Mayús+D en Clásico**)** pone una copia de la selección justo a continuación, en sus mismas pistas, con la misma distancia entre clips y con sus transiciones; si el sitio está ocupado, avisa y no mueve nada. Las copias quedan seleccionadas.
+- **Pegar en el cursor (Ctrl+Mayús+V o Ctrl+V)** pone lo copiado con el primer clip en el cursor y los demás a su distancia, cada uno en la pista con el mismo número (o la última de su tipo si ya no hay tantas), tapando lo que haya en ese tramo como un Sobrescribir. Los efectos, enlaces, grupos y las transiciones entre lo copiado se copian; un clip compuesto no se copia ni se duplica.
+- **Pegar insertando (Ctrl+Alt+V)** pone lo mismo en el cursor pero, en vez de tapar, abre un espacio del largo de lo copiado en las pistas donde cae (partiendo el clip que pase por el cursor) y corre lo que sigue, con los enlazados de lo que se corre, como al mover un clip insertando. Si para correr algo haría falta tocar una pista bloqueada, avisa y no cambia nada.
+- **Pegar en otro proyecto:** si un clip copiado usa un medio que no está en el proyecto abierto, Rodaje lo importa antes por la ruta de su archivo (un paso «Importar medio» aparte en el historial); si el archivo ya está en la biblioteca con otro identificador, usa ese; y si el archivo ya no existe, avisa y no pega nada.
+- Los cuatro están en **Editar** y en el menú del clip; cada uno es un paso del historial.
 
 ## Grupos, colores y huecos
 
@@ -60,11 +72,13 @@ El selector de la barra indica cómo responderán las ediciones que pueden dejar
 
 ## Audio y video enlazados
 
-Un video con sonido entra como dos clips enlazados que se mueven, cortan y recortan juntos. En el menú del clip: **Desenlazar** / **Enlazar**, **Separar audio**, **Copiar atributos** y **Pegar atributos** (todo, efectos, transformación, velocidad o volumen). El interruptor **ignorar grupos** edita solo el clip agarrado sin romper el enlace.
+Un video con sonido entra como dos clips enlazados que se mueven, cortan y recortan juntos. En el menú del clip: **Desenlazar** / **Enlazar**, **Separar audio**, **Copiar atributos** y **Pegar atributos** (todo, efectos, transformación, velocidad o volumen). El interruptor **ignorar grupos** edita solo el clip agarrado (mover, empujar con Alt+←/→, recortar y Supr) sin romper el enlace.
 
 **Aviso de desfase.** Si un clip enlazado queda corrido respecto de su pareja del mismo medio (por moverlo con ignorar grupos, o porque su pista estaba bloqueada al correr las demás), muestra a la derecha un aviso rojo con los cuadros: «+3», «−12». En su menú, **Volver a sincronizar** › «Mover a su lugar» o «Deslizar su contenido». Insertar, mover, cortar y cerrar huecos nunca desincronizan.
 
 **Multicámara.** Elige en la biblioteca dos o más tomas del mismo momento (Ctrl+clic) y, en su menú, **Crear multicámara con la selección**: Rodaje las sincroniza por el sonido (unos segundos por minuto de grabación) y pone la primera al final de la pista principal. Con el cursor sobre esa toma, **1** a **9** cortan al ángulo de ese número desde el cursor hasta el siguiente corte, también mientras se reproduce; el sonido sigue siendo el de la primera. En **Preferencias (`Ctrl+,`) › General** eliges qué pistas de video reciben su audio al soltar un medio y cuántas pistas traen los proyectos nuevos.
+
+**Sincronizar por el sonido.** Grabaste la imagen con la cámara y la voz con una grabadora (o dos cámaras del mismo momento) y los dos clips ya están en la línea de tiempo: selecciónalos (Ctrl+clic) y pulsa **Herramientas › Audio › Sincronizar por el sonido** (también en el menú del clip y en la barra «Herramientas»). Rodaje compara las formas de onda (unos segundos por minuto de grabación) y mueve los demás clips, con sus enlazados, para que suenen a la vez que el que empieza antes, que no se mueve; el aviso dice cuántos fotogramas corrió cada uno. Es un paso del historial. Si un clip no comparte sonido con la referencia, lo dice y lo deja donde estaba; si el sitio nuevo está ocupado o la referencia tiene velocidad, avisa y no mueve nada. Después, si quieres, **Separar audio** del video de la cámara y bórralo para quedarte con el sonido de la grabadora.
 
 ## Edición de tres y cuatro puntos
 
@@ -75,6 +89,8 @@ Un video con sonido entra como dos clips enlazados que se mueven, cortan y recor
    - **Ajustar a rellenar (Ctrl+Mayús+.)**: el tramo del origen llena el clip bajo el cursor (o las marcas de la secuencia) cambiando la velocidad (**Secuencia › Ajustar a rellenar desde el origen**).
    - **Superponer (Mayús+,)**: la imagen va encima, en la primera pista de video libre o en una nueva (**Secuencia › Superponer desde el origen**).
 4. Con cuatro puntos de distinta duración pregunta **Ajustar velocidad** o **Recortar**.
+
+Las marcas de la secuencia sirven también para **exportar solo ese tramo**: con I y O puestos, Exportar (Ctrl+E) se abre en el rango «Entre la entrada y la salida» (ver [Exportar](exportar.md#la-vista-sencilla)).
 
 ## Clips compuestos
 
@@ -99,7 +115,7 @@ Pestaña **Velocidad** del panel derecho (Ctrl+R la abre con el clip seleccionad
 - Arrástrala al **corte** entre dos clips pegados (cae en el más cercano). Dura 0,5 s; arrastra la manija de afuera para cambiar la duración. Si el corte ya tenía una, cambia el tipo y conserva la duración. Las de audio van solo en pistas de audio.
 - **Ctrl+T** pone la **transición por defecto** en el corte del clip seleccionado (al final; si no tiene vecino, al principio) o, sin selección, en el corte más cercano al cursor. En pistas de audio pone el fundido de audio por defecto. Para cambiarla: selecciona una transición y, en el menú ⋯, **Usar como transición por defecto** (guarda tipo, duración, alineación y curva).
 - Con **fundido cruzado automático** encendido, cada corte sin transición de la pista principal muestra un símbolo: un clic crea un fundido de 0,5 s.
-- Con la transición seleccionada en la línea de tiempo, el Inspector activa su pestaña propia **Transición** (ocultando temporalmente las pestañas de clip). Muestra arriba su **vista previa animada** (un clic la pausa) y debajo:
+- Con la transición seleccionada en la línea de tiempo, el Inspector activa su pestaña propia **Transición** (ocultando temporalmente la pestaña Propiedades). Muestra arriba su **vista previa animada** (un clic la pausa) y debajo:
   - **Tipo** y **Duración**. En el menú ⋯, **Esta duración en toda la pista** o **en todas las transiciones** (cada una se acorta si no cabe), en un paso.
   - **Alineación**: al final del clip que sale, centrada o al inicio del que entra. Alineada a un lado, solo se arrastra la manija de afuera.
   - **Dirección**: una rueda (arrastra; con Mayús, sin pasos de 15°) y atajos de 0°, 90°, 180° y 270°; en Empujar, cuatro flechas.
@@ -108,7 +124,7 @@ Pestaña **Velocidad** del panel derecho (Ctrl+R la abre con el clip seleccionad
   - **Desenfoque de movimiento** en las que mueven la imagen (empujar, deslizar, giro, rebote): 50 % es el obturador de cine.
   - **Curva del avance**: Lineal, Suave, Entrada, Salida, Rebote, Elástico o **Bézier**, con manejadores en la gráfica. El punto de la gráfica sigue a la vista previa. La misma curva vale para el cruce de audio.
   - «Quitar transición» deja el corte seco. Supr también la quita.
-  Al deseleccionar la transición, el inspector vuelve automáticamente a las pestañas del clip.
+  Al deseleccionar la transición, el inspector vuelve automáticamente a la pestaña Propiedades.
 - **Guardar como transición…** (menú ⋯ de Propiedades) convierte los keyframes de transformación de un clip en una transición propia.
 
 ## Marcadores y regiones
@@ -138,9 +154,10 @@ Pestaña **Velocidad** del panel derecho (Ctrl+R la abre con el clip seleccionad
 ## Proyecto, guardado y recuperación
 
 - **Ctrl+N** nuevo (pregunta «¿Guardar los cambios?» si hay), **Ctrl+O** abrir, **Ctrl+S** guardar, **Ctrl+Mayús+S** guardar como. El `.rodaje` es JSON legible; los medios se referencian por ruta.
+- **Archivo › Proyectos recientes:** los últimos diez proyectos abiertos o guardados, el más reciente arriba, con la ruta abreviada (la completa se lee al pasar el ratón). Los archivos que ya no existen desaparecen de la lista solos; «Vaciar la lista» la deja en blanco.
 - **Guardado atómico y copias `.bak`:** cada guardado escribe primero en un archivo temporal seguro y crea una copia de respaldo `.bak` previa en la misma carpeta del proyecto. Se evitan pérdidas o corrupciones de proyecto ante cortes repentinos o bloqueos de sincronizadores en la nube (como OneDrive).
 - **Plantillas:** Archivo › Proyecto nuevo desde plantilla (Horizontal 16:9 1080p y 4K, Vertical 9:16, Cuadrado 1:1, Retrato 4:5, más las tuyas) y Guardar como plantilla...
-- **Autoguardado:** copias en `%LOCALAPPDATA%\Rodaje\Autoguardado` tras 5 s sin cambios y como mucho cada 2 min (10 por sesión). Tras un cierre inesperado, al abrir Rodaje avisa «Hay una copia de «X» del … con cambios sin guardar» con **Recuperar**, que la valida y guarda como «X (recuperado).rodaje».
+- **Autoguardado:** copias en `%LOCALAPPDATA%\Rodaje\Autoguardado` tras 5 s sin cambios y, si no paras de editar, como mucho cada 2 min (10 por sesión). El intervalo se cambia en **Preferencias › General › Autoguardado** (de 1 a 30 min). La barra de estado, abajo a la izquierda, dice «Guardado hace N min» y, con cambios sin guardar y una copia más nueva, «Copia automática hace N min». Tras un cierre inesperado, al abrir Rodaje avisa «Hay una copia de «X» del … con cambios sin guardar» con **Recuperar**, que la valida y guarda como «X (recuperado).rodaje».
 - **Formato del proyecto:** menú **Secuencia › Formato del proyecto…** o el botón de la cabecera del reproductor (16:9, 9:16, 1:1, 4:5, 4:3, 21:9 o Personalizado), cuadros por segundo (23,976 a 60) y «Resolución y más opciones…» (720p a 4K o ancho y alto propios de 16 a 8192, pares).
 - **Espacios de trabajo:** Ver › Espacio de trabajo: Edición, Color (panel derecho ancho en Filtros), Audio (línea de tiempo alta) y los tuyos («Guardar la distribución actual como…»).
 - **Pantalla completa:** F o doble clic en el visor; mover el ratón muestra los controles; Esc sale. **Visor en otra pantalla** (Ver) abre el visor a pantalla completa en el monitor más grande donde no está el editor.

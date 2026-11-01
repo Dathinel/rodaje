@@ -25,6 +25,12 @@ public class SpeedEditorTests
             return _inner.SetSpeed(sequenceId, clipId, rate, scope);
         }
 
+        public ICommand SetSpeed(string sequenceId, IReadOnlyList<string> clipIds, Rational rate, RippleScope scope)
+        {
+            Calls.Add($"speed-many {string.Join(',', clipIds)} {rate}");
+            return _inner.SetSpeed(sequenceId, clipIds, rate, scope);
+        }
+
         public ICommand RateStretch(string sequenceId, string clipId, Time duration, RippleScope scope)
         {
             Calls.Add($"stretch {clipId} {duration.ToSeconds()}");
@@ -46,7 +52,7 @@ public class SpeedEditorTests
         public ICommand FreezeFrame(string sequenceId, string clipId, Time at, Time duration, RippleScope scope)
         {
             Calls.Add($"freeze {clipId} {at.ToSeconds()} {duration.ToSeconds()}");
-            return new SequenceEditCommand("Congelar cuadro", sequenceId, (EditContext _) => { });
+            return new SequenceEditCommand("Congelar fotograma", sequenceId, (EditContext _) => { });
         }
 
         public ICommand SetCurve(string sequenceId, string clipId, SpeedCurve? curve, RippleScope scope)
@@ -482,5 +488,58 @@ public class SpeedEditorTests
         Assert.True(h.Session.Undo());
         Assert.Null(h.Video.Speed);
         Assert.Equal((S(0), S(10.37)), (h.Video.SourceIn, h.Video.SourceOut));
+    });
+
+    [Fact]
+    public void Arrastre_ConVariosClipsDeVelocidadesDistintas_LaDelPrimeroTambienSeAplicaAlResto() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        h.Session.Select([h.Second.Id]);
+        Assert.True(h.Editor.SetRate(new Rational(2, 1)));
+        h.Session.Select([h.Video.Id, h.Second.Id]);
+        int steps = h.Session.History.Count;
+
+        // El primero ya va a 1x: el deslizador vuelve a su velocidad, pero el segundo tiene que cambiar.
+        h.Editor.BeginChange();
+        Assert.True(h.Editor.Change(new Rational(3, 1)));
+        Assert.True(h.Editor.Change(SpeedState.Normal));
+        h.Editor.EndChange();
+
+        Assert.Equal(SpeedState.Normal, h.Editor.Read(h.Video).Rate);
+        Assert.Equal(SpeedState.Normal, h.Editor.Read(h.Second).Rate);
+        Assert.Equal(steps + 1, h.Session.History.Count);
+    });
+
+    [Fact]
+    public void ConUnTituloSeleccionadoAntes_MuestraYEditaElMismoClipDeVideo() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        Assert.True(h.Session.AddTitleAtPlayhead());
+        string title = h.Session.SelectedClipIds[0];
+        h.Session.Select([title, h.Video.Id]);
+
+        Assert.Equal(h.Video.Id, Assert.Single(h.Editor.Targets()).Id);
+        Assert.Equal(h.Video.Id, h.Editor.Target()!.Id);
+        Assert.True(h.Editor.SetReverse(true));
+        Assert.Equal($"reverse {h.Video.Id} True", Assert.Single(h.Commands.Calls));
+
+        h.Session.Select([title]);
+        Assert.Null(h.Editor.Target());
+    });
+
+    [Fact]
+    public void ElVideoYSuAudioEnlazado_SonUnSoloClip_ElDeVideo() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        h.Session.Select([h.Audio.Id, h.Video.Id]);
+
+        Assert.Equal(h.Video.Id, Assert.Single(h.Editor.Targets()).Id);
+        Assert.Equal(h.Video.Id, h.Editor.Target()!.Id);
+        Assert.True(h.Editor.SetReverse(true));
+        Assert.True(h.Audio.Speed!.Reverse);
+
+        h.Session.Select([h.Audio.Id, h.Second.Id, h.SecondAudio.Id]);
+        Assert.Equal(new[] { h.Audio.Id, h.Second.Id }, h.Editor.Targets().Select(c => c.Id));
+        Assert.Equal(h.Second.Id, h.Editor.Target()!.Id);
     });
 }

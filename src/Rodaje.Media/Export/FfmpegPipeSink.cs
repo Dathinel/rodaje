@@ -135,6 +135,17 @@ public sealed class FfmpegPipeSink : IExportSink
     /// <summary>Línea de comandos de la pasada actual (para el registro y las pruebas).</summary>
     public IReadOnlyList<string> Arguments { get; private set; } = [];
 
+    /// <summary>
+    /// Los argumentos que recibiría <c>ffmpeg.exe</c> por esta petición, sin lanzar nada ni tocar el disco: lo que se copia
+    /// como «línea de ffmpeg». Escribe en <see cref="ExportSinkRequest.OutputPath"/> directamente (sin temporal), sin
+    /// archivo de capítulos ni de subtítulos.
+    /// </summary>
+    public static IReadOnlyList<string> CommandArguments(ExportSinkRequest request)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return FfmpegPipeArguments.Build(request, request.OutputPath, null, null, prepareOutput: false);
+    }
+
     /// <summary>Proceso de la pasada actual, o <c>null</c>; para comprobar que no queda vivo.</summary>
     internal int? ProcessId { get; private set; }
 
@@ -1337,8 +1348,13 @@ internal static class FfmpegPipeArguments
         return drive ? @"\\?\" + full : path;
     }
 
+    /// <param name="request">La petición del sink.</param>
+    /// <param name="temporaryOutput">Archivo (o carpeta) temporal en el que escribe ffmpeg.exe.</param>
+    /// <param name="metadataFile">Archivo <c>ffmetadata</c> con los capítulos, o <c>null</c>.</param>
+    /// <param name="subtitleFiles">Un SRT por pista de subtítulos aparte, o <c>null</c>.</param>
+    /// <param name="prepareOutput"><c>false</c> solo arma la lista (la línea que se copia): no crea la carpeta de una secuencia de imágenes.</param>
     public static IReadOnlyList<string> Build(ExportSinkRequest request, string? temporaryOutput, string? metadataFile,
-        IReadOnlyList<string>? subtitleFiles = null)
+        IReadOnlyList<string>? subtitleFiles = null, bool prepareOutput = true)
     {
         var args = new List<string>
         {
@@ -1366,6 +1382,7 @@ internal static class FfmpegPipeArguments
             {
                 // En la entrada para que los cuadros lleven el color; en la salida para que lo escriban todos los codificadores.
                 args.AddRange(video.Color.FfmpegArguments());
+                args.AddRange(video.Color.FfmpegHdrInputArguments());
             }
 
             args.AddRange(["-i", "pipe:0"]);
@@ -1510,7 +1527,11 @@ internal static class FfmpegPipeArguments
 
         if (request.Container == ExportContainer.ImageSequence)
         {
-            Directory.CreateDirectory(temporaryOutput!);
+            if (prepareOutput)
+            {
+                Directory.CreateDirectory(temporaryOutput!);
+            }
+
             string name = Path.GetFileName(Path.TrimEndingDirectorySeparator(request.OutputPath));
             string extension = ImageExtension(request.VideoEncoder!.Codec);
             args.AddRange(["-start_number", "0", FilePath(Path.Combine(temporaryOutput!, $"{name}_%06d.{extension}"))]);

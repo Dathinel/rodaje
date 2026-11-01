@@ -1,17 +1,5 @@
 namespace Rodaje.App.Services.Shortcuts;
 
-/// <summary>Dos o más acciones con la misma combinación; la primera registrada es la que se lanza.</summary>
-public sealed record ShortcutConflict(KeyChord Chord, IReadOnlyList<string> ActionIds);
-
-/// <summary>Qué pasó al asignar una tecla.</summary>
-/// <param name="Changed">Cambió algo.</param>
-/// <param name="TakenFromActionId">La acción que tenía la tecla y la perdió, si había una.</param>
-/// <param name="GivenToOther">La tecla anterior de la acción, que pasó a <paramref name="TakenFromActionId"/> (intercambio).</param>
-public sealed record RebindResult(bool Changed, string? TakenFromActionId, KeyChord? GivenToOther)
-{
-    public static readonly RebindResult None = new(false, null, null);
-}
-
 /// <summary>
 /// Catálogo de acciones con teclado y sus teclas: las de fábrica del estilo elegido más los cambios de la persona, que
 /// se guardan por estilo. No ejecuta nada: eso lo hace <see cref="ShortcutRouter"/>.
@@ -345,12 +333,4 @@ public sealed class ShortcutRegistry
         _lookup = null;
         Changed?.Invoke(this, EventArgs.Empty);
     }
-}
-
-/// <summary>Todos los cambios de atajos en un momento: teclas y ratón de cada estilo.</summary>
-public sealed record ShortcutSnapshot(
-    IReadOnlyDictionary<ShortcutPreset, IReadOnlyDictionary<string, IReadOnlyList<KeyChord>>> Keys,
-    IReadOnlyDictionary<ShortcutPreset, IReadOnlyDictionary<MouseContext, IReadOnlyDictionary<MouseChord, string?>>> Mouse)
-{
-    public bool IsEmpty => Keys.Values.All(k => k.Count == 0) && Mouse.Values.All(m => m.Count == 0);
 }

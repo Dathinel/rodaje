@@ -23,7 +23,7 @@ Cada parámetro va en una fila: etiqueta, deslizador, valor con unidad, rombo de
 | Transformar | Posición, escala, rotación, opacidad, ancla, inclinación, volteo y desenfoque de movimiento | X e Y en píxeles, escala 1–400 % (y ancho y alto por separado), rotación ±360°, opacidad 0–100 %, ancla en píxeles, inclinación ±85°, voltear horizontal y vertical, obturador 0–720° con su fase y de 2 a 64 muestras |
 | Color y LUT | Corrección básica y tabla de color | Exposición (±4 EV, con botones de 1/3 de paso), contraste, saturación, temperatura, matiz, luces, sombras (±100 %), proteger la piel, LUT e intensidad de la LUT; cuentagotas de blanco |
 | Corrección secundaria (HSL) | Cambia solo un color | Tono, ancho y suavidad del tono, saturación y luma mínimas y máximas, suavidad; girar tono, saturación, exposición; cuentagotas, invertir y «Ver máscara» |
-| Ruedas de color | Un tinte y un nivel para sombras, medios y luces | Tres ruedas y tres niveles |
+| Ruedas de color | Un tinte y un nivel para sombras, medios y luces, y un desplazamiento de toda la imagen | Cuatro ruedas y cuatro niveles |
 | Curvas | Curva general y por canal | Pestañas RGB, R, G, B |
 | Viñeta | Oscurece los bordes | Cantidad, tamaño, suavidad |
 | Desenfoque | Gaussiano, de lente (con forma de disco, en luz lineal), direccional o radial | Tipo, radio 0–100 px; ángulo (direccional); centro (radial) |
@@ -61,7 +61,7 @@ En los títulos solo se aplican desenfoque, nitidez y pixelar.
 - **Voltear** horizontal o vertical espeja la imagen alrededor de su centro; **Ancho** y **Alto** la estiran por separado; **Inclinación** la tuerce.
 - **Desenfoque de movimiento**: enciéndelo en su sección. 180° es el obturador de cine (más grados, más estela); la fase corre el obturador antes o después del cuadro y las muestras dan la suavidad (16 por defecto; más cuesta más). Se ve igual en la vista previa y en la exportación; durante una transición la capa sale sin él.
 - **Animaciones**: Ken Burns, Zoom lento, Deslizar entrada y salida, Sacudida de cámara, Latido, Giro y Zoom de impacto. Un clic pone sus keyframes a lo largo del clip partiendo del tamaño y la posición que ya tiene; después se ajustan como cualquiera. Un paso del historial.
-- **Gráfica**: elige el parámetro animado (o toca su fila) y mira su curva de **Valor** o de **Velocidad**. Arrastra un rombo para cambiar su valor y, a los lados, su instante (pegado a los cuadros; con Mayús, solo el valor). Al elegir un keyframe aparecen los dos manejadores del tramo que sale de él: arrástralos para dar forma a la curva (el tramo pasa a Bézier; puede pasarse del valor y volver).
+- **Gráfica**: elige el parámetro animado (o toca su fila) y mira su curva de **Valor** o de **Velocidad**. Arrastra un rombo para cambiar su valor y, a los lados, su instante (pegado a los cuadros; con Mayús, solo el valor). Con clic derecho sobre un rombo eliges la curva que sale de él (o de todos los elegidos, si ya estaba entre ellos). Si el tramo que sale del keyframe elegido es Bézier, aparecen sus dos manejadores: arrástralos para dar forma a la curva (puede pasarse del valor y volver).
 
 ![Desenfoque de movimiento, animaciones y gráfica](img/transformacion-animacion.png)
 
@@ -70,7 +70,7 @@ En los títulos solo se aplican desenfoque, nitidez y pixelar.
 ![Ruedas de color y curvas en la pestaña Filtros](img/ruedas-y-curvas.png)
 
 1. **Color y LUT** para lo básico: exposición, contraste, saturación, temperatura, matiz, luces y sombras.
-2. **Ruedas de color**: arrastra el punto de cada rueda para teñir sombras, medios o luces (rojo a 0°, verde a 120°, azul a 240°); el deslizador de cada zona sube o baja su nivel. Doble clic vuelve al centro.
+2. **Ruedas de color**: arrastra el punto de cada rueda para teñir sombras, medios o luces (rojo a 0°, verde a 120°, azul a 240°); el deslizador de cada zona sube o baja su nivel. La cuarta rueda, **Desplazamiento**, corre toda la imagen por igual, negros incluidos: sirve para levantar o hundir el negro de una toma plana o para quitar un tinte general antes de tocar las otras tres (se aplica antes que ellas). Doble clic vuelve al centro.
 3. **Curvas**: un clic añade un punto, arrastrar lo mueve entre sus vecinos, doble clic o clic derecho lo quita. General (RGB) o por canal.
 4. **Color automático** y **Balance de blancos automático** (Herramientas o menú del clip) fijan temperatura, matiz y exposición (y contraste, en Color automático) y avisan con lo que cambiaron y **Deshacer**.
 5. **LUT**: en la fila «LUT» de Color y LUT elige una de los paquetes instalados o «Cargar .cube…» (tablas 3D de 2 a 65 puntos). «Intensidad de la LUT» la mezcla con la imagen original.

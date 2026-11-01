@@ -35,6 +35,7 @@ public sealed unsafe class GpuDevice : IDisposable
         FeatureLevel = FormatFeatureLevel(device->GetFeatureLevel());
         SupportsNv12Textures = SupportsShaderTexture(DXGI_FORMAT.DXGI_FORMAT_NV12);
         SupportsP010Textures = SupportsShaderTexture(DXGI_FORMAT.DXGI_FORMAT_P010);
+        SupportsP016Textures = SupportsShaderTexture(DXGI_FORMAT.DXGI_FORMAT_P016);
         if (videoSupport && FfmpegLibrary.TryInitialize(out _))
         {
             CreateHardwareDeviceContext();
@@ -50,6 +51,8 @@ public sealed unsafe class GpuDevice : IDisposable
     public bool SupportsNv12Textures { get; }
 
     public bool SupportsP010Textures { get; }
+
+    public bool SupportsP016Textures { get; }
 
     public string AdapterName { get; }
 
@@ -251,12 +254,12 @@ public sealed unsafe class GpuDevice : IDisposable
         return texture;
     }
 
-    /// <summary>Copia el plano Y de una capa de la textura a la CPU, en 8 bits (P010 se reduce con <c>&gt;&gt; 8</c>).</summary>
+    /// <summary>Copia el plano Y de una capa de la textura a la CPU, en 8 bits (P010 y P016 se reducen con <c>&gt;&gt; 8</c>).</summary>
     internal byte[] ReadLuma(ID3D11Texture2D* texture, uint arraySlice, int width, int height)
     {
         D3D11_TEXTURE2D_DESC source;
         texture->GetDesc(&source);
-        bool tenBit = source.Format == DXGI_FORMAT.DXGI_FORMAT_P010;
+        bool tenBit = source.Format is DXGI_FORMAT.DXGI_FORMAT_P010 or DXGI_FORMAT.DXGI_FORMAT_P016;
         if (!tenBit && source.Format != DXGI_FORMAT.DXGI_FORMAT_NV12)
         {
             throw new NotSupportedException($"La lectura de luma no admite el formato {source.Format}.");
@@ -396,6 +399,50 @@ public sealed unsafe class GpuDevice : IDisposable
             HRESULT hr = adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP.DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info);
             adapter3->Release();
             return hr.SUCCEEDED ? (long)info.CurrentUsage : null;
+        }
+        finally
+        {
+            adapter->Release();
+        }
+    }
+
+    /// <summary>Bits por color del monitor que más tenga entre los del adaptador (<c>DXGI_OUTPUT_DESC1</c>); 8 si no hay monitores (WARP) o no se puede leer.</summary>
+    /// <remarks>shortcut: mira todos los monitores del adaptador y no el que tiene la ventana; afinar si alguien mezcla uno de 10 bits con otro de 8.</remarks>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0")]
+    public int MaxOutputBitsPerColor()
+    {
+        ObjectDisposedException.ThrowIf(_device == null, this);
+        IDXGIAdapter* adapter = GetAdapter();
+        int bits = 8;
+        if (adapter == null)
+        {
+            return bits;
+        }
+
+        try
+        {
+            for (uint i = 0; ; i++)
+            {
+                IDXGIOutput* output;
+                if (adapter->EnumOutputs(i, &output).FAILED)
+                {
+                    return bits;
+                }
+
+                IDXGIOutput6* output6;
+                if (output->QueryInterface(__uuidof<IDXGIOutput6>(), (void**)&output6).SUCCEEDED)
+                {
+                    DXGI_OUTPUT_DESC1 desc;
+                    if (output6->GetDesc1(&desc).SUCCEEDED)
+                    {
+                        bits = Math.Max(bits, (int)desc.BitsPerColor);
+                    }
+
+                    output6->Release();
+                }
+
+                output->Release();
+            }
         }
         finally
         {

@@ -127,14 +127,14 @@
                                 <ColumnDefinition Width="Auto" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Button x:Name="FreezeButton" Click="OnFreezeClick" AutomationProperties.Name="Congelar el cuadro del cursor">
+                            <Button x:Name="FreezeButton" Click="OnFreezeClick" AutomationProperties.Name="Congelar el fotograma del cursor">
                                 <StackPanel Orientation="Horizontal" Spacing="8">
                                     <TextBlock Text="&#xE769;" FontFamily="{StaticResource IconFontFamily}" FontSize="{StaticResource IconFontSize}" VerticalAlignment="Center" />
                                     <TextBlock Text="Congelar" VerticalAlignment="Center" />
                                 </StackPanel>
                             </Button>
                             <TextBlock x:Name="FreezeHint" Grid.Column="1" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
-                                       Text="Detiene el cuadro del cursor durante 3 s." />
+                                       Text="Detiene el fotograma del cursor durante 3 s." />
                         </Grid>
 
                         <Grid ColumnSpacing="8">

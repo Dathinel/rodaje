@@ -62,6 +62,19 @@ public sealed partial class AutosaveService : IDisposable
     /// <summary>Carpeta de esta sesión, o <c>null</c> si no está activo.</summary>
     public string? SessionDirectory => _store?.Directory;
 
+    /// <summary>
+    /// Lo máximo que queda un cambio sin copia mientras se sigue editando (Preferencias › General). El intervalo nuevo
+    /// se cuenta desde el momento en que se cambia.
+    /// </summary>
+    public TimeSpan Interval
+    {
+        get => _schedule.Interval;
+        set => _schedule.SetInterval(value, Now);
+    }
+
+    /// <summary>Cuándo terminó de escribirse la última copia de esta sesión, o <c>null</c> si todavía ninguna.</summary>
+    public DateTimeOffset? LastCopyAt { get; private set; }
+
     /// <summary>Crea la carpeta de esta sesión y empieza a seguir los cambios. Si el disco no deja, avisa y sigue sin autoguardado.</summary>
     public bool Start()
     {
@@ -115,9 +128,11 @@ public sealed partial class AutosaveService : IDisposable
 
     /// <summary>
     /// Busca, fuera del hilo de la interfaz, una sesión anterior que se cerró de forma inesperada con cambios sin guardar
-    /// y, si la hay, lo avisa con el botón «Recuperar». De paso borra las sesiones viejas.
+    /// y, si la hay, lo avisa con el botón «Recuperar» y <paramref name="also"/> al lado (por ejemplo, «Copiar informe»:
+    /// la barra de avisos muestra uno solo). De paso borra las sesiones viejas. Devuelve el botón, o <c>null</c> si no
+    /// había nada que recuperar.
     /// </summary>
-    public async Task OfferRecoveryAsync()
+    public async Task<NotificationAction?> OfferRecoveryAsync(NotificationAction? also = null)
     {
         _session.VerifyAccess();
         string root = Root;
@@ -128,7 +143,7 @@ public sealed partial class AutosaveService : IDisposable
         });
         if (found.Count == 0)
         {
-            return;
+            return null;
         }
 
         // Se ofrece la más reciente; las demás se sueltan y se ofrecen en el próximo arranque.
@@ -142,9 +157,10 @@ public sealed partial class AutosaveService : IDisposable
         DateTime saved = newest.Latest.SavedAt.ToLocalTime().DateTime;
         string when = saved.ToString("dd/MM/yyyy 'a las' HH:mm", CultureInfo.InvariantCulture);
         string more = found.Count > 1 ? $" Hay {found.Count - 1} copia(s) más antiguas; se ofrecerán la próxima vez." : "";
+        var recover = new NotificationAction("Recuperar", () => UiTask.Run(RecoverAsync(newest)));
         _session.Notify(NotificationSeverity.Warning, "Rodaje se cerró de forma inesperada",
-            $"Hay una copia de «{newest.ProjectName}» del {when} con cambios sin guardar.{more}",
-            new NotificationAction("Recuperar", () => UiTask.Run(RecoverAsync(newest))));
+            $"Hay una copia de «{newest.ProjectName}» del {when} con cambios sin guardar.{more}", recover, also);
+        return recover;
     }
 
     /// <summary>
@@ -358,6 +374,7 @@ public sealed partial class AutosaveService : IDisposable
         {
             await Enqueue(() => store.Write(copy, filePath));
             _schedule.NoteCaughtUp(since);
+            LastCopyAt = Now;
             _failureNotified = false;
             _formatFailureNotified = false;
         }
@@ -446,6 +463,7 @@ public sealed partial class AutosaveService : IDisposable
     {
         // El proyecto anterior se guardó o se descartó a propósito antes de abrir otro.
         _schedule.NoteCaughtUp(Now);
+        LastCopyAt = null;
         _wasDirty = _session.IsDirty;
         string name = _session.ProjectName;
         string? path = _session.FilePath;

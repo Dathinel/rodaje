@@ -44,8 +44,8 @@ public class ModelSectionCazaTests
     [Fact]
     public void Project_SchemaVersion_es_13()
     {
-        Assert.Equal(13, Project.CurrentSchemaVersion);
-        Assert.Equal(13, new Project().SchemaVersion);
+        Assert.Equal(15, Project.CurrentSchemaVersion);
+        Assert.Equal(15, new Project().SchemaVersion);
     }
 
     /// <summary>«La edición es no destructiva: un clip es una referencia a un medio (<c>MediaId</c>) más tres tiempos».</summary>
