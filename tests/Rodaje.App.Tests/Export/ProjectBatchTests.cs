@@ -2,6 +2,7 @@ using Rodaje.App.Tests.Support;
 using Rodaje.App.Views.Export;
 using Rodaje.Core.Model;
 using Rodaje.Core.Serialization;
+using Rodaje.Core.Timing;
 using Rodaje.Export;
 
 namespace Rodaje.App.Tests.Export;
@@ -13,8 +14,16 @@ public sealed class ProjectBatchTests
 
     private static string SaveProject(TempDirectory dir, string file, string name)
     {
+        // Un proyecto que pasa el validador al abrirlo: el medio con duración, imagen y tasa.
         Project project = ExportTestData.Project();
         project.Name = name;
+        MediaRef media = project.Media[0];
+        media.Name = "clip";
+        media.Duration = Time.FromSeconds(60);
+        media.HasVideo = true;
+        media.FrameRate = Rational.Fps30;
+        media.Width = 1920;
+        media.Height = 1080;
         string path = dir.File(file);
         ProjectSerializer.Save(project, path);
         return path;

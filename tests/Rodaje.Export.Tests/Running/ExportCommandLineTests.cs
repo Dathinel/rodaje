@@ -77,7 +77,8 @@ public sealed class ExportCommandLineTests
         string folder = Path.Combine(Path.GetTempPath(), "rodaje-linea-" + Guid.NewGuid().ToString("N"));
         ExportPlan plan = Plan(new ExportSettings
         {
-            Container = ExportContainer.ImageSequence, Video = new VideoExportSettings { Codec = ExportCodec.Png },
+            Container = ExportContainer.ImageSequence,
+            Video = new VideoExportSettings { Codec = ExportCodec.Png, RateControl = RateControl.Lossless, Chroma = ChromaSubsampling.Chroma444 },
         }, folder);
 
         IReadOnlyList<string> args = ExportCommandLine.Arguments(plan);
@@ -91,7 +92,8 @@ public sealed class ExportCommandLineTests
     [InlineData("", "\"\"")]
     [InlineData("con espacio", "\"con espacio\"")]
     [InlineData("di\"ce", "\"di\\\"ce\"")]
-    [InlineData(@"C:\carpeta\", "\"C:\\carpeta\\\\\"")]
+    [InlineData(@"C:\carpeta\", @"C:\carpeta\")]
+    [InlineData(@"C:\mi carpeta\", "\"C:\\mi carpeta\\\\\"")]
     [InlineData("barra\\ \\\"x", "\"barra\\ \\\\\\\"x\"")]
     [InlineData("a&b", "\"a&b\"")]
     [InlineData("tune=film,x", "\"tune=film,x\"")]
