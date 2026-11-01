@@ -1,6 +1,7 @@
 using Rodaje.App.Services;
 using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Titles;
+using Rodaje.App.Shell;
 using Rodaje.App.Views.Library;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;

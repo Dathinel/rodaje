@@ -92,7 +92,7 @@ public sealed class ExportCommandLineTests
     [InlineData("con espacio", "\"con espacio\"")]
     [InlineData("di\"ce", "\"di\\\"ce\"")]
     [InlineData(@"C:\carpeta\", "\"C:\\carpeta\\\\\"")]
-    [InlineData(@"barra\ \"" + "x", "\"barra\\ \\\\\\\"x\"")]
+    [InlineData("barra\\ \\\"x", "\"barra\\ \\\\\\\"x\"")]
     [InlineData("a&b", "\"a&b\"")]
     [InlineData("tune=film,x", "\"tune=film,x\"")]
     public void Quoting_follows_the_rules_of_the_windows_console(string argument, string expected)
