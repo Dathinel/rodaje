@@ -192,7 +192,11 @@ public sealed partial class EditorSession
     /// Si la secuencia está vacía, toma la tasa y el tamaño del primer video. Cancelar impide iniciar análisis pendientes
     /// y descarta el lote; espera a que terminen los análisis síncronos que ya estaban en curso.
     /// </remarks>
-    public async Task<ImportResult> ImportMediaAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default)
+    public Task<ImportResult> ImportMediaAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default) =>
+        ImportMediaAsync(paths, canApply: null, cancellationToken);
+
+    /// <summary>Permite descartar una importación si su destino cambió durante la lectura, antes de tocar el historial.</summary>
+    private async Task<ImportResult> ImportMediaAsync(IEnumerable<string> paths, Func<bool>? canApply, CancellationToken cancellationToken)
     {
         VerifyAccess();
         ArgumentNullException.ThrowIfNull(paths);
@@ -231,14 +235,14 @@ public sealed partial class EditorSession
         }
 
         // Un gesto en curso (arrastrar un clip, un deslizador) no admite otro paso del historial: se espera a que acabe.
-        while (IsInGesture && ReferenceEquals(target, Project))
+        while (IsInGesture && ReferenceEquals(target, Project) && canApply?.Invoke() != false)
         {
             await Task.Delay(100, cancellationToken);
         }
 
-        if (!ReferenceEquals(target, Project))
+        if (!ReferenceEquals(target, Project) || canApply?.Invoke() == false)
         {
-            // Mientras se leía se abrió otro proyecto: no se mezcla.
+            // Mientras se leía cambió el destino: no se incorpora el lote.
             return ImportResult.Empty;
         }
 

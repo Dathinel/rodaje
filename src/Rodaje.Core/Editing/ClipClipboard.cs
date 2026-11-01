@@ -31,12 +31,15 @@ public sealed record MediaResolution(IReadOnlyDictionary<string, string> Renamed
 /// </summary>
 public sealed class ClipClipboard
 {
-    private ClipClipboard(IReadOnlyList<CopiedClip> items, IReadOnlyList<CopiedTransition> transitions, IReadOnlyList<MediaRef> media, Time origin)
+    private readonly string? _sourceProjectId;
+
+    private ClipClipboard(IReadOnlyList<CopiedClip> items, IReadOnlyList<CopiedTransition> transitions, IReadOnlyList<MediaRef> media, Time origin, string? sourceProjectId)
     {
         Items = items;
         Transitions = transitions;
         Media = media;
         Origin = origin;
+        _sourceProjectId = sourceProjectId;
     }
 
     public IReadOnlyList<CopiedClip> Items { get; }
@@ -104,12 +107,13 @@ public sealed class ClipClipboard
         List<MediaRef> media = project is null
             ? []
             : [.. items.Select(i => i.Clip.MediaId).Distinct(StringComparer.Ordinal).Select(project.FindMedia).OfType<MediaRef>().Select(m => m.Clone())];
-        return new ClipClipboard(items, transitions, media, items[0].Clip.Start);
+        return new ClipClipboard(items, transitions, media, items[0].Clip.Start, project?.Id);
     }
 
     /// <summary>
     /// Qué les falta a los medios de lo copiado en <paramref name="project"/>. Un medio está si el proyecto tiene uno con
-    /// su identificador y el mismo archivo; si tiene el archivo con otro identificador, se usa ese; y si no lo tiene, hay
+    /// su identificador en el proyecto de origen (aunque se haya reenlazado), o su identificador y el mismo archivo en otro
+    /// proyecto; si tiene el archivo con otro identificador, se usa ese; y si no lo tiene, hay
     /// que importarlo. Un medio del que no se guardó referencia (lo copiado no traía el proyecto) cuenta como que falta
     /// si no está su identificador.
     /// </summary>
@@ -132,7 +136,7 @@ public sealed class ClipClipboard
                 continue;
             }
 
-            if (byId is not null && SamePath(byId, copied))
+            if (byId is not null && ((!string.IsNullOrEmpty(_sourceProjectId) && project.Id == _sourceProjectId) || SamePath(byId, copied)))
             {
                 continue;
             }
@@ -181,7 +185,7 @@ public sealed class ClipClipboard
             copy.Id = newId;
             return copy;
         })];
-        return new ClipClipboard(items, Transitions, media, Origin);
+        return new ClipClipboard(items, Transitions, media, Origin, _sourceProjectId);
     }
 
     private static int IndexOf(Sequence sequence, Track track) =>

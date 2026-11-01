@@ -170,8 +170,11 @@ internal static class CinemaDngImport
         // La GPU solo si el módulo sabe dar el mosaico, el cuadro es un mosaico de Bayer (que cabe en un arreglo) y hay un
         // dispositivo por hardware; si no, o si Direct3D no puede crear el revelador, LibRaw como siempre.
         long frameBytes = (long)width * height * PixelFormats.BytesPerPixel(PixelFormats.Rgba16F);
-        using GpuDevice? gpu = call.Info.Functions.Any(f => f.Id == MosaicFunction) && IsBayer(info.Value) && frameBytes <= int.MaxValue ? createDevice() : null;
-        using GpuRawDeveloper? developer = gpu is null ? null : TryCreateDeveloper(gpu, width, height);
+        bool offersMosaic = call.Info.Functions.Any(f => f.Id == MosaicFunction);
+        CinemaDngDevelopChoice candidate = CinemaDngDevelopChoice.Decide(true, offersMosaic, IsBayer(info.Value));
+        using GpuDevice? gpu = candidate.Path == CinemaDngDevelopPath.Gpu && frameBytes <= int.MaxValue ? createDevice() : null;
+        CinemaDngDevelopChoice choice = CinemaDngDevelopChoice.Decide(gpu is not null, offersMosaic, IsBayer(info.Value));
+        using GpuRawDeveloper? developer = choice.Path == CinemaDngDevelopPath.Gpu ? TryCreateDeveloper(gpu!, width, height) : null;
         bool onGpu = developer is not null;
         long moduleBytes = onGpu ? (long)width * height * 2 : frameBytes;
         int batch = BatchSize(moduleBytes, sequence.LargestFrameBytes);

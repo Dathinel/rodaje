@@ -130,6 +130,20 @@ public sealed class AutosaveScheduleTests
     }
 
     [Fact]
+    public void SetInterval_SameValueDoesNotPostponePendingEdits()
+    {
+        AutosaveSchedule schedule = Create();
+        schedule.NoteEdit(At(0));
+        schedule.NoteEdit(At(119));
+
+        schedule.SetInterval(schedule.Interval, At(119));
+
+        Assert.True(schedule.HasPendingChanges);
+        Assert.False(schedule.IsDue(At(119.9)));
+        Assert.True(schedule.IsDue(At(120)));
+    }
+
+    [Fact]
     public void SetInterval_RechazaCeroONegativo()
     {
         var schedule = new AutosaveSchedule();

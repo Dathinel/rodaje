@@ -190,8 +190,14 @@ internal static unsafe class RawDeveloper
         byte* iparams = LibRawNative.GetImageParams(handle);
         uint filters = *(uint*)(iparams + LibRawNative.IparamsFilters);
         int colors = *(int*)(iparams + LibRawNative.IparamsColors);
+        return BayerPattern(filters, colors, new ReadOnlySpan<byte>(iparams + LibRawNative.IparamsCdesc, 4));
+    }
+
+    /// <summary>Valida el patrón CFA sin abrir LibRaw; los índices se traducen con <paramref name="colorDescription"/>.</summary>
+    internal static string? BayerPattern(uint filters, int colors, ReadOnlySpan<byte> colorDescription)
+    {
         // 0 es sin mosaico (DNG lineal, Foveon), 1 Leaf y 9 X-Trans: solo los patrones de 2×2 valen.
-        if (filters <= 1000 || colors != 3)
+        if (filters <= 1000 || colors != 3 || colorDescription.Length < 4)
         {
             return null;
         }
@@ -199,13 +205,25 @@ internal static unsafe class RawDeveloper
         Span<char> letters = stackalloc char[4];
         for (int i = 0; i < 4; i++)
         {
-            char letter = (char)iparams[LibRawNative.IparamsCdesc + ColorIndex(filters, i / 2, i % 2)];
+            char letter = (char)colorDescription[ColorIndex(filters, i / 2, i % 2)];
             if (letter is not ('R' or 'G' or 'B'))
             {
                 return null;
             }
 
             letters[i] = letter;
+        }
+
+        // FC codifica ocho filas: todas deben repetir el mismo bloque, también si usa dos índices para el verde.
+        for (int row = 2; row < 8; row++)
+        {
+            for (int column = 0; column < 2; column++)
+            {
+                if (colorDescription[ColorIndex(filters, row, column)] != letters[((row & 1) * 2) + column])
+                {
+                    return null;
+                }
+            }
         }
 
         string pattern = new(letters);

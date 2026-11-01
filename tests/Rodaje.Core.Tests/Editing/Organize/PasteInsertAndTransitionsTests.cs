@@ -176,6 +176,7 @@ public sealed class PasteInsertAndTransitionsTests
 
         // Otro proyecto: «uno.mp4» está con otro identificador, «dos.mp4» no está y «m1» es un archivo distinto.
         var other = new TrimFixture();
+        other.Project.Id = "other-project";
         other.Project.GetMedia("m1").Path = @"C:\Otros\otro.mp4";
         other.Project.GetMedia("m3").Path = @"c:\videos\UNO.mp4";
         other.Project.Media.RemoveAll(m => m.Id == "m2");
@@ -187,6 +188,24 @@ public sealed class PasteInsertAndTransitionsTests
         MediaRef toImport = Assert.Single(resolution.ToImport);
         Assert.Equal(@"C:\Videos\dos.mp4", toImport.Path);
         Assert.Equal("m2", toImport.Id);
+    }
+
+    [Fact]
+    public void ResolveMedia_UsesIdentityAfterRelinkingInTheSourceProject()
+    {
+        var f = new TrimFixture().Add("v1", "x", "m1", 0, 10, 0);
+        f.Project.GetMedia("m1").Path = @"C:\Videos\old.mp4";
+        ClipClipboard copied = ClipClipboard.Capture(f.Sequence, ["x"], project: f.Project)!;
+        f.Project.GetMedia("m1").Path = @"C:\Moved\new.mp4";
+
+        MediaResolution resolution = copied.ResolveMedia(f.Project);
+
+        Assert.True(resolution.IsComplete);
+        Assert.Empty(resolution.Renamed);
+        IReadOnlyList<string> created = TimelineEdits.Paste(f.Ctx, copied, F(20));
+        Assert.Equal("m1", f.Clip(Assert.Single(created)).MediaId);
+        f.AssertValid();
+        Assert.Equal(@"C:\Videos\old.mp4", Assert.Single(copied.Media).Path);
     }
 
     [Fact]

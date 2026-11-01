@@ -44,11 +44,17 @@ public sealed class AutosaveSchedule
     /// <summary>
     /// Cambia el intervalo (Preferencias › General). Lo pendiente sigue pendiente, pero el intervalo nuevo se cuenta
     /// desde <paramref name="now"/>, no desde el primer cambio: acortarlo no dispara una copia en el acto y alargarlo
-    /// espera lo elegido desde este momento. La copia por calma (<see cref="QuietPeriod"/>) sigue igual.
+    /// espera lo elegido desde este momento. Reasignar el mismo intervalo conserva el vencimiento pendiente.
+    /// La copia por calma (<see cref="QuietPeriod"/>) sigue igual.
     /// </summary>
     public void SetInterval(TimeSpan interval, DateTimeOffset now)
     {
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
+        if (interval == Interval)
+        {
+            return;
+        }
+
         Interval = interval;
         if (_firstPendingEdit is not null)
         {

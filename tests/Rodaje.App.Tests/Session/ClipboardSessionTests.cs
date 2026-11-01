@@ -2,6 +2,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Tests.Support;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
+using Rodaje.Media.Probe;
 
 namespace Rodaje.App.Tests.Session;
 
@@ -24,6 +25,65 @@ public class ClipboardSessionTests
         var session = new EditorSession(new FakePlayback(), new FakeProber().Video(a).Video(b), dialogs, new SequentialIdGenerator());
         await session.OpenFilesAsync([a, b]);
         return (session, dialogs, a, b);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void PasteDiscardsTheImportIfThePlayheadMovesWhileReading(bool insert) => UiThread.Run(async () =>
+    {
+        using var folder = new TempDirectory();
+        string path = folder.File("copied.mp4");
+        File.WriteAllBytes(path, []);
+        var prober = new PausedProber(new FakeProber().Video(path));
+        var session = new EditorSession(new FakePlayback(), prober,
+            new FakeDialogs { Choice = UnsavedChangesChoice.Discard }, new SequentialIdGenerator());
+        await session.OpenFilesAsync([path]);
+        session.Select([session.MainTrack!.Clips[0].Id]);
+        Assert.True(session.CopySelection());
+        Assert.True(await session.NewProjectAsync());
+        int steps = session.History.Count;
+        string[] selection = [.. session.SelectedClipIds];
+        var notices = new List<EditorNotification>();
+        session.Notified += (_, notice) => notices.Add(notice);
+        prober.Pause();
+
+        Task<bool> pending = session.PasteAtPlayheadAsync(insert);
+        try
+        {
+            Assert.False(pending.IsCompleted);
+            At(session, 5);
+        }
+        finally
+        {
+            prober.Release();
+        }
+
+        Assert.False(await pending);
+        Assert.Empty(session.Project.Media);
+        Assert.Empty(session.MainTrack!.Clips);
+        Assert.Equal(steps, session.History.Count);
+        Assert.Equal(selection, session.SelectedClipIds);
+        Assert.Equal("No se pudo pegar", Assert.Single(notices).Title);
+    });
+
+    private sealed class PausedProber(IMediaProber inner) : IMediaProber
+    {
+        private TaskCompletionSource? _gate;
+
+        public void Pause() => _gate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public void Release() => _gate?.TrySetResult();
+
+        public MediaProbeResult Probe(string path)
+        {
+            if (_gate is { } gate && !gate.Task.Wait(TimeSpan.FromSeconds(10)))
+            {
+                throw new TimeoutException("La prueba no soltó la importación.");
+            }
+
+            return inner.Probe(path);
+        }
     }
 
     [Fact]

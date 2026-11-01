@@ -64,8 +64,9 @@ internal static class CinemaDngDialog
             return;
         }
 
-        // Con GPU, el módulo entrega el mosaico y se revela en Direct3D (docs/hdr.md, fase D); sin ella, LibRaw en la CPU.
+        // Antes de leer «info», el cuadro todavía puede exigir LibRaw: se conserva la elección de calidad para ese caso.
         using GpuDevice? gpu = await Task.Run(CinemaDngImport.HardwareDevice);
+        CinemaDngDevelopChoice develop = CinemaDngDevelopChoice.Decide(gpu is not null, module.Offers(CinemaDngImport.MosaicFunction), isBayer: null);
         var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
         panel.Children.Add(new TextBlock
         {
@@ -82,7 +83,7 @@ internal static class CinemaDngDialog
         slider = AnalysisUi.Slider(panel, "Exposición", -3, 3, 0, 0.1,
             v => string.Create(SpanishNumbers.Format, $"{v:+0.0;−0.0;0} EV"), () => exposure = slider!.Value);
         ComboBox? quality = null;
-        if (gpu is null)
+        if (develop.OfferQuality)
         {
             quality = new ComboBox { Header = "Calidad del revelado", Width = AnalysisUi.PreviewWidth, SelectedIndex = 0 };
             quality.Items.Add("Alta (más nítido, más lento)");
@@ -92,7 +93,7 @@ internal static class CinemaDngDialog
 
         panel.Children.Add(new TextBlock
         {
-            Text = (gpu is null ? "Se revela en la CPU con LibRaw. " : $"Se revela en la GPU ({GpuNameFormatter.Abbreviate(gpu.AdapterName)}). ")
+            Text = develop.Description
                 + "Se guarda una copia ProRes 422 HQ; los DNG no cambian. Para revelar con otros ajustes, vuelve a importar.",
             TextWrapping = TextWrapping.Wrap,
             Opacity = 0.8,
