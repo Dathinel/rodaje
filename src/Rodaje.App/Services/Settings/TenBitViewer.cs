@@ -12,8 +12,10 @@ public enum TenBitViewer
 /// <summary>Visor HDR en scRGB (Preferencias › Rendimiento › «Visor HDR»): con él una secuencia HDR se ve en HDR de verdad.</summary>
 public enum HdrViewer
 {
-    /// <summary>scRGB si algún monitor conectado está en modo HDR de Windows; si no, SDR.</summary>
+    /// <summary>scRGB si el monitor de la ventana está en modo HDR de Windows; si no se sabe, SDR.</summary>
     Auto,
+
+    /// <summary>scRGB salvo que se sepa que el monitor de la ventana está en SDR (en scRGB se vería quemado).</summary>
     On,
     Off,
 }
@@ -28,11 +30,14 @@ public static class ViewerBitDepth
         _ => monitorBitsPerColor >= 10,
     };
 
-    /// <summary>Si el visor se crea en scRGB (<c>R16G16B16A16_FLOAT</c>, BT.709 lineal con 1,0 = 80 nits) según la preferencia y el monitor; manda sobre los 10 bits.</summary>
-    public static bool UsesScRgb(HdrViewer setting, bool monitorInHdr) => setting switch
+    /// <summary>
+    /// Si el visor se crea en scRGB (<c>R16G16B16A16_FLOAT</c>, BT.709 lineal con 1,0 = 80 nits) según la preferencia y el monitor de la
+    /// ventana (<paramref name="monitorInHdr"/>: <c>null</c> si no se pudo saber, por ejemplo en WARP); manda sobre los 10 bits.
+    /// </summary>
+    public static bool UsesScRgb(HdrViewer setting, bool? monitorInHdr) => setting switch
     {
-        HdrViewer.On => true,
+        HdrViewer.On => monitorInHdr ?? true,
         HdrViewer.Off => false,
-        _ => monitorInHdr,
+        _ => monitorInHdr ?? false,
     };
 }

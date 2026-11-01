@@ -474,10 +474,13 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         bool mixedFlipX = clips.Skip(1).Any(c => (ClipPropertyEditor.FindEffect(c, BuiltInEffects.Transform)?.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipX) == "on") != flipX);
         bool mixedFlipY = clips.Skip(1).Any(c => (ClipPropertyEditor.FindEffect(c, BuiltInEffects.Transform)?.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipY) == "on") != flipY);
         double shutter = values.GetValueOrDefault(BuiltInEffects.TransformParameters.ShutterAngle);
+        bool hdrExpand = transform?.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.HdrExpand) == "on";
         _updatingTransform = true;
         FlipXButton.IsChecked = mixedFlipX ? null : flipX;
         FlipYButton.IsChecked = mixedFlipY ? null : flipY;
         MotionBlurSwitch.IsOn = shutter > 0;
+        HdrExpandSwitch.IsOn = hdrExpand;
+        HdrExpandRow.Visibility = _editor?.Session.Sequence.ColorSpace is { } space && space != SequenceColorSpace.Sdr709 ? Visibility.Visible : Visibility.Collapsed;
         _updatingTransform = false;
         MotionBlurRows.Visibility = shutter > 0 ? Visibility.Visible : Visibility.Collapsed;
         MotionBlurSection.Summary = shutter > 0
@@ -555,6 +558,18 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         string option = axis == "x" ? BuiltInEffects.TransformOptions.FlipX : BuiltInEffects.TransformOptions.FlipY;
         services.Session.Execute(EffectCommands.SetOption(services.Session.SequenceId, clipIds, BuiltInEffects.Transform, null, option, on ? "on" : "",
             axis == "x" ? "Voltear en horizontal" : "Voltear en vertical"));
+    }
+
+    private void OnHdrExpandToggled(object sender, RoutedEventArgs e)
+    {
+        if (_updatingTransform || _services is not { } services || _videoClipIds is not { Count: > 0 } clipIds)
+        {
+            return;
+        }
+
+        bool on = HdrExpandSwitch.IsOn;
+        services.Session.Execute(EffectCommands.SetOption(services.Session.SequenceId, clipIds, BuiltInEffects.Transform, null,
+            BuiltInEffects.TransformOptions.HdrExpand, on ? "on" : "", on ? "Expandir a HDR" : "Quitar expandir a HDR"));
     }
 
     private void OnMotionBlurToggled(object sender, RoutedEventArgs e)

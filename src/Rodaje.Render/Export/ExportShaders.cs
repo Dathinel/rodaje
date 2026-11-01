@@ -2,7 +2,7 @@ using Rodaje.Render.Shaders;
 
 namespace Rodaje.Render.Export;
 
-/// <summary>Compute shaders de la exportación: escala y forma, Y'CbCr por planos y miniatura.</summary>
+/// <summary>Compute shaders de la exportación: escala y forma, Y'CbCr por planos, miniatura y medida de luz (MaxCLL/MaxFALL).</summary>
 internal static class ExportShaders
 {
     private const string SourceName = "rodaje-export.hlsl";
@@ -323,7 +323,8 @@ internal static class ExportShaders
         }
         """;
 
-    // thumb: tamaño de la miniatura y del cuadro. Cada píxel promedia 4×4 muestras de su caja.
+    // thumb: tamaño de la miniatura y del cuadro. Cada píxel promedia 4×4 muestras de su caja. La variante TONEMAP lee la
+    // composición lineal de una secuencia HDR y la recorta a SDR BT.709 como PresentHdr (D-055); sin ella la miniatura es la de siempre.
     private const string Thumbnail = """
         cbuffer Thumb : register(b0)
         {
@@ -332,6 +333,32 @@ internal static class ExportShaders
 
         Texture2D<float4> picture : register(t0);
         RWByteAddressBuffer pixels : register(u0);
+
+        #ifdef TONEMAP
+        float Bt709(float x)
+        {
+            return x < 0.018 ? 4.5 * x : 1.099 * pow(x, 0.45) - 0.099;
+        }
+
+        float3 ToSdr(float3 rgb)
+        {
+            float3 light = saturate(mul(float3x3(
+                1.660491, -0.587641, -0.072850,
+                -0.124550, 1.132900, -0.008350,
+                -0.018151, -0.100579, 1.118730), rgb));
+            return float3(Bt709(light.r), Bt709(light.g), Bt709(light.b));
+        }
+        #endif
+
+        float3 Sample(uint2 p)
+        {
+            float3 rgb = picture.Load(int3(p, 0)).rgb;
+        #ifdef TONEMAP
+            return ToSdr(rgb);
+        #else
+            return rgb;
+        #endif
+        }
 
         [numthreads(8, 8, 1)]
         void CsThumbnail(uint3 id : SV_DispatchThreadID)
@@ -344,12 +371,57 @@ internal static class ExportShaders
                 [unroll] for (int i = 0; i < 4; i++)
                 {
                     float2 p = (float2(id.xy) + (float2(i, j) + 0.5) / 4) * box;
-                    sum += picture.Load(int3(min(uint2(p), thumb.zw - 1), 0)).rgb;
+                    sum += Sample(min(uint2(p), thumb.zw - 1));
                 }
             }
 
             uint3 c = uint3(saturate(sum / 16) * 255 + 0.5);
             pixels.Store((id.y * thumb.x + id.x) * 4, c.b | (c.g << 8) | (c.r << 16) | 0xFF000000u);
+        }
+        """;
+
+    // light: ancho y alto de la composición y teselas por fila. Cada grupo reduce su tesela de 16×16 a dos floats (máximo y
+    // suma de max(R, G, B) en luz lineal, 1,0 = 203 nits); la CPU junta las teselas (ContentLightMeter).
+    private const string Light = """
+        cbuffer Light : register(b0)
+        {
+            uint4 light;
+        };
+
+        Texture2D<float4> picture : register(t0);
+        RWByteAddressBuffer tiles : register(u0);
+
+        groupshared float peaks[256];
+        groupshared float sums[256];
+
+        [numthreads(16, 16, 1)]
+        void CsLight(uint3 id : SV_DispatchThreadID, uint3 group : SV_GroupID, uint lane : SV_GroupIndex)
+        {
+            float peak = 0;
+            if (id.x < light.x && id.y < light.y)
+            {
+                float3 rgb = picture.Load(int3(id.xy, 0)).rgb;
+                peak = max(max(max(rgb.r, rgb.g), rgb.b), 0);
+            }
+
+            peaks[lane] = peak;
+            sums[lane] = peak;
+            GroupMemoryBarrierWithGroupSync();
+            for (uint step = 128; step > 0; step >>= 1)
+            {
+                if (lane < step)
+                {
+                    peaks[lane] = max(peaks[lane], peaks[lane + step]);
+                    sums[lane] += sums[lane + step];
+                }
+
+                GroupMemoryBarrierWithGroupSync();
+            }
+
+            if (lane == 0)
+            {
+                tiles.Store2((group.y * light.z + group.x) * 8, uint2(asuint(peaks[0]), asuint(sums[0])));
+            }
         }
         """;
 
@@ -362,4 +434,8 @@ internal static class ExportShaders
     public static ShaderVariant ConvertToneMapVariant { get; } = new(Convert, "CsConvert", "cs_5_0", SourceName, "TONEMAP");
 
     public static ShaderVariant ThumbnailVariant { get; } = new(Thumbnail, "CsThumbnail", "cs_5_0", SourceName);
+
+    public static ShaderVariant ThumbnailToneMapVariant { get; } = new(Thumbnail, "CsThumbnail", "cs_5_0", SourceName, "TONEMAP");
+
+    public static ShaderVariant LightVariant { get; } = new(Light, "CsLight", "cs_5_0", SourceName);
 }

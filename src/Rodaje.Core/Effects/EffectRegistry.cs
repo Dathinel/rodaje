@@ -132,6 +132,7 @@ public static class EffectRegistry
         [
             OptionDefinition.Choice(BuiltInEffects.TransformOptions.FlipX, "off", "off", "on"),
             OptionDefinition.Choice(BuiltInEffects.TransformOptions.FlipY, "off", "off", "on"),
+            OptionDefinition.Choice(BuiltInEffects.TransformOptions.HdrExpand, "off", "off", "on"),
         ]),
         new(BuiltInEffects.Color, 2, EffectTarget.Video, EffectStage.PerPixel,
         [

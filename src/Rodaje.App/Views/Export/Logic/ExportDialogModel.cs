@@ -97,6 +97,9 @@ public sealed class ExportDialogModel
         }
     }
 
+    /// <summary>La salida va en HDR10 (PQ): se ofrece medir MaxCLL/MaxFALL en una pasada previa en vez de declararlos.</summary>
+    public bool OffersLightMeasurement => HdrNote is { } note && note.Contains("HDR10", StringComparison.Ordinal);
+
     /// <summary>Si alguna pista de subtítulos visible tiene texto: solo entonces se ofrece cómo exportarlos.</summary>
     public bool HasSubtitles => _sequence.VideoTracks.Any(t => t.Role == TrackRoles.Subtitles && !t.Hidden
         && t.Clips.Any(c => c.Generator is { Kind: GeneratorKinds.Text }));
