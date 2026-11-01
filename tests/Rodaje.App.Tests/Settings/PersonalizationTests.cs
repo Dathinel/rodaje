@@ -147,6 +147,70 @@ public sealed class PersonalizationTests
     }
 
     [Fact]
+    public void Temas_LaVersion1SubeALa2ConLasPistasDelColorDeLosPaneles()
+    {
+        Assert.Equal(2, Themes.CurrentVersion);
+        Assert.Contains("VideoTrackBrush", Themes.Slots.Select(s => s.Key));
+        Assert.Contains("AudioTrackBrush", Themes.Slots.Select(s => s.Key));
+        Assert.Equal(Themes.Graphite.Color("PanelBrush"), Themes.Graphite.Color("VideoTrackBrush"));
+        Assert.Equal(Themes.Light.Color("PanelBrush"), Themes.Light.Color("AudioTrackBrush"));
+
+        // Un tema guardado por la 1.0.2: sin pistas, con los paneles azulados.
+        ThemeDefinition v1 = Themes.Parse("""{"version": 1, "name": "Azul", "colors": {"PanelBrush": "#1A2A3A", "BackgroundBrush": "#0A1420"}}""")!;
+        Assert.Equal(2, v1.Version);
+        Assert.Equal(0xFF1A2A3Au, v1.Color("VideoTrackBrush"));
+        Assert.Equal(0xFF1A2A3Au, v1.Color("AudioTrackBrush"));
+        Assert.Equal(Themes.Graphite.Color("ControlBrush"), v1.Color("ControlBrush"));
+        Assert.Contains("\"version\": 2", Themes.Serialize(v1), StringComparison.Ordinal);
+
+        // Uno de la versión 2 al que le falte una pista la toma de Grafito, como cualquier otra clave; uno sin paneles tampoco falla.
+        ThemeDefinition v2 = Themes.Parse("""{"version": 2, "name": "Azul", "colors": {"PanelBrush": "#1A2A3A", "VideoTrackBrush": "#223344"}}""")!;
+        Assert.Equal(0xFF223344u, v2.Color("VideoTrackBrush"));
+        Assert.Equal(Themes.Graphite.Color("AudioTrackBrush"), v2.Color("AudioTrackBrush"));
+        ThemeDefinition bare = Themes.Parse("""{"version": 1, "name": "Vacío", "colors": {}}""")!;
+        Assert.Equal(Themes.Graphite.Color("PanelBrush"), bare.Color("VideoTrackBrush"));
+        Assert.Null(Themes.Parse("""{"version": 3, "name": "Futuro", "colors": {}}"""));
+
+        // El perfil lleva el tema propio dentro, con su propia versión: también se migra.
+        var registry = new ShortcutRegistry();
+        registry.RegisterRange(EditorShortcuts.Catalog);
+        var old = new ThemeDefinition { Version = 1, Name = "Azul", Colors = new Dictionary<string, string>(StringComparer.Ordinal) { ["PanelBrush"] = "#1A2A3A" } };
+        string profile = PersonalProfile.Serialize(new AppSettings { Theme = "Azul" }, registry, old);
+        // Dos «version»: la del perfil y la del tema, las dos en 1.
+        Assert.Equal(3, profile.Split("\"version\": 1").Length);
+        using var dir = new TempDirectory();
+        var themes = new ThemeStore(dir.Path);
+        Assert.True(PersonalProfile.Apply(profile, new AppSettings(), registry, themes));
+        Assert.Equal(2, themes.Find("Azul")!.Version);
+        Assert.Equal(0xFF1A2A3Au, themes.Find("Azul")!.Color("AudioTrackBrush"));
+
+        // Las pistas entran en la comprobación AA: texto principal sobre ellas.
+        ThemeDefinition dark = Themes.Graphite.Copy("Pistas claras");
+        dark.Set("VideoTrackBrush", 0xFFDDDDDD);
+        Assert.Contains(Themes.ContrastWarnings(dark), w => w.StartsWith("«Texto principal» sobre «Fondo de las pistas de video»", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void SeguirAWindows_SoloVuelveAAplicarSiCambiaElModo()
+    {
+        var follower = new WindowsThemeFollower();
+        // Sin «Seguir a Windows», ningún aviso de Windows toca el tema.
+        follower.Applied(Themes.GraphiteName, windowsIsLight: false);
+        Assert.False(follower.ShouldReapply(Themes.GraphiteName, windowsIsLight: true));
+
+        follower.Applied(Personalization.FollowWindowsTheme, windowsIsLight: false);
+        Assert.False(follower.ShouldReapply(Personalization.FollowWindowsTheme, windowsIsLight: false));
+        Assert.True(follower.ShouldReapply(Personalization.FollowWindowsTheme, windowsIsLight: true));
+        follower.Applied(Personalization.FollowWindowsTheme, windowsIsLight: true);
+        Assert.False(follower.ShouldReapply(Personalization.FollowWindowsTheme, windowsIsLight: true));
+        Assert.True(follower.ShouldReapply(Personalization.FollowWindowsTheme, windowsIsLight: false));
+
+        // Se eligió «Seguir a Windows» en Preferencias con la app ya aplicada en Grafito: el primer aviso aplica.
+        follower.Applied(Themes.GraphiteName, windowsIsLight: true);
+        Assert.True(follower.ShouldReapply(Personalization.FollowWindowsTheme, windowsIsLight: true));
+    }
+
+    [Fact]
     public void TemaConAcento_YNombresDeArchivoSeguros()
     {
         ThemeDefinition themed = Themes.WithAccent(Themes.Graphite, 0xFF4F9DDE);
