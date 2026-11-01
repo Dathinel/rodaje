@@ -22,7 +22,7 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 - **1-nov:** repaso con ratón de la 1.1 hecho por Claude (resultado al final de `docs/pruebas-a-mano.md`: pasan exportar entre I y O, línea de ffmpeg, asas, aviso de versión y ruedas; sin probar solo, sincronía, ritmo y lote). #489 unido (regla sin sombra tras Alt+X, asa de 10 px) y AOT republicado. Tres sesiones de nube lanzadas el 1-nov (HDR fase D, portapapeles, menores de la revisión 481): sus PR llegan sin unir, revisar por bloque.
 - **Siguiente:** Daniel repasa lo que falta de `docs/pruebas-a-mano.md` (solo, sincronía, ritmo, lote); unir los PR de la nube cuando lleguen; después la puerta de la 1.1 y `build\distribuir.ps1` + `publicar-release.ps1`.
 - **#461** es un borrador «NO UNIR» solo para `/code-review ultra 461`: ciérralo y borra `revision/base-v1.0.1` tras usarlo.
-- **HDR:** fases A, B y C completas (D-052 a D-055, D-058); la fase D (RAW en GPU) va en la 1.1 (plan en `docs/hdr.md`, brief listo para la nube).
-- **Decisiones:** hasta D-058. Daniel pidió tomar siempre la opción recomendada.
+- **HDR:** fases A, B y C completas (D-052 a D-055, D-058); la fase D va en la 1.1 en dos partes: el revelado en la GPU está hecho en la rama `claude/nifty-knuth-m11qnf` (D-059, PR abierto, sin unir; faltan las cifras del RTX 3050 en `docs/hdr.md` y empaquetar `modulo-raw` 1.1.0 al catálogo) y el intermedio de 12 bits sigue pendiente (plan en `docs/hdr.md`).
+- **Decisiones:** hasta D-059. Daniel pidió tomar siempre la opción recomendada.
 - **Herramientas de IA:** Subtitular, Rastrear y Lanzador con aviso de versión nueva y arreglos de revisión unidos el 31-oct, AOT publicado; entradas `app` en el catálogo v8.
 - Pendientes en `.proceso/agentes/BACKLOG-1.0.2.md`. La nube de `nocturna.yml` sigue en pausa.
