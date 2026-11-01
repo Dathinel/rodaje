@@ -10,6 +10,13 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 Lo que va a la 1.1, con ideas tomadas de los editores de referencia.
 
+### Corregido
+- **Pegar tras importar:** si cambia el proyecto, la secuencia o el cursor mientras se leen los medios, se avisa y se descarta la importación sin alterar la biblioteca ni pegar en otro destino.
+- **RAW:** los patrones CFA deben repetir el bloque Bayer 2×2 en sus ocho filas; los demás se revelan en la CPU con LibRaw.
+- **Portapapeles:** copiar, reenlazar un medio y pegar en el mismo proyecto conserva su identificador aunque cambie la ruta del archivo.
+- **Autoguardado:** guardar Preferencias con el mismo intervalo conserva el vencimiento de los cambios pendientes.
+- **CinemaDNG:** el diálogo tiene en cuenta el soporte de mosaicos del módulo y mantiene visible la calidad mientras se desconoce si el cuadro permite revelar en la GPU; el texto explica el respaldo en CPU.
+
 ### Añadido
 - **CinemaDNG revelado en la GPU** (D-059, `docs/hdr.md`, fase D): con una GPU, Importar CinemaDNG pide al módulo «RAW de cine» (1.1.0) el mosaico de Bayer sin interpolar y lo revela en Direct3D 11 (balance, interpolado de Malvar-He-Cutler, matriz de la cámara, exposición y curva Rec.709) antes de escribir el ProRes; el diálogo dice si se revela en la GPU o en la CPU y la notificación del final trae los milisegundos por fotograma. Sin GPU, con el módulo 1.0.0 o con un RAW que no es un mosaico de Bayer, se revela con LibRaw como hasta ahora.
 - **Secuencias HDR (parte 3)** (D-058, `docs/hdr.md`): «Medir MaxCLL/MaxFALL antes de codificar» en la exportación HDR10 (pasada previa que mide la composición en la GPU y escribe lo medido en el archivo; sin ella siguen los valores declarados). «Expandir a HDR» por clip en Propiedades › Opacidad y mezcla (apagado; pico en «Brillo de referencia HDR», 203–1000 nits): sube las luces de un clip SDR con la curva inversa de BT.2446 método A anclada en el gris del 18 %, que no se mueve. La LUT y las curvas trabajan en PQ en una secuencia HDR (una LUT se interpreta como LUT de HDR10; lo que pasa de 203 nits ya no se recorta al borde de la tabla). La miniatura de la exportación y los osciloscopios recortan a SDR como el visor. «Visor HDR: Siempre» ya no quema la imagen en un monitor SDR: se pregunta a Windows (DisplayConfig) por el monitor de la ventana. Una secuencia SDR no cambia ni un bit.

@@ -1,6 +1,7 @@
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
+using Rodaje.Core.Timing;
 
 namespace Rodaje.App.Services;
 
@@ -74,13 +75,24 @@ public sealed partial class EditorSession
             return false;
         }
 
-        ClipClipboard? ready = await BringMediaAsync(copied);
+        Project project = Project;
+        string sequenceId = SequenceId;
+        Time position = EditPosition;
+        bool IsCurrent() => ReferenceEquals(project, Project) && SequenceId == sequenceId && EditPosition == position;
+
+        ClipClipboard? ready = await BringMediaAsync(copied, IsCurrent);
+        if (!IsCurrent())
+        {
+            Notify(NotificationSeverity.Warning, "No se pudo pegar", "El proyecto, la secuencia o el cursor cambiaron mientras se importaban los medios. Vuelve a pegar en el destino deseado.");
+            return false;
+        }
+
         if (ready is null)
         {
             return false;
         }
 
-        SequenceEditCommand command = Edits.PasteClips(SequenceId, ready, EditPosition, _ids, insert ? PlacementMode.Insert : PlacementMode.Overwrite);
+        SequenceEditCommand command = Edits.PasteClips(sequenceId, ready, position, _ids, insert ? PlacementMode.Insert : PlacementMode.Overwrite);
         if (!Execute(command))
         {
             return false;
@@ -94,7 +106,7 @@ public sealed partial class EditorSession
     /// Lo copiado con sus medios en este proyecto: los que ya están con otro identificador se renombran y los que faltan
     /// se importan por su archivo. <c>null</c>, con aviso, si alguno no se puede traer.
     /// </summary>
-    private async Task<ClipClipboard?> BringMediaAsync(ClipClipboard copied)
+    private async Task<ClipClipboard?> BringMediaAsync(ClipClipboard copied, Func<bool> isCurrent)
     {
         MediaResolution resolution = copied.ResolveMedia(Project);
         if (resolution.IsComplete)
@@ -109,9 +121,8 @@ public sealed partial class EditorSession
             return null;
         }
 
-        Project target = Project;
-        ImportResult imported = await ImportMediaAsync(resolution.ToImport.Select(m => m.Path));
-        if (!ReferenceEquals(target, Project))
+        ImportResult imported = await ImportMediaAsync(resolution.ToImport.Select(m => m.Path), isCurrent, CancellationToken.None);
+        if (!isCurrent())
         {
             return null;
         }
