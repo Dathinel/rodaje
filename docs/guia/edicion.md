@@ -86,6 +86,8 @@ Un video con sonido entra como dos clips enlazados que se mueven, cortan y recor
    - **Superponer (Mayús+,)**: la imagen va encima, en la primera pista de video libre o en una nueva (**Secuencia › Superponer desde el origen**).
 4. Con cuatro puntos de distinta duración pregunta **Ajustar velocidad** o **Recortar**.
 
+Las marcas de la secuencia sirven también para **exportar solo ese tramo**: con I y O puestos, Exportar (Ctrl+E) se abre en el rango «Entre la entrada y la salida» (ver [Exportar](exportar.md#la-vista-sencilla)).
+
 ## Clips compuestos
 
 Selecciona varios clips y pulsa **Alt+G** (Crear clip compuesto): quedan como uno solo. **Doble clic** entra a editar su secuencia; las migas de pan en la barra de contexto vuelven al proyecto. **Alt+Mayús+G** descompone. El compuesto lleva sus propios efectos, transformación, opacidad, máscaras, mezcla y transiciones, como cualquier clip.

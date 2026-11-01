@@ -52,6 +52,7 @@ Detalle de ingeniería de cada subsistema en `src/` (diseño sin dependencias ci
 - **[Protocolo de módulos de IA](protocolo-modulos.md):** Comunicación interproceso mediante tuberías nombradas y memoria compartida para integrar modelos en cualquier lenguaje.
 - **[Descarga y seguridad del catálogo](descarga.md):** Infraestructura de catálogo firmado mediante claves criptográficas para distribución segura de complementos.
 - **[Variables de entorno](variables-entorno.md):** Opciones de depuración, carpetas de datos personalizadas y ajustes de laboratorio.
+- **[Pruebas a mano](pruebas-a-mano.md):** Lo que se repasa en la app antes de unir o publicar, función por función, con los pasos y lo que debe verse.
 
 ---
 
