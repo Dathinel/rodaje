@@ -25,6 +25,8 @@ internal sealed class TimelineBrushes
         TextDisabled = Get("TextDisabledBrush");
         Accent = Get("AccentBrush");
         AccentSubtle = Get("AccentSubtleBrush");
+        VideoTrack = Get("VideoTrackBrush");
+        AudioTrack = Get("AudioTrackBrush");
         Keyframe = Get("KeyframeBrush");
         VideoClip = Get("VideoClipBrush");
         VideoClipEdge = Get("VideoClipEdgeBrush");
@@ -78,6 +80,12 @@ internal sealed class TimelineBrushes
     public Brush Accent { get; }
 
     public Brush AccentSubtle { get; }
+
+    /// <summary>Fondo de las filas y cabeceras de las pistas de video (de fábrica, el de los paneles).</summary>
+    public Brush VideoTrack { get; }
+
+    /// <summary>Fondo de las filas y cabeceras de las pistas de audio (de fábrica, el de los paneles).</summary>
+    public Brush AudioTrack { get; }
 
     public Brush Keyframe { get; }
 
@@ -137,6 +145,8 @@ internal sealed class TimelineBrushes
     public SolidColorBrush MainLane { get; } = new();
 
     public Brush ClipFill(TrackKind kind) => kind == TrackKind.Audio ? AudioClip : VideoClip;
+
+    public Brush TrackFill(TrackKind kind) => kind == TrackKind.Audio ? AudioTrack : VideoTrack;
 
     public Brush ClipEdge(TrackKind kind) => kind == TrackKind.Audio ? AudioClipEdge : VideoClipEdge;
 

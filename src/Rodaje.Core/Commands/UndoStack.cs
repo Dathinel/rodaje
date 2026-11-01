@@ -21,6 +21,10 @@ public sealed class UndoStack
 
     private bool _mergeBarrier;
 
+    // La última instantánea de una edición: la siguiente comparte con ella las pistas que siguen igual en vez de copiarlas
+    // otra vez (un arrastre ejecuta un paso por movimiento del puntero). Basta como pista: cada una se compara antes.
+    private SequenceSnapshot? _lastSnapshot;
+
     // Pasos de deshacer en el punto limpio; null si ya no se puede alcanzar.
     private int? _cleanIndex = 0;
 
@@ -72,7 +76,15 @@ public sealed class UndoStack
     public void Execute(ICommand command)
     {
         ArgumentNullException.ThrowIfNull(command);
-        command.Apply(Project);
+        if (command is SequenceEditCommand edit)
+        {
+            edit.Apply(Project, _lastSnapshot);
+            _lastSnapshot = edit.After;
+        }
+        else
+        {
+            command.Apply(Project);
+        }
 
         if (IsInGroup)
         {
