@@ -613,8 +613,8 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         _updatingPreset = false;
 
         // La curva de los fundidos: la del primer clip, o «—» (sin elección) si los seleccionados no coinciden.
-        string shape = Views.Timeline.FadeHandles.Shape(clip);
-        bool mixedShape = clips.Skip(1).Any(c => Views.Timeline.FadeHandles.Shape(c) != shape);
+        string shape = Rodaje.App.Views.Timeline.FadeHandles.Shape(clip);
+        bool mixedShape = clips.Skip(1).Any(c => Rodaje.App.Views.Timeline.FadeHandles.Shape(c) != shape);
         _updatingFadeShape = true;
         FadeShapeBox.SelectedIndex = mixedShape ? -1 : Math.Max(0, EffectUi.FadeShapes.ToList().FindIndex(s => s.Value == shape));
         _updatingFadeShape = false;
@@ -803,7 +803,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         string stored = value == BuiltInEffects.FadeShapes.Power ? "" : value;
         Sequence sequence = services.Session.Sequence;
         List<string> targets = stored.Length > 0 ? [.. clipIds]
-            : [.. clipIds.Where(id => sequence.FindClip(id) is { } found && Views.Timeline.ClipDecorations.VolumeOf(found.Clip) is not null)];
+            : [.. clipIds.Where(id => sequence.FindClip(id) is { } found && Rodaje.App.Views.Timeline.ClipDecorations.VolumeOf(found.Clip) is not null)];
         if (targets.Count == 0)
         {
             return;

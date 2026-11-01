@@ -61,7 +61,7 @@ internal sealed partial class TimelineView
         menu.Items.Add(new MenuFlyoutSeparator());
 
         // Fundidos de audio hasta el cursor: para clips de audio o videos con su audio enlazado.
-        bool hasAudio = Services.Audio.LoudnessNormalizer.AudioClips(session).Count > 0;
+        bool hasAudio = Rodaje.App.Services.Audio.LoudnessNormalizer.AudioClips(session).Count > 0;
         var fadeIn = new MenuFlyoutItem
         {
             Text = "Fundido de entrada hasta el cursor",
