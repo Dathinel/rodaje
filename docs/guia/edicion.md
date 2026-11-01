@@ -53,10 +53,12 @@ Clic selecciona (dentro de una selección, deja solo ese clip; arrastrar mueve l
 
 ## Copiar, duplicar y pegar
 
-- **Copiar clips (Ctrl+C)** guarda la selección con sus enlazados y su grupo (con **ignorar grupos**, solo los clips elegidos). Es un portapapeles de Rodaje, no el de Windows: sobrevive a abrir otro proyecto siempre que los medios sigan en él.
-- **Duplicar clip (Ctrl+D**; Ctrl+Mayús+D en Clásico**)** pone una copia de la selección justo a continuación, en sus mismas pistas y con la misma distancia entre clips; si el sitio está ocupado, avisa y no mueve nada. Las copias quedan seleccionadas.
-- **Pegar en el cursor (Ctrl+Mayús+V o Ctrl+V)** pone lo copiado con el primer clip en el cursor y los demás a su distancia, cada uno en la pista con el mismo número (o la última de su tipo si ya no hay tantas), tapando lo que haya en ese tramo como un Sobrescribir. Los efectos, enlaces y grupos se copian; un clip compuesto no se copia ni se duplica.
-- Los tres están en **Editar** y en el menú del clip; cada uno es un paso del historial.
+- **Copiar clips (Ctrl+C)** guarda la selección con sus enlazados y su grupo (con **ignorar grupos**, solo los clips elegidos) y las transiciones que haya entre los clips copiados. Es un portapapeles de Rodaje, no el de Windows: sobrevive a abrir otro proyecto.
+- **Duplicar clip (Ctrl+D**; Ctrl+Mayús+D en Clásico**)** pone una copia de la selección justo a continuación, en sus mismas pistas, con la misma distancia entre clips y con sus transiciones; si el sitio está ocupado, avisa y no mueve nada. Las copias quedan seleccionadas.
+- **Pegar en el cursor (Ctrl+Mayús+V o Ctrl+V)** pone lo copiado con el primer clip en el cursor y los demás a su distancia, cada uno en la pista con el mismo número (o la última de su tipo si ya no hay tantas), tapando lo que haya en ese tramo como un Sobrescribir. Los efectos, enlaces, grupos y las transiciones entre lo copiado se copian; un clip compuesto no se copia ni se duplica.
+- **Pegar insertando (Ctrl+Alt+V)** pone lo mismo en el cursor pero, en vez de tapar, abre un espacio del largo de lo copiado en las pistas donde cae (partiendo el clip que pase por el cursor) y corre lo que sigue, con los enlazados de lo que se corre, como al mover un clip insertando. Si para correr algo haría falta tocar una pista bloqueada, avisa y no cambia nada.
+- **Pegar en otro proyecto:** si un clip copiado usa un medio que no está en el proyecto abierto, Rodaje lo importa antes por la ruta de su archivo (un paso «Importar medio» aparte en el historial); si el archivo ya está en la biblioteca con otro identificador, usa ese; y si el archivo ya no existe, avisa y no pega nada.
+- Los cuatro están en **Editar** y en el menú del clip; cada uno es un paso del historial.
 
 ## Grupos, colores y huecos
 

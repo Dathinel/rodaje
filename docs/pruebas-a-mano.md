@@ -83,3 +83,11 @@ La lógica (comparar versiones, 24 h, versión descartada) está probada en `tes
 2. Arrastra el punto de Desplazamiento hacia el azul: toda la imagen se tiñe, también el negro puro (compáralo con Sombras, que no toca el blanco, y con Luces, que no toca el negro). El monitor de forma de onda sube entero con el deslizador «Desplazamiento».
 3. Doble clic en la rueda la devuelve al centro; cada arrastre es un paso de **Ctrl+Z**.
 4. Abre un proyecto de la 1.0.2 con ruedas: se ve igual que antes (el desplazamiento vale 0) y se guarda sin cambiar el formato.
+
+## Portapapeles: pegar insertando, transiciones y otro proyecto
+
+1. Con dos clips seguidos en V1 y una transición entre ellos (**Ctrl+T** en el corte), selecciona los dos y **Ctrl+C**. Lleva el cursor más allá y **Ctrl+Mayús+V**: las copias traen la transición, con su tipo y su duración. **Ctrl+D** sobre los dos originales también la duplica.
+2. Copia un solo clip, pon el cursor en medio de otro clip y pulsa **Ctrl+Alt+V** (Editar › Pegar insertando): el clip de debajo se parte en el cursor y su mitad derecha, con todo lo que sigue en esa pista y en la de su audio, se corre lo que dura lo pegado; nada se tapa. **Ctrl+Z** lo deshace en un paso («Pegar insertando»).
+3. Bloquea la pista de audio y repite el paso 2 en un punto donde haya que correr audio enlazado: avisa «No se pudo hacer» y no cambia nada.
+4. Copia un clip, **Ctrl+N** (descarta los cambios) y **Ctrl+V** en el proyecto vacío: el medio aparece en la biblioteca (paso «Importar medio» en el historial) y el clip se pega con él. Si importas antes ese mismo archivo a mano, no se repite en la biblioteca.
+5. Repite el paso 4 después de mover o renombrar el archivo de video: aviso «No se pudo pegar» con la ruta que falta, y la línea de tiempo y la biblioteca quedan como estaban.

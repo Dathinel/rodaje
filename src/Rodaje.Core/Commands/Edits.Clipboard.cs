@@ -14,11 +14,19 @@ public static partial class Edits
         return new(selection.Length == 1 ? "Duplicar clip" : "Duplicar clips", sequenceId, ctx => TimelineEdits.DuplicateClips(ctx, selection, alone), ids);
     }
 
-    /// <summary>Pega lo copiado con el primero en <paramref name="at"/>, tapando lo que haya en ese tramo.</summary>
+    /// <summary>
+    /// Pega lo copiado con el primero en <paramref name="at"/>: tapando lo que haya en ese tramo
+    /// (<see cref="PlacementMode.Overwrite"/>) o corriendo lo que sigue para hacerle sitio (<see cref="PlacementMode.Insert"/>).
+    /// </summary>
     /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: los clips nuevos, en el orden de lo copiado.</remarks>
-    public static SequenceEditCommand PasteClips(string sequenceId, ClipClipboard copied, Time at, IIdGenerator? ids = null)
+    public static SequenceEditCommand PasteClips(string sequenceId, ClipClipboard copied, Time at, IIdGenerator? ids = null, PlacementMode mode = PlacementMode.Overwrite)
     {
         ArgumentNullException.ThrowIfNull(copied);
-        return new("Pegar en el cursor", sequenceId, ctx => TimelineEdits.Paste(ctx, copied, at, PlacementMode.Overwrite), ids);
+        if (mode == PlacementMode.Strict)
+        {
+            throw new ArgumentOutOfRangeException(nameof(mode), "Pegar tapa o inserta; el modo estricto es solo de Duplicar.");
+        }
+
+        return new(mode == PlacementMode.Insert ? "Pegar insertando" : "Pegar en el cursor", sequenceId, ctx => TimelineEdits.Paste(ctx, copied, at, mode), ids);
     }
 }
