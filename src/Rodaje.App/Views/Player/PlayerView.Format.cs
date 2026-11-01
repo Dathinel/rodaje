@@ -21,7 +21,6 @@ internal sealed partial class PlayerView
 
     private void AttachFormat(EditorServices services)
     {
-        services.ShortcutRegistry.Register(new ShortcutAction(PlayerActionIds.ProjectFormat, "Formato del proyecto…", ShortcutGroups.View, []));
         _bindings.Add(services.Shortcuts.Bind(PlayerActionIds.ProjectFormat, () => UiTask.Run(ShowFormatDialogAsync())));
     }
 

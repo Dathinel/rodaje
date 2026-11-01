@@ -486,6 +486,7 @@ public sealed partial class EditorSession
         // Las referencias «file:» en memoria son absolutas (LutReference.ForFile y al abrir): no hay que tocarlas al
         // cambiar de carpeta, ni en el proyecto ni en la pila de deshacer.
         FilePath = path;
+        LastSavedAt = DateTimeOffset.UtcNow;
         if (version == _editVersion && !IsInGesture)
         {
             // Si se editó mientras se escribía, lo guardado ya es viejo y el proyecto sigue con cambios.

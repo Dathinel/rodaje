@@ -40,24 +40,20 @@ internal sealed partial class MainWindow
     {
         TitleBar.WorkspaceChosen += (_, id) => ApplyWorkspace(id);
         TitleBar.SaveWorkspaceRequested += (_, _) => UiTask.Run(SaveWorkspaceAsync());
-        ShortcutRegistry registry = _router.Registry;
         foreach (WorkspaceProfile profile in WorkspaceProfiles.Factory)
         {
-            string id = "view.workspace." + profile.Id["fabrica.".Length..];
-            registry.Register(new ShortcutAction(id, $"Espacio de trabajo «{profile.Name}»", ShortcutGroups.Windows, []));
-            _bindings.Add(_router.Bind(id, () => ApplyWorkspace(profile.Id)));
+            _bindings.Add(_router.Bind(ShellShortcuts.Workspace(profile), () => ApplyWorkspace(profile.Id)));
         }
 
         _bindings.Add(_router.Bind(ActionIds.LayoutBalanced, () => SetTimelineShare(TimelineProportion.Balanced)));
         _bindings.Add(_router.Bind(ActionIds.LayoutMoreViewer, () => SetTimelineShare(TimelineProportion.MoreViewer)));
         _bindings.Add(_router.Bind(ActionIds.LayoutMoreTimeline, () => SetTimelineShare(TimelineProportion.MoreTimeline)));
-        registry.Register(new ShortcutAction(WatchedFoldersActionId, "Carpetas vigiladas…", ShortcutGroups.File, []));
         _bindings.Add(_router.Bind(WatchedFoldersActionId, () => UiTask.Run(EditWatchedFoldersAsync())));
         StartWatchingFolders();
         AttachOnboarding();
     }
 
-    private const string WatchedFoldersActionId = "file.watchedFolders";
+    private const string WatchedFoldersActionId = ShellShortcuts.WatchedFolders;
 
     private readonly WatchedFolderScanner _scanner = new();
     private bool _scanning;

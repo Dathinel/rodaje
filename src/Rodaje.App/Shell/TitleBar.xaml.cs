@@ -135,6 +135,72 @@ internal sealed partial class TitleBar : UserControl
 
     private void OnMarkersClick(object sender, RoutedEventArgs e) => MarkersPanelRequested?.Invoke(this, EventArgs.Empty);
 
+    /// <summary>
+    /// Rehace Archivo › Proyectos recientes con los de <paramref name="settings"/>: los que ya no existen se quitan de
+    /// los ajustes y no se muestran. La ventana lo llama al unirse y cada vez que se abre o se guarda un proyecto.
+    /// </summary>
+    internal void RefreshRecentProjects(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        settings.PruneRecentProjects(File.Exists);
+        IReadOnlyList<RecentProjectEntry> entries = RecentProjects.Build(settings.RecentProjects, File.Exists);
+        RecentMenu.Items.Clear();
+        RecentMenu.IsEnabled = entries.Count > 0;
+        foreach (RecentProjectEntry entry in entries)
+        {
+            var item = new MenuFlyoutItem { Text = entry.Label, Tag = entry.Path };
+            ToolTipService.SetToolTip(item, entry.Path);
+            item.Click += OnRecentProjectClick;
+            RecentMenu.Items.Add(item);
+        }
+
+        if (entries.Count == 0)
+        {
+            return;
+        }
+
+        RecentMenu.Items.Add(new MenuFlyoutSeparator());
+        var clear = new MenuFlyoutItem { Text = "Vaciar la lista" };
+        clear.Click += (_, _) =>
+        {
+            settings.RecentProjects.Clear();
+            RefreshRecentProjects(settings);
+        };
+        RecentMenu.Items.Add(clear);
+    }
+
+    private void OnRecentProjectClick(object sender, RoutedEventArgs e) => UiTask.Run(OnRecentProjectClickAsync(sender));
+
+    private async Task OnRecentProjectClickAsync(object sender)
+    {
+        if (sender is not FrameworkElement { Tag: string path } || _services is null)
+        {
+            return;
+        }
+
+        if (!File.Exists(path))
+        {
+            _services.Session.Notify(NotificationSeverity.Warning, "Ya no está", $"No se encuentra «{path}». Se quita de los recientes.");
+            RecentProjectMissing?.Invoke(this, path);
+            return;
+        }
+
+        try
+        {
+            await _services.Session.OpenProjectAsync(path);
+        }
+#pragma warning disable CA1031 // Un clic en el menú no debe tumbar la aplicación: el error se muestra en la ventana.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            UiTask.Report(ex, notify: false);
+            _services.Session.Notify(NotificationSeverity.Error, "No se pudo abrir el proyecto", ex.Message);
+        }
+    }
+
+    /// <summary>Un reciente ya no existe: la ventana lo quita de los ajustes y rehace el menú.</summary>
+    public event EventHandler<string>? RecentProjectMissing;
+
     private void OnInspectorClick(object sender, RoutedEventArgs e)
     {
         if (sender is FrameworkElement { Tag: string tag } && Enum.TryParse(tag.AsSpan("inspector:".Length), out InspectorView.Tab tab))
