@@ -52,6 +52,8 @@ public class FadeToPlayheadTests
         var notices = new List<EditorNotification>();
         session.Notified += (_, n) => notices.Add(n);
         Clip audio = session.Sequence.AudioTracks[0].Clips[0];
+        // Abrir el video ya dejó pasos en el historial: lo que se comprueba es que no se añada ninguno.
+        int steps = session.HistoryEntries.Count;
 
         At(session, 3);
         Assert.False(session.FadeToPlayhead(FadeHandle.In));
@@ -61,6 +63,6 @@ public class FadeToPlayheadTests
         At(session, 10);
         Assert.False(session.FadeToPlayhead(FadeHandle.Out));
         Assert.Equal((0.0, 0.0), FadeHandles.Seconds(audio));
-        Assert.False(session.CanUndo);
+        Assert.Equal(steps, session.HistoryEntries.Count);
     });
 }
