@@ -39,7 +39,6 @@ public static partial class TimelineEdits
             throw new EditException("El clip no puede empezar antes del inicio de la línea de tiempo.");
         }
 
-        var links = new Dictionary<string, string>(StringComparer.Ordinal);
         var groups = new Dictionary<string, string>(StringComparer.Ordinal);
         var placed = new List<(Track Track, Clip Clip)>(copied.Items.Count);
         foreach (CopiedClip item in copied.Items)
@@ -58,11 +57,24 @@ public static partial class TimelineEdits
             }
 
             clip.Id = ctx.Ids.NewId("clip");
-            clip.LinkId = Renamed(links, clip.LinkId, "link", ctx);
+            clip.LinkId = ctx.DerivedLinkId(clip.LinkId);
             clip.GroupId = Renamed(groups, clip.GroupId, "group", ctx);
             MaskEdits.RenewIds(ctx, clip.Effects, "fx");
             clip.Start = at + (item.Clip.Start - copied.Origin);
             placed.Add((track, clip));
+        }
+
+        // Dos copiados de pistas distintas pueden caer en la misma (TargetTrack recorta el índice): en Overwrite el
+        // segundo taparía al primero recién pegado sin aviso.
+        for (int i = 0; i < placed.Count; i++)
+        {
+            for (int j = i + 1; j < placed.Count; j++)
+            {
+                if (placed[i].Track == placed[j].Track && placed[i].Clip.Start < placed[j].Clip.End && placed[j].Clip.Start < placed[i].Clip.End)
+                {
+                    throw new EditException("Lo copiado no cabe en las pistas de este proyecto: dos clips coinciden en la misma pista.");
+                }
+            }
         }
 
         if (mode == PlacementMode.Strict)

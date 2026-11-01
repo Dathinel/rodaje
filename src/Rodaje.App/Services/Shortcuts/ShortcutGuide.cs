@@ -105,59 +105,18 @@ public static class ShortcutGuide
     public static string ToHtml(ShortcutRegistry registry, string subtitle)
     {
         ArgumentNullException.ThrowIfNull(registry);
-        var html = new StringBuilder();
-        html.Append("""
-            <!doctype html>
-            <html lang="es">
-            <head>
-            <meta charset="utf-8">
-            <meta name="viewport" content="width=device-width, initial-scale=1">
-            <title>Atajos de Rodaje</title>
-            <style>
-              :root { --bg: #ffffff; --text: #1b1b1b; --muted: #5e5e5e; --line: #dddddd; --key: #f3f3f3; --accent: #c96d29; }
-              @media (prefers-color-scheme: dark) { :root { --bg: #141414; --text: #d8d8d8; --muted: #9a9a9a; --line: #2e2e2e; --key: #232323; --accent: #e8833a; } }
-              @media print { :root { --bg: #ffffff; --text: #000000; --muted: #444444; --line: #bbbbbb; --key: #f3f3f3; --accent: #000000; } }
-              * { box-sizing: border-box; }
-              body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--text); font: 13px/1.4 "Segoe UI", system-ui, sans-serif; }
-              main { max-width: 900px; margin: 0 auto; }
-              h1 { margin: 0; font-size: 20px; }
-              h2 { margin: 20px 0 6px; font-size: 14px; color: var(--accent); break-after: avoid; }
-              p.sub { margin: 4px 0 8px; color: var(--muted); }
-              ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0 24px; }
-              li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 5px 0; border-bottom: 1px solid var(--line); break-inside: avoid; }
-              .keys { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
-              kbd { font: 600 11px/1 "Segoe UI", system-ui, sans-serif; padding: 3px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; background: var(--key); white-space: nowrap; }
-              @page { margin: 12mm; }
-            </style>
-            </head>
-            <body>
-            <main>
-            <h1>Atajos de Rodaje</h1>
-
-            """);
-        html.Append("<p class=\"sub\">").Append(Encode(subtitle)).Append("</p>\n");
-        foreach (string group in Groups(registry.Actions))
-        {
-            List<ShortcutAction> actions = [.. registry.Actions.Where(a => a.Group == group && registry.GetKeys(a.Id).Count > 0)];
-            if (actions.Count == 0)
-            {
-                continue;
-            }
-
-            html.Append("<h2>").Append(Encode(group)).Append("</h2>\n<ol>\n");
-            foreach (ShortcutAction action in actions)
-            {
-                html.Append("  <li><span>").Append(Encode(action.Label)).Append("</span><span class=\"keys\">");
-                html.Append(string.Join(' ', registry.GetKeys(action.Id).Select(k => "<kbd>" + Encode(k.ToString()) + "</kbd>")));
-                html.Append("</span></li>\n");
-            }
-
-            html.Append("</ol>\n");
-        }
-
-        html.Append("</main>\n</body>\n</html>\n");
-        return html.ToString();
+        IEnumerable<(string? Heading, IReadOnlyList<CheatSheetEntry> Entries)> sections = Groups(registry.Actions)
+            .Select(group => ((string?)group, Entries(registry, group)))
+            .Where(section => section.Item2.Count > 0);
+        return CheatSheet.ToHtml("Atajos de Rodaje", subtitle, sections);
     }
+
+    private static IReadOnlyList<CheatSheetEntry> Entries(ShortcutRegistry registry, string group) =>
+    [
+        .. registry.Actions
+            .Where(a => a.Group == group && registry.GetKeys(a.Id).Count > 0)
+            .Select(a => new CheatSheetEntry(a.Id, a.Label, a.Group, [.. registry.GetKeys(a.Id).Select(k => k.ToString())])),
+    ];
 
     private static IEnumerable<string> Groups(IEnumerable<ShortcutAction>? actions = null)
     {
@@ -178,10 +137,4 @@ public static class ShortcutGuide
 
         return MouseGestures.Find(id)?.Label ?? ShortcutCatalog.All.FirstOrDefault(a => a.Id == id)?.Label ?? id;
     }
-
-    private static string Encode(string text) => text
-        .Replace("&", "&amp;", StringComparison.Ordinal)
-        .Replace("<", "&lt;", StringComparison.Ordinal)
-        .Replace(">", "&gt;", StringComparison.Ordinal)
-        .Replace("\"", "&quot;", StringComparison.Ordinal);
 }

@@ -117,6 +117,19 @@ public sealed class DuplicateAndPasteTests
     }
 
     [Fact]
+    public void Pegar_dos_clips_que_caen_en_la_misma_pista_se_rechaza_sin_perder_ninguno()
+    {
+        var f = new TrimFixture().Add("v1", "x", "m1", 0, 10, 0).Add("v2", "y", "m2", 0, 10, 5);
+        ClipClipboard copied = ClipClipboard.Capture(f.Sequence, ["x", "y"])!;
+        f.Sequence.VideoTracks.RemoveAt(1);
+
+        AssertFails(() => TimelineEdits.Paste(f.Ctx, copied, F(50)), "misma pista");
+
+        f.AssertValid();
+        Assert.Equal(["x"], f.Track("v1").Clips.Select(c => c.Id));
+    }
+
+    [Fact]
     public void Pegar_renueva_enlaces_grupos_y_efectos_sin_tocar_lo_copiado()
     {
         var f = new TrimFixture()
