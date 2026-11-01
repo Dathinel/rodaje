@@ -71,7 +71,10 @@ public sealed class FitToBeatsTests
         TrimFixture f = new TrimFixture()
             .AddTitle("v2", "title", 0, 10, 0)
             .Add("v1", "back", "m1", 0, 90, 0);
-        f.Clip("back").Speed = new ClipSpeed { Reverse = true };
+        // Un clip en reversa lleva su mapa de tiempo ajustado, como lo deja la pestaña Velocidad.
+        Clip back = f.Clip("back");
+        back.Speed = new ClipSpeed { Reverse = true };
+        ClipTimeMap.Fit(back.Start, back.SourceIn, back.SourceOut, back.Speed).ApplyTo(back);
 
         AnalysisEdits.FitToBeats(f.Ctx, ["title", "back"], [F(60), F(120)], step: 1);
 
@@ -85,15 +88,15 @@ public sealed class FitToBeatsTests
         TrimFixture f = new TrimFixture()
             .Add("v1", "v", "m2", 0, 50, 0, "L")
             .Add("a1", "a", "m2", 0, 50, 0, "L")
-            .Add("v1", "v2", "m2", 50, 100, 50);
+            .Add("v1", "second", "m2", 50, 100, 50);
         var undo = new UndoStack(f.Project);
         SequenceSnapshot before = SequenceSnapshot.Capture(f.Sequence);
 
-        undo.Execute(Edits.FitClipsToBeats("seq", ["v", "v2"], Every20, step: 1));
+        undo.Execute(Edits.FitClipsToBeats("seq", ["v", "second"], Every20, step: 1));
 
         f.AssertClip("v", 0, 20, 0);
         f.AssertClip("a", 0, 20, 0);
-        f.AssertClip("v2", 50, 70, 20);
+        f.AssertClip("second", 50, 70, 20);
         Assert.Equal(1, undo.Count);
         Assert.True(undo.Undo());
         Assert.True(before.Matches(f.Sequence));
