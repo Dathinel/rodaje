@@ -12,6 +12,7 @@ internal static partial class AnalysisCommands
     public const string RemoveSilences = "analysis.silences";
     public const string DetectBeats = "analysis.beats";
     public const string Ducking = "analysis.ducking";
+    public const string SyncAudio = "analysis.syncAudio";
     public const string Stabilize = "analysis.stabilize";
     public const string AutoColor = "analysis.autocolor";
     public const string WhiteBalance = "analysis.whitebalance";
@@ -22,6 +23,7 @@ internal static partial class AnalysisCommands
         (RemoveSilences, "Quitar silencios…", ""),
         (DetectBeats, "Detectar ritmo…", ""),
         (Ducking, "Bajar música bajo la voz…", ""),
+        (SyncAudio, "Sincronizar por el sonido", ""),
         (Stabilize, "Estabilizar…", ""),
         (AutoColor, "Color automático", ""),
         (WhiteBalance, "Balance de blancos automático", ""),
@@ -36,6 +38,7 @@ internal static partial class AnalysisCommands
             router.Bind(RemoveSilences, () => Run(services, RemoveSilences, "Quitar silencios", scope => SilenceDialog.ShowAsync(services, scope))),
             router.Bind(DetectBeats, () => Run(services, DetectBeats, "Detectar ritmo", scope => RhythmDialog.ShowAsync(services, scope))),
             router.Bind(Ducking, () => Run(services, Ducking, DuckingDialog.Title, scope => DuckingDialog.ShowAsync(services, scope))),
+            router.Bind(SyncAudio, () => Run(services, SyncAudio, AudioSyncAction.Title, scope => AudioSyncAction.RunAsync(services, scope))),
             router.Bind(Stabilize, () => Run(services, Stabilize, "Estabilizar", scope => StabilizeDialog.ShowAsync(services, scope))),
             router.Bind(AutoColor, () => Run(services, AutoColor, "Color automático", scope => AutoColorAction.RunAsync(services.Session, levels: true, scope), canCancel: true)),
             router.Bind(WhiteBalance, () => Run(services, WhiteBalance, "Balance de blancos automático",

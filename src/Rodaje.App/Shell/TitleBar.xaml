@@ -86,6 +86,7 @@
                     <MenuFlyoutItem Text="Quitar silencios..." Tag="analysis.silences" Click="OnActionClick" />
                     <MenuFlyoutItem Text="Detectar ritmo..." Tag="analysis.beats" Click="OnActionClick" />
                     <MenuFlyoutItem Text="Bajar música bajo la voz..." Tag="analysis.ducking" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Sincronizar por el sonido" Tag="analysis.syncAudio" Click="OnActionClick" />
                     <MenuFlyoutItem Text="Reducir ruido..." Tag="analysis.noise" Click="OnActionClick" />
                 </MenuFlyoutSubItem>
                 <MenuFlyoutSubItem Text="Imagen">

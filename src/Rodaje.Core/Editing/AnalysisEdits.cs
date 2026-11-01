@@ -126,6 +126,64 @@ public static class AnalysisEdits
     }
 
     /// <summary>
+    /// «Sincronizar por el sonido»: mueve cada clip para que su sonido coincida con el del clip de referencia, que no se
+    /// mueve. <paramref name="offsets"/> dice, para cada clip, dónde cae el 0 de su medio en el reloj del medio de
+    /// referencia (lo que da la correlación de las formas de onda): el instante de referencia <c>t</c> suena en el otro
+    /// medio en <c>t − offset</c>. El inicio nuevo es el instante de la secuencia en que la referencia reproduce
+    /// <c>SourceIn + offset</c> del clip, ajustado al cuadro; va con sus enlazados y falla si el sitio está ocupado o la
+    /// referencia no va a 1× (con velocidad, reversa o congelado no hay un reloj común).
+    /// </summary>
+    /// <returns>Cuánto se corrió cada clip (0 si ya estaba en su sitio).</returns>
+    public static IReadOnlyList<(string ClipId, Time Shift)> AlignByAudio(EditContext ctx, string referenceClipId,
+        IReadOnlyList<(string ClipId, Time Offset)> offsets)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(offsets);
+        Clip reference = FindClip(ctx, referenceClipId);
+        if (reference.Speed is { IsIdentity: false })
+        {
+            throw new EditException("El clip de referencia tiene velocidad, reversa o un fotograma congelado: ponlo a 1× para sincronizar por el sonido.");
+        }
+
+        Rational rate = ctx.Sequence.FrameRate;
+        var shifts = new List<(string, Time)>(offsets.Count);
+        foreach ((string clipId, Time offset) in offsets)
+        {
+            if (clipId == referenceClipId)
+            {
+                continue;
+            }
+
+            Clip clip = FindClip(ctx, clipId);
+            Time start = AlignedStart(reference, clip, offset).SnapToFrame(rate);
+            if (start < Time.Zero)
+            {
+                throw new EditException($"El clip «{clip.Id}» quedaría antes del inicio de la línea de tiempo: empieza antes que la referencia en el sonido.");
+            }
+
+            Time shift = start - clip.Start;
+            if (shift != Time.Zero)
+            {
+                TimelineEdits.Move(ctx, clipId, start, null, PlacementMode.Strict);
+            }
+
+            shifts.Add((clipId, shift));
+        }
+
+        ctx.EnsureValid();
+        return shifts;
+    }
+
+    /// <summary>Dónde tiene que empezar <paramref name="clip"/> para sonar a la vez que <paramref name="reference"/> (sin ajustar al cuadro).</summary>
+    public static Time AlignedStart(Clip reference, Clip clip, Time offset)
+    {
+        ArgumentNullException.ThrowIfNull(reference);
+        ArgumentNullException.ThrowIfNull(clip);
+        // El reloj del medio de referencia pasa por la secuencia con pendiente 1: t_ref = Start + (m − SourceIn).
+        return reference.Start + (clip.SourceIn + offset - reference.SourceIn);
+    }
+
+    /// <summary>
     /// Suma una envolvente de ganancia (dB, en tiempo de la secuencia, lineal entre puntos y 0 fuera) al volumen del clip
     /// como keyframes de <c>gainDb</c> del efecto de audio. Lo que ya estaba animado se conserva y se le suma lo mismo.
     /// </summary>

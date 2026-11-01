@@ -9,3 +9,11 @@ Lo que conviene probar con la app abierta antes de dar por buena una función, a
 3. Cambia a HEVC por CPU (o a un codificador que admita 4:4:4) y elige 4:4:4: la tarjeta de preajuste pasa a «Personalizado» y la estimación no cambia de orden de magnitud.
 4. Pulsa **Copiar la línea de ffmpeg** y pégala en el Bloc de notas: empieza por `ffmpeg -hide_banner`, lleva `-f rawvideo`, `-i pipe:0`, el codificador elegido (`-c:v:0 …`), `-pix_fmt:v:0` con el muestreo elegido y termina con la ruta de salida entre comillas si tiene espacios. Con «Solo audio» no hay `pipe:0`.
 5. Con un problema en rojo (carpeta inexistente), el enlace avisa que hay que arreglarlo primero y no copia nada.
+
+## Sincronizar por el sonido
+
+1. Importa un video con sonido y, como «grabadora», un recorte de su propio audio (Exportar › Solo audio de un tramo que empiece unos segundos después) o una grabación aparte del mismo momento. Pon el video en V1 y el audio en una pista de audio libre, descolocado a propósito.
+2. Selecciona los dos (Ctrl+clic) y pulsa **Herramientas › Audio › Sincronizar por el sonido**. La barra de avisos muestra el avance y, al terminar, «Sincronizados por el sonido» con el desfase en fotogramas; el clip de audio queda alineado con el video (reproduce: una sola voz, sin eco) y **Ctrl+Z** lo devuelve a su sitio en un paso.
+3. Con un solo clip elegido, o con el video y su audio enlazado, el menú del clip muestra la herramienta atenuada y al pulsarla explica que hacen falta dos clips con sonido.
+4. Pon otro clip donde debería caer el audio sincronizado: la acción avisa «El lugar está ocupado…» y no mueve nada.
+5. Pon el video de referencia a 2× (pestaña Velocidad): la acción avisa que la referencia tiene que ir a 1×.

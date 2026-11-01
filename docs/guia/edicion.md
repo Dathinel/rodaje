@@ -76,6 +76,8 @@ Un video con sonido entra como dos clips enlazados que se mueven, cortan y recor
 
 **Multicámara.** Elige en la biblioteca dos o más tomas del mismo momento (Ctrl+clic) y, en su menú, **Crear multicámara con la selección**: Rodaje las sincroniza por el sonido (unos segundos por minuto de grabación) y pone la primera al final de la pista principal. Con el cursor sobre esa toma, **1** a **9** cortan al ángulo de ese número desde el cursor hasta el siguiente corte, también mientras se reproduce; el sonido sigue siendo el de la primera. En **Preferencias (`Ctrl+,`) › General** eliges qué pistas de video reciben su audio al soltar un medio y cuántas pistas traen los proyectos nuevos.
 
+**Sincronizar por el sonido.** Grabaste la imagen con la cámara y la voz con una grabadora (o dos cámaras del mismo momento) y los dos clips ya están en la línea de tiempo: selecciónalos (Ctrl+clic) y pulsa **Herramientas › Audio › Sincronizar por el sonido** (también en el menú del clip y en la barra «Herramientas»). Rodaje compara las formas de onda (unos segundos por minuto de grabación) y mueve los demás clips, con sus enlazados, para que suenen a la vez que el que empieza antes, que no se mueve; el aviso dice cuántos fotogramas corrió cada uno. Es un paso del historial. Si un clip no comparte sonido con la referencia, lo dice y lo deja donde estaba; si el sitio nuevo está ocupado o la referencia tiene velocidad, avisa y no mueve nada. Después, si quieres, **Separar audio** del video de la cámara y bórralo para quedarte con el sonido de la grabadora.
+
 ## Edición de tres y cuatro puntos
 
 1. En la biblioteca, clic derecho en el medio › **Abrir en el visor de origen**. El reproductor pasa a mostrar solo ese medio; **Mayús+2** alterna entre origen y programa.

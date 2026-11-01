@@ -34,6 +34,14 @@ public static partial class Edits
         return new("Cortar al ritmo", sequenceId, ctx => AnalysisEdits.SplitAt(ctx, clipId, copy), ids);
     }
 
+    /// <summary>«Sincronizar por el sonido»: mueve los clips para que suenen a la vez que la referencia (<see cref="AnalysisEdits.AlignByAudio"/>).</summary>
+    public static SequenceEditCommand AlignByAudio(string sequenceId, string referenceClipId, IEnumerable<(string ClipId, Time Offset)> offsets,
+        IIdGenerator? ids = null)
+    {
+        (string, Time)[] copy = [.. offsets];
+        return new("Sincronizar por el sonido", sequenceId, ctx => AnalysisEdits.AlignByAudio(ctx, referenceClipId, copy), ids);
+    }
+
     /// <summary>Bajar música bajo la voz (ducking): la misma envolvente en cada clip de música, en un solo paso.</summary>
     public static SequenceEditCommand Duck(
         string sequenceId,

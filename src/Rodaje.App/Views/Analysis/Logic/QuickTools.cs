@@ -23,14 +23,15 @@ public static class QuickTools
     public const string RemoveBackground = "vision.removeBackground";
     public const string Reframe = "vision.reframe";
     public const string VoiceOver = "audio.voiceOver";
+    public const string SyncAudio = "analysis.syncAudio";
 
     /// <summary>Herramientas de análisis del menú de clip que aplican al medio seleccionado.</summary>
     public static IReadOnlyList<string> ContextMenuActionIds(bool hasAudio, bool hasVideo)
     {
-        var ids = new List<string>(hasAudio && hasVideo ? 9 : 4);
+        var ids = new List<string>(hasAudio && hasVideo ? 10 : 5);
         if (hasAudio)
         {
-            ids.AddRange(["analysis.silences", "analysis.beats", "analysis.ducking", "analysis.noise"]);
+            ids.AddRange(["analysis.silences", "analysis.beats", "analysis.ducking", SyncAudio, "analysis.noise"]);
         }
 
         if (hasVideo)
@@ -46,6 +47,7 @@ public static class QuickTools
         new("analysis.silences", "Quitar silencios", "", "Corta las pausas del clip con sonido elegido.", "Audio"),
         new("analysis.beats", "Detectar ritmo", "", "Pone marcadores en los pulsos de la música elegida.", "Audio"),
         new("analysis.ducking", "Bajar música bajo la voz", "", "Baja la música elegida mientras suena la voz de otra pista.", "Audio"),
+        new(SyncAudio, "Sincronizar por el sonido", "", "Alinea por su sonido los clips elegidos (la cámara y la grabadora); el que empieza antes no se mueve.", "Audio"),
         new("analysis.noise", "Reducir ruido", "", "Limpia el ruido de fondo de la voz (módulo «Audio con IA»).", "Audio"),
         new("analysis.stabilize", "Estabilizar", "", "Quita el temblor del video elegido.", "Imagen"),
         new("analysis.autocolor", "Color automático", "", "Corrige exposición y contraste del video elegido.", "Imagen"),
@@ -82,6 +84,10 @@ public static class QuickTools
             "analysis.ducking" => sequence.AllTracks.Any(t => t != sequence.FindClip(audio.Id)!.Value.Track
                 && t.Clips.Any(c => c.Id != audio.Id && c.Start < audio.End && c.End > audio.Start && HasAudio(c)))
                 ? Yes : No("Hace falta una voz en otra pista mientras suena la música."),
+            SyncAudio when SyncCandidates(sequence, selection, HasAudio).Count < 2 =>
+                No("Selecciona dos clips con sonido o más (la cámara y la grabadora)."),
+            SyncAudio when SyncCandidates(sequence, selection, HasAudio).Skip(1).Select(id => Locked(sequence, id)).FirstOrDefault(l => l is not null) is { } locked => No(locked),
+            SyncAudio => Yes,
             "analysis.noise" when NoiseReduction.TargetClip(sequence, selection, HasAudio) is null =>
                 No("Selecciona un clip con voz en una pista de audio (o un video con su audio enlazado)."),
             "analysis.noise" when !noiseModule => No("Hace falta el módulo «Audio con IA». Instálalo desde Complementos › Módulos de IA."),
@@ -96,6 +102,25 @@ public static class QuickTools
             AutoSubtitles when !subtitleModule => No("Hace falta el módulo «Subtítulos automáticos». Instálalo desde Complementos › Módulos de IA."),
             _ => Yes,
         };
+    }
+
+    /// <summary>Un clip con sonido por grupo enlazado, en orden de inicio: los que «Sincronizar por el sonido» alinearía (el primero es la referencia).</summary>
+    public static IReadOnlyList<string> SyncCandidates(Sequence sequence, IReadOnlyList<string> selection, Func<Clip, bool> hasAudio)
+    {
+        ArgumentNullException.ThrowIfNull(sequence);
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(hasAudio);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var clips = new List<Clip>();
+        foreach (string id in selection)
+        {
+            if (sequence.FindClip(id) is { } found && hasAudio(found.Clip) && seen.Add(found.Clip.LinkId ?? found.Clip.Id))
+            {
+                clips.Add(found.Clip);
+            }
+        }
+
+        return [.. clips.OrderBy(c => c.Start).Select(c => c.Id)];
     }
 
     /// <summary>
