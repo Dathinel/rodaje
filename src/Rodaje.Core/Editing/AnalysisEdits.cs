@@ -132,7 +132,11 @@ public static class AnalysisEdits
     /// reversa, curva o congelado solo se acortan) y uno sin pulso después de su inicio se deja como está. Va con los
     /// enlazados.
     /// </summary>
+    /// <param name="ctx">Contexto de edición.</param>
+    /// <param name="clipIds">Los clips del montaje (la música no va entre ellos).</param>
     /// <param name="beats">Pulsos en tiempo de la secuencia, en cualquier orden.</param>
+    /// <param name="step">Cada cuántos pulsos cae un corte (1, 2, 4, 8…).</param>
+    /// <param name="scope">Qué pistas se corren al cambiar cada duración.</param>
     /// <returns>Los clips que cambiaron de duración, con su final nuevo.</returns>
     public static IReadOnlyList<(string ClipId, Time End)> FitToBeats(EditContext ctx, IEnumerable<string> clipIds, IReadOnlyList<Time> beats, int step,
         RippleScope scope = RippleScope.Track)

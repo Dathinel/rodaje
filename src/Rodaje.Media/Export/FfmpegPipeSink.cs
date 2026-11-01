@@ -1348,6 +1348,10 @@ internal static class FfmpegPipeArguments
         return drive ? @"\\?\" + full : path;
     }
 
+    /// <param name="request">La petición del sink.</param>
+    /// <param name="temporaryOutput">Archivo (o carpeta) temporal en el que escribe ffmpeg.exe.</param>
+    /// <param name="metadataFile">Archivo <c>ffmetadata</c> con los capítulos, o <c>null</c>.</param>
+    /// <param name="subtitleFiles">Un SRT por pista de subtítulos aparte, o <c>null</c>.</param>
     /// <param name="prepareOutput"><c>false</c> solo arma la lista (la línea que se copia): no crea la carpeta de una secuencia de imágenes.</param>
     public static IReadOnlyList<string> Build(ExportSinkRequest request, string? temporaryOutput, string? metadataFile,
         IReadOnlyList<string>? subtitleFiles = null, bool prepareOutput = true)
