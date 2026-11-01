@@ -26,7 +26,7 @@ Los preajustes propios salen con el prefijo «Propio · ».
 ## La vista sencilla
 
 - **Archivo**: ruta de salida y «Cambiar…». Si la carpeta no existe o el nombre no vale, lo dice en rojo y apaga «Exportar». Si el archivo ya existe, pregunta «¿Reemplazar el archivo?» al exportar.
-- **Rango**: «Toda la secuencia», «Lo seleccionado» (del primer clip seleccionado al último) o cada región de la línea de tiempo como entrada y salida.
+- **Rango**: «Toda la secuencia», «Entre la entrada y la salida» (las marcas I y O de la secuencia, o lo marcado con la herramienta de rango; con una sola marca, la otra es el principio o el final), «Lo seleccionado» (del primer clip seleccionado al último) o cada región de la línea de tiempo como entrada y salida. Con marcas puestas, el panel se abre en «Entre la entrada y la salida»: para exportar un tramo basta con marcarlo con **I** y **O** y pulsar Ctrl+E.
 - **Formato**: una línea con lo que va a salir («MP4 · H.264 por GPU (h264_nvenc) · 1920×1080 · 23,976 fps · VBR 12 Mbps · AAC 192 kbps estéreo, −14 LUFS»).
 - **Estimación** de tamaño y tiempo. Con tasa fija es exacta; en calidad constante lleva «≈», porque el tamaño depende de la imagen.
 

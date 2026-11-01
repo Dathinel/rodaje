@@ -60,6 +60,26 @@ internal sealed partial class TimelineView
         menu.Items.Add(pasteClips);
         menu.Items.Add(new MenuFlyoutSeparator());
 
+        // Fundidos de audio hasta el cursor: para clips de audio o videos con su audio enlazado.
+        bool hasAudio = Rodaje.App.Services.Audio.LoudnessNormalizer.AudioClips(session).Count > 0;
+        var fadeIn = new MenuFlyoutItem
+        {
+            Text = "Fundido de entrada hasta el cursor",
+            IsEnabled = hasAudio,
+            KeyboardAcceleratorTextOverride = registry.GetKeyText(TimelineShortcuts.FadeInToCursor),
+        };
+        fadeIn.Click += (_, _) => session.FadeToPlayhead(FadeHandle.In);
+        menu.Items.Add(fadeIn);
+        var fadeOut = new MenuFlyoutItem
+        {
+            Text = "Fundido de salida desde el cursor",
+            IsEnabled = hasAudio,
+            KeyboardAcceleratorTextOverride = registry.GetKeyText(TimelineShortcuts.FadeOutFromCursor),
+        };
+        fadeOut.Click += (_, _) => session.FadeToPlayhead(FadeHandle.Out);
+        menu.Items.Add(fadeOut);
+        menu.Items.Add(new MenuFlyoutSeparator());
+
         var copy = new MenuFlyoutItem { Text = "Copiar atributos" };
         copy.Click += (_, _) => session.CopyAttributes();
         menu.Items.Add(copy);

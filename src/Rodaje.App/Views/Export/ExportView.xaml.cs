@@ -129,7 +129,7 @@ internal sealed partial class ExportView : UserControl
         IReadOnlyList<EncoderSpec> encoders = await _jobs.Runner.GetEncodersAsync();
         string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
         _model = new ExportDialogModel(_services.Settings.Current.Export, session.Sequence, session.SelectedClipIds, encoders, session.ProjectName,
-            projectFolder) { PendingOutputs = [.. _jobs.Entries.Where(e => !e.IsFinished).Select(e => e.OutputPath)] };
+            projectFolder, new SequenceMarks(session.SequenceIn, session.SequenceOut)) { PendingOutputs = [.. _jobs.Entries.Where(e => !e.IsFinished).Select(e => e.OutputPath)] };
         _model.Changed += (_, _) => QueueRefresh();
         ShowAdvanced(_services.Settings.Current.Export.AdvancedOpen);
         Refresh();

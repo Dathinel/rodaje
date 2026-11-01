@@ -49,6 +49,10 @@ public static class EffectRegistry
     /// <summary>Recorte de <see cref="BuiltInEffects.Stabilize"/>: automático o ninguno.</summary>
     public static ImmutableArray<string> StabilizeCrops { get; } = ["auto", "off"];
 
+    /// <summary>Curvas de los fundidos de <see cref="BuiltInEffects.Audio"/>: potencia constante (por defecto), lineal y exponencial.</summary>
+    public static ImmutableArray<string> FadeShapes { get; } =
+        [BuiltInEffects.FadeShapes.Power, BuiltInEffects.FadeShapes.Linear, BuiltInEffects.FadeShapes.Exponential];
+
     /// <summary>Formas de <see cref="BuiltInEffects.Mask"/>, en el orden de <see cref="MaskShape"/>.</summary>
     public static ImmutableArray<string> MaskShapes { get; } = ["rectangle", "ellipse", "path", "image", "bezier", "stroke"];
 
@@ -176,7 +180,8 @@ public static class EffectRegistry
             new(A.FadeOut, 0, 0, Inf, Animatable: false),
             new(A.Pan, 0, -100, 100),
             new(A.Balance, 0, -100, 100),
-        ]),
+        ],
+        [OptionDefinition.Choice(BuiltInEffects.AudioOptions.FadeShape, BuiltInEffects.FadeShapes.Power, [.. FadeShapes])]),
         new(BuiltInEffects.Speed, 8, EffectTarget.Video | EffectTarget.Audio, EffectStage.Deferred) { Hidden = true },
         new(BuiltInEffects.Stabilize, 9, EffectTarget.Video, EffectStage.Transform,
         [
