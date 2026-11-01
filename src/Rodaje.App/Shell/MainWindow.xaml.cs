@@ -113,6 +113,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             newProjectTracks: settings.Current.NewProjectTracks, newProjectFormat: settings.Current.NewProjectFormat)
         {
             LinkedAudioTracks = settings.Current.LinkedAudioTracks,
+            NextFrame = OnNextFrame,
         };
         _visuals = new ClipVisuals(id => session.Project.FindMedia(id)?.Path, new FfmpegVisualsSources(),
             new ClipVisualsOptions { CacheDirectory = ClipVisualsOptions.DefaultCacheDirectory }, SynchronizationContext.Current);
@@ -1048,6 +1049,17 @@ internal sealed partial class MainWindow : Window, IShellHost
     }
 
     private void OnRendering(object? sender, object e) => Session.UpdateTransport(_engine.Snapshot);
+
+    private static void OnNextFrame(Action action)
+    {
+        EventHandler<object>? handler = null;
+        handler = (_, _) =>
+        {
+            CompositionTarget.Rendering -= handler;
+            action();
+        };
+        CompositionTarget.Rendering += handler;
+    }
 
     private void OnDragOver(object sender, DragEventArgs e)
     {

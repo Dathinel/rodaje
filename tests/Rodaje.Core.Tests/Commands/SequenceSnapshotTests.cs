@@ -42,6 +42,39 @@ public class SequenceSnapshotTests
         Assert.Equal(SequenceId, snapshot.SequenceId);
     }
 
+    /// <summary>
+    /// Tras una edición, la pista que no cambió comparte su copia con la instantánea anterior, y en la que cambió, los clips
+    /// que siguen iguales; las dos restauran bien.
+    /// </summary>
+    [Fact]
+    public void Capture_ConLaAnterior_CompartePistasIgualesYRestauraCadaUna()
+    {
+        Project project = Create();
+        Sequence seq = Seq(project);
+        string start = ProjectDump.Of(project);
+        var first = SequenceSnapshot.Capture(seq);
+        seq.VideoTracks[0].Clips[0].Start = S(6);
+        string moved = ProjectDump.Of(project);
+
+        var second = SequenceSnapshot.Capture(seq, first);
+
+        Assert.NotSame(first.VideoTracks[0].State, second.VideoTracks[0].State);
+        Assert.NotSame(first.VideoTracks[0].State.Clips[0], second.VideoTracks[0].State.Clips[0]);
+        Assert.Same(first.VideoTracks[0].State.Clips[1], second.VideoTracks[0].State.Clips[1]);
+        Assert.Same(first.VideoTracks[1].State, second.VideoTracks[1].State);
+        Assert.Same(first.AudioTracks[0].State, second.AudioTracks[0].State);
+        first.Restore(seq);
+        Assert.Equal(start, ProjectDump.Of(project));
+        second.Restore(seq);
+        Assert.Equal(moved, ProjectDump.Of(project));
+        Assert.True(second.Matches(seq));
+
+        // Lo restaurado son copias nuevas: cambiarlo no toca la copia compartida.
+        seq.AudioTracks[0].Clips[0].Start = S(9);
+        first.Restore(seq);
+        Assert.Equal(start, ProjectDump.Of(project));
+    }
+
     [Fact]
     public void Restore_ConservaLasListasYSePuedeRepetir()
     {

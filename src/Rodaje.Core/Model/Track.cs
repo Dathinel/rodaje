@@ -79,12 +79,15 @@ public sealed class Track
 
     public void SortClips() => Clips.Sort((a, b) => a.Start.CompareTo(b.Start));
 
-    public Track Clone()
+    public Track Clone() => Clone(c => c.Clone(), t => t.Clone());
+
+    /// <summary>Como <see cref="Clone()"/>, pero cada clip y cada transición se copian con <paramref name="clip"/> y <paramref name="transition"/>.</summary>
+    internal Track Clone(Converter<Clip, Clip> clip, Converter<TransitionInstance, TransitionInstance> transition)
     {
         Track copy = (Track)MemberwiseClone();
-        copy.Clips = Clips.ConvertAll(c => c.Clone());
+        copy.Clips = Clips.ConvertAll(clip);
         copy.Effects = Effects.ConvertAll(e => e.Clone());
-        copy.Transitions = Transitions.ConvertAll(t => t.Clone());
+        copy.Transitions = Transitions.ConvertAll(transition);
         copy.Sends = Sends.ConvertAll(t => t.Clone());
         return copy;
     }
