@@ -19,7 +19,6 @@ public class ShortcutGuideTests
         if (Environment.GetEnvironmentVariable(WriteVariable) == "1")
         {
             File.WriteAllText(path, expected, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
-            return;
         }
 
         Assert.True(File.Exists(path), $"No está {path}.");

@@ -460,6 +460,7 @@ public sealed partial class AutosaveService : IDisposable
     {
         // El proyecto anterior se guardó o se descartó a propósito antes de abrir otro.
         _schedule.NoteCaughtUp(Now);
+        LastCopyAt = null;
         _wasDirty = _session.IsDirty;
         string name = _session.ProjectName;
         string? path = _session.FilePath;

@@ -2,15 +2,15 @@ using Rodaje.App.Services.Settings;
 
 namespace Rodaje.App.Tests.Settings;
 
-/// <summary>Archivo › Proyectos recientes: hasta diez, sin los que ya no existen y con la ruta abreviada.</summary>
+/// <summary>Archivo › Proyectos recientes: hasta diez, sin repetidos y con la ruta abreviada.</summary>
 public class RecentProjectsTests
 {
     [Fact]
-    public void Build_QuitaLosQueNoExistenYRespetaElOrden()
+    public void Build_RespetaElOrdenYSaltaLosVacios()
     {
-        string[] paths = [@"C:\A\uno.rodaje", @"C:\A\dos.rodaje", @"C:\A\tres.rodaje"];
+        string[] paths = [@"C:\A\uno.rodaje", "", @"C:\A\tres.rodaje"];
 
-        IReadOnlyList<RecentProjectEntry> entries = RecentProjects.Build(paths, p => !p.EndsWith("dos.rodaje", StringComparison.Ordinal));
+        IReadOnlyList<RecentProjectEntry> entries = RecentProjects.Build(paths);
 
         Assert.Equal([@"C:\A\uno.rodaje", @"C:\A\tres.rodaje"], entries.Select(e => e.Path));
     }
@@ -21,7 +21,7 @@ public class RecentProjectsTests
         List<string> paths = [.. Enumerable.Range(1, 12).Select(i => $@"C:\P\{i}.rodaje")];
         paths.Insert(1, @"c:\p\1.RODAJE");
 
-        IReadOnlyList<RecentProjectEntry> entries = RecentProjects.Build(paths, _ => true);
+        IReadOnlyList<RecentProjectEntry> entries = RecentProjects.Build(paths);
 
         Assert.Equal(AppSettings.MaxRecentProjects, entries.Count);
         Assert.Equal(@"C:\P\1.rodaje", entries[0].Path);
@@ -58,18 +58,5 @@ public class RecentProjectsTests
     {
         Assert.Equal(@"\\nas\…\final.rodaje", RecentProjects.Abbreviate(@"\\nas\videos\clientes\2026\final.rodaje", 24));
         Assert.Equal("/…/x/final.rodaje", RecentProjects.Abbreviate("/home/daniel/videos/x/final.rodaje", 20));
-    }
-
-    [Fact]
-    public void AppSettings_PruneRecentProjectsQuitaLosQueFaltan()
-    {
-        var settings = new AppSettings();
-        settings.AddRecentProject(@"C:\A\uno.rodaje");
-        settings.AddRecentProject(@"C:\A\dos.rodaje");
-
-        int removed = settings.PruneRecentProjects(p => p.EndsWith("dos.rodaje", StringComparison.Ordinal));
-
-        Assert.Equal(1, removed);
-        Assert.Equal([@"C:\A\dos.rodaje"], settings.RecentProjects);
     }
 }
