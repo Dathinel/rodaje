@@ -143,7 +143,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         }
 
         QuadConstants constants = LayerQuad(payload, placement, geometry, Opacity(layer), sequenceWidth, sequenceHeight, pixelScale);
-        SetHdr(ref constants, payload, layer.Transform.HdrReferenceNits);
+        SetHdr(ref constants, payload, layer.Transform);
         PlaneViews views = _views.Get(payload, out bool owned);
         try
         {
@@ -290,7 +290,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
         QuadConstants quad = LayerQuad(payload, placement, geometry, Opacity(layer), destination.SequenceWidth, destination.SequenceHeight,
             destination.PixelScale);
-        SetHdr(ref quad, payload.Planes, layer.Transform.HdrReferenceNits);
+        SetHdr(ref quad, payload.Planes, layer.Transform);
         RenderTarget? background = null;
         if (shaderBlend)
         {
@@ -355,7 +355,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         var local = new LayerPlacement(Matrix3x2.CreateScale(firstScaleX, firstScaleY), placement.LocalWidth, placement.LocalHeight,
             Math.Min(firstScaleX, firstScaleY));
         QuadConstants toIntermediate = LayerQuad(payload, local, geometry, 1, firstWidth, firstHeight, 1);
-        SetHdr(ref toIntermediate, payload.Planes, layer.Transform.HdrReferenceNits);
+        SetHdr(ref toIntermediate, payload.Planes, layer.Transform);
         PrepareSource(payload, ref effects);
         _quad.Bind(first.Rtv, firstWidth, firstHeight, graded, null);
         BindInputs(null, plan.Lut, null, null, mask, plan.Curves);
@@ -619,17 +619,29 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
             (payload.Height - 0.5f) / payload.CodedHeight,
             (payload.Width - 1f) / payload.CodedWidth,
             (payload.Height - 1f) / payload.CodedHeight);
-        SetHdr(ref constants, payload, 0);
+        SetHdr(ref constants, payload, LayerTransform.Identity);
         return constants;
     }
 
-    private static void SetHdr(ref QuadConstants constants, D3D11TexturePayload? payload, double referenceNits)
+    // Una capa SDR solo lleva hdr.y con «Expandir a HDR» (el pico, 203–1000 nits): en una secuencia SDR ningún shader lo lee.
+    private static void SetHdr(ref QuadConstants constants, D3D11TexturePayload? payload, in LayerTransform transform)
     {
-        if (payload is null || payload.Color.Transfer == HdrTransfer.None)
+        if (payload is null)
         {
             return;
         }
 
+        if (payload.Color.Transfer == HdrTransfer.None)
+        {
+            if (transform.HdrExpandNits > 0)
+            {
+                constants.Hdr = new(0, (float)transform.HdrExpandNits, 0, 0);
+            }
+
+            return;
+        }
+
+        double referenceNits = transform.HdrReferenceNits;
         float white = referenceNits > 0 && double.IsFinite(referenceNits)
             ? (float)Math.Clamp(referenceNits, 1, 10000)
             : payload.Color.Transfer == HdrTransfer.Pq ? 100 : 1000;

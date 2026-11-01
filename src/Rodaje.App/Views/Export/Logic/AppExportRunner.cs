@@ -117,6 +117,8 @@ public sealed partial class AppExportRunner : IExportRunner
 
         public ExportException? Failure => _job.Failure;
 
+        public string? MeasuredNote => _job.LightLevels is { } light ? $"MaxCLL {light.MaxCll} nits · MaxFALL {light.MaxFall} nits (medidos)" : null;
+
         public BgraImage? Thumbnail
         {
             get

@@ -37,8 +37,8 @@ internal sealed partial class PreferencesView : UserControl
         TenBitViewerBox.Items.Add("Automático (si el monitor es de 10 bits)");
         TenBitViewerBox.Items.Add("Siempre");
         TenBitViewerBox.Items.Add("Nunca (8 bits)");
-        HdrViewerBox.Items.Add("Automático (si Windows está en HDR)");
-        HdrViewerBox.Items.Add("Siempre");
+        HdrViewerBox.Items.Add("Automático (si el monitor de la ventana está en HDR)");
+        HdrViewerBox.Items.Add("Siempre (salvo en un monitor SDR)");
         HdrViewerBox.Items.Add("Nunca (SDR)");
         ShortcutPresetBox.Items.Add("Estilo Rodaje");
         ShortcutPresetBox.Items.Add("Estilo Ágil");

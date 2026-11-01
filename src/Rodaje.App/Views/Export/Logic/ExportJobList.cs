@@ -56,13 +56,13 @@ public sealed partial class ExportEntry
 
         Project project = Request.Project;
         Request = Request with { Project = new Project { Id = project.Id, Name = project.Name } };
-        Job = new FinishedJob(Request, job.Progress, job.Failure, job.Thumbnail);
+        Job = new FinishedJob(Request, job.Progress, job.Failure, job.Thumbnail, job.MeasuredNote);
         job.Dispose();
         IsReleased = true;
     }
 
     /// <summary>Lo que queda de un trabajo completado: no se mueve más.</summary>
-    private sealed partial class FinishedJob(ExportRequest request, ExportProgress progress, ExportException? failure, BgraImage? thumbnail) : IExportJob
+    private sealed partial class FinishedJob(ExportRequest request, ExportProgress progress, ExportException? failure, BgraImage? thumbnail, string? note) : IExportJob
     {
         public event EventHandler? Changed
         {
@@ -77,6 +77,8 @@ public sealed partial class ExportEntry
         public ExportException? Failure { get; } = failure;
 
         public BgraImage? Thumbnail { get; } = thumbnail;
+
+        public string? MeasuredNote { get; } = note;
 
         public Task Completion => Task.CompletedTask;
 

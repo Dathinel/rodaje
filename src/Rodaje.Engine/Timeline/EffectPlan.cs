@@ -63,6 +63,7 @@ internal sealed class EffectPlan
         var ids = new List<string>();
         bool flipX = false;
         bool flipY = false;
+        bool hdrExpand = false;
         foreach (EffectInstance effect in effects)
         {
             if (!effect.Enabled || EffectRegistry.Find(effect.Type) is not { } definition)
@@ -99,6 +100,7 @@ internal sealed class EffectPlan
                     transform = Curves(definition, effect.Parameters);
                     flipX = effect.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipX) == "on";
                     flipY = effect.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.FlipY) == "on";
+                    hdrExpand = effect.Options.GetValueOrDefault(BuiltInEffects.TransformOptions.HdrExpand) == "on";
                     break;
                 case EffectStage.PerPixel or EffectStage.Spatial:
                     images.Add(ImageEffect.From(definition, effect));
@@ -121,6 +123,7 @@ internal sealed class EffectPlan
                 _pin = pin,
                 _flipX = flipX,
                 _flipY = flipY,
+                _hdrExpand = hdrExpand,
                 _shaped = transform is not null && (flipX || flipY || IsShaped(transform)),
                 Motion = transform is null ? null : MotionOf(transform),
             };
@@ -172,6 +175,7 @@ internal sealed class EffectPlan
 
     private bool _flipX;
     private bool _flipY;
+    private bool _hdrExpand;
     private bool _shaped;
 
     /// <summary>El desenfoque de movimiento de la transformación; nulo sin él.</summary>
@@ -205,6 +209,7 @@ internal sealed class EffectPlan
             transform = new LayerTransform(x, y, curves[2].Evaluate(at), curves[3].Evaluate(at), curves[4].Evaluate(at))
             {
                 HdrReferenceNits = curves[HdrReferenceSlot].Evaluate(at),
+                HdrExpandNits = plan._hdrExpand ? SdrExpansion.PeakFor(curves[HdrReferenceSlot].Evaluate(at)) : 0,
             };
             if (plan._shaped)
             {

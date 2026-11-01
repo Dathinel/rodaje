@@ -323,6 +323,8 @@ internal sealed partial class ExportView : UserControl
         SpeedPresetBox.IsEnabled = _speedPresets.Count > 1;
         KeyframeBox.IsEnabled = !encoder.IntraOnly;
         KeyframeBox.Value = video.Gop.KeyframeSeconds ?? double.NaN;
+        MeasureLightBox.Visibility = model.OffersLightMeasurement ? Visibility.Visible : Visibility.Collapsed;
+        MeasureLightBox.IsChecked = video.MeasureLightLevels;
     }
 
     private void ShowRateValues(RateControl rate, RateChoice choice, EncoderSpec encoder)
@@ -787,6 +789,8 @@ internal sealed partial class ExportView : UserControl
             UpdateVideo(v => v with { SpeedPreset = preset });
         }
     }
+
+    private void OnMeasureLightClick(object sender, RoutedEventArgs e) => UpdateVideo(v => v with { MeasureLightLevels = MeasureLightBox.IsChecked == true });
 
     private void OnKeyframeChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {

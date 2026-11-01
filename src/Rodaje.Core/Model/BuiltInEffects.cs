@@ -78,6 +78,13 @@ public static partial class BuiltInEffects
 
         /// <summary>Voltear en vertical alrededor del centro de la imagen: <c>off</c> u <c>on</c>.</summary>
         public const string FlipY = "flipY";
+
+        /// <summary>
+        /// Expandir un clip SDR a HDR en una secuencia HDR (<c>off</c> u <c>on</c>): las luces suben hasta el pico de
+        /// <see cref="TransformParameters.HdrReferenceNits"/> (203–1000 nits; 0 elige 1000) con la curva inversa de BT.2446 método A
+        /// anclada en el gris del 18 % (<c>Effects.SdrExpansion</c>). En una secuencia SDR no hace nada.
+        /// </summary>
+        public const string HdrExpand = "hdrExpand";
     }
 
     /// <summary>Volumen y fundidos de un clip o de una pista de audio.</summary>
