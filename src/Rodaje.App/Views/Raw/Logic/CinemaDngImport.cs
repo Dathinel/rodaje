@@ -11,6 +11,7 @@ using Rodaje.Modules.Protocol;
 using Rodaje.Render;
 using Rodaje.Render.Raw;
 using ModuleCall = Rodaje.App.Services.Modules.ModuleCall;
+using VideoLayout = Rodaje.Modules.Protocol.VideoLayout;
 
 namespace Rodaje.App.Views.Raw;
 
@@ -146,7 +147,7 @@ internal static class CinemaDngImport
     /// <exception cref="ModuleException">El módulo falló (un DNG que no entiende, por ejemplo).</exception>
     /// <exception cref="IOException">No se pudo leer un DNG o escribir el intermedio.</exception>
     public static Task<CinemaDngResult> RunAsync(ModuleManager modules, ModuleDescriptor module, FfmpegExecutable ffmpeg, CinemaDngFolder sequence,
-        CinemaDngOptions options, string outputFolder, string title, CancellationToken cancellationToken = default, Func<GpuDevice?>? createDevice = null)
+        CinemaDngOptions options, string outputFolder, string title, Func<GpuDevice?>? createDevice = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(modules);
         ArgumentNullException.ThrowIfNull(module);

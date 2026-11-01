@@ -114,7 +114,7 @@ internal static class CinemaDngDialog
         try
         {
             result = await CinemaDngImport.RunAsync(services.Modules, module, ffmpeg, sequence, options,
-                saveIn.Folder, $"CinemaDNG «{sequence.Name}»", scope.Token, () => gpu);
+                saveIn.Folder, $"CinemaDNG «{sequence.Name}»", () => gpu, scope.Token);
         }
         catch (OperationCanceledException)
         {

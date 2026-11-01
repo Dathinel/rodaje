@@ -308,7 +308,7 @@ public sealed class CinemaDngImportTests(ITestOutputHelper output) : IDisposable
         string outputFolder = Path.Combine(_folder.Path, "medios");
         using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(1.5));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CinemaDngImport.RunAsync(manager, module, FfmpegExecutable.Locate(),
-            CinemaDngImport.Scan(dir)!, new CinemaDngOptions(), outputFolder, "Cancelar", cancel.Token));
+            CinemaDngImport.Scan(dir)!, new CinemaDngOptions(), outputFolder, "Cancelar", cancellationToken: cancel.Token));
         Assert.Empty(Directory.Exists(outputFolder) ? Directory.GetFiles(outputFolder) : []);
     }
 }
