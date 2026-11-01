@@ -50,6 +50,7 @@ internal sealed partial class ParameterRow : UserControl
         ValueSlider.AddHandler(PointerReleasedEvent, new PointerEventHandler((_, _) => EndPointer()), true);
         ValueSlider.AddHandler(PointerCaptureLostEvent, new PointerEventHandler((_, _) => EndPointer()), true);
         ValueSlider.LostFocus += (_, _) => FinishChange();
+        NumberBoxCommit.CommitBeforeFocusLeaves(ValueBox);
         AttachScrub();
         SizeChanged += (_, e) => ApplyLayout(e.NewSize.Width);
         ApplyLayout(0);

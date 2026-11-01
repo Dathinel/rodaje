@@ -11,6 +11,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Autosave;
+using Rodaje.Core.Serialization;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Packages;
@@ -181,6 +182,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(_router.Bind(ActionIds.Export, () => ShowPage(ShellPage.Export)));
         _bindings.Add(Views.Export.StillExportCommand.Bind(_router, _services, _hwnd));
         _bindings.Add(_router.Bind(ActionIds.ShowShortcuts, () => ShowPage(ShellPage.Shortcuts)));
+        _bindings.Add(_router.Bind(ActionIds.GoToTime, () => UiTask.Run(GoToTimeAsync())));
         _bindings.Add(_router.Bind(ActionIds.ShowPreferences, ShowPreferences));
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
         _bindings.Add(_router.Bind(ActionIds.ShowMixer, ToggleMixer));
@@ -199,6 +201,12 @@ internal sealed partial class MainWindow : Window, IShellHost
         TitleBar.InspectorTabRequested += (_, tab) => Inspector.Show(tab);
         TitleBar.MarkersPanelRequested += (_, _) => Library.ShowMarkers();
         TitleBar.ExitRequested += (_, _) => RequestClose();
+        TitleBar.RecentProjectMissing += (_, path) =>
+        {
+            settings.Current.RecentProjects.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
+            TitleBar.RefreshRecentProjects(settings.Current);
+        };
+        TitleBar.RefreshRecentProjects(settings.Current);
         Library.Attach(_services);
         Player.Attach(_services);
         Inspector.Attach(_services);
@@ -272,7 +280,10 @@ internal sealed partial class MainWindow : Window, IShellHost
         // Autoguardado (no en las mediciones ni en la autoprueba): el mismo temporizador decide si toca una copia.
         if (!options.IsAutomated)
         {
-            var autosave = new AutosaveService(session, dialogs, AutosaveService.DefaultRoot);
+            var autosave = new AutosaveService(session, dialogs, AutosaveService.DefaultRoot)
+            {
+                Interval = TimeSpan.FromMinutes(settings.Current.AutosaveMinutes),
+            };
             _autosave = autosave;
             if (autosave.Start())
             {
@@ -280,6 +291,8 @@ internal sealed partial class MainWindow : Window, IShellHost
             }
         }
 
+        _settingsTimer.Tick += (_, _) => UpdateSaveStatus();
+        session.HistoryChanged += (_, _) => UpdateSaveStatus();
         _settingsTimer.Start();
 
         LibrarySplitter.Resized += (_, size) => settings.Current.LibraryWidth = size;
@@ -398,6 +411,11 @@ internal sealed partial class MainWindow : Window, IShellHost
         _services.Player.TenBitViewer = _settings.Current.TenBitViewer;
         _services.Player.HdrViewer = _settings.Current.HdrViewer;
         _router.Registry.Preset = _settings.Current.ShortcutPreset;
+        if (_autosave is { } autosave)
+        {
+            autosave.Interval = TimeSpan.FromMinutes(_settings.Current.AutosaveMinutes);
+        }
+
         if (view.WorkspaceToApply is { } workspace)
         {
             ApplyWorkspace(workspace);
@@ -793,12 +811,26 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
     }
 
+    /// <summary>«Guardado hace N min» en la barra de estado; con cambios sin guardar y una copia más nueva, la copia.</summary>
+    private void UpdateSaveStatus()
+    {
+        DateTimeOffset now = DateTimeOffset.UtcNow;
+        TimeSpan? sinceSave = Session.LastSavedAt is { } saved ? now - saved : null;
+        TimeSpan? sinceCopy = _autosave?.LastCopyAt is { } copied ? now - copied : null;
+        string text = SaveAge.Format(sinceSave, sinceCopy, Session.IsDirty);
+        if (SaveStatusText.Text != text)
+        {
+            SaveStatusText.Text = text;
+        }
+    }
+
     private void RememberProject()
     {
         if (Session.FilePath is { } path)
         {
             _settings.Current.AddRecentProject(path);
             _settings.Current.LastProjectFolder = Path.GetDirectoryName(path);
+            TitleBar.RefreshRecentProjects(_settings.Current);
         }
     }
 

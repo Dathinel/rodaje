@@ -143,6 +143,29 @@ public sealed partial class EditorSession : ObservableObject
     /// <summary>Texto corto para la barra de título.</summary>
     public string SaveStateText => IsDirty ? "Sin guardar" : FilePath is null ? "Nuevo" : "Guardado";
 
+    /// <summary>
+    /// Cuándo se escribió por última vez el archivo del proyecto: al guardar, ahora; al abrir, la fecha del archivo.
+    /// <c>null</c> si el proyecto nunca se guardó. La barra de estado lo muestra como «Guardado hace N min».
+    /// </summary>
+    public DateTimeOffset? LastSavedAt { get; private set; }
+
+    private static DateTimeOffset? LastWriteOf(string? path)
+    {
+        if (path is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return File.Exists(path) ? new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Hay una apertura, un guardado o una importación en curso.</summary>
     public bool IsBusy => _busy > 0;
 
@@ -375,6 +398,21 @@ public sealed partial class EditorSession : ObservableObject
         _playback.Seek(position < Time.Zero ? Time.Zero : position > end ? end : position);
     }
 
+    /// <summary>
+    /// «Ir a tiempo»: lleva el cursor a lo escrito (<see cref="TimeInput"/>), con los saltos relativos desde la posición
+    /// del programa. <c>false</c> si el texto no es un tiempo; entonces no se mueve.
+    /// </summary>
+    public bool GoToTime(string? text)
+    {
+        if (!TimeInput.TryParse(text, Sequence.FrameRate, ProgramPosition, out Time target))
+        {
+            return false;
+        }
+
+        Seek(target);
+        return true;
+    }
+
     public void SeekToStart() => Seek(Time.Zero);
 
     public void SeekToEnd() => Seek(PlaybackDuration);
@@ -508,6 +546,7 @@ public sealed partial class EditorSession : ObservableObject
         _selectedTransition = null;
         _editVersion++;
         FilePath = filePath;
+        LastSavedAt = LastWriteOf(filePath);
         _previewOff.Clear();
         _playbackStale = false;
         _playback.Load(project.Clone(), sequenceId);

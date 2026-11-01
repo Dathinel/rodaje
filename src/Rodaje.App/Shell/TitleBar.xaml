@@ -28,6 +28,7 @@
                 <MenuFlyoutItem Text="Proyecto nuevo" Tag="file.new" Click="OnActionClick" />
                 <MenuFlyoutSubItem x:Name="TemplatesMenu" Text="Proyecto nuevo desde plantilla" />
                 <MenuFlyoutItem Text="Abrir proyecto..." Tag="file.open" Click="OnActionClick" />
+                <MenuFlyoutSubItem x:Name="RecentMenu" Text="Proyectos recientes" IsEnabled="False" />
                 <MenuFlyoutItem Text="Guardar" Tag="file.save" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Guardar como..." Tag="file.saveAs" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Guardar como plantilla..." Click="OnSaveTemplateClick" />
@@ -54,6 +55,12 @@
                 <MenuFlyoutItem Text="Recortar el final hasta el cursor" Tag="edit.trimEnd" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Borrar" Tag="edit.delete" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Seleccionar todo" Tag="edit.selectAll" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Copiar clips" Tag="edit.copy" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Duplicar clip" Tag="edit.duplicate" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Pegar en el cursor" Tag="edit.pasteAtCursor" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Ir a tiempo..." Tag="playback.goToTime" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Secuencia">
                 <MenuFlyoutItem Text="Formato del proyecto…" Tag="project.format" Click="OnActionClick" />
@@ -135,6 +142,7 @@
             <MenuBarItem Title="Ayuda">
                 <MenuFlyoutItem Text="Recorrido inicial" Tag="help.tour" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Volver a mostrar las pistas" Tag="help.resetHints" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Hoja de atajos (imprimible)..." Tag="help.shortcutSheet" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Acerca de Rodaje..." Click="OnAboutClick" />
                 <MenuFlyoutItem Text="Repositorio oficial" Click="OnUpstreamClick" />
