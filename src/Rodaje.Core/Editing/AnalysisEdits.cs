@@ -126,6 +126,96 @@ public static class AnalysisEdits
     }
 
     /// <summary>
+    /// «Montaje al ritmo»: recorta cada clip, de izquierda a derecha y pista por pista, para que termine en el pulso
+    /// que toca (<paramref name="step"/> pulsos después del primero que cae tras su inicio) y corre lo que sigue en su
+    /// pista (ripple), así los cortes van cayendo en la música. Un clip no crece más allá de su material (los que tienen
+    /// reversa, curva o congelado solo se acortan) y uno sin pulso después de su inicio se deja como está. Va con los
+    /// enlazados.
+    /// </summary>
+    /// <param name="beats">Pulsos en tiempo de la secuencia, en cualquier orden.</param>
+    /// <returns>Los clips que cambiaron de duración, con su final nuevo.</returns>
+    public static IReadOnlyList<(string ClipId, Time End)> FitToBeats(EditContext ctx, IEnumerable<string> clipIds, IReadOnlyList<Time> beats, int step,
+        RippleScope scope = RippleScope.Track)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(clipIds);
+        ArgumentNullException.ThrowIfNull(beats);
+        ArgumentOutOfRangeException.ThrowIfLessThan(step, 1);
+        Rational rate = ctx.Sequence.FrameRate;
+        Time[] grid = [.. beats.Select(b => b.SnapToFrame(rate)).Distinct().Order()];
+        var changed = new List<(string, Time)>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        foreach (Track track in ctx.Sequence.AllTracks)
+        {
+            // Los ids que caen en esta pista, en orden de inicio (los enlazados de otra pista van con su clip).
+            List<string> ordered = [.. track.Clips.Where(c => clipIds.Contains(c.Id) && seen.Add(c.Id)).OrderBy(c => c.Start).Select(c => c.Id)];
+            foreach (string clipId in ordered)
+            {
+                if (ctx.Sequence.FindClip(clipId) is not { } found)
+                {
+                    continue;
+                }
+
+                Clip clip = found.Clip;
+                int first = Array.FindIndex(grid, b => b > clip.Start);
+                if (first < 0 || first + step - 1 >= grid.Length)
+                {
+                    continue;
+                }
+
+                Time end = grid[first + step - 1];
+                if (MaxEnd(ctx, clip) is { } limit && end > limit)
+                {
+                    // Al cuadro entero por debajo del tope: nunca más allá del material.
+                    end = Time.FromFrames((long)Math.Floor(limit.ToSeconds() * rate.ToDouble()), rate);
+                }
+
+                if (end <= clip.Start || end == clip.End)
+                {
+                    continue;
+                }
+
+                TimelineEdits.RippleTrim(ctx, clipId, TrimEdge.Out, end - clip.End, scope);
+                changed.Add((clipId, end));
+            }
+        }
+
+        ctx.EnsureValid();
+        return changed;
+    }
+
+    /// <summary>Hasta dónde puede llegar el final del clip con el material que tiene; <c>null</c> si no tiene tope (título, foto).</summary>
+    private static Time? MaxEnd(EditContext ctx, Clip clip)
+    {
+        if (clip.Generator is not null)
+        {
+            return null;
+        }
+
+        if (clip.Speed is { IsIdentity: false } speed && (speed.Reverse || speed.Freeze || speed.Curve is not null))
+        {
+            return clip.End;
+        }
+
+        Time? source = clip.IsCompound
+            ? CompoundOps.SourceLimit(ctx.Project, clip)
+            : ctx.Project.FindMedia(clip.MediaId) is { } media ? media.IsStillImage ? null : media.Duration : null;
+        if (source is not { } available || available <= clip.SourceIn)
+        {
+            return source is null ? null : clip.End;
+        }
+
+        Time remaining = available - clip.SourceIn;
+        if (clip.Speed is { } s && s.Rate != new Rational(1, 1))
+        {
+            // A 2× el material dura la mitad en la secuencia.
+            remaining = Time.FromTicks((long)Math.Round(remaining.Ticks * s.Rate.Den / (double)s.Rate.Num));
+        }
+
+        return clip.Start + remaining;
+    }
+
+    /// <summary>
     /// «Sincronizar por el sonido»: mueve cada clip para que su sonido coincida con el del clip de referencia, que no se
     /// mueve. <paramref name="offsets"/> dice, para cada clip, dónde cae el 0 de su medio en el reloj del medio de
     /// referencia (lo que da la correlación de las formas de onda): el instante de referencia <c>t</c> suena en el otro

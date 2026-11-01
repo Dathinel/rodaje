@@ -11,6 +11,7 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 Funciones de calidad de vida para la 1.1 e ideas tomadas de los editores de referencia.
 
 ### Añadido
+- **Montaje al ritmo** (en Detectar ritmo): con la música y los clips del montaje seleccionados, «Ajustar al ritmo los otros N clips seleccionados» hace que cada clip termine en el pulso que le toca (cada pulso, cada 2, cada 4, cada 8) y corre lo que sigue en su pista; sin pasar del material de cada clip, con los enlazados y en un paso del historial.
 - **Sincronizar por el sonido** (Herramientas › Audio, menú del clip y barra «Herramientas»): con dos o más clips con sonido elegidos en la línea de tiempo (la cámara y la grabadora, dos cámaras), compara sus formas de onda y mueve los demás, con sus enlazados, para que suenen a la vez que el que empieza antes; un paso del historial, con el desfase en fotogramas en el aviso.
 - **Exportar › Avanzado: «Muestreo de color» y «Copiar la línea de ffmpeg»:** el submuestreo (4:2:0, 4:2:2 o 4:4:4, según el codificador) se elige en Avanzado y se ve en la línea «Formato»; y un enlace copia al portapapeles los argumentos exactos con los que Rodaje lanza `ffmpeg.exe` con esos ajustes (codificador, control de tasa, perfil, GOP, `-pix_fmt`, color, audio y contenedor), para leerlos o repetirlos a mano.
 - **Proyectos recientes:** Archivo › Proyectos recientes lista los últimos diez proyectos con la ruta abreviada; los que ya no existen se quitan solos y «Vaciar la lista» la limpia.
