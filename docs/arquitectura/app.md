@@ -30,7 +30,7 @@ flowchart LR
 
 - **Una sola fuente de verdad.** `EditorSession` tiene el `Project`, la secuencia que se ve, el `UndoStack`, la selección, el transporte que publica el render, el archivo y si hay cambios. Solo se usa desde el hilo de la interfaz (`VerifyAccess`).
 - **Solo comandos.** Las vistas leen el modelo pero lo cambian con `Execute`. Los gestos largos van entre `BeginGesture` y `EndGesture` para deshacerse en un paso, y `BreakMerge` corta la fusión al soltar un deslizador.
-- **El render nunca lee el modelo que se edita.** Cada cambio llega a `PlayerEngine` como `Project.Clone()`; el hilo de render solo aplica la última copia pendiente (`TimelineSession.Reload`).
+- **El render nunca lee el modelo que se edita.** Cada cambio llega a `PlayerEngine` como `Project.Clone()` (durante un gesto, como mucho una copia por cuadro: `EditorSession.NextFrame`); el hilo de render solo aplica la última copia pendiente (`TimelineSession.Reload`).
 - **Rutas.** En memoria, las rutas de los medios son absolutas; al guardar se escriben relativas a la carpeta del `.rodaje` (`ProjectPaths`).
 - **Importar.** `ImportMediaAsync` lee los archivos fuera del hilo de la interfaz y los agrega a la biblioteca en un paso; la secuencia vacía toma el formato del primer video. `AppendToTimeline` pone un medio al final de la pista principal con su audio enlazado. Los archivos de la línea de comandos se leen mientras se crea la ventana (`PrefetchingProber`).
 - **Selección.** Clips (`SelectedClipIds`) o una transición (`SelectedTransitionId`), nunca las dos: elegir una vacía la otra, y `SelectionChanged` avisa de ambas. Supr borra lo seleccionado.

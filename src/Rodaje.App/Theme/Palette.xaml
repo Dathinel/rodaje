@@ -28,6 +28,9 @@
     <Color x:Key="AccentSubtleColor">#4DE8833A</Color>
     <!-- Texto sobre el naranja lleno (botón principal): 6,8:1. Sobre AccentSubtle el naranja da 3,7:1: ahí va TextBrush. -->
     <Color x:Key="AccentForegroundColor">#141414</Color>
+    <!-- Fondo de las filas y cabeceras de las pistas de video y de audio; de fábrica, el de los paneles. -->
+    <Color x:Key="VideoTrackColor">#1D1D1D</Color>
+    <Color x:Key="AudioTrackColor">#1D1D1D</Color>
     <Color x:Key="VideoClipColor">#33587C</Color>
     <Color x:Key="VideoClipEdgeColor">#7FB0DE</Color>
     <Color x:Key="TextClipColor">#574573</Color>
@@ -66,6 +69,8 @@
     <SolidColorBrush x:Key="AccentHoverBrush" Color="{StaticResource AccentHoverColor}" />
     <SolidColorBrush x:Key="AccentPressedBrush" Color="{StaticResource AccentPressedColor}" />
     <SolidColorBrush x:Key="AccentSubtleBrush" Color="{StaticResource AccentSubtleColor}" />
+    <SolidColorBrush x:Key="VideoTrackBrush" Color="{StaticResource VideoTrackColor}" />
+    <SolidColorBrush x:Key="AudioTrackBrush" Color="{StaticResource AudioTrackColor}" />
     <SolidColorBrush x:Key="VideoClipBrush" Color="{StaticResource VideoClipColor}" />
     <SolidColorBrush x:Key="VideoClipEdgeBrush" Color="{StaticResource VideoClipEdgeColor}" />
     <SolidColorBrush x:Key="TextClipBrush" Color="{StaticResource TextClipColor}" />

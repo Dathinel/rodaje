@@ -45,7 +45,7 @@ internal static partial class ThemeResources
 
         Set(Get(UIElementType.Window, 0x000000),
             "BackgroundBrush", "BarBrush", "PanelBrush", "ControlBrush", "ControlHoverBrush", "ControlPressedBrush",
-            "AccentSubtleBrush", "VideoClipBrush", "TextClipBrush", "AudioClipBrush");
+            "AccentSubtleBrush", "VideoTrackBrush", "AudioTrackBrush", "VideoClipBrush", "TextClipBrush", "AudioClipBrush");
         Set(Get(UIElementType.WindowText, 0xFFFFFF),
             "StrokeBrush", "ControlBorderBrush", "TextBrush", "TextMutedBrush", "VideoClipEdgeBrush", "TextClipEdgeBrush", "AudioClipEdgeBrush");
         Set(Get(UIElementType.GrayText, 0xA6A6A6), "TextDisabledBrush");
