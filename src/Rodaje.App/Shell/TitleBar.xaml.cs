@@ -136,14 +136,14 @@ internal sealed partial class TitleBar : UserControl
     private void OnMarkersClick(object sender, RoutedEventArgs e) => MarkersPanelRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
-    /// Rehace Archivo › Proyectos recientes con los de <paramref name="settings"/>: los que ya no existen se quitan de
-    /// los ajustes y no se muestran. La ventana lo llama al unirse y cada vez que se abre o se guarda un proyecto.
+    /// Rehace Archivo › Proyectos recientes con los de <paramref name="settings"/>. No comprueba que existan (una
+    /// unidad de red caída congelaría la ventana): el que falte se quita al hacer clic. La ventana lo llama al unirse
+    /// y cada vez que se abre o se guarda un proyecto.
     /// </summary>
     internal void RefreshRecentProjects(AppSettings settings)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        settings.PruneRecentProjects(File.Exists);
-        IReadOnlyList<RecentProjectEntry> entries = RecentProjects.Build(settings.RecentProjects, File.Exists);
+        IReadOnlyList<RecentProjectEntry> entries = RecentProjects.Build(settings.RecentProjects);
         RecentMenu.Items.Clear();
         RecentMenu.IsEnabled = entries.Count > 0;
         foreach (RecentProjectEntry entry in entries)
@@ -178,7 +178,7 @@ internal sealed partial class TitleBar : UserControl
             return;
         }
 
-        if (!File.Exists(path))
+        if (!await Task.Run(() => File.Exists(path)))
         {
             _services.Session.Notify(NotificationSeverity.Warning, "Ya no está", $"No se encuentra «{path}». Se quita de los recientes.");
             RecentProjectMissing?.Invoke(this, path);
