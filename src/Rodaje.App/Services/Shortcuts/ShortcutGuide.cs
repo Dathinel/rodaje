@@ -23,6 +23,15 @@ public static class ShortcutGuide
         (ShortcutPreset.Classic, "Clásico"),
     ];
 
+    /// <summary>Lo que la tabla de un grupo no cuenta por sí sola; va debajo de ella.</summary>
+    private static readonly Dictionary<string, string> GroupNotes = new(StringComparer.Ordinal)
+    {
+        [ShortcutGroups.Edit] =
+            "**Pegar en el cursor** tiene dos teclas que hacen lo mismo: **Ctrl+Mayús+V**, la de fábrica, y **Ctrl+V**, la de costumbre. " +
+            "Con el foco en una lista (las fichas de la biblioteca, los marcadores), Ctrl+C y Ctrl+V son de la lista, como Supr y Ctrl+A, " +
+            "y no copian ni pegan clips; Ctrl+Mayús+V pega en el cursor desde cualquier sitio salvo un campo de texto.",
+    };
+
     /// <summary>La guía entera en Markdown, con saltos de línea LF.</summary>
     public static string ToMarkdown()
     {
@@ -64,6 +73,11 @@ public static class ShortcutGuide
             {
                 md.Append("\nSin tecla de fábrica (se asignan en el panel): ").Append(string.Join(", ", unbound)).Append(".\n");
             }
+
+            if (GroupNotes.TryGetValue(group, out string? note))
+            {
+                md.Append('\n').Append(note).Append('\n');
+            }
         }
 
         md.Append("\n## Ratón\n\n");
@@ -94,7 +108,7 @@ public static class ShortcutGuide
         md.Append("En **Archivo › Atajos de teclado...** (Ctrl+Alt+K) cada acción muestra sus teclas: un clic en una y se pulsa la nueva combinación; si ya la usaba otra acción, se avisa y se puede intercambiar. Los cambios se guardan por estilo en `atajos.json` y «Restablecer» vuelve a los de fábrica. La pestaña **Ratón** hace lo mismo con los botones y la rueda de cada zona.\n\n");
         md.Append("**Exportar… / Importar…** guardan y leen un JSON con los tres estilos, para pasarlos a otro equipo.\n\n");
         md.Append("## Hojas para imprimir\n\n");
-        md.Append("En el panel, **Hoja rápida** junta los 15 atajos más útiles del estilo actual y los guarda en Documentos como «Atajos de Rodaje.html» (imprimible) o «Atajos de Rodaje.png». **Ayuda › Hoja de atajos (imprimible)...** guarda todos los atajos del estilo actual, con los cambios de cada uno, como «Atajos de Rodaje (completa).html».\n");
+        md.Append("En el panel, **Hoja rápida** junta los 15 atajos más útiles del estilo actual y los guarda donde elijas, como página imprimible («Atajos de Rodaje.html») o como imagen («Atajos de Rodaje.png»). **Ayuda › Hoja de atajos (imprimible)...** pregunta dónde guardar todos los atajos del estilo actual, con los cambios de cada uno («Atajos de Rodaje (completa).html»). Los diálogos proponen Documentos la primera vez y después la última carpeta elegida.\n");
         return md.ToString();
     }
 

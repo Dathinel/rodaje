@@ -72,6 +72,28 @@ public sealed class TitleBarMenuTests
         Assert.Equal(expected, ItemsUnder(menu, "Secuencia").Take(expected.Length));
     }
 
+    [Fact]
+    public void PlaybackActionsHaveTheirOwnMenuAndGoToTimeLeftEdit()
+    {
+        string root = RepositoryRoot();
+        XNamespace xaml = "http://schemas.microsoft.com/winfx/2006/xaml/presentation";
+        XElement menu = XDocument.Load(Path.Combine(root, "src", "Rodaje.App", "Shell", "TitleBar.xaml"))
+            .Descendants(xaml + "MenuBar").Single();
+        string[] expected =
+        [
+            "playback.togglePlay", "playback.previousFrame", "playback.nextFrame", "playback.start", "playback.end",
+            "playback.goToTime", "playback.captureFrame",
+        ];
+
+        Assert.Equal(["Archivo", "Editar", "Reproducción", "Secuencia"], menu.Elements(xaml + "MenuBarItem").Take(4).Select(item => (string?)item.Attribute("Title")));
+        Assert.Equal(expected, ItemsUnder(menu, "Reproducción"));
+        Assert.All(expected, id => Assert.Equal("Reproducción", ParentMenu(menu, id)));
+        Assert.DoesNotContain("playback.goToTime", ItemsUnder(menu, "Editar"));
+        XElement goToTime = menu.Descendants(xaml + "MenuFlyoutItem").Single(item => (string?)item.Attribute("Tag") == "playback.goToTime");
+        Assert.Equal("Ir a tiempo...", (string?)goToTime.Attribute("Text"));
+        Assert.Equal("OnActionClick", (string?)goToTime.Attribute("Click"));
+    }
+
     private static string? ParentMenu(XElement menu, string tag) => menu
         .Descendants()
         .SingleOrDefault(element => (string?)element.Attribute("Tag") == tag)

@@ -1,10 +1,10 @@
 using System.Globalization;
 
-namespace Rodaje.Core.Serialization;
+namespace Rodaje.App.Shell;
 
 /// <summary>
 /// El aviso discreto de la barra de estado: cuánto hace que el proyecto se guardó o que el autoguardado hizo una copia.
-/// No mira el reloj: recibe cuánto pasó, así se prueba sin esperas.
+/// No mira el reloj: recibe cuánto pasó, así se prueba sin esperas. Solo lo usa la ventana principal.
 /// </summary>
 public static class SaveAge
 {
