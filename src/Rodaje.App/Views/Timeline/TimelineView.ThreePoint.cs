@@ -104,7 +104,7 @@ internal sealed partial class TimelineView
     {
         EditorSession session = Session!;
         bool marks = session.SequenceIn is not null || session.SequenceOut is not null;
-        _overlay.TimeRange = session.SequenceIn is { } i && session.SequenceOut is { } o ? (i, o) : _overlay.TimeRange;
+        _overlay.TimeRange = session.SequenceIn is { } i && session.SequenceOut is { } o ? (i, o) : null;
         if (session.SourceMedia is null && !marks)
         {
             SourcePanel.Visibility = Visibility.Collapsed;
