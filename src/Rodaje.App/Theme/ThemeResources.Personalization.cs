@@ -1,7 +1,9 @@
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services.Settings;
+using Rodaje.App.Views.Inspector;
 using Windows.UI;
 using Windows.UI.ViewManagement;
 
@@ -11,6 +13,10 @@ namespace Rodaje.App.Theme;
 internal static partial class ThemeResources
 {
     private static readonly Dictionary<SolidColorBrush, Color> Originals = [];
+    private static readonly WindowsThemeFollower Follower = new();
+
+    // Vivo mientras dure la app: si se recoge, Windows deja de avisar.
+    private static UISettings? _windows;
 
     private static readonly HashSet<string> Untouched = new(StringComparer.Ordinal)
     {
@@ -70,9 +76,29 @@ internal static partial class ThemeResources
         ArgumentNullException.ThrowIfNull(settings);
         TimelineFontScale = Personalization.FontFactor(settings.TimelineFontSize);
         bool windowsIsLight = settings.Theme == Personalization.FollowWindowsTheme && WindowsIsLight();
+        Follower.Applied(settings.Theme, windowsIsLight);
         ThemeDefinition theme = Themes.Resolve(settings.Theme, Store.Own, windowsIsLight, out string? warning);
         ApplyTheme(theme, settings.Accent);
         return warning;
+    }
+
+    /// <summary>
+    /// «Seguir a Windows» en caliente: cuando Windows cambia de modo claro a oscuro (o al revés) con la app abierta, se vuelve
+    /// a aplicar el tema de los ajustes. El aviso llega en otro hilo: pasa por la cola de la interfaz.
+    /// </summary>
+    public static void FollowWindows(DispatcherQueue dispatcher, Func<AppSettings> settings)
+    {
+        ArgumentNullException.ThrowIfNull(dispatcher);
+        ArgumentNullException.ThrowIfNull(settings);
+        _windows ??= new UISettings();
+        _windows.ColorValuesChanged += (_, _) => dispatcher.RunLater(() =>
+        {
+            AppSettings current = settings();
+            if (Follower.ShouldReapply(current.Theme, WindowsIsLight()))
+            {
+                ApplyCurrent(current);
+            }
+        });
     }
 
     /// <summary>Windows está en modo claro (fondo de las apps claro).</summary>
@@ -83,15 +109,17 @@ internal static partial class ThemeResources
     }
 
     /// <summary>
-    /// Lleva el tema a los pinceles de la paleta y a los de los controles de WinUI (ControlColors.xaml) en caliente: los
-    /// grises opacos de los controles se invierten en un tema claro y la familia del naranja de fábrica toma el acento. Con
-    /// el contraste alto de Windows no se toca nada: mandan los colores del sistema.
+    /// Lleva el tema a los pinceles de la paleta y a los de los controles de WinUI (ControlColors.xaml) en caliente: cada
+    /// gris de los controles se deriva del tema por su nivel (<see cref="ControlTint"/>) y la familia del naranja de
+    /// fábrica toma el acento. Con el contraste alto de Windows no se toca ningún color (mandan los del sistema), pero se
+    /// avisa igual del cambio: el tamaño del texto de la línea de tiempo viaja por el mismo evento.
     /// </summary>
     public static void ApplyTheme(ThemeDefinition theme, uint? accent)
     {
         ArgumentNullException.ThrowIfNull(theme);
         if (IsHighContrast)
         {
+            ThemeChanged?.Invoke(null, EventArgs.Empty);
             return;
         }
 
@@ -115,10 +143,10 @@ internal static partial class ThemeResources
         SetBrush("AccentPressedBrush", pressed);
         handled.UnionWith(["AccentHoverBrush", "AccentPressedBrush"]);
         handled.UnionWith(Untouched);
-        var all = AllBrushes(Application.Current.Resources, stockLight: false).Where(b => !handled.Contains(b.Key)).ToList();
+        var all = AllBrushes(Application.Current.Resources, own: false, stockLight: false).Where(b => !handled.Contains(b.Key)).ToList();
         // Por pincel y no por clave: en WinUI AccentButtonBackground es el mismo pincel que AccentFillColorDefaultBrush.
         var fixedColors = new Dictionary<SolidColorBrush, uint>();
-        foreach ((string key, SolidColorBrush brush, _) in all)
+        foreach ((string key, SolidColorBrush brush, _, _) in all)
         {
             if (FixedColor(key, theme, light, hover, pressed) is { } color)
             {
@@ -126,7 +154,7 @@ internal static partial class ThemeResources
             }
         }
 
-        foreach ((_, SolidColorBrush brush, bool stockLight) in all)
+        foreach ((_, SolidColorBrush brush, bool own, bool stockLight) in all)
         {
             if (!Originals.TryGetValue(brush, out Color original))
             {
@@ -135,8 +163,10 @@ internal static partial class ThemeResources
             }
 
             uint o = ToArgb(original);
-            // Los grises del tema claro de fábrica de WinUI ya son claros: solo se invierten los pensados para oscuro.
+            // Los propios (ControlColors.xaml) se derivan del tema por niveles. De los de fábrica de WinUI, en un tema claro
+            // se invierten los grises opacos pensados para oscuro; los de su tema claro ya son claros.
             uint mapped = fixedColors.TryGetValue(brush, out uint fixedColor) ? fixedColor : AccentFamily(o, accentColor, hover, pressed)
+                ?? (own ? ControlTint.Derive(o, theme) : null)
                 ?? (light && !stockLight && Personalization.Alpha(o) == 0xFF && Personalization.IsAchromatic(o) ? Personalization.Invert(o) : o);
             Color color = ToColor(mapped);
             if (brush.Color != color)
@@ -197,20 +227,24 @@ internal static partial class ThemeResources
         }
     }
 
-    /// <summary>Los pinceles con su clave; <c>StockLight</c> marca los del tema claro de fábrica de WinUI (no los de ControlColors.xaml).</summary>
-    private static IEnumerable<(string Key, SolidColorBrush Brush, bool StockLight)> AllBrushes(ResourceDictionary dictionary, bool stockLight)
+    /// <summary>
+    /// Los pinceles con su clave; <c>Own</c> marca los de los diccionarios de <c>Theme\</c> (ControlColors.xaml y la paleta) y
+    /// <c>StockLight</c> los del tema claro de fábrica de WinUI.
+    /// </summary>
+    private static IEnumerable<(string Key, SolidColorBrush Brush, bool Own, bool StockLight)> AllBrushes(ResourceDictionary dictionary, bool own, bool stockLight)
     {
+        own |= IsOwn(dictionary);
         foreach (KeyValuePair<object, object> entry in dictionary)
         {
             if (entry.Key is string key && entry.Value is SolidColorBrush brush)
             {
-                yield return (key, brush, stockLight);
+                yield return (key, brush, own, stockLight);
             }
         }
 
         foreach (ResourceDictionary merged in dictionary.MergedDictionaries)
         {
-            foreach (var pair in AllBrushes(merged, stockLight))
+            foreach (var pair in AllBrushes(merged, own, stockLight))
             {
                 yield return pair;
             }
@@ -220,7 +254,7 @@ internal static partial class ThemeResources
         {
             if (entry.Value is ResourceDictionary themed)
             {
-                foreach (var pair in AllBrushes(themed, stockLight || ("Light".Equals(entry.Key) && !IsOwn(themed))))
+                foreach (var pair in AllBrushes(themed, own, stockLight || ("Light".Equals(entry.Key) && !IsOwn(themed))))
                 {
                     yield return pair;
                 }

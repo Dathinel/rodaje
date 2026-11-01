@@ -19,7 +19,7 @@ namespace Rodaje.App.Views.Player;
 /// </summary>
 internal sealed partial class PlayerView
 {
-    public const string SecondScreenActionId = "view.secondScreen";
+    public const string SecondScreenActionId = PlayerShortcuts.SecondScreen;
 
     private readonly OverlayAutoHide _overlay = new(OverlayAutoHide.DefaultDelay);
     private readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
@@ -45,7 +45,6 @@ internal sealed partial class PlayerView
                 ShowOverlayTransport();
             }
         };
-        services.ShortcutRegistry.Register(new ShortcutAction(SecondScreenActionId, "Visor en otra pantalla (abrir o cerrar)", ShortcutGroups.Windows, []));
         _bindings.Add(services.Shortcuts.Bind(SecondScreenActionId, ToggleExternal));
         _engine!.ExternalSwapChainCreated += swapChain => DispatcherQueue.RunLater(() =>
         {

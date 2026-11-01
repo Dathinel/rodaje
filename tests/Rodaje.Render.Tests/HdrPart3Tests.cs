@@ -14,7 +14,7 @@ using Rodaje.TestMedia;
 namespace Rodaje.Render.Tests;
 
 /// <summary>
-/// Fase C del HDR, parte 3 (D-057): «Expandir a HDR» de un clip SDR, LUT y curvas por PQ en una secuencia HDR, la miniatura de
+/// Fase C del HDR, parte 3 (D-058): «Expandir a HDR» de un clip SDR, LUT y curvas por PQ en una secuencia HDR, la miniatura de
 /// exportación y los osciloscopios recortados a SDR como el visor, y MaxCLL/MaxFALL medidos en la composición lineal.
 /// </summary>
 public sealed class HdrPart3Tests

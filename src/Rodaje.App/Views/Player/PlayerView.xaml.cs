@@ -18,9 +18,9 @@ internal static class PlayerActionIds
     public const string ShuttleReverse = ActionIds.ShuttleReverse;
     public const string ShuttleStop = ActionIds.ShuttleStop;
     public const string ShuttleForward = ActionIds.ShuttleForward;
-    public const string FullScreen = "view.playerFullScreen";
-    public const string SafeAreas = "view.safeAreas";
-    public const string ProjectFormat = "project.format";
+    public const string FullScreen = PlayerShortcuts.FullScreen;
+    public const string SafeAreas = PlayerShortcuts.SafeAreas;
+    public const string ProjectFormat = PlayerShortcuts.ProjectFormat;
 }
 
 /// <summary>
@@ -130,12 +130,8 @@ internal sealed partial class PlayerView : UserControl, IEditorView
 
     private void RegisterActions(EditorServices services)
     {
-        ShortcutRegistry registry = services.ShortcutRegistry;
-        registry.Register(new ShortcutAction(PlayerActionIds.ShuttleReverse, "Lanzadera hacia atrás (más rápido con cada pulsación)", ShortcutGroups.Playback, ["J"]));
-        registry.Register(new ShortcutAction(PlayerActionIds.ShuttleStop, "Lanzadera: detener", ShortcutGroups.Playback, ["K"]));
-        registry.Register(new ShortcutAction(PlayerActionIds.ShuttleForward, "Lanzadera hacia adelante (más rápido con cada pulsación)", ShortcutGroups.Playback, ["L"]));
-        registry.Register(new ShortcutAction(PlayerActionIds.FullScreen, "Reproductor en pantalla completa", ShortcutGroups.Windows, ["F"]));
-        registry.Register(new ShortcutAction(PlayerActionIds.SafeAreas, "Mostrar u ocultar las zonas seguras", ShortcutGroups.Windows, []));
+        // También el formato del proyecto y el visor en otra pantalla, que se unen en sus propios archivos.
+        services.ShortcutRegistry.RegisterRange(PlayerShortcuts.Catalog);
 
         ShortcutRouter router = services.Shortcuts;
         _bindings.Add(router.Bind(PlayerActionIds.ShuttleReverse, () => _engine!.ShuttleKey(ShuttleKey.Reverse)));

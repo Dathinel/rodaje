@@ -24,7 +24,8 @@ public sealed class ThemeDefinition
 /// <summary>Los temas de serie (Grafito, Claro, Alto contraste), la lectura y escritura del <c>.rodaje-tema</c> y el contraste.</summary>
 public static class Themes
 {
-    public const int CurrentVersion = 1;
+    /// <summary>Versión del <c>.rodaje-tema</c>: la 2 añade el fondo de las pistas de video y de audio (<see cref="TrackKeys"/>).</summary>
+    public const int CurrentVersion = 2;
     public const string Extension = ".rodaje-tema";
     public const int MaxNameLength = 40;
     public const string GraphiteName = "Grafito";
@@ -48,6 +49,8 @@ public static class Themes
         ("AccentBrush", "Acento", "Acento (botón principal y cursor)"),
         ("AccentForegroundBrush", "Acento", "Texto sobre el acento"),
         ("AccentSubtleBrush", "Acento", "Selección"),
+        ("VideoTrackBrush", "Línea de tiempo", "Fondo de las pistas de video"),
+        ("AudioTrackBrush", "Línea de tiempo", "Fondo de las pistas de audio"),
         ("VideoClipBrush", "Línea de tiempo", "Clip de video"),
         ("VideoClipEdgeBrush", "Línea de tiempo", "Borde del clip de video"),
         ("AudioClipBrush", "Línea de tiempo", "Clip de audio"),
@@ -58,12 +61,17 @@ public static class Themes
         ("ViewerSurroundBrush", "Visor", "Fondo del visor"),
     ];
 
+    /// <summary>Las claves que no existían en la versión 1 del <c>.rodaje-tema</c>: al migrar toman el color de los paneles.</summary>
+    public static IReadOnlyList<string> TrackKeys { get; } = ["VideoTrackBrush", "AudioTrackBrush"];
+
     /// <summary>Parejas que deben cumplir AA: texto sobre fondo (4,5:1) y bordes o acento sobre su fondo (3:1).</summary>
     public static IReadOnlyList<(string Foreground, string Background, double Minimum)> ContrastPairs { get; } =
     [
         ("TextBrush", "PanelBrush", Personalization.TextContrast),
         ("TextBrush", "BackgroundBrush", Personalization.TextContrast),
         ("TextBrush", "ControlBrush", Personalization.TextContrast),
+        ("TextBrush", "VideoTrackBrush", Personalization.TextContrast),
+        ("TextBrush", "AudioTrackBrush", Personalization.TextContrast),
         ("TextMutedBrush", "PanelBrush", Personalization.UiContrast),
         ("AccentForegroundBrush", "AccentBrush", Personalization.TextContrast),
         ("AccentBrush", "PanelBrush", Personalization.UiContrast),
@@ -85,6 +93,7 @@ public static class Themes
             ["AccentBrush"] = "#E8833A", ["AccentForegroundBrush"] = "#141414", ["AccentSubtleBrush"] = "#4DE8833A",
             ["VideoClipBrush"] = "#33587C", ["VideoClipEdgeBrush"] = "#7FB0DE", ["AudioClipBrush"] = "#365A31", ["AudioClipEdgeBrush"] = "#9BCB83",
             ["TextClipBrush"] = "#574573", ["TextClipEdgeBrush"] = "#B7A2E3", ["KeyframeBrush"] = "#F2D16B", ["ViewerSurroundBrush"] = "#242424",
+            ["VideoTrackBrush"] = "#1D1D1D", ["AudioTrackBrush"] = "#1D1D1D",
         },
     };
 
@@ -102,6 +111,7 @@ public static class Themes
             ["AccentBrush"] = "#1AEBFF", ["AccentForegroundBrush"] = "#000000", ["AccentSubtleBrush"] = "#4D1AEBFF",
             ["VideoClipBrush"] = "#003A6B", ["VideoClipEdgeBrush"] = "#7FD4FF", ["AudioClipBrush"] = "#0A4F0A", ["AudioClipEdgeBrush"] = "#9BFF83",
             ["TextClipBrush"] = "#4B2E7A", ["TextClipEdgeBrush"] = "#D6B8FF", ["KeyframeBrush"] = "#FFFF00", ["ViewerSurroundBrush"] = "#000000",
+            ["VideoTrackBrush"] = "#000000", ["AudioTrackBrush"] = "#000000",
         },
     };
 
@@ -109,7 +119,7 @@ public static class Themes
 
     public static bool IsBuiltIn(string? name) => BuiltIn.Any(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Un tema es claro si su fondo lo es: entonces los grises de los controles de WinUI se invierten al aplicarlo.</summary>
+    /// <summary>Un tema es claro si su fondo lo es: entonces los controles de WinUI se visten con su tema claro al aplicarlo.</summary>
     public static bool IsLight(ThemeDefinition theme)
     {
         ArgumentNullException.ThrowIfNull(theme);
@@ -199,7 +209,9 @@ public static class Themes
 
     /// <summary>
     /// Corrige un tema leído de un archivo: nombre limpio, solo claves conocidas y colores válidos (lo que falte lo toma de
-    /// Grafito). Devuelve <c>null</c> si no tiene nombre o la versión es de un Rodaje más nuevo.
+    /// Grafito) y lo sube a <see cref="CurrentVersion"/>: en un tema de la versión 1 las pistas (<see cref="TrackKeys"/>)
+    /// toman el color de los paneles, que es lo que se veía. Devuelve <c>null</c> si no tiene nombre o la versión es de un
+    /// Rodaje más nuevo.
     /// </summary>
     public static ThemeDefinition? Normalize(ThemeDefinition? theme)
     {
@@ -213,11 +225,15 @@ public static class Themes
         {
             colors[key] = Personalization.TryParseColor(theme.Colors?.GetValueOrDefault(key), out uint argb)
                 ? Personalization.ToHex(argb)
-                : Graphite.Colors[key];
+                : Missing(key, theme.Version, colors);
         }
 
         return new ThemeDefinition { Version = CurrentVersion, Name = name, Colors = colors };
     }
+
+    // Las claves van en el orden de Slots: los paneles ya están resueltos cuando llegan las pistas.
+    private static string Missing(string key, int version, Dictionary<string, string> resolved) =>
+        version < 2 && TrackKeys.Contains(key) && resolved.TryGetValue("PanelBrush", out string? panel) ? panel : Graphite.Colors[key];
 
     public static string Serialize(ThemeDefinition theme)
     {

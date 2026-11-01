@@ -19,23 +19,6 @@ internal sealed partial class TimelineView
 
     private void RegisterCompoundActions(EditorServices services)
     {
-        ShortcutRegistry registry = services.ShortcutRegistry;
-        registry.Register(new ShortcutAction(TimelineActionIds.CreateCompound, "Crear clip compuesto", ShortcutGroups.Edit, ["Alt+G"], agile: ["Ctrl+G"])
-        {
-            ShortLabel = "Compuesto",
-            Description = "Junta los clips seleccionados en un solo clip; doble clic para editar lo de dentro.",
-        });
-        registry.Register(new ShortcutAction(TimelineActionIds.DecomposeCompound, "Descomponer clip compuesto", ShortcutGroups.Edit, ["Alt+Mayús+G"], agile: ["Ctrl+Mayús+G"])
-        {
-            ShortLabel = "Descomponer",
-            Description = "Devuelve a la línea de tiempo los clips que había dentro del compuesto seleccionado.",
-        });
-        registry.Register(new ShortcutAction(TimelineActionIds.LeaveCompound, "Salir del clip compuesto", ShortcutGroups.Timeline, [])
-        {
-            ShortLabel = "Salir",
-            Description = "Vuelve a la secuencia que contiene el compuesto que se está editando.",
-        });
-
         ShortcutRouter router = services.Shortcuts;
         router.Bind(TimelineActionIds.CreateCompound, () => Session!.CreateCompoundFromSelection(), () => Session?.CanCreateCompound == true);
         router.Bind(TimelineActionIds.DecomposeCompound, () => Session!.DecomposeCompound(), () => Session?.SelectedCompoundId is not null);
@@ -46,7 +29,13 @@ internal sealed partial class TimelineView
     {
         EditorSession session = Session!;
         menu.Items.Add(new MenuFlyoutSeparator());
-        var create = new MenuFlyoutItem { Text = "Crear clip compuesto", IsEnabled = session.CanCreateCompound };
+        ShortcutRegistry registry = _services!.ShortcutRegistry;
+        var create = new MenuFlyoutItem
+        {
+            Text = "Crear clip compuesto",
+            IsEnabled = session.CanCreateCompound,
+            KeyboardAcceleratorTextOverride = registry.GetKeyText(TimelineActionIds.CreateCompound),
+        };
         create.Click += (_, _) => session.CreateCompoundFromSelection();
         menu.Items.Add(create);
         if (session.SelectedCompoundId is { } compound)
@@ -54,7 +43,7 @@ internal sealed partial class TimelineView
             var open = new MenuFlyoutItem { Text = "Abrir clip compuesto" };
             open.Click += (_, _) => session.EnterCompound(compound);
             menu.Items.Add(open);
-            var decompose = new MenuFlyoutItem { Text = "Descomponer clip compuesto" };
+            var decompose = new MenuFlyoutItem { Text = "Descomponer clip compuesto", KeyboardAcceleratorTextOverride = registry.GetKeyText(TimelineActionIds.DecomposeCompound) };
             decompose.Click += (_, _) => session.DecomposeCompound(compound);
             menu.Items.Add(decompose);
         }

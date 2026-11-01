@@ -21,12 +21,12 @@ namespace Rodaje.App.Views.Timeline;
 /// <summary>Acciones que registra la línea de tiempo (además de las del armazón).</summary>
 internal static class TimelineActionIds
 {
-    public const string AutoCrossfade = "timeline.autoCrossfade";
-    public const string LockEnvelopes = "timeline.lockEnvelopes";
-    public const string IgnoreGroups = "timeline.ignoreGroups";
-    public const string CreateCompound = "edit.compound";
-    public const string DecomposeCompound = "edit.decompose";
-    public const string LeaveCompound = "timeline.leaveCompound";
+    public const string AutoCrossfade = TimelineShortcuts.AutoCrossfade;
+    public const string LockEnvelopes = TimelineShortcuts.LockEnvelopes;
+    public const string IgnoreGroups = TimelineShortcuts.IgnoreGroups;
+    public const string CreateCompound = TimelineShortcuts.CreateCompound;
+    public const string DecomposeCompound = TimelineShortcuts.DecomposeCompound;
+    public const string LeaveCompound = TimelineShortcuts.LeaveCompound;
 }
 
 /// <summary>
@@ -166,6 +166,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         Session.SelectionChanged += (_, _) => OnSelectionChanged();
         Session.TransportChanged += (_, _) => OnTransportChanged();
         State.PropertyChanged += OnStateChanged;
+        Theme.ThemeResources.ThemeChanged += (_, _) => OnThemeChanged();
 
         LanesHost.SizeChanged += (_, _) => OnLanesResized();
         RulerCanvas.SizeChanged += (_, _) => ClipToBounds(RulerCanvas);
@@ -296,6 +297,19 @@ internal sealed partial class TimelineView : UserControl, IEditorView
             SelectedTransitionId = session.SelectedTransitionId,
             Visuals = _visuals,
         };
+    }
+
+    // Se guardó (o se canceló) Preferencias: el tamaño del texto de la línea de tiempo se aplica a lo ya dibujado, sin
+    // esperar a que cambie el proyecto; las cabeceras se rearman solo si su firma cambió.
+    private void OnThemeChanged()
+    {
+        if (Session is null || _renderer is null)
+        {
+            return;
+        }
+
+        _renderer.RefreshFonts();
+        RebuildLayout();
     }
 
     private void RebuildLayout()
@@ -611,10 +625,9 @@ internal sealed partial class TimelineView : UserControl, IEditorView
 
     private void RegisterActions(EditorServices services)
     {
-        ShortcutRegistry registry = services.ShortcutRegistry;
-        registry.Register(new ShortcutAction(TimelineActionIds.AutoCrossfade, "Fundido cruzado automático", ShortcutGroups.Timeline, []) { ShortLabel = "Fundido auto", Description = "Fundido cruzado en cada corte entre clips pegados de la pista principal." });
-        registry.Register(new ShortcutAction(TimelineActionIds.LockEnvelopes, "Bloquear envolventes", ShortcutGroups.Timeline, []) { ShortLabel = "Bloq. envolv.", Description = "Las envolventes viajan con su clip y no se editan por accidente." });
-        registry.Register(new ShortcutAction(TimelineActionIds.IgnoreGroups, "Ignorar grupos", ShortcutGroups.Timeline, []) { ShortLabel = "Sin grupos", Description = "Mover y recortar solo el clip agarrado, sin su audio o video enlazado." });
+        // Todas las acciones de la línea de tiempo (también las de compuestos, tres puntos y organización) vienen del catálogo.
+        services.ShortcutRegistry.RegisterRange(TimelineShortcuts.Catalog);
+        _headers!.KeyText = services.ShortcutRegistry.GetKeyText;
 
         ShortcutRouter router = services.Shortcuts;
         router.Bind(TimelineActionIds.AutoCrossfade, () => State.AutoCrossfade = !State.AutoCrossfade);

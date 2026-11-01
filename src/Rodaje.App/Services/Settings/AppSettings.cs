@@ -50,6 +50,9 @@ public sealed partial class AppSettings
 
     public List<string> RecentProjects { get; set; } = [];
 
+    /// <summary>Cada cuántos minutos, como mucho, el autoguardado hace una copia mientras se edita (1 a 30).</summary>
+    public int AutosaveMinutes { get; set; } = Rodaje.Core.Serialization.AutosaveSchedule.DefaultIntervalMinutes;
+
     /// <summary>Ancho de la biblioteca (con el riel de íconos), en píxeles independientes del DPI.</summary>
     public double LibraryWidth { get; set; } = DefaultLibraryWidth;
 
@@ -147,6 +150,13 @@ public sealed partial class AppSettings
         }
     }
 
+    /// <summary>Quita de los recientes los proyectos que <paramref name="exists"/> ya no encuentra. Devuelve cuántos quitó.</summary>
+    public int PruneRecentProjects(Func<string, bool> exists)
+    {
+        ArgumentNullException.ThrowIfNull(exists);
+        return RecentProjects.RemoveAll(p => !exists(p));
+    }
+
     /// <summary>Corrige lo que no tenga sentido (un archivo editado a mano, o de otra pantalla).</summary>
     public void Normalize()
     {
@@ -179,6 +189,7 @@ public sealed partial class AppSettings
         Rodaje.Core.Model.MediaRef.DefaultStillImageDuration = Rodaje.Core.Timing.Time.FromSeconds(StillImageDurationSeconds);
         LinkedAudioVideoTracks = LinkedAudioTracks.ToSetting();
         MeterDecayDbPerSecond = Clamp(MeterDecayDbPerSecond, 3, 120, 20);
+        AutosaveMinutes = Rodaje.Core.Serialization.AutosaveSchedule.ClampMinutes(AutosaveMinutes);
         RecentProjects = [.. (RecentProjects ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Take(MaxRecentProjects)];
         if (!Enum.IsDefined(ShortcutPreset))
         {

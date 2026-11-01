@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Audio;
+using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Theme;
 using Rodaje.Core.Model;
 
@@ -45,6 +46,11 @@ internal sealed class TrackHeaders
     private (string TrackId, double StartY, int? Index)? _reorderDrag;
     private Rectangle? _dropLine;
     private const double ReorderThreshold = 4;
+
+    /// <summary>La tecla de una acción para mostrarla en el menú de la cabecera (la pone la línea de tiempo desde el registro).</summary>
+    public Func<string, string>? KeyText { get; set; }
+
+    private string Key(string actionId) => KeyText?.Invoke(actionId) ?? "";
 
     public TrackHeaders(Canvas canvas, TimelineBrushes brushes, Style toggleStyle)
     {
@@ -148,7 +154,7 @@ internal sealed class TrackHeaders
     }
 
     private Brush HeaderBackground(TrackRow row) =>
-        row.TrackId == SelectedTrackId ? _brushes.AccentSubtle : row.IsMain ? _brushes.Control : _brushes.Panel;
+        row.TrackId == SelectedTrackId ? _brushes.AccentSubtle : row.IsMain ? _brushes.Control : _brushes.TrackFill(row.Kind);
 
     public void Update(TrackLayout layout, bool magnetic, double width)
     {
@@ -157,8 +163,7 @@ internal sealed class TrackHeaders
             SelectedTrackId = null;
         }
 
-        string signature = string.Join("|", layout.Rows.Select(r =>
-            $"{r.TrackId}:{r.Track.Name}:{r.Track.Role}:{r.Track.Hidden}:{r.Track.Muted}:{r.Track.Locked}:{r.IsMain}:{r.Top}:{r.Height}")) + $"|{magnetic}|{width}";
+        string signature = HeaderSignature.Of(layout, magnetic, width, ThemeResources.TimelineFontScale);
         _lastLayout = layout;
         _lastWidth = width;
         _lastMagnetic = magnetic;
@@ -447,10 +452,12 @@ internal sealed class TrackHeaders
         AddOrderItems(menu, row);
         var gaps = new MenuFlyoutItem { Text = "Cerrar todos los huecos de la pista", Icon = new FontIcon { Glyph = "" }, IsEnabled = !row.Track.Locked };
         gaps.Click += (_, _) => CloseGapsRequested?.Invoke(row.TrackId);
+        gaps.KeyboardAcceleratorTextOverride = Key(TimelineShortcuts.CloseGaps);
         menu.Items.Add(gaps);
         menu.Items.Add(new MenuFlyoutSeparator());
         var add = new MenuFlyoutItem { Text = "Añadir pista de subtítulos", Icon = new FontIcon { Glyph = "" } };
         add.Click += (_, _) => SubtitleTrackRequested?.Invoke();
+        add.KeyboardAcceleratorTextOverride = Key(ActionIds.AddSubtitleTrack);
         menu.Items.Add(add);
         if (row.Kind == TrackKind.Video && !row.IsMain)
         {
@@ -463,8 +470,10 @@ internal sealed class TrackHeaders
             {
                 var import = new MenuFlyoutItem { Text = Subtitles.SubtitleFileCommands.ImportLabel, Icon = new FontIcon { Glyph = "" } };
                 import.Click += (_, _) => SubtitleFileRequested?.Invoke(null);
+                import.KeyboardAcceleratorTextOverride = Key(SubtitleShortcuts.Import);
                 var export = new MenuFlyoutItem { Text = Subtitles.SubtitleFileCommands.ExportLabel, Icon = new FontIcon { Glyph = "" } };
                 export.Click += (_, _) => SubtitleFileRequested?.Invoke(trackId);
+                export.KeyboardAcceleratorTextOverride = Key(SubtitleShortcuts.Export);
                 menu.Items.Add(new MenuFlyoutSeparator());
                 menu.Items.Add(import);
                 menu.Items.Add(export);
@@ -523,6 +532,7 @@ internal sealed class TrackHeaders
         up.Click += (_, _) => StepRequested?.Invoke(trackId, true);
         down.Click += (_, _) => StepRequested?.Invoke(trackId, false);
         delete.Click += (_, _) => DeleteRequested?.Invoke(trackId);
+        delete.KeyboardAcceleratorTextOverride = Key(ActionIds.Delete);
         menu.Opening += (_, _) =>
         {
             up.IsEnabled = !row.Track.Locked && CanStep?.Invoke(trackId, true) == true;

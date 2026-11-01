@@ -149,7 +149,7 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
     }
 
     /// <summary>
-    /// Fase C, parte 3 (D-057): con «Medir MaxCLL/MaxFALL» la pasada previa mide la composición lineal y el archivo lleva lo medido en
+    /// Fase C, parte 3 (D-058): con «Medir MaxCLL/MaxFALL» la pasada previa mide la composición lineal y el archivo lleva lo medido en
     /// vez de lo declarado: el parche de 1000 nits (código 723 ≈ 1004 nits) solo en el cuadro 10 y 203 nits en el resto dan un
     /// MaxCLL de ≈ 1000 y un MaxFALL entre 203 y 1000 (la media del cuadro 10: un tercio negro, un tercio a 203 y un tercio a 1000).
     /// </summary>

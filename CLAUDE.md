@@ -13,13 +13,13 @@ Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0
 - **Worktrees** en `.claude\worktrees\` (ignorado); se unen con `git merge`, un commit por tarea.
 - **Espacios de nombres en las pruebas:** `Rodaje.X.Tests.Timing` tapa a `Rodaje.Core.Timing`: nombre completo o `using`.
 - **Complementos:** contenido en `Dathinel/rodaje-transiciones`, `-filtros`, `-fuentes`, `-titulos`, `-zonas`, `-camaras`, `-sonidos`, `-preajustes-pro` y `-360` (CC0/OFL); módulos en `Dathinel/modulo-*` (GPLv3, `build\empaquetar-modulo.ps1`); x264/x265 en `Dathinel/rodaje-codificadores-gpl` (GPL, `build\armar-codificadores-gpl.ps1`, D-034); descarga firmada desde `Dathinel/rodaje-catalogo` (release `v8`; `docs/descarga.md`).
-- **Decisiones:** `docs/decisiones.md` (D-001 a D-056). Un cambio de fondo que contradiga una decisión vigente se registra como decisión nueva.
+- **Decisiones:** `docs/decisiones.md` (D-001 a D-058). Un cambio de fondo que contradiga una decisión vigente se registra como decisión nueva.
 
 ## Para retomar (31-oct)
 
 - **v1.0.2 publicada** (31-oct) desde `main`: 36 PR del 24 al 31-oct (#441–#475). Puerta pasada: CI verde, AOT y autoprueba del exe, suite completa (las de protocolo de módulos hay que correrlas fuera del árbol de procesos de Claude Code; las de TiempoReal/Rendimiento solo las corre `nocturna.yml`).
 - **Abiertos para la 1.1:** #476 (arrastre sin copias por movimiento), #477 (personalización, segunda vuelta) y #478 (HDR fase C parte 3; su autoprueba falla: el título profesional se dibuja igual que el simple en un proyecto SDR, hay que arreglarlo antes de unir). #461 es un borrador «NO UNIR» solo para `/code-review ultra 461`: ciérralo y borra `revision/base-v1.0.1` tras usarlo.
-- **HDR:** fases A, B y C (partes 1 y 2) unidas (D-052 a D-055); la fase D (RAW en GPU) va en la 1.1. Plan en `docs/hdr.md`.
-- **Decisiones:** hasta D-056. Daniel pidió tomar siempre la opción recomendada.
+- **HDR:** fases A, B y C (partes 1 y 2) unidas (D-052 a D-055), parte 3 en #478 (D-058); la fase D (RAW en GPU) va en la 1.1. Plan en `docs/hdr.md`.
+- **Decisiones:** hasta D-058 (HDR fase C parte 3, #478; D-057 personalización, segunda vuelta, #477). Daniel pidió tomar siempre la opción recomendada.
 - **Herramientas de IA:** Subtitular y Rastrear v1.0.0 publicadas, Lanzador v1.0.0 prerelease; sus entradas `app` están en el catálogo v8.
 - Pendientes en `.proceso/agentes/BACKLOG-1.0.2.md`. La nube y `nocturna.yml` siguen en pausa.

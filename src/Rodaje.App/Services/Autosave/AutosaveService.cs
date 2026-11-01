@@ -62,6 +62,16 @@ public sealed partial class AutosaveService : IDisposable
     /// <summary>Carpeta de esta sesión, o <c>null</c> si no está activo.</summary>
     public string? SessionDirectory => _store?.Directory;
 
+    /// <summary>Lo máximo que queda un cambio sin copia mientras se sigue editando (Preferencias › General).</summary>
+    public TimeSpan Interval
+    {
+        get => _schedule.Interval;
+        set => _schedule.SetInterval(value);
+    }
+
+    /// <summary>Cuándo terminó de escribirse la última copia de esta sesión, o <c>null</c> si todavía ninguna.</summary>
+    public DateTimeOffset? LastCopyAt { get; private set; }
+
     /// <summary>Crea la carpeta de esta sesión y empieza a seguir los cambios. Si el disco no deja, avisa y sigue sin autoguardado.</summary>
     public bool Start()
     {
@@ -361,6 +371,7 @@ public sealed partial class AutosaveService : IDisposable
         {
             await Enqueue(() => store.Write(copy, filePath));
             _schedule.NoteCaughtUp(since);
+            LastCopyAt = Now;
             _failureNotified = false;
             _formatFailureNotified = false;
         }

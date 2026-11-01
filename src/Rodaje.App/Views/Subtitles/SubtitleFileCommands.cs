@@ -16,8 +16,8 @@ namespace Rodaje.App.Views.Subtitles;
 /// </summary>
 internal static partial class SubtitleFileCommands
 {
-    public const string ImportId = "file.importSubtitles";
-    public const string ExportId = "file.exportSubtitles";
+    public const string ImportId = SubtitleShortcuts.Import;
+    public const string ExportId = SubtitleShortcuts.Export;
     public const string ImportLabel = "Importar subtítulos…";
     public const string ExportLabel = "Exportar subtítulos…";
 
@@ -29,14 +29,7 @@ internal static partial class SubtitleFileCommands
     {
         ArgumentNullException.ThrowIfNull(router);
         ArgumentNullException.ThrowIfNull(services);
-        services.ShortcutRegistry.Register(new ShortcutAction(ImportId, "Importar subtítulos", ShortcutGroups.File, [])
-        {
-            Description = "Trae un archivo .srt o .vtt a una pista de subtítulos nueva.",
-        });
-        services.ShortcutRegistry.Register(new ShortcutAction(ExportId, "Exportar subtítulos", ShortcutGroups.File, [])
-        {
-            Description = "Guarda la pista de subtítulos como archivo .srt o .vtt.",
-        });
+        services.ShortcutRegistry.RegisterRange(SubtitleShortcuts.Catalog);
         IDisposable import = router.Bind(ImportId, () => UiTask.Run(Guard(services, "Importar subtítulos", () => ImportAsync(services))));
         IDisposable export = router.Bind(ExportId, () => UiTask.Run(Guard(services, "Exportar subtítulos", () => ExportAsync(services, null))));
         return new Bindings(import, export);

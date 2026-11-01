@@ -19,25 +19,17 @@ namespace Rodaje.App.Views.Timeline;
 /// </summary>
 internal sealed partial class TimelineView
 {
-    private const string MarkInId = "edit.markIn";
-    private const string MarkOutId = "edit.markOut";
-    private const string ClearMarksId = "edit.clearMarks";
-    private const string InsertId = "edit.insertSource";
-    private const string OverwriteId = "edit.overwriteSource";
-    private const string ToggleSourceId = "view.sourceProgram";
+    private const string MarkInId = TimelineShortcuts.MarkIn;
+    private const string MarkOutId = TimelineShortcuts.MarkOut;
+    private const string ClearMarksId = TimelineShortcuts.ClearMarks;
+    private const string InsertId = TimelineShortcuts.InsertSource;
+    private const string OverwriteId = TimelineShortcuts.OverwriteSource;
+    private const string ToggleSourceId = TimelineShortcuts.ToggleSource;
 
     private bool _fillingSourcePanel;
 
     private void RegisterThreePointActions(EditorServices services)
     {
-        ShortcutRegistry registry = services.ShortcutRegistry;
-        registry.Register(new ShortcutAction(MarkInId, "Marcar entrada", ShortcutGroups.Edit, ["I"]) { ShortLabel = "Entrada", Description = "Marca la entrada en el fotograma que se ve, en el origen o en la secuencia." });
-        registry.Register(new ShortcutAction(MarkOutId, "Marcar salida", ShortcutGroups.Edit, ["O"]) { ShortLabel = "Salida", Description = "Marca la salida: el fotograma que se ve es el último que entra." });
-        registry.Register(new ShortcutAction(ClearMarksId, "Quitar entrada y salida", ShortcutGroups.Edit, ["Alt+X"], classic: ["Ctrl+Mayús+X"]) { ShortLabel = "Quitar marcas", Description = "Borra las marcas del visor que se ve." });
-        registry.Register(new ShortcutAction(InsertId, "Insertar desde el origen", ShortcutGroups.Edit, [","]) { ShortLabel = "Insertar", Description = "Pone el tramo marcado del origen en la secuencia y corre lo que sigue; con un borde elegido, lo recorta un fotograma a la izquierda." });
-        registry.Register(new ShortcutAction(OverwriteId, "Sobrescribir desde el origen", ShortcutGroups.Edit, ["."]) { ShortLabel = "Sobrescribir", Description = "Pone el tramo marcado del origen encima de lo que haya; con un borde elegido, lo recorta un fotograma a la derecha." });
-        registry.Register(new ShortcutAction(ToggleSourceId, "Visor de origen o de programa", ShortcutGroups.View, ["Mayús+2"]) { ShortLabel = "Origen", Description = "Cambia el reproductor entre el medio del origen y la secuencia." });
-
         ShortcutRouter router = services.Shortcuts;
         router.Bind(MarkInId, () => Session!.MarkIn());
         router.Bind(MarkOutId, () => Session!.MarkOut());
