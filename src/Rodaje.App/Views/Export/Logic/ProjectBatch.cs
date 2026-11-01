@@ -40,14 +40,10 @@ public static class ProjectBatch
         var skipped = new List<(string, string)>();
         var used = new HashSet<string>(pendingOutputs ?? [], StringComparer.OrdinalIgnoreCase);
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string? open = openProjectPath is null ? null : FullPath(openProjectPath);
         foreach (string projectPath in projectPaths)
         {
-            string full;
-            try
-            {
-                full = Path.GetFullPath(projectPath);
-            }
-            catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+            if (FullPath(projectPath) is not { } full)
             {
                 skipped.Add((projectPath, "la ruta no es válida"));
                 continue;
@@ -58,7 +54,7 @@ public static class ProjectBatch
                 continue;
             }
 
-            if (openProjectPath is not null && string.Equals(Path.GetFullPath(openProjectPath), full, StringComparison.OrdinalIgnoreCase))
+            if (open is not null && string.Equals(open, full, StringComparison.OrdinalIgnoreCase))
             {
                 skipped.Add((full, "es el proyecto abierto: expórtalo con el botón Exportar"));
                 continue;
@@ -95,5 +91,18 @@ public static class ProjectBatch
         }
 
         return new ProjectBatchPlan(requests, skipped);
+    }
+
+    /// <summary>La ruta completa, o <c>null</c> si no es una ruta válida.</summary>
+    private static string? FullPath(string path)
+    {
+        try
+        {
+            return Path.GetFullPath(path);
+        }
+        catch (Exception ex) when (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            return null;
+        }
     }
 }

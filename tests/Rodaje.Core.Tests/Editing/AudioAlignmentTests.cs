@@ -77,7 +77,7 @@ public sealed class AudioAlignmentTests
     [Fact]
     public void It_fails_when_the_place_is_taken_before_the_start_or_with_a_retimed_reference()
     {
-        TrimFixture busy = Shoot().Add("a2", "wall", "m3", 0, 50, 40);
+        TrimFixture busy = Shoot().Add("a2", "wall", "m3", 0, 50, 60);
         AssertFails(() => AnalysisEdits.AlignByAudio(busy.Ctx, "cam-v", [("rec", F(4))]), "ocupado");
 
         TrimFixture early = Shoot();

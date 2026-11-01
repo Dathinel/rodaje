@@ -82,6 +82,8 @@ internal static class AudioSyncAction
             return;
         }
 
+        // La edición mueve los mismos objetos Clip: el inicio de antes se guarda aparte para decir cuánto se corrió cada uno.
+        var startsBefore = clips.ToDictionary(c => c.Id, c => c.Start, StringComparer.Ordinal);
         if (session.Sequence.FindClip(reference.Id) is null || !session.Execute(Edits.AlignByAudio(session.SequenceId, reference.Id, pairs)))
         {
             return;
@@ -89,13 +91,11 @@ internal static class AudioSyncAction
 
         Rational rate = session.Sequence.FrameRate;
         string detail = string.Join(", ", pairs.Select(p => session.Sequence.FindClip(p.ClipId) is { } moved
-            ? $"«{ClipName(project, moved.Clip)}» {ClipLabels.FrameShift(moved.Clip.Start - StartBefore(clips, p.ClipId), rate)}"
+            ? $"«{ClipName(project, moved.Clip)}» {ClipLabels.FrameShift(moved.Clip.Start - startsBefore[p.ClipId], rate)}"
             : ""));
         session.Notify(NotificationSeverity.Success, "Sincronizados por el sonido",
             $"Referencia: «{ClipName(project, reference)}». {detail}." + (failed.Count > 0 ? $" Sin sonido común: {string.Join(", ", failed)}." : ""));
     }
-
-    private static Time StartBefore(IReadOnlyList<Clip> clips, string clipId) => clips.First(c => c.Id == clipId).Start;
 
     private static string ClipName(Project project, Clip clip) => project.FindMedia(clip.MediaId)?.Name is { Length: > 0 } name ? name : clip.Id;
 }
