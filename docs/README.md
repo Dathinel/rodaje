@@ -31,7 +31,7 @@ Para editores, creadores de contenido y usuarios finales. Todos los manuales est
 Detalle de ingeniería de cada subsistema en `src/` (diseño sin dependencias circulares y Native AOT):
 
 - **[Arquitectura por capas](arquitectura/README.md):** Filosofía de diseño, reglas de aislamiento entre capas, pruebas y directrices de compilación.
-- **[Pruebas a mano](pruebas-a-mano.md):** Lo que conviene probar con la app abierta antes de dar por buena cada función nueva, además de la suite automática.
+- **[Pruebas a mano](pruebas-a-mano.md):** Lo que se repasa con la app abierta antes de dar por buena una función o de publicar, porque depende de la red, de la ventana, del navegador o de medios reales.
   - **[Capa Núcleo (`Rodaje.Core`)](arquitectura/nucleo.md):** Aritmética de tiempo racional (`RationalTime`), modelo de datos inmutable, árbol de pistas y pila multinivel de deshacer (`UndoStack`).
   - **[Capa Medios (`Rodaje.Media`)](arquitectura/medios.md):** Integración con FFmpeg LGPL, decodificación por hardware (D3D11VA), lectura de fotogramas al cuadro exacto y generador de proxies.
   - **[Capa Audio (`Rodaje.Audio`)](arquitectura/audio.md):** Motor de sonido WASAPI de baja latencia, reloj maestro de sincronía audiovisual, cambio de velocidad con preservación de tono y mezcla por buses.

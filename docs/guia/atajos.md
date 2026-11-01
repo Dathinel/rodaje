@@ -113,7 +113,7 @@ Sin tecla de fábrica (se asignan en el panel): Herramienta de selección.
 | Visor de origen o de programa | Mayús+2 | = | = |
 | Reproductor en pantalla completa | F | = | = |
 
-Sin tecla de fábrica (se asignan en el panel): Complementos, Distribución equilibrada, Más visor, Más línea de tiempo, Mostrar u ocultar las zonas seguras, Formato del proyecto…, Visor en otra pantalla (abrir o cerrar), Recorrido inicial, Volver a mostrar las pistas, Hoja de atajos (imprimible), Espacio de trabajo «Edición», Espacio de trabajo «Color», Espacio de trabajo «Audio».
+Sin tecla de fábrica (se asignan en el panel): Complementos, Distribución equilibrada, Más visor, Más línea de tiempo, Mostrar u ocultar las zonas seguras, Formato del proyecto…, Visor en otra pantalla (abrir o cerrar), Recorrido inicial, Volver a mostrar las pistas, Hoja de atajos (imprimible), Buscar actualizaciones…, Espacio de trabajo «Edición», Espacio de trabajo «Color», Espacio de trabajo «Audio».
 
 ## Archivo
 
