@@ -53,6 +53,15 @@ public sealed partial class AppSettings
     /// <summary>Cada cuántos minutos, como mucho, el autoguardado hace una copia mientras se edita (1 a 30).</summary>
     public int AutosaveMinutes { get; set; } = Rodaje.Core.Serialization.AutosaveSchedule.DefaultIntervalMinutes;
 
+    /// <summary>Al arrancar, como mucho una vez al día, consulta si hay una versión nueva en GitHub y avisa (<see cref="Updates.UpdateChecker"/>).</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
+    /// <summary>Cuándo se consultó por última vez la versión publicada (UTC); <c>null</c>, nunca.</summary>
+    public DateTimeOffset? LastUpdateCheck { get; set; }
+
+    /// <summary>Etiqueta de la versión descartada con «Más tarde» (<c>v1.1.0</c>): de esa no se vuelve a avisar al arrancar.</summary>
+    public string? DismissedUpdateVersion { get; set; }
+
     /// <summary>Ancho de la biblioteca (con el riel de íconos), en píxeles independientes del DPI.</summary>
     public double LibraryWidth { get; set; } = DefaultLibraryWidth;
 
@@ -183,6 +192,7 @@ public sealed partial class AppSettings
         LinkedAudioVideoTracks = LinkedAudioTracks.ToSetting();
         MeterDecayDbPerSecond = Clamp(MeterDecayDbPerSecond, 3, 120, 20);
         AutosaveMinutes = Rodaje.Core.Serialization.AutosaveSchedule.ClampMinutes(AutosaveMinutes);
+        DismissedUpdateVersion = string.IsNullOrWhiteSpace(DismissedUpdateVersion) ? null : DismissedUpdateVersion.Trim();
         RecentProjects = [.. (RecentProjects ?? []).Where(p => !string.IsNullOrWhiteSpace(p)).Take(MaxRecentProjects)];
         if (!Enum.IsDefined(ShortcutPreset))
         {

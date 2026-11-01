@@ -31,7 +31,6 @@ Para editores, creadores de contenido y usuarios finales. Todos los manuales est
 Detalle de ingeniería de cada subsistema en `src/` (diseño sin dependencias circulares y Native AOT):
 
 - **[Arquitectura por capas](arquitectura/README.md):** Filosofía de diseño, reglas de aislamiento entre capas, pruebas y directrices de compilación.
-- **[Pruebas a mano](pruebas-a-mano.md):** Lo que conviene probar con la app abierta antes de dar por buena cada función nueva, además de la suite automática.
   - **[Capa Núcleo (`Rodaje.Core`)](arquitectura/nucleo.md):** Aritmética de tiempo racional (`RationalTime`), modelo de datos inmutable, árbol de pistas y pila multinivel de deshacer (`UndoStack`).
   - **[Capa Medios (`Rodaje.Media`)](arquitectura/medios.md):** Integración con FFmpeg LGPL, decodificación por hardware (D3D11VA), lectura de fotogramas al cuadro exacto y generador de proxies.
   - **[Capa Audio (`Rodaje.Audio`)](arquitectura/audio.md):** Motor de sonido WASAPI de baja latencia, reloj maestro de sincronía audiovisual, cambio de velocidad con preservación de tono y mezcla por buses.
@@ -41,6 +40,7 @@ Detalle de ingeniería de cada subsistema en `src/` (diseño sin dependencias ci
   - **[Capa Exportación (`Rodaje.Export`)](arquitectura/exportacion.md):** Coordinador de exportación por tuberías, codificadores por GPU (NVENC/AMF/QSV/MF) y software, y verificación con `ffprobe`.
   - **[Capa Aplicación (`Rodaje.App`)](arquitectura/app.md) y [Vistas](arquitectura/app-vistas.md):** Interfaz gráfica WinUI 3, desacoplamiento de lógica en `Logic/`, diseño de controles y enlace de datos.
 - **[Arranque y distribución](arranque-y-distribucion.md):** Medición de arranques en frío (215 ms) y caliente (50 ms), recortador AOT, empaquetado portable e instalador.
+- **[Pruebas a mano](pruebas-a-mano.md):** Lo que se repasa con la app abierta antes de publicar: cada función nueva y lo que depende de la red, de la ventana o del navegador.
 
 ---
 

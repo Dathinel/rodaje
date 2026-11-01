@@ -13,6 +13,9 @@
                 <TextBlock Text="Autoguardado" FontWeight="SemiBold" />
                 <NumberBox x:Name="AutosaveMinutesBox" Header="Copia como mucho cada (minutos)" Minimum="1" Maximum="30" SpinButtonPlacementMode="Inline" />
                 <TextBlock Text="La copia va a la carpeta de autoguardado tras 5 s sin cambios y, si no paras de editar, a este intervalo. La barra de estado dice cuánto hace del último guardado." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                <TextBlock Text="Versiones nuevas" FontWeight="SemiBold" />
+                <CheckBox x:Name="CheckUpdatesBox" Content="Avisar cuando haya una versión nueva" />
+                <TextBlock Text="Al arrancar, como mucho una vez al día, Rodaje pregunta a GitHub cuál es la última versión publicada; no envía nada tuyo. Ayuda › Buscar actualizaciones... consulta en el momento." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                 <TextBlock Text="Carpeta de medios generados" FontWeight="SemiBold" />
                 <TextBox x:Name="GeneratedFolderBox" PlaceholderText="Junto al proyecto" />
                 <TextBlock Text="Carpeta de capturas de fotogramas" FontWeight="SemiBold" />
