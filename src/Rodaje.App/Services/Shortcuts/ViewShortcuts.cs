@@ -33,6 +33,8 @@ public static class TimelineShortcuts
     public const string ReplaceSource = "edit.replaceSource";
     public const string FitToFillSource = "edit.fitToFillSource";
     public const string SuperimposeSource = "edit.superimposeSource";
+    public const string FadeInToCursor = "clip.fadeInToCursor";
+    public const string FadeOutFromCursor = "clip.fadeOutFromCursor";
     public const string MuteTrack = "track.mute";
     public const string SoloTrack = "track.solo";
     public const string LockTrack = "track.lock";
@@ -61,6 +63,8 @@ public static class TimelineShortcuts
         new(ReplaceSource, "Reemplazar desde el origen", ShortcutGroups.Edit, ["Mayús+."]) { ShortLabel = "Reemplazar", Description = "Cambia el clip bajo el cursor por el origen, en su lugar y con su duración, alineando los dos cursores." },
         new(FitToFillSource, "Ajustar a rellenar desde el origen", ShortcutGroups.Edit, ["Ctrl+Mayús+."]) { ShortLabel = "Ajustar", Description = "El tramo del origen llena el clip bajo el cursor (o las marcas de la secuencia) cambiando la velocidad." },
         new(SuperimposeSource, "Superponer desde el origen", ShortcutGroups.Edit, ["Mayús+,"]) { ShortLabel = "Superponer", Description = "Pone la imagen del origen encima, en la primera pista de video libre." },
+        new(FadeInToCursor, "Fundido de entrada hasta el cursor", ShortcutGroups.Edit, []) { ShortLabel = "Fundido entrada", Description = "El audio seleccionado (o el enlazado al video elegido) entra fundiendo desde su inicio hasta el cursor." },
+        new(FadeOutFromCursor, "Fundido de salida desde el cursor", ShortcutGroups.Edit, []) { ShortLabel = "Fundido salida", Description = "El audio seleccionado (o el enlazado al video elegido) se apaga fundiendo desde el cursor hasta su final." },
         .. Enumerable.Range(1, 9).Select(i => new ShortcutAction(Angle(i), $"Ángulo {i} de la multicámara", ShortcutGroups.Edit, [i.ToString(CultureInfo.InvariantCulture)]) { ShortLabel = $"Ángulo {i}", Description = "Corta en el cursor al ángulo con ese número; también mientras se reproduce." }),
         new(MarkIn, "Marcar entrada", ShortcutGroups.Edit, ["I"]) { ShortLabel = "Entrada", Description = "Marca la entrada en el fotograma que se ve, en el origen o en la secuencia." },
         new(MarkOut, "Marcar salida", ShortcutGroups.Edit, ["O"]) { ShortLabel = "Salida", Description = "Marca la salida: el fotograma que se ve es el último que entra." },

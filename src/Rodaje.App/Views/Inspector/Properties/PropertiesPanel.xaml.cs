@@ -36,6 +36,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
     private Time _shownPosition;
     private bool _updatingBlend;
     private bool _updatingPreset;
+    private bool _updatingFadeShape;
     private bool _updatingTransform;
     private string? _graphName;
 
@@ -55,6 +56,11 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         foreach ((_, string name) in EffectUi.BlendModes)
         {
             BlendBox.Items.Add(name);
+        }
+
+        foreach ((_, string name) in EffectUi.FadeShapes)
+        {
+            FadeShapeBox.Items.Add(name);
         }
 
         foreach ((double lufs, string name) in LoudnessNormalizer.Targets)
@@ -605,6 +611,13 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         _updatingPreset = true;
         PresetBox.SelectedIndex = mixedPreset ? -1 : !hasEffects ? 0 : preset is null ? PresetBox.Items.Count - 1 : 1 + AudioPresets.All.ToList().IndexOf(preset);
         _updatingPreset = false;
+
+        // La curva de los fundidos: la del primer clip, o «—» (sin elección) si los seleccionados no coinciden.
+        string shape = Views.Timeline.FadeHandles.Shape(clip);
+        bool mixedShape = clips.Skip(1).Any(c => Views.Timeline.FadeHandles.Shape(c) != shape);
+        _updatingFadeShape = true;
+        FadeShapeBox.SelectedIndex = mixedShape ? -1 : Math.Max(0, EffectUi.FadeShapes.ToList().FindIndex(s => s.Value == shape));
+        _updatingFadeShape = false;
         AudioSection.Summary = Number(gain) + " " + GainRow.Spec.Unit + (mixedPreset ? " · —" : hasEffects ? " · " + (preset?.Name ?? "personalizado") : "");
         AudioReset.IsEnabled = ClipPropertyEditor.CanReset(clips, BuiltInEffects.Audio, Defaults(_audioRows));
     }
@@ -775,6 +788,30 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         AudioPreset? preset = (PresetBox.SelectedItem as ComboBoxItem)?.Tag as AudioPreset;
         // La edición refresca el panel, que vuelve a elegir en este desplegable: va después del evento (tarea 91).
         DispatcherQueue.RunAfterEvent(() => services.Session.Execute(AudioPresetCommands.Apply(services.Session.SequenceId, clipIds, preset)));
+    }
+
+    private void OnFadeShapeSelected(object sender, SelectionChangedEventArgs e)
+    {
+        if (_updatingFadeShape || FadeShapeBox.SelectedIndex < 0 || _services is not { } services || _audioClipIds is not { Count: > 0 } clipIds)
+        {
+            return;
+        }
+
+        string value = EffectUi.FadeShapes[FadeShapeBox.SelectedIndex].Value;
+        // La potencia constante es la de fábrica: se guarda sin la opción, como abre una versión anterior; y en un clip
+        // sin efecto de volumen no hay nada que quitar (crearlo dejaría un paso vacío en el historial).
+        string stored = value == BuiltInEffects.FadeShapes.Power ? "" : value;
+        Sequence sequence = services.Session.Sequence;
+        List<string> targets = stored.Length > 0 ? [.. clipIds]
+            : [.. clipIds.Where(id => sequence.FindClip(id) is { } found && Views.Timeline.ClipDecorations.VolumeOf(found.Clip) is not null)];
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        // La edición refresca el panel, que vuelve a elegir en este desplegable: va después del evento.
+        DispatcherQueue.RunAfterEvent(() => services.Session.Execute(
+            EffectCommands.SetOption(services.Session.SequenceId, targets, BuiltInEffects.Audio, null, BuiltInEffects.AudioOptions.FadeShape, stored, "Curva del fundido")));
     }
 
     private void OnBlendSelected(object sender, SelectionChangedEventArgs e)

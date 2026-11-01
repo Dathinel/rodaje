@@ -627,6 +627,8 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         router.Bind(TimelineShortcuts.MuteTrack, () => ToggleSelectedTrack(TrackToggle.Muted), () => SelectedTrack() is not null);
         router.Bind(TimelineShortcuts.SoloTrack, () => ToggleSelectedTrack(TrackToggle.Solo), () => SelectedTrack() is { Kind: TrackKind.Audio });
         router.Bind(TimelineShortcuts.LockTrack, () => ToggleSelectedTrack(TrackToggle.Locked), () => SelectedTrack() is not null);
+        router.Bind(TimelineShortcuts.FadeInToCursor, () => Session!.FadeToPlayhead(FadeHandle.In), () => Session?.SelectedClipIds.Count > 0);
+        router.Bind(TimelineShortcuts.FadeOutFromCursor, () => Session!.FadeToPlayhead(FadeHandle.Out), () => Session?.SelectedClipIds.Count > 0);
         RegisterCompoundActions(services);
         RegisterProActions(services);
         RegisterThreePointActions(services);

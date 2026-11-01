@@ -235,6 +235,18 @@
                         <TextBlock Text="Fundidos" Style="{StaticResource CaptionTextStyle}" Margin="12,8,12,0" />
                         <local:ParameterRow x:Name="FadeInRow" />
                         <local:ParameterRow x:Name="FadeOutRow" />
+                        <Grid Padding="12,4,8,4" ColumnSpacing="4">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="76" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Curva" Style="{StaticResource LabelTextStyle}"
+                                       ToolTipService.ToolTip="Forma de los fundidos de entrada y salida; también se ven en el clip" />
+                            <ComboBox x:Name="FadeShapeBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28"
+                                      FontSize="{StaticResource BodyFontSize}" AutomationProperties.Name="Curva de los fundidos"
+                                      SelectionChanged="OnFadeShapeSelected"
+                                      ToolTipService.ToolTip="Potencia constante (la de siempre, suena pareja), lineal (recta en amplitud) o exponencial (recta en decibelios, se apaga más tarde)" />
+                        </Grid>
                     </StackPanel>
                 </inspector:InspectorSection>
             </StackPanel>

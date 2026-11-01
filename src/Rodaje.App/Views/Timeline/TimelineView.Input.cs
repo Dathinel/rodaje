@@ -63,18 +63,25 @@ internal sealed partial class TimelineView
 
         /// <summary>La herramienta de rango marca la entrada y la salida de la secuencia.</summary>
         Range,
+
+        /// <summary>Un asa de fundido de un clip de audio se arrastra hacia adentro o hacia afuera.</summary>
+        DraggingFade,
     }
+
+    private string? _fadeClipId;
+    private FadeHandle _fadeHandle;
 
     /// <summary>Esc o un proyecto nuevo cortan lo que el puntero estaba haciendo (la sesión ya revirtió el gesto).</summary>
     private void AbortPointerGesture()
     {
-        if (_mode is PointerMode.DraggingMarker or PointerMode.DraggingTransition or PointerMode.DraggingEnvelope && Session!.IsInGesture)
+        if (_mode is PointerMode.DraggingMarker or PointerMode.DraggingTransition or PointerMode.DraggingEnvelope or PointerMode.DraggingFade && Session!.IsInGesture)
         {
             Session.CancelGesture();
         }
 
         _transitionId = null;
         _envelopeClipId = null;
+        _fadeClipId = null;
         _drag = null;
         _markerId = null;
         _mode = PointerMode.None;
@@ -208,6 +215,12 @@ internal sealed partial class TimelineView
             return;
         }
 
+        if (State.Tool == TimelineTool.Normal && FadeHandleAt(hit, p) is { } fadeHandle)
+        {
+            PressFade(hit, fadeHandle, e);
+            return;
+        }
+
         if (State.Tool == TimelineTool.Range)
         {
             _pressPoint = p;
@@ -267,7 +280,7 @@ internal sealed partial class TimelineView
         {
             case PointerMode.None:
                 TimelineHit hover = TimelineHitTest.Hit(layout, Viewport, p.X, ContentY(p.Y));
-                UpdateCursor(hover, HitTransition(layout, p).Kind);
+                UpdateCursor(hover, HitTransition(layout, p).Kind, overFadeHandle: State.Tool == TimelineTool.Normal && FadeHandleAt(hover, p) is not null);
                 _renderer.PlaceCursorBadge(Badge(hover, e.KeyModifiers), p.X, p.Y);
                 return;
             case PointerMode.Pan:
@@ -299,6 +312,9 @@ internal sealed partial class TimelineView
                 return;
             case PointerMode.DraggingEnvelope:
                 ContinueEnvelopeDrag(p, layout);
+                return;
+            case PointerMode.DraggingFade:
+                ContinueFadeDrag(p);
                 return;
             case PointerMode.Range:
                 EdgeScroll(p.X);
@@ -356,12 +372,70 @@ internal sealed partial class TimelineView
             case PointerMode.DraggingEnvelope:
                 FinishEnvelopeDrag();
                 break;
+            case PointerMode.DraggingFade:
+                FinishFadeDrag();
+                break;
             default:
                 break;
         }
 
         ReleaseCapture();
         e.Handled = true;
+    }
+
+    /// <summary>El asa de fundido bajo el puntero, si el clip tocado la tiene ahí.</summary>
+    private FadeHandle? FadeHandleAt(TimelineHit hit, Point p) =>
+        hit.Clip is { } clip && hit.Row is { } row ? FadeHandles.Hit(clip, row, Viewport, p.X, ContentY(p.Y)) : null;
+
+    /// <summary>Agarra un asa: el clip queda seleccionado y empieza el paso del historial del arrastre.</summary>
+    private void PressFade(TimelineHit hit, FadeHandle handle, PointerRoutedEventArgs e)
+    {
+        EditorSession session = Session!;
+        Clip clip = hit.Clip!;
+        if (!session.SelectedClipIds.Contains(clip.Id))
+        {
+            SelectClicked(clip);
+        }
+
+        _fadeClipId = clip.Id;
+        _fadeHandle = handle;
+        _pressPoint = e.GetCurrentPoint(LanesHost).Position;
+        session.BeginGesture(FadeHandles.Description(handle));
+        _mode = PointerMode.DraggingFade;
+        Capture(LanesHost, e);
+    }
+
+    private void ContinueFadeDrag(Point p)
+    {
+        EditorSession session = Session!;
+        if (_fadeClipId is not { } id || session.Sequence.FindClip(id) is not { } found)
+        {
+            return;
+        }
+
+        double seconds = FadeHandles.SecondsAt(found.Clip, Viewport, _fadeHandle, p.X);
+        (double fadeIn, double fadeOut) = FadeHandles.Seconds(found.Clip);
+        double current = _fadeHandle == FadeHandle.In ? fadeIn : fadeOut;
+        if (Math.Abs(seconds - current) >= 0.005 && !session.TryExecute(FadeHandles.Set(session.SequenceId, id, _fadeHandle, seconds)))
+        {
+            return;
+        }
+
+        Time at = _fadeHandle == FadeHandle.In ? found.Clip.Start + Time.FromSeconds(seconds) : found.Clip.End - Time.FromSeconds(seconds);
+        _overlay.Balloon = (found.Track.Id, at, FadeHandles.Balloon(_fadeHandle, seconds));
+        Invalidate();
+    }
+
+    private void FinishFadeDrag()
+    {
+        _fadeClipId = null;
+        _overlay.Balloon = null;
+        if (Session!.IsInGesture)
+        {
+            Session.EndGesture();
+        }
+
+        Invalidate();
     }
 
     private void OnLanesPointerCaptureLost(object sender, PointerRoutedEventArgs e)
@@ -377,6 +451,10 @@ internal sealed partial class TimelineView
         else if (_mode == PointerMode.DraggingEnvelope)
         {
             FinishEnvelopeDrag();
+        }
+        else if (_mode == PointerMode.DraggingFade)
+        {
+            FinishFadeDrag();
         }
 
         _mode = PointerMode.None;
@@ -655,10 +733,11 @@ internal sealed partial class TimelineView
         return dx != 0 || dy != 0;
     }
 
-    private void UpdateCursor(TimelineHit? hit, TransitionHitKind transition = TransitionHitKind.None)
+    private void UpdateCursor(TimelineHit? hit, TransitionHitKind transition = TransitionHitKind.None, bool overFadeHandle = false)
     {
         InputCursor cursor = State.Tool is TimelineTool.Zoom or TimelineTool.Blade ? CrossCursor
             : State.Tool == TimelineTool.Range ? IBeamCursor
+            : overFadeHandle ? ResizeCursor
             : hit?.Clip is not null && State.Tool == TimelineTool.Slip ? ResizeCursor
             : hit is { } h && EditsEnvelope(h) ? CrossCursor
             : transition is TransitionHitKind.StartHandle or TransitionHitKind.EndHandle ? ResizeCursor

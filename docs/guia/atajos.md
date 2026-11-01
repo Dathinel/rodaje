@@ -71,7 +71,7 @@ En las tablas, «=» significa «igual que Rodaje» y «(sin tecla)», que ese e
 | Insertar desde el origen | , | = | = |
 | Sobrescribir desde el origen | . | = | = |
 
-Sin tecla de fábrica (se asignan en el panel): Invertir.
+Sin tecla de fábrica (se asignan en el panel): Invertir, Fundido de entrada hasta el cursor, Fundido de salida desde el cursor.
 
 ## Línea de tiempo
 

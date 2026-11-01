@@ -325,7 +325,8 @@ internal sealed class TimelineRenderer
                     scene.Selection.Contains(clip.Id),
                     ClipDecorations.Veil(clip, row.Track, silencedBySolo),
                     scene.ShowEnvelopes,
-                    sync.GetValueOrDefault(clip.Id));
+                    sync.GetValueOrDefault(clip.Id),
+                    FadeHandles.HasHandles(clip, row.Track));
                 ClipAt(used++).Update(draw, scene.Visuals);
             }
         }
