@@ -53,7 +53,7 @@ Los clips con el mismo `LinkId` (por ejemplo, el video y el audio de una toma) s
 
 ## Revelado RAW (`Raw/`)
 
-[`MosaicDeveloper`](../../src/Rodaje.Core/Raw/MosaicDeveloper.cs) revela un mosaico de Bayer (códigos de 16 bits con el negro restado) en la CPU con los pasos de `dcraw_process` sin recuperar las luces: balance con recorte a 1, interpolado de Malvar-He-Cutler (5×5, bordes reflejados), matriz de la cámara recortada a [0, 1], exposición y curva. Es la referencia del shader `GpuRawDeveloper` del render y lo que sale de `modulo-raw`; [`RawDevelopParameters`](../../src/Rodaje.Core/Raw/RawDevelopParameters.cs) (con [`BayerPattern`](../../src/Rodaje.Core/Raw/BayerPattern.cs)) es el contrato entre los tres ([D-059](../decisiones.md), [hdr.md](../hdr.md)). Pruebas en `Raw/` (corren en Linux).
+[`MosaicDeveloper`](../../src/Rodaje.Core/Raw/MosaicDeveloper.cs) es la referencia en la CPU para revelar un mosaico de Bayer y el respaldo para verificar [`GpuRawDeveloper`](../../src/Rodaje.Render/Raw). [`RawDevelopParameters`](../../src/Rodaje.Core/Raw/RawDevelopParameters.cs) (con [`BayerPattern`](../../src/Rodaje.Core/Raw/BayerPattern.cs)) define el contrato entre el módulo `modulo-raw` y los reveladores. La receta, el orden de operaciones y las pruebas se detallan en [hdr.md](../hdr.md#d-raw-de-1216-bits) ([D-059](../decisiones.md)). Pruebas en `Raw/` (corren en Linux).
 
 ## Operaciones de edición (`Editing/`)
 
