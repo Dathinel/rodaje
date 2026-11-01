@@ -356,6 +356,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         UiTask.Run(_visuals.TrimDiskCacheAsync());
         UiTask.Run(OfferExportQueueAsync(Task.Run(() => Rodaje.Export.Running.ExportRunner.CleanupStale())));
         UiTask.Run(OfferTourAsync());
+        StartUpdateCheck();
         if (_options.StartupProbe)
         {
             UiTask.Run(StartupTrace.FinishProbeAsync(Program.Metrics, _options.LogPath, _options.Files.Count > 0, () => _engine.FailureMessage, Close));
