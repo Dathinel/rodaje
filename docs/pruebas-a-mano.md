@@ -10,3 +10,14 @@ Lo que no cubre la suite automática y conviene repasar en la app antes de unir 
 4. Exporta y comprueba que el archivo dura 4 s.
 5. Quita las marcas (**Alt+X**) y abre Exportar otra vez: la opción desaparece y se propone «Toda la secuencia».
 6. Con solo **I** (a los 4 s), la opción va «(0:04 – final)»: desde la marca hasta el final de la secuencia.
+
+## Solo desde la cabecera de pista
+
+Hace falta un proyecto con dos pistas de audio con sonido (por ejemplo, el audio de un video y una música).
+
+1. Pulsa la **S** de la cabecera de la música: queda con el acento, los clips de la otra pista de audio se ven velados y al reproducir solo se oye la música. Abre el mezclador (**Alt+M**): su botón S está igual.
+2. Otra vez la S: todo vuelve a sonar y el velo desaparece.
+3. **Ctrl+clic** en la S de la voz con la música ya en solo: la voz queda como única con solo. Otro Ctrl+clic en la misma: ningún solo.
+4. Clic derecho en la cabecera: **Solo** marca y desmarca lo mismo; **Solo exclusivo** hace lo de Ctrl+clic.
+5. **Ctrl+Z** deshace cada cambio. Guarda, cierra y abre: el solo sigue puesto.
+6. En **Archivo › Atajos de teclado…**, asigna una tecla a «Solo de la pista elegida»; haz clic en una cabecera de audio y pulsa la tecla: alterna el solo. Con una cabecera de video elegida no hace nada (la acción solo vale para audio).

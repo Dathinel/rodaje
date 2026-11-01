@@ -7,7 +7,7 @@ Volumen, mezclador, sonoridad, efectos (ecualizador, compresor, puerta, de-esser
 - **Por clip:** Propiedades › sección **Audio**: «Volumen» de −60 (silencio) a +24 dB, con keyframes; «Fundidos»: «Entrada» y «Salida» en segundos (hasta la mitad del clip). El botón de la cabecera restablece volumen y fundidos.
 - **Por pista:** en la cabecera de la pista de audio, arrastra el texto «Volumen 0,0 dB» a los lados (0,25 dB por píxel; con Mayús, 0,05); doble clic vuelve a 0 dB. Clic derecho en la cabecera: **Preajuste de audio**, **Compresor de la pista…** y **Grabar voz en off aquí…**.
 - **Envolvente:** con la herramienta de envolvente (**E**) sobre un clip de audio, un clic pone un punto y lo arrastra, agarrar un punto lo mueve sin pasar a sus vecinos y clic derecho lo quita. La altura es lineal en amplitud: 0 dB a media altura, +6 dB arriba y silencio abajo. El interruptor **bloquear envolventes** de la barra evita tocarlas sin querer.
-- Silenciar una pista: el altavoz de su cabecera.
+- **Silenciar y solo desde la cabecera:** el altavoz silencia la pista y la **S** la pone en solo (con algún solo puesto suenan solo las pistas con solo, como en el mezclador; sus clips se ven velados en las que callan). **Ctrl+clic** en la S es solo exclusivo: esa pista queda como única con solo, y otro Ctrl+clic quita todos. Lo mismo en el menú de la cabecera (**Solo** y **Solo exclusivo**) y, para la pista cuya cabecera está elegida, con las acciones «Solo de la pista elegida», «Silenciar u ocultar la pista elegida» y «Bloquear la pista elegida» (sin tecla de fábrica; se asignan en el panel de atajos). Cada cambio es un paso del historial y se guarda con el proyecto.
 
 ## Mezclador
 

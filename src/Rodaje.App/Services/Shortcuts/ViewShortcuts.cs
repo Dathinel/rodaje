@@ -33,6 +33,9 @@ public static class TimelineShortcuts
     public const string ReplaceSource = "edit.replaceSource";
     public const string FitToFillSource = "edit.fitToFillSource";
     public const string SuperimposeSource = "edit.superimposeSource";
+    public const string MuteTrack = "track.mute";
+    public const string SoloTrack = "track.solo";
+    public const string LockTrack = "track.lock";
     public const string AnglePrefix = "multicam.angle";
 
     public static string Angle(int number) => AnglePrefix + number.ToString(CultureInfo.InvariantCulture);
@@ -52,6 +55,9 @@ public static class TimelineShortcuts
         new(CloseGaps, "Cerrar todos los huecos", ShortcutGroups.Timeline, []) { ShortLabel = "Sin huecos", Description = "Junta los clips de la pista elegida (o de la principal) sin desincronizar los enlazados." },
         new(NextGap, "Ir al hueco siguiente", ShortcutGroups.Timeline, []) { ShortLabel = "Hueco →", Description = "Lleva el cursor al próximo tramo vacío de cualquier pista." },
         new(PreviousGap, "Ir al hueco anterior", ShortcutGroups.Timeline, []) { ShortLabel = "← Hueco", Description = "Lleva el cursor al tramo vacío anterior de cualquier pista." },
+        new(MuteTrack, "Silenciar u ocultar la pista elegida", ShortcutGroups.Timeline, []) { ShortLabel = "Silenciar pista", Description = "Silencia la pista de audio cuya cabecera está elegida (una de video se oculta); otra vez la vuelve a activar." },
+        new(SoloTrack, "Solo de la pista elegida", ShortcutGroups.Timeline, []) { ShortLabel = "Solo", Description = "Pone o quita el solo de la pista de audio elegida: con algún solo, solo suenan las pistas con solo." },
+        new(LockTrack, "Bloquear la pista elegida", ShortcutGroups.Timeline, []) { ShortLabel = "Bloquear pista", Description = "Bloquea o desbloquea la pista cuya cabecera está elegida." },
         new(ReplaceSource, "Reemplazar desde el origen", ShortcutGroups.Edit, ["Mayús+."]) { ShortLabel = "Reemplazar", Description = "Cambia el clip bajo el cursor por el origen, en su lugar y con su duración, alineando los dos cursores." },
         new(FitToFillSource, "Ajustar a rellenar desde el origen", ShortcutGroups.Edit, ["Ctrl+Mayús+."]) { ShortLabel = "Ajustar", Description = "El tramo del origen llena el clip bajo el cursor (o las marcas de la secuencia) cambiando la velocidad." },
         new(SuperimposeSource, "Superponer desde el origen", ShortcutGroups.Edit, ["Mayús+,"]) { ShortLabel = "Superponer", Description = "Pone la imagen del origen encima, en la primera pista de video libre." },

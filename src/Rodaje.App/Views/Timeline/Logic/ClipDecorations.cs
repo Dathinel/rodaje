@@ -30,16 +30,42 @@ public static class ClipDecorations
     /// Cuánto se vela el clip según su estado y el de su pista, siempre el actual: ocultar o silenciar pesa más que
     /// bloquear, y sin nada de eso no hay velo.
     /// </summary>
-    public static double Veil(Clip clip, Track track)
+    public static double Veil(Clip clip, Track track) => Veil(clip, track, silencedBySolo: false);
+
+    /// <summary>Como <see cref="Veil(Clip, Track)"/>; una pista callada por el solo de otra se vela como si estuviera silenciada.</summary>
+    public static double Veil(Clip clip, Track track, bool silencedBySolo)
     {
         ArgumentNullException.ThrowIfNull(clip);
         ArgumentNullException.ThrowIfNull(track);
-        if (!clip.Enabled || track.Hidden || track.Muted)
+        if (!clip.Enabled || track.Hidden || track.Muted || silencedBySolo)
         {
             return MutedVeil;
         }
 
         return track.Locked ? LockedVeil : 0;
+    }
+
+    /// <summary>Hay algún solo puesto en la secuencia (en una pista de audio o en un bus).</summary>
+    public static bool IsSoloing(Sequence sequence)
+    {
+        ArgumentNullException.ThrowIfNull(sequence);
+        return sequence.AudioTracks.Exists(t => t.Solo) || sequence.AudioBuses.Exists(b => b.Solo);
+    }
+
+    /// <summary>
+    /// La pista de audio no suena porque otra (o un bus) tiene solo: con algún solo puesto solo suenan las pistas con
+    /// solo y las que salen a un bus con solo, igual que las mezcla el motor.
+    /// </summary>
+    public static bool SilencedBySolo(Sequence sequence, Track track)
+    {
+        ArgumentNullException.ThrowIfNull(sequence);
+        ArgumentNullException.ThrowIfNull(track);
+        if (track.Kind != TrackKind.Audio || track.Solo || !IsSoloing(sequence))
+        {
+            return false;
+        }
+
+        return !(track.Output is { } output && sequence.AudioBuses.Exists(b => b.Id == output && b.Solo));
     }
 
     /// <summary>Los instantes de la línea de tiempo con keyframes en algún parámetro del clip, sin repetir y en orden.</summary>

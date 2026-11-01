@@ -16,6 +16,7 @@ Funciones de calidad de vida para la 1.1.
 - **Ir a tiempo (Ctrl+J, Editar › Ir a tiempo…):** un cuadro para escribir `1:23`, `1:23.5`, `83`, `120f` o un salto (`+10`, `-2s`) y llevar el cursor ahí. Ctrl+G sigue siendo Agrupar.
 - **Copiar, duplicar y pegar clips:** Ctrl+C copia la selección con sus enlazados y grupos, Ctrl+D (Ctrl+Mayús+D en Clásico) la duplica justo a continuación en sus pistas y Ctrl+Mayús+V (o Ctrl+V) la pega en el cursor tapando lo que haya; en Editar y en el menú del clip, un paso de deshacer cada uno.
 - **Exportar entre la entrada y la salida:** con las marcas I y O de la secuencia (o un tramo marcado con la herramienta de rango), el panel de exportación ofrece «Entre la entrada y la salida» y se abre en ese rango; con una sola marca, la otra es el principio o el final de la secuencia.
+- **Solo desde la cabecera de pista:** la cabecera de cada pista de audio tiene la **S** del mezclador (Ctrl+clic: solo exclusivo), también en su menú; los clips de las pistas que callan por un solo se ven velados. Acciones «Silenciar u ocultar», «Solo» y «Bloquear la pista elegida» para el teclado, sin tecla de fábrica.
 - **Atajos visibles:** los menús del clip y de la cabecera de pista muestran la tecla vigente de cada acción, como ya hacían los menús de arriba; Ayuda › Hoja de atajos (imprimible)… guarda en Documentos una página con todos los atajos del estilo actual; y la guía `docs/guia/atajos.md` se genera desde el catálogo de la app (una prueba la compara), así nunca se desincroniza.
 
 ## [1.0.2] - 2026-10-31

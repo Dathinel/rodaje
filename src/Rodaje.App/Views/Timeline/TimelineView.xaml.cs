@@ -624,6 +624,9 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         router.Bind(ActionIds.ZoomToFit, ZoomToFit);
         router.Bind(ActionIds.ZoomToSelection, ZoomToSelection, () => Session is not null && SelectionSpan() is not null);
         router.Bind(ActionIds.Delete, () => DeleteTrack(_headers!.SelectedTrackId!), CanDeleteSelectedTrack);
+        router.Bind(TimelineShortcuts.MuteTrack, () => ToggleSelectedTrack(TrackToggle.Muted), () => SelectedTrack() is not null);
+        router.Bind(TimelineShortcuts.SoloTrack, () => ToggleSelectedTrack(TrackToggle.Solo), () => SelectedTrack() is { Kind: TrackKind.Audio });
+        router.Bind(TimelineShortcuts.LockTrack, () => ToggleSelectedTrack(TrackToggle.Locked), () => SelectedTrack() is not null);
         RegisterCompoundActions(services);
         RegisterProActions(services);
         RegisterThreePointActions(services);
@@ -740,12 +743,32 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         {
             TrackToggle.Hidden => Edits.SetTrackState(session.SequenceId, trackId, hidden: !track.Hidden),
             TrackToggle.Muted => Edits.SetTrackState(session.SequenceId, trackId, muted: !track.Muted),
+            TrackToggle.Solo => Edits.SetTrackMix(session.SequenceId, trackId, solo: !track.Solo),
+            TrackToggle.SoloExclusive => Edits.SoloExclusive(session.SequenceId, trackId),
             _ => Edits.SetTrackState(session.SequenceId, trackId, locked: !track.Locked),
         });
 
         // Si el comando no se pudo (por ejemplo, ocultar una pista bloqueada), el botón vuelve a su estado.
         RebuildLayout();
         TakeKeyboardFocus();
+    }
+
+    /// <summary>La pista cuya cabecera está elegida (clic en ella), si sigue en la secuencia.</summary>
+    private Track? SelectedTrack() =>
+        Session is { } session && _headers?.SelectedTrackId is { } trackId ? session.Sequence.FindTrack(trackId) : null;
+
+    /// <summary>
+    /// Desde el teclado, sobre la pista elegida: silenciar (en una de video, ocultar), solo o bloquear, igual que los
+    /// botones de su cabecera.
+    /// </summary>
+    private void ToggleSelectedTrack(TrackToggle toggle)
+    {
+        if (SelectedTrack() is not { } track)
+        {
+            return;
+        }
+
+        OnTrackToggled(track.Id, toggle == TrackToggle.Muted && track.Kind == TrackKind.Video ? TrackToggle.Hidden : toggle);
     }
 
     private void OnTrackGainChanging(string trackId, double gainDb)
