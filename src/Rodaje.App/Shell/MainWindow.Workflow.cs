@@ -51,6 +51,7 @@ internal sealed partial class MainWindow
         _bindings.Add(_router.Bind(WatchedFoldersActionId, () => UiTask.Run(EditWatchedFoldersAsync())));
         StartWatchingFolders();
         AttachOnboarding();
+        AttachUpdates();
     }
 
     private const string WatchedFoldersActionId = ShellShortcuts.WatchedFolders;
