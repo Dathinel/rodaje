@@ -57,6 +57,10 @@ Las listas solo ofrecen lo que los codificadores de tu equipo pueden hacer en es
 
 El botón **«Varias versiones…»** del pie abre «Exportar varias versiones»: una casilla por preajuste (de fábrica y propios). Se guardan en la carpeta elegida con el nombre del preajuste al final («mi video - Vertical 9:16.mp4»), con el rango y el rendimiento de ahora. Un preajuste de otra forma que el proyecto (Vertical sobre 16:9) conserva su forma recortando al centro.
 
+## Otros proyectos de una vez (lote)
+
+El botón **«Otros proyectos…»** del pie elige varios archivos `.rodaje` y los manda todos a la cola con los ajustes de ahora (preajuste, Avanzado, rendimiento y subtítulos): cada uno exporta su secuencia entera y sale junto a su archivo con su nombre («Boda.rodaje» → «Boda.mp4», con un número si ya existe). Un diálogo lista lo que va a salir y lo que se salta (un archivo que no se puede abrir, uno sin secuencia o el proyecto que tienes abierto, que se exporta con el botón Exportar). Si un preajuste fija solo un lado (Web 1080p), cada proyecto sale con su propia forma; el recorte de Avanzado no se aplica a los otros proyectos. Si a un proyecto le faltan medios, su trabajo falla en Trabajos con el motivo, como cualquier otro.
+
 ## La cola, en Trabajos
 
 ![Trabajos con una exportación en curso](img/exportar-progreso.png)

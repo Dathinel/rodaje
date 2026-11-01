@@ -264,12 +264,15 @@
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
             </Grid.ColumnDefinitions>
             <TextBlock x:Name="FooterNote" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" TextWrapping="Wrap" TextTrimming="None" />
             <Button Grid.Column="1" Content="Cancelar" Click="OnCancelClick" />
-            <Button x:Name="VersionsButton" Grid.Column="2" Content="Varias versiones…" Click="OnVersionsClick"
+            <Button x:Name="ProjectsButton" Grid.Column="2" Content="Otros proyectos…" Click="OnProjectsClick"
+                    ToolTipService.ToolTip="Elegir varios archivos .rodaje y exportarlos todos con estos ajustes, cada uno junto a su archivo (lote)" />
+            <Button x:Name="VersionsButton" Grid.Column="3" Content="Varias versiones…" Click="OnVersionsClick"
                     ToolTipService.ToolTip="Elegir varios preajustes y exportarlos todos de una vez (por ejemplo, web 16:9 y vertical 9:16)" />
-            <Button x:Name="ExportButton" Grid.Column="3" Content="Exportar" Style="{StaticResource AccentButtonStyle}" MinWidth="110" Click="OnExportClick" />
+            <Button x:Name="ExportButton" Grid.Column="4" Content="Exportar" Style="{StaticResource AccentButtonStyle}" MinWidth="110" Click="OnExportClick" />
         </Grid>
     </Grid>
 </UserControl>

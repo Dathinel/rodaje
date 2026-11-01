@@ -24,3 +24,10 @@ Lo que conviene probar con la app abierta antes de dar por buena una función, a
 2. **Herramientas › Audio › Detectar ritmo…**: al terminar el análisis aparece «Ajustar al ritmo los otros N clips seleccionados». Márcalo, elige «cada 2 pulsos» y Aplica: cada clip termina en un pulso (los marcadores «Pulso», si los dejaste, caen en cada corte) y los clips siguen pegados. **Ctrl+Z** deshace el montaje y los marcadores de una vez.
 3. Repite con un clip corto que no tenga material de sobra: crece solo hasta su final de archivo y el aviso no falla.
 4. Con solo la música seleccionada, la casilla no aparece.
+
+## Exportar otros proyectos (lote)
+
+1. Guarda dos o tres proyectos pequeños en una carpeta y abre otro distinto. Pulsa **Ctrl+E**, elige un preajuste y pulsa **Otros proyectos…**.
+2. Elige los archivos `.rodaje` guardados (y, a propósito, el del proyecto abierto y un `.rodaje` roto o vacío). El diálogo lista una salida por proyecto («Boda.mp4») y, en «Se saltan», el abierto y el roto con su motivo.
+3. **Exportar**: la página se cierra, el aviso dice cuántos entraron y **Trabajos** muestra un trabajo por proyecto, cada uno con el nombre de su archivo; al terminar, «Abrir carpeta» lleva a la carpeta del `.rodaje` correspondiente.
+4. Repite con un preajuste de otra forma (Vertical 9:16): cada salida mantiene la forma de su propio proyecto si el preajuste solo fija un lado.
