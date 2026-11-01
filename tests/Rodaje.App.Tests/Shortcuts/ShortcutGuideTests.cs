@@ -27,6 +27,22 @@ public class ShortcutGuideTests
     }
 
     [Fact]
+    public void LaGuiaExplicaLasDosTeclasDePegarDebajoDeLaTablaDeEdicion()
+    {
+        string markdown = ShortcutGuide.ToMarkdown();
+        int edit = markdown.IndexOf("## Edición\n", StringComparison.Ordinal);
+        int timeline = markdown.IndexOf("## Línea de tiempo\n", StringComparison.Ordinal);
+        int note = markdown.IndexOf("**Pegar en el cursor** tiene dos teclas", StringComparison.Ordinal);
+
+        Assert.InRange(note, edit, timeline);
+        string section = markdown[edit..timeline];
+        Assert.Contains("**Ctrl+Mayús+V**", section, StringComparison.Ordinal);
+        Assert.Contains("**Ctrl+V**", section, StringComparison.Ordinal);
+        Assert.Contains("Ctrl+C y Ctrl+V son de la lista", section, StringComparison.Ordinal);
+        Assert.True(section.IndexOf("| Pegar en el cursor |", StringComparison.Ordinal) < note - edit);
+    }
+
+    [Fact]
     public void ElCatalogoNoRepiteIdentificadoresNiTextos()
     {
         IReadOnlyList<ShortcutAction> all = ShortcutCatalog.All;

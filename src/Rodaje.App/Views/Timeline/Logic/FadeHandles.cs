@@ -27,7 +27,7 @@ public static class FadeHandles
     public const double Size = 8;
 
     /// <summary>Distancia en píxeles a la que se agarra un asa.</summary>
-    public const double Grab = 7;
+    public const double Grab = 10;
 
     /// <summary>Margen del bloque del clip dentro de la fila (el mismo con que se dibuja).</summary>
     private const double ClipInset = 2;

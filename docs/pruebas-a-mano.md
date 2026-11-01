@@ -97,3 +97,10 @@ La lógica (comparar versiones, 24 h, versión descartada) está probada en `tes
 Pasaron: exportar entre entrada y salida (archivo de 4,1 s; «Toda la secuencia» al quitar las marcas), línea de ffmpeg copiada (empieza por `ffmpeg -hide_banner`, `-f rawvideo`, `-i pipe:0`, `-c:v:0 h264_nvenc`, `-pix_fmt:v:0 nv12`, ruta entre comillas), asas de fundido (globo «Entrada 1,17 s», Propiedades 1,2 s, Ctrl+Z/Ctrl+Y en un paso), Ayuda › Buscar actualizaciones («Tienes la última versión, 1.0.2», `lastUpdateCheck` en UTC, sin `rodaje-error.txt`), ruedas de color (Desplazamiento tiñe también el negro; doble clic centra).
 Sin probar: solo de pista, sincronizar por el sonido, montaje al ritmo, lote, «Más tarde» y sin red.
 Fallos: (1) tras **Alt+X** la barra de contexto desaparece pero la regla sigue sombreando el tramo entre las marcas viejas hasta el siguiente repintado; (2) el asa de fundido mide unos 5 px con el zoom por defecto y es fácil arrastrar el clip en su lugar (valorar un área de agarre de 8-10 px).
+
+## CinemaDNG revelado en la GPU
+
+1. Con el módulo «RAW de cine» 1.1.0 instalado (o el de `modules\` en desarrollo), Archivo › **Importar CinemaDNG…** y elige un DNG de una carpeta. El diálogo debe decir «Se revela en la GPU (RTX 3050 Laptop)» y no mostrar «Calidad del revelado».
+2. Importa con exposición +1 EV. Al terminar, la notificación trae «Revelado en la GPU (…): N ms por fotograma»; apunta N en `docs/hdr.md` (fase D, cifras). El clip de la biblioteca se ve como antes (balance de la toma, gris del 18 % en su sitio, un paso más claro).
+3. Repite con `RODAJE_FORZAR_WARP=1` (o en una máquina sin GPU): el diálogo dice «Se revela en la CPU con LibRaw», ofrece la calidad y la notificación dice «Revelado en la CPU (LibRaw)». Los dos ProRes deben verse iguales a simple vista (solo cambia el interpolado en los bordes finos).
+4. Con el módulo 1.0.0 instalado (sin `mosaico`) todo sigue por la CPU sin ningún aviso.

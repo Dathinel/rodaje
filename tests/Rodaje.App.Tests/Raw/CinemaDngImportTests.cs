@@ -1,10 +1,14 @@
+using System.Text.Json;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Tests.Support;
 using Rodaje.App.Views.Raw;
+using Rodaje.Core.Raw;
 using Rodaje.Core.Timing;
+using Rodaje.Media.Gpu;
 using Rodaje.Media.Probe;
 using Rodaje.Media.Proxies;
 using Rodaje.Media.Video;
+using Rodaje.Modules.Protocol;
 using Rodaje.TestMedia;
 using Xunit.Abstractions;
 
@@ -131,6 +135,102 @@ public sealed class CinemaDngImportTests(ITestOutputHelper output) : IDisposable
     }
 
     /// <summary>
+    /// El camino de la GPU (docs/hdr.md, fase D) con WARP: el módulo entrega el mosaico («mosaico») y <c>GpuRawDeveloper</c> lo
+    /// revela; el ProRes tiene los mismos fotogramas y el mismo gris que por LibRaw, y el resultado dice que fue la GPU.
+    /// </summary>
+    [FfmpegLibraryFact]
+    public async Task The_gpu_path_gives_the_same_prores_from_the_mosaic()
+    {
+        string? modules = ModuleCatalog.FindDevelopmentModules(AppContext.BaseDirectory);
+        await using ModuleManager manager = new(new ModuleManagerOptions { Roots = modules is null ? [] : [new ModuleRoot(modules, ModuleOrigin.Development)], PingInterval = NoWatchdog });
+        manager.Refresh();
+        if (manager.FindByFunction(CinemaDngImport.MosaicFunction) is not { } module || !File.Exists(Path.Combine(Path.GetDirectoryName(module.EntryPath)!, "libraw.dll")))
+        {
+            output.WriteLine("Sin modulo-raw compilado con libraw.dll: se omite.");
+            return;
+        }
+
+        const int Width = 640, Height = 360, Frames = 5;
+        string dir = Path.Combine(_folder.Path, "Toma GPU");
+        Directory.CreateDirectory(dir);
+        byte[] dng = (SyntheticDng.Chart(Width, Height) with { FrameRate = (25, 1) }).Write();
+        for (int i = 0; i < Frames; i++)
+        {
+            await File.WriteAllBytesAsync(Path.Combine(dir, $"Toma_{i:00000}.dng"), dng);
+        }
+
+        var failures = new List<ModuleFailure>();
+        manager.Failed += (_, f) => failures.Add(f);
+        string outputFolder = Path.Combine(_folder.Path, "medios");
+        CinemaDngResult gpu = await CinemaDngImport.RunAsync(manager, module, FfmpegExecutable.Locate(), CinemaDngImport.Scan(dir)!, new CinemaDngOptions(Exposure: 1),
+            outputFolder, "CinemaDNG por GPU", createDevice: GpuDevice.CreateWarp);
+        CinemaDngResult cpu = await CinemaDngImport.RunAsync(manager, module, FfmpegExecutable.Locate(), CinemaDngImport.Scan(dir)!, new CinemaDngOptions(Exposure: 1, HighQuality: false),
+            outputFolder, "CinemaDNG por CPU", createDevice: () => null);
+        output.WriteLine($"{gpu}\n{cpu}");
+        Assert.Empty(failures);
+        Assert.StartsWith("GPU (", gpu.Developer, StringComparison.Ordinal);
+        Assert.Equal("CPU (LibRaw)", cpu.Developer);
+
+        MediaInfo info = MediaProbe.Probe(gpu.Path);
+        Assert.Equal("prores", info.Video!.Codec);
+        Assert.Equal((Width, Height, Frames), (info.Video.Width, info.Video.Height, (int)info.Video.FrameCount));
+
+        using ThumbnailDecoder fromGpu = ThumbnailDecoder.Open(gpu.Path);
+        using ThumbnailDecoder fromCpu = ThumbnailDecoder.Open(cpu.Path);
+        BgraImage a = fromGpu.Decode(Time.FromSeconds(0.1), Height)!;
+        BgraImage b = fromCpu.Decode(Time.FromSeconds(0.1), Height)!;
+        double expected = (1.099 * Math.Pow(0.36, 0.45)) - 0.099;
+        for (int i = 0; i < SyntheticDng.ChartPatches.Count; i++)
+        {
+            (int x, int y) = SyntheticDng.PatchCenter(i, Width, Height);
+            int at = ((y * a.Width) + x) * 4;
+            for (int c = 0; c < 3; c++)
+            {
+                Assert.InRange(a.Pixels[at + c], b.Pixels[at + c] - 3, b.Pixels[at + c] + 3);
+            }
+
+            if (i == 0)
+            {
+                output.WriteLine($"Gris 18 % a +1 EV: GPU {a.Pixels[at]} {a.Pixels[at + 1]} {a.Pixels[at + 2]}, CPU {b.Pixels[at]} {b.Pixels[at + 1]} {b.Pixels[at + 2]}; esperado {expected * 255:0}");
+                Assert.InRange(a.Pixels[at + 1], (expected * 255) - 4, (expected * 255) + 4);
+            }
+        }
+    }
+
+    [Fact]
+    public void Mosaic_parameters_are_read_and_checked()
+    {
+        using JsonDocument good = JsonDocument.Parse("""{"cuadros":[{"patron":"RGGB","blanco":3839,"balance":[1.8,1,1.4],"matriz":[1,0,0,0,1,0,0,0,1]}],"ms":[3.5]}""");
+        IReadOnlyList<RawDevelopParameters> frames = CinemaDngImport.ReadMosaicParameters(good.RootElement, 1, new CinemaDngOptions(Exposure: 0.5));
+        Assert.Single(frames);
+        Assert.Equal("RGGB", frames[0].Pattern.ToString());
+        Assert.Equal(3839, frames[0].White);
+        Assert.Equal(0.5, frames[0].Exposure);
+        Assert.Equal(RawOutputCurve.Rec709, frames[0].Curve);
+        Assert.Equal(1.4f, frames[0].Multipliers[2]);
+        Assert.Throws<ModuleProtocolException>(() => CinemaDngImport.ReadMosaicParameters(good.RootElement, 2, new CinemaDngOptions()));
+        foreach (string json in (string[])
+        [
+            """{"cuadros":[{"patron":"RGBG","blanco":3839,"balance":[1.8,1,1.4],"matriz":[1,0,0,0,1,0,0,0,1]}]}""",
+            """{"cuadros":[{"patron":"RGGB","blanco":0,"balance":[1.8,1,1.4],"matriz":[1,0,0,0,1,0,0,0,1]}]}""",
+            """{"cuadros":[{"patron":"RGGB","blanco":3839,"balance":[1.8,"1",1.4],"matriz":[1,0,0,0,1,0,0,0,1]}]}""",
+            """{"cuadros":[{"patron":"RGGB","blanco":3839,"balance":[1.8,1,1.4],"matriz":[1,0,0]}]}""",
+            """{"cuadros":{}}""",
+            """[]""",
+        ])
+        {
+            using JsonDocument bad = JsonDocument.Parse(json);
+            Assert.Throws<ModuleProtocolException>(() => CinemaDngImport.ReadMosaicParameters(bad.RootElement, 1, new CinemaDngOptions()));
+        }
+
+        using JsonDocument info = JsonDocument.Parse("""{"ancho":640,"alto":360,"bayer":true}""");
+        Assert.True(CinemaDngImport.IsBayer(info.RootElement));
+        using JsonDocument old = JsonDocument.Parse("""{"ancho":640,"alto":360}""");
+        Assert.False(CinemaDngImport.IsBayer(old.RootElement));
+        Assert.False(CinemaDngImport.IsBayer(null));
+    }
+
+    /// <summary>
     /// Profundidad que queda tras la importación (docs/hdr.md, fase D): una rampa de los 3840 códigos de un CinemaDNG de
     /// 12 bits, un código cada 4 columnas, por el módulo y el intermedio ProRes; se cuentan los niveles de luma del .mov.
     /// </summary>
@@ -208,7 +308,7 @@ public sealed class CinemaDngImportTests(ITestOutputHelper output) : IDisposable
         string outputFolder = Path.Combine(_folder.Path, "medios");
         using var cancel = new CancellationTokenSource(TimeSpan.FromSeconds(1.5));
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => CinemaDngImport.RunAsync(manager, module, FfmpegExecutable.Locate(),
-            CinemaDngImport.Scan(dir)!, new CinemaDngOptions(), outputFolder, "Cancelar", cancel.Token));
+            CinemaDngImport.Scan(dir)!, new CinemaDngOptions(), outputFolder, "Cancelar", cancellationToken: cancel.Token));
         Assert.Empty(Directory.Exists(outputFolder) ? Directory.GetFiles(outputFolder) : []);
     }
 }

@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.Text;
+using Rodaje.Core.Raw;
 
 namespace Rodaje.TestMedia;
 
@@ -149,23 +150,55 @@ public sealed record SyntheticDng
         return file;
     }
 
-    private void WriteMosaic(Span<byte> target)
+    /// <summary>El código RAW del píxel (x, y), con el negro: RGGB, (par, par) rojo, (impar, impar) azul, el resto verde.</summary>
+    public ushort RawCode(int x, int y)
     {
-        double range = WhiteLevel - BlackLevel;
+        (double r, double g, double b) = Scene(x, y);
+        (double value, double neutral) = (y % 2, x % 2) switch
+        {
+            (0, 0) => (r, Neutral[0]),
+            (1, 1) => (b, Neutral[2]),
+            _ => (g, Neutral[1]),
+        };
+        return (ushort)Math.Round(BlackLevel + (Math.Clamp(value, 0, 1) * neutral * (WhiteLevel - BlackLevel)));
+    }
+
+    /// <summary>El mosaico con el negro ya restado, como lo devuelve «mosaico» de modulo-raw (ancho × alto códigos, por filas).</summary>
+    public ushort[] Mosaic()
+    {
+        var mosaic = new ushort[Width * Height];
         for (int y = 0; y < Height; y++)
         {
             for (int x = 0; x < Width; x++)
             {
-                (double r, double g, double b) = Scene(x, y);
-                // RGGB: (par, par) rojo, (impar, impar) azul, el resto verde.
-                (double value, double neutral) = (y % 2, x % 2) switch
-                {
-                    (0, 0) => (r, Neutral[0]),
-                    (1, 1) => (b, Neutral[2]),
-                    _ => (g, Neutral[1]),
-                };
-                double raw = BlackLevel + (Math.Clamp(value, 0, 1) * neutral * range);
-                BinaryPrimitives.WriteUInt16LittleEndian(target[(((y * Width) + x) * 2)..], (ushort)Math.Round(raw));
+                mosaic[(y * Width) + x] = (ushort)(RawCode(x, y) - BlackLevel);
+            }
+        }
+
+        return mosaic;
+    }
+
+    /// <summary>
+    /// Los parámetros de revelado de este cuadro con el balance de la toma: el blanco sin el negro, los multiplicadores
+    /// 1/<see cref="Neutral"/> y la matriz identidad (la «cámara» ve sRGB lineal).
+    /// </summary>
+    public RawDevelopParameters DevelopParameters(double exposure = 0, RawOutputCurve curve = RawOutputCurve.Linear) => new()
+    {
+        Pattern = BayerPattern.Rggb,
+        White = WhiteLevel - BlackLevel,
+        Multipliers = [(float)(1 / Neutral[0]), (float)(1 / Neutral[1]), (float)(1 / Neutral[2])],
+        Matrix = [1, 0, 0, 0, 1, 0, 0, 0, 1],
+        Exposure = exposure,
+        Curve = curve,
+    };
+
+    private void WriteMosaic(Span<byte> target)
+    {
+        for (int y = 0; y < Height; y++)
+        {
+            for (int x = 0; x < Width; x++)
+            {
+                BinaryPrimitives.WriteUInt16LittleEndian(target[(((y * Width) + x) * 2)..], RawCode(x, y));
             }
         }
     }

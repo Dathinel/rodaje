@@ -38,7 +38,7 @@ Clic selecciona (dentro de una selección, deja solo ese clip; arrastrar mueve l
 - **J, K, L**: lanzadera hacia atrás, detener y hacia adelante; cada pulsación dobla la velocidad hasta ×8.
 - **Elegir un borde:** un clic (sin arrastrar) en el borde de un clip lo marca con una línea. **,** y **.** lo recortan un cuadro a la izquierda o a la derecha (con **Recorte Ripple**, ripple global o en la pista principal magnética, corre lo que sigue). Sin borde elegido, **,** y **.** insertan y sobrescriben desde el origen.
 - **Alt+← / Alt+→** corre la selección un cuadro (con sus enlazados y su grupo), sin pisar nada; mantenla para seguir. Los empujones seguidos son un paso del historial.
-- **Ir a tiempo (Ctrl+J**, también en Editar**):** escribe `1:23`, `1:23.5`, `83` (segundos) o `120f` (fotogramas) e Intro lleva el cursor ahí; con `+` o `-` delante salta desde donde está (`+10`, `-2s`, `+24f`). El cursor queda al inicio del fotograma.
+- **Ir a tiempo (Ctrl+J**, también en el menú Reproducción**):** escribe `1:23`, `1:23.5`, `83` (segundos) o `120f` (fotogramas) e Intro lleva el cursor ahí; con `+` o `-` delante salta desde donde está (`+10`, `-2s`, `+24f`). El cursor queda al inicio del fotograma.
 
 ## Mover, recortar, slip, roll y slide
 

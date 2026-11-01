@@ -1,6 +1,6 @@
 # HDR, 10 bits y RAW
 
-Estado medido el 24-oct-2026 (fase B incluida) y plan por fases. Decisión de camino: [D-053](decisiones.md) (propuesta, pendiente de Daniel); la fase C se partió en tres ([D-054](decisiones.md), [D-055](decisiones.md), [D-058](decisiones.md)).
+Estado medido el 24-oct-2026 (fase B incluida) y plan por fases. Decisión de camino: [D-053](decisiones.md) (propuesta, pendiente de Daniel); la fase C se partió en tres ([D-054](decisiones.md), [D-055](decisiones.md), [D-058](decisiones.md)) y la D en dos ([D-059](decisiones.md): primero el revelado en la GPU, después el intermedio).
 
 ## Lo que hay hoy (medido)
 
@@ -61,7 +61,7 @@ Techo de media precisión para rampas uniformes en [0, 1]: 10 bits → 1024 de 1
 | A | HDR → SDR (D-052) | M | Codex, unida en #444 |
 | B | Cerrar los bordes de 8 bits | M | Claude, hecha (rama `claude/hdr-b`) |
 | C | Trabajar en HDR, SDR → HDR, exportar HDR10/HLG | L | Claude; partes 1 y 2 hechas (D-054, D-055), parte 3 hecha para la 1.1 (rama `claude/hdr-c3`, D-058) |
-| D | RAW sin perder profundidad | M | agy la parte del módulo, Claude la integración |
+| D | RAW sin perder profundidad | M | Claude; primera parte hecha (revelado en la GPU, D-059, para la 1.1); el intermedio, pendiente |
 
 ### A. HDR → SDR
 PQ/HLG → lineal → BT.2020 a BT.709 → Hable → curva BT.709, en `RenderShaders.SampleRgb`, común a vista previa y exportación, con «Brillo de referencia HDR» por clip. Unida en #444.
@@ -99,7 +99,26 @@ PQ/HLG → lineal → BT.2020 a BT.709 → Hable → curva BT.709, en `RenderSha
 - **Fuera de la parte 3:** el blanco SDR del sistema en scRGB sigue fijo en 203 nits (Windows deja elegirlo en Configuración › Pantalla › HDR; leerlo pide `DISPLAYCONFIG_SDR_WHITE_LEVEL`, que encaja en `DisplayHdr` cuando haga falta); MaxCLL/MaxFALL se miden sobre la composición entera, no sobre el recorte ni la escala de la salida; la pasada previa compone cada cuadro dos veces.
 
 ### D. RAW de 12–16 bits
-- **Archivos:** `CinemaDngImport.cs` (parámetros y argumentos de ffmpeg), `ToneTable.cs`.
-- **Cambio:** el intermedio pasa de ProRes 422 HQ Rec.709 a ProRes 4444 XQ de 12 bits (o FFV1 yuv444p16 sin pérdida, si el tamaño es aceptable) con una curva logarítmica (la del módulo, documentada) para no recortar las altas luces; el espacio se elige (Rec.709 o BT.2020). Con la fase B el 12 bits se lee sin bajar a 10; con la C, el RAW entra en lineal a una secuencia HDR.
+
+**Primera parte, hecha (1-nov, D-059; para la 1.1): demosaico y revelado en la GPU.**
+
+- **Qué cambia.** Al importar CinemaDNG con una GPU, `modulo-raw` ya no revela: su función nueva **`mosaico`** lee cada DNG con LibRaw (`libraw_unpack` → `libraw_raw2image` → `libraw_subtract_black`) y entrega el mosaico de Bayer de 16 bits sin interpolar y con el negro restado (2 bytes por píxel en lugar de los 8 del rgba16f), más lo que hace falta para revelarlo: el patrón (`RGGB`…), el blanco, los multiplicadores del balance pedido (de la toma, luz de día o propios) y la matriz 3×3 de la cámara a Rec.709 (`rgb_cam`). **`GpuRawDeveloper`** (`Rodaje.Render/Raw`) sube el mosaico a una textura `R16_UINT`, un compute shader (`RawShaders`) hace el balance con recorte a 1, el **interpolado de Malvar-He-Cutler** (5×5, bordes reflejados sin repetir el píxel del borde para conservar el patrón), la matriz recortada a [0, 1], la exposición y la curva Rec.709, y el cuadro rgba16f vuelve por una textura `Staging` al `ffmpeg.exe` que escribe el ProRes. Los pasos y el orden son los de `dcraw_process` sin recuperar las luces, así que la salida es la misma que la de LibRaw salvo por el interpolado.
+- **Respaldo en la CPU.** Sin GPU por hardware (WARP no cuenta: Direct3D por software es más lento que LibRaw), con un módulo anterior a la 1.1 (sin `mosaico`), con un cuadro que no es un mosaico de Bayer RGB (`info` lo dice en `bayer`: X-Trans, Foveon, DNG lineal, cuadros girados o de píxeles anchos) o si Direct3D no puede crear el revelador, la importación sigue por `revelar` (LibRaw, AHD o lineal) como en la 1.0.2, sin avisos ni cambios. El diálogo dice cuál de los dos va a usar y solo ofrece «Calidad del revelado» en la CPU; la notificación del final dice «Revelado en la GPU (…): N ms por fotograma».
+- **Referencia en la CPU.** `MosaicDeveloper` (`Rodaje.Core/Raw`, con `BayerPattern` y `RawDevelopParameters`, el contrato entre el módulo y los reveladores) es la misma receta escrita sin GPU: las pruebas comparan el shader con ella píxel a píxel en WARP (`RawGpuDeveloperTests`: la carta, ruido por píxel con una matriz de color y los cuatro patrones, cuatro curvas y exposiciones, a una unidad de media precisión en rgba16f) y la referencia con LibRaw sobre el mosaico que entrega `mosaico` (`MosaicTests`: los parches de la carta a menos de 0,006 en lineal, Rec.709 y sRGB con exposición; la rampa de 12 bits llega con sus 3840 códigos); `CinemaDngImportTests.The_gpu_path…` importa la carta por los dos caminos (WARP y LibRaw) y compara el ProRes. Las de `Rodaje.Core.Tests/Raw` corren en Linux.
+- **Qué no cambia todavía.** El intermedio sigue siendo ProRes 422 HQ Rec.709 de 10 bits con las luces recortadas en el blanco; lo de abajo (ProRes 4444 XQ o FFV1 con curva logarítmica, el espacio a elegir y la entrada en lineal a una secuencia HDR) es la segunda parte. El revelado en la GPU no recupera luces (como `highlight = 0` de LibRaw) ni hace reducción de ruido; `espacio` solo puede ser `rec709` en `mosaico` (los demás primarios siguen por `revelar`).
+
+**Cifras (tiempo por fotograma, 4K DCI 4096×2160 y 1080p, CinemaDNG sintético de 12 bits):**
+
+| Camino | 1080p | 4K DCI | Dónde se mide |
+|---|---|---|---|
+| Antes: `revelar` con LibRaw (lineal / AHD) en el módulo | por medir en el RTX 3050 | por medir | `SpeedTests.Develop_4k_speed` (TiempoReal) y el `ms` que devuelve el módulo |
+| Después: `mosaico` (LibRaw sin interpolar) + `GpuRawDeveloper` | por medir en el RTX 3050 | por medir | `RawGpuDeveloperTests.Time_per_frame_on_the_gpu_and_the_cpu_reference` (`[GpuFact]`, escribe la mediana de 5 cuadros con subida, shader y bajada) y la notificación de la importación |
+| Referencia `MosaicDeveloper` en la CPU, un hilo (Xeon a 2,1 GHz de la nube, Release) | 404 ms | 1654 ms | la misma prueba, en Linux con un programa suelto |
+
+Las dos primeras filas quedan para la máquina con GPU: en la nube no hay Direct3D (el shader se comprueba en la CI de Windows con WARP, que no mide nada útil). Para llenarlas: `Probar.bat` con `RODAJE_PRUEBAS_LARGAS=1` y el filtro `FullyQualifiedName~Time_per_frame_on_the_gpu|FullyQualifiedName~Develop_4k_speed`, o importar una carpeta CinemaDNG y leer la notificación («N ms por fotograma», que suma el `ms` del módulo y el tiempo de la GPU con la bajada). Lo que sí está medido: el mosaico pesa la cuarta parte que el rgba16f en la memoria compartida (17,7 MB frente a 70,8 MB por cuadro 4K), así que caben el doble de cuadros por lote (`BatchSize`).
+
+**Segunda parte (pendiente): el intermedio sin perder profundidad.**
+- **Archivos:** `CinemaDngImport.cs` (argumentos de ffmpeg), `RawShaders.cs` y `MosaicDeveloper.cs` (la curva de salida).
+- **Cambio:** el intermedio pasa de ProRes 422 HQ Rec.709 a ProRes 4444 XQ de 12 bits (o FFV1 yuv444p16 sin pérdida, si el tamaño es aceptable) con una curva logarítmica (documentada) para no recortar las altas luces; el espacio se elige (Rec.709 o BT.2020). Con la fase B el 12 bits se lee sin bajar a 10; con la C, el RAW entra en lineal a una secuencia HDR.
 - **Aceptación:** los 3840 códigos de la rampa conservan más de 2000 niveles en el intermedio; un parche a +2 EV sobre el blanco sobrevive y se recupera bajando la exposición.
 - **Riesgo:** medio. ProRes 4444 XQ 4K ocupa unas 2,5 veces el HQ.

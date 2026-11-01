@@ -60,8 +60,16 @@
                 <MenuFlyoutItem Text="Duplicar clip" Tag="edit.duplicate" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Pegar en el cursor" Tag="edit.pasteAtCursor" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Pegar insertando" Tag="edit.pasteInsert" Click="OnActionClick" />
-                <MenuFlyoutSeparator />
+            </MenuBarItem>
+            <MenuBarItem Title="Reproducción">
+                <MenuFlyoutItem Text="Reproducir o pausar" Tag="playback.togglePlay" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Fotograma anterior" Tag="playback.previousFrame" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Fotograma siguiente" Tag="playback.nextFrame" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Ir al inicio" Tag="playback.start" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Ir al final" Tag="playback.end" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Ir a tiempo..." Tag="playback.goToTime" Click="OnActionClick" />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem Text="Capturar fotograma" Tag="playback.captureFrame" Click="OnActionClick" />
             </MenuBarItem>
             <MenuBarItem Title="Secuencia">
                 <MenuFlyoutItem Text="Formato del proyecto…" Tag="project.format" Click="OnActionClick" />

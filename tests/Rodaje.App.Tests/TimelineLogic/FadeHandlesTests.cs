@@ -69,9 +69,25 @@ public class FadeHandlesTests
         Assert.Equal(350, FadeHandles.HandleX(clip, vp, FadeHandle.In));
         Assert.Equal(1150, FadeHandles.HandleX(clip, vp, FadeHandle.Out));
         Assert.Equal(FadeHandle.In, FadeHandles.Hit(clip, row, vp, 345, y));
+        Assert.Equal(FadeHandle.In, FadeHandles.Hit(clip, row, vp, 340, y));
         Assert.Null(FadeHandles.Hit(clip, row, vp, 330, y));
         Assert.Null(FadeHandles.Hit(clip, row, vp, 350, y + FadeHandles.Grab + 1));
         Assert.Null(FadeHandles.Hit(clip, row, vp, 350, row.Bottom - 2));
+    }
+
+    [Fact]
+    public void AreaDeAgarre_LlegaADiezPixeles()
+    {
+        (_, Track track, Clip clip, TrackLayout layout, TimelineViewport vp) = Audio();
+        TrackRow row = layout.Find(track.Id)!;
+        double y = FadeHandles.HandleY(row);
+        double handleX = FadeHandles.HandleX(clip, vp, FadeHandle.In);
+
+        Assert.Equal(FadeHandle.In, FadeHandles.Hit(clip, row, vp, handleX + 10, y));
+        Assert.Equal(FadeHandle.In, FadeHandles.Hit(clip, row, vp, handleX - 10, y));
+        Assert.Equal(FadeHandle.In, FadeHandles.Hit(clip, row, vp, handleX, y + 10));
+        Assert.Null(FadeHandles.Hit(clip, row, vp, handleX + 11, y));
+        Assert.Null(FadeHandles.Hit(clip, row, vp, handleX, y + 11));
     }
 
     [Fact]

@@ -19,6 +19,7 @@
     <Compile Include="..\..\src\Rodaje.App\Shell\SidePanelLayout.cs" Link="Shell\SidePanelLayout.cs" />
     <Compile Include="..\..\src\Rodaje.App\Shell\GpuNameFormatter.cs" Link="Shell\GpuNameFormatter.cs" />
     <Compile Include="..\..\src\Rodaje.App\Shell\TitleBarDragRegion.cs" Link="Shell\TitleBarDragRegion.cs" />
+    <Compile Include="..\..\src\Rodaje.App\Shell\SaveAge.cs" Link="Shell\SaveAge.cs" />
   </ItemGroup>
 
   <!--

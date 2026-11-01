@@ -62,11 +62,14 @@ public sealed partial class AutosaveService : IDisposable
     /// <summary>Carpeta de esta sesión, o <c>null</c> si no está activo.</summary>
     public string? SessionDirectory => _store?.Directory;
 
-    /// <summary>Lo máximo que queda un cambio sin copia mientras se sigue editando (Preferencias › General).</summary>
+    /// <summary>
+    /// Lo máximo que queda un cambio sin copia mientras se sigue editando (Preferencias › General). El intervalo nuevo
+    /// se cuenta desde el momento en que se cambia.
+    /// </summary>
     public TimeSpan Interval
     {
         get => _schedule.Interval;
-        set => _schedule.SetInterval(value);
+        set => _schedule.SetInterval(value, Now);
     }
 
     /// <summary>Cuándo terminó de escribirse la última copia de esta sesión, o <c>null</c> si todavía ninguna.</summary>
