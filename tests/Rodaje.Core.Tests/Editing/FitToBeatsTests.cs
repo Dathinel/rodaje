@@ -79,7 +79,8 @@ public sealed class FitToBeatsTests
         AnalysisEdits.FitToBeats(f.Ctx, ["title", "back"], [F(60), F(120)], step: 1);
 
         f.AssertClip("title", 0, 60, 0);
-        f.AssertClip("back", 0, 60, 0);
+        // En reversa el final de la secuencia es el principio del material: acortar por la derecha corre SourceIn.
+        f.AssertClip("back", 30, 90, 0);
     }
 
     [Fact]
