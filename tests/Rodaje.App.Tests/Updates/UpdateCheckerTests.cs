@@ -196,11 +196,14 @@ public class UpdateCheckerTests
         var settings = new AppSettings { CheckForUpdates = false };
 
         UpdateCheckResult startup = await checker.CheckAsync(settings, manual: false);
-        UpdateCheckResult manual = await checker.CheckAsync(settings, manual: true);
-
         Assert.Equal(UpdateCheckStatus.Skipped, startup.Status);
         Assert.Null(settings.LastUpdateCheck);
+        Assert.Equal(0, source.Calls);
+
+        // A mano sí consulta, y anota la hora como cualquier consulta.
+        UpdateCheckResult manual = await checker.CheckAsync(settings, manual: true);
         Assert.Equal(UpdateCheckStatus.Available, manual.Status);
+        Assert.NotNull(settings.LastUpdateCheck);
         Assert.Equal(1, source.Calls);
     }
 
