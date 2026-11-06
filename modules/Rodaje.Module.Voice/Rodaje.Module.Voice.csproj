@@ -20,6 +20,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="..\Shared\ModelFiles.cs" Link="ModelFiles.cs" />
+    <EmbeddedResource Include="paquete.json" LogicalName="Rodaje.Module.Models" />
     <InternalsVisibleTo Include="Rodaje.Module.Voice.Tests" />
   </ItemGroup>
 
