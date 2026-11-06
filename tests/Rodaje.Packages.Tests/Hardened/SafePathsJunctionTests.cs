@@ -10,9 +10,22 @@ public sealed class SafePathsJunctionTests : IDisposable
 {
     private readonly TempFolder _outside = new();
     private readonly TempFolder _inside = new();
+    private readonly List<string> _junctions = [];
 
     public void Dispose()
     {
+        // Las uniones se quitan antes que las carpetas: Directory.Delete no puede borrar una unión
+        // que quedó colgando (su destino ya no existe), pero `rmdir` sí quita el punto de análisis.
+        foreach (string junction in _junctions)
+        {
+            using var process = Process.Start(new ProcessStartInfo("cmd.exe", $"/c rmdir \"{junction}\"")
+            {
+                CreateNoWindow = true,
+                UseShellExecute = false,
+            })!;
+            process.WaitForExit();
+        }
+
         _outside.Dispose();
         _inside.Dispose();
     }
@@ -55,7 +68,7 @@ public sealed class SafePathsJunctionTests : IDisposable
     }
 
     /// <summary>Crea una unión de directorio sin privilegios de administrador (a diferencia de los symlinks).</summary>
-    private static void Junction(string link, string target)
+    private void Junction(string link, string target)
     {
         using var process = Process.Start(new ProcessStartInfo("cmd.exe", $"/c mklink /J \"{link}\" \"{target}\"")
         {
@@ -67,5 +80,6 @@ public sealed class SafePathsJunctionTests : IDisposable
         process.WaitForExit();
         Assert.True(process.ExitCode == 0, $"mklink /J falló ({process.ExitCode})");
         Assert.True(Directory.Exists(link));
+        _junctions.Add(link);
     }
 }

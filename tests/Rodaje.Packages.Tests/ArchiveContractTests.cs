@@ -13,7 +13,8 @@ public sealed class ArchiveContractTests : IDisposable
         ]
         """;
 
-    private static readonly string[] ExampleFiles = ["paquete.json", "transiciones/deslizar.json", "transiciones/zoom-suave.json", "vistas/deslizar.png"];
+    // El `integridad.json` lo escribe el instalador al instalar: no viene en el zip pero sí queda en el paquete.
+    private static readonly string[] ExampleFiles = ["integridad.json", "paquete.json", "transiciones/deslizar.json", "transiciones/zoom-suave.json", "vistas/deslizar.png"];
 
     private readonly TempFolder _folder = new();
     private readonly PackageLocations _locations;

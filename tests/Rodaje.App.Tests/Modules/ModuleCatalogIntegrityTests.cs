@@ -1,5 +1,6 @@
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Tests.Support;
+using Rodaje.Packages;
 
 namespace Rodaje.App.Tests.Modules;
 
@@ -23,7 +24,7 @@ public sealed class ModuleCatalogIntegrityTests : IDisposable
         IReadOnlyList<ModuleDescriptor> modules = Scan(problems);
         Assert.Empty(problems);
         Assert.Single(modules);
-        Assert.True(File.Exists(Path.Combine(_root.Path, "modulo-bueno", Packages.PackageIntegrity.FileName)));
+        Assert.True(File.Exists(Path.Combine(_root.Path, "modulo-bueno", PackageIntegrity.FileName)));
 
         File.WriteAllText(Path.Combine(_root.Path, "modulo-bueno", "modulo.exe"), "troyanizado");
 

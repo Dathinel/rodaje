@@ -1,3 +1,5 @@
+using Rodaje.Packages.Download;
+
 namespace Rodaje.Packages.Tests.Download;
 
 /// <summary>
