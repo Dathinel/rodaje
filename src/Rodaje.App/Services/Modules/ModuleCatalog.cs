@@ -43,6 +43,14 @@ public static class ModuleCatalog
 
     /// <summary>Hasta dónde se aceptan valores de <c>vramMb</c> (64 GB).</summary>
     public const int MaxVramMb = 65_536;
+    public const int MaxManifestBytes = 256 << 10;
+
+    internal static void VerifyIntegrity(ModuleDescriptor module)
+    {
+        if (module.Origin == ModuleOrigin.Installed) PackageIntegrity.Ensure(module.Directory);
+        else if (File.Exists(Path.Combine(module.Directory, PackageIntegrity.FileName)))
+            PackageIntegrity.Verify(module.Directory);
+    }
 
     /// <summary>
     /// Instalados (<c>%LOCALAPPDATA%\Rodaje\complementos\modulos</c>), los que trae la distribución completa
@@ -125,6 +133,20 @@ public static class ModuleCatalog
 
         // En desarrollo el exe está en bin\<config>\…, no donde dice entry: se busca aparte.
         bool development = origin == ModuleOrigin.Development;
+        try
+        {
+            if (new FileInfo(manifestPath).Length > MaxManifestBytes)
+                throw new PackageInstallException("El manifiesto del módulo supera el máximo de 256 KB.");
+            if (origin == ModuleOrigin.Installed) PackageIntegrity.Ensure(directory);
+            else if (File.Exists(Path.Combine(directory, PackageIntegrity.FileName)))
+                PackageIntegrity.Verify(directory);
+        }
+        catch (Exception ex) when (ex is PackageInstallException or IOException or UnauthorizedAccessException)
+        {
+            problems?.Add($"{directory}: {ex.Message}");
+            return null;
+        }
+
         ManifestResult result = ManifestReader.ReadFile(manifestPath, checkFiles: !development);
         if (result.Manifest is not { Kind: PackageKind.Module, Module: { } module } manifest || !manifest.WorksIn(AppId))
         {
@@ -194,7 +216,12 @@ public static class ModuleCatalog
     {
         try
         {
-            using JsonDocument doc = JsonDocument.Parse(File.ReadAllBytes(manifestPath), new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip, MaxDepth = 32 });
+            using var stream = File.OpenRead(manifestPath);
+            if (stream.Length > MaxManifestBytes)
+                throw new PackageInstallException("El manifiesto del módulo supera el máximo de 256 KB.");
+            byte[] bytes = new byte[checked((int)stream.Length)];
+            stream.ReadExactly(bytes);
+            using JsonDocument doc = JsonDocument.Parse(bytes, new JsonDocumentOptions { AllowTrailingCommas = true, CommentHandling = JsonCommentHandling.Skip, MaxDepth = 32 });
             if (!doc.RootElement.TryGetProperty("module", out JsonElement module) || module.ValueKind != JsonValueKind.Object)
             {
                 return (0, null);

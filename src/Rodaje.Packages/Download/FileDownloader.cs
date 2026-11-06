@@ -20,8 +20,9 @@ public readonly record struct DownloadProgress(long Received, long Total)
 /// Si no coinciden, el archivo se borra; si la parte previa venía dañada (un apagón puede dejar basura al final), se
 /// intenta una vez más desde cero.
 /// </summary>
-public sealed class FileDownloader(HttpClient http)
+public sealed class FileDownloader(HttpClient http, long maxBytes)
 {
+    public long MaxBytes { get; } = maxBytes > 0 ? maxBytes : throw new ArgumentOutOfRangeException(nameof(maxBytes));
     public const string PartialSuffix = ".parcial";
 
     private readonly HttpClient _http = http ?? throw new ArgumentNullException(nameof(http));
@@ -47,6 +48,8 @@ public sealed class FileDownloader(HttpClient http)
     {
         ArgumentNullException.ThrowIfNull(target);
         ArgumentException.ThrowIfNullOrEmpty(destination);
+        if (target.Size > MaxBytes)
+            throw new DownloadVerificationException($"La descarga supera el tamaño máximo permitido de {MaxBytes} bytes.");
         if (!SignedIndex.IsSha256(target.Sha256) || target.Size <= 0)
         {
             throw new ArgumentException("Falta el SHA-256 o el tamaño del archivo.", nameof(target));

@@ -61,7 +61,7 @@ public sealed class ModuleInstallTests : IAsyncLifetime, IDisposable
 
     private PackageService Service(string archive, int maxAttempts = 5) =>
         new(Locations, PackageService.LoadBundledCatalog(), new SingleFileDownloader(archive),
-            models: new ModelStore(StoreFolder, new FileDownloader(_http) { MaxAttempts = maxAttempts, RetryDelay = TimeSpan.Zero }, DownloadUrlPolicy.WithLoopback("Dathinel")));
+            models: new ModelStore(StoreFolder, new FileDownloader(_http, SignedIndex.MaxEntrySize) { MaxAttempts = maxAttempts, RetryDelay = TimeSpan.Zero }, DownloadUrlPolicy.WithLoopback("Dathinel")));
 
     private static CatalogEntry Entry(PackageService service) => service.Catalog.Find("modulo-voz")!;
 

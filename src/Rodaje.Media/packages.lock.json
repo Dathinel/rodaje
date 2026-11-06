@@ -31,10 +31,13 @@
       "rodaje.core": {
         "type": "Project"
       },
+      "rodaje.packages": {
+        "type": "Project"
+      },
       "rodaje.playback": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Core": "[1.0.0, )"
+          "Rodaje.Core": "[1.0.2, )"
         }
       }
     }
