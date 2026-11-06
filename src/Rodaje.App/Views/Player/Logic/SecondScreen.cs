@@ -6,6 +6,22 @@ public readonly record struct ScreenRect(int X, int Y, int Width, int Height)
     public bool Contains(int x, int y) => x >= X && y >= Y && x < X + Width && y < Y + Height;
 
     public long Area => (long)Width * Height;
+
+    /// <summary>
+    /// Este rectángulo recortado a <paramref name="area"/> y movido dentro de ella: una ventana más grande que el área de
+    /// trabajo del monitor no pasa bajo la barra de tareas ni deja la X fuera. Un área vacía no lo cambia.
+    /// </summary>
+    public ScreenRect FitInside(ScreenRect area)
+    {
+        if (area.Width <= 0 || area.Height <= 0)
+        {
+            return this;
+        }
+
+        int width = Math.Min(Width, area.Width);
+        int height = Math.Min(Height, area.Height);
+        return new ScreenRect(Math.Clamp(X, area.X, area.X + area.Width - width), Math.Clamp(Y, area.Y, area.Y + area.Height - height), width, height);
+    }
 }
 
 /// <summary>A qué pantalla va el «Visor en otra pantalla».</summary>

@@ -63,7 +63,7 @@ public static class RegionTracking
             tracker.Start(luma, [.. request.Region.Select(start.ToCoded)], [.. request.Anchors.Select(start.ToCoded)]);
         }, token))
         {
-            throw new InvalidOperationException("No se pudo leer el cuadro de partida.");
+            throw new InvalidOperationException("No se pudo leer el fotograma de partida.");
         }
 
         long done = 0;

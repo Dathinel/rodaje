@@ -276,6 +276,10 @@ public sealed partial class ModuleManager : IAsyncDisposable
         return error switch
         {
             ModuleHungException => $"«{module.Name}» dejó de responder y se cerró." + Intact,
+            // No llegó a arrancar (falta el .exe, el antivirus lo bloquea o no se conectó a tiempo): no «se cerró».
+            ModuleExitedException { ExitCode: null } or ModuleProtocolException { InnerException: TimeoutException } =>
+                $"«{module.Name}» no arrancó: {(error.InnerException is System.ComponentModel.Win32Exception why ? why.Message : error.Message)}"
+                + " Reinstálalo desde Complementos › Módulos de IA o mira si el antivirus lo bloquea." + Intact,
             ModuleExitedException { ExitCode: { } code } => $"«{module.Name}» se cerró de golpe (código {code})." + Intact,
             ModuleVersionException => $"«{module.Name}» necesita otra versión de Rodaje." + Intact,
             ModuleProtocolException => $"«{module.Name}» respondió algo inválido y se cerró." + Intact,

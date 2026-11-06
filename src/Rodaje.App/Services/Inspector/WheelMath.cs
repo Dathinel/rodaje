@@ -5,7 +5,7 @@ namespace Rodaje.App.Services.Inspector;
 /// <summary>
 /// De un punto de la rueda (x, y de −1 a 1, y hacia arriba) al tinte R'G'B' de esa zona y de vuelta. El rojo está a 0°,
 /// el verde a 120° y el azul a 240°; el tinte suma cero entre los tres canales, así no cambia el nivel de la zona (eso es
-/// el deslizador general).
+/// el deslizador general). La cuarta rueda, el desplazamiento, suma a toda la imagen por igual antes que las otras.
 /// </summary>
 public static class WheelMath
 {
@@ -17,7 +17,11 @@ public static class WheelMath
         (W.LiftRed, W.LiftGreen, W.LiftBlue, 0.2),
         (W.GammaRed, W.GammaGreen, W.GammaBlue, 0.5),
         (W.GainRed, W.GainGreen, W.GainBlue, 0.5),
+        (W.OffsetRed, W.OffsetGreen, W.OffsetBlue, 0.2),
     ];
+
+    /// <summary>El nombre de cada rueda, en el orden de <see cref="Wheels"/>.</summary>
+    public static IReadOnlyList<string> Labels { get; } = ["Sombras", "Medios", "Luces", "Desplazamiento"];
 
     /// <summary>El punto dentro del círculo unidad.</summary>
     public static (double X, double Y) Clamp(double x, double y)

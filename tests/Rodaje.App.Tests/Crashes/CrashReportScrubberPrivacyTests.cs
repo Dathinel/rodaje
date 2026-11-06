@@ -76,14 +76,28 @@ public class CrashReportScrubberPrivacyTests
     }
 
     [Fact]
-    public void SiSeAgotaElTiempo_SeTapaEnVezDeDevolverElOriginal()
+    public void SiSeAgotaElTope_SeTapaEnVezDeDevolverElOriginal()
     {
-        var scrubber = new CrashReportScrubber(AnaFolders) { Budget = TimeSpan.Zero };
+        var scrubber = new CrashReportScrubber(AnaFolders) { Budget = 0 };
 
         string text = scrubber.Scrub("Importó D:\\Clientes\\Acme\\toma.bin\r\nsegunda línea");
 
         Assert.DoesNotContain("Acme", text, StringComparison.Ordinal);
         Assert.Equal(CrashReportScrubber.OutOfTimeLine + "\n" + CrashReportScrubber.OutOfTimeLine, text);
+    }
+
+    [Fact]
+    public void ElTopeEsDeTrabajo_LaLineaQueLoAlcanzaSeLimpiaYLasSiguientesSeTapan()
+    {
+        // Sin reloj: el mismo texto da siempre el mismo informe, por cargado que esté el equipo. Con el tope de 2 s, una
+        // pausa tapaba el error y la pila (MismaPila_ConMensajesDistintos_CadaUnoTieneSuInformeYSuAviso, en la CI).
+        const string First = @"Importó D:\Clientes\Acme\toma.bin";
+        Ana.Scrub(First, out long work);
+        var scrubber = new CrashReportScrubber(AnaFolders) { Budget = work };
+
+        string text = scrubber.Scrub(First + "\nsegunda línea\ntercera");
+
+        Assert.Equal("Importó toma.bin\n" + CrashReportScrubber.OutOfTimeLine + "\n" + CrashReportScrubber.OutOfTimeLine, text);
     }
 
     [Fact]

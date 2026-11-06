@@ -61,7 +61,7 @@ public sealed class ModuleInstallTests : IAsyncLifetime, IDisposable
 
     private PackageService Service(string archive, int maxAttempts = 5) =>
         new(Locations, PackageService.LoadBundledCatalog(), new SingleFileDownloader(archive),
-            models: new ModelStore(StoreFolder, new FileDownloader(_http) { MaxAttempts = maxAttempts, RetryDelay = TimeSpan.Zero }, DownloadUrlPolicy.WithLoopback("Dathinel")));
+            models: new ModelStore(StoreFolder, new FileDownloader(_http, SignedIndex.MaxEntrySize) { MaxAttempts = maxAttempts, RetryDelay = TimeSpan.Zero }, DownloadUrlPolicy.WithLoopback("Dathinel")));
 
     private static CatalogEntry Entry(PackageService service) => service.Catalog.Find("modulo-voz")!;
 
@@ -141,7 +141,7 @@ public sealed class ModuleInstallTests : IAsyncLifetime, IDisposable
         await WaitUntil(() => manager.ProcessIds.Count == 1 && manager.Jobs.Jobs[0].Progress > 0);
         int first = manager.ProcessIds[0];
         string v2 = WriteModule("modulo-voz", "1.1.0", Model("voz", "modelos/voz/kokoro.onnx", voice));
-        InstallResult updated = await service.InstallFromFileAsync(v2);
+        InstallResult updated = await service.InstallFromFileAsync(v2, PackageInstaller.ComputeSha256(v2));
         Assert.Equal(InstallOutcome.Updated, updated.Outcome);
         await Assert.ThrowsAnyAsync<Exception>(() => running);
         Assert.True(await EchoModules.HasExitedAsync(first));

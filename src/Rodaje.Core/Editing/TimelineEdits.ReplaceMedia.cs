@@ -82,12 +82,13 @@ public static partial class TimelineEdits
             throw new EditException($"El clip «{clip.Id}» ya usa «{media.Name}».");
         }
 
-        if (media.Duration <= Time.Zero)
+        if (!media.IsStillImage && media.Duration <= Time.Zero)
         {
             throw new EditException($"«{media.Name}» no tiene duración: no puede reemplazar el medio de un clip.");
         }
 
         string oldMedia = clip.MediaId;
+        bool wasImage = project.GetMedia(oldMedia).IsStillImage;
         List<(Track Track, Clip Clip)> group = [(track, clip)];
         group.AddRange(sequence.GetLinkGroup(clip.Id).Skip(1).Where(m => m.Clip.MediaId == oldMedia && m.Clip.Generator is null));
 
@@ -108,7 +109,7 @@ public static partial class TimelineEdits
             }
 
             Time span = c.SourceDuration;
-            if (c.SourceOut <= media.Duration)
+            if (media.IsStillImage || (c.SourceIn >= Time.Zero && c.SourceOut <= media.Duration && !wasImage))
             {
                 plans.Add(new(c, c.SourceIn, c.SourceOut));
             }

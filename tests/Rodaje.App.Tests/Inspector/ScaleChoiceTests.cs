@@ -81,6 +81,11 @@ public class ScaleChoiceTests
         Assert.Equal(0, scale.ToModel(double.NegativeInfinity));
         Assert.Equal(0, scale.ToModel(-50));
         Assert.Equal(100, scale.ToModel(1e300));
+        // Lo escrito a mano pasa del deslizador (400 %) hasta el tope del modelo, como en los editores de referencia.
+        Assert.Equal(0.5, scale.ToModel(50));
+        Assert.Equal(70.51, scale.ToModel(7051));
+        Assert.Equal(100, scale.ToModel(50100));
+        Assert.Equal(7051, scale.ToBox(70.51));
         Assert.Equal(1, scale.ToSlider(0));
         Assert.Equal(400, scale.ToSlider(100));
         Assert.Equal(100, scale.ToSlider(double.NaN));

@@ -10,12 +10,15 @@ namespace Rodaje.App.Shell;
 /// <summary>
 /// Separador que se arrastra para cambiar el ancho de una columna (o el alto de una fila) de su <see cref="Grid"/>.
 /// Va en su propia columna o fila; <see cref="TargetIndex"/> es la que cambia y <see cref="GrowsTowardEnd"/> dice si
-/// crece al arrastrar hacia la derecha o abajo (la columna está antes del separador) o al revés.
+/// crece al arrastrar hacia la derecha o abajo (la columna está antes del separador) o al revés. Con
+/// <see cref="ShowGrip"/> lleva una pestaña centrada que se resalta al pasar el ratón, para que se encuentre.
 /// </summary>
 internal sealed partial class PaneSplitter : Grid
 {
     private readonly Rectangle _line;
+    private readonly Border _grip;
     private double _startSize;
+    private long _lastPress;
     private double _startPointer;
     private bool _dragging;
 
@@ -23,17 +26,23 @@ internal sealed partial class PaneSplitter : Grid
     {
         Background = new SolidColorBrush(Microsoft.UI.Colors.Transparent);
         _line = new Rectangle { Fill = (Brush)Application.Current.Resources["StrokeBrush"] };
+        _grip = new Border
+        {
+            Width = 48, Height = 4, CornerRadius = new CornerRadius(2), HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center, Background = (Brush)Application.Current.Resources["TextMutedBrush"], Visibility = Visibility.Collapsed,
+        };
         Children.Add(_line);
+        Children.Add(_grip);
         PointerPressed += OnPointerPressed;
         PointerMoved += OnPointerMoved;
         PointerReleased += OnPointerReleased;
         PointerCaptureLost += (_, _) => EndDrag();
-        PointerEntered += (_, _) => _line.Fill = (Brush)Application.Current.Resources["AccentBrush"];
+        PointerEntered += (_, _) => Highlight(true);
         PointerExited += (_, _) =>
         {
             if (!_dragging)
             {
-                _line.Fill = (Brush)Application.Current.Resources["StrokeBrush"];
+                Highlight(false);
             }
         };
         Loaded += (_, _) => ApplyOrientation();
@@ -41,6 +50,12 @@ internal sealed partial class PaneSplitter : Grid
 
     /// <summary>Se soltó el separador; da el tamaño nuevo en píxeles independientes del DPI.</summary>
     public event EventHandler<double>? Resized;
+
+    /// <summary>Dos clics seguidos sobre el separador (no se arrastra).</summary>
+    public event EventHandler? DoubleClicked;
+
+    /// <summary>Muestra la pestaña centrada de agarre (para el separador de filas, que es ancho y se pierde).</summary>
+    public bool ShowGrip { get; set; }
 
     /// <summary><c>true</c>: cambia una columna (se arrastra a los lados); <c>false</c>: una fila.</summary>
     public bool ResizesColumn { get; set; } = true;
@@ -70,6 +85,18 @@ internal sealed partial class PaneSplitter : Grid
             _line.VerticalAlignment = VerticalAlignment.Center;
             ProtectedCursor = InputSystemCursor.Create(InputSystemCursorShape.SizeNorthSouth);
         }
+
+        _grip.Visibility = ShowGrip ? Visibility.Visible : Visibility.Collapsed;
+        if (ResizesColumn)
+        {
+            (_grip.Width, _grip.Height) = (_grip.Height, _grip.Width);
+        }
+    }
+
+    private void Highlight(bool on)
+    {
+        _line.Fill = (Brush)Application.Current.Resources[on ? "AccentBrush" : "StrokeBrush"];
+        _grip.Background = (Brush)Application.Current.Resources[on ? "AccentBrush" : "TextMutedBrush"];
     }
 
     private void OnPointerPressed(object sender, PointerRoutedEventArgs e)
@@ -79,6 +106,16 @@ internal sealed partial class PaneSplitter : Grid
             return;
         }
 
+        long now = Environment.TickCount64;
+        if (now - _lastPress <= TerraFX.Interop.Windows.Windows.GetDoubleClickTime())
+        {
+            _lastPress = 0;
+            e.Handled = true;
+            DoubleClicked?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        _lastPress = now;
         _startSize = size;
         _startPointer = Coordinate(e, grid);
         _dragging = CapturePointer(e.Pointer);
@@ -113,8 +150,8 @@ internal sealed partial class PaneSplitter : Grid
         }
 
         _dragging = false;
-        _line.Fill = (Brush)Application.Current.Resources["StrokeBrush"];
-        if (Parent is Grid grid && TryGetSize(grid, out double size))
+        Highlight(false);
+        if (Parent is Grid grid && TryGetSize(grid, out double size) && size != _startSize)
         {
             Resized?.Invoke(this, size);
         }

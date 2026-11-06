@@ -34,6 +34,26 @@ public sealed class AnalysisEditsTests
     }
 
     [Fact]
+    public void Removing_silences_closes_gaps_in_linked_audio_and_in_clips_of_other_tracks_in_one_step()
+    {
+        TrimFixture f = Talk().Add("v2", "over-a", "m1", 0, 30, 60).Add("v2", "over-b", "m1", 0, 25, 150);
+        var undo = new UndoStack(f.Project);
+        SequenceSnapshot before = SequenceSnapshot.Capture(f.Sequence);
+        undo.Execute(Edits.RemoveSilences("seq", "v", [(F(20), F(50)), (F(100), F(110))], ripple: true, RippleScope.AllTracks));
+
+        Assert.Equal([(F(0), F(20)), (F(20), F(70)), (F(70), F(160))], f.Track("v1").Clips.Take(3).Select(c => (c.Start, c.End)));
+        Assert.Equal(f.Track("v1").Clips.Take(3).Select(c => (c.Start, c.End)), f.Track("a1").Clips.Take(3).Select(c => (c.Start, c.End)));
+        Assert.Equal(F(160), f.Clip("after").Start);
+        Assert.Equal(F(30), f.Clip("over-a").Start);
+        Assert.Equal(F(110), f.Clip("over-b").Start);
+        f.AssertValid();
+
+        Assert.True(undo.Undo());
+        Assert.True(before.Matches(f.Sequence));
+        Assert.Equal(0, undo.Count);
+    }
+
+    [Fact]
     public void Without_ripple_the_gaps_stay()
     {
         TrimFixture f = Talk();

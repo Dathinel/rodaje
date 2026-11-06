@@ -116,7 +116,8 @@ public sealed class LinkedAudioVideoContractTests
     public void Paste_attributes_offers_all_effects_transform_speed_or_volume()
     {
         Assert.Equal(
-            ClipAttributeKinds.Effects | ClipAttributeKinds.Transform | ClipAttributeKinds.Speed | ClipAttributeKinds.Volume,
+            ClipAttributeKinds.Effects | ClipAttributeKinds.Transform | ClipAttributeKinds.Speed | ClipAttributeKinds.Volume
+            | ClipAttributeKinds.Text | ClipAttributeKinds.Shadow,
             ClipAttributeKinds.All);
 
         TrimFixture f = Pair().Add("v1", "tv", "m2", 0, 50, 100, link: "T").Add("a1", "ta", "m2", 0, 50, 100, link: "T");
@@ -125,7 +126,7 @@ public sealed class LinkedAudioVideoContractTests
         f.Clip("a").Effects.Add(Effect("fx-a", BuiltInEffects.Audio));
         TimelineEdits.SetSpeed(f.Ctx, "v", new Rational(2, 1));
         ClipAttributes copied = ClipAttributes.Capture(f.Sequence, "v");
-        Assert.Equal(ClipAttributeKinds.All, copied.Available);
+        Assert.Equal(ClipAttributeKinds.Effects | ClipAttributeKinds.Transform | ClipAttributeKinds.Speed | ClipAttributeKinds.Volume, copied.Available);
 
         ClipAttributeEdits.Paste(f.Ctx, ["tv"], copied, ClipAttributeKinds.Effects);
         Assert.Equal([BuiltInEffects.Color], f.Clip("tv").Effects.Select(e => e.Type));

@@ -12,13 +12,19 @@ public sealed class PreferencesViewModel(AppSettings settings)
 
     public int VideoTracks { get => Settings.DefaultVideoTracks; set => Settings.DefaultVideoTracks = Math.Clamp(value, NewProjectTracks.Min, NewProjectTracks.Max); }
     public int AudioTracks { get => Settings.DefaultAudioTracks; set => Settings.DefaultAudioTracks = Math.Clamp(value, NewProjectTracks.Min, NewProjectTracks.Max); }
+    public double StillImageDurationSeconds { get => Settings.StillImageDurationSeconds; set { Settings.StillImageDurationSeconds = Math.Clamp(value, Rodaje.Core.Model.MediaRef.MinStillImageDurationSeconds, Rodaje.Core.Model.MediaRef.MaxStillImageDurationSeconds); Rodaje.Core.Model.MediaRef.DefaultStillImageDuration = Rodaje.Core.Timing.Time.FromSeconds(Settings.StillImageDurationSeconds); } }
     public bool GenerateProxies { get => Settings.AutoProxies; set => Settings.AutoProxies = value; }
+    public int AutosaveMinutes { get => Settings.AutosaveMinutes; set => Settings.AutosaveMinutes = Rodaje.Core.Serialization.AutosaveSchedule.ClampMinutes(value); }
+    public bool CheckForUpdates { get => Settings.CheckForUpdates; set => Settings.CheckForUpdates = value; }
     public string GeneratedMediaFolder { get => Settings.GeneratedMediaFolder ?? ""; set => Settings.GeneratedMediaFolder = string.IsNullOrWhiteSpace(value) ? null : value; }
+    public string StillCaptureFolder { get => Settings.StillCaptureFolder ?? ""; set => Settings.StillCaptureFolder = string.IsNullOrWhiteSpace(value) ? null : value; }
     public IReadOnlyList<int> LinkedAudioVideoTracks => Settings.LinkedAudioTracks.IsAll
         ? Enumerable.Range(1, NewProjectTracks.Max).ToArray()
         : Settings.LinkedAudioTracks.ToSetting() ?? [];
     public ProxyUsage ProxyUsage { get => Settings.ProxyUsage; set => Settings.ProxyUsage = value; }
     public PreviewQuality PreviewQuality { get => Settings.PreviewQuality; set => Settings.PreviewQuality = value; }
+    public TenBitViewer TenBitViewer { get => Settings.TenBitViewer; set => Settings.TenBitViewer = value; }
+    public HdrViewer HdrViewer { get => Settings.HdrViewer; set => Settings.HdrViewer = value; }
     public ShortcutPreset ShortcutPreset { get => Settings.ShortcutPreset; set => Settings.ShortcutPreset = value; }
 
     public void SetLinkedAudioVideoTracks(IEnumerable<int> videoTracks)

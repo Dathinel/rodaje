@@ -24,6 +24,8 @@ internal sealed class KokoroEngine : IDisposable
     public KokoroEngine(string root, int threads = 0)
     {
         _root = root;
+        string model = Environment.GetEnvironmentVariable("RODAJE_VOZ_MODELO") is { Length: > 0 } m ? m : Voices.ModelFile;
+        string path = Shared.ModelFiles.Verify(Path.Combine(root, model), Path.GetFileName(model));
         using SessionOptions options = new()
         {
             GraphOptimizationLevel = GraphOptimizationLevel.ORT_ENABLE_ALL,
@@ -31,8 +33,7 @@ internal sealed class KokoroEngine : IDisposable
             IntraOpNumThreads = threads > 0 ? threads : DefaultThreads(),
             InterOpNumThreads = 1,
         };
-        string model = Environment.GetEnvironmentVariable("RODAJE_VOZ_MODELO") is { Length: > 0 } m ? m : Voices.ModelFile;
-        _session = new InferenceSession(Path.Combine(root, model), options);
+        _session = new InferenceSession(path, options);
     }
 
     public static int DefaultThreads() =>

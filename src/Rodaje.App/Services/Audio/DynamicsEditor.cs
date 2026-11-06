@@ -317,11 +317,11 @@ public sealed class DynamicsEditor(EditorSession session)
     public bool Add() => Owner is not null && Compressor() is null && EnsureCompressor() is not null;
 
     public bool Remove() =>
-        Owner is { } owner && Compressor() is { } effect && Session.Execute(Edits.RemoveEffect(Session.SequenceId, owner.Id, effect.Id));
+        Owner is { } owner && Compressor() is { } effect && Session.Execute(Edits.RemoveEffect(Session.SequenceId, owner.Id, effect.Id, description: "Quitar compresor"));
 
     public bool SetEnabled(bool enabled) =>
         Owner is { } owner && Compressor() is { } effect && effect.Enabled != enabled
-        && Session.Execute(Edits.SetEffectEnabled(Session.SequenceId, owner.Id, effect.Id, enabled));
+        && Session.Execute(Edits.SetEffectEnabled(Session.SequenceId, owner.Id, effect.Id, enabled, description: enabled ? "Activar compresor" : "Desactivar compresor"));
 
     private string? EnsureCompressor()
     {
@@ -335,7 +335,7 @@ public sealed class DynamicsEditor(EditorSession session)
             return null;
         }
 
-        var command = Edits.EnsureEffect(Session.SequenceId, owner.Id, Type);
+        var command = Edits.EnsureEffect(Session.SequenceId, owner.Id, Type, description: "Añadir compresor");
         return Session.Execute(command) ? command.CreatedIds[0] : null;
     }
 

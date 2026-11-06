@@ -6,6 +6,24 @@ namespace Rodaje.Playback.Tests;
 
 public class PlaybackSchedulerTests
 {
+    [Fact]
+    public void A_still_image_requests_one_frame_for_the_whole_source_preview()
+    {
+        var timing = new ClipTiming(Time.Zero, Time.Zero, Time.FromSeconds(5), Rational.Fps30, isStillImage: true);
+        using var h = new PlaybackHarness(timing);
+        h.Scheduler.Play();
+        for (int i = 0; i < 300; i++)
+        {
+            FramePresentation frame = h.Refresh();
+            Assert.Equal(0, frame.Frame!.Index);
+            Assert.True(frame.IsExact);
+        }
+
+        Assert.Equal([0], h.Source.Requests);
+        Assert.Equal(1, h.EndCount);
+        Assert.Empty(h.Failures);
+    }
+
     // 25 fps, 0,5 s en la línea de tiempo, origen [2 s, 12 s): cuadros 50 a 299
     private static readonly ClipTiming Clip25 =
         new(Time.FromSeconds(0.5), Time.FromSeconds(2), Time.FromSeconds(12), Rational.Fps25);

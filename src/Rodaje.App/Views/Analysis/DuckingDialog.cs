@@ -142,6 +142,7 @@ internal static class DuckingDialog
                 token.ThrowIfCancellationRequested();
                 voice = TimeRange.Merge(found);
                 progress.Visibility = Visibility.Collapsed;
+                scope?.Report(1, "Análisis listo");
                 ready = true;
                 Refresh();
                 dialog.IsPrimaryButtonEnabled = plan.Count > 0;

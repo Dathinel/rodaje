@@ -28,11 +28,18 @@ public sealed class FromGestureStart(string sequenceId, SequenceSnapshot start, 
             return;
         }
 
-        SequenceSnapshot before = SequenceSnapshot.Capture(sequence);
+        SequenceSnapshot before = SequenceSnapshot.Capture(sequence, Start);
         try
         {
             Start.Restore(sequence);
-            step?.Apply(project);
+            if (step is SequenceEditCommand edit)
+            {
+                edit.Apply(project, Start);
+            }
+            else
+            {
+                step?.Apply(project);
+            }
         }
         catch
         {
@@ -41,7 +48,7 @@ public sealed class FromGestureStart(string sequenceId, SequenceSnapshot start, 
         }
 
         _before = before;
-        _after = SequenceSnapshot.Capture(sequence);
+        _after = SequenceSnapshot.Capture(sequence, before);
     }
 
     public void Revert(Project project) =>

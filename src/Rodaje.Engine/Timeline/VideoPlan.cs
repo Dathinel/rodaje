@@ -24,10 +24,11 @@ internal sealed class VideoClipPlan
     /// <param name="end">Hasta cuándo se ve (sin incluir), contando la mitad de una transición después.</param>
     /// <param name="materialEnd">Hasta dónde llega el material del medio; nunca menos que <c>map.SourceOut</c>.</param>
     public VideoClipPlan(string clipId, SourceKey source, ClipTimeMap map, Time start, Time end, Time materialEnd, Rational frameRate,
-        Rational sequenceRate, EffectPlan? effects, int displayWidth = 0, int displayHeight = 0)
+        Rational sequenceRate, EffectPlan? effects, int displayWidth = 0, int displayHeight = 0, bool isStillImage = false)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(end, start);
+        IsStillImage = isStillImage;
         ClipId = clipId;
         Source = source;
         TimeMap = map;
@@ -51,6 +52,8 @@ internal sealed class VideoClipPlan
         FirstFrame = FrameAt(seen ? Time.FromFrames(_firstGrid, sequenceRate) : start);
         LastFrame = FrameAt(seen ? Time.FromFrames(_lastGrid, sequenceRate) : start);
     }
+
+    public bool IsStillImage { get; }
 
     public string ClipId { get; }
 
@@ -114,14 +117,14 @@ internal sealed class VideoClipPlan
     }
 
     /// <summary>Cuadro del origen que contiene el instante: el último que empieza en o antes de él.</summary>
-    public long FrameAt(Time timeline) => ToSource(timeline).ToFrames(FrameRate);
+    public long FrameAt(Time timeline) => IsStillImage ? 0 : ToSource(timeline).ToFrames(FrameRate);
 
     /// <summary>
     /// Instante en que se evalúan los keyframes de los efectos: el del origen (<see cref="ClipTimeMap.EffectTime"/> dentro
     /// del clip, el material de la transición fuera) o, en un congelado, el virtual.
     /// </summary>
     public Time EffectTimeAt(Time timeline) =>
-        TimeMap.Freeze || (timeline >= TimeMap.Start && timeline < TimeMap.End) ? TimeMap.EffectTime(timeline) : ToSource(timeline);
+        IsStillImage || TimeMap.Freeze || (timeline >= TimeMap.Start && timeline < TimeMap.End) ? TimeMap.EffectTime(timeline) : ToSource(timeline);
 
     /// <summary>Velocidad en el instante (acotado al clip): negativa en reversa y 0 en un congelado.</summary>
     public double RateAt(Time timeline) => TimeMap.RateAt(timeline);
@@ -277,7 +280,7 @@ internal sealed class VideoClipPlan
     /// <summary>Mismo origen y mismos tiempos: los cuadros que muestra son los mismos.</summary>
     public bool SameMapping(VideoClipPlan other) =>
         ClipId == other.ClipId && Source == other.Source && Start == other.Start && End == other.End && FrameRate == other.FrameRate
-        && SequenceRate == other.SequenceRate && _materialEnd == other._materialEnd && TimeMap.Equals(other.TimeMap);
+        && IsStillImage == other.IsStillImage && SequenceRate == other.SequenceRate && _materialEnd == other._materialEnd && TimeMap.Equals(other.TimeMap);
 
     /// <summary>En reversa: primer instante en que se ve el cuadro <paramref name="index"/> o uno menor.</summary>
     private Time ShownAtReverse(long index)

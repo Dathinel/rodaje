@@ -3,10 +3,11 @@ using System.Text.Json;
 using Rodaje.Module.Raw;
 using Rodaje.Modules.Protocol;
 
-ModuleInfo info = new("modulo-raw", "1.0.0", "RAW de cine",
+ModuleInfo info = new("modulo-raw", "1.1.0", "RAW de cine",
 [
     new FunctionInfo("info", "Tamaño, cámara, balance y cadencia de un cuadro RAW", ReportsProgress: false, Inputs: ["bytes"]),
     new FunctionInfo("revelar", "Revelar cuadros RAW (CinemaDNG) con LibRaw", Inputs: ["bytes"], Outputs: ["video"]),
+    new FunctionInfo("mosaico", "Leer el mosaico de Bayer sin interpolar, para revelarlo en la GPU del editor", Inputs: ["bytes"], Outputs: ["bytes"]),
 ], Device: "cpu");
 
 ModuleHost host = new(info);
@@ -39,6 +40,13 @@ host.Register("info", (call, _) =>
         }
 
         w.WriteEndArray();
+        // bayer: «mosaico» puede dar este cuadro (patrón de 2×2 RGB sin girar); si no, solo «revelar».
+        w.WriteBoolean("bayer", raw.BayerPattern is not null);
+        if (raw.BayerPattern is { } pattern)
+        {
+            w.WriteString("patron", pattern);
+        }
+
         if (rate is { } r)
         {
             w.WriteStartObject("cadencia");
@@ -73,9 +81,7 @@ host.Register("revelar", async (call, ct) =>
     try
     {
         settings = DevelopSettings.Parse(call.Parameters);
-        threads = call.Parameters is { ValueKind: JsonValueKind.Object } p && p.TryGetProperty("hilos", out JsonElement h)
-            ? (h.ValueKind == JsonValueKind.Number && h.TryGetInt32(out int n) && n is >= 1 and <= 64 ? n : throw new ArgumentException("«hilos» va de 1 a 64."))
-            : Environment.ProcessorCount;
+        threads = Threads(call.Parameters);
     }
     catch (ArgumentException ex)
     {
@@ -109,7 +115,99 @@ host.Register("revelar", async (call, ct) =>
     }), [.. buffers.Where((_, i) => i % 2 == 1)]);
 });
 
+// mosaico: pares [archivo, salida] (hasta 8 cuadros), con «ancho» y «alto» (los de «info») en los parámetros y cada salida de
+// ancho × alto × 2 bytes: el mosaico de Bayer con el negro restado, de 16 bits por filas, sin interpolar. Toma «balance» (y
+// «espacio», que solo puede ser rec709) de los mismos parámetros que «revelar»; la exposición y la curva las aplica quien
+// revela. Devuelve por cuadro el patrón, el blanco, los multiplicadores y la matriz (docs/hdr.md, fase D).
+host.Register("mosaico", async (call, ct) =>
+{
+    IReadOnlyList<SharedBufferRef> buffers = call.Buffers;
+    DevelopSettings settings;
+    int width, height, threads;
+    try
+    {
+        settings = DevelopSettings.Parse(call.Parameters);
+        (width, height) = Size(call.Parameters);
+        threads = Threads(call.Parameters);
+    }
+    catch (ArgumentException ex)
+    {
+        throw new ModuleCallException(ErrorCodes.InvalidParameters, ex.Message);
+    }
+
+    long mosaicBytes = (long)width * height * 2;
+    if (buffers.Count is < 2 or > 16 || buffers.Count % 2 != 0
+        || buffers.Where((_, i) => i % 2 == 1).Any(b => b.Video is not null || b.Audio is not null || b.Length < mosaicBytes))
+    {
+        throw new ModuleCallException(ErrorCodes.InvalidParameters,
+            "«mosaico» necesita de 1 a 8 pares [archivo, salida de bytes] con cada salida de ancho × alto × 2 bytes.");
+    }
+
+    int frames = buffers.Count / 2;
+    var infos = new MosaicInfo[frames];
+    var milliseconds = new double[frames];
+    await FrameBatch.RunAsync(frames, threads, (i, token) =>
+    {
+        long start = Stopwatch.GetTimestamp();
+        infos[i] = Guard(() => RawDeveloper.Unpack(call.Map(buffers[i * 2]), settings, call.Map(buffers[(i * 2) + 1]), width, height, token),
+            frames > 1 ? $"Cuadro {i + 1}: " : "");
+        milliseconds[i] = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
+    }, (done, token) => call.ReportProgressAsync((double)done / frames, "Leyendo", token), ct).ConfigureAwait(false);
+
+    return new ModuleOutput(Json(w =>
+    {
+        w.WriteStartArray("cuadros");
+        foreach (MosaicInfo mosaic in infos)
+        {
+            w.WriteStartObject();
+            w.WriteString("patron", mosaic.Pattern);
+            w.WriteNumber("blanco", mosaic.White);
+            w.WriteStartArray("balance");
+            foreach (float m in mosaic.Multipliers)
+            {
+                w.WriteNumberValue(m);
+            }
+
+            w.WriteEndArray();
+            w.WriteStartArray("matriz");
+            foreach (float m in mosaic.Matrix)
+            {
+                w.WriteNumberValue(m);
+            }
+
+            w.WriteEndArray();
+            w.WriteEndObject();
+        }
+
+        w.WriteEndArray();
+        w.WriteStartArray("ms");
+        foreach (double ms in milliseconds)
+        {
+            w.WriteNumberValue(Math.Round(ms, 1));
+        }
+
+        w.WriteEndArray();
+    }), [.. buffers.Where((_, i) => i % 2 == 1)]);
+});
+
 return await host.RunAsync(args).ConfigureAwait(false);
+
+static int Threads(JsonElement? parameters) =>
+    parameters is { ValueKind: JsonValueKind.Object } p && p.TryGetProperty("hilos", out JsonElement h)
+        ? (h.ValueKind == JsonValueKind.Number && h.TryGetInt32(out int n) && n is >= 1 and <= 64 ? n : throw new ArgumentException("«hilos» va de 1 a 64."))
+        : Environment.ProcessorCount;
+
+static (int Width, int Height) Size(JsonElement? parameters)
+{
+    if (parameters is { ValueKind: JsonValueKind.Object } p
+        && p.TryGetProperty("ancho", out JsonElement w) && w.ValueKind == JsonValueKind.Number && w.TryGetInt32(out int width) && width is >= 1 and <= 16_384
+        && p.TryGetProperty("alto", out JsonElement h) && h.ValueKind == JsonValueKind.Number && h.TryGetInt32(out int height) && height is >= 1 and <= 16_384)
+    {
+        return (width, height);
+    }
+
+    throw new ArgumentException("«mosaico» necesita «ancho» y «alto» (de 1 a 16 384), los que dio «info».");
+}
 
 static JsonElement Json(Action<Utf8JsonWriter> body)
 {

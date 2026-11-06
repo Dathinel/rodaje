@@ -33,8 +33,9 @@ public sealed partial class EditorSession
     }
 
     /// <summary>
-    /// Borra los clips seleccionados con sus enlazados. En la pista principal magnética (o con ripple automático) se
-    /// cierra el hueco; en las demás queda. Con una transición seleccionada, borra solo la transición.
+    /// Borra los clips seleccionados con sus enlazados (con «ignorar grupos», solo los seleccionados). En la pista
+    /// principal magnética (o con ripple automático) se cierra el hueco; en las demás queda. Con una transición
+    /// seleccionada, borra solo la transición.
     /// </summary>
     public bool DeleteSelection()
     {
@@ -51,17 +52,51 @@ public sealed partial class EditorSession
             return false;
         }
 
-        List<string> ripple = existing.FindAll(id => ClosesGaps(sequence.GetClip(id).Track));
+        // Un grupo enlazado va entero a un lado (como en DeleteSideOfPlayhead): si el ripple del video borrara también su
+        // audio, el lift de ese audio ya no lo encontraría y se revertiría todo.
+        bool alone = Timeline.IgnoreGroups;
+        List<string> ripple = existing.FindAll(id => alone
+            ? ClosesGaps(sequence.GetClip(id).Track)
+            : sequence.GetLinkGroup(id).Exists(m => ClosesGaps(m.Track)));
         List<string> lift = existing.FindAll(id => !ripple.Contains(id));
-        var commands = new List<ICommand>(2);
-        if (ripple.Count > 0)
+        if (alone)
         {
-            commands.Add(Edits.RippleDelete(SequenceId, ripple, Timeline.RippleScope, _ids));
+            RippleScope scope = Timeline.RippleScope;
+            bool removed = Execute(new SequenceEditCommand("Borrar", SequenceId, ctx =>
+            {
+                // Sin su enlace, Lift y RippleDelete no suman la pareja, que se queda con el suyo.
+                foreach (string id in existing)
+                {
+                    ctx.Sequence.GetClip(id).Clip.LinkId = null;
+                }
+
+                if (lift.Count > 0)
+                {
+                    TimelineEdits.Lift(ctx, lift);
+                }
+
+                if (ripple.Count > 0)
+                {
+                    TimelineEdits.RippleDelete(ctx, ripple, scope);
+                }
+            }, _ids));
+            if (removed)
+            {
+                ClearSelection();
+            }
+
+            return removed;
         }
 
+        var commands = new List<ICommand>(2);
         if (lift.Count > 0)
         {
             commands.Add(Edits.Lift(SequenceId, lift, _ids));
+        }
+
+        if (ripple.Count > 0)
+        {
+            commands.Add(Edits.RippleDelete(SequenceId, ripple, Timeline.RippleScope, _ids));
         }
 
         bool done = commands.Count == 1 ? Execute(commands[0]) : Execute(new CompositeCommand("Borrar", commands));
@@ -88,7 +123,14 @@ public sealed partial class EditorSession
         Sequence sequence = Sequence;
         if (_selection.Count > 0)
         {
-            return _selection.FindAll(id => sequence.FindClip(id) is { } found && found.Clip.Start < at && at < found.Clip.End);
+            List<string> selected = _selection.FindAll(id => sequence.FindClip(id) is { } found && found.Clip.Start < at && at < found.Clip.End);
+            if (selected.Count == 0)
+            {
+                Notify(NotificationSeverity.Informational, "Ningún clip seleccionado pasa por el cursor",
+                    "Selecciona el clip que está bajo el cursor, o quita la selección para usar el de la pista principal.");
+            }
+
+            return selected;
         }
 
         return MainTrack?.ClipAt(at) is { } clip && clip.Start < at ? [clip.Id] : [];

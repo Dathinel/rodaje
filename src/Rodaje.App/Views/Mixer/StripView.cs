@@ -20,7 +20,8 @@ internal interface IStripHost
 
     void SetBypassed(string effectId, bool bypassed);
 
-    void FaderStarted(MixerStrip strip, string parameter);
+    /// <param name="nudge">Un cambio suelto (rueda, flechas, doble clic), no un arrastre.</param>
+    void FaderStarted(MixerStrip strip, string parameter, bool nudge);
 
     void FaderChanging(MixerStrip strip, string parameter, double value);
 
@@ -537,7 +538,7 @@ internal sealed partial class StripView : UserControl
 
     private void Hook(DragControl control, string parameter)
     {
-        control.DragStarted += (_, _) => _host.FaderStarted(Strip, parameter);
+        control.DragStarted += (_, _) => _host.FaderStarted(Strip, parameter, nudge: !control.IsDragging);
         control.ValueChanging += (_, value) =>
         {
             _host.FaderChanging(Strip, parameter, value);

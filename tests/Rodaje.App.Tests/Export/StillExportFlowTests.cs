@@ -164,7 +164,7 @@ public sealed class StillExportFlowTests
         Assert.False(h.Flow.IsRunning);
         EditorNotification done = h.Last(Exported);
         Assert.Equal(NotificationSeverity.Success, done.Severity);
-        Assert.Contains("Cuadro 15", done.Message, StringComparison.Ordinal);
+        Assert.Contains("Fotograma 15", done.Message, StringComparison.Ordinal);
         Assert.Contains("cuadro.png", done.Message, StringComparison.Ordinal);
     }
 

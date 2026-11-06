@@ -227,11 +227,14 @@ public sealed class MixerTests(ITestOutputHelper output) : IDisposable
 
         Time length = S(3);
         IPcmSource Open(string path) => new FunctionPcm(sources(path), 30L * Rate);
+        var exportWatch = System.Diagnostics.Stopwatch.StartNew();
         using var audio = new OfflineAudio(b.Project, sequence.Id, @"C:\proyecto", new Backend(Open));
         string path = Path.Combine(_folder, "exportado.wav");
         audio.WriteWave(path, Time.Zero, length, ExportAudioFormat.Default, 0, null, CancellationToken.None);
         float[] exported = ReadFloatWave(path);
+        exportWatch.Stop();
 
+        var previewWatch = System.Diagnostics.Stopwatch.StartNew();
         using var mixer = new AudioMixer(b.Plan().Audio, Open, TimeSpan.FromMilliseconds(500), TimeSpan.FromSeconds(5), TimeProvider.System);
         float[] preview = new float[exported.Length];
         int done = 0;
@@ -239,7 +242,12 @@ public sealed class MixerTests(ITestOutputHelper output) : IDisposable
         for (int n = 0; done < preview.Length / 2; n++)
         {
             int frames = Math.Min(sizes[n % sizes.Length], (preview.Length / 2) - done);
-            WaitFor(() => mixer.BufferedFrames >= frames);
+            WaitFor(
+                () => mixer.BufferedFrames >= frames || mixer.Errors > 0,
+                () => $"lectura {n} (hechos {done} de {preview.Length / 2}): {mixer.BufferedFrames} de {frames} cuadros listos, "
+                    + $"{mixer.Errors} errores, {mixer.Underruns} faltas; exportar tardó {exportWatch.Elapsed.TotalSeconds:0.##} s y la vista previa lleva "
+                    + $"{previewWatch.Elapsed.TotalSeconds:0.##} s.{Environment.NewLine}Pilas de los hilos:{Environment.NewLine}{ThreadDump.Capture(new Dictionary<int, string>())}");
+            Assert.Equal(0, mixer.Errors);
             Assert.Equal(frames, mixer.Read(preview.AsSpan(2 * done, 2 * frames)));
             done += frames;
             if (n is 25 or 110)
@@ -376,12 +384,23 @@ public sealed class MixerTests(ITestOutputHelper output) : IDisposable
         return all;
     }
 
-    private static void WaitFor(Func<bool> condition)
+    private static void WaitFor(Func<bool> condition, Func<string>? state = null)
     {
         var watch = System.Diagnostics.Stopwatch.StartNew();
+        TimeSpan looked = TimeSpan.Zero;
+        TimeSpan widestGap = TimeSpan.Zero;
+        int polls = 0;
         while (!condition())
         {
-            Assert.True(watch.Elapsed < TimeSpan.FromSeconds(10), "La mezcla no llegó a tiempo.");
+            TimeSpan now = watch.Elapsed;
+            widestGap = now - looked > widestGap ? now - looked : widestGap;
+            looked = now;
+            polls++;
+            if (now >= TimeSpan.FromSeconds(10))
+            {
+                Assert.Fail($"La mezcla no llegó a tiempo ({now.TotalSeconds:0.##} s, {polls} miradas, hueco máximo {widestGap.TotalSeconds:0.##} s). {state?.Invoke()}");
+            }
+
             Thread.Sleep(1);
         }
     }

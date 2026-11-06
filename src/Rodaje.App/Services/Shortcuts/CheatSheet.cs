@@ -2,9 +2,6 @@ using System.Text;
 
 namespace Rodaje.App.Services.Shortcuts;
 
-/// <summary>Una línea de la hoja rápida.</summary>
-public sealed record CheatSheetEntry(string ActionId, string Label, string Group, IReadOnlyList<string> Keys);
-
 /// <summary>
 /// La hoja rápida: los atajos más útiles del estilo actual, para tenerlos a mano o imprimirlos. Sale en la página de
 /// atajos y se exporta como HTML (imprimible) o PNG.
@@ -75,6 +72,16 @@ public static class CheatSheet
     public static string ToHtml(IReadOnlyList<CheatSheetEntry> entries, string title, string subtitle)
     {
         ArgumentNullException.ThrowIfNull(entries);
+        return ToHtml(title, subtitle, [(null, entries)]);
+    }
+
+    /// <summary>
+    /// La misma página con una sección por grupo: un <c>&lt;h2&gt;</c> con el nombre (si lo tiene) y su lista. La hoja
+    /// completa de Ayuda (<see cref="ShortcutGuide.ToHtml"/>) la usa con un grupo por sección.
+    /// </summary>
+    public static string ToHtml(string title, string subtitle, IEnumerable<(string? Heading, IReadOnlyList<CheatSheetEntry> Entries)> sections)
+    {
+        ArgumentNullException.ThrowIfNull(sections);
         var html = new StringBuilder();
         html.Append("""
             <!doctype html>
@@ -90,39 +97,42 @@ public static class CheatSheet
               @media (prefers-color-scheme: dark) { :root { --bg: #141414; --text: #d8d8d8; --muted: #9a9a9a; --line: #2e2e2e; --key: #232323; --accent: #e8833a; } }
               @media print { :root { --bg: #ffffff; --text: #000000; --muted: #444444; --line: #bbbbbb; --key: #f3f3f3; --accent: #000000; } }
               * { box-sizing: border-box; }
-              body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--text); font: 14px/1.4 "Segoe UI", system-ui, sans-serif; }
-              main { max-width: 860px; margin: 0 auto; }
+              body { margin: 0; padding: 24px 16px; background: var(--bg); color: var(--text); font: 13px/1.4 "Segoe UI", system-ui, sans-serif; }
+              main { max-width: 900px; margin: 0 auto; }
               h1 { margin: 0; font-size: 20px; }
-              p.sub { margin: 4px 0 20px; color: var(--muted); }
-              ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 0 24px; }
-              li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); break-inside: avoid; }
+              h2 { margin: 20px 0 6px; font-size: 14px; color: var(--accent); break-after: avoid; }
+              p.sub { margin: 4px 0 12px; color: var(--muted); }
+              ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0 24px; }
+              li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 6px 0; border-bottom: 1px solid var(--line); break-inside: avoid; }
               .keys { display: flex; gap: 4px; flex-wrap: wrap; justify-content: flex-end; }
-              kbd { font: 600 12px/1 "Segoe UI", system-ui, sans-serif; padding: 4px 7px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; background: var(--key); white-space: nowrap; }
-              @page { margin: 14mm; }
+              kbd { font: 600 11px/1 "Segoe UI", system-ui, sans-serif; padding: 3px 6px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; background: var(--key); white-space: nowrap; }
+              @page { margin: 12mm; }
             </style>
             </head>
             <body>
             <main>
             """);
         html.Append("<h1>").Append(Encode(title)).Append("</h1>\n");
-        html.Append("<p class=\"sub\">").Append(Encode(subtitle)).Append("</p>\n<ol>\n");
-        foreach (CheatSheetEntry entry in entries)
+        html.Append("<p class=\"sub\">").Append(Encode(subtitle)).Append("</p>\n");
+        foreach ((string? heading, IReadOnlyList<CheatSheetEntry> entries) in sections)
         {
-            html.Append("  <li><span>").Append(Encode(entry.Label)).Append("</span><span class=\"keys\">");
-            for (int i = 0; i < entry.Keys.Count; i++)
+            if (heading is not null)
             {
-                if (i > 0)
-                {
-                    html.Append(' ');
-                }
-
-                html.Append("<kbd>").Append(Encode(entry.Keys[i])).Append("</kbd>");
+                html.Append("<h2>").Append(Encode(heading)).Append("</h2>\n");
             }
 
-            html.Append("</span></li>\n");
+            html.Append("<ol>\n");
+            foreach (CheatSheetEntry entry in entries)
+            {
+                html.Append("  <li><span>").Append(Encode(entry.Label)).Append("</span><span class=\"keys\">");
+                html.Append(string.Join(' ', entry.Keys.Select(k => "<kbd>" + Encode(k) + "</kbd>")));
+                html.Append("</span></li>\n");
+            }
+
+            html.Append("</ol>\n");
         }
 
-        html.Append("</ol>\n</main>\n</body>\n</html>\n");
+        html.Append("</main>\n</body>\n</html>\n");
         return html.ToString();
     }
 

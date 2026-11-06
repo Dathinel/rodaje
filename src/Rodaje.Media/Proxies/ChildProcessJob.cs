@@ -8,7 +8,7 @@ namespace Rodaje.Media.Proxies;
 /// Objeto de trabajo de Windows con <c>KILL_ON_JOB_CLOSE</c>: si Rodaje termina de golpe, Windows cierra el
 /// trabajo y mata los <c>ffmpeg.exe</c> que quedaron dentro, en vez de dejarlos escribiendo proxies huérfanos.
 /// </summary>
-internal static unsafe class ChildProcessJob
+public static unsafe class ChildProcessJob
 {
     // JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE de winnt.h (TerraFX no la declara).
     private const uint JobObjectLimitKillOnJobClose = 0x2000;
@@ -18,6 +18,7 @@ internal static unsafe class ChildProcessJob
     /// <summary>Mete el proceso en el trabajo; si Windows no lo permite, el proceso sigue igual sin esa garantía.</summary>
     public static bool TryAssign(Process process)
     {
+        ArgumentNullException.ThrowIfNull(process);
         nint job = Job.Value;
         return job != 0 && AssignProcessToJobObject((HANDLE)job, (HANDLE)process.Handle) != 0;
     }

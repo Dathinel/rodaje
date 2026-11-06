@@ -21,12 +21,12 @@ namespace Rodaje.App.Views.Timeline;
 /// <summary>Acciones que registra la línea de tiempo (además de las del armazón).</summary>
 internal static class TimelineActionIds
 {
-    public const string AutoCrossfade = "timeline.autoCrossfade";
-    public const string LockEnvelopes = "timeline.lockEnvelopes";
-    public const string IgnoreGroups = "timeline.ignoreGroups";
-    public const string CreateCompound = "edit.compound";
-    public const string DecomposeCompound = "edit.decompose";
-    public const string LeaveCompound = "timeline.leaveCompound";
+    public const string AutoCrossfade = TimelineShortcuts.AutoCrossfade;
+    public const string LockEnvelopes = TimelineShortcuts.LockEnvelopes;
+    public const string IgnoreGroups = TimelineShortcuts.IgnoreGroups;
+    public const string CreateCompound = TimelineShortcuts.CreateCompound;
+    public const string DecomposeCompound = TimelineShortcuts.DecomposeCompound;
+    public const string LeaveCompound = TimelineShortcuts.LeaveCompound;
 }
 
 /// <summary>
@@ -45,6 +45,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     private EditorServices? _services;
     private IClipVisuals? _visuals;
     private bool _renderQueued;
+    private readonly HashSet<string> _dirtyMedia = new(StringComparer.Ordinal);
     private bool _syncingBars;
     private bool _syncingZoom;
     private double? _zoomAnchor;
@@ -56,10 +57,14 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     private ViewFrame _zoomFrom;
     private ViewFrame _zoomTo;
     private ViewFrame _zoomLast;
+    private Time _shownDuration;
+    private bool _fitPending;
+    private ViewFrame? _fitted;
 
     public TimelineView()
     {
         InitializeComponent();
+        SizeChanged += OnTimelineViewSizeChanged;
         Unloaded += OnUnloaded;
     }
 
@@ -95,6 +100,9 @@ internal sealed partial class TimelineView : UserControl, IEditorView
 
     internal TimelineRenderer? Renderer => _renderer;
 
+    /// <summary>El desplegable de herramientas rápidas de la barra, para la autoprueba.</summary>
+    internal Tools.ToolsBar QuickToolsMenu => QuickToolsBar;
+
     internal EditorServices? Services => _services;
 
     /// <summary>Rearmar en cada paso del zoom en vez de estirar lo dibujado (para medir).</summary>
@@ -118,6 +126,11 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _headers.HeightChanging += OnTrackHeightChanging;
         _headers.HeightCommitted += _ => OnTrackGainCommitted("");
         _headers.CloseGapsRequested += trackId => Session?.CloseAllGaps([trackId]);
+        _headers.TrackSelected += OnTrackHeaderSelected;
+        _headers.DeleteRequested += DeleteTrack;
+        _headers.StepRequested += (trackId, up) => Session?.StepTrack(trackId, up);
+        _headers.ReorderRequested += (trackId, index) => Session?.ReorderTrack(trackId, index);
+        _headers.CanStep = (trackId, up) => Session is { } s && Rodaje.Core.Editing.TimelineEdits.CanStepTrack(s.Sequence, trackId, up);
         _headers.SubtitleTrackRequested += () => Session?.AddSubtitleTrack();
         _headers.SubtitleRoleRequested += (trackId, subtitles) => Session?.SetSubtitleRole(trackId, subtitles);
         _headers.VoiceOverRequested += trackId => Voice.VoiceCommands.RecordVoiceOver(services, trackId);
@@ -145,6 +158,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         Viewport.PixelsPerSecond = State.PixelsPerSecond;
 
         RegisterActions(services);
+        QuickToolsBar.Attach(services);
         Views.Shortcuts.MouseShortcutHost.Attach(this, MouseContext.Timeline, services);
         services.ShortcutRegistry.Changed += (_, _) => UpdateTooltips();
         Session.ProjectOpened += (_, _) => OnProjectOpened();
@@ -152,6 +166,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         Session.SelectionChanged += (_, _) => OnSelectionChanged();
         Session.TransportChanged += (_, _) => OnTransportChanged();
         State.PropertyChanged += OnStateChanged;
+        Theme.ThemeResources.ThemeChanged += (_, _) => OnThemeChanged();
 
         LanesHost.SizeChanged += (_, _) => OnLanesResized();
         RulerCanvas.SizeChanged += (_, _) => ClipToBounds(RulerCanvas);
@@ -164,6 +179,9 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         {
             KeepOffFocus(button);
         }
+
+        KeepOffFocus(MoreActionsButton);
+        UpdateToolbarOverflow(ActualWidth);
 
         UpdateToolbar();
         UpdateTooltips();
@@ -199,6 +217,11 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     /// <summary>Pide un dibujo para el próximo cuadro (varios pedidos en el mismo cuadro se juntan).</summary>
     internal void Invalidate(bool content = false)
     {
+        if (_renderer is not null && State.ScrollX != Viewport.ScrollX)
+        {
+            State.ScrollX = Viewport.ScrollX;
+        }
+
         if (content)
         {
             _renderer?.InvalidateContent();
@@ -218,6 +241,13 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         {
             return;
         }
+
+        foreach (string mediaId in _dirtyMedia)
+        {
+            _renderer.RefreshMedia(mediaId);
+        }
+
+        _dirtyMedia.Clear();
 
         UpdateScrollBars();
         _renderer.Render(Scene(), _overlay);
@@ -269,6 +299,19 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         };
     }
 
+    // Se guardó (o se canceló) Preferencias: el tamaño del texto de la línea de tiempo se aplica a lo ya dibujado, sin
+    // esperar a que cambie el proyecto; las cabeceras se rearman solo si su firma cambió.
+    private void OnThemeChanged()
+    {
+        if (Session is null || _renderer is null)
+        {
+            return;
+        }
+
+        _renderer.RefreshFonts();
+        RebuildLayout();
+    }
+
     private void RebuildLayout()
     {
         EditorSession session = Session!;
@@ -276,6 +319,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _renderer!.Layout = layout;
         _headers!.Update(layout, State.MagneticMainTrack, HeadersCanvas.ActualWidth > 0 ? HeadersCanvas.ActualWidth : 172);
         _headers.RefreshGains(track => EnvelopeEdits.TrackGainDb(track, session.ProgramPosition), layout);
+        _shownDuration = session.Sequence.Duration;
         int clips = session.Sequence.AllTracks.Sum(t => t.Clips.Count);
         SummaryText.Text = string.Create(CultureInfo.InvariantCulture, $"{clips} clip{(clips == 1 ? "" : "s")} · {Timecode.Format(session.Sequence.Duration)}");
         Invalidate(content: true);
@@ -290,6 +334,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _headers!.ScrollY = 0;
         RebuildLayout();
         RefreshContextBar();
+        FitToSequence();
     }
 
     private void OnProjectEdited(object? sender, ProjectEditedEventArgs e)
@@ -305,14 +350,83 @@ internal sealed partial class TimelineView : UserControl, IEditorView
             AbortPointerGesture();
         }
 
+        bool fit = ZoomFit.FitsAfterEdit(_shownDuration, Session!.Sequence.Duration);
         RebuildLayout();
         RefreshContextBar();
+        if (fit)
+        {
+            FitToSequence();
+        }
     }
 
-    private void OnSelectionChanged() => Invalidate(content: true);
+    /// <summary>
+    /// Toda la secuencia a la vista, sin animación (al abrir un proyecto o con su primer clip); si las pistas todavía no
+    /// tienen ancho, al tenerlo. Una secuencia vacía deja el zoom como estaba.
+    /// </summary>
+    private void FitToSequence()
+    {
+        Time duration = Session!.Sequence.Duration;
+        _fitPending = duration > Time.Zero && Viewport.Width <= 0;
+        if (duration <= Time.Zero || _fitPending)
+        {
+            return;
+        }
 
+        StopZoomAnimation();
+        ViewFrame frame = ZoomFit.Whole(duration, Viewport.Width);
+        Viewport.PixelsPerSecond = frame.PixelsPerSecond;
+        Viewport.ScrollX = frame.ScrollX;
+        _syncingZoom = true;
+        State.PixelsPerSecond = Viewport.PixelsPerSecond;
+        _syncingZoom = false;
+        SyncZoomSlider();
+        _fitted = new ViewFrame(Viewport.PixelsPerSecond, Viewport.ScrollX);
+        Invalidate();
+    }
+
+    private void OnSelectionChanged()
+    {
+        if (Session is { } session && (session.SelectedClipIds.Count > 0 || session.SelectedTransitionId is not null))
+        {
+            _headers?.Select(null);
+        }
+
+        Invalidate(content: true);
+    }
+
+    private void OnTrackHeaderSelected(string trackId)
+    {
+        TakeKeyboardFocus(FocusState.Pointer);
+        Session?.ClearSelection();
+        _headers?.Select(trackId);
+    }
+
+    private void DeleteTrack(string trackId)
+    {
+        if (Session is { } session)
+        {
+            UiTask.Run(session.DeleteTrackAsync(trackId));
+        }
+    }
+
+    /// <summary>
+    /// Supr con una cabecera seleccionada, la línea de tiempo con el foco y ningún clip ni transición: eliminar esa pista
+    /// (no la principal). Con el foco en otro panel, Supr no borra una pista que se tocó hace rato.
+    /// </summary>
+    private bool CanDeleteSelectedTrack() =>
+        FocusState != FocusState.Unfocused && Session is { } session && _headers?.SelectedTrackId is { } trackId
+        && session.SelectedClipIds.Count == 0 && session.SelectedTransitionId is null
+        && session.Sequence.FindTrack(trackId) is { Locked: false } track
+        && !Rodaje.Core.Editing.TimelineEdits.IsMainTrack(session.Sequence, track);
+
+    // Se anota el medio y se redibuja en el próximo cuadro, una vez por medio aunque lleguen muchas miniaturas: solo sus
+    // clips armados, sin rearmar la ventana ni tocar los demás (ni sus ondas).
     private void OnVisualsChanged(object? sender, ClipVisualsChangedEventArgs e) =>
-        DispatcherQueue.RunLater(() => Invalidate(content: true));
+        DispatcherQueue.RunLater(() =>
+        {
+            _dirtyMedia.Add(e.MediaId);
+            Invalidate();
+        });
 
     private void OnTransportChanged()
     {
@@ -346,6 +460,10 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _services!.Settings.Current.Timeline.CopyFrom(State);
         switch (e.PropertyName)
         {
+            case nameof(TimelineState.ScrollX):
+                Viewport.ScrollX = State.ScrollX;
+                Invalidate();
+                break;
             case nameof(TimelineState.PixelsPerSecond):
                 if (!_syncingZoom)
                 {
@@ -416,6 +534,12 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         Viewport.Width = LanesHost.ActualWidth;
         _renderer!.LanesHeight = LanesHost.ActualHeight;
         Viewport.ClampScroll(Session!.Sequence.Duration);
+        // Ajustada sola y sin tocar después: al cambiar el ancho sigue mostrando toda la secuencia.
+        if (_fitPending || _fitted == new ViewFrame(Viewport.PixelsPerSecond, Viewport.ScrollX))
+        {
+            FitToSequence();
+        }
+
         Invalidate();
     }
 
@@ -501,10 +625,9 @@ internal sealed partial class TimelineView : UserControl, IEditorView
 
     private void RegisterActions(EditorServices services)
     {
-        ShortcutRegistry registry = services.ShortcutRegistry;
-        registry.Register(new ShortcutAction(TimelineActionIds.AutoCrossfade, "Fundido cruzado automático", ShortcutGroups.Timeline, []) { ShortLabel = "Fundido auto", Description = "Fundido cruzado en cada corte entre clips pegados de la pista principal." });
-        registry.Register(new ShortcutAction(TimelineActionIds.LockEnvelopes, "Bloquear envolventes", ShortcutGroups.Timeline, []) { ShortLabel = "Bloq. envolv.", Description = "Las envolventes viajan con su clip y no se editan por accidente." });
-        registry.Register(new ShortcutAction(TimelineActionIds.IgnoreGroups, "Ignorar grupos", ShortcutGroups.Timeline, []) { ShortLabel = "Sin grupos", Description = "Mover y recortar solo el clip agarrado, sin su audio o video enlazado." });
+        // Todas las acciones de la línea de tiempo (también las de compuestos, tres puntos y organización) vienen del catálogo.
+        services.ShortcutRegistry.RegisterRange(TimelineShortcuts.Catalog);
+        _headers!.KeyText = services.ShortcutRegistry.GetKeyText;
 
         ShortcutRouter router = services.Shortcuts;
         router.Bind(TimelineActionIds.AutoCrossfade, () => State.AutoCrossfade = !State.AutoCrossfade);
@@ -514,6 +637,12 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         router.Bind(ActionIds.AddRegion, AddRegion);
         router.Bind(ActionIds.ZoomToFit, ZoomToFit);
         router.Bind(ActionIds.ZoomToSelection, ZoomToSelection, () => Session is not null && SelectionSpan() is not null);
+        router.Bind(ActionIds.Delete, () => DeleteTrack(_headers!.SelectedTrackId!), CanDeleteSelectedTrack);
+        router.Bind(TimelineShortcuts.MuteTrack, () => ToggleSelectedTrack(TrackToggle.Muted), () => SelectedTrack() is not null);
+        router.Bind(TimelineShortcuts.SoloTrack, () => ToggleSelectedTrack(TrackToggle.Solo), () => SelectedTrack() is { Kind: TrackKind.Audio });
+        router.Bind(TimelineShortcuts.LockTrack, () => ToggleSelectedTrack(TrackToggle.Locked), () => SelectedTrack() is not null);
+        router.Bind(TimelineShortcuts.FadeInToCursor, () => Session!.FadeToPlayhead(FadeHandle.In), () => Session?.SelectedClipIds.Count > 0);
+        router.Bind(TimelineShortcuts.FadeOutFromCursor, () => Session!.FadeToPlayhead(FadeHandle.Out), () => Session?.SelectedClipIds.Count > 0);
         RegisterCompoundActions(services);
         RegisterProActions(services);
         RegisterThreePointActions(services);
@@ -539,7 +668,7 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         }
     }
 
-    /// <summary>«Ajustar a la ventana»: toda la secuencia visible, con una animación corta.</summary>
+    /// <summary>«Ajustar a la secuencia»: toda la secuencia visible, con una animación corta.</summary>
     private void ZoomToFit() => AnimateZoom(ZoomFit.Whole(Session!.Sequence.Duration, Viewport.Width));
 
     /// <summary>«Zoom a la selección»: los clips seleccionados (o el tramo marcado) llenan la vista.</summary>
@@ -630,12 +759,32 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         {
             TrackToggle.Hidden => Edits.SetTrackState(session.SequenceId, trackId, hidden: !track.Hidden),
             TrackToggle.Muted => Edits.SetTrackState(session.SequenceId, trackId, muted: !track.Muted),
+            TrackToggle.Solo => Edits.SetTrackMix(session.SequenceId, trackId, solo: !track.Solo),
+            TrackToggle.SoloExclusive => Edits.SoloExclusive(session.SequenceId, trackId),
             _ => Edits.SetTrackState(session.SequenceId, trackId, locked: !track.Locked),
         });
 
         // Si el comando no se pudo (por ejemplo, ocultar una pista bloqueada), el botón vuelve a su estado.
         RebuildLayout();
         TakeKeyboardFocus();
+    }
+
+    /// <summary>La pista cuya cabecera está elegida (clic en ella), si sigue en la secuencia.</summary>
+    private Track? SelectedTrack() =>
+        Session is { } session && _headers?.SelectedTrackId is { } trackId ? session.Sequence.FindTrack(trackId) : null;
+
+    /// <summary>
+    /// Desde el teclado, sobre la pista elegida: silenciar (en una de video, ocultar), solo o bloquear, igual que los
+    /// botones de su cabecera.
+    /// </summary>
+    private void ToggleSelectedTrack(TrackToggle toggle)
+    {
+        if (SelectedTrack() is not { } track)
+        {
+            return;
+        }
+
+        OnTrackToggled(track.Id, toggle == TrackToggle.Muted && track.Kind == TrackKind.Video ? TrackToggle.Hidden : toggle);
     }
 
     private void OnTrackGainChanging(string trackId, double gainDb)
@@ -697,11 +846,22 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         (ZoomSelectionButton, ActionIds.ZoomToSelection),
     ];
 
+    private (MenuFlyoutItem Item, string ActionId)[] FlyoutItems() =>
+    [
+        (AddMarkerMenuItem, ActionIds.AddMarker),
+        (AddRegionMenuItem, ActionIds.AddRegion),
+        (CrossfadeMenuItem, TimelineActionIds.AutoCrossfade),
+        (LockEnvelopesMenuItem, TimelineActionIds.LockEnvelopes),
+        (IgnoreGroupsMenuItem, TimelineActionIds.IgnoreGroups),
+    ];
+
     private void OnToolClick(object sender, RoutedEventArgs e) => InvokeFor(sender, ToolButtons());
 
     private void OnToggleClick(object sender, RoutedEventArgs e) => InvokeFor(sender, ToggleButtons());
 
     private void OnActionClick(object sender, RoutedEventArgs e) => InvokeFor(sender, ActionButtons());
+
+    private void OnFlyoutClick(object sender, RoutedEventArgs e) => InvokeFor(sender, FlyoutItems());
 
     private void InvokeFor<T>(object sender, (T Button, string ActionId)[] map)
         where T : class
@@ -757,8 +917,14 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         CrossfadeButton.IsChecked = state.AutoCrossfade;
         LockEnvelopesButton.IsChecked = state.LockEnvelopes;
         IgnoreGroupsButton.IsChecked = state.IgnoreGroups;
+        CrossfadeMenuItem.IsChecked = state.AutoCrossfade;
+        LockEnvelopesMenuItem.IsChecked = state.LockEnvelopes;
+        IgnoreGroupsMenuItem.IsChecked = state.IgnoreGroups;
         GapBehaviorBox.SelectedIndex = (int)state.GapBehavior;
         RippleModeBox.SelectedIndex = (int)state.RippleMode;
+        // Con la barra plegada el texto elegido se corta: la ayuda lo dice entero.
+        ToolTipService.SetToolTip(GapBehaviorBox, $"{(GapBehaviorBox.SelectedItem as ComboBoxItem)?.Content as string}. Qué hacen Supr, el recorte y el arrastre si queda un hueco");
+        ToolTipService.SetToolTip(RippleModeBox, $"{(RippleModeBox.SelectedItem as ComboBoxItem)?.Content as string}. Qué pistas, marcadores y regiones se desplazan cuando el modo activo usa ripple");
     }
 
     private void UpdateTooltips()
@@ -774,9 +940,36 @@ internal sealed partial class TimelineView : UserControl, IEditorView
             ToolTipService.SetToolTip(button, Tip(registry, id));
         }
 
-        ToolTipService.SetToolTip(GapBehaviorBox, "Qué hacen Supr, el recorte y el arrastre si queda un hueco");
-        ToolTipService.SetToolTip(RippleModeBox, "Qué pistas, marcadores y regiones se desplazan cuando el modo activo usa ripple");
+        foreach ((MenuFlyoutItem item, string id) in FlyoutItems())
+        {
+            item.Text = registry.Find(id)?.Label ?? id;
+        }
+
         ToolTipService.SetToolTip(ZoomSlider, "Zoom (Ctrl+rueda sobre las pistas)");
+    }
+
+    private void OnTimelineViewSizeChanged(object sender, SizeChangedEventArgs e) => UpdateToolbarOverflow(e.NewSize.Width);
+
+    internal void UpdateToolbarOverflow(double availableWidth)
+    {
+        Logic.ToolbarLayoutState layout = Logic.TimelineToolbarOverflow.Calculate(availableWidth);
+
+        MarkerButton.Visibility = layout.ShowDirectMarkers ? Visibility.Visible : Visibility.Collapsed;
+        RegionButton.Visibility = layout.ShowDirectMarkers ? Visibility.Visible : Visibility.Collapsed;
+        MarkersSeparator.Visibility = layout.ShowDirectMarkers ? Visibility.Visible : Visibility.Collapsed;
+        MoreActionsButton.Visibility = layout.ShowMoreButton ? Visibility.Visible : Visibility.Collapsed;
+
+        GapBehaviorBox.Width = layout.GapBoxWidth;
+        RippleModeBox.Width = layout.RippleBoxWidth;
+
+        CrossfadeButton.Visibility = layout.ShowDirectSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
+        LockEnvelopesButton.Visibility = layout.ShowDirectSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
+        IgnoreGroupsButton.Visibility = layout.ShowDirectSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
+
+        MoreFlyoutSeparator.Visibility = layout.ShowFlyoutSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
+        CrossfadeMenuItem.Visibility = layout.ShowFlyoutSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
+        LockEnvelopesMenuItem.Visibility = layout.ShowFlyoutSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
+        IgnoreGroupsMenuItem.Visibility = layout.ShowFlyoutSecondaryToggles ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private static string Tip(ShortcutRegistry registry, string actionId)

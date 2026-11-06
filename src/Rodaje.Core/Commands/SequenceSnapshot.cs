@@ -17,6 +17,7 @@ public sealed class SequenceSnapshot
     private readonly int _height;
     private readonly int _sampleRate;
     private readonly double _masterGainDb;
+    private readonly SequenceColorSpace _colorSpace;
     private readonly EffectInstance[] _masterEffects;
     private readonly AudioBus[] _audioBuses;
     private readonly TrackEntry[] _videoTracks;
@@ -24,7 +25,7 @@ public sealed class SequenceSnapshot
     private readonly Marker[] _markers;
     private readonly Region[] _regions;
 
-    private SequenceSnapshot(Sequence sequence)
+    private SequenceSnapshot(Sequence sequence, SequenceSnapshot? previous)
     {
         _id = sequence.Id;
         _name = sequence.Name;
@@ -33,10 +34,11 @@ public sealed class SequenceSnapshot
         _height = sequence.Height;
         _sampleRate = sequence.SampleRate;
         _masterGainDb = sequence.MasterGainDb;
+        _colorSpace = sequence.ColorSpace;
         _masterEffects = [.. sequence.MasterEffects.Select(e => e.Clone())];
         _audioBuses = [.. sequence.AudioBuses.Select(b => b.Clone())];
-        _videoTracks = [.. sequence.VideoTracks.Select(t => new TrackEntry(t, t.Clone()))];
-        _audioTracks = [.. sequence.AudioTracks.Select(t => new TrackEntry(t, t.Clone()))];
+        _videoTracks = [.. sequence.VideoTracks.Select(t => Entry(t, previous?._videoTracks))];
+        _audioTracks = [.. sequence.AudioTracks.Select(t => Entry(t, previous?._audioTracks))];
         _markers = [.. sequence.Markers.Select(m => m.Clone())];
         _regions = [.. sequence.Regions.Select(r => r.Clone())];
     }
@@ -47,10 +49,17 @@ public sealed class SequenceSnapshot
 
     internal IReadOnlyList<TrackEntry> AudioTracks => _audioTracks;
 
-    public static SequenceSnapshot Capture(Sequence sequence)
+    public static SequenceSnapshot Capture(Sequence sequence) => Capture(sequence, null);
+
+    /// <summary>
+    /// Como <see cref="Capture(Sequence)"/>, pero lo que sigue igual que en <paramref name="previous"/> (una pista entera o,
+    /// en una que cambió, cada clip y cada transición) comparte su copia en vez de clonarse otra vez: tras una edición,
+    /// solo se copian los clips que tocó.
+    /// </summary>
+    public static SequenceSnapshot Capture(Sequence sequence, SequenceSnapshot? previous)
     {
         ArgumentNullException.ThrowIfNull(sequence);
-        return new SequenceSnapshot(sequence);
+        return new SequenceSnapshot(sequence, previous);
     }
 
     /// <summary>Restaura el estado capturado; se puede llamar cuantas veces haga falta.</summary>
@@ -64,6 +73,7 @@ public sealed class SequenceSnapshot
         sequence.Height = _height;
         sequence.SampleRate = _sampleRate;
         sequence.MasterGainDb = _masterGainDb;
+        sequence.ColorSpace = _colorSpace;
         sequence.MasterEffects = [.. _masterEffects.Select(e => e.Clone())];
         sequence.AudioBuses = [.. _audioBuses.Select(b => b.Clone())];
         RestoreTracks(sequence.VideoTracks, _videoTracks);
@@ -85,6 +95,7 @@ public sealed class SequenceSnapshot
             && sequence.Height == _height
             && sequence.SampleRate == _sampleRate
             && sequence.MasterGainDb.Equals(_masterGainDb)
+            && sequence.ColorSpace == _colorSpace
             && SequenceEqual(sequence.MasterEffects, [.. _masterEffects], EffectStateEquals)
             && SequenceEqual(sequence.AudioBuses, [.. _audioBuses], (a, b) => a.ContentEquals(b))
             && TracksMatch(sequence.VideoTracks, _videoTracks)
@@ -237,6 +248,42 @@ public sealed class SequenceSnapshot
             entry.Track.CopyStateFrom(entry.State);
             target.Add(entry.Track);
         }
+    }
+
+    // Las copias de una instantánea nunca se modifican (restaurar copia de ellas), así que dos pueden compartirlas: una
+    // pista igual entera y, en una que cambió, los clips y transiciones que siguen iguales.
+    private static TrackEntry Entry(Track track, TrackEntry[]? previous)
+    {
+        foreach (TrackEntry entry in previous ?? [])
+        {
+            if (ReferenceEquals(entry.Track, track))
+            {
+                return TrackStateEquals(track, entry.State) ? entry : new TrackEntry(track, CloneSharing(track, entry.State));
+            }
+        }
+
+        return new TrackEntry(track, track.Clone());
+    }
+
+    private static Track CloneSharing(Track track, Track copy)
+    {
+        Dictionary<string, Clip> clips = ById(copy.Clips, c => c.Id);
+        Dictionary<string, TransitionInstance> transitions = ById(copy.Transitions, t => t.Id);
+        return track.Clone(
+            c => clips.TryGetValue(c.Id, out Clip? old) && ClipStateEquals(c, old) ? old : c.Clone(),
+            t => transitions.TryGetValue(t.Id, out TransitionInstance? old) && TransitionStateEquals(t, old) ? old : t.Clone());
+    }
+
+    // TryAdd y no ToDictionary: un id repetido (un modelo a medio editar) no debe romper la captura.
+    private static Dictionary<string, T> ById<T>(List<T> items, Func<T, string> id)
+    {
+        var byId = new Dictionary<string, T>(items.Count);
+        foreach (T item in items)
+        {
+            byId.TryAdd(id(item), item);
+        }
+
+        return byId;
     }
 
     private static bool TracksMatch(List<Track> current, TrackEntry[] entries)

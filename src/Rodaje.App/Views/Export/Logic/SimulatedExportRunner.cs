@@ -94,6 +94,12 @@ public sealed partial class SimulatedExportRunner(IReadOnlyList<EncoderSpec>? en
                     await Task.Delay(step, _cancel.Token).ConfigureAwait(false);
                 }
 
+                if (Request.Settings.Video is { MeasureLightLevels: true })
+                {
+                    Publish(ExportJobState.MeasuringLight, 0, 0, clock.Elapsed);
+                    await Task.Delay(step, _cancel.Token).ConfigureAwait(false);
+                }
+
                 long perStep = Math.Max(1, (long)(fps * step.TotalSeconds));
                 for (long done = 0; done < total;)
                 {

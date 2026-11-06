@@ -277,7 +277,7 @@ internal sealed partial class TimelineScheduler
     /// </summary>
     private bool CoversFrame(VideoLayerPlan layer, Time time)
     {
-        if (layer.ClipAt(time) is not { } clip || clip.Outgoing?.Covers(time) == true
+        if (layer.ClipAt(time) is not { } clip || clip.IsStillImage || clip.Outgoing?.Covers(time) == true
             || layer.Companion?.ClipAt(time) is not null || clip.DisplayWidth <= 0 || clip.DisplayHeight <= 0
             || (long)clip.DisplayWidth * _plan.Height != (long)clip.DisplayHeight * _plan.Width)
         {
@@ -678,7 +678,7 @@ internal sealed partial class TimelineScheduler
     {
         if (!_media.TryGetValue(clip.Source, out MediaState? media))
         {
-            media = new MediaState(_nextId++, clip.Source, clip.FrameRate, clip.DisplayWidth, clip.DisplayHeight);
+            media = new MediaState(_nextId++, clip.Source, clip.FrameRate, clip.DisplayWidth, clip.DisplayHeight) { IsStillImage = clip.IsStillImage };
             (media.PlaybackRate, media.Reverse) = _rates.GetValueOrDefault(clip.Source, (1, false));
             _media.Add(clip.Source, media);
             _mediaById.Add(media.Id, media);

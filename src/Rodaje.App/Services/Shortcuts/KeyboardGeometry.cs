@@ -1,48 +1,6 @@
 namespace Rodaje.App.Services.Shortcuts;
 
 /// <summary>
-/// La distribución de teclado activa: qué tecla virtual da cada tecla física y qué carácter lleva impreso. En la app la
-/// da Windows (<c>MapVirtualKeyEx</c> con la distribución del hilo); en las pruebas, una tabla.
-/// </summary>
-public interface IKeyboardLayout
-{
-    /// <summary>Código virtual de la tecla física con ese código de exploración (con 0xE000 si es extendida), o 0.</summary>
-    int VirtualKeyFromScanCode(int scanCode);
-
-    /// <summary>El carácter que escribe la tecla sin modificadores, o <c>null</c> si no escribe ninguno.</summary>
-    char? CharacterOf(int virtualKey);
-}
-
-/// <summary>Una tecla dibujada del teclado, en unidades de tecla (1 = una letra).</summary>
-/// <param name="ScanCode">Código de exploración (0xE0xx si es extendida), con el que la distribución da su tecla virtual.</param>
-/// <param name="VirtualKey">Tecla virtual fija (no depende de la distribución), o 0 para pedirla a la distribución.</param>
-/// <param name="Label">Texto fijo («Tab», «Bloq Mayús»), o <c>null</c> para usar el nombre de la tecla.</param>
-/// <param name="Modifier">Si es Ctrl, Mayús o Alt: al pulsarla en el dibujo se ven las combinaciones con ella.</param>
-public sealed record KeyCap(
-    double X,
-    double Y,
-    double Width,
-    double Height,
-    int ScanCode,
-    int VirtualKey = 0,
-    string? Label = null,
-    KeyModifiers Modifier = KeyModifiers.None)
-{
-    /// <summary>No lanza acciones: modificadores, bloqueos y la tecla Windows.</summary>
-    public bool IsInert => Modifier != KeyModifiers.None || VirtualKey is 0x14 or 0x5B or 0x5C or 0x5D or 0x90 or 0xA5;
-}
-
-/// <summary>Lo que muestra una tecla del dibujo: su tecla virtual, su nombre impreso y las acciones que lanza.</summary>
-public sealed record KeyCapState(KeyCap Cap, int VirtualKey, string Label, IReadOnlyList<KeyBinding> Bindings)
-{
-    /// <summary>La acción que lanza con exactamente esos modificadores, o <c>null</c>.</summary>
-    public KeyBinding? For(KeyModifiers modifiers) => Bindings.FirstOrDefault(b => b.Chord.Modifiers == modifiers);
-}
-
-/// <summary>Una combinación y la acción que la usa.</summary>
-public sealed record KeyBinding(KeyChord Chord, ShortcutAction Action);
-
-/// <summary>
 /// El teclado español (ISO, 105 teclas) dibujado en unidades de tecla: bloque principal, flechas y bloque de
 /// edición, y teclado numérico. Las teclas de escribir se identifican por su posición física (código de exploración),
 /// así cada una muestra el carácter de la distribución activa.

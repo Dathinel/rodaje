@@ -1,14 +1,5 @@
 namespace Rodaje.App.Services.Shortcuts;
 
-/// <summary>Qué pasó al asignar una acción a una combinación del ratón.</summary>
-/// <param name="Changed">Cambió algo.</param>
-/// <param name="PreviousOwner">La acción que tenía la combinación y la perdió.</param>
-/// <param name="SwappedTo">Dónde quedó <paramref name="PreviousOwner"/> si se intercambiaron.</param>
-public sealed record MouseRebind(bool Changed, string? PreviousOwner, MouseChord? SwappedTo)
-{
-    public static readonly MouseRebind None = new(false, null, null);
-}
-
 /// <summary>
 /// El ratón de cada estilo y zona: una acción por combinación (botón o eje con modificadores). Son las de fábrica de
 /// <see cref="MouseDefaults"/> más los cambios de la persona, que se guardan por estilo como las teclas.
@@ -98,7 +89,7 @@ public sealed class MouseMap
             return $"No hay ninguna acción «{actionId}».";
         }
 
-        return chord.IsAxis ? "La rueda solo hace acciones de rueda (zoom, desplazar, recorrer cuadros); las demás van en los botones." : null;
+        return chord.IsAxis ? "La rueda solo hace acciones de rueda (zoom, desplazar, recorrer fotogramas); las demás van en los botones." : null;
     }
 
     /// <summary>

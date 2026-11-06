@@ -6,8 +6,12 @@ namespace Rodaje.Core.Editing;
 /// <summary>Operaciones de edición que modifican <see cref="EditContext.Sequence"/> en el sitio.</summary>
 public static partial class TimelineEdits
 {
-    /// <summary>Mueve un clip y su grupo enlazado; solo el clip pedido puede cambiar de pista.</summary>
-    public static void Move(EditContext ctx, string clipId, Time newStart, string? targetTrackId, PlacementMode mode)
+    /// <summary>
+    /// Mueve un clip y su grupo enlazado; solo el clip pedido puede cambiar de pista. Con
+    /// <paramref name="relocateLinkedAudio"/>, si el clip de video cambia de pista, el sonido enlazado que chocaría en la suya va a
+    /// <see cref="LinkedAudioTrack"/> en vez de impedir el movimiento o pisar lo que hay.
+    /// </summary>
+    public static void Move(EditContext ctx, string clipId, Time newStart, string? targetTrackId, PlacementMode mode, bool relocateLinkedAudio = false)
     {
         ArgumentNullException.ThrowIfNull(ctx);
         List<(Track Track, Clip Clip)> group = TrackOps.ResolveLinkGroup(ctx, clipId);
@@ -54,6 +58,11 @@ public static partial class TimelineEdits
         }
 
         var moving = new HashSet<Clip>(group.Select(g => g.Clip));
+        if (relocateLinkedAudio && primaryDestination != primaryTrack && primaryDestination.Kind == TrackKind.Video)
+        {
+            PlacementRelocateLinkedAudio(ctx, moves, delta, moving);
+        }
+
         if (mode == PlacementMode.Strict)
         {
             foreach ((_, Track to, Clip clip) in moves)
@@ -88,6 +97,26 @@ public static partial class TimelineEdits
         }
 
         ctx.EnsureValid();
+    }
+
+    private static void PlacementRelocateLinkedAudio(EditContext ctx, List<(Track From, Track To, Clip Clip)> moves, Time delta, HashSet<Clip> moving)
+    {
+        var taken = new HashSet<Track>(moves.Select(m => m.To));
+        for (int i = 1; i < moves.Count; i++)
+        {
+            (Track from, Track to, Clip clip) = moves[i];
+            Time start = clip.Start + delta;
+            Time end = clip.End + delta;
+            if (to.Kind != TrackKind.Audio || TrackOps.FindOverlap(to, start, end, moving) is null)
+            {
+                continue;
+            }
+
+            Track target = LinkedAudioTrack(ctx, start, end, moving, taken);
+            taken.Remove(to);
+            taken.Add(target);
+            moves[i] = (from, target, clip);
+        }
     }
 
     /// <summary>Coloca un fragmento de un medio; con <paramref name="linkedTrackId"/> crea también el clip enlazado del otro tipo.</summary>
@@ -343,7 +372,7 @@ public static partial class TimelineEdits
             throw new EditException("El punto de salida tiene que ir después del punto de entrada.");
         }
 
-        if (sourceOut > media.Duration)
+        if (!media.IsStillImage && sourceOut > media.Duration)
         {
             throw new EditException(
                 $"El punto de salida ({sourceOut}) pasa el final de «{media.Name}», que dura {media.Duration}.");

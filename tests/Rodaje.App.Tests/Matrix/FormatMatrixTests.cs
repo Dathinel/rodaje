@@ -126,9 +126,27 @@ public sealed class FormatMatrixTests(ITestOutputHelper output)
         if (c.HasVideo)
         {
             Thumbnails(c, path, info, row);
-            int frames = (int)info.Video!.FrameCount;
-            DecodeAndSeek(c, path, frames, row);
-            Reverse(c, path, frames, row);
+            if (info.IsStillImage)
+            {
+                using var decoder = VideoDecoder.Open(path);
+                using var first = decoder.GetFrame(0);
+                Assert.NotNull(first);
+                for (int n = 0; n < 60; n++)
+                {
+                    using var repeated = decoder.GetFrame(n);
+                    Assert.Same(first, repeated);
+                }
+
+                row.Set(MatrixStep.Play, "cuadro 0 reutilizado 60 veces");
+                row.Set(MatrixStep.Seek, "cuadro 0 en cualquier instante");
+                row.Set(MatrixStep.Reverse, "imagen fija");
+            }
+            else
+            {
+                int frames = (int)info.Video!.FrameCount;
+                DecodeAndSeek(c, path, frames, row);
+                Reverse(c, path, frames, row);
+            }
         }
 
         if (c.HasAudio)
@@ -136,7 +154,7 @@ public sealed class FormatMatrixTests(ITestOutputHelper output)
             Waveform(c, path, row);
         }
 
-        await ExportAsync(c, media, info, row);
+        await ExportAsync(info.IsStillImage ? c with { FrameCodes = false } : c, media, info, row);
     }
 
     private static void CheckImport(MatrixCase c, MediaInfo info, MatrixRow row)
@@ -157,7 +175,7 @@ public sealed class FormatMatrixTests(ITestOutputHelper output)
                 row.Fail(MatrixStep.Import, $"HDR «{v.HdrTransfer}», se esperaba «{hdr}»");
             }
 
-            if (!c.VariableRate && v.FrameRate != c.Rate)
+            if (!info.IsStillImage && !c.VariableRate && v.FrameRate != c.Rate)
             {
                 row.Fail(MatrixStep.Import, Invariant($"tasa {v.FrameRate}, se esperaba {c.Rate}"));
             }
@@ -168,7 +186,7 @@ public sealed class FormatMatrixTests(ITestOutputHelper output)
             row.Fail(MatrixStep.Import, c.HasAudio ? "no encontró el audio" : "encontró un audio que no hay");
         }
 
-        if (Math.Abs(info.Duration.ToSeconds() - c.Seconds) > 0.1)
+        if (!info.IsStillImage && Math.Abs(info.Duration.ToSeconds() - c.Seconds) > 0.1)
         {
             row.Fail(MatrixStep.Import, Invariant($"duración {info.Duration.ToSeconds():0.000} s, se esperaba {c.Seconds:0.###}"));
         }

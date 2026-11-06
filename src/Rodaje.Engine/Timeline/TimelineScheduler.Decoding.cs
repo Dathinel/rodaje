@@ -573,6 +573,11 @@ internal sealed partial class TimelineScheduler
         }
 
         discard?.Dispose();
+        if (report)
+        {
+            FrameDelivered?.Invoke(this, EventArgs.Empty);
+        }
+
         if (error is not null)
         {
             if (report)

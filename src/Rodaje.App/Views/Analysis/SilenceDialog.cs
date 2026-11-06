@@ -50,6 +50,7 @@ internal static class SilenceDialog
         bool ready = false;
         var options = new SilenceOptions();
         Slider? threshold = null, minimum = null, margin = null;
+        ContentDialog dialog = AnalysisUi.Dialog(root, "Quitar silencios", "Quitar", panel);
         void Refresh()
         {
             if (!ready || (!useVad && threshold is null) || minimum is null || margin is null)
@@ -69,7 +70,8 @@ internal static class SilenceDialog
                 : SilenceDetector.DetectFromVoice(voice, duration, options);
             AnalysisUi.DrawRanges(preview, result.Duration, result.Cuts, ThemeResources.Color("CutMarkColor"));
             status.Text = string.Create(SpanishNumbers.Format,
-                $"{result.Cuts.Count} tramos; el clip pasa de {AnalysisUi.Sec(result.Duration)} a {AnalysisUi.Sec(result.Duration - result.CutSeconds)}. Detección: {method}.");
+                $"{result.Cuts.Count} {(result.Cuts.Count == 1 ? "tramo" : "tramos")}; el clip pasa de {AnalysisUi.Sec(result.Duration)} a {AnalysisUi.Sec(result.Duration - result.CutSeconds)}. Detección: {method}.");
+            dialog.IsPrimaryButtonEnabled = result.Cuts.Count > 0;
         }
 
         if (!useVad)
@@ -78,10 +80,9 @@ internal static class SilenceDialog
         }
         minimum = AnalysisUi.Slider(panel, "Silencio más corto que se quita", 0.1, 3, options.MinimumSilence, 0.05, AnalysisUi.Sec, Refresh);
         margin = AnalysisUi.Slider(panel, "Margen que se deja a cada lado", 0, 0.5, options.PaddingBefore, 0.01, AnalysisUi.Ms, Refresh);
-        var ripple = new CheckBox { Content = "Cerrar los huecos (ripple)", IsChecked = session.Timeline.AutoRipple };
+        var ripple = new CheckBox { Content = "Cerrar los huecos (ripple)", IsChecked = true };
         panel.Children.Add(ripple);
 
-        ContentDialog dialog = AnalysisUi.Dialog(root, "Quitar silencios", "Quitar", panel);
         using var cancel = new CancellationTokenSource();
         Task analysis = Analyze();
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
@@ -119,9 +120,9 @@ internal static class SilenceDialog
                     await ClipAudioSource.AnalyzeAsync(session, clip, envelope, new Progress<double>(p => scope?.Report(progress.Value = p, "Analizando el audio…")), cancel.Token);
                 }
                 progress.Visibility = Visibility.Collapsed;
+                scope?.Report(1, "Análisis listo");
                 ready = true;
                 Refresh();
-                dialog.IsPrimaryButtonEnabled = result is { Cuts.Count: > 0 };
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {

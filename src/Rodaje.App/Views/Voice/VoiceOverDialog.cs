@@ -118,7 +118,6 @@ internal static class VoiceOverDialog
             Title = "Voz en off",
             Content = content,
             CloseButtonText = "Detener",
-            RequestedTheme = ElementTheme.Dark,
         };
 
         bool recording = false;

@@ -167,6 +167,9 @@ public sealed record PackageCatalog(IReadOnlyList<CatalogApp> Apps, IReadOnlyLis
 /// </summary>
 public interface IPackageDownloader
 {
+    /// <summary>La huella corresponde a un módulo del índice firmado.</summary>
+    Task<bool> IsPublishedModuleAsync(string sha256, CancellationToken cancellationToken = default) => Task.FromResult(false);
+
     bool IsAvailable { get; }
 
     /// <summary>Por qué no se puede descargar, para mostrarlo.</summary>

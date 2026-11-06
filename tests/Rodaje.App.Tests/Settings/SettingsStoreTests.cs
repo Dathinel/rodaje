@@ -16,7 +16,7 @@ public class SettingsStoreTests
         var store = new SettingsStore(path);
         store.Current.LastMediaFolder = @"D:\Videos con espacios\ñ";
         store.Current.LibraryWidth = 410;
-        store.Current.TimelineHeight = 222;
+        store.Current.TimelineShare = 0.3;
         store.Current.WindowWidth = 1600;
         store.Current.WindowHeight = 900;
         store.Current.WindowMaximized = true;
@@ -32,7 +32,7 @@ public class SettingsStoreTests
         AppSettings s = loaded.Current;
         Assert.Equal(@"D:\Videos con espacios\ñ", s.LastMediaFolder);
         Assert.Equal(410, s.LibraryWidth);
-        Assert.Equal(222, s.TimelineHeight);
+        Assert.Equal(0.3, s.TimelineShare);
         Assert.Equal(1600, s.WindowWidth);
         Assert.True(s.WindowMaximized);
         Assert.Equal(ShortcutPreset.Classic, s.ShortcutPreset);
@@ -120,14 +120,14 @@ public class SettingsStoreTests
     {
         using var dir = new TempDirectory();
         string path = dir.File(SettingsStore.FileName);
-        File.WriteAllText(path, """{ "libraryWidth": 5, "inspectorWidth": 99999, "timelineHeight": -3, "windowWidth": 10, "recentProjects": ["", "  ", "x.rodaje"] }""");
+        File.WriteAllText(path, """{ "libraryWidth": 5, "inspectorWidth": 99999, "timelineShare": -3, "windowWidth": 10, "recentProjects": ["", "  ", "x.rodaje"] }""");
         var store = new SettingsStore(path);
 
         Assert.Null(store.Load());
 
         Assert.Equal(220, store.Current.LibraryWidth);
         Assert.Equal(900, store.Current.InspectorWidth);
-        Assert.Equal(160, store.Current.TimelineHeight);
+        Assert.Equal(TimelineProportion.Min, store.Current.TimelineShare);
         Assert.Equal(800, store.Current.WindowWidth);
         Assert.Equal(["x.rodaje"], store.Current.RecentProjects);
     }

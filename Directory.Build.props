@@ -10,7 +10,7 @@
     <Authors>Dathinel</Authors>
     <Product>Rodaje</Product>
     <!-- Versión única: el exe, el lanzador, «Acerca de», el catálogo (minApp) y los nombres de build\distribuir.ps1 -->
-    <Version>1.0.1</Version>
+    <Version>1.0.2</Version>
     <FileVersion>$(Version).0</FileVersion>
     <Copyright>Copyright (C) 2026 Dathinel</Copyright>
     <!-- GPLv3 con términos adicionales de la Sección 7 (atribución) y permiso para complementos: ver LICENSE (D-032) -->

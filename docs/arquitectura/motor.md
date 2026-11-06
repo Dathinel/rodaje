@@ -1,5 +1,7 @@
 # Motor: `Rodaje.Engine`
 
+Las imágenes fijas son clips del carril de video: `VideoClipPlan.FrameAt` siempre devuelve 0, mientras `EffectTimeAt` conserva el tiempo virtual del clip para animar transformaciones, efectos y máscaras. La caché por fuente e índice reutiliza ese cuadro tanto en `TimelineSession` como en `OfflineTimeline`; la exportación mantiene la imagen durante toda la duración del clip. La inserción y el visor de origen usan los 5 s de `MediaRef.DefaultStillImageDuration` (D-050).
+
 Junta [Medios](medios.md), [Audio](audio.md) y [Reproducción](reproduccion.md) en sesiones que se pueden reproducir. `ClipPlayer` reproduce un archivo y `TimelineSession`, una secuencia con varias capas. Es `net10.0-windows` e `IsAotCompatible`. Lo usa la app, que pasa cada `CompositionFrame` al [Render](render.md).
 
 ## Flujo

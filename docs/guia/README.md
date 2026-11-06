@@ -16,6 +16,7 @@ Para quien descarga Rodaje y quiere editar. Cada página es corta y va con los m
 | [Rendimiento](rendimiento.md) | Qué esperar con NVIDIA, AMD, Intel y sin GPU: decodificación, proxies, exportación y copia directa |
 | [Complementos](complementos.md) | Instalar, actualizar, desinstalar y crear los tuyos |
 | [Atajos](atajos.md) | Teclado y ratón en los tres estilos, y cómo cambiarlos |
+| [Personalización](personalizacion.md) | Tema, acento, escala, temas propios con editor, espacios de trabajo, proyecto nuevo y perfil exportable |
 | [Preguntas frecuentes y solución de problemas](solucion-de-problemas.md) | La app no abre, un formato no se decodifica, la exportación falla, dónde están los registros, cómo informar |
 
 Para compilar Rodaje o contribuir: [CONTRIBUTING.md](../../CONTRIBUTING.md). Cómo está hecho por dentro: [docs/README.md](../README.md).

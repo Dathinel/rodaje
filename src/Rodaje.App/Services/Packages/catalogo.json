@@ -136,10 +136,10 @@
       "id": "modulo-raw",
       "kind": "module",
       "name": "RAW de cine",
-      "description": "Abre secuencias CinemaDNG y las revela (balance, exposición, espacio de color) con LibRaw.",
+      "description": "Abre secuencias CinemaDNG y las revela (balance, exposición, espacio de color) con LibRaw, o entrega el mosaico para revelarlo en la GPU del editor.",
       "repository": "https://github.com/Dathinel/modulo-raw",
       "apps": ["rodaje"],
-      "provides": ["info", "revelar"]
+      "provides": ["info", "revelar", "mosaico"]
     },
     {
       "id": "rodaje-codificadores-gpl",

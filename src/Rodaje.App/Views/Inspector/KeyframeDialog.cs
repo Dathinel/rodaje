@@ -24,7 +24,6 @@ internal static class KeyframeDialog
             PrimaryButtonText = confirm,
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
         };
         return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
     }

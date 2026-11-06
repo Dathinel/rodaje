@@ -88,7 +88,13 @@ public static class DefaultTransition
                 }
                 else
                 {
-                    Clip next = track.Clips[track.Clips.FindIndex(c => c.Id == from) + 1];
+                    int position = track.Clips.FindIndex(c => c.Id == from);
+                    if (position < 0 || position + 1 >= track.Clips.Count)
+                    {
+                        continue;
+                    }
+
+                    Clip next = track.Clips[position + 1];
                     var probe = new TransitionInstance { From = from, To = next.Id, Alignment = preferences.Alignment };
                     Time max = TransitionOps.MaxDuration(track, probe);
                     Time frame = Time.FromFrames(1, ctx.Sequence.FrameRate);

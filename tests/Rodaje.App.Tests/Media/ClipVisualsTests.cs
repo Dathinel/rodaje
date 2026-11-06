@@ -14,6 +14,8 @@ internal sealed class FakeSources : IVisualsSources
 
     public ConcurrentDictionary<string, int> Opened { get; } = new(StringComparer.OrdinalIgnoreCase);
 
+    public ConcurrentDictionary<string, int> Disposed { get; } = new(StringComparer.OrdinalIgnoreCase);
+
     public HashSet<string> Broken { get; } = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Archivos que abren pero no dan ningún cuadro.</summary>
@@ -68,9 +70,7 @@ internal sealed class FakeSources : IVisualsSources
             return new BgraImage(width, height, pixels);
         }
 
-        public void Dispose()
-        {
-        }
+        public void Dispose() => owner.Disposed.AddOrUpdate(path, 1, (_, n) => n + 1);
     }
 
     private sealed class Audio(int seconds) : IAudioSampleReader
@@ -231,6 +231,27 @@ public sealed class ClipVisualsTests : IDisposable
     }
 
     [Fact]
+    public async Task A_file_that_failed_while_missing_is_read_again_once_it_is_back()
+    {
+        string path = Path.Combine(_folder.Path, "vuelve.mp4");
+        _media["r1"] = path;
+        _sources.Broken.Add(path);
+        using ClipVisuals visuals = Create();
+        visuals.GetThumbnail("r1", Time.Zero, 32);
+        WaitFor(() => visuals.ThumbnailProblem(path));
+
+        await visuals.RetryFailedAsync();
+        Assert.NotNull(visuals.ThumbnailProblem(path));
+
+        _sources.Broken.Remove(path);
+        await File.WriteAllBytesAsync(path, [0]);
+        await visuals.RetryFailedAsync();
+
+        Assert.Null(visuals.ThumbnailProblem(path));
+        WaitFor(() => visuals.GetThumbnail("r1", Time.Zero, 32));
+    }
+
+    [Fact]
     public void Unknown_media_gives_empty_results()
     {
         using ClipVisuals visuals = Create();
@@ -355,7 +376,7 @@ public sealed class ClipVisualsTests : IDisposable
         }
 
         Thread.Sleep(50);
-        Assert.Contains("cuadros", problem, StringComparison.Ordinal);
+        Assert.Contains("fotogramas", problem, StringComparison.Ordinal);
         Assert.Equal(1, _sources.Attempts);
         Assert.Equal(1, _sources.Opened[_media["v0"]]);
     }
@@ -402,6 +423,22 @@ public sealed class ClipVisualsTests : IDisposable
         Assert.False(wave.IsComplete);
         WaitFor(() => visuals.GetThumbnail("m1", Time.Zero, 32));
         Assert.Equal(2, _sources.Decoded.Count);
+    }
+
+    [Fact]
+    public void Forget_closes_the_open_decoder_and_a_new_request_opens_a_fresh_one()
+    {
+        using ClipVisuals visuals = Create(workers: 1);
+        string path = _media["m1"];
+        WaitFor(() => visuals.GetThumbnail("m1", Time.Zero, 32));
+        Assert.Equal(1, _sources.Opened[path]);
+        Assert.False(_sources.Disposed.ContainsKey(path));
+
+        visuals.Forget(path);
+
+        WaitFor(() => _sources.Disposed.TryGetValue(path, out int n) && n == 1 ? path : null);
+        WaitFor(() => visuals.GetThumbnail("m1", Time.FromSeconds(1), 32));
+        Assert.Equal(2, _sources.Opened[path]);
     }
 
     /// <summary>

@@ -149,6 +149,9 @@ public sealed class OfflineTimeline : IDisposable
 
     public Rational FrameRate => _plan.FrameRate;
 
+    /// <summary>Espacio de color de la secuencia (<see cref="Sequence.ColorSpace"/>): el compositor y el conversor de exportación lo siguen.</summary>
+    public SequenceColorSpace ColorSpace => _sequence.ColorSpace;
+
     public Time Duration => _plan.Duration;
 
     public long FrameCount => _plan.FrameCount;

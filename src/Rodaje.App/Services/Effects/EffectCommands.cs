@@ -19,31 +19,47 @@ public static class EffectCommands
     /// </summary>
     /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: el efecto creado, si hizo falta.</remarks>
     public static SequenceEditCommand SetOption(
-        string sequenceId, string clipId, string effectType, string? effectId, string option, string value, string description)
+        string sequenceId, string clipId, string effectType, string? effectId, string option, string value, string description) =>
+        SetOption(sequenceId, [clipId], effectType, effectId, option, value, description);
+
+    /// <summary>
+    /// Fija la opción del efecto en varios clips en un solo paso del historial.
+    /// </summary>
+    public static SequenceEditCommand SetOption(
+        string sequenceId, IEnumerable<string> clipIds, string effectType, string? effectId, string option, string value, string description)
     {
+        ArgumentNullException.ThrowIfNull(clipIds);
         ArgumentNullException.ThrowIfNull(value);
+        string[] ids = [.. clipIds];
         return new SequenceEditCommand(description, sequenceId, ctx =>
         {
             List<string> created = [];
-            string target = effectId ?? "";
-            if (effectId is null)
+            foreach (string clipId in ids)
             {
-                if (EffectEdits.EnsureEffect(ctx, clipId, effectType) is { } id)
+                string target = effectId ?? "";
+                if (effectId is null)
                 {
-                    created.Add(id);
+                    if (EffectEdits.EnsureEffect(ctx, clipId, effectType) is { } id)
+                    {
+                        created.Add(id);
+                    }
+
+                    Clip clip = EditableClip(ctx, clipId);
+                    target = (clip.Effects.Find(e => e.Type == effectType && e.Enabled) ?? clip.Effects.Find(e => e.Type == effectType))!.Id;
                 }
 
-                Clip clip = EditableClip(ctx, clipId);
-                target = (clip.Effects.Find(e => e.Type == effectType && e.Enabled) ?? clip.Effects.Find(e => e.Type == effectType)!).Id;
+                EffectEdits.SetOption(ctx, clipId, target, option, value);
             }
 
-            EffectEdits.SetOption(ctx, clipId, target, option, value);
             return created;
         });
     }
 
     public static SequenceEditCommand SetBlendMode(string sequenceId, string clipId, string mode) =>
-        SetOption(sequenceId, clipId, BuiltInEffects.Blend, null, BuiltInEffects.BlendOptions.Mode, mode, "Cambiar modo de mezcla");
+        SetBlendMode(sequenceId, [clipId], mode);
+
+    public static SequenceEditCommand SetBlendMode(string sequenceId, IEnumerable<string> clipIds, string mode) =>
+        SetOption(sequenceId, clipIds, BuiltInEffects.Blend, null, BuiltInEffects.BlendOptions.Mode, mode, "Cambiar modo de mezcla");
 
     /// <summary>Pone (o quita, con vacío) la LUT del efecto de color indicado o del primero del clip.</summary>
     public static SequenceEditCommand SetLut(string sequenceId, string clipId, string? effectId, string reference) =>

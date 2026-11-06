@@ -123,7 +123,7 @@
                 <inspector:InspectorSection.Actions>
                     <Button Style="{StaticResource ToolButtonStyle}" Width="24" Height="26" FontSize="{StaticResource IconSmallFontSize}"
                             Content="&#xE72C;" Click="OnRefreshPresetsClick" AutomationProperties.Name="Actualizar las miniaturas"
-                            ToolTipService.ToolTip="Volver a hacer las miniaturas con el cuadro del cursor" />
+                            ToolTipService.ToolTip="Volver a hacer las miniaturas con el fotograma del cursor" />
                 </inspector:InspectorSection.Actions>
                 <StackPanel>
                     <GridView x:Name="PresetGrid" ItemsSource="{x:Bind Presets}" SelectionMode="None" IsItemClickEnabled="True"

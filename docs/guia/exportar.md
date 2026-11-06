@@ -26,7 +26,7 @@ Los preajustes propios salen con el prefijo «Propio · ».
 ## La vista sencilla
 
 - **Archivo**: ruta de salida y «Cambiar…». Si la carpeta no existe o el nombre no vale, lo dice en rojo y apaga «Exportar». Si el archivo ya existe, pregunta «¿Reemplazar el archivo?» al exportar.
-- **Rango**: «Toda la secuencia», «Lo seleccionado» (del primer clip seleccionado al último) o cada región de la línea de tiempo como entrada y salida.
+- **Rango**: «Toda la secuencia», «Entre la entrada y la salida» (las marcas I y O de la secuencia, o lo marcado con la herramienta de rango; con una sola marca, la otra es el principio o el final), «Lo seleccionado» (del primer clip seleccionado al último) o cada región de la línea de tiempo como entrada y salida. Con marcas puestas, el panel se abre en «Entre la entrada y la salida»: para exportar un tramo basta con marcarlo con **I** y **O** y pulsar Ctrl+E.
 - **Formato**: una línea con lo que va a salir («MP4 · H.264 por GPU (h264_nvenc) · 1920×1080 · 23,976 fps · VBR 12 Mbps · AAC 192 kbps estéreo, −14 LUFS»).
 - **Estimación** de tamaño y tiempo. Con tasa fija es exacta; en calidad constante lleva «≈», porque el tamaño depende de la imagen.
 
@@ -46,15 +46,20 @@ Con menos de 4 GB de VRAM, en los dos modos la vista previa pasa a proxies y a c
 ![Avanzado desplegado: contenedor, video y audio](img/exportar-avanzado.png)
 
 - **Contenedor**: MP4, MOV, MKV, WebM, M4A, GIF… Casillas «Reproducir mientras se descarga (faststart)» y «Capítulos desde los marcadores» (cada marcador abre un capítulo con su nombre; sin nombre, «Capítulo N»). Si hay pistas de subtítulos, «Subtítulos»: «Quemados en la imagen», «Quemados y como pista aparte» o «Solo como pista aparte (se activan en el reproductor)»; la pista aparte va en MP4, MOV, MKV y WebM, una por cada pista de subtítulos visible y con su nombre, recortada al rango.
-- **Video**: códec (H.264, HEVC, AV1, VP9, ProRes…), codificador (GPU · NVIDIA, Windows o CPU), control de tasa (calidad constante, VBR con media y máxima, CBR, tamaño objetivo con dos pasadas), resolución, forma, cuadros por segundo, bits por canal, perfil, velocidad del codificador y «Cuadro clave cada … s». El interruptor de la derecha quita el video (solo audio).
+- **Video**: códec (H.264, HEVC, AV1, VP9, ProRes…), codificador (GPU · NVIDIA, Windows o CPU), control de tasa (calidad constante, VBR con media y máxima, CBR, tamaño objetivo con dos pasadas), resolución, forma, cuadros por segundo, bits por canal, **muestreo de color** (4:2:0 para reproducir en cualquier sitio; 4:2:2 o 4:4:4, donde el codificador lo admite, para seguir editando, para croma o para texto fino; la línea «Formato» lo dice cuando no es 4:2:0), perfil, velocidad del codificador y «Fotograma clave cada … s». El interruptor de la derecha quita el video (solo audio).
 - **Audio**: códec (AAC, Opus, PCM…), tasa, frecuencia, canales y «Normalizar sonoridad»: «−14 LUFS (plataformas de video y música)», «−16 LUFS (pódcast)» o «−23 LUFS (televisión, EBU R128)».
 - **Preajustes propios**: «Guardar como preajuste…» (hasta 50; se guardan en tus ajustes), «Importar…» y «Guardar en archivo…» (`.rodaje-preajuste`, para compartirlos), «Quitar».
+- **Copiar la línea de ffmpeg** (al pie de Avanzado): copia al portapapeles los argumentos exactos con los que Rodaje lanza `ffmpeg.exe` con estos ajustes: codificador (`-c:v:0 h264_nvenc`), control de tasa (`-rc vbr -b:v 12000k`, `-crf 18`…), perfil, GOP, muestreo (`-pix_fmt`), color, audio (`-c:a:0 aac_mf -b:a 192k`) y contenedor (`-movflags +faststart`). Sirve para ver qué hace cada preajuste o para repetirlo a mano con FFmpeg. Rodaje compone la imagen en la GPU y se la pasa cruda por la entrada estándar (`-f rawvideo … -i pipe:0`) y la mezcla por un WAV temporal (`mezcla.wav`): esa parte no se puede repetir fuera de Rodaje, y la línea no lleva los capítulos ni las pistas de subtítulos, que van en archivos temporales.
 
 Las listas solo ofrecen lo que los codificadores de tu equipo pueden hacer en ese contenedor. Si un ajuste no es posible, Rodaje lo corrige y explica por qué («WebM no admite H.264 en este equipo: se usa VP9»). Sin GPU ni Media Foundation, H.264 pasa a AV1 por CPU.
 
 ## Varias versiones de una vez
 
 El botón **«Varias versiones…»** del pie abre «Exportar varias versiones»: una casilla por preajuste (de fábrica y propios). Se guardan en la carpeta elegida con el nombre del preajuste al final («mi video - Vertical 9:16.mp4»), con el rango y el rendimiento de ahora. Un preajuste de otra forma que el proyecto (Vertical sobre 16:9) conserva su forma recortando al centro.
+
+## Otros proyectos de una vez (lote)
+
+El botón **«Otros proyectos…»** del pie elige varios archivos `.rodaje` y los manda todos a la cola con los ajustes de ahora (preajuste, Avanzado, rendimiento y subtítulos): cada uno exporta su secuencia entera y sale junto a su archivo con su nombre («Boda.rodaje» → «Boda.mp4», con un número si ya existe). Un diálogo lista lo que va a salir y lo que se salta (un archivo que no se puede abrir, uno sin secuencia o el proyecto que tienes abierto, que se exporta con el botón Exportar). Si un preajuste fija solo un lado (Web 1080p), cada proyecto sale con su propia forma; el recorte de Avanzado no se aplica a los otros proyectos. Si a un proyecto le faltan medios, su trabajo falla en Trabajos con el motivo, como cualquier otro.
 
 ## La cola, en Trabajos
 

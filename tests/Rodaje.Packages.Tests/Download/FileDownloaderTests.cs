@@ -36,7 +36,7 @@ public sealed class FileDownloaderTests : IAsyncLifetime, IDisposable
 
     private IEnumerable<string> Ranges() => _server.Requests.Select(r => r.Range ?? "");
 
-    private FileDownloader Downloader() => new(_http) { RetryDelay = TimeSpan.FromMilliseconds(10) };
+    private FileDownloader Downloader() => new(_http, SignedIndex.MaxEntrySize) { RetryDelay = TimeSpan.FromMilliseconds(10) };
 
     private static void AssertNothingLeft(string destination)
     {
@@ -92,7 +92,7 @@ public sealed class FileDownloaderTests : IAsyncLifetime, IDisposable
         // informa, sin dejar el destino.
         Uri shorter = Put("corto", data[..5000]);
         string b = _temp.Combine("corto.paquete");
-        await Assert.ThrowsAsync<PackageDownloadException>(() => new FileDownloader(_http) { RetryDelay = TimeSpan.Zero, MaxAttempts = 2 }
+        await Assert.ThrowsAsync<PackageDownloadException>(() => new FileDownloader(_http, SignedIndex.MaxEntrySize) { RetryDelay = TimeSpan.Zero, MaxAttempts = 2 }
             .DownloadAsync(target with { Url = shorter }, b, null, default));
         Assert.False(File.Exists(b));
         Assert.Equal([200, 416], _server.Requests.Where(r => r.Path == "/corto").Select(r => r.StatusCode));

@@ -40,6 +40,7 @@ public static class ExportText
         ExportJobState.Preparing => "Preparando",
         ExportJobState.MeasuringLoudness => "Midiendo la sonoridad",
         ExportJobState.MixingAudio => "Mezclando el audio",
+        ExportJobState.MeasuringLight => "Midiendo MaxCLL/MaxFALL",
         ExportJobState.Encoding when progress.PassCount > 1 => $"Pasada {progress.Pass} de {progress.PassCount}",
         ExportJobState.Encoding => "Exportando",
         ExportJobState.Finalizing => "Cerrando el archivo",

@@ -297,7 +297,6 @@ internal sealed partial class PluginsView : UserControl, IEditorView
             PrimaryButtonText = "Desinstalar",
             SecondaryButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Secondary,
-            RequestedTheme = ElementTheme.Dark,
         };
         ContentDialogResult? result = await DialogGate.ShowAsync(dialog);
         return PluginUninstallDecision.IsConfirmed(result?.ToString());

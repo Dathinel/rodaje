@@ -344,9 +344,10 @@ internal sealed unsafe partial class LayerRenderer
     {
         EffectValues copy = values;
         float Sum(int channel, int master) => Value(copy, definition, channel) + Value(copy, definition, master);
-        effects.Lift = new(Sum(0, 3), Sum(1, 3), Sum(2, 3), 0);
-        effects.GammaExp = new(MathF.Pow(2, -Sum(4, 7)), MathF.Pow(2, -Sum(5, 7)), MathF.Pow(2, -Sum(6, 7)), 0);
-        effects.Gain = new(1 + Sum(8, 11), 1 + Sum(9, 11), 1 + Sum(10, 11), 0);
+        // El desplazamiento (rueda cuarta) viaja en los .w libres de las tres constantes: rojo, verde y azul.
+        effects.Lift = new(Sum(0, 3), Sum(1, 3), Sum(2, 3), Sum(12, 15));
+        effects.GammaExp = new(MathF.Pow(2, -Sum(4, 7)), MathF.Pow(2, -Sum(5, 7)), MathF.Pow(2, -Sum(6, 7)), Sum(13, 15));
+        effects.Gain = new(1 + Sum(8, 11), 1 + Sum(9, 11), 1 + Sum(10, 11), Sum(14, 15));
     }
 
     /// <summary>

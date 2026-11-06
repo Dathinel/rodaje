@@ -70,7 +70,7 @@ public sealed class ModuleManagerTests : IDisposable
         ModuleJob job = Assert.Single(manager.Jobs.Jobs);
         await WaitUntil(() => job.Progress > 0);
         Assert.Equal(ModuleJobState.Running, job.State);
-        Assert.Equal("contando", job.Stage);
+        Assert.Equal("Contando", job.Stage);
 
         job.Cancel();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
