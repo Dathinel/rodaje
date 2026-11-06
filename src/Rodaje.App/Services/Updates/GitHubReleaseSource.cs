@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using Rodaje.Packages;
+using Rodaje.Packages.Download;
 
 namespace Rodaje.App.Services.Updates;
 
@@ -21,12 +22,12 @@ public sealed class GitHubReleaseSource(PackageVersion appVersion) : IReleaseSou
     {
         using var handler = new SocketsHttpHandler
         {
-            AllowAutoRedirect = true,
+            AllowAutoRedirect = false,
             MaxAutomaticRedirections = 5,
             AutomaticDecompression = DecompressionMethods.None,
             ConnectTimeout = Timeout,
         };
-        using var http = new HttpClient(handler) { Timeout = Timeout, MaxResponseContentBufferSize = 1 << 20 };
+        using var http = new HttpClient(new HttpsRedirectHandler(handler)) { Timeout = Timeout, MaxResponseContentBufferSize = 1 << 20 };
         http.DefaultRequestHeaders.UserAgent.ParseAdd($"Rodaje/{_appVersion}");
         http.DefaultRequestHeaders.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
         http.DefaultRequestHeaders.Add("X-GitHub-Api-Version", "2022-11-28");

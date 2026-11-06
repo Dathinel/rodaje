@@ -207,6 +207,8 @@ public static class ManifestReader
             Apps = apps,
             Items = items,
             Module = module,
+            DeclaresModuleEntry = root.TryGetProperty("module", out JsonElement executable)
+                && executable.ValueKind == JsonValueKind.Object && executable.TryGetProperty("entry", out _),
         };
     }
 

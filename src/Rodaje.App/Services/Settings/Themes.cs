@@ -21,7 +21,7 @@ public sealed class ThemeDefinition
     public void Set(string key, uint argb) => Colors[key] = Personalization.ToHex(argb);
 }
 
-/// <summary>Los temas de serie (Grafito, Claro, Alto contraste), la lectura y escritura del <c>.rodaje-tema</c> y el contraste.</summary>
+/// <summary>Los temas de serie, la lectura y escritura del <c>.rodaje-tema</c> y el contraste.</summary>
 public static class Themes
 {
     /// <summary>Versión del <c>.rodaje-tema</c>: la 2 añade el fondo de las pistas de video y de audio (<see cref="TrackKeys"/>).</summary>
@@ -31,6 +31,9 @@ public static class Themes
     public const string GraphiteName = "Grafito";
     public const string LightName = "Claro";
     public const string HighContrastName = "Alto contraste";
+    public const string CreamName = "Crema";
+    public const string MidnightName = "Medianoche";
+    public const string TerminalName = "Terminal";
 
     /// <summary>Las claves editables, por grupo y con su nombre visible; la línea de tiempo y el cursor usan el fondo y el acento.</summary>
     public static IReadOnlyList<(string Key, string Group, string Label)> Slots { get; } =
@@ -115,7 +118,52 @@ public static class Themes
         },
     };
 
-    public static IReadOnlyList<ThemeDefinition> BuiltIn { get; } = [Graphite, Light, HighContrast];
+    public static ThemeDefinition Cream { get; } = new()
+    {
+        Name = CreamName,
+        Colors = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["BackgroundBrush"] = "#FBF6EE", ["PanelBrush"] = "#F5EBDD", ["BarBrush"] = "#EDE0CF", ["ControlBrush"] = "#FDF9F3",
+            ["ControlHoverBrush"] = "#E9D9C5", ["ControlPressedBrush"] = "#DDC7AE", ["StrokeBrush"] = "#92765D", ["ControlBorderBrush"] = "#92765D",
+            ["TextBrush"] = "#39291F", ["TextMutedBrush"] = "#705441", ["TextDisabledBrush"] = "#836B58",
+            ["AccentBrush"] = "#9C482B", ["AccentForegroundBrush"] = "#FFF9F0", ["AccentSubtleBrush"] = "#269C482B",
+            ["VideoClipBrush"] = "#33587C", ["VideoClipEdgeBrush"] = "#7FB0DE", ["AudioClipBrush"] = "#365A31", ["AudioClipEdgeBrush"] = "#9BCB83",
+            ["TextClipBrush"] = "#574573", ["TextClipEdgeBrush"] = "#B7A2E3", ["KeyframeBrush"] = "#8B481F", ["ViewerSurroundBrush"] = "#302820",
+            ["VideoTrackBrush"] = "#F5EBDD", ["AudioTrackBrush"] = "#EDE0CF",
+        },
+    };
+
+    public static ThemeDefinition Midnight { get; } = new()
+    {
+        Name = MidnightName,
+        Colors = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["BackgroundBrush"] = "#0D1420", ["PanelBrush"] = "#162235", ["BarBrush"] = "#1C2C43", ["ControlBrush"] = "#22344D",
+            ["ControlHoverBrush"] = "#2C4260", ["ControlPressedBrush"] = "#365172", ["StrokeBrush"] = "#728CAA", ["ControlBorderBrush"] = "#728CAA",
+            ["TextBrush"] = "#E6EFFA", ["TextMutedBrush"] = "#A7BCD6", ["TextDisabledBrush"] = "#8098B5",
+            ["AccentBrush"] = "#87C5FF", ["AccentForegroundBrush"] = "#0D1420", ["AccentSubtleBrush"] = "#4D87C5FF",
+            ["VideoClipBrush"] = "#33587C", ["VideoClipEdgeBrush"] = "#7FB0DE", ["AudioClipBrush"] = "#365A31", ["AudioClipEdgeBrush"] = "#9BCB83",
+            ["TextClipBrush"] = "#574573", ["TextClipEdgeBrush"] = "#B7A2E3", ["KeyframeBrush"] = "#F2D16B", ["ViewerSurroundBrush"] = "#0A101A",
+            ["VideoTrackBrush"] = "#162235", ["AudioTrackBrush"] = "#192A40",
+        },
+    };
+
+    public static ThemeDefinition Terminal { get; } = new()
+    {
+        Name = TerminalName,
+        Colors = new Dictionary<string, string>(StringComparer.Ordinal)
+        {
+            ["BackgroundBrush"] = "#050A06", ["PanelBrush"] = "#0C160E", ["BarBrush"] = "#122017", ["ControlBrush"] = "#162A1B",
+            ["ControlHoverBrush"] = "#203C28", ["ControlPressedBrush"] = "#2B4F35", ["StrokeBrush"] = "#54885F", ["ControlBorderBrush"] = "#54885F",
+            ["TextBrush"] = "#A5F3AC", ["TextMutedBrush"] = "#80BE8A", ["TextDisabledBrush"] = "#65966D",
+            ["AccentBrush"] = "#64ED80", ["AccentForegroundBrush"] = "#050A06", ["AccentSubtleBrush"] = "#4D64ED80",
+            ["VideoClipBrush"] = "#183D2A", ["VideoClipEdgeBrush"] = "#80D5A0", ["AudioClipBrush"] = "#243C18", ["AudioClipEdgeBrush"] = "#A0D580",
+            ["TextClipBrush"] = "#123D38", ["TextClipEdgeBrush"] = "#80D5C0", ["KeyframeBrush"] = "#C9ED80", ["ViewerSurroundBrush"] = "#050A06",
+            ["VideoTrackBrush"] = "#0C160E", ["AudioTrackBrush"] = "#102015",
+        },
+    };
+
+    public static IReadOnlyList<ThemeDefinition> BuiltIn { get; } = [Graphite, Light, HighContrast, Cream, Midnight, Terminal];
 
     public static bool IsBuiltIn(string? name) => BuiltIn.Any(t => string.Equals(t.Name, name, StringComparison.OrdinalIgnoreCase));
 

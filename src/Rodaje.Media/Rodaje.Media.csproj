@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Rodaje.Core\Rodaje.Core.csproj" />
+    <ProjectReference Include="..\Rodaje.Packages\Rodaje.Packages.csproj" />
     <ProjectReference Include="..\Rodaje.Playback\Rodaje.Playback.csproj" />
   </ItemGroup>
 

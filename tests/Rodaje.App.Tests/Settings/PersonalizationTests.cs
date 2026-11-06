@@ -100,7 +100,28 @@ public sealed class PersonalizationTests
         Assert.Equal(Themes.Graphite.Color("VideoClipBrush"), Themes.Light.Color("VideoClipBrush"));
         Assert.True(Personalization.Contrast(Themes.Light.Color("AccentBrush"), Themes.Light.Color("PanelBrush")) >= Personalization.UiContrast);
         Assert.True(Personalization.Contrast(Themes.Light.Color("TextBrush"), Themes.Light.Color("PanelBrush")) >= Personalization.TextContrast);
-        Assert.Equal(["Grafito", "Claro", "Alto contraste"], Themes.BuiltIn.Select(t => t.Name));
+        Assert.Equal(["Grafito", "Claro", "Alto contraste", "Crema", "Medianoche", "Terminal"], Themes.BuiltIn.Select(t => t.Name));
+    }
+
+    [Theory]
+    [InlineData("Crema", true)]
+    [InlineData("Medianoche", false)]
+    [InlineData("Terminal", false)]
+    public void Temas_LasBibliotecasDeEstiloSonDeSerieCompletasYAccesibles(string name, bool isLight)
+    {
+        ThemeDefinition theme = Assert.Single(Themes.BuiltIn, t => t.Name == name);
+        Assert.Equal(Themes.Slots.Select(s => s.Key).Order(), theme.Colors.Keys.Order());
+        Assert.All(theme.Colors.Values, color => Assert.True(Personalization.TryParseColor(color, out _)));
+        Assert.Empty(Themes.ContrastWarnings(theme));
+        Assert.Equal(isLight, Themes.IsLight(theme));
+        Assert.True(Themes.IsBuiltIn(name.ToUpperInvariant()));
+        Assert.Same(theme, Themes.Resolve(name.ToUpperInvariant(), [], windowsIsLight: !isLight, out string? warning));
+        Assert.Null(warning);
+
+        using var dir = new TempDirectory();
+        var store = new ThemeStore(dir.Path);
+        Assert.Throws<InvalidOperationException>(() => store.Save(theme));
+        Assert.False(Themes.IsBuiltIn(store.FreeName(name)));
     }
 
     [Fact]

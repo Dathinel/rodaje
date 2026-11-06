@@ -47,6 +47,8 @@ internal sealed class Transcriber : IDisposable
 
         float[] samples = ReadMono(call.Map(call.Buffers[0]), audio);
         string model = FindModel(options.Model, ModelFile);
+        // La verificación de la huella y la carga del modelo no se interrumpen: se confirma la cancelación al pasarlas.
+        cancellationToken.ThrowIfCancellationRequested();
 
         int progress = 0;
         string stage = "cargando";
@@ -88,7 +90,8 @@ internal sealed class Transcriber : IDisposable
             candidates.Add(Path.Combine(dir, file));
         }
 
-        return candidates.FirstOrDefault(File.Exists);
+        string? candidate = candidates.FirstOrDefault(File.Exists);
+        return candidate is null ? null : Shared.ModelFiles.Verify(candidate, Path.GetFileName(candidate));
     }
 
     /// <summary>Como los demás módulos: el almacén compartido de complementos y, al desarrollar, el <c>.entorno</c>.</summary>
@@ -110,7 +113,8 @@ internal sealed class Transcriber : IDisposable
             }
         }
 
-        return candidates.FirstOrDefault(File.Exists);
+        string? candidate = candidates.FirstOrDefault(File.Exists);
+        return candidate is null ? null : Shared.ModelFiles.Verify(candidate, Path.GetFileName(candidate));
     }
 
     /// <summary>El modelo de la CPU: <c>cpuModel</c>, el menor junto al exe o en RODAJE_MODELOS, y si falta, el grande.</summary>
@@ -124,6 +128,7 @@ internal sealed class Transcriber : IDisposable
             try
             {
                 Factory(model, gpu: true);
+                ct.ThrowIfCancellationRequested();
                 // Sin Vulkan, whisper.cpp abre el modelo en la CPU: con «auto» se pasa al menor.
                 if (_device == "vulkan" || options.Device == "gpu")
                 {
@@ -145,6 +150,7 @@ internal sealed class Transcriber : IDisposable
         float[] samples, string model, bool gpu, Options options, Action<int> onProgress, Action onLoaded, CancellationToken ct)
     {
         WhisperFactory factory = Factory(model, gpu);
+        ct.ThrowIfCancellationRequested();
         onLoaded();
         IReadOnlyList<(int Start, int Length)> chunks = AudioChunks.Split(samples, SampleRate);
         // En la CPU, un hilo por núcleo físico (whisper.cpp pone 4 por defecto); en la GPU casi no influye.
