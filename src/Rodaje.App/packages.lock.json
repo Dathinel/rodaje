@@ -4,9 +4,9 @@
     "net10.0-windows10.0.26100": {
       "Microsoft.DotNet.ILCompiler": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "AawF393Q+VkdrnrnI1gu612zh5iqpa1AGSvnKCQ3IkMgSKJXIQbO1sXYRgEzOU4f0cPZ6MaCCF29xZSGWlmbuQ=="
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "CDQ/+XRT1JT/0u87j9exR1AociehKUzxae4KCOWxCQ1PIKbYS0F8ovxaCrqRlkylGmbhywKxV/zbbrEhWa5NXg=="
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
@@ -91,13 +91,13 @@
       "rodaje.analysis": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Core": "[1.0.0, )"
+          "Rodaje.Core": "[1.0.2, )"
         }
       },
       "rodaje.audio": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Playback": "[1.0.0, )"
+          "Rodaje.Playback": "[1.0.2, )"
         }
       },
       "rodaje.core": {
@@ -106,25 +106,26 @@
       "rodaje.engine": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Audio": "[1.0.0, )",
-          "Rodaje.Media": "[1.0.0, )",
-          "Rodaje.Playback": "[1.0.0, )"
+          "Rodaje.Audio": "[1.0.2, )",
+          "Rodaje.Media": "[1.0.2, )",
+          "Rodaje.Playback": "[1.0.2, )"
         }
       },
       "rodaje.export": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Engine": "[1.0.0, )",
-          "Rodaje.Media": "[1.0.0, )",
-          "Rodaje.Render": "[1.0.0, )"
+          "Rodaje.Engine": "[1.0.2, )",
+          "Rodaje.Media": "[1.0.2, )",
+          "Rodaje.Render": "[1.0.2, )"
         }
       },
       "rodaje.media": {
         "type": "Project",
         "dependencies": {
           "FFmpeg.AutoGen.Bindings.DynamicallyLinked": "[9.0.1.1, )",
-          "Rodaje.Core": "[1.0.0, )",
-          "Rodaje.Playback": "[1.0.0, )",
+          "Rodaje.Core": "[1.0.2, )",
+          "Rodaje.Packages": "[1.0.2, )",
+          "Rodaje.Playback": "[1.0.2, )",
           "TerraFX.Interop.Windows": "[10.0.26100.6, )"
         }
       },
@@ -137,14 +138,14 @@
       "rodaje.playback": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Core": "[1.0.0, )"
+          "Rodaje.Core": "[1.0.2, )"
         }
       },
       "rodaje.render": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Media": "[1.0.0, )",
-          "Rodaje.Playback": "[1.0.0, )",
+          "Rodaje.Media": "[1.0.2, )",
+          "Rodaje.Playback": "[1.0.2, )",
           "TerraFX.Interop.Windows": "[10.0.26100.6, )"
         }
       }
@@ -152,11 +153,11 @@
     "net10.0-windows10.0.26100/win-x64": {
       "Microsoft.DotNet.ILCompiler": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "AawF393Q+VkdrnrnI1gu612zh5iqpa1AGSvnKCQ3IkMgSKJXIQbO1sXYRgEzOU4f0cPZ6MaCCF29xZSGWlmbuQ==",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "CDQ/+XRT1JT/0u87j9exR1AociehKUzxae4KCOWxCQ1PIKbYS0F8ovxaCrqRlkylGmbhywKxV/zbbrEhWa5NXg==",
         "dependencies": {
-          "runtime.win-x64.Microsoft.DotNet.ILCompiler": "10.0.12"
+          "runtime.win-x64.Microsoft.DotNet.ILCompiler": "10.0.14"
         }
       },
       "Microsoft.WindowsAppSDK.Foundation": {
@@ -176,8 +177,8 @@
       },
       "runtime.win-x64.Microsoft.DotNet.ILCompiler": {
         "type": "Transitive",
-        "resolved": "10.0.12",
-        "contentHash": "clsgU9GnioCJ+PBzQTCoJHxLXRU+7O/BzYrwRT8CUP7jgyYjNgJmNsQ/kbzAA7MG5kDvFoFvIBGHGzYdINh/EQ=="
+        "resolved": "10.0.14",
+        "contentHash": "B28xsyrO3PRFGL9yd1lLWdX3/wATFkaxPFM3VmGOFG8pfx7jDeb1Yz09v6n+z0jNEPAlQLqOx2noOXw8aytYNw=="
       }
     }
   }

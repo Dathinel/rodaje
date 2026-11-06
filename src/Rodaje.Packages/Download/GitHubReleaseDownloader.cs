@@ -52,7 +52,7 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _key = IndexSignature.TryImportPublicKey(options.PublicKey);
-        Files = new FileDownloader(http);
+        Files = new FileDownloader(http, SignedIndex.MaxEntrySize);
     }
 
     public FileDownloader Files { get; init; }

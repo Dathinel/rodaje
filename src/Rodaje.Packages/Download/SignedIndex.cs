@@ -82,13 +82,14 @@ public sealed record SignedIndex(DateTimeOffset Generated, IReadOnlyList<IndexEn
                 && DateTimeOffset.TryParse(g, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset parsed) ? parsed : DateTimeOffset.MinValue;
 
             var entries = new List<IndexEntry>();
+            var seen = new HashSet<(string Id, PackageVersion Version, IndexEntryKind Kind)>();
             if (root.TryGetProperty("entries", out JsonElement list) && list.ValueKind == JsonValueKind.Array)
             {
                 foreach (JsonElement e in list.EnumerateArray())
                 {
                     if (ParseEntry(e, policy, out string? problem) is { } entry)
                     {
-                        if (entries.Any(x => x.Id == entry.Id && x.Version.Equals(entry.Version) && x.Kind == entry.Kind))
+                        if (!seen.Add((entry.Id, entry.Version, entry.Kind)))
                         {
                             problems?.Add($"La entrada «{entry.Id}» {entry.Version} está repetida en el índice.");
                             continue;

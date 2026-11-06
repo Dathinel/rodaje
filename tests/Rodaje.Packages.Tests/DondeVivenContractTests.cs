@@ -98,7 +98,7 @@ public sealed class DondeVivenContractTests : IDisposable
         Directory.CreateDirectory(folder);
         File.WriteAllBytes(Path.Combine(folder, sha), [1, 2, 3]);
         using var http = new HttpClient();
-        var store = new ModelStore(folder, new FileDownloader(http));
+        var store = new ModelStore(folder, new FileDownloader(http, SignedIndex.MaxEntrySize));
         var model = new ModuleModel("voz", "modelos/voz.onnx", 3, sha, new Uri("https://example.com/voz.onnx"), "MIT");
         string moduleDirectory = Path.Combine(Locations.Modules, "modulo-voz");
 

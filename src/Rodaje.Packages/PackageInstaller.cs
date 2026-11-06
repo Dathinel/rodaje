@@ -167,6 +167,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         try
         {
             Extract(archive, staging, cancellationToken);
+            PackageIntegrity.Write(staging);
             ManifestResult read = ManifestReader.ReadFile(Path.Combine(staging, PackageManifest.FileName));
             if (read.Manifest is not { } manifest)
             {
