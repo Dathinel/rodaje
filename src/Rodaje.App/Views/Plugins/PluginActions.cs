@@ -1,4 +1,6 @@
+using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Packages;
 using Rodaje.App.Shell;
 using Rodaje.Packages;
 
@@ -12,7 +14,21 @@ internal static class PluginActions
         ArgumentNullException.ThrowIfNull(services);
         try
         {
-            InstallResult result = await services.Packages.InstallFromFileAsync(path);
+            LocalPackageInstall installation = await services.Packages.InstallLocalFileAsync(path, async () =>
+            {
+                var dialog = new ContentDialog
+                {
+                    XamlRoot = services.Shell.XamlRoot,
+                    Title = "¿Instalar este programa?",
+                    Content = "El paquete contiene un programa que se ejecutará. No está en el catálogo firmado. Instálalo solo si confías en el origen.",
+                    PrimaryButtonText = "Instalar",
+                    SecondaryButtonText = "Cancelar",
+                    DefaultButton = ContentDialogButton.Secondary,
+                };
+                return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
+            });
+            if (installation.Outcome != LocalInstallOutcome.Installed) return false;
+            InstallResult result = installation.Result!;
             PackageManifest manifest = result.Package.Manifest;
             string what = result.Outcome switch
             {

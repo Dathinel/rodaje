@@ -57,6 +57,12 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
 
     public FileDownloader Files { get; init; }
 
+    public async Task<bool> IsPublishedModuleAsync(string sha256, CancellationToken cancellationToken = default)
+    {
+        SignedIndex index = await GetIndexAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        return index.Entries.Any(e => e.Kind == IndexEntryKind.Module && string.Equals(e.Sha256, sha256, StringComparison.OrdinalIgnoreCase));
+    }
+
     public bool IsAvailable => _key is not null;
 
     public string? UnavailableReason => _key is null ? "Esta versión de Rodaje no trae la clave del catálogo: instala desde archivo." : null;

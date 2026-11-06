@@ -34,6 +34,7 @@
             <ScrollViewer><StackPanel Spacing="12" Padding="12">
                 <TextBlock Text="Apariencia" FontWeight="SemiBold" />
                 <ComboBox x:Name="ThemeBox" Header="Tema" MinWidth="240" SelectionChanged="OnThemeChanged" />
+                <TextBlock Text="«Crema» está inspirado en CreamUI de @sammwyy; gracias por compartirla." FontSize="10" Foreground="{ThemeResource TextMutedBrush}" TextWrapping="Wrap" />
                 <TextBlock Text="Color de acento" Style="{StaticResource LabelTextStyle}" />
                 <StackPanel x:Name="AccentPanel" Orientation="Horizontal" Spacing="6" />
                 <TextBlock x:Name="AccentNote" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Visibility="Collapsed" />

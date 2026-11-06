@@ -90,7 +90,9 @@ public sealed class SubtitleModuleTests(ITestOutputHelper output)
         await cts.CancelAsync();
         await Assert.ThrowsAnyAsync<OperationCanceledException>(() => call);
         output.WriteLine($"Cancelación a mitad de la transcripción: {watch.ElapsedMilliseconds} ms");
-        Assert.True(watch.Elapsed < TimeSpan.FromSeconds(2), $"{watch.ElapsedMilliseconds} ms");
+        // En la GPU se confirma en décimas; un tramo de Whisper no se interrumpe a mitad de ventana, así que en la CPU
+        // puede tardar casi toda la gracia que el protocolo da antes de cortar la conexión (DefaultCancelGrace, 10 s).
+        Assert.True(watch.Elapsed < ModuleClientOptions.DefaultCancelGrace, $"{watch.ElapsedMilliseconds} ms");
         Assert.False(module.Exited.IsCompleted, "el módulo no debe morir por cancelar");
         await module.Client.PingAsync();
     }
@@ -210,7 +212,7 @@ public sealed class SubtitleModuleTests(ITestOutputHelper output)
 
     /// <summary>Matriz de formatos: el módulo no veía el modelo en <c>RODAJE_ENTORNO\modelos</c>, donde lo buscan los demás.</summary>
     [Fact]
-    public void The_model_is_also_found_where_the_other_modules_look()
+    public void An_undeclared_model_in_the_shared_environment_is_rejected()
     {
         using var dir = new TempFolder();
         string file = $"modelo-{Guid.NewGuid():N}.bin";
@@ -220,7 +222,7 @@ public sealed class SubtitleModuleTests(ITestOutputHelper output)
         try
         {
             Environment.SetEnvironmentVariable("RODAJE_ENTORNO", dir.Path);
-            Assert.Equal(Path.Combine(dir.Path, "modelos", file), Transcriber.FindModel(null, file));
+            Assert.Throws<Rodaje.Modules.Protocol.ModuleCallException>(() => Transcriber.FindModel(null, file));
         }
         finally
         {
@@ -252,7 +254,7 @@ public sealed class SubtitleModuleTests(ITestOutputHelper output)
         File.WriteAllBytes(large, [0]);
         Assert.Equal(large, Transcriber.CpuModel(Transcriber.Options.Parse(null) with { CpuModel = small }, large));
         File.WriteAllBytes(small, [0]);
-        Assert.Equal(small, Transcriber.CpuModel(Transcriber.Options.Parse(null) with { CpuModel = small }, large));
+        Assert.Throws<Rodaje.Modules.Protocol.ModuleCallException>(() => Transcriber.CpuModel(Transcriber.Options.Parse(null) with { CpuModel = small }, large));
         Assert.Equal(Whisper.net.WhisperAlignmentHeadsPreset.Small, Transcriber.HeadsFor(small));
         Assert.Equal(Whisper.net.WhisperAlignmentHeadsPreset.LargeV3Turbo, Transcriber.HeadsFor(large));
     }
