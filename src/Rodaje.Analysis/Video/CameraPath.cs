@@ -1,9 +1,9 @@
 namespace Rodaje.Analysis.Video;
 
 /// <summary>Ajustes de «Estabilizar».</summary>
-/// <param name="Intensity">0 no corrige; 1 suaviza la trayectoria con una gaussiana de 1 s (sigma).</param>
+/// <param name="Intensity">0 no corrige; 1 suaviza la trayectoria con una gaussiana de 1 s (sigma). Fuera de 0–1 se recorta y NaN cuenta como 0.</param>
 /// <param name="AutoCrop">Acerca lo justo para que el borde que mueve la corrección no se vea en ningún cuadro.</param>
-/// <param name="MaxZoom">Tope del acercamiento automático.</param>
+/// <param name="MaxZoom">Tope del acercamiento automático; si no es un número finito de 1 o más, cuenta como 1 (sin acercar).</param>
 public sealed record StabilizeOptions(double Intensity = 0.5, bool AutoCrop = true, double MaxZoom = 1.5)
 {
     /// <summary>Sigma de la gaussiana a intensidad 1, en segundos.</summary>
@@ -68,7 +68,10 @@ public static class CameraPath
             y[k] = cumulative.Y;
         }
 
-        double sigma = Math.Clamp(options.Intensity, 0, 1) * StabilizeOptions.MaxSigmaSeconds * frameRate;
+        // Math.Clamp deja pasar NaN, y con sigma NaN todas las correcciones salen NaN: el cuadro queda en negro.
+        double intensity = double.IsNaN(options.Intensity) ? 0 : Math.Clamp(options.Intensity, 0, 1);
+        double maxZoom = double.IsFinite(options.MaxZoom) ? Math.Max(options.MaxZoom, 1) : 1;
+        double sigma = intensity * StabilizeOptions.MaxSigmaSeconds * frameRate;
         var corrections = new Similarity[n];
         if (sigma < 0.5 || n < 3)
         {
@@ -94,7 +97,7 @@ public static class CameraPath
         {
             foreach (Similarity c in corrections)
             {
-                zoom = Math.Max(zoom, ZoomToCover(c, aspect, options.MaxZoom));
+                zoom = Math.Max(zoom, ZoomToCover(c, aspect, maxZoom));
             }
 
             for (int k = 0; k < n; k++)
@@ -212,20 +215,17 @@ public static class CameraPath
 
         static double At(double[] v, int i)
         {
-            int n = v.Length;
-            if (i < 0)
+            int last = v.Length - 1;
+            if (last > 0 && (i < -last || i > 2 * last))
             {
-                int m = Math.Min(-i, n - 1);
-                return (2 * v[0]) - v[m];
+                // La señal reflejada se repite cada 2·(n − 1) muestras, subida cada vez lo que sube de punta a punta.
+                int turns = (int)Math.Floor(i / (2.0 * last));
+                return At(v, i - (turns * 2 * last)) + (turns * 2 * (v[last] - v[0]));
             }
 
-            if (i >= n)
-            {
-                int m = Math.Max(n - 1 - (i - (n - 1)), 0);
-                return (2 * v[n - 1]) - v[m];
-            }
-
-            return v[i];
+            return i < 0 ? (2 * v[0]) - v[Math.Min(-i, last)]
+                : i > last ? (2 * v[last]) - v[Math.Max((2 * last) - i, 0)]
+                : v[i];
         }
     }
 }
