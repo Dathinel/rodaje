@@ -85,6 +85,87 @@ public sealed class AutosaveScheduleTests
     }
 
     [Fact]
+    public void SetInterval_CuentaElIntervaloNuevoDesdeElCambio()
+    {
+        // Se edita cada dos segundos, así que la calma (5 s) nunca llega y solo decide el intervalo.
+        AutosaveSchedule schedule = Create();
+        schedule.NoteEdit(At(0));
+        schedule.NoteEdit(At(100));
+
+        schedule.SetInterval(TimeSpan.FromMinutes(1), At(101));
+
+        Assert.Equal(TimeSpan.FromMinutes(1), schedule.Interval);
+        Assert.True(schedule.HasPendingChanges);
+        // El primer cambio sin copia es de hace más de un minuto, pero el minuto se cuenta desde el cambio de intervalo.
+        schedule.NoteEdit(At(158));
+        Assert.False(schedule.IsDue(At(160)));
+        schedule.NoteEdit(At(160));
+        Assert.True(schedule.IsDue(At(162)));
+    }
+
+    [Fact]
+    public void SetInterval_AlargarloEsperaLoElegidoDesdeElCambio()
+    {
+        AutosaveSchedule schedule = Create();
+        schedule.NoteEdit(At(0));
+        schedule.NoteEdit(At(118));
+
+        schedule.SetInterval(TimeSpan.FromMinutes(30), At(119));
+
+        schedule.NoteEdit(At(121));
+        Assert.False(schedule.IsDue(At(123)));
+        schedule.NoteEdit(At(119 + 30 * 60 - 1));
+        Assert.True(schedule.IsDue(At(119 + 30 * 60)));
+    }
+
+    [Fact]
+    public void SetInterval_SinCambiosPendientesNoInventaNinguno()
+    {
+        AutosaveSchedule schedule = Create();
+
+        schedule.SetInterval(TimeSpan.FromMinutes(1), At(10));
+
+        Assert.False(schedule.HasPendingChanges);
+        Assert.False(schedule.IsDue(At(3600)));
+    }
+
+    [Fact]
+    public void SetInterval_SameValueDoesNotPostponePendingEdits()
+    {
+        AutosaveSchedule schedule = Create();
+        schedule.NoteEdit(At(0));
+        schedule.NoteEdit(At(119));
+
+        schedule.SetInterval(schedule.Interval, At(119));
+
+        Assert.True(schedule.HasPendingChanges);
+        Assert.False(schedule.IsDue(At(119.9)));
+        Assert.True(schedule.IsDue(At(120)));
+    }
+
+    [Fact]
+    public void SetInterval_RechazaCeroONegativo()
+    {
+        var schedule = new AutosaveSchedule();
+
+        Assert.Throws<ArgumentOutOfRangeException>(() => schedule.SetInterval(TimeSpan.Zero, T0));
+        Assert.Throws<ArgumentOutOfRangeException>(() => schedule.SetInterval(TimeSpan.FromMinutes(-1), T0));
+        Assert.Equal(TimeSpan.FromMinutes(AutosaveSchedule.DefaultIntervalMinutes), schedule.Interval);
+    }
+
+    [Theory]
+    [InlineData(0, 1)]
+    [InlineData(1, 1)]
+    [InlineData(7, 7)]
+    [InlineData(30, 30)]
+    [InlineData(999, 30)]
+    [InlineData(-5, 1)]
+    public void ClampMinutes_AcotaDeUnoATreinta(int minutes, int expected)
+    {
+        Assert.Equal(expected, AutosaveSchedule.ClampMinutes(minutes));
+    }
+
+    [Fact]
     public void Constructor_RejectsNonPositiveInterval()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new AutosaveSchedule(TimeSpan.Zero, TimeSpan.Zero, TimeSpan.Zero));

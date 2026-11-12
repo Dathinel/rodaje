@@ -10,10 +10,12 @@ public sealed partial class EditorSession
     /// El selector de formato del reproductor: medidas, cuadros por segundo y cómo quedan los clips, en un paso del
     /// historial. Desde ahí el primer video importado ya no impone su formato (quien eligió 9:16 quiere 9:16).
     /// </summary>
-    public bool ChangeFormat(int width, int height, Rational frameRate, ClipFit fit)
+    /// <param name="colorSpace">Espacio de color de la secuencia (D-054, D-055); <c>null</c> deja el que tiene.</param>
+    public bool ChangeFormat(int width, int height, Rational frameRate, ClipFit fit, SequenceColorSpace? colorSpace = null)
     {
         VerifyAccess();
-        if (width == Sequence.Width && height == Sequence.Height && frameRate == Sequence.FrameRate)
+        SequenceColorSpace space = colorSpace ?? Sequence.ColorSpace;
+        if (width == Sequence.Width && height == Sequence.Height && frameRate == Sequence.FrameRate && space == Sequence.ColorSpace)
         {
             return false;
         }
@@ -35,7 +37,7 @@ public sealed partial class EditorSession
 
         fit = ProjectFormats.Normalize(fit);
 
-        if (!Execute(SequenceFormatEdit.Command(SequenceId, width, height, frameRate, fit, _ids)))
+        if (!Execute(SequenceFormatEdit.Command(SequenceId, width, height, frameRate, fit, space, _ids)))
         {
             return false;
         }

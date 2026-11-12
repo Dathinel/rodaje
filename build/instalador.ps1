@@ -36,6 +36,19 @@ foreach ($exe in 'Rodaje.exe', 'app\Rodaje.exe') {
     if (-not (Test-Path -LiteralPath (Join-Path $Origen $exe))) { throw "No está publicado $Origen\$exe (corre build\app.ps1 -SoloPublicar)." }
 }
 
+# Si se ejecutó Rodaje.exe en $Origen, el lanzador marca app\ como oculta y entonces Inno Setup
+# la omite al compilar. Se quita el atributo de oculto de forma recursiva antes de llamar a ISCC.
+$appDir = Join-Path $Origen 'app'
+if (Test-Path -LiteralPath $appDir) {
+    @((Get-Item -LiteralPath $appDir -Force)) + @(Get-ChildItem -LiteralPath $appDir -Recurse -Force) |
+        Where-Object { $_.Attributes -band [System.IO.FileAttributes]::Hidden } |
+        ForEach-Object {
+            $attr = $_.Attributes -band (-bnot [System.IO.FileAttributes]::Hidden)
+            if ($attr -eq 0) { $attr = [System.IO.FileAttributes]::Normal }
+            $_.Attributes = $attr
+        }
+}
+
 if (-not (Test-Path -LiteralPath $Marca)) {
     Nota "Bajando Inno Setup $InnoVersion a $(Corto $Inno)..."
     $temporal = Join-Path ([System.IO.Path]::GetTempPath()) ("rodaje-inno-" + [guid]::NewGuid().ToString('N'))
@@ -96,6 +109,11 @@ if ($codigo -ne 0 -or -not (Test-Path -LiteralPath $resultado)) {
     $salidaIscc | Select-Object -Last 20 | ForEach-Object { Nota "  $_" }
     exit 1
 }
+$tamano = (Get-Item -LiteralPath $resultado).Length
+if ($tamano -lt 50MB) {
+    Mal ("El instalador generado ({0:0.0} MB) pesa menos de 50 MB: es probable que app\ se haya omitido por estar oculta." -f ($tamano / 1MB))
+    exit 1
+}
 if ($firma) { Bien 'Instalador firmado.' } else { Aviso 'Sin RODAJE_CERTIFICADO: el instalador va sin firmar (SmartScreen avisará).' }
-Bien ("{0}: {1:0.0} MB" -f (Split-Path -Leaf $resultado), ((Get-Item -LiteralPath $resultado).Length / 1MB))
+Bien ("{0}: {1:0.0} MB" -f (Split-Path -Leaf $resultado), ($tamano / 1MB))
 exit 0

@@ -4,16 +4,18 @@ using TerraFX.Interop.Windows;
 
 namespace Rodaje.Render.Tests.Support;
 
-/// <summary>Textura BGRA8 con vista de destino, como el búfer de una cadena de intercambio, que se puede leer.</summary>
+/// <summary>Textura BGRA8 (o R10G10B10A2) con vista de destino, como el búfer de una cadena de intercambio, que se puede leer.</summary>
 internal sealed unsafe class OffscreenTarget : IDisposable
 {
     private readonly GpuDevice _gpu;
+    private readonly DXGI_FORMAT _format;
     private ID3D11Texture2D* _texture;
     private ID3D11RenderTargetView* _view;
 
-    public OffscreenTarget(GpuDevice gpu, int width, int height)
+    public OffscreenTarget(GpuDevice gpu, int width, int height, DXGI_FORMAT format = DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM)
     {
         _gpu = gpu;
+        _format = format;
         Width = width;
         Height = height;
         var device = (ID3D11Device*)gpu.NativeDevice;
@@ -23,7 +25,7 @@ internal sealed unsafe class OffscreenTarget : IDisposable
             Height = (uint)height,
             MipLevels = 1,
             ArraySize = 1,
-            Format = DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM,
+            Format = format,
             SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
             Usage = D3D11_USAGE.D3D11_USAGE_DEFAULT,
             BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_RENDER_TARGET,
@@ -42,7 +44,7 @@ internal sealed unsafe class OffscreenTarget : IDisposable
 
     public nint RenderTargetView => (nint)_view;
 
-    /// <summary>Lee el contenido y lo devuelve en RGBA.</summary>
+    /// <summary>Lee el contenido y lo devuelve en RGBA de 8 bits (los 10 bits de R10G10B10A2 se reducen con <c>&gt;&gt; 2</c>).</summary>
     public RgbaImage Read()
     {
         var device = (ID3D11Device*)_gpu.NativeDevice;
@@ -67,6 +69,16 @@ internal sealed unsafe class OffscreenTarget : IDisposable
                 for (int x = 0; x < Width; x++)
                 {
                     int i = ((y * Width) + x) * 4;
+                    if (_format == DXGI_FORMAT.DXGI_FORMAT_R10G10B10A2_UNORM)
+                    {
+                        uint packed = ((uint*)row)[x];
+                        pixels[i] = (byte)((packed & 0x3FF) >> 2);
+                        pixels[i + 1] = (byte)(((packed >> 10) & 0x3FF) >> 2);
+                        pixels[i + 2] = (byte)(((packed >> 20) & 0x3FF) >> 2);
+                        pixels[i + 3] = (byte)((packed >> 30) * 85);
+                        continue;
+                    }
+
                     pixels[i] = row[(x * 4) + 2];
                     pixels[i + 1] = row[(x * 4) + 1];
                     pixels[i + 2] = row[x * 4];

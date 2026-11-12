@@ -95,6 +95,7 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         EssentialMouse.LayerChanged += (_, layer) => EssentialKeyboard.SetLayer(layer);
         Editor.Attach(this);
         Sheet.Saved += OnSheetSaved;
+        Sheet.PickPath = PickSheetPath;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
 
@@ -788,11 +789,38 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
         ShowChange(_customizer!.ResetAll());
     }
 
+    /// <summary>
+    /// El diálogo de guardar de la hoja rápida: propone «Atajos de Rodaje» con la extensión del formato, en la última
+    /// carpeta elegida para las hojas y los mapas de atajos (Documentos la primera vez). <c>null</c> si se canceló.
+    /// </summary>
+    private string? PickSheetPath(SheetFormat format)
+    {
+        if (_services is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            string? path = FileDialogs.Save(Owner(), SheetFiles.DialogTitle(format), SheetFiles.QuickSheetName(format),
+                SheetFiles.Extension(format).TrimStart('.'),
+                FileDialogFolderPolicy.SaveFolder(_services.Settings.Current, SaveDialogKind.Shortcuts), SheetFiles.Filter(format));
+            FileDialogFolderPolicy.RememberSave(_services.Settings.Current, SaveDialogKind.Shortcuts, path);
+            _services.Settings.SaveIfChanged();
+            return path;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Runtime.InteropServices.COMException or InvalidOperationException)
+        {
+            ShowNotice($"No se pudo abrir el diálogo: {ex.Message}", severity: NotificationSeverity.Warning);
+            return null;
+        }
+    }
+
     private void OnSheetSaved(object? sender, CheatSheetSaved saved)
     {
         if (saved.Path is { } path)
         {
-            ShowNotice($"Hoja guardada en Documentos: {System.IO.Path.GetFileName(path)}", new NotificationAction("Abrir", () => Open(path)));
+            ShowNotice($"Hoja guardada en «{System.IO.Path.GetDirectoryName(path)}»: {System.IO.Path.GetFileName(path)}", new NotificationAction("Abrir", () => Open(path)));
         }
         else
         {

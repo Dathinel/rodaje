@@ -131,11 +131,25 @@ public static unsafe class MediaProbe
             MediaTags.Read(format->streams[videoIndex]->metadata, tags);
         }
 
+        string container = Marshal.PtrToStringUTF8((nint)format->iformat->name) ?? "";
+        if (video is { FrameCount: <= 1 } image && audio is null && MediaSupport.IsStillImageFormat(container, image.Codec))
+        {
+            int rotation = ReadImageRotation(format, videoIndex) ?? image.Rotation;
+            int width = (int)Math.Round(image.Width * image.SampleAspectRatio.ToDouble());
+            video = image with
+            {
+                FrameCount = 1, Duration = Time.FromFrames(1, image.FrameRate), Rotation = rotation,
+                DisplayWidth = rotation is 90 or 270 ? image.Height : width,
+                DisplayHeight = rotation is 90 or 270 ? width : image.Height,
+            };
+            duration = Time.Zero;
+        }
+
         return new MediaInfo
         {
             Tags = MediaTags.Parse(tags),
             Path = path,
-            ContainerFormat = Marshal.PtrToStringUTF8((nint)format->iformat->name) ?? "",
+            ContainerFormat = container,
             Duration = duration,
             ContainerStartTime = containerStart,
             Video = video,
@@ -217,7 +231,8 @@ public static unsafe class MediaProbe
             Codec = Av.CodecName(par->codec_id),
             PixelFormat = Av.PixelFormatName(pixelFormat),
             BitDepth = bitDepth,
-            Color = VideoColor.Resolve(par->color_space, par->color_range, pixelFormat, par->height),
+            Color = VideoColor.Resolve(par->color_space, par->color_range, pixelFormat, par->height)
+                .WithTransfer(par->color_trc, par->color_primaries),
             HdrTransfer = par->color_trc switch
             {
                 AVColorTransferCharacteristic.AVCOL_TRC_SMPTE2084 => "PQ",
@@ -257,6 +272,55 @@ public static unsafe class MediaProbe
     }
 
     private static Rational? ToRational(AVRational r) => Av.IsValid(r) ? new Rational(r.num, r.den) : null;
+
+    private static int? ReadImageRotation(AVFormatContext* format, int index)
+    {
+        AVCodecParameters* par = format->streams[index]->codecpar;
+        AVCodec* decoder = ffmpeg.avcodec_find_decoder(par->codec_id);
+        if (decoder == null)
+        {
+            return null;
+        }
+
+        AVCodecContext* codec = ffmpeg.avcodec_alloc_context3(decoder);
+        AVPacket* packet = ffmpeg.av_packet_alloc();
+        AVFrame* frame = ffmpeg.av_frame_alloc();
+        try
+        {
+            Av.Check(ffmpeg.avcodec_parameters_to_context(codec, par), "avcodec_parameters_to_context");
+            codec->thread_count = 1;
+            Av.Check(ffmpeg.avcodec_open2(codec, decoder, null), "avcodec_open2");
+            while (ffmpeg.av_read_frame(format, packet) >= 0)
+            {
+                if (packet->stream_index == index)
+                {
+                    Av.Check(ffmpeg.avcodec_send_packet(codec, packet), "avcodec_send_packet");
+                    if (ffmpeg.avcodec_receive_frame(codec, frame) >= 0)
+                    {
+                        AVFrameSideData* matrix = ffmpeg.av_frame_get_side_data(frame, AVFrameSideDataType.AV_FRAME_DATA_DISPLAYMATRIX);
+                        if (matrix != null && matrix->size >= 9 * sizeof(int))
+                        {
+                            double angle = ffmpeg.av_display_rotation_get(*(int9*)matrix->data);
+                            return double.IsNaN(angle) ? null : ((int)Math.Round(-angle / 90) * 90 % 360 + 360) % 360;
+                        }
+
+                        return null;
+                    }
+                }
+
+                ffmpeg.av_packet_unref(packet);
+            }
+
+            return null;
+        }
+        finally
+        {
+            ffmpeg.av_frame_free(&frame);
+            ffmpeg.av_packet_free(&packet);
+            ffmpeg.avcodec_free_context(&codec);
+            RewindToStart(format, index);
+        }
+    }
 
     private static int ReadRotation(AVCodecParameters* par)
     {

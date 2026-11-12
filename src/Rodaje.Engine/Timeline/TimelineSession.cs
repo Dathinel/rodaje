@@ -78,6 +78,7 @@ public sealed class TimelineSession : IDisposable
             _scheduler = new TimelineScheduler(plan, clock, backend, decoderOptions, options, vramBudget);
             _scheduler.EndReached += (_, e) => EndReached?.Invoke(this, e);
             _scheduler.DecodeFailed += (_, e) => DecodeFailed?.Invoke(this, e);
+            _scheduler.FrameDelivered += (_, e) => FrameDelivered?.Invoke(this, e);
         }
         catch
         {
@@ -96,6 +97,9 @@ public sealed class TimelineSession : IDisposable
     /// <summary>Un medio no se pudo abrir o un cuadro no se pudo decodificar; puede llegar desde un hilo de decodificación.</summary>
     public event EventHandler<TimelineDecodeFailedEventArgs>? DecodeFailed;
 
+    /// <summary>Llegó (o falló) un cuadro pedido: el próximo <see cref="Tick"/> puede cambiar la composición. Desde el hilo del decodificador.</summary>
+    public event EventHandler? FrameDelivered;
+
     public string SequenceId { get; }
 
     public int Width => _scheduler.Plan.Width;
@@ -103,6 +107,9 @@ public sealed class TimelineSession : IDisposable
     public int Height => _scheduler.Plan.Height;
 
     public Rational FrameRate => _scheduler.Plan.FrameRate;
+
+    /// <summary>Espacio de color de la secuencia (<see cref="Sequence.ColorSpace"/>), para el compositor del reproductor.</summary>
+    public SequenceColorSpace ColorSpace => _scheduler.Plan.Expanded.ColorSpace;
 
     public Time Duration => _scheduler.Plan.Duration;
 
@@ -270,6 +277,12 @@ public sealed class TimelineSession : IDisposable
         if (IsPlaying)
         {
             _scheduler.Pause();
+        }
+
+        // En el último cuadro (Fin deja la posición a mitad de él), acotar llevaría al inicio del cuadro: hacia atrás.
+        if (frames > 0 && CurrentFrame >= FrameCount - 1)
+        {
+            return;
         }
 
         SeekToFrame(CurrentFrame + frames);

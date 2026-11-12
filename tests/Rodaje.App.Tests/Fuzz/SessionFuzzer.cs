@@ -652,7 +652,9 @@ internal sealed class SessionFuzzer
                 int frames = _random.Next(-10, 11);
                 Note($" {frames}");
                 s.NudgeSelection(frames);
-                return false;
+
+                // Con «ignorar grupos» el empujón mueve solo lo seleccionado: desfasar es lo que se pide.
+                return s.Timeline.IgnoreGroups;
             }
 
             case Act.TrimEdge:

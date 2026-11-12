@@ -40,7 +40,7 @@ internal sealed partial class TimelinePlan
             Tracks.Add(track);
             List<Clip> included = [.. Ordered(track).Where(c => c.Enabled && c.Duration > Time.Zero && (c.IsCompound
                 ? groups && depth < ModelValidator.MaxCompoundDepth && project.FindSequence(c.SequenceId!) is not null
-                : c.Generator is null && media.TryGetValue(c.MediaId, out MediaRef? m) && m.HasVideo && m.FrameRate is not null))];
+                : c.Generator is null && media.TryGetValue(c.MediaId, out MediaRef? m) && m.HasVideo && (m.IsStillImage || m.FrameRate is not null)))];
             List<Cut> cuts = Cuts(track, included);
             var clips = new List<VideoClipPlan>();
             var incoming = new List<VideoClipPlan>();
@@ -69,18 +69,18 @@ internal sealed partial class TimelinePlan
                 }
 
                 MediaRef m = media[clip.MediaId];
-                Rational rate = m.FrameRate!.Value;
+                Rational rate = m.FrameRate ?? sequence.FrameRate;
                 SourceKey key = Key(m, projectDirectory);
                 EffectPlan? effects = EffectPlan.From(clip.Effects, content);
                 ClipTimeMap map = clip.TimeMap;
                 Time material = Material(m);
                 clips.Add(new VideoClipPlan(clip.Id, key, map, clip.Start + head, clip.End + tail, material, rate, sequence.FrameRate,
-                    effects, m.Width, m.Height) { Outgoing = transition });
+                    effects, m.Width, m.Height, m.IsStillImage) { Outgoing = transition });
 
                 if (entering is { } e2)
                 {
                     incoming.Add(new VideoClipPlan(clip.Id, key, map, clip.Start - e2.Before, clip.Start + e2.After, material, rate,
-                        sequence.FrameRate, effects, m.Width, m.Height));
+                        sequence.FrameRate, effects, m.Width, m.Height, m.IsStillImage));
                 }
             }
 

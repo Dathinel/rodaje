@@ -97,6 +97,7 @@ public sealed class StillExporter
 
             using var compositor = new Compositor(gpu, timeline.Width, timeline.Height)
             {
+                ColorSpace = timeline.ColorSpace,
                 Resources = Options.Content,
                 Titles = titles,
                 TransparentBackground = plan.HasAlpha,
@@ -106,7 +107,7 @@ public sealed class StillExporter
             StillSettings settings = plan.Settings;
             ExportSourceRegion? region = settings.Crop is { } crop ? new ExportSourceRegion(crop.X, crop.Y, crop.Width, crop.Height) : null;
             using var converter = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, plan.Output, settings.Fit, settings.ScaleFilter,
-                ringSize: 2, region: region);
+                ringSize: 2, region: region, source: timeline.ColorSpace);
             converter.Submit(compositor.Texture, 0);
             long bytes = 0;
             void Write(in ExportVideoFrame image) => bytes = encoder.Write(in image, cancellationToken);

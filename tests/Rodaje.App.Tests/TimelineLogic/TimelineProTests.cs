@@ -131,4 +131,35 @@ public sealed class TimelineProTests
         TrackRow row = TrackLayout.Build(session.Sequence, session.MainTrack).Find(audio.Id)!;
         Assert.Equal(120, row.Height);
     });
+
+    [Fact]
+    public void Con_ignorar_grupos_el_empujon_mueve_solo_el_seleccionado() => UiThread.Run(async () =>
+    {
+        EditorSession session = await ThreeClips();
+        session.Timeline.IgnoreGroups = true;
+        Clip audio = session.Sequence.AudioTracks[0].Clips[2];
+        session.Select([audio.Id]);
+
+        Assert.True(session.NudgeSelection(3));
+
+        Assert.Equal(S(20) + Time.FromFrames(3, session.Sequence.FrameRate), session.Sequence.AudioTracks[0].Clips[2].Start);
+        Assert.Equal(S(20), session.MainTrack!.Clips[2].Start);
+    });
+
+    [Fact]
+    public void Con_ignorar_grupos_Supr_borra_solo_el_seleccionado_y_la_pareja_sigue_enlazada() => UiThread.Run(async () =>
+    {
+        EditorSession session = await ThreeClips();
+        session.Timeline.IgnoreGroups = true;
+        Clip video = session.MainTrack!.Clips[1];
+        session.Select([session.Sequence.AudioTracks[0].Clips[1].Id]);
+
+        Assert.True(session.DeleteSelection());
+
+        Assert.Equal("a@0-10 b@10-20 c@20-25", Layout(session, session.MainTrack));
+        Assert.Equal("a@0-10 c@20-25", Layout(session, session.Sequence.AudioTracks[0]));
+        Assert.NotNull(session.Sequence.GetClip(video.Id).Clip.LinkId);
+        session.Undo();
+        Assert.Equal("a@0-10 b@10-20 c@20-25", Layout(session, session.Sequence.AudioTracks[0]));
+    });
 }

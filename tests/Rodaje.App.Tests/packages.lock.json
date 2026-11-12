@@ -120,13 +120,13 @@
       "rodaje.analysis": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Core": "[1.0.0, )"
+          "Rodaje.Core": "[1.0.2, )"
         }
       },
       "rodaje.audio": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Playback": "[1.0.0, )"
+          "Rodaje.Playback": "[1.0.2, )"
         }
       },
       "rodaje.core": {
@@ -135,32 +135,33 @@
       "rodaje.engine": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Audio": "[1.0.0, )",
-          "Rodaje.Media": "[1.0.0, )",
-          "Rodaje.Playback": "[1.0.0, )"
+          "Rodaje.Audio": "[1.0.2, )",
+          "Rodaje.Media": "[1.0.2, )",
+          "Rodaje.Playback": "[1.0.2, )"
         }
       },
       "rodaje.export": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Engine": "[1.0.0, )",
-          "Rodaje.Media": "[1.0.0, )",
-          "Rodaje.Render": "[1.0.0, )"
+          "Rodaje.Engine": "[1.0.2, )",
+          "Rodaje.Media": "[1.0.2, )",
+          "Rodaje.Render": "[1.0.2, )"
         }
       },
       "rodaje.media": {
         "type": "Project",
         "dependencies": {
           "FFmpeg.AutoGen.Bindings.DynamicallyLinked": "[9.0.1.1, )",
-          "Rodaje.Core": "[1.0.0, )",
-          "Rodaje.Playback": "[1.0.0, )",
+          "Rodaje.Core": "[1.0.2, )",
+          "Rodaje.Packages": "[1.0.2, )",
+          "Rodaje.Playback": "[1.0.2, )",
           "TerraFX.Interop.Windows": "[10.0.26100.6, )"
         }
       },
       "rodaje.module.echo": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Modules.Protocol": "[1.0.0, )"
+          "Rodaje.Modules.Protocol": "[1.0.2, )"
         }
       },
       "rodaje.modules.protocol": {
@@ -172,30 +173,30 @@
       "rodaje.playback": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Core": "[1.0.0, )"
+          "Rodaje.Core": "[1.0.2, )"
         }
       },
       "rodaje.render": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Media": "[1.0.0, )",
-          "Rodaje.Playback": "[1.0.0, )",
+          "Rodaje.Media": "[1.0.2, )",
+          "Rodaje.Playback": "[1.0.2, )",
           "TerraFX.Interop.Windows": "[10.0.26100.6, )"
         }
       },
       "rodaje.testmedia": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Audio": "[1.0.0, )",
-          "Rodaje.Core": "[1.0.0, )",
-          "Rodaje.Media": "[1.0.0, )",
+          "Rodaje.Audio": "[1.0.2, )",
+          "Rodaje.Core": "[1.0.2, )",
+          "Rodaje.Media": "[1.0.2, )",
           "xunit.extensibility.core": "[2.9.3, )"
         }
       },
       "rodaje.testserver": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Packages": "[1.0.0, )"
+          "Rodaje.Packages": "[1.0.2, )"
         }
       }
     },

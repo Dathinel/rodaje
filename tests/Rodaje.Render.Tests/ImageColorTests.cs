@@ -43,6 +43,17 @@ public sealed class ImageColorTests
             new C3(gain, gain + gainGreen, gain)));
     }
 
+    [GpuTheory]
+    [InlineData(0.1, 0, 0, 0)]
+    [InlineData(-0.15, 0.05, -0.05, 0)]
+    [InlineData(0.05, 0, 0.1, -0.1)]
+    public void Offset_wheel_adds_before_the_other_wheels(double offset, double offsetRed, double offsetBlue, double lift)
+    {
+        LayerEffect wheels = Fx.Make(BuiltInEffects.ColorWheels, null, (W.Offset, offset), (W.OffsetRed, offsetRed), (W.OffsetBlue, offsetBlue), (W.Lift, lift));
+        AssertPalette([wheels], c => EffectReference.Wheels(c, new C3(lift, lift, lift), new C3(0, 0, 0), new C3(0, 0, 0),
+            new C3(offset + offsetRed, offset, offset + offsetBlue)));
+    }
+
     [GpuFact]
     public void Curves_match_the_reference_master_after_channel()
     {

@@ -144,7 +144,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         {
             case ExportJobState.Completed:
                 session.Notify(NotificationSeverity.Success, "Exportación terminada",
-                    $"«{entry.Title}» está listo ({ExportText.Duration(entry.Progress.Elapsed)}).",
+                    $"«{entry.Title}» está listo ({ExportText.Duration(entry.Progress.Elapsed)})." + (entry.Job?.MeasuredNote is { } note ? $" {note}." : ""),
                     new NotificationAction("Abrir carpeta", () => OpenFolder(entry)));
                 break;
             case ExportJobState.Failed when entry.Failure is { } failure:
@@ -181,24 +181,32 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
 
     private void OpenFolder(ExportEntry entry)
     {
-        if (!File.Exists(entry.OutputPath))
+        if (!ExportEntry.OutputExists(entry.OutputPath))
         {
             NotWritten(entry);
             return;
         }
 
-        using Process? _ = Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{entry.OutputPath}\"") { UseShellExecute = false });
+        using Process? _ = Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{Path.TrimEndingDirectorySeparator(entry.OutputPath)}\"") { UseShellExecute = false });
     }
 
+    // Una secuencia de imágenes es una carpeta: el shell la abre en el Explorador.
     private void Play(ExportEntry entry)
     {
-        if (!File.Exists(entry.OutputPath))
+        if (!ExportEntry.OutputExists(entry.OutputPath))
         {
             NotWritten(entry);
             return;
         }
 
-        using Process? _ = Process.Start(new ProcessStartInfo(entry.OutputPath) { UseShellExecute = true });
+        try
+        {
+            using Process? _ = Process.Start(new ProcessStartInfo(entry.OutputPath) { UseShellExecute = true });
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            _services?.Session.Notify(NotificationSeverity.Warning, "No se pudo abrir", ex.Message);
+        }
     }
 
     private void NotWritten(ExportEntry entry) => _services?.Session.Notify(NotificationSeverity.Warning, "No está el archivo",
@@ -275,7 +283,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
             int position = _entry.Job is null ? _owner._jobs?.QueuePosition(_entry) ?? 0 : 0;
             _status.Text = position > 0
                 ? $"En cola · {position}.º" + (_owner._jobs?.IsPaused == true ? " · la cola está en pausa" : "")
-                : ExportText.Status(progress);
+                : ExportText.Status(progress) + (progress.State == ExportJobState.Completed && _entry.Job?.MeasuredNote is { } note ? $" · {note}" : "");
             _bar.Value = progress.Fraction;
             _bar.IsIndeterminate = progress.State is ExportJobState.Preparing or ExportJobState.MeasuringLoudness or ExportJobState.MixingAudio
                 or ExportJobState.Finalizing;

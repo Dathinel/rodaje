@@ -1,15 +1,5 @@
 namespace Rodaje.App.Services.Shortcuts;
 
-[Flags]
-public enum KeyModifiers
-{
-    None = 0,
-    Control = 1,
-    Shift = 2,
-    Alt = 4,
-    Windows = 8,
-}
-
 /// <summary>Una combinación de teclas: una tecla (código virtual de Windows) con sus modificadores.</summary>
 /// <remarks>
 /// Los códigos son los de <c>Windows.System.VirtualKey</c> (los VK_ de Win32), así que la ventana los convierte sin

@@ -70,7 +70,6 @@ internal sealed partial class TitleBar
             PrimaryButtonText = "Quitar espacio",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
         };
         if (await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary
             && services.Settings.Current.Workspaces.Any(p => p.Id == profile.Id))

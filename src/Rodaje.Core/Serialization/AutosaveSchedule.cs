@@ -31,7 +31,39 @@ public sealed class AutosaveSchedule
         MinimumGap = minimumGap;
     }
 
-    public TimeSpan Interval { get; }
+    /// <summary>Lo máximo que puede quedar un cambio sin copia; se cambia con <see cref="SetInterval"/>.</summary>
+    public TimeSpan Interval { get; private set; }
+
+    /// <summary>El intervalo más corto y el más largo que se aceptan desde Preferencias, en minutos.</summary>
+    public const int MinIntervalMinutes = 1;
+
+    public const int MaxIntervalMinutes = 30;
+
+    public const int DefaultIntervalMinutes = 2;
+
+    /// <summary>
+    /// Cambia el intervalo (Preferencias › General). Lo pendiente sigue pendiente, pero el intervalo nuevo se cuenta
+    /// desde <paramref name="now"/>, no desde el primer cambio: acortarlo no dispara una copia en el acto y alargarlo
+    /// espera lo elegido desde este momento. Reasignar el mismo intervalo conserva el vencimiento pendiente.
+    /// La copia por calma (<see cref="QuietPeriod"/>) sigue igual.
+    /// </summary>
+    public void SetInterval(TimeSpan interval, DateTimeOffset now)
+    {
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(interval, TimeSpan.Zero);
+        if (interval == Interval)
+        {
+            return;
+        }
+
+        Interval = interval;
+        if (_firstPendingEdit is not null)
+        {
+            _firstPendingEdit = now;
+        }
+    }
+
+    /// <summary>Minutos acotados a lo que admite Preferencias.</summary>
+    public static int ClampMinutes(int minutes) => Math.Clamp(minutes, MinIntervalMinutes, MaxIntervalMinutes);
 
     public TimeSpan QuietPeriod { get; }
 

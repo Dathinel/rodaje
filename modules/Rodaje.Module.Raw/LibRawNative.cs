@@ -22,6 +22,15 @@ internal static unsafe partial class LibRawNative
     public const int IparamsMake = 4;
     public const int IparamsModel = 68;
     public const int IparamsDngVersion = 332;
+    public const int IparamsColors = 340;
+    public const int IparamsFilters = 344;
+    public const int IparamsCdesc = 420;
+
+    // libraw_data_t empieza por el puntero a image (ushort[4] por píxel) y sigue con libraw_image_sizes_t, cuyo flip
+    // va tras ocho ushort, un unsigned y un double alineado a 8.
+    public const int DataImage = 0;
+    public const int DataSizesPixelAspect = 8 + 24;
+    public const int DataSizesFlip = 8 + 32;
     public const int ImgotherIso = 0;
     public const int ImgotherShutter = 4;
     public const int ImgotherAperture = 8;
@@ -162,6 +171,21 @@ internal static unsafe partial class LibRawNative
 
     [LibraryImport(Library, EntryPoint = "libraw_get_cam_mul")]
     public static partial float GetCameraMultiplier(nint handle, int index);
+
+    [LibraryImport(Library, EntryPoint = "libraw_get_pre_mul")]
+    public static partial float GetDaylightMultiplier(nint handle, int index);
+
+    [LibraryImport(Library, EntryPoint = "libraw_get_rgb_cam")]
+    public static partial float GetRgbCam(nint handle, int row, int column);
+
+    [LibraryImport(Library, EntryPoint = "libraw_get_color_maximum")]
+    public static partial int GetColorMaximum(nint handle);
+
+    [LibraryImport(Library, EntryPoint = "libraw_raw2image")]
+    public static partial int Raw2Image(nint handle);
+
+    [LibraryImport(Library, EntryPoint = "libraw_subtract_black")]
+    public static partial void SubtractBlack(nint handle);
 
     [LibraryImport(Library, EntryPoint = "libraw_get_iparams")]
     public static partial byte* GetImageParams(nint handle);

@@ -23,7 +23,10 @@ public class MouseShortcutsTests
     public void DeFabrica_CadaEstiloYZonaTieneSuRaton()
     {
         MouseMap rodaje = Catalog().Mouse;
-        Assert.Equal(MouseGestures.ScrollTime, rodaje.Get(MouseContext.Timeline, Wheel));
+        Assert.Equal(MouseGestures.ScrollTracks, rodaje.Get(MouseContext.Timeline, Wheel));
+        Assert.Equal(MouseGestures.ScrollTime, rodaje.Get(MouseContext.Timeline, new MouseChord(MouseInput.Wheel, KeyModifiers.Shift)));
+        Assert.Equal(MouseGestures.TrackHeight, rodaje.Get(MouseContext.Timeline, new MouseChord(MouseInput.Wheel, KeyModifiers.Alt)));
+        Assert.Equal(MouseGestures.ScrollTime, rodaje.Get(MouseContext.Timeline, new MouseChord(MouseInput.Tilt)));
         Assert.Equal(MouseGestures.Zoom, rodaje.Get(MouseContext.Timeline, CtrlWheel));
         Assert.Equal(MouseGestures.Pan, rodaje.Get(MouseContext.Timeline, Middle));
         Assert.Equal(ActionIds.PreviousFrame, rodaje.Get(MouseContext.Timeline, X1));
@@ -35,6 +38,8 @@ public class MouseShortcutsTests
 
         MouseMap classic = Catalog(ShortcutPreset.Classic).Mouse;
         Assert.Equal(MouseGestures.Zoom, classic.Get(MouseContext.Timeline, Wheel));
+        Assert.Equal(MouseGestures.ScrollTime, classic.Get(MouseContext.Timeline, CtrlWheel));
+        Assert.Equal(MouseGestures.ScrollTracks, classic.Get(MouseContext.Timeline, new MouseChord(MouseInput.Wheel, KeyModifiers.Shift)));
     }
 
     [Fact]
@@ -75,7 +80,7 @@ public class MouseShortcutsTests
 
         Assert.True(change.Changed);
         Assert.Equal(MouseGestures.Zoom, registry.Mouse.Get(MouseContext.Timeline, Wheel));
-        Assert.Equal(MouseGestures.ScrollTime, registry.Mouse.Get(MouseContext.Timeline, CtrlWheel));
+        Assert.Equal(MouseGestures.ScrollTracks, registry.Mouse.Get(MouseContext.Timeline, CtrlWheel));
         Assert.Contains("se intercambiaron", change.Message, StringComparison.Ordinal);
     }
 
@@ -89,7 +94,8 @@ public class MouseShortcutsTests
 
         Assert.Equal(MouseGestures.Zoom, registry.Mouse.Get(MouseContext.Timeline, Wheel));
         Assert.Equal(MouseGestures.Zoom, registry.Mouse.Get(MouseContext.Timeline, CtrlWheel));
-        Assert.Equal(new MouseChord(MouseInput.Tilt), registry.Mouse.FindChord(MouseContext.Timeline, MouseGestures.ScrollTime));
+        Assert.Null(registry.Mouse.FindChord(MouseContext.Timeline, MouseGestures.ScrollTracks));
+        Assert.NotNull(registry.Mouse.FindChord(MouseContext.Timeline, MouseGestures.ScrollTime));
     }
 
     [Fact]
@@ -179,7 +185,7 @@ public class MouseShortcutsTests
         Assert.Null(new ShortcutStore(path).Load(loaded));
 
         Assert.Equal(MouseGestures.Zoom, loaded.Mouse.Get(MouseContext.Timeline, Wheel));
-        Assert.Equal(MouseGestures.ScrollTime, loaded.Mouse.Get(MouseContext.Timeline, CtrlWheel));
+        Assert.Equal(MouseGestures.ScrollTracks, loaded.Mouse.Get(MouseContext.Timeline, CtrlWheel));
         Assert.Null(loaded.Mouse.Get(MouseContext.Viewer, X2));
         string json = File.ReadAllText(path);
         Assert.Contains("\"timeline\"", json, StringComparison.Ordinal);
@@ -197,7 +203,7 @@ public class MouseShortcutsTests
         Assert.Null(new ShortcutStore(path).Load(loaded));
 
         Assert.Equal(ActionIds.Split, loaded.FindAction(KeyChord.Parse("X")));
-        Assert.Equal(MouseGestures.ScrollTime, loaded.Mouse.Get(MouseContext.Timeline, Wheel));
+        Assert.Equal(MouseGestures.ScrollTracks, loaded.Mouse.Get(MouseContext.Timeline, Wheel));
     }
 
     [Fact]
@@ -214,7 +220,7 @@ public class MouseShortcutsTests
         Assert.Null(new ShortcutStore(path).Load(loaded));
 
         Assert.Null(loaded.Mouse.Get(MouseContext.Timeline, new MouseChord(MouseInput.Left)));
-        Assert.Equal(MouseGestures.ScrollTime, loaded.Mouse.Get(MouseContext.Timeline, Wheel));
+        Assert.Equal(MouseGestures.ScrollTracks, loaded.Mouse.Get(MouseContext.Timeline, Wheel));
         Assert.Equal(ActionIds.Split, loaded.Mouse.Get(MouseContext.Timeline, X1));
     }
 
@@ -322,5 +328,30 @@ public class MouseShortcutsTests
         Assert.Equal([MouseGestures.Frames, MouseGestures.ViewerZoom], wheel.Select(c => c.Id).Order());
         Assert.Contains(button, c => c.Id == MouseGestures.Pan);
         Assert.Contains(keys, c => c.Id == ActionIds.SpeedUp);
+    }
+}
+
+public class TimelineWheelTests
+{
+    [Theory]
+    [InlineData(MouseGestures.ScrollTracks, false, false, false, MouseGestures.ScrollTracks)]
+    [InlineData(MouseGestures.ScrollTracks, false, false, true, MouseGestures.ScrollTime)]
+    [InlineData(MouseGestures.ScrollTracks, true, false, true, MouseGestures.ScrollTracks)]
+    [InlineData(MouseGestures.ScrollTime, true, false, false, MouseGestures.ScrollTracks)]
+    [InlineData(MouseGestures.ScrollTime, true, true, false, MouseGestures.ScrollTime)]
+    [InlineData(MouseGestures.Zoom, false, false, true, MouseGestures.Zoom)]
+    [InlineData(MouseGestures.TrackHeight, true, false, true, MouseGestures.TrackHeight)]
+    public void LaRuedaEfectiva_DependeDeDondeEstaYDeSiSeVenTodasLasPistas(string mapped, bool overHeaders, bool tilt, bool allVisible, string expected)
+    {
+        Assert.Equal(expected, MouseGestures.EffectiveTimelineWheel(mapped, overHeaders, tilt, allVisible));
+    }
+
+    [Fact]
+    public void ElAltoDeLasPistas_EsUnGestoDeRuedaDeLaLineaDeTiempo()
+    {
+        MouseGesture gesture = MouseGestures.Find(MouseGestures.TrackHeight)!;
+        Assert.Equal(MouseGestureKind.Axis, gesture.Kind);
+        Assert.True(gesture.WorksIn(MouseContext.Timeline));
+        Assert.False(gesture.WorksIn(MouseContext.Viewer));
     }
 }

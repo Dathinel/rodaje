@@ -99,13 +99,15 @@ internal sealed unsafe class RenderTargetPool : IDisposable
     private const int IdleFrames = 240;
 
     private readonly ID3D11Device* _device;
+    private readonly ID3D11DeviceContext* _context;
     private readonly List<RenderTarget> _targets = [];
     private long _frame;
 
-    public RenderTargetPool(ID3D11Device* device, long capBytes)
+    public RenderTargetPool(ID3D11Device* device, ID3D11DeviceContext* context, long capBytes)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capBytes);
         _device = device;
+        _context = context;
         CapBytes = capBytes;
     }
 
@@ -148,6 +150,11 @@ internal sealed unsafe class RenderTargetPool : IDisposable
         }
 
         RenderTarget created = RenderTarget.Create(_device, w, h, format);
+
+        // El filtro bilineal lee el texel vecino del borde de lo pedido aunque pese 0, y 0 × NaN es NaN: el margen del
+        // redondeo no puede quedar con lo que hubiera en esa memoria (en WARP, a veces medias precisiones NaN).
+        float* zero = stackalloc float[4] { 0, 0, 0, 0 };
+        _context->ClearRenderTargetView(created.Rtv, zero);
         created.InUse = true;
         _targets.Add(created);
         Bytes += created.Bytes;

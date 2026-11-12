@@ -30,7 +30,7 @@
 
         <Border x:Name="TabBar" Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1">
             <!-- Si ni con íconos caben (panel muy estrecho), la tira se desplaza en horizontal: ninguna pestaña queda cortada. -->
-            <ScrollViewer x:Name="TabScroller" Padding="0,0,0,8" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled"
+            <ScrollViewer x:Name="TabScroller" Padding="0,0,0,8" HorizontalScrollBarVisibility="Visible" HorizontalScrollMode="Enabled"
                           VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled" ZoomMode="Disabled">
             <StackPanel x:Name="TabStrip" Orientation="Horizontal">
                 <RadioButton x:Name="PropertiesTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" IsChecked="True" Checked="OnTabChecked"
@@ -68,6 +68,13 @@
                         <TextBlock x:Name="MasksLabel" Text="Máscaras" />
                     </StackPanel>
                 </RadioButton>
+                <RadioButton x:Name="GraphTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
+                             ToolTipService.ToolTip="Gráfica" AutomationProperties.Name="Gráfica">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <FontIcon Glyph="&#xE9D9;" FontSize="{StaticResource IconFontSize}" Visibility="Collapsed" />
+                        <TextBlock x:Name="GraphLabel" Text="Gráfica" />
+                    </StackPanel>
+                </RadioButton>
                 <RadioButton x:Name="TrackingTab" Style="{StaticResource InspectorTabStyle}" GroupName="InspectorTabs" Checked="OnTabChecked"
                              ToolTipService.ToolTip="Seguimiento" AutomationProperties.Name="Seguimiento">
                     <StackPanel Orientation="Horizontal" Spacing="8">
@@ -95,6 +102,7 @@
 
         <Grid Grid.Row="1">
             <properties:PropertiesPanel x:Name="PropertiesPanel" />
+            <properties:GraphPanel x:Name="GraphPanel" Visibility="Collapsed" />
             <transition:TransitionPanel x:Name="TransitionPanel" Visibility="Collapsed" />
             <text:TextPanel x:Name="TextPanel" Visibility="Collapsed" />
             <speed:SpeedPanel x:Name="SpeedPanel" Visibility="Collapsed" />

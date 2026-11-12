@@ -2,6 +2,14 @@ using FFmpeg.AutoGen.Abstractions;
 
 namespace Rodaje.Media.Video;
 
+/// <summary>Transferencia HDR; cero mantiene el camino SDR sin modificar las muestras.</summary>
+public enum HdrTransfer
+{
+    None,
+    Pq,
+    Hlg,
+}
+
 /// <summary>Matriz con la que se pasa de Y'CbCr a R'G'B'.</summary>
 public enum YuvMatrix
 {
@@ -13,6 +21,21 @@ public enum YuvMatrix
 /// <summary>Cómo interpretar las muestras Y'CbCr de un cuadro: matriz y rango (limitado o completo).</summary>
 public readonly record struct VideoColor(YuvMatrix Matrix, bool FullRange)
 {
+    public HdrTransfer Transfer { get; init; }
+
+    public bool Bt2020Primaries { get; init; }
+
+    internal VideoColor WithTransfer(AVColorTransferCharacteristic transfer, AVColorPrimaries primaries) => this with
+    {
+        Transfer = transfer switch
+        {
+            AVColorTransferCharacteristic.AVCOL_TRC_SMPTE2084 => HdrTransfer.Pq,
+            AVColorTransferCharacteristic.AVCOL_TRC_ARIB_STD_B67 => HdrTransfer.Hlg,
+            _ => HdrTransfer.None,
+        },
+        Bt2020Primaries = primaries == AVColorPrimaries.AVCOL_PRI_BT2020,
+    };
+
     /// <summary>Lo más común en video de alta definición: BT.709 en rango limitado.</summary>
     public static VideoColor Bt709Limited { get; } = new(YuvMatrix.Bt709, false);
 
@@ -41,10 +64,14 @@ public readonly record struct VideoColor(YuvMatrix Matrix, bool FullRange)
     }
 
     /// <summary>Lo que dice el cuadro y, en lo que no diga, lo que dice el flujo.</summary>
-    internal static unsafe VideoColor Resolve(AVFrame* frame, AVColorSpace streamSpace, AVColorRange streamRange)
+    internal static unsafe VideoColor Resolve(AVFrame* frame, AVColorSpace streamSpace, AVColorRange streamRange,
+        AVColorTransferCharacteristic streamTransfer = AVColorTransferCharacteristic.AVCOL_TRC_UNSPECIFIED,
+        AVColorPrimaries streamPrimaries = AVColorPrimaries.AVCOL_PRI_UNSPECIFIED)
     {
         AVColorSpace space = frame->colorspace != AVColorSpace.AVCOL_SPC_UNSPECIFIED ? frame->colorspace : streamSpace;
         AVColorRange range = frame->color_range != AVColorRange.AVCOL_RANGE_UNSPECIFIED ? frame->color_range : streamRange;
-        return Resolve(space, range, (AVPixelFormat)frame->format, frame->height);
+        return Resolve(space, range, (AVPixelFormat)frame->format, frame->height).WithTransfer(
+            frame->color_trc != AVColorTransferCharacteristic.AVCOL_TRC_UNSPECIFIED ? frame->color_trc : streamTransfer,
+            frame->color_primaries != AVColorPrimaries.AVCOL_PRI_UNSPECIFIED ? frame->color_primaries : streamPrimaries);
     }
 }

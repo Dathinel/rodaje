@@ -81,7 +81,7 @@ public class CrashReportScrubberTextTests
         // Windows, con cobertura y las pruebas en paralelo, esta entrada agotó el presupuesto de 2 s por llamada).
         string line = PathologicalLine();
         string many = string.Join('\n', Enumerable.Repeat(line[..CrashReportScrubber.MaxLineLength], 200));
-        var scrubber = new CrashReportScrubber(Folders) { Budget = TimeSpan.MaxValue };
+        var scrubber = new CrashReportScrubber(Folders) { Budget = long.MaxValue };
 
         string text = scrubber.Scrub(line + "\n" + many);
 
@@ -103,7 +103,7 @@ public class CrashReportScrubberTextTests
         // recorre el analizador de rutas. Con coste lineal son unos pocos por carácter (hoy, menos de 3) y crecen ×8 al
         // pasar de 1 KB a 8 KB por línea; con uno cuadrático crecerían ×64.
         string Repeat(int length) => unit.Length == 0 ? PathologicalLine()[..length] : string.Concat(Enumerable.Repeat(unit, (length / unit.Length) + 1))[..length];
-        var scrubber = new CrashReportScrubber(Folders) { Budget = TimeSpan.MaxValue };
+        var scrubber = new CrashReportScrubber(Folders) { Budget = long.MaxValue };
 
         scrubber.Scrub(Repeat(1024), out long small);
         scrubber.Scrub(Repeat(CrashReportScrubber.MaxLineLength), out long large);

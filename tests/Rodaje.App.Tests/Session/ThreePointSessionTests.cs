@@ -47,6 +47,24 @@ public class ThreePointSessionTests
     });
 
     [Fact]
+    public void ElFotogramaDelVisor_EsElDelOrigenSiEstaActivo() => UiThread.Run(async () =>
+    {
+        (EditorSession session, _, string media) = await TwoClips();
+        Assert.Equal(session.SequenceId, session.ViewerFrameSource().SequenceId);
+
+        session.OpenSource(media);
+        (Project project, string sequenceId, Rational rate) = session.ViewerFrameSource();
+
+        Assert.Equal(EditorSession.SourceSequenceId, sequenceId);
+        Assert.Equal(media, project.GetSequence(sequenceId).VideoTracks.Single().Clips.Single().MediaId);
+        Assert.Equal(Rational.Fps30, rate);
+        Assert.NotSame(session.Project, project);
+
+        session.ShowProgram();
+        Assert.Equal(session.SequenceId, session.ViewerFrameSource().SequenceId);
+    });
+
+    [Fact]
     public void CuatroPuntosDistintos_PideDecidirYLuegoAjustaLaVelocidad() => UiThread.Run(async () =>
     {
         (EditorSession session, _, string media) = await TwoClips();

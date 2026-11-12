@@ -16,11 +16,17 @@ Rodaje se descarga de [Releases](https://github.com/Dathinel/rodaje/releases). N
 | `Rodaje-<versión>-portable.zip` | Sin instalar | Descomprime la carpeta donde quieras y abre `Rodaje.exe`. No toca el registro; para quitarlo, borra la carpeta |
 | `Rodaje-<versión>-completo.zip` | Sin conexión o con IA desde el primer minuto | El portable con los complementos, los módulos de IA y sus modelos ya dentro. Los modelos de más de 2 GiB (hoy, el de traducción) se bajan desde Complementos |
 
-Junto a los archivos está `SHA256SUMS.txt`. Para comprobar una descarga, en PowerShell: `Get-FileHash Rodaje-1.0.0-portable.zip` y compara con la línea del archivo.
+Junto a los archivos está `SHA256SUMS.txt`. Para comprobar una descarga, en PowerShell: `Get-FileHash Rodaje-1.0.2-portable.zip` y compara con la línea del archivo.
+
+**Actualizar desde una versión anterior:** abre el instalador nuevo; instala encima de la anterior. Tus ajustes, atajos y complementos viven en `%LOCALAPPDATA%\Rodaje` y se conservan. Con el portable, descomprime la versión nueva en otra carpeta.
+
+## Enterarse de las versiones nuevas
+
+Rodaje no se actualiza solo: al arrancar, como mucho una vez al día, pregunta a GitHub cuál es la última versión publicada (una consulta pública, sin cuenta y sin enviar nada tuyo; si no hay conexión, no dice nada). Si hay una más nueva, sale un aviso en la barra de la ventana, «Rodaje 1.1.0 disponible», con **Ver novedades**, que abre en el navegador la página de esa release para leer los cambios y descargarla, y **Más tarde**, que calla esa versión hasta que salga otra. El aviso se apaga en **Archivo › Preferencias... › General › «Avisar cuando haya una versión nueva»**. **Ayuda › Buscar actualizaciones...** consulta en el momento, aunque esté apagado o se haya descartado, y responde también «Tienes la última versión, 1.0.2» o «No se pudo comprobar» si no hay red.
 
 ## El aviso de SmartScreen
 
-Rodaje 1.0.0 va sin firma de código. La primera vez que abras el instalador o `Rodaje.exe`, Windows SmartScreen puede mostrar «Windows protegió su PC». Es el aviso que sale con cualquier programa nuevo sin certificado, no un diagnóstico del archivo:
+Rodaje 1.0.2 va sin firma de código. La primera vez que abras el instalador o `Rodaje.exe`, Windows SmartScreen puede mostrar «Windows protegió su PC». Es el aviso que sale con cualquier programa nuevo sin certificado, no un diagnóstico del archivo:
 
 1. Pulsa **Más información**.
 2. Pulsa **Ejecutar de todas formas**.

@@ -49,9 +49,9 @@ internal static class StabilizeDialog
             double pixels = a.Track.Height;
             double reliable = a.Track.Motions.Count(m => m.Inliers > 0) / (double)Math.Max(1, a.Track.Motions.Count - 1);
             status.Text = string.Create(SpanishNumbers.Format,
-                $"Temblor: {result.ShakeBefore * pixels:0.0} → {result.ShakeAfter * pixels:0.00} px por cuadro² " +
+                $"Temblor: {result.ShakeBefore * pixels:0.0} → {result.ShakeAfter * pixels:0.00} px por fotograma² " +
                 $"({(result.ShakeBefore > 0 ? 1 - (result.ShakeAfter / result.ShakeBefore) : 0):P0} menos). " +
-                $"Acercamiento: {result.Zoom - 1:P0}. Cuadros con movimiento medido: {Math.Min(1, reliable):P0}.");
+                $"Acercamiento: {result.Zoom - 1:P0}. Fotogramas con movimiento medido: {Math.Min(1, reliable):P0}.");
         }
 
         intensity = AnalysisUi.Slider(panel, "Intensidad", 0, 1, intensityValue, 0.05,
@@ -63,12 +63,14 @@ internal static class StabilizeDialog
 
         ContentDialog dialog = AnalysisUi.Dialog(root, "Estabilizar", "Aplicar", panel, AnalysisApplyPhase.NeedsAnalysis);
         using var cancel = new CancellationTokenSource();
-        Task work = Task.CompletedTask;
-        dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(AnalyzeBeforeApply(args));
-        async Task AnalyzeBeforeApply(ContentDialogButtonClickEventArgs args)
+        Task work = Analyze();
+        dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(WaitForAnalysis(args));
+        async Task WaitForAnalysis(ContentDialogButtonClickEventArgs args)
         {
+            // Apagado mientras se espera: un segundo clic no cuenta. Analyze lo vuelve a encender si terminó bien.
             ContentDialogButtonClickDeferral deferral = args.GetDeferral();
-            try { if (analysis is null) { work = Analyze(); await work; } args.Cancel = analysis is null; }
+            dialog.IsPrimaryButtonEnabled = false;
+            try { await work; args.Cancel = analysis is null; }
             finally { deferral.Complete(); }
         }
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
@@ -95,6 +97,7 @@ internal static class StabilizeDialog
             {
                 analysis = await ClipVideoSource.AnalyzeMotionAsync(session, clip, store, new Progress<double>(p => scope?.Report(progress.Value = p, "Analizando el movimiento…")), cancel.Token);
                 progress.Visibility = Visibility.Collapsed;
+                scope?.Report(1, "Análisis listo");
                 Refresh();
                 dialog.IsPrimaryButtonEnabled = true;
             }

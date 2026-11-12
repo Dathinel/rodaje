@@ -35,6 +35,7 @@ public sealed class StressHarnessTests
                 5,
                 TimeSpan.FromSeconds(30),
                 Clock,
+                TimeSpan.MaxValue,
                 ("sano", (random, stop) =>
                 {
                     while (true)
@@ -67,6 +68,41 @@ public sealed class StressHarnessTests
         {
             unblock.Set();
         }
+    }
+
+    /// <summary>
+    /// Tras la parada, un hilo que termina su última vuelta (cerrar la sesión) sin sacar números no es un interbloqueo,
+    /// aunque tarde más que el tope de «sin avance»: lo vigilan <see cref="Stress.Deadline"/> y su propio
+    /// <c>Stress.Within</c>. Antes saltaba el detector (TimelineStressTests, semilla 101, en la CI de Windows). El reloj
+    /// del arnés avanza 10 s por vuelta de vigilancia y el presupuesto vencido enciende la parada en la primera.
+    /// </summary>
+    [Fact]
+    public void Un_hilo_que_tarda_en_salir_tras_la_parada_no_es_un_interbloqueo()
+    {
+        using var late = new ManualResetEventSlim();
+        int seconds = 0;
+        TimeSpan Clock()
+        {
+            seconds += 10;
+            if (seconds > 120)
+            {
+                late.Set();
+            }
+
+            return TimeSpan.FromSeconds(seconds);
+        }
+
+        Stress.Run(
+            11,
+            TimeSpan.FromSeconds(30),
+            Clock,
+            TimeSpan.Zero,
+            ("cierre", (random, stop) =>
+            {
+                _ = random.Next();
+                stop.WaitHandle.WaitOne();
+                late.Wait(CancellationToken.None);
+            }));
     }
 
     [Fact]

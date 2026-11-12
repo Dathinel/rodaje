@@ -33,7 +33,7 @@ public static partial class TimelineEdits
 
         if (video.Speed is { Freeze: true })
         {
-            throw new EditException($"El clip «{video.Id}» es un cuadro congelado y no tiene sonido.");
+            throw new EditException($"El clip «{video.Id}» es un fotograma congelado y no tiene sonido.");
         }
 
         MediaRef media = ctx.MediaOf(video);

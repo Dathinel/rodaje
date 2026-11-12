@@ -21,7 +21,6 @@ internal sealed partial class CheatSheetView : UserControl
 {
     private const int Columns = 3;
     private const double PngScale = 2;
-    private const string FileStem = "Atajos de Rodaje";
 
     private IReadOnlyList<CheatSheetEntry> _entries = [];
 
@@ -31,6 +30,12 @@ internal sealed partial class CheatSheetView : UserControl
     }
 
     public event EventHandler<CheatSheetSaved>? Saved;
+
+    /// <summary>
+    /// Pregunta dónde guardar la hoja en ese formato (el diálogo de guardar de la ventana, que lo pone quien aloja la
+    /// tarjeta); <c>null</c> si se canceló. Sin él, los botones no hacen nada.
+    /// </summary>
+    public Func<SheetFormat, string?>? PickPath { get; set; }
 
     public void Show(IReadOnlyList<CheatSheetEntry> entries, string title, string subtitle)
     {
@@ -82,22 +87,16 @@ internal sealed partial class CheatSheetView : UserControl
         }
     }
 
-    private static string DocumentsPath(string extension)
+    private void OnSaveHtmlClick(object sender, RoutedEventArgs e)
     {
-        string folder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-        if (string.IsNullOrEmpty(folder))
+        if (PickPath?.Invoke(SheetFormat.Html) is { } path)
         {
-            folder = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            UiTask.Run(SaveHtmlAsync(path));
         }
-
-        return System.IO.Path.Combine(folder, FileStem + extension);
     }
 
-    private void OnSaveHtmlClick(object sender, RoutedEventArgs e) => UiTask.Run(SaveHtmlAsync());
-
-    private async Task SaveHtmlAsync()
+    private async Task SaveHtmlAsync(string path)
     {
-        string path = DocumentsPath(".html");
         try
         {
             string html = CheatSheet.ToHtml(_entries, TitleText.Text, SubtitleText.Text);
@@ -110,11 +109,16 @@ internal sealed partial class CheatSheetView : UserControl
         }
     }
 
-    private void OnSavePngClick(object sender, RoutedEventArgs e) => UiTask.Run(SavePngAsync());
-
-    private async Task SavePngAsync()
+    private void OnSavePngClick(object sender, RoutedEventArgs e)
     {
-        string path = DocumentsPath(".png");
+        if (PickPath?.Invoke(SheetFormat.Png) is { } path)
+        {
+            UiTask.Run(SavePngAsync(path));
+        }
+    }
+
+    private async Task SavePngAsync(string path)
+    {
         try
         {
             // Al doble de la pantalla, para que se lea bien impresa o de fondo de escritorio.

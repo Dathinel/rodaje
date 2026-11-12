@@ -18,22 +18,14 @@ internal static class HandleLeakCriterion
     /// </summary>
     public static string? Find(int[] samples, string what = "Los identificadores del proceso")
     {
-        int[] floor = new int[samples.Length];
-        int lowest = int.MaxValue;
-        for (int i = samples.Length - 1; i >= 0; i--)
-        {
-            lowest = Math.Min(lowest, samples[i]);
-            floor[i] = lowest;
-        }
-
-        int[] steps = [.. floor.Zip(floor.Skip(1), (a, b) => b - a).Order()];
+        int[] steps = FloorSteps(samples);
         if (steps.Length == 0)
         {
             return "No hubo muestras de identificadores.";
         }
 
         int median = steps[steps.Length / 2];
-        int total = floor[^1] - floor[0];
+        int total = steps.Sum();
         int measured = steps.Length * SampleCycles;
         if (median >= 1)
         {
@@ -43,6 +35,30 @@ internal static class HandleLeakCriterion
         return total >= measured / 2
             ? $"{what} crecieron {total} en {measured} aperturas ({string.Join(" ", samples)})."
             : null;
+    }
+
+    /// <summary>La mediana de lo que sube el piso por tramo (<see cref="FloorSteps"/>).</summary>
+    public static int MedianFloorStep(int[] samples)
+    {
+        int[] steps = FloorSteps(samples);
+        return steps.Length == 0 ? 0 : steps[steps.Length / 2];
+    }
+
+    /// <summary>
+    /// Lo que sube en cada tramo el piso de las muestras (el mínimo de cada una y las que siguen), ordenado de menor a
+    /// mayor. Un hilo del grupo que caduca en un tramo reduce ese tramo sin tapar lo que crece en los demás.
+    /// </summary>
+    public static int[] FloorSteps(int[] samples)
+    {
+        int[] floor = new int[samples.Length];
+        int lowest = int.MaxValue;
+        for (int i = samples.Length - 1; i >= 0; i--)
+        {
+            lowest = Math.Min(lowest, samples[i]);
+            floor[i] = lowest;
+        }
+
+        return [.. floor.Zip(floor.Skip(1), (a, b) => b - a).Order()];
     }
 
     /// <summary>

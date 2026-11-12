@@ -1,6 +1,7 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Text;
+using Rodaje.Packages;
 
 namespace Rodaje.Media.Proxies;
 
@@ -89,7 +90,23 @@ public sealed class FfmpegExecutable
     /// proceso aparte, la frontera que separa su licencia del editor.
     /// </summary>
     /// <exception cref="FfmpegNotFoundException">El exe falta, no arranca, es <c>nonfree</c> o es de otra serie.</exception>
-    public static FfmpegExecutable OpenGplAddOn(string path) => OpenVerified(path, VerifiedGpl, VerifyGplAddOn);
+    public static FfmpegExecutable OpenGplAddOn(string path)
+    {
+        VerifyPackageIntegrity(path);
+        return OpenVerified(path, VerifiedGpl, VerifyGplAddOn);
+    }
+
+    // El manifiesto cubre el directorio entero: verificarlo una vez por proceso basta (rehacerlo por
+    // cada proceso de FFmpeg lanzado convertiría cada operación en un rehaseo de todos los archivos).
+    private static readonly ConcurrentDictionary<string, byte> VerifiedDirectories = new(StringComparer.OrdinalIgnoreCase);
+
+    private static void VerifyPackageIntegrity(string path)
+    {
+        string directory = System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path))!;
+        if (!VerifiedDirectories.TryAdd(directory, 0)) return;
+        try { PackageIntegrity.Ensure(directory); }
+        catch (PackageInstallException ex) { VerifiedDirectories.TryRemove(directory, out _); throw new FfmpegNotFoundException(ex.Message, ex); }
+    }
 
     private static FfmpegExecutable OpenVerified(string path, ConcurrentDictionary<string, Lazy<FfmpegExecutable>> cache, Func<string, FfmpegExecutable> verify)
     {
@@ -124,7 +141,11 @@ public sealed class FfmpegExecutable
 
     /// <summary>Este mismo exe si no cambió desde que se verificó; si cambió, lo vuelve a verificar.</summary>
     /// <exception cref="FfmpegNotFoundException">Cambió y ya no pasa la verificación.</exception>
-    public FfmpegExecutable EnsureUnchanged() => IsUnchanged ? this : IsGplAddOn ? OpenGplAddOn(Path) : Open(Path);
+    public FfmpegExecutable EnsureUnchanged()
+    {
+        if (IsGplAddOn) VerifyPackageIntegrity(Path);
+        return IsUnchanged ? this : IsGplAddOn ? OpenGplAddOn(Path) : Open(Path);
+    }
 
     /// <summary>Motivo en español por el que la salida de <c>-buildconf</c>, <c>-L</c> y <c>-version</c> no es aceptable.</summary>
     internal static string? BuildProblem(string buildConfiguration, string licenseText, string versionText)

@@ -167,6 +167,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         try
         {
             Extract(archive, staging, cancellationToken);
+            PackageIntegrity.Write(staging);
             ManifestResult read = ManifestReader.ReadFile(Path.Combine(staging, PackageManifest.FileName));
             if (read.Manifest is not { } manifest)
             {
@@ -654,7 +655,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     {
         try
         {
-            Directory.Delete(directory, recursive: true);
+            DeleteTree(new DirectoryInfo(directory));
             return true;
         }
         catch (IOException)
@@ -664,6 +665,41 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         catch (UnauthorizedAccessException)
         {
             return false;
+        }
+    }
+
+    /// <summary>
+    /// <c>Directory.Delete</c> recursivo se rinde ante un archivo de solo lectura o una unión dentro de la carpeta, y el resto
+    /// (<c>.anterior-*</c>, <c>.desinstalando-*</c>) quedaba para siempre. Aquí el atributo se quita y un enlace se borra
+    /// sin entrar en su destino.
+    /// </summary>
+    private static void DeleteTree(DirectoryInfo directory)
+    {
+        if ((directory.Attributes & FileAttributes.ReparsePoint) == 0)
+        {
+            foreach (FileSystemInfo entry in directory.EnumerateFileSystemInfos())
+            {
+                if (entry is DirectoryInfo child)
+                {
+                    DeleteTree(child);
+                }
+                else
+                {
+                    Delete(entry);
+                }
+            }
+        }
+
+        Delete(directory);
+
+        static void Delete(FileSystemInfo entry)
+        {
+            if ((entry.Attributes & FileAttributes.ReadOnly) != 0)
+            {
+                entry.Attributes &= ~FileAttributes.ReadOnly;
+            }
+
+            entry.Delete();
         }
     }
 }

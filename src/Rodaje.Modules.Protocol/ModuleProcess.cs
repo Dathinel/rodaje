@@ -1,6 +1,8 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Runtime.InteropServices;
+using Microsoft.Win32.SafeHandles;
 using System.Runtime.Versioning;
 using System.Text;
 
@@ -12,7 +14,7 @@ namespace Rodaje.Modules.Protocol;
 /// hostil, módulo colgado), el proceso se mata. <see cref="DisposeAsync"/> pide <c>shutdown</c> y mata si no sale.
 /// </summary>
 [SupportedOSPlatform("windows")]
-public sealed class ModuleProcess : IAsyncDisposable
+public sealed partial class ModuleProcess : IAsyncDisposable
 {
     private const int StderrTail = 2048;
     internal const int PipeBufferBytes = 64 * 1024;
@@ -171,8 +173,9 @@ public sealed class ModuleProcess : IAsyncDisposable
             }
             catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
             {
-                throw new ModuleProtocolException($"El módulo no se conectó en {options.HandshakeTimeout.TotalSeconds:0.#} s.");
+                throw new ModuleProtocolException($"El módulo no se conectó en {options.HandshakeTimeout.TotalSeconds:0.#} s.{Tail(stderr)}", new TimeoutException());
             }
+            AuthenticateClient(pipe, process.Id);
             client = await ModuleClient.ConnectAsync(pipe, options, cancellationToken).ConfigureAwait(false);
         }
         catch
@@ -307,6 +310,21 @@ public sealed class ModuleProcess : IAsyncDisposable
         int code = exited.Result;
         return code == 0 ? null : $"Rodaje: el módulo {module} salió con el código {code} tras «shutdown».";
     }
+
+    internal static void AuthenticateClient(NamedPipeServerStream pipe, int expectedProcessId)
+    {
+        if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out uint clientProcessId))
+            throw new ModuleProtocolException("No se pudo comprobar la identidad del proceso conectado al módulo.");
+        if (clientProcessId != (uint)expectedProcessId)
+        {
+            pipe.Dispose();
+            throw new ModuleProtocolException("Se rechazó la conexión al módulo: el PID del cliente no corresponde al proceso iniciado.");
+        }
+    }
+
+    [LibraryImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool GetNamedPipeClientProcessId(SafePipeHandle pipe, out uint clientProcessId);
 
     private static void Kill(Process process)
     {

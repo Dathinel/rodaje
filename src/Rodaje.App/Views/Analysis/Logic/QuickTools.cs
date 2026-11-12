@@ -2,8 +2,11 @@ using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Analysis;
 
-/// <summary>Una herramienta de la barra rápida: la acción que lanza (la misma de los menús), su nombre, ícono y qué hace.</summary>
-public sealed record QuickTool(string ActionId, string Label, string Glyph, string Help);
+/// <summary>
+/// Una herramienta rápida: la acción que lanza (la misma de los menús), su nombre, ícono, qué hace y su grupo (el mismo
+/// submenú de Herramientas).
+/// </summary>
+public sealed record QuickTool(string ActionId, string Label, string Glyph, string Help, string Group);
 
 /// <summary>Si la herramienta aplica a lo seleccionado y, si no, por qué (se dice en la ayuda y al pulsarla).</summary>
 public readonly record struct QuickToolState(bool Available, string? Reason);
@@ -20,14 +23,15 @@ public static class QuickTools
     public const string RemoveBackground = "vision.removeBackground";
     public const string Reframe = "vision.reframe";
     public const string VoiceOver = "audio.voiceOver";
+    public const string SyncAudio = "analysis.syncAudio";
 
     /// <summary>Herramientas de análisis del menú de clip que aplican al medio seleccionado.</summary>
     public static IReadOnlyList<string> ContextMenuActionIds(bool hasAudio, bool hasVideo)
     {
-        var ids = new List<string>(hasAudio && hasVideo ? 9 : 4);
+        var ids = new List<string>(hasAudio && hasVideo ? 10 : 5);
         if (hasAudio)
         {
-            ids.AddRange(["analysis.silences", "analysis.beats", "analysis.ducking", "analysis.noise"]);
+            ids.AddRange(["analysis.silences", "analysis.beats", "analysis.ducking", SyncAudio, "analysis.noise"]);
         }
 
         if (hasVideo)
@@ -40,19 +44,20 @@ public static class QuickTools
 
     public static IReadOnlyList<QuickTool> All { get; } =
     [
-        new("analysis.silences", "Quitar silencios", "", "Corta las pausas del clip con sonido elegido."),
-        new("analysis.beats", "Detectar ritmo", "", "Pone marcadores en los pulsos de la música elegida."),
-        new("analysis.ducking", "Bajar música bajo la voz", "", "Baja la música elegida mientras suena la voz de otra pista."),
-        new("analysis.noise", "Reducir ruido", "", "Limpia el ruido de fondo de la voz (módulo «Audio con IA»)."),
-        new("analysis.stabilize", "Estabilizar", "", "Quita el temblor del video elegido."),
-        new("analysis.autocolor", "Color automático", "", "Corrige exposición y contraste del video elegido."),
-        new("analysis.whitebalance", "Balance de blancos automático", "", "Neutraliza el tono del video elegido."),
-        new(RemoveBackground, "Quitar fondo", "\uE7A8", "Recorta a la persona del video elegido y vuelve transparente el fondo (módulo «Visión con IA»)."),
-        new(Reframe, "Reencuadre automático", "\uE7AD", "Sigue al sujeto con un recorte 9:16, 1:1 o 4:5 que se mueve suave (módulo «Visión con IA»)."),
-        new(AutoSubtitles, "Subtítulos automáticos", "", "Escribe los subtítulos a partir de la voz."),
-        new(TextToSpeech, "Texto a voz", "", "Lee un texto en voz alta y lo pone en una pista de audio."),
-        new(AddText, "Añadir texto", "", "Un título de 5 s en el cursor."),
-        new(VoiceOver, "Grabar voz", "", "Graba tu voz desde el cursor mientras suena el resto."),
+        new("analysis.silences", "Quitar silencios", "", "Corta las pausas del clip con sonido elegido.", "Audio"),
+        new("analysis.beats", "Detectar ritmo", "", "Pone marcadores en los pulsos de la música elegida.", "Audio"),
+        new("analysis.ducking", "Bajar música bajo la voz", "", "Baja la música elegida mientras suena la voz de otra pista.", "Audio"),
+        new(SyncAudio, "Sincronizar por el sonido", "", "Alinea por su sonido los clips elegidos (la cámara y la grabadora); el que empieza antes no se mueve.", "Audio"),
+        new("analysis.noise", "Reducir ruido", "", "Limpia el ruido de fondo de la voz (módulo «Audio con IA»).", "Audio"),
+        new("analysis.stabilize", "Estabilizar", "", "Quita el temblor del video elegido.", "Imagen"),
+        new("analysis.autocolor", "Color automático", "", "Corrige exposición y contraste del video elegido.", "Imagen"),
+        new("analysis.whitebalance", "Balance de blancos automático", "", "Neutraliza el tono del video elegido.", "Imagen"),
+        new(RemoveBackground, "Quitar fondo", "\uE7A8", "Recorta a la persona del video elegido y vuelve transparente el fondo (módulo «Visión con IA»).", "Imagen"),
+        new(Reframe, "Reencuadre automático", "\uE7AD", "Sigue al sujeto con un recorte 9:16, 1:1 o 4:5 que se mueve suave (módulo «Visión con IA»).", "Imagen"),
+        new(AutoSubtitles, "Subtítulos automáticos", "", "Escribe los subtítulos a partir de la voz.", "Texto y voz"),
+        new(TextToSpeech, "Texto a voz", "", "Lee un texto en voz alta y lo pone en una pista de audio.", "Texto y voz"),
+        new(AddText, "Añadir texto", "", "Un título de 5 s en el cursor.", "Texto y voz"),
+        new(VoiceOver, "Grabar voz", "", "Graba tu voz desde el cursor mientras suena el resto.", "Texto y voz"),
     ];
 
     /// <param name="noiseModule">Si está instalado el módulo que limpia el ruido.</param>
@@ -66,8 +71,11 @@ public static class QuickTools
         ArgumentNullException.ThrowIfNull(selection);
         bool HasAudio(Clip c) => c.Generator is null && c.Enabled && project.FindMedia(c.MediaId) is { HasAudio: true };
         Clip? audio = selection.Select(id => sequence.FindClip(id)?.Clip).FirstOrDefault(c => c is not null && HasAudio(c));
-        bool video = selection.Any(id => sequence.FindClip(id) is { } f && f.Clip.Generator is null
+        string? video = selection.FirstOrDefault(id => sequence.FindClip(id) is { } f && f.Clip.Generator is null
             && project.FindMedia(f.Clip.MediaId) is { HasVideo: true, FrameRate: not null });
+        bool stillSelected = selection.Any(id => sequence.FindClip(id) is { } f
+            && project.FindMedia(f.Clip.MediaId)?.IsStillImage == true);
+        string videoMissing = stillSelected ? "No aplica a imágenes fijas." : "Selecciona un clip de video.";
         return actionId switch
         {
             "analysis.silences" => audio is null ? No("Selecciona un clip con sonido.") : Yes,
@@ -76,18 +84,55 @@ public static class QuickTools
             "analysis.ducking" => sequence.AllTracks.Any(t => t != sequence.FindClip(audio.Id)!.Value.Track
                 && t.Clips.Any(c => c.Id != audio.Id && c.Start < audio.End && c.End > audio.Start && HasAudio(c)))
                 ? Yes : No("Hace falta una voz en otra pista mientras suena la música."),
+            SyncAudio when SyncCandidates(sequence, selection, HasAudio).Count < 2 =>
+                No("Selecciona dos clips con sonido o más (la cámara y la grabadora)."),
+            SyncAudio when SyncCandidates(sequence, selection, HasAudio).Skip(1).Select(id => Locked(sequence, id)).FirstOrDefault(l => l is not null) is { } locked => No(locked),
+            SyncAudio => Yes,
             "analysis.noise" when NoiseReduction.TargetClip(sequence, selection, HasAudio) is null =>
                 No("Selecciona un clip con voz en una pista de audio (o un video con su audio enlazado)."),
             "analysis.noise" when !noiseModule => No("Hace falta el módulo «Audio con IA». Instálalo desde Complementos › Módulos de IA."),
+            "analysis.noise" when Locked(sequence, NoiseReduction.TargetClip(sequence, selection, HasAudio)!.Id) is { } locked => No(locked),
             "analysis.noise" => Yes,
-            "analysis.stabilize" or "analysis.autocolor" or "analysis.whitebalance" => video ? Yes : No("Selecciona un clip de video."),
-            RemoveBackground or Reframe when !video => No("Selecciona un clip de video."),
+            "analysis.stabilize" or "analysis.autocolor" or "analysis.whitebalance" => video is not null ? Yes : No(videoMissing),
+            RemoveBackground or Reframe when video is null => No(videoMissing),
             RemoveBackground or Reframe when !visionModule => No("Hace falta el módulo «Visión con IA». Instálalo desde Complementos › Módulos de IA."),
+            RemoveBackground or Reframe when Locked(sequence, video!) is { } locked => No(locked),
             AutoSubtitles when Subtitles.AutoSubtitles.TargetClip(sequence, selection, HasAudio) is null =>
                 No("Selecciona un clip con voz (un video con sonido o un clip de audio)."),
             AutoSubtitles when !subtitleModule => No("Hace falta el módulo «Subtítulos automáticos». Instálalo desde Complementos › Módulos de IA."),
             _ => Yes,
         };
+    }
+
+    /// <summary>Un clip con sonido por grupo enlazado, en orden de inicio: los que «Sincronizar por el sonido» alinearía (el primero es la referencia).</summary>
+    public static IReadOnlyList<string> SyncCandidates(Sequence sequence, IReadOnlyList<string> selection, Func<Clip, bool> hasAudio)
+    {
+        ArgumentNullException.ThrowIfNull(sequence);
+        ArgumentNullException.ThrowIfNull(selection);
+        ArgumentNullException.ThrowIfNull(hasAudio);
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var clips = new List<Clip>();
+        foreach (string id in selection)
+        {
+            if (sequence.FindClip(id) is { } found && hasAudio(found.Clip) && seen.Add(found.Clip.LinkId ?? found.Clip.Id))
+            {
+                clips.Add(found.Clip);
+            }
+        }
+
+        return [.. clips.OrderBy(c => c.Start).Select(c => c.Id)];
+    }
+
+    /// <summary>
+    /// Por qué no se puede cambiar el clip (su pista está bloqueada), o nulo. Las herramientas de IA lo miran antes de
+    /// lanzar el módulo: si no, el cálculo entero se perdía al aplicar.
+    /// </summary>
+    public static string? Locked(Sequence sequence, string clipId)
+    {
+        ArgumentNullException.ThrowIfNull(sequence);
+        return sequence.FindClip(clipId) is { Track.Locked: true } found
+            ? $"La pista «{found.Track.Name}» está bloqueada: desbloquéala para usar esta herramienta."
+            : null;
     }
 
     private static QuickToolState Yes => new(true, null);

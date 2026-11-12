@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Media;
 using TerraFX.Interop.Windows;
 using static TerraFX.Interop.Windows.Windows;
 
@@ -19,7 +20,7 @@ internal static unsafe class FileDialogs
     public static readonly (string Name, string Spec) ProjectFilter = ("Proyectos de Rodaje", "*.rodaje");
 
     public static readonly (string Name, string Spec) MediaFilter =
-        ("Videos y audios", "*.mp4;*.mkv;*.mov;*.m4v;*.webm;*.avi;*.mts;*.m2ts;*.ts;*.wmv;*.flv;*.3gp;*.mp3;*.wav;*.m4a;*.aac;*.flac;*.ogg;*.opus");
+        ("Videos, audios e imágenes", string.Join(';', WatchedFolderScanner.MediaExtensions.Select(e => "*" + e)));
 
     public static readonly (string Name, string Spec) AllFilter = ("Todos los archivos", "*.*");
 

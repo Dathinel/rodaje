@@ -309,22 +309,24 @@ public sealed class ProjectRoundTripPropertiesTests : IDisposable
     /// </summary>
     private static class SchemaCheck
     {
-        private static readonly Lazy<JsonDocument> Schema = new(() =>
-            JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "schema", $"rodaje-proyecto.v{Project.CurrentSchemaVersion}.schema.json"))));
+        // Un archivo se escribe en 13, 14 o 15 según lo que contenga: se valida contra el esquema de su versión.
+        private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, JsonDocument> Schemas = new();
 
         public static void AssertValid(string json, string context)
         {
             using JsonDocument doc = JsonDocument.Parse(json);
             var problems = new List<string>();
-            Check(doc.RootElement, Schema.Value.RootElement, "$", problems);
+            JsonElement schema = Schemas.GetOrAdd(doc.RootElement.GetProperty("schemaVersion").GetInt32(), version =>
+                JsonDocument.Parse(File.ReadAllText(Path.Combine(RepoRoot(), "schema", $"rodaje-proyecto.v{version}.schema.json")))).RootElement;
+            Check(doc.RootElement, schema, "$", problems, schema);
             Assert.True(problems.Count == 0, $"El archivo no cumple el esquema ({context}):\n" + string.Join("\n", problems.Take(10)));
         }
 
-        private static void Check(JsonElement value, JsonElement schema, string path, List<string> problems)
+        private static void Check(JsonElement value, JsonElement schema, string path, List<string> problems, JsonElement document)
         {
             if (schema.TryGetProperty("$ref", out JsonElement reference))
             {
-                schema = Resolve(reference.GetString()!);
+                schema = Resolve(reference.GetString()!, document);
             }
 
             if (schema.TryGetProperty("anyOf", out JsonElement anyOf))
@@ -332,7 +334,7 @@ public sealed class ProjectRoundTripPropertiesTests : IDisposable
                 if (!anyOf.EnumerateArray().Any(option =>
                 {
                     var inner = new List<string>();
-                    Check(value, option, path, inner);
+                    Check(value, option, path, inner, document);
                     return inner.Count == 0;
                 }))
                 {
@@ -376,7 +378,7 @@ public sealed class ProjectRoundTripPropertiesTests : IDisposable
                 int i = 0;
                 foreach (JsonElement item in value.EnumerateArray())
                 {
-                    Check(item, items, $"{path}[{i++}]", problems);
+                    Check(item, items, $"{path}[{i++}]", problems, document);
                 }
             }
 
@@ -400,11 +402,11 @@ public sealed class ProjectRoundTripPropertiesTests : IDisposable
                     string child = $"{path}.{property.Name}";
                     if (properties.ValueKind == JsonValueKind.Object && properties.TryGetProperty(property.Name, out JsonElement propertySchema))
                     {
-                        Check(property.Value, propertySchema, child, problems);
+                        Check(property.Value, propertySchema, child, problems, document);
                     }
                     else if (hasAdditional && additional.ValueKind == JsonValueKind.Object)
                     {
-                        Check(property.Value, additional, child, problems);
+                        Check(property.Value, additional, child, problems, document);
                     }
                     else if (!hasAdditional || additional.ValueKind == JsonValueKind.False)
                     {
@@ -428,10 +430,10 @@ public sealed class ProjectRoundTripPropertiesTests : IDisposable
                 _ => false,
             };
 
-        private static JsonElement Resolve(string pointer)
+        private static JsonElement Resolve(string pointer, JsonElement document)
         {
             Assert.StartsWith("#/", pointer, StringComparison.Ordinal);
-            JsonElement node = Schema.Value.RootElement;
+            JsonElement node = document;
             foreach (string part in pointer[2..].Split('/'))
             {
                 node = node.GetProperty(part.Replace("~1", "/", StringComparison.Ordinal).Replace("~0", "~", StringComparison.Ordinal));

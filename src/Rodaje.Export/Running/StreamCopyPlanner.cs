@@ -74,6 +74,11 @@ public static class StreamCopyPlanner
             return StreamCopyDecision.No(timelineProblem ?? "la línea de tiempo no es un solo tramo sin cambios");
         }
 
+        if (mediaRef.IsStillImage)
+        {
+            return StreamCopyDecision.No("una imagen fija necesita repetir su cuadro durante todo el clip");
+        }
+
         string path = Path.GetFullPath(mediaRef.Path, plan.Request.ProjectDirectory ?? Environment.CurrentDirectory);
         MediaInfo info;
         try

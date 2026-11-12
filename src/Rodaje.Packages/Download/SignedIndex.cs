@@ -11,6 +11,9 @@ public enum IndexEntryKind
     Content,
     Module,
     Model,
+
+    /// <summary>Una herramienta aparte (zip autocontenido) que instala el Lanzador; Rodaje la ignora.</summary>
+    App,
 }
 
 /// <summary>Un archivo publicado: qué es, de dónde se baja, su SHA-256 y su tamaño exactos, y desde qué versión del programa sirve.</summary>
@@ -79,13 +82,14 @@ public sealed record SignedIndex(DateTimeOffset Generated, IReadOnlyList<IndexEn
                 && DateTimeOffset.TryParse(g, CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset parsed) ? parsed : DateTimeOffset.MinValue;
 
             var entries = new List<IndexEntry>();
+            var seen = new HashSet<(string Id, PackageVersion Version, IndexEntryKind Kind)>();
             if (root.TryGetProperty("entries", out JsonElement list) && list.ValueKind == JsonValueKind.Array)
             {
                 foreach (JsonElement e in list.EnumerateArray())
                 {
                     if (ParseEntry(e, policy, out string? problem) is { } entry)
                     {
-                        if (entries.Any(x => x.Id == entry.Id && x.Version.Equals(entry.Version) && x.Kind == entry.Kind))
+                        if (!seen.Add((entry.Id, entry.Version, entry.Kind)))
                         {
                             problems?.Add($"La entrada «{entry.Id}» {entry.Version} está repetida en el índice.");
                             continue;
@@ -128,6 +132,7 @@ public sealed record SignedIndex(DateTimeOffset Generated, IReadOnlyList<IndexEn
             "content" or null => IndexEntryKind.Content,
             "module" => IndexEntryKind.Module,
             "model" => IndexEntryKind.Model,
+            "app" => IndexEntryKind.App,
             _ => null,
         } : null;
         string? sha = e.ValueKind == JsonValueKind.Object ? Str(e, "sha256")?.ToLowerInvariant() : null;

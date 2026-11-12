@@ -10,6 +10,61 @@ namespace Rodaje.Media.Tests;
 
 public sealed class VideoColorTests
 {
+    [Fact]
+    public unsafe void Frame_tags_override_stream_tags_and_unspecified_tags_inherit_them()
+    {
+        AVFrame frame = new()
+        {
+            colorspace = AVColorSpace.AVCOL_SPC_UNSPECIFIED,
+            color_range = AVColorRange.AVCOL_RANGE_UNSPECIFIED,
+            color_trc = AVColorTransferCharacteristic.AVCOL_TRC_UNSPECIFIED,
+            color_primaries = AVColorPrimaries.AVCOL_PRI_UNSPECIFIED,
+        };
+        static VideoColor Resolve(AVFrame* value) => VideoColor.Resolve(value, AVColorSpace.AVCOL_SPC_BT2020_NCL, AVColorRange.AVCOL_RANGE_MPEG,
+            AVColorTransferCharacteristic.AVCOL_TRC_SMPTE2084, AVColorPrimaries.AVCOL_PRI_BT2020);
+        Assert.Equal(HdrTransfer.Pq, Resolve(&frame).Transfer);
+        Assert.True(Resolve(&frame).Bt2020Primaries);
+        frame.color_trc = AVColorTransferCharacteristic.AVCOL_TRC_BT709;
+        frame.color_primaries = AVColorPrimaries.AVCOL_PRI_BT709;
+        Assert.Equal(HdrTransfer.None, Resolve(&frame).Transfer);
+        Assert.False(Resolve(&frame).Bt2020Primaries);
+    }
+
+    [FfmpegLibraryTheory]
+    [InlineData(16, HdrTransfer.Pq)]
+    [InlineData(18, HdrTransfer.Hlg)]
+    public void Probe_and_decoded_payload_keep_hdr_tags(int transfer, HdrTransfer expected)
+    {
+        string path = TestClips.TaggedHdr(transfer);
+        VideoColor color = MediaProbe.Probe(path).Video!.Color;
+        Assert.Equal(expected, color.Transfer);
+        Assert.True(color.Bt2020Primaries);
+        using VideoDecoder decoder = VideoDecoder.Open(path, DecodeModes.Options(DecodeMode.SoftwareCpu));
+        using DecodedFrame frame = decoder.GetFrame(0)!;
+        Assert.Equal(color, Assert.IsType<CpuFramePayload>(frame.Payload).Color);
+        if (MediaTestEnvironment.Gpu is not null)
+        {
+            using VideoDecoder upload = VideoDecoder.Open(path, DecodeModes.Options(DecodeMode.SoftwareUpload));
+            using DecodedFrame uploaded = upload.GetFrame(0)!;
+            Assert.Equal(color, Assert.IsType<D3D11TexturePayload>(uploaded.Payload).Color);
+        }
+    }
+
+    [Theory]
+    [InlineData(AVColorTransferCharacteristic.AVCOL_TRC_SMPTE2084, HdrTransfer.Pq)]
+    [InlineData(AVColorTransferCharacteristic.AVCOL_TRC_ARIB_STD_B67, HdrTransfer.Hlg)]
+    [InlineData(AVColorTransferCharacteristic.AVCOL_TRC_BT709, HdrTransfer.None)]
+    public void Transfer_and_primaries_survive_pixel_format_conversion(AVColorTransferCharacteristic transfer, HdrTransfer expected)
+    {
+        VideoColor color = VideoColor.Bt709Limited.WithTransfer(transfer, AVColorPrimaries.AVCOL_PRI_BT2020);
+        Assert.Equal(expected, color.Transfer);
+        Assert.True(color.Bt2020Primaries);
+        VideoColor converted = FrameUploader.ConvertedColor(AVPixelFormat.AV_PIX_FMT_RGB24, color);
+        Assert.Equal(YuvMatrix.Bt601, converted.Matrix);
+        Assert.Equal(expected, converted.Transfer);
+        Assert.True(converted.Bt2020Primaries);
+    }
+
     [Theory]
     [InlineData(AVColorSpace.AVCOL_SPC_BT709, AVColorRange.AVCOL_RANGE_MPEG, AVPixelFormat.AV_PIX_FMT_YUV420P, 480, YuvMatrix.Bt709, false)]
     [InlineData(AVColorSpace.AVCOL_SPC_SMPTE170M, AVColorRange.AVCOL_RANGE_UNSPECIFIED, AVPixelFormat.AV_PIX_FMT_YUV420P, 1080, YuvMatrix.Bt601, false)]

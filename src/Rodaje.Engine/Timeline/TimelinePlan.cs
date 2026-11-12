@@ -150,6 +150,7 @@ internal sealed partial class TimelinePlan
             FrameRate = sequence.FrameRate,
             Width = sequence.Width,
             Height = sequence.Height,
+            ColorSpace = sequence.ColorSpace,
             SampleRate = sequence.SampleRate,
             VideoTracks = video.Tracks,
             AudioTracks = sequence.AudioTracks,

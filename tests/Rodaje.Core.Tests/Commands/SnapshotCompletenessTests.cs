@@ -58,6 +58,40 @@ public sealed class SnapshotCompletenessTests
         Assert.True(unseen.Count == 0, "Matches no ve el cambio de: " + string.Join(", ", unseen));
     }
 
+    /// <summary>
+    /// Capturar contra la instantánea anterior (un paso de un arrastre) comparte las pistas, clips y transiciones que la
+    /// comparación da por iguales: si se le escapara un dato, la nueva restauraría el valor viejo. Con cada dato cambiado
+    /// de uno en uno, las dos instantáneas restauran cada una su estado.
+    /// </summary>
+    [Fact]
+    public void Capturar_contra_la_anterior_no_pierde_ningun_dato()
+    {
+        string original = Serialize(Filled());
+        var lost = new List<string>();
+        foreach (Step[] path in Leaves())
+        {
+            Sequence sequence = Filled();
+            var first = SequenceSnapshot.Capture(sequence);
+            Apply(sequence, path);
+            string changed = Serialize(sequence);
+            if (changed == original)
+            {
+                continue;
+            }
+
+            var second = SequenceSnapshot.Capture(sequence, first);
+            first.Restore(sequence);
+            bool firstBack = Serialize(sequence) == original;
+            second.Restore(sequence);
+            if (!firstBack || Serialize(sequence) != changed || !second.Matches(sequence))
+            {
+                lost.Add(Describe(path));
+            }
+        }
+
+        Assert.True(lost.Count == 0, "Compartir con la anterior pierde: " + string.Join(", ", lost));
+    }
+
     [Fact]
     public void La_copia_de_la_instantanea_no_comparte_nada_mutable()
     {

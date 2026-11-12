@@ -405,7 +405,6 @@ internal sealed partial class LibraryView
             PrimaryButtonText = accept,
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
         return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary ? box.Text : null;
     }

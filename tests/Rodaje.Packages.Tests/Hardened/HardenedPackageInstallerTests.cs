@@ -37,7 +37,7 @@ public sealed class HardenedPackageInstallerTests : IDisposable
         string[] files = [.. Directory.GetFiles(target, "*", SearchOption.AllDirectories)
             .Select(f => Path.GetRelativePath(target, f).Replace('\\', '/'))
             .Order(StringComparer.Ordinal)];
-        Assert.Equal(["paquete.json", "transiciones/deslizar.json"], files);
+        Assert.Equal(["integridad.json", "paquete.json", "transiciones/deslizar.json"], files);
         Assert.Equal("{\"envuelto\":true}", File.ReadAllText(Path.Combine(target, "transiciones", "deslizar.json")));
         Assert.Equal(Samples.Manifest(), File.ReadAllText(Path.Combine(target, "paquete.json")));
 

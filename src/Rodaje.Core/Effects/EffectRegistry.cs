@@ -49,6 +49,10 @@ public static class EffectRegistry
     /// <summary>Recorte de <see cref="BuiltInEffects.Stabilize"/>: automático o ninguno.</summary>
     public static ImmutableArray<string> StabilizeCrops { get; } = ["auto", "off"];
 
+    /// <summary>Curvas de los fundidos de <see cref="BuiltInEffects.Audio"/>: potencia constante (por defecto), lineal y exponencial.</summary>
+    public static ImmutableArray<string> FadeShapes { get; } =
+        [BuiltInEffects.FadeShapes.Power, BuiltInEffects.FadeShapes.Linear, BuiltInEffects.FadeShapes.Exponential];
+
     /// <summary>Formas de <see cref="BuiltInEffects.Mask"/>, en el orden de <see cref="MaskShape"/>.</summary>
     public static ImmutableArray<string> MaskShapes { get; } = ["rectangle", "ellipse", "path", "image", "bezier", "stroke"];
 
@@ -123,10 +127,12 @@ public static class EffectRegistry
             new(T.ShutterAngle, 0, 0, 720, Animatable: false),
             new(T.ShutterPhase, 0, -360, 360, Animatable: false),
             new(T.MotionSamples, T.DefaultMotionSamples, 2, 64, Animatable: false),
+            new(T.HdrReferenceNits, 0, 0, 10000),
         ],
         [
             OptionDefinition.Choice(BuiltInEffects.TransformOptions.FlipX, "off", "off", "on"),
             OptionDefinition.Choice(BuiltInEffects.TransformOptions.FlipY, "off", "off", "on"),
+            OptionDefinition.Choice(BuiltInEffects.TransformOptions.HdrExpand, "off", "off", "on"),
         ]),
         new(BuiltInEffects.Color, 2, EffectTarget.Video, EffectStage.PerPixel,
         [
@@ -174,7 +180,8 @@ public static class EffectRegistry
             new(A.FadeOut, 0, 0, Inf, Animatable: false),
             new(A.Pan, 0, -100, 100),
             new(A.Balance, 0, -100, 100),
-        ]),
+        ],
+        [OptionDefinition.Choice(BuiltInEffects.AudioOptions.FadeShape, BuiltInEffects.FadeShapes.Power, [.. FadeShapes])]),
         new(BuiltInEffects.Speed, 8, EffectTarget.Video | EffectTarget.Audio, EffectStage.Deferred) { Hidden = true },
         new(BuiltInEffects.Stabilize, 9, EffectTarget.Video, EffectStage.Transform,
         [
@@ -258,6 +265,10 @@ public static class EffectRegistry
             new(W.GainGreen, 0, -1, 1),
             new(W.GainBlue, 0, -1, 1),
             new(W.Gain, 0, -1, 1),
+            new(W.OffsetRed, 0, -0.5, 0.5),
+            new(W.OffsetGreen, 0, -0.5, 0.5),
+            new(W.OffsetBlue, 0, -0.5, 0.5),
+            new(W.Offset, 0, -0.5, 0.5),
         ]),
         new(BuiltInEffects.Curves, 14, EffectTarget.Video, EffectStage.PerPixel, [],
         [

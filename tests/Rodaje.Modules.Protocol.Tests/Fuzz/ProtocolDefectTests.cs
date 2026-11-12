@@ -60,27 +60,59 @@ public sealed class ProtocolDefectTests
     /// verdad, de <c>RunAsync(string[])</c>: el proceso termina con una excepción no controlada en vez de con 0). Además
     /// se salta la espera de las demás llamadas y la liberación de las regiones. Se reprodujo en Linux en unas 6 de cada
     /// 300 rondas.
+    /// <para>
+    /// Determinista, con dos llamadas en vez de 300 rondas de 60 (18 000 hilos: en la CI de Windows un Thread.Start parado
+    /// dejó el cierre sin CPU más allá del tope). Al cancelar la primera que recorre el <c>finally</c>, su aviso hace
+    /// terminar a la otra, que desecha su <see cref="CancellationTokenSource"/> antes de que el <c>finally</c> llegue a
+    /// ella: <c>CancelAsync</c> lanza siempre, en cualquier orden.
+    /// </para>
     /// </summary>
     [Fact]
     public async Task Shutdown_with_calls_finishing_ends_the_host_without_throwing()
     {
-        for (int round = 0; round < 300; round++)
+        // Por id de llamada (1 y 2).
+        TaskCompletionSource[] gate = [.. Enumerable.Range(0, 3).Select(_ => new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously))];
+        ManualResetEventSlim[] ended = [new(), new(), new()];
+        using CountdownEvent running = new(2);
+        ModuleHost host = new(Support.EchoInfo) { AfterCallForTests = id => ended[id].Set() };
+        host.Register("eco", async (call, ct) =>
         {
-            (NamedPipeServerStream editor, NamedPipeClientStream module) = await Support.PipePairAsync();
-            using (editor)
-            using (module)
+            long other = 3 - call.Id;
+            _ = ct.Register(() =>
             {
-                Task<bool> host = Support.EchoHost(maxConcurrent: 64).RunAsync(module);
+                gate[other].TrySetResult();
+                ended[other].Wait(FuzzSupport.CaseCap);
+                gate[call.Id].TrySetResult();
+            });
+            running.Signal();
+            await gate[call.Id].Task;
+            return new ModuleOutput();
+        });
+
+        (NamedPipeServerStream editor, NamedPipeClientStream module) = await Support.PipePairAsync();
+        using (editor)
+        using (module)
+        {
+            try
+            {
+                Task<bool> run = host.RunAsync(module);
                 await editor.WriteAsync(Support.Frame(Hello));
                 await FuzzSupport.ReadFrameAsync(editor);
                 Task<List<byte[]>> drain = FuzzSupport.DrainAsync(editor);
-                List<byte> burst = [];
-                for (int i = 1; i <= 60; i++) burst.AddRange(Support.Frame($$"""{"type":"invoke","id":{{i}},"function":"eco"}"""));
-                burst.AddRange(Support.Frame("""{"type":"shutdown"}"""));
-                await editor.WriteAsync(burst.ToArray());
-                Assert.True(await FuzzSupport.Capped(host, $"RunAsync (ronda {round})"));
-                editor.Dispose();
-                await FuzzSupport.Capped(drain, "la lectura");
+                await editor.WriteAsync((byte[])[.. Support.Frame("""{"type":"invoke","id":1,"function":"eco"}"""), .. Support.Frame("""{"type":"invoke","id":2,"function":"eco"}""")]);
+                // Las dos funciones corriendo antes del cierre: si no, sus avisos se esperarían el uno al otro.
+                Assert.True(running.Wait(FuzzSupport.CaseCap), "Las dos llamadas no llegaron a correr.");
+                await editor.WriteAsync(Support.Frame("""{"type":"shutdown"}"""));
+
+                Assert.True(await FuzzSupport.Capped(run, "RunAsync"));
+                // El fin de flujo del lado del módulo: cerrar el del editor podía cortar la lectura antes de la segunda respuesta.
+                module.Dispose();
+                Assert.Equal(2, (await FuzzSupport.Capped(drain, "la lectura")).Count);
+            }
+            finally
+            {
+                foreach (TaskCompletionSource g in gate) g.TrySetResult();
+                foreach (ManualResetEventSlim e in ended) e.Dispose();
             }
         }
     }

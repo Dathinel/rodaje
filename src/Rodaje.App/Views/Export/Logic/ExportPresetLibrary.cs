@@ -34,6 +34,33 @@ public static class ExportPresetLibrary
     public static ExportPreset? Find(ExportPreferences preferences, string? id) =>
         id is null ? null : All(preferences).FirstOrDefault(p => p.Id == id);
 
+    /// <summary>
+    /// La lista de «Varias versiones», con cada nombre una vez: el que repite nombre y ajustes de otro anterior (el de
+    /// serie copiado en un paquete) no sale; si solo repite el nombre, los dos llevan su origen.
+    /// </summary>
+    public static IReadOnlyList<(ExportPreset Preset, string? Origin)> DistinctByName(IReadOnlyList<ExportPreset> presets)
+    {
+        ArgumentNullException.ThrowIfNull(presets);
+        static bool SameName(ExportPreset a, ExportPreset b) => string.Equals(a.Name, b.Name, StringComparison.OrdinalIgnoreCase);
+        var kept = new List<ExportPreset>();
+        foreach (ExportPreset preset in presets)
+        {
+            if (!kept.Any(k => SameName(k, preset) && Matches(k, preset.Settings)))
+            {
+                kept.Add(preset);
+            }
+        }
+
+        return [.. kept.Select(p => (p, kept.Count(k => SameName(k, p)) > 1 ? OriginName(p.Origin) : null))];
+    }
+
+    private static string OriginName(ExportPresetOrigin origin) => origin switch
+    {
+        ExportPresetOrigin.Factory => "de serie",
+        ExportPresetOrigin.Package => "de un paquete",
+        _ => "propio",
+    };
+
     /// <summary>Si los ajustes son los del preajuste (sin contar el modo de rendimiento, que se elige aparte).</summary>
     public static bool Matches(ExportPreset preset, ExportSettings settings)
     {
@@ -42,7 +69,15 @@ public static class ExportPresetLibrary
         return Canonical(preset.Settings) == Canonical(settings);
     }
 
-    /// <summary>Guarda los ajustes como preajuste propio; con el mismo nombre, lo reemplaza.</summary>
+    /// <summary>El preajuste propio con ese nombre (sin distinguir mayúsculas), o <c>null</c>.</summary>
+    public static ExportPreset? FindUserPreset(ExportPreferences preferences, string name)
+    {
+        ArgumentNullException.ThrowIfNull(preferences);
+        name = (name ?? "").Trim();
+        return preferences.UserPresets.Find(p => string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>Guarda los ajustes como preajuste propio; con el mismo nombre, lo reemplaza (el diálogo pregunta antes).</summary>
     public static ExportPreset SaveUserPreset(ExportPreferences preferences, string name, ExportSettings settings)
     {
         ArgumentNullException.ThrowIfNull(preferences);
@@ -85,13 +120,13 @@ public static class ExportPresetLibrary
         return removed;
     }
 
-    /// <summary>Lo que se recuerda al lanzar una exportación.</summary>
+    /// <summary>Lo que se recuerda al lanzar una exportación; los subtítulos son del proyecto y se conservan tal cual.</summary>
     public static void Remember(ExportPreferences preferences, string? presetId, ExportSettings settings, string outputPath)
     {
         ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(settings);
         preferences.PresetId = presetId;
-        preferences.Settings = Canonical(settings) with { Performance = settings.Performance };
+        preferences.Settings = Canonical(settings) with { Performance = settings.Performance, Subtitles = settings.Subtitles };
         preferences.Performance = settings.Performance;
         preferences.Folder = Path.GetDirectoryName(outputPath) ?? preferences.Folder;
     }
@@ -104,7 +139,10 @@ public static class ExportPresetLibrary
         AppDataPaths.WriteAllTextAtomic(path, json);
     }
 
-    /// <summary>Lee un preajuste de archivo y lo añade como propio (con un id nuevo si choca).</summary>
+    /// <summary>
+    /// Lee un preajuste de archivo y lo añade como propio, con un id nuevo si choca; si ya hay uno propio con ese nombre, no
+    /// lo pisa: el importado se llama «Nombre (2)».
+    /// </summary>
     /// <exception cref="InvalidDataException">El archivo no es un preajuste de Rodaje.</exception>
     public static ExportPreset Import(ExportPreferences preferences, string path)
     {
@@ -129,7 +167,13 @@ public static class ExportPresetLibrary
             throw new InvalidDataException($"El preajuste está dañado: {damage}");
         }
 
-        return SaveUserPreset(preferences, read.Name, read.Settings);
+        string name = read.Name.Trim();
+        for (int n = 2; FindUserPreset(preferences, name) is not null; n++)
+        {
+            name = $"{read.Name.Trim()} ({n})";
+        }
+
+        return SaveUserPreset(preferences, name, read.Settings);
     }
 
     /// <summary>

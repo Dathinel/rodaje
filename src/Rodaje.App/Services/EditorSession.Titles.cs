@@ -57,8 +57,26 @@ public sealed partial class EditorSession
         }
 
         Select([command.CreatedIds[0]]);
+        ShowAfterEntry(at, TitleMotion.InDuration(title, TitleEdits.DefaultDuration));
         TextPanelRequested?.Invoke(this, EventArgs.Empty);
         return true;
+    }
+
+    /// <summary>
+    /// En pausa, con el cursor dentro de la entrada del título recién puesto (que empieza transparente), el cursor va al
+    /// primer cuadro tras la entrada para que se vea lo añadido. Reproduciendo no se toca.
+    /// </summary>
+    private void ShowAfterEntry(Time start, Time entry)
+    {
+        Time end = start + entry;
+        if (IsPlaying || IsSourceActive || entry <= Time.Zero || EditPosition < start || EditPosition >= end)
+        {
+            return;
+        }
+
+        long frame = end.ToFrames(Sequence.FrameRate);
+        Time target = Time.FromFrames(frame, Sequence.FrameRate);
+        Seek(target < end ? Time.FromFrames(frame + 1, Sequence.FrameRate) : target);
     }
 
     /// <summary>Sustituye el estilo de un título por una copia de <paramref name="style"/> (D-029).</summary>

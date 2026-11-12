@@ -28,7 +28,8 @@ internal readonly record struct ClipDraw(
     bool Selected,
     double Veil,
     bool ShowEnvelope,
-    string? SyncText = null);
+    string? SyncText = null,
+    bool ShowFadeHandles = false);
 
 /// <summary>
 /// Un clip dibujado, reciclable: bloque con su color, nombre, tira de película o forma de onda, keyframes y envolvente.
@@ -59,13 +60,20 @@ internal sealed class ClipVisual
     private readonly List<Image> _thumbPool = [];
     private readonly Path _wave = new();
     private readonly RectangleGeometry _waveBounds = new();
+    private (string MediaId, ClipTimeMap Map, Time Low, Time High, int Count, double Width, double Height)? _waveKey;
+    private ClipDraw _last;
+    private IClipVisuals? _visuals;
     private readonly Border _veil = new();
     private readonly Polyline _envelope = new() { StrokeThickness = 1.5 };
     private readonly Path _envelopePoints = new() { StrokeThickness = 1 };
     private readonly Path _keys = new();
-    private readonly TextBlock _name = new() { FontSize = ThemeResources.Size("CaptionFontSize"), TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
+
+    // Fundidos de audio: la zona apagada de cada extremo (rellena, con la curva del fundido) y las dos asas de arriba.
+    private readonly Path _fades = new() { StrokeThickness = 1, IsHitTestVisible = false };
+    private readonly Path _fadeHandles = new() { StrokeThickness = 1, IsHitTestVisible = false };
+    private readonly TextBlock _name = new() { FontSize = ThemeResources.TimelineSize("CaptionFontSize"), TextWrapping = TextWrapping.NoWrap, TextTrimming = TextTrimming.CharacterEllipsis };
     private readonly Border _badge = new() { Padding = new Thickness(4, 0, 4, 1), Height = NameHeight - 1 };
-    private readonly TextBlock _badgeText = new() { FontSize = ThemeResources.Size("MicroFontSize"), TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _badgeText = new() { FontSize = ThemeResources.TimelineSize("MicroFontSize"), TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
 
     // La mini curva, a la derecha del texto del indicador.
     private readonly Polyline _badgeCurve = new()
@@ -88,7 +96,7 @@ internal sealed class ClipVisual
 
     // Aviso de desfase con su enlazado («+3», en cuadros), a la derecha de la fila del nombre.
     private readonly Border _sync = new() { Padding = new Thickness(4, 0, 4, 1), Height = NameHeight - 1, Visibility = Visibility.Collapsed };
-    private readonly TextBlock _syncText = new() { FontSize = ThemeResources.Size("MicroFontSize"), TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
+    private readonly TextBlock _syncText = new() { FontSize = ThemeResources.TimelineSize("MicroFontSize"), TextWrapping = TextWrapping.NoWrap, VerticalAlignment = VerticalAlignment.Center };
 
     public ClipVisual(TimelineBrushes brushes)
     {
@@ -102,6 +110,10 @@ internal sealed class ClipVisual
         _envelope.Stroke = brushes.Text;
         _envelopePoints.Fill = brushes.Text;
         _envelopePoints.Stroke = brushes.Background;
+        _fades.Fill = brushes.Scrim;
+        _fades.Stroke = brushes.Text;
+        _fadeHandles.Fill = brushes.Text;
+        _fadeHandles.Stroke = brushes.Background;
         _name.Foreground = brushes.Text;
         _badgeText.Foreground = brushes.Text;
         _badgeCurve.Stroke = brushes.Text;
@@ -131,6 +143,7 @@ internal sealed class ClipVisual
         Root.Children.Add(_strip);
         Root.Children.Add(_thumbs);
         Root.Children.Add(_wave);
+        Root.Children.Add(_fades);
         Root.Children.Add(_envelope);
         Root.Children.Add(_envelopePoints);
         Root.Children.Add(_name);
@@ -143,6 +156,7 @@ internal sealed class ClipVisual
         Root.Children.Add(_outline);
         // Encima del velo y del contorno: los rombos se ven igual en cualquier estado del clip o de la pista.
         Root.Children.Add(_keys);
+        Root.Children.Add(_fadeHandles);
         _veil.Background = brushes.Background;
         _thumbs.Clip = _thumbsBounds;
         _wave.Clip = _waveBounds;
@@ -155,6 +169,15 @@ internal sealed class ClipVisual
 
     public string? ClipId { get; private set; }
 
+    public string? MediaId => ClipId is null ? null : _last.Clip.MediaId;
+
+    /// <summary>Vuelve a dibujar el clip con lo último que se le pidió (llegaron miniaturas o picos de su medio).</summary>
+    public void Refresh()
+    {
+        _waveKey = null;
+        Update(_last, _visuals);
+    }
+
     public void Hide()
     {
         ClipId = null;
@@ -164,6 +187,16 @@ internal sealed class ClipVisual
     public void Update(in ClipDraw d, IClipVisuals? visuals)
     {
         ClipId = d.Clip.Id;
+        _last = d;
+        _visuals = visuals;
+        // El tamaño de fuente de la línea de tiempo se cambia en Preferencias sin reiniciar.
+        double nameSize = ThemeResources.TimelineSize("CaptionFontSize");
+        if (_name.FontSize != nameSize)
+        {
+            _name.FontSize = nameSize;
+            _badgeText.FontSize = _syncText.FontSize = ThemeResources.TimelineSize("MicroFontSize");
+        }
+
         ClipTimeMap map = d.Clip.TimeMap;
         Root.Visibility = Visibility.Visible;
         Canvas.SetLeft(Root, d.Left);
@@ -212,6 +245,89 @@ internal sealed class ClipVisual
 
         UpdateEnvelope(d, map);
         UpdateKeyframes(d);
+        UpdateFades(d, detailed && !noMedia);
+    }
+
+    /// <summary>
+    /// Los fundidos de un clip de audio: en cada extremo, la zona apagada rellena bajo la curva (de 0 a 1 con la forma
+    /// elegida) y un cuadrito en el borde de arriba, donde termina la entrada y donde empieza la salida, que se arrastra.
+    /// El bloque solo cubre la parte visible del clip, así que las x se calculan desde el clip entero.
+    /// </summary>
+    private void UpdateFades(in ClipDraw d, bool detailed)
+    {
+        if (d.Kind != TrackKind.Audio || !detailed)
+        {
+            _fades.Visibility = Visibility.Collapsed;
+            _fadeHandles.Visibility = Visibility.Collapsed;
+            return;
+        }
+
+        (double fadeIn, double fadeOut) = FadeHandles.Seconds(d.Clip);
+        string shape = FadeHandles.Shape(d.Clip);
+        double clipLeft = LocalX(d, d.Clip.Start);
+        double clipRight = LocalX(d, d.Clip.End);
+        double inX = clipLeft + (fadeIn * d.PixelsPerSecond);
+        double outX = clipRight - (fadeOut * d.PixelsPerSecond);
+        double height = d.Height;
+
+        var zones = new GeometryGroup();
+        if (fadeIn > 0 && inX > -d.Width && clipLeft < d.Width)
+        {
+            zones.Children.Add(Ramp(clipLeft, inX, height, shape, entering: true));
+        }
+
+        if (fadeOut > 0 && outX < 2 * d.Width && clipRight > 0)
+        {
+            zones.Children.Add(Ramp(outX, clipRight, height, shape, entering: false));
+        }
+
+        _fades.Data = zones;
+        _fades.Visibility = zones.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+        // Las asas solo donde se pueden arrastrar (pista sin bloquear, clip con sitio); el sombreado se ve siempre.
+        bool wide = d.ShowFadeHandles && clipRight - clipLeft >= FadeHandles.MinClipWidth;
+        var squares = new GeometryGroup();
+        if (wide)
+        {
+            double half = FadeHandles.Size / 2;
+            double y = FadeHandles.TopOffset;
+            foreach (double x in (double[])[inX, outX])
+            {
+                if (x >= -half && x <= d.Width + half)
+                {
+                    squares.Children.Add(new RectangleGeometry { Rect = new Rect(x - half, y - half, FadeHandles.Size, FadeHandles.Size) });
+                }
+            }
+        }
+
+        _fadeHandles.Data = squares;
+        _fadeHandles.Visibility = squares.Children.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>
+    /// La zona apagada de un fundido entre <paramref name="from"/> y <paramref name="to"/> (x locales): el techo del
+    /// bloque y, por debajo, la curva de la ganancia (0 abajo, 1 arriba). En la entrada sube; en la salida baja.
+    /// </summary>
+    private static PathGeometry Ramp(double from, double to, double height, string shape, bool entering)
+    {
+        const int steps = 12;
+        var segment = new PolyLineSegment();
+        double width = Math.Max(0, to - from);
+        for (int i = 0; i <= steps; i++)
+        {
+            double t = (double)i / steps;
+            double gain = FadeHandles.Factor(shape, entering ? t : 1 - t);
+            segment.Points.Add(new Point(from + (t * width), (1 - gain) * height));
+        }
+
+        // Cierra por el techo: el relleno queda entre la curva y el borde de arriba, lo que no suena.
+        segment.Points.Add(new Point(to, 0));
+        segment.Points.Add(new Point(from, 0));
+        var figure = new PathFigure { StartPoint = new Point(from, entering ? height : 0), IsClosed = true, IsFilled = true };
+        figure.Segments.Add(segment);
+        var geometry = new PathGeometry();
+        geometry.Figures.Add(figure);
+        return geometry;
     }
 
     // Un velo encima en vez de la opacidad del bloque: cambia con cada estado de la pista sin depender de cómo compone
@@ -452,8 +568,17 @@ internal sealed class ClipVisual
         // Se pide el tramo del origen que se ve y cada punto toma el suyo con el mapeo: a otra velocidad, en reversa o
         // con una curva la onda sigue al material. Mientras se calcula (o sin sonido) se dibuja el marcador de posición.
         (Time low, Time high) = ClipMapping.VisibleSource(map, TimeAt(d, 0), TimeAt(d, d.Width));
+        var key = (clip.MediaId, map, low, high, count, d.Width, d.Height);
+        if (_waveKey == key)
+        {
+            // La misma onda completa que ya está dibujada: no se vuelve a pedir ni a construir su geometría.
+            _wave.Visibility = Visibility.Visible;
+            return;
+        }
+
         WaveformSlice? slice = visuals?.GetWaveform(clip.MediaId, low, high, count);
         bool real = slice is { IsComplete: true, HasAudio: true } && slice.Buckets == count;
+        _waveKey = real ? key : null;
         for (int i = 0; i < count; i++)
         {
             double x = i == count - 1 ? d.Width : i * step;

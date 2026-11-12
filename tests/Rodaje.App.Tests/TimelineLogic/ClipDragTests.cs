@@ -301,8 +301,8 @@ public class ClipDragTests
         Assert.Equal(S(1), ClipOf(session, "b").SourceIn);
         Assert.Equal("a@0-8 b@8-17 c@20-25", Layout(session, session.Sequence.AudioTracks[0]));
         Assert.Equal(Rodaje.App.Services.Titles.ClipLabels.FrameShift(S(-2), session.Sequence.FrameRate), plan.Balloon!.Value.Text);
-        Assert.Equal("\u221248 cuadros", Rodaje.App.Services.Titles.ClipLabels.FrameShift(S(-2), Rational.Fps24));
-        Assert.Equal("+1 cuadro", Rodaje.App.Services.Titles.ClipLabels.FrameShift(Time.FromFrames(1, Rational.Fps25), Rational.Fps25));
+        Assert.Equal("\u221248 fotogramas", Rodaje.App.Services.Titles.ClipLabels.FrameShift(S(-2), Rational.Fps24));
+        Assert.Equal("+1 fotograma", Rodaje.App.Services.Titles.ClipLabels.FrameShift(Time.FromFrames(1, Rational.Fps25), Rational.Fps25));
 
         TrimPreview preview = TrimPreview.Of(session.Sequence, drag.Drag.ClipId, roll: true)!;
         Assert.Equal(session.Project.Media.First(m => m.Name == "a").Id, preview.Left.MediaId);

@@ -66,8 +66,8 @@ public sealed class ShaderCache
     /// <summary>Variantes leídas del disco en esta sesión.</summary>
     public int LoadedFromDiskCount => _loaded;
 
-    /// <summary>Para las pruebas: corre antes de cada compilación (por ejemplo, para retenerla).</summary>
-    internal Action? BeforeCompile { get; init; }
+    /// <summary>Para las pruebas: compila en lugar de <see cref="ShaderCompiler"/> (por ejemplo, para retenerla).</summary>
+    internal Func<ShaderVariant, byte[]>? Compile { get; init; }
 
     public static string Key(ShaderVariant variant)
     {
@@ -96,8 +96,7 @@ public sealed class ShaderCache
             return _memory.GetOrAdd(key, code!);
         }
 
-        BeforeCompile?.Invoke();
-        code = ShaderCompiler.Compile(variant.FullSource(), variant.EntryPoint, variant.Profile, variant.SourceName);
+        code = Compile?.Invoke(variant) ?? ShaderCompiler.Compile(variant.FullSource(), variant.EntryPoint, variant.Profile, variant.SourceName);
         Interlocked.Increment(ref _compiled);
         if (path is not null)
         {

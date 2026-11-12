@@ -22,7 +22,13 @@ public enum ClipAttributeKinds
     /// <summary>Volumen y fundidos del audio.</summary>
     Volume = 8,
 
-    All = Effects | Transform | Speed | Volume,
+    /// <summary>Estilo del texto de un título o subtítulo: fuente, tamaño, color y degradado, contorno, alineación, interlineado, fondo, tipografía, caja y animaciones de entrada y salida. Nunca las palabras.</summary>
+    Text = 16,
+
+    /// <summary>Las sombras del texto (la principal y las extra).</summary>
+    Shadow = 32,
+
+    All = Effects | Transform | Speed | Volume | Text | Shadow,
 }
 
 /// <summary>
@@ -34,8 +40,10 @@ public enum ClipAttributeKinds
 /// </summary>
 public sealed class ClipAttributes
 {
-    private ClipAttributes(string clipId, Side? video, Side? audio, ClipSpeed? speed, bool hasSpeed)
+    private ClipAttributes(string clipId, Side? video, Side? audio, ClipSpeed? speed, bool hasSpeed, TextStyle? style, TextFrame? box)
     {
+        Style = style;
+        Box = box;
         ClipId = clipId;
         Video = video;
         Audio = audio;
@@ -50,7 +58,13 @@ public sealed class ClipAttributes
     public ClipAttributeKinds Available =>
         (Video is not null ? ClipAttributeKinds.Effects | ClipAttributeKinds.Transform : ClipAttributeKinds.None)
         | (Audio is not null ? ClipAttributeKinds.Effects | ClipAttributeKinds.Volume : ClipAttributeKinds.None)
-        | (HasSpeed ? ClipAttributeKinds.Speed : ClipAttributeKinds.None);
+        | (HasSpeed ? ClipAttributeKinds.Speed : ClipAttributeKinds.None)
+        | (Style is not null ? ClipAttributeKinds.Text | ClipAttributeKinds.Shadow : ClipAttributeKinds.None);
+
+    /// <summary>Estilo del texto del clip copiado, si es un título o un subtítulo; las palabras no se copian.</summary>
+    internal TextStyle? Style { get; }
+
+    internal TextFrame? Box { get; }
 
     internal Side? Video { get; }
 
@@ -75,7 +89,8 @@ public sealed class ClipAttributes
         Side? audio = SideOf(group, found, TrackKind.Audio);
         Clip clip = found.Clip;
         bool hasSpeed = clip.Generator is null && clip.Speed is not { Freeze: true };
-        return new ClipAttributes(clipId, video, audio, hasSpeed ? clip.Speed?.Clone() : null, hasSpeed);
+        TextStyle? style = clip.Generator is { Kind: GeneratorKinds.Text, Style: { } textStyle } ? textStyle.Clone() : null;
+        return new ClipAttributes(clipId, video, audio, hasSpeed ? clip.Speed?.Clone() : null, hasSpeed, style, style is null ? null : clip.Generator!.Box?.Clone());
     }
 
     private static Side? SideOf(List<(Track Track, Clip Clip)> group, (Track Track, Clip Clip) chosen, TrackKind kind)
@@ -165,12 +180,62 @@ public static class ClipAttributeEdits
             }
         }
 
+        if ((kinds & (ClipAttributeKinds.Text | ClipAttributeKinds.Shadow)) != 0 && attributes.Style is { } style)
+        {
+            foreach ((Track track, Clip clip) in targets)
+            {
+                if (clip.Generator is not { Kind: GeneratorKinds.Text } generator)
+                {
+                    continue;
+                }
+
+                EditContext.EnsureUnlocked(track);
+                TextStyle target = generator.Style ??= new TextStyle();
+                if ((kinds & ClipAttributeKinds.Text) != 0)
+                {
+                    PasteTextStyle(style, target);
+                    generator.Box = attributes.Box?.Clone();
+                }
+
+                if ((kinds & ClipAttributeKinds.Shadow) != 0)
+                {
+                    target.Shadow = style.Shadow?.Clone();
+                    target.ExtraShadows = style.ExtraShadows?.ConvertAll(s => s.Clone());
+                }
+
+                changed = true;
+            }
+        }
+
         if (!changed)
         {
             throw new EditException("Los clips elegidos no admiten los atributos copiados.");
         }
 
         ctx.EnsureValid();
+    }
+
+    // Todo menos las sombras; las medidas dependen de la referencia, que viaja con ellas.
+    private static void PasteTextStyle(TextStyle from, TextStyle to)
+    {
+        TextStyle copy = from.Clone();
+        to.Source = copy.Source;
+        to.Name = copy.Name;
+        to.Font = copy.Font;
+        to.Size = copy.Size;
+        to.Reference = copy.Reference;
+        to.LineHeight = copy.LineHeight;
+        to.LetterSpacing = copy.LetterSpacing;
+        to.Align = copy.Align;
+        to.Fill = copy.Fill;
+        to.Stroke = copy.Stroke;
+        to.ExtraStrokes = copy.ExtraStrokes;
+        to.Background = copy.Background;
+        to.Typography = copy.Typography;
+        to.Path = copy.Path;
+        to.Highlight = copy.Highlight;
+        to.In = copy.In;
+        to.Out = copy.Out;
     }
 
     /// <summary>Categoría de un efecto; <see cref="ClipAttributeKinds.None"/> para la velocidad antigua, que no se copia.</summary>

@@ -21,7 +21,7 @@ internal sealed partial class TimelineView
 {
     private const double DragThreshold = 4;
     private const double WheelStep = 1.2;
-    private const double EdgeScrollZone = 24;
+    private const double TrackHeightStep = 8;
 
     private static readonly InputCursor ArrowCursor = InputSystemCursor.Create(InputSystemCursorShape.Arrow);
     private static readonly InputCursor ResizeCursor = InputSystemCursor.Create(InputSystemCursorShape.SizeWestEast);
@@ -46,6 +46,8 @@ internal sealed partial class TimelineView
     private string? _dropMediaId;
     private Pointer? _captured;
     private UIElement? _captureOwner;
+    private Point _edgePoint;
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? _edgeTimer;
 
     private enum PointerMode
     {
@@ -61,18 +63,25 @@ internal sealed partial class TimelineView
 
         /// <summary>La herramienta de rango marca la entrada y la salida de la secuencia.</summary>
         Range,
+
+        /// <summary>Un asa de fundido de un clip de audio se arrastra hacia adentro o hacia afuera.</summary>
+        DraggingFade,
     }
+
+    private string? _fadeClipId;
+    private FadeHandle _fadeHandle;
 
     /// <summary>Esc o un proyecto nuevo cortan lo que el puntero estaba haciendo (la sesión ya revirtió el gesto).</summary>
     private void AbortPointerGesture()
     {
-        if (_mode is PointerMode.DraggingMarker or PointerMode.DraggingTransition or PointerMode.DraggingEnvelope && Session!.IsInGesture)
+        if (_mode is PointerMode.DraggingMarker or PointerMode.DraggingTransition or PointerMode.DraggingEnvelope or PointerMode.DraggingFade && Session!.IsInGesture)
         {
             Session.CancelGesture();
         }
 
         _transitionId = null;
         _envelopeClipId = null;
+        _fadeClipId = null;
         _drag = null;
         _markerId = null;
         _mode = PointerMode.None;
@@ -92,6 +101,7 @@ internal sealed partial class TimelineView
     {
         _overlay.Ghost = null;
         _overlay.LinkedGhost = null;
+        _overlay.ExtraGhosts = null;
         _overlay.InsertLine = null;
         _overlay.SnapGuide = null;
         _overlay.Balloon = null;
@@ -138,6 +148,7 @@ internal sealed partial class TimelineView
         }
 
         TakeKeyboardFocus(FocusState.Pointer);
+        _headers?.Select(null);
         PointerPoint point = e.GetCurrentPoint(LanesHost);
         PointerPointProperties props = point.Properties;
         Point p = point.Position;
@@ -204,6 +215,12 @@ internal sealed partial class TimelineView
             return;
         }
 
+        if (State.Tool == TimelineTool.Normal && FadeHandleAt(hit, p) is { } fadeHandle)
+        {
+            PressFade(hit, fadeHandle, e);
+            return;
+        }
+
         if (State.Tool == TimelineTool.Range)
         {
             _pressPoint = p;
@@ -233,10 +250,7 @@ internal sealed partial class TimelineView
             }
             else if (!Session.SelectedClipIds.Contains(clip.Id))
             {
-                // Un clip agrupado se elige con todo su grupo.
-                Session.Select(State.IgnoreGroups || clip.GroupId is null
-                    ? [clip.Id]
-                    : TimelineEdits.ExpandWithGroups(Session.Sequence, [clip.Id]).Select(m => m.Clip.Id));
+                SelectClicked(clip);
             }
 
             _mode = State.Tool == TimelineTool.Selection ? PointerMode.Marquee : PointerMode.PendingClip;
@@ -266,7 +280,7 @@ internal sealed partial class TimelineView
         {
             case PointerMode.None:
                 TimelineHit hover = TimelineHitTest.Hit(layout, Viewport, p.X, ContentY(p.Y));
-                UpdateCursor(hover, HitTransition(layout, p).Kind);
+                UpdateCursor(hover, HitTransition(layout, p).Kind, overFadeHandle: State.Tool == TimelineTool.Normal && FadeHandleAt(hover, p) is not null);
                 _renderer.PlaceCursorBadge(Badge(hover, e.KeyModifiers), p.X, p.Y);
                 return;
             case PointerMode.Pan:
@@ -285,7 +299,7 @@ internal sealed partial class TimelineView
 
                 return;
             case PointerMode.DraggingClip:
-                EdgeScroll(p.X);
+                FollowEdges(p);
                 ContinueClipDrag(p, layout);
                 if (_drag?.Drag.Operation is DragOperation.Roll or DragOperation.Slide)
                 {
@@ -298,6 +312,9 @@ internal sealed partial class TimelineView
                 return;
             case PointerMode.DraggingEnvelope:
                 ContinueEnvelopeDrag(p, layout);
+                return;
+            case PointerMode.DraggingFade:
+                ContinueFadeDrag(p);
                 return;
             case PointerMode.Range:
                 EdgeScroll(p.X);
@@ -341,6 +358,12 @@ internal sealed partial class TimelineView
                 FinishRange(p);
                 break;
             case PointerMode.PendingClip:
+                // Al pulsar se conservó la selección para arrastrarla entera; un clic sin arrastre elige solo este clip.
+                if (!_pressCtrl && _pressHit.Clip is { } clicked)
+                {
+                    SelectClicked(clicked);
+                }
+
                 SelectEdge(_pressHit);
                 break;
             case PointerMode.DraggingTransition:
@@ -349,12 +372,70 @@ internal sealed partial class TimelineView
             case PointerMode.DraggingEnvelope:
                 FinishEnvelopeDrag();
                 break;
+            case PointerMode.DraggingFade:
+                FinishFadeDrag();
+                break;
             default:
                 break;
         }
 
         ReleaseCapture();
         e.Handled = true;
+    }
+
+    /// <summary>El asa de fundido bajo el puntero, si el clip tocado la tiene ahí.</summary>
+    private FadeHandle? FadeHandleAt(TimelineHit hit, Point p) =>
+        hit.Clip is { } clip && hit.Row is { } row ? FadeHandles.Hit(clip, row, Viewport, p.X, ContentY(p.Y)) : null;
+
+    /// <summary>Agarra un asa: el clip queda seleccionado y empieza el paso del historial del arrastre.</summary>
+    private void PressFade(TimelineHit hit, FadeHandle handle, PointerRoutedEventArgs e)
+    {
+        EditorSession session = Session!;
+        Clip clip = hit.Clip!;
+        if (!session.SelectedClipIds.Contains(clip.Id))
+        {
+            SelectClicked(clip);
+        }
+
+        _fadeClipId = clip.Id;
+        _fadeHandle = handle;
+        _pressPoint = e.GetCurrentPoint(LanesHost).Position;
+        session.BeginGesture(FadeHandles.Description(handle));
+        _mode = PointerMode.DraggingFade;
+        Capture(LanesHost, e);
+    }
+
+    private void ContinueFadeDrag(Point p)
+    {
+        EditorSession session = Session!;
+        if (_fadeClipId is not { } id || session.Sequence.FindClip(id) is not { } found)
+        {
+            return;
+        }
+
+        double seconds = FadeHandles.SecondsAt(found.Clip, Viewport, _fadeHandle, p.X);
+        (double fadeIn, double fadeOut) = FadeHandles.Seconds(found.Clip);
+        double current = _fadeHandle == FadeHandle.In ? fadeIn : fadeOut;
+        if (Math.Abs(seconds - current) >= 0.005 && !session.TryExecute(FadeHandles.Set(session.SequenceId, id, _fadeHandle, seconds)))
+        {
+            return;
+        }
+
+        Time at = _fadeHandle == FadeHandle.In ? found.Clip.Start + Time.FromSeconds(seconds) : found.Clip.End - Time.FromSeconds(seconds);
+        _overlay.Balloon = (found.Track.Id, at, FadeHandles.Balloon(_fadeHandle, seconds));
+        Invalidate();
+    }
+
+    private void FinishFadeDrag()
+    {
+        _fadeClipId = null;
+        _overlay.Balloon = null;
+        if (Session!.IsInGesture)
+        {
+            Session.EndGesture();
+        }
+
+        Invalidate();
     }
 
     private void OnLanesPointerCaptureLost(object sender, PointerRoutedEventArgs e)
@@ -370,6 +451,10 @@ internal sealed partial class TimelineView
         else if (_mode == PointerMode.DraggingEnvelope)
         {
             FinishEnvelopeDrag();
+        }
+        else if (_mode == PointerMode.DraggingFade)
+        {
+            FinishFadeDrag();
         }
 
         _mode = PointerMode.None;
@@ -410,7 +495,7 @@ internal sealed partial class TimelineView
                 _ => alt ? DragOperation.Slip : DragOperation.Move,
             }, clip.Id),
         };
-        var drag = new ClipDrag(session.Project, session.SequenceId, clipId, operation, _pressTime, Options(), session.ProgramPosition);
+        var drag = new ClipDrag(session.Project, session.SequenceId, clipId, operation, _pressTime, Options(), session.ProgramPosition, selection: session.SelectedClipIds);
         _drag = new ClipDragSession(session, drag);
         _drag.Begin();
         _mode = PointerMode.DraggingClip;
@@ -446,6 +531,15 @@ internal sealed partial class TimelineView
             _ => null,
         },
     };
+
+    /// <summary>Un clip agrupado se elige con todo su grupo (salvo con «ignorar grupos»).</summary>
+    private void SelectClicked(Clip clip)
+    {
+        EditorSession session = Session!;
+        session.Select(State.IgnoreGroups || clip.GroupId is null
+            ? [clip.Id]
+            : TimelineEdits.ExpandWithGroups(session.Sequence, [clip.Id]).Select(m => m.Clip.Id));
+    }
 
     /// <summary>
     /// Un clic sin arrastrar en un borde lo elige para recortarlo con «,» y «.» (con la herramienta de ripple, recorte
@@ -520,8 +614,11 @@ internal sealed partial class TimelineView
         }
 
         DragPlan plan = _drag.Move(Viewport.XToTime(p.X), layout.RowAt(ContentY(p.Y)));
-        bool showGhost = !plan.IsLive || plan.InsertAt is not null;
+        bool showGhost = !plan.IsLive || plan.InsertAt is not null || plan.Ghosts is { Count: > 1 };
         _overlay.Ghost = showGhost ? (plan.GhostTrackId, plan.GhostStart, plan.GhostEnd) : null;
+        _overlay.ExtraGhosts = showGhost && plan.Ghosts is { Count: > 1 }
+            ? plan.Ghosts.Where(g => !(g.TrackId == plan.GhostTrackId && g.Start == plan.GhostStart && g.End == plan.GhostEnd)).ToList()
+            : null;
         _overlay.InsertLine = plan.InsertAt is { } at ? (plan.GhostTrackId, at) : null;
         _overlay.SnapGuide = plan.SnapGuide;
         _overlay.Balloon = plan.Balloon is { } balloon ? (plan.GhostTrackId, balloon.At, balloon.Text) : null;
@@ -550,10 +647,14 @@ internal sealed partial class TimelineView
         _overlay.Marquee = null;
         if (Distance(p, _pressPoint) < DragThreshold)
         {
-            if (_pressHit.Clip is null)
+            if (_pressHit.Clip is not { } clicked)
             {
                 _overlay.TimeRange = null;
                 SeekProgram(_pressTime.SnapToFrame(session.Sequence.FrameRate));
+            }
+            else if (!_pressCtrl)
+            {
+                SelectClicked(clicked);
             }
 
             Invalidate();
@@ -569,21 +670,74 @@ internal sealed partial class TimelineView
         Invalidate();
     }
 
-    /// <summary>Al arrastrar cerca de un borde, la vista se corre sola.</summary>
+    /// <summary>Al arrastrar cerca del borde izquierdo o derecho, la vista se corre sola (un paso por movimiento).</summary>
     private void EdgeScroll(double x)
     {
-        double step = x < EdgeScrollZone ? x - EdgeScrollZone : x > Viewport.Width - EdgeScrollZone ? x - (Viewport.Width - EdgeScrollZone) : 0;
+        double step = AutoScroll.Step(x, Viewport.Width);
         if (step != 0)
         {
-            Viewport.ScrollX += step * 0.5;
+            Viewport.ScrollX += step;
             Viewport.ClampScroll(Session!.Sequence.Duration + Viewport.PixelsToDuration(Viewport.Width));
         }
     }
 
-    private void UpdateCursor(TimelineHit? hit, TransitionHitKind transition = TransitionHitKind.None)
+    /// <summary>
+    /// Un clip arrastrado cerca de cualquier borde de las pistas corre la vista en ese sentido, también con el ratón
+    /// quieto: un temporizador sigue mientras el puntero esté en la franja del borde.
+    /// </summary>
+    private void FollowEdges(Point p)
+    {
+        _edgePoint = p;
+        if (ScrollTowardEdges(p) && _edgeTimer is not { IsRunning: true })
+        {
+            if (_edgeTimer is null)
+            {
+                _edgeTimer = DispatcherQueue.CreateTimer();
+                _edgeTimer.Interval = TimeSpan.FromMilliseconds(16);
+                _edgeTimer.Tick += (_, _) => OnEdgeTimer();
+            }
+
+            _edgeTimer.Start();
+        }
+    }
+
+    private void OnEdgeTimer()
+    {
+        if (_mode != PointerMode.DraggingClip || Session is null || _renderer?.Layout is not { } layout || !ScrollTowardEdges(_edgePoint))
+        {
+            _edgeTimer?.Stop();
+            return;
+        }
+
+        ContinueClipDrag(_edgePoint, layout);
+        Invalidate();
+    }
+
+    /// <summary>Un paso de desplazamiento hacia el borde cercano a <paramref name="p"/>; <c>false</c> si no está cerca de ninguno.</summary>
+    private bool ScrollTowardEdges(Point p)
+    {
+        TimelineRenderer renderer = _renderer!;
+        double dx = AutoScroll.Step(p.X, Viewport.Width);
+        double dy = AutoScroll.Step(p.Y, renderer.LanesHeight);
+        if (dx != 0)
+        {
+            Viewport.ScrollX += dx;
+            Viewport.ClampScroll(Session!.Sequence.Duration + Viewport.PixelsToDuration(Viewport.Width));
+        }
+
+        if (dy != 0)
+        {
+            SetScrollY(renderer.ScrollY + dy);
+        }
+
+        return dx != 0 || dy != 0;
+    }
+
+    private void UpdateCursor(TimelineHit? hit, TransitionHitKind transition = TransitionHitKind.None, bool overFadeHandle = false)
     {
         InputCursor cursor = State.Tool is TimelineTool.Zoom or TimelineTool.Blade ? CrossCursor
             : State.Tool == TimelineTool.Range ? IBeamCursor
+            : overFadeHandle ? ResizeCursor
             : hit?.Clip is not null && State.Tool == TimelineTool.Slip ? ResizeCursor
             : hit is { } h && EditsEnvelope(h) ? CrossCursor
             : transition is TransitionHitKind.StartHandle or TransitionHitKind.EndHandle ? ResizeCursor
@@ -630,19 +784,21 @@ internal sealed partial class TimelineView
         int signed = tilt ? delta : -delta;
         string? gesture = Views.Shortcuts.MouseShortcutHost.Resolve(
             _services!.ShortcutRegistry, MouseContext.Timeline, tilt ? MouseInput.Tilt : MouseInput.Wheel, e.KeyModifiers);
-        if (gesture == MouseGestures.ScrollTime && ReferenceEquals(sender, HeadersCanvas) && !tilt)
-        {
-            gesture = MouseGestures.ScrollTracks;
-        }
+        bool overHeaders = ReferenceEquals(sender, HeadersViewport);
+        bool allTracksVisible = (_renderer.Layout?.TotalHeight ?? 0) <= _renderer.LanesHeight;
+        gesture = MouseGestures.EffectiveTimelineWheel(gesture, overHeaders, tilt, allTracksVisible);
 
         switch (gesture)
         {
             case MouseGestures.Zoom:
-                double anchor = ReferenceEquals(sender, HeadersCanvas) ? Viewport.Width / 2 : Math.Clamp(point.Position.X, 0, Viewport.Width);
+                double anchor = overHeaders ? Viewport.Width / 2 : Math.Clamp(point.Position.X, 0, Viewport.Width);
                 ZoomAt(anchor, Math.Pow(WheelStep, -signed / 120.0));
                 return;
             case MouseGestures.ScrollTracks:
                 SetScrollY(_renderer.ScrollY + (signed * 0.5));
+                return;
+            case MouseGestures.TrackHeight:
+                ResizeTrackAt(point.Position.Y, -signed);
                 return;
             case MouseGestures.Frames:
                 Views.Shortcuts.MouseShortcutHost.StepFrames(_services.Shortcuts, Views.Shortcuts.MouseShortcutHost.Steps(point.Properties));
@@ -656,6 +812,22 @@ internal sealed partial class TimelineView
 
         Viewport.ClampScroll(Session.Sequence.Duration);
         Invalidate();
+    }
+
+    /// <summary>Alt+rueda: la pista bajo el puntero crece o se achica 8 px por paso; los pasos seguidos son un solo deshacer.</summary>
+    private void ResizeTrackAt(double y, int delta)
+    {
+        EditorSession session = Session!;
+        if (_renderer!.Layout?.RowStrictlyAt(ContentY(y)) is not { } row)
+        {
+            return;
+        }
+
+        int height = (int)Math.Round(row.Height + (Math.Sign(delta) * TrackHeightStep));
+        if (height != (int)row.Height)
+        {
+            session.Execute(Edits.SetTrackHeight(session.SequenceId, row.TrackId, Math.Clamp(height, Track.MinHeight, Track.MaxHeight)));
+        }
     }
 
     private void OnRulerPointerPressed(object sender, PointerRoutedEventArgs e)
@@ -724,7 +896,7 @@ internal sealed partial class TimelineView
             Time at = Viewport.XToTime(x).SnapToFrame(Session.Sequence.FrameRate);
             if (State.Snapping)
             {
-                SnapPoints snaps = SnapPoints.Collect(Session.Sequence, new HashSet<string>(), Session.ProgramPosition);
+                SnapPoints snaps = SnapPoints.Collect(Session.Sequence, new HashSet<string> { id }, Session.ProgramPosition);
                 at = snaps.Nearest(at, Viewport.PixelsToDuration(SnapPoints.ThresholdPixels)) ?? at;
             }
 
@@ -828,6 +1000,11 @@ internal sealed partial class TimelineView
         }
 
         e.Handled = true;
+        if (_renderer is not null && Session is not null)
+        {
+            ScrollTowardEdges(e.GetPosition(LanesHost));
+        }
+
         DropPlan? plan = PlanDrop(e);
         e.AcceptedOperation = plan is null && _dropMediaId is not null ? DataPackageOperation.None : DataPackageOperation.Copy;
         if (plan is not null)
@@ -860,6 +1037,8 @@ internal sealed partial class TimelineView
             return;
         }
 
+        // El foco seguía en la ficha arrastrada, que se queda Supr: así borra lo recién soltado (clip, transición, título o sonido).
+        TakeKeyboardFocus(FocusState.Pointer);
         if (!e.DataView.Contains(MediaIdFormat))
         {
             if (CarriesSound(e.DataView))
@@ -883,12 +1062,14 @@ internal sealed partial class TimelineView
         try
         {
             _dropMediaId ??= (await e.DataView.GetDataAsync(MediaIdFormat))?.ToString();
-            if (PlanDrop(e) is { } plan)
+            if (_renderer?.Layout is { } layout)
             {
-                SequenceEditCommand command = plan.Build();
-                if (Session.Execute(command) && command.CreatedIds.Count > 0)
+                Point p = e.GetPosition(LanesHost);
+                List<string> created = TimelinePlanning.DropMedia(Session, MediaDrop.ParseAll(_dropMediaId), layout.RowAt(ContentY(p.Y)), Viewport.XToTime(p.X),
+                    e.Modifiers.HasFlag(DragDropModifiers.Control), Options(), Session.ProgramPosition);
+                if (created.Count > 0)
                 {
-                    Session.Select([command.CreatedIds[0]]);
+                    Session.Select(created);
                 }
             }
         }

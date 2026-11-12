@@ -7,10 +7,13 @@ namespace Rodaje.Core.Serialization;
 
 /// <summary>
 /// Lee y escribe proyectos en el formato <c>.rodaje</c>: JSON en UTF-8 descrito en
-/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v13.schema.json</c>.
+/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v15.schema.json</c>.
 /// </summary>
 public static class ProjectSerializer
 {
+    /// <summary>Tamaño máximo de un archivo de proyecto al abrirlo (uno real con miles de clips pesa unos pocos MB).</summary>
+    public const long MaxProjectFileBytes = 256L << 20;
+
     /// <summary>Extensión de los archivos de proyecto, con el punto.</summary>
     public const string FileExtension = ".rodaje";
 
@@ -33,7 +36,16 @@ public static class ProjectSerializer
         ArgumentNullException.ThrowIfNull(project);
         try
         {
-            return JsonSerializer.Serialize(project, ProjectJson.WriteInfo);
+            var document = new Project
+            {
+                SchemaVersion = project.Sequences.Any(sequence => sequence.ColorSpace != SequenceColorSpace.Sdr709) ? 15
+                    : project.Media.Any(media => media.IsStillImage) ? 14 : 13,
+                Id = project.Id,
+                Name = project.Name,
+                Media = project.Media,
+                Sequences = project.Sequences,
+            };
+            return JsonSerializer.Serialize(document, ProjectJson.WriteInfo);
         }
         catch (JsonException ex)
         {
@@ -145,19 +157,76 @@ public static class ProjectSerializer
                 problems);
         }
 
-        // El color del clip se guarda en mayúsculas, como lo deja la edición, aunque el archivo lo traiga en minúsculas.
-        foreach (Sequence sequence in project!.Sequences)
+        // Nombres con mojibake («SubtÃ­tulos»: UTF-8 leído como Latin-1 por una herramienta externa) se reparan al abrir.
+        project!.Name = RepairMojibake(project.Name);
+        foreach (MediaRef media in project.Media)
         {
+            media.Name = RepairMojibake(media.Name);
+        }
+
+        // El color del clip se guarda en mayúsculas, como lo deja la edición, aunque el archivo lo traiga en minúsculas.
+        foreach (Sequence sequence in project.Sequences)
+        {
+            sequence.Name = RepairMojibake(sequence.Name);
             foreach (Track track in sequence.VideoTracks.Concat(sequence.AudioTracks))
             {
+                track.Name = RepairMojibake(track.Name);
                 foreach (Clip clip in track.Clips)
                 {
                     clip.Color = clip.Color?.ToUpperInvariant();
                 }
             }
+
+            foreach (Marker marker in sequence.Markers)
+            {
+                marker.Name = RepairMojibake(marker.Name);
+            }
+
+            foreach (Region region in sequence.Regions)
+            {
+                region.Name = RepairMojibake(region.Name);
+            }
+
+            foreach (AudioBus bus in sequence.AudioBuses)
+            {
+                bus.Name = RepairMojibake(bus.Name);
+            }
         }
 
         return project;
+    }
+
+    /// <summary>
+    /// Repara texto con mojibake UTF-8 leído como ISO-8859-1 (Latin-1) o Windows-1252.
+    /// Esto ocurre si un editor externo o script de terceros abre el archivo .rodaje interpretándolo como ANSI/Latin-1
+    /// y luego guarda los dos bytes UTF-8 (como 0xC3 0xAD para «í») como caracteres individuales («SubtÃ­tulos»).
+    /// Si el texto contiene la marca «Ã» típica de UTF-8 interpretado como Latin-1 y sus caracteres son todos Latin-1,
+    /// se reconstruyen los bytes originales y se decodifican como UTF-8 estricto.
+    /// </summary>
+    internal static string RepairMojibake(string text)
+    {
+        if (string.IsNullOrEmpty(text) || !text.Contains('Ã'))
+        {
+            return text;
+        }
+
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (text[i] > 255)
+            {
+                return text;
+            }
+        }
+
+        try
+        {
+            byte[] bytes = Encoding.Latin1.GetBytes(text);
+            return Utf8NoBom.GetString(bytes);
+        }
+        catch (DecoderFallbackException)
+        {
+            return text;
+        }
     }
 
     /// <summary>
@@ -266,6 +335,12 @@ public static class ProjectSerializer
         string json;
         try
         {
+            if (new FileInfo(path).Length > MaxProjectFileBytes)
+            {
+                throw new ProjectFormatException(
+                    $"No se pudo abrir «{Path.GetFileName(path)}»: pesa más de {MaxProjectFileBytes >> 20} MB, demasiado para ser un proyecto de Rodaje.");
+            }
+
             // Sin seguir la marca BOM: File.ReadAllText abriría también un archivo UTF-16 o UTF-32 con la suya.
             ReadOnlySpan<byte> bytes = File.ReadAllBytes(path);
             if (bytes.StartsWith(Encoding.UTF8.Preamble))

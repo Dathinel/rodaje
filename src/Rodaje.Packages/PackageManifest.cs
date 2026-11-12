@@ -104,6 +104,9 @@ public sealed record PackageManifest
     /// <summary>Solo en los módulos.</summary>
     public ModuleInfo? Module { get; init; }
 
+    /// <summary>Declara un programa, incluso si el tipo del paquete dice contenido.</summary>
+    public bool DeclaresModuleEntry { get; init; }
+
     public bool WorksIn(string appId) => Apps.Contains(appId, StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Referencia estable de un elemento: <c>id@versión/elemento</c>.</summary>

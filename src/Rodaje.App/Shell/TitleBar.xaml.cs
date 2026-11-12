@@ -28,8 +28,15 @@ internal sealed partial class TitleBar : UserControl
         UpstreamCredit.Content = UpstreamAttribution.ShortCredit;
         ToolTipService.SetToolTip(UpstreamCredit, UpstreamAttribution.Notice);
         AutomationProperties.SetName(UpstreamCredit, UpstreamAttribution.Notice);
-        // Con poco ancho, las cifras de GPU ceden su sitio al nombre del proyecto; el crédito upstream se queda siempre.
-        SizeChanged += (_, e) => StatsText.Visibility = e.NewSize.Width < 1500 ? Visibility.Collapsed : Visibility.Visible;
+        SizeChanged += (_, e) =>
+        {
+            bool narrow = e.NewSize.Width < 1100;
+            StatsText.Visibility = e.NewSize.Width < 1500 ? Visibility.Collapsed : Visibility.Visible;
+            CreditArea.Visibility = Brand.Visibility = ExportButton.Visibility = ProjectInfo.Visibility =
+                narrow ? Visibility.Collapsed : Visibility.Visible;
+            ProjectColumn.Width = narrow ? new GridLength(24) : new GridLength(1, GridUnitType.Star);
+            MenuColumn.Width = narrow ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
+        };
     }
 
     /// <summary>Se pidió una pestaña del panel derecho desde el menú Ver.</summary>
@@ -67,9 +74,11 @@ internal sealed partial class TitleBar : UserControl
 
         string gpu = _services.Player.DeviceDescription;
         long dropped = _services.Session.Transport.FramesDropped;
-        string frames = dropped == 0 ? "sin cuadros perdidos" : string.Create(CultureInfo.InvariantCulture, $"{dropped} cuadros perdidos");
-        StatsText.Text = gpu.Length == 0 ? "" : $"{gpu} · {frames}";
-        ToolTipService.SetToolTip(StatsText, StatsText.Text.Length == 0 ? null : StatsText.Text);
+        string frames = dropped == 0 ? "sin fotogramas perdidos" : string.Create(CultureInfo.InvariantCulture, $"{dropped} fotogramas perdidos");
+        string shortGpu = GpuNameFormatter.Abbreviate(gpu);
+        StatsText.Text = shortGpu.Length == 0 ? "" : $"{shortGpu} · {frames}";
+        string fullStats = gpu.Length == 0 ? "" : $"{gpu} · {frames}";
+        ToolTipService.SetToolTip(StatsText, fullStats.Length == 0 ? null : fullStats);
     }
 
     private void UpdateUndoText()
@@ -125,6 +134,72 @@ internal sealed partial class TitleBar : UserControl
     }
 
     private void OnMarkersClick(object sender, RoutedEventArgs e) => MarkersPanelRequested?.Invoke(this, EventArgs.Empty);
+
+    /// <summary>
+    /// Rehace Archivo › Proyectos recientes con los de <paramref name="settings"/>. No comprueba que existan (una
+    /// unidad de red caída congelaría la ventana): el que falte se quita al hacer clic. La ventana lo llama al unirse
+    /// y cada vez que se abre o se guarda un proyecto.
+    /// </summary>
+    internal void RefreshRecentProjects(AppSettings settings)
+    {
+        ArgumentNullException.ThrowIfNull(settings);
+        IReadOnlyList<RecentProjectEntry> entries = RecentProjects.Build(settings.RecentProjects);
+        RecentMenu.Items.Clear();
+        RecentMenu.IsEnabled = entries.Count > 0;
+        foreach (RecentProjectEntry entry in entries)
+        {
+            var item = new MenuFlyoutItem { Text = entry.Label, Tag = entry.Path };
+            ToolTipService.SetToolTip(item, entry.Path);
+            item.Click += OnRecentProjectClick;
+            RecentMenu.Items.Add(item);
+        }
+
+        if (entries.Count == 0)
+        {
+            return;
+        }
+
+        RecentMenu.Items.Add(new MenuFlyoutSeparator());
+        var clear = new MenuFlyoutItem { Text = "Vaciar la lista" };
+        clear.Click += (_, _) =>
+        {
+            settings.RecentProjects.Clear();
+            RefreshRecentProjects(settings);
+        };
+        RecentMenu.Items.Add(clear);
+    }
+
+    private void OnRecentProjectClick(object sender, RoutedEventArgs e) => UiTask.Run(OnRecentProjectClickAsync(sender));
+
+    private async Task OnRecentProjectClickAsync(object sender)
+    {
+        if (sender is not FrameworkElement { Tag: string path } || _services is null)
+        {
+            return;
+        }
+
+        if (!await Task.Run(() => File.Exists(path)))
+        {
+            _services.Session.Notify(NotificationSeverity.Warning, "Ya no está", $"No se encuentra «{path}». Se quita de los recientes.");
+            RecentProjectMissing?.Invoke(this, path);
+            return;
+        }
+
+        try
+        {
+            await _services.Session.OpenProjectAsync(path);
+        }
+#pragma warning disable CA1031 // Un clic en el menú no debe tumbar la aplicación: el error se muestra en la ventana.
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            UiTask.Report(ex, notify: false);
+            _services.Session.Notify(NotificationSeverity.Error, "No se pudo abrir el proyecto", ex.Message);
+        }
+    }
+
+    /// <summary>Un reciente ya no existe: la ventana lo quita de los ajustes y rehace el menú.</summary>
+    public event EventHandler<string>? RecentProjectMissing;
 
     private void OnInspectorClick(object sender, RoutedEventArgs e)
     {
@@ -245,10 +320,12 @@ internal sealed partial class TitleBar : UserControl
         var content = new StackPanel { Spacing = 8 };
         content.Children.Add(new TextBlock
         {
-            Text = "Guarda el tamaño, la tasa de cuadros y las pistas con sus nombres (sin clips) para empezar otros proyectos igual. Si ya hay una con ese nombre, se reemplaza.",
+            Text = "Guarda el tamaño, la tasa de fotogramas y las pistas con sus nombres (sin clips) para empezar otros proyectos igual. Si ya hay una con ese nombre, se reemplaza.",
             TextWrapping = TextWrapping.Wrap,
         });
+        var problem = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
         content.Children.Add(nameBox);
+        content.Children.Add(problem);
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot,
@@ -257,24 +334,32 @@ internal sealed partial class TitleBar : UserControl
             PrimaryButtonText = "Guardar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
+            IsPrimaryButtonEnabled = false,
+        };
+        nameBox.TextChanged += (_, _) => dialog.IsPrimaryButtonEnabled = !string.IsNullOrWhiteSpace(nameBox.Text);
+
+        // Se guarda antes de cerrar: si el nombre no vale (el de una de fábrica), el diálogo sigue abierto con lo escrito.
+        ProjectTemplate? saved = null;
+        dialog.PrimaryButtonClick += (_, args) =>
+        {
+            try
+            {
+                saved = templates.Save(services.Session.CreateTemplateFromSequence(nameBox.Text));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
+            {
+                problem.Text = ex.Message;
+                problem.Visibility = Visibility.Visible;
+                args.Cancel = true;
+            }
         };
 
-        if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(nameBox.Text))
+        if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary || saved is null)
         {
             return;
         }
 
-        try
-        {
-            ProjectTemplate saved = templates.Save(services.Session.CreateTemplateFromSequence(nameBox.Text));
-            services.Session.Notify(NotificationSeverity.Success, "Plantilla guardada", $"«{saved.Name}» aparece en Archivo › Proyecto nuevo desde plantilla ({saved.Summary}).");
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or ArgumentException)
-        {
-            services.Session.Notify(NotificationSeverity.Error, "No se pudo guardar la plantilla", ex.Message);
-        }
-
+        services.Session.Notify(NotificationSeverity.Success, "Plantilla guardada", $"«{saved.Name}» aparece en Archivo › Proyecto nuevo desde plantilla ({saved.Summary}).");
         BuildTemplatesMenu();
     }
 
@@ -326,7 +411,6 @@ internal sealed partial class TitleBar : UserControl
             Title = "Carpeta de medios generados",
             Content = body,
             CloseButtonText = "Listo",
-            RequestedTheme = ElementTheme.Dark,
         };
         await DialogGate.ShowAsync(dialog);
     }
@@ -364,7 +448,6 @@ internal sealed partial class TitleBar : UserControl
             Content = body,
             CloseButtonText = "Cerrar",
             DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
         };
         await DialogGate.ShowAsync(dialog);
     }

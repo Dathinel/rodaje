@@ -11,7 +11,7 @@ using Rodaje.App.Views.Inspector;
 namespace Rodaje.App.Views.Tools;
 
 /// <summary>
-/// La barra de herramientas rápidas (<see cref="QuickTools"/>). Cada botón lanza la misma acción que los menús por el
+/// El botón «Herramientas ▾» de la línea de tiempo (<see cref="QuickTools"/>). Cada botón de su lista lanza la misma acción que los menús por el
 /// router de atajos; se rehace el estado al cambiar la selección, el proyecto o los módulos instalados.
 /// </summary>
 internal sealed partial class ToolsBar : UserControl, IEditorView
@@ -29,8 +29,19 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
     {
         ArgumentNullException.ThrowIfNull(services);
         _services = services;
+        string? group = null;
         foreach (QuickTool tool in QuickTools.All)
         {
+            if (tool.Group != group)
+            {
+                group = tool.Group;
+                Buttons.Children.Add(new TextBlock
+                {
+                    Text = group, Style = (Style)Application.Current.Resources["CaptionTextStyle"],
+                    Margin = new Thickness(8, Buttons.Children.Count == 0 ? 0 : 8, 8, 2),
+                });
+            }
+
             var label = new TextBlock { Text = tool.Label, Style = (Style)Application.Current.Resources["BodyTextStyle"], VerticalAlignment = VerticalAlignment.Center };
             var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
             var icon = new FontIcon { Glyph = tool.Glyph, FontSize = ThemeResources.Size("IconFontSize") };
@@ -58,24 +69,7 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
         }
 
         services.LongActions.Changed += (_, _) => DispatcherQueue.RunLater(UpdateBusy);
-        Scroller.SizeChanged += (_, _) => FitLabels();
         Refresh();
-    }
-
-    /// <summary>Si los nombres no caben, la barra queda solo con íconos (el nombre sigue en la ayuda) en vez de cortarse.</summary>
-    private void FitLabels()
-    {
-        foreach ((_, _, TextBlock label) in _parts.Values)
-        {
-            label.Visibility = Visibility.Visible;
-        }
-
-        Buttons.Measure(new Windows.Foundation.Size(double.PositiveInfinity, double.PositiveInfinity));
-        bool compact = Buttons.DesiredSize.Width > Scroller.ActualWidth + 0.5;
-        foreach ((_, _, TextBlock label) in _parts.Values)
-        {
-            label.Visibility = compact ? Visibility.Collapsed : Visibility.Visible;
-        }
     }
 
     /// <summary>Para la autoprueba: si el botón está ocupado y qué dice.</summary>
@@ -90,11 +84,13 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
         }
 
         IReadOnlyList<LongActionStatus> running = _services.LongActions.Running;
+        bool anyBusy = false;
         foreach (QuickTool tool in QuickTools.All)
         {
             (FontIcon icon, ProgressRing ring, TextBlock label) = _parts[tool.ActionId];
             LongActionStatus? status = running.FirstOrDefault(r => r.ActionId == tool.ActionId);
             bool busy = status is not null;
+            anyBusy |= busy;
             icon.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
             ring.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
             ring.IsActive = busy;
@@ -104,6 +100,10 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
             _buttons[tool.ActionId].IsEnabled = !busy;
             AutomationProperties.SetItemStatus(_buttons[tool.ActionId], busy ? "En marcha " + status!.ProgressText : "");
         }
+
+        MenuIcon.Visibility = anyBusy ? Visibility.Collapsed : Visibility.Visible;
+        MenuRing.Visibility = anyBusy ? Visibility.Visible : Visibility.Collapsed;
+        MenuRing.IsActive = anyBusy;
     }
 
     /// <summary>Estado de un botón, para la autoprueba: si aplica y la ayuda que muestra.</summary>
@@ -147,6 +147,7 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
             return;
         }
 
+        ToolsFlyout.Hide();
         QuickTool tool = QuickTools.All.First(t => t.ActionId == id);
         QuickToolState state = State(id);
         if (!state.Available)

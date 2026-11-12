@@ -118,7 +118,8 @@ internal sealed partial class FiltersPanel
             return;
         }
 
-        _services.Session.Execute(Edits.SetEffectOption(_services.Session.SequenceId, _clipId, effectId, name, option.Choices[box.SelectedIndex]));
+        string value = option.Choices[box.SelectedIndex];
+        RunOnSameFilter(effectId, (sequence, clipId, id) => Edits.SetEffectOption(sequence, clipId, id, name, value));
     }
 
     /// <summary>Los parámetros que no hacen nada con la opción elegida se esconden (el ángulo solo en el desenfoque direccional…).</summary>
@@ -235,7 +236,7 @@ internal sealed partial class FiltersPanel
         EffectInstance? effect = target.Clip.Effects.Find(x => x.Id == target.EffectId);
         double current = effect?.Parameters.TryGetValue(C.Exposure, out Parameter? p) == true ? p!.Evaluate(at) : 0;
         double value = Math.Clamp((Math.Round(current * 3) + direction) / 3, -4, 4);
-        editor.SetValue(target.Clip, target.Type, C.Exposure, Math.Round(value, 4),
-            direction > 0 ? "Subir un tercio de paso" : "Bajar un tercio de paso", target.EffectId);
+        editor.SetValue(EditingTargets(target.Type), target.Type, C.Exposure, Math.Round(value, 4),
+            direction > 0 ? "Subir un tercio de paso" : "Bajar un tercio de paso");
     }
 }
