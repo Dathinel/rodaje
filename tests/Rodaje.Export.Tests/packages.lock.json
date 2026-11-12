@@ -137,6 +137,9 @@
           "Rodaje.Render": "[1.0.2, )"
         }
       },
+      "rodaje.fakeffmpeg": {
+        "type": "Project"
+      },
       "rodaje.media": {
         "type": "Project",
         "dependencies": {
