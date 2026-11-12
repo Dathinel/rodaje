@@ -47,6 +47,26 @@ public sealed class PackageIntegrityTests : IDisposable
     }
 
     [Fact]
+    public void Verificar_AceptaLosModelosDeclaradosQueLleganDespuesDeInstalar()
+    {
+        string sha = new('a', 64);
+        File.WriteAllText(_folder.Combine("paquete.json"), $$"""
+            { "id": "m", "module": { "entry": "m.exe", "models": [
+              { "id": "voz", "file": "modelos/voz.onnx", "size": 3, "sha256": "{{sha}}", "license": "MIT", "url": "https://huggingface.co/o/r/resolve/{{new string('b', 40)}}/voz.onnx" } ] } }
+            """);
+        File.WriteAllText(_folder.Combine("m.exe"), "exe");
+        PackageIntegrity.Write(_folder.Path);
+
+        Directory.CreateDirectory(_folder.Combine("modelos"));
+        File.WriteAllText(_folder.Combine("modelos", "voz.onnx"), "abc");
+        PackageIntegrity.Verify(_folder.Path);
+
+        // Lo que no está declarado sigue sin colarse, tampoco junto a un modelo.
+        File.WriteAllText(_folder.Combine("modelos", "otra.dll"), "extra");
+        Assert.Throws<PackageInstallException>(() => PackageIntegrity.Verify(_folder.Path));
+    }
+
+    [Fact]
     public void Verificar_RechazaUnArchivoSobrante()
     {
         File.WriteAllText(_folder.Combine("a.dll"), "uno");
