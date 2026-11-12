@@ -59,10 +59,13 @@ public static class PackageIntegrity
                     throw new PackageInstallException($"Falló la integridad de «{relative}»: falta o su SHA-256 no coincide. Reinstala el paquete.");
             }
 
+            // Los modelos que declara paquete.json llegan después de instalar (descarga aparte) y los comprueba quien los
+            // carga contra el SHA-256 de ese manifiesto, que sí está cubierto: no cuentan como archivos sobrantes.
+            HashSet<string> models = DeclaredModels(directory);
             foreach (string file in Files(directory))
             {
                 string relative = Path.GetRelativePath(directory, file).Replace('\\', '/');
-                if (!hashes.ContainsKey(relative))
+                if (!hashes.ContainsKey(relative) && !models.Contains(relative))
                     throw new PackageInstallException($"El archivo «{relative}» falta del manifiesto de integridad. Reinstala el paquete.");
             }
         }
@@ -70,6 +73,18 @@ public static class PackageIntegrity
         {
             throw new PackageInstallException("No se pudo verificar integridad.json. Reinstala el paquete: " + ex.Message, ex);
         }
+    }
+
+    private static HashSet<string> DeclaredModels(string directory)
+    {
+        var models = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        string manifest = Path.Combine(directory, PackageManifest.FileName);
+        if (File.Exists(manifest))
+        {
+            foreach (Download.ModuleModel model in Download.ModuleModels.Read(manifest)) models.Add(model.File);
+        }
+
+        return models;
     }
 
     private static IEnumerable<string> Files(string directory) => Directory.EnumerateFiles(directory, "*",
