@@ -46,6 +46,7 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
     private readonly SemaphoreSlim _indexGate = new(1, 1);
     private SignedIndex? _index;
     private long _indexTime;
+    private DateTimeOffset? _vistoMax;
 
     public GitHubReleaseDownloader(GitHubReleaseOptions options, HttpClient http)
     {
@@ -108,7 +109,11 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
                 throw new DownloadVerificationException("El índice de complementos es más viejo que uno ya visto; no se usó.");
             }
 
-            RememberSeen(index.Generated);
+            if (!RememberSeen(index.Generated))
+            {
+                problems.Add("No se pudo guardar el estado antirretroceso del índice; queda protegido solo en esta sesión.");
+            }
+
             IndexProblems = problems;
             _index = index;
             _indexTime = Environment.TickCount64;
@@ -193,29 +198,39 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
 
     private DateTimeOffset? LastSeen()
     {
+        DateTimeOffset? delArchivo;
         try
         {
-            return File.Exists(StatePath) && DateTimeOffset.TryParse(File.ReadAllText(StatePath).Trim(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset seen)
+            delArchivo = File.Exists(StatePath) && DateTimeOffset.TryParse(File.ReadAllText(StatePath).Trim(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset seen)
                 ? seen
                 : null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return null;
+            delArchivo = null;
         }
+
+        return _vistoMax is { } m && (delArchivo is null || m > delArchivo) ? m : delArchivo;
     }
 
-    private void RememberSeen(DateTimeOffset generated)
+    private bool RememberSeen(DateTimeOffset generated)
     {
+        if (_vistoMax is null || generated > _vistoMax)
+        {
+            _vistoMax = generated;
+        }
+
         try
         {
             Directory.CreateDirectory(_options.DownloadFolder);
             string temporary = StatePath + ".tmp";
             File.WriteAllText(temporary, generated.ToString("O", CultureInfo.InvariantCulture));
             File.Move(temporary, StatePath, overwrite: true);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            return false;
         }
     }
 
