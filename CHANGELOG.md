@@ -16,6 +16,8 @@ Lo que va a la 1.1, con ideas tomadas de los editores de referencia.
 - **Portapapeles:** copiar, reenlazar un medio y pegar en el mismo proyecto conserva su identificador aunque cambie la ruta del archivo.
 - **Autoguardado:** guardar Preferencias con el mismo intervalo conserva el vencimiento de los cambios pendientes.
 - **CinemaDNG:** el diálogo tiene en cuenta el soporte de mosaicos del módulo y mantiene visible la calidad mientras se desconoce si el cuadro permite revelar en la GPU; el texto explica el respaldo en CPU.
+- **Complementos: restos al actualizar o desinstalar:** un archivo de solo lectura o una unión dentro de la carpeta de un paquete dejaba para siempre una carpeta `.anterior-*` o `.desinstalando-*` en `complementos` (la limpieza del arranque tampoco podía con ella). Ahora se borra entera, sin entrar en el destino de la unión.
+- **Complementos: ruta de un modelo:** al colocar un modelo en la carpeta de su módulo, la ruta se valida también ahí; una terminada en punto o con un flujo alterno (`red.onnx.`, `red.onnx:flujo`), que Windows abre como otro archivo, se rechaza aunque no venga del manifiesto.
 
 ### Añadido
 - **CinemaDNG revelado en la GPU** (D-059, `docs/hdr.md`, fase D): con GPU, Importar CinemaDNG pide el mosaico Bayer sin interpolar a `modulo-raw` (1.1.0) y lo revela en Direct3D 11 antes de escribir ProRes, reportando ms/cuadro. Sin GPU o con RAW no Bayer se respalda en LibRaw en CPU. Detalle de la receta y pruebas en `docs/hdr.md`.

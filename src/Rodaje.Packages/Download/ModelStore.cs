@@ -72,9 +72,10 @@ public sealed partial class ModelStore(string folder, FileDownloader downloader,
     {
         ArgumentNullException.ThrowIfNull(model);
         string target = model.PathIn(moduleDirectory);
-        if (!SafePaths.IsInside(target, moduleDirectory))
+        // La ruta se valida aquí y no solo al leer el manifiesto: Windows abriría «red.onnx.» o «red.onnx:flujo» como otro archivo.
+        if (!SafePaths.TryNormalizeRelative(model.File, out _) || !SafePaths.IsInside(target, moduleDirectory))
         {
-            throw new PackageDownloadException($"El modelo «{model.Id}» apunta fuera de la carpeta del módulo.");
+            throw new PackageDownloadException($"El modelo «{model.Id}» apunta fuera de la carpeta del módulo o a una ruta no permitida.");
         }
 
         if (model.IsPresentIn(moduleDirectory))
