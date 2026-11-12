@@ -92,13 +92,16 @@ public sealed class StabilizeTests(ITestOutputHelper output)
         Assert.True(worst < 1.5, $"{worst:F3} px");
     }
 
-    /// <summary>Clip más corto que el núcleo (radio 90 sobre 60 cuadros): los extremos se reflejan más de una vez.</summary>
-    [Fact]
-    public void A_steady_pan_shorter_than_the_kernel_is_left_alone()
+    /// <summary>Clip más corto que el núcleo (radio 90): los extremos se reflejan más de una vez; con 3 cuadros, 23 veces por lado.</summary>
+    [Theory]
+    [InlineData(60)]
+    [InlineData(20)]
+    [InlineData(3)]
+    public void A_steady_pan_shorter_than_the_kernel_is_left_alone(int frames)
     {
-        Similarity[] motions = [.. Enumerable.Repeat(new Similarity(1, 0, 0.005, -0.002), 60)];
+        Similarity[] motions = [.. Enumerable.Repeat(new Similarity(1, 0, 0.005, -0.002), frames)];
         StabilizationResult result = CameraPath.Stabilize(motions, 30, 16 / 9.0, new StabilizeOptions(1));
-        output.WriteLine($"panorámica de 60 cuadros, núcleo de 181: temblor {result.ShakeBefore:E2} → {result.ShakeAfter:E2}, recorte ×{result.Zoom:R}");
+        output.WriteLine($"panorámica de {frames} cuadros, núcleo de 181: temblor {result.ShakeBefore:E2} → {result.ShakeAfter:E2}, recorte ×{result.Zoom:R}");
         Assert.True(result.ShakeAfter < 1e-12, $"{result.ShakeAfter:E2}");
         Assert.Equal(1, result.Zoom, 9);
         Assert.All(result.Corrections, c =>
