@@ -83,7 +83,9 @@ public static class KeyframeMath
     {
         if (out0 is null && in1 is null)
         {
-            return v0 + ((v1 - v0) * eased);
+            double delta = v1 - v0;
+            // Dos extremos finitos de signo opuesto desbordan la resta (infinito × 0 = NaN): ahí se mezclan, que no desborda.
+            return double.IsFinite(delta) ? v0 + (delta * eased) : (v0 * (1 - eased)) + (v1 * eased);
         }
 
         double third = (v1 - v0) / 3;
