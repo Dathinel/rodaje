@@ -127,6 +127,7 @@ public sealed class PathsAndCulturePackagesTests : IDisposable
     }
 
     [Theory]
+    [Trait("Categoria", "SoloWindows")] // INICIO.INI e inicio.ini solo son el mismo archivo donde el sistema de archivos no distingue mayúsculas.
     [InlineData("es-CO")]
     [InlineData("tr-TR")]
     public void RutasYCultura_NombresConI_SeComparanSinLaITurca(string cultureName)

@@ -137,8 +137,17 @@ public sealed partial class ModelStore(string folder, FileDownloader downloader,
         }
 
         string temporary = target + FileDownloader.PartialSuffix;
-        File.Copy(source, temporary, overwrite: true);
-        File.Move(temporary, target, overwrite: true);
+        try
+        {
+            File.Copy(source, temporary, overwrite: true);
+            File.Move(temporary, target, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Un resto junto al modelo cuenta como archivo sobrante y deja el módulo como no instalado.
+            File.Delete(temporary);
+            throw;
+        }
     }
 
     [LibraryImport("kernel32.dll", EntryPoint = "CreateHardLinkW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]

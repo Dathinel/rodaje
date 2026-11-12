@@ -33,8 +33,21 @@ public static class PackageIntegrity
     /// </summary>
     public static void Ensure(string directory)
     {
-        if (File.Exists(Path.Combine(directory, FileName))) Verify(directory);
-        else Write(directory);
+        if (File.Exists(Path.Combine(directory, FileName)))
+        {
+            Verify(directory);
+            return;
+        }
+
+        try
+        {
+            Write(directory);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Quien llama solo trata PackageInstallException: con otra, el FFmpeg GPL quedaba como ya verificado.
+            throw new PackageInstallException("No se pudo registrar la integridad. Reinstala el paquete: " + ex.Message, ex);
+        }
     }
 
     public static void Verify(string directory)

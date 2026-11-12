@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Net;
+using System.Text;
 using Rodaje.Packages.Download;
 using Rodaje.TestServer;
 
@@ -76,6 +77,10 @@ public sealed class PackageLifecycleAttackTests : IAsyncLifetime, IDisposable
     private string[] Installed() =>
         [.. new[] { _locations.Modules, _locations.Packages }.Where(Directory.Exists)
             .SelectMany(Directory.EnumerateFileSystemEntries).Select(e => Path.GetFileName(e)).Order(StringComparer.Ordinal)];
+
+    private static string[] FilesIn(string directory) =>
+        [.. Directory.EnumerateFiles(directory, "*", SearchOption.AllDirectories)
+            .Select(f => Path.GetRelativePath(directory, f).Replace('\\', '/')).Order(StringComparer.Ordinal)];
 
     private void Junction(string link, string target)
     {
@@ -221,7 +226,6 @@ public sealed class PackageLifecycleAttackTests : IAsyncLifetime, IDisposable
     [InlineData("bin/modulo.exe")]
     [InlineData("paquete.json")]
     [InlineData("integridad.json")]
-    [InlineData("BIN/MODULO.EXE")]
     public async Task Un_modelo_declarado_sobre_un_archivo_del_paquete_nunca_queda_verificado_con_otro_contenido(string file)
     {
         (string json, byte[] data) = Model("pisa", file, seed: 6);
@@ -315,7 +319,6 @@ public sealed class PackageLifecycleAttackTests : IAsyncLifetime, IDisposable
 
     [Theory]
     [InlineData("integridad.json")]
-    [InlineData("INTEGRIDAD.JSON")]
     [InlineData("envoltura/integridad.json")]
     public void La_integridad_que_trae_el_paquete_no_vale_se_calcula_al_instalar(string entry)
     {
@@ -338,7 +341,6 @@ public sealed class PackageLifecycleAttackTests : IAsyncLifetime, IDisposable
     [Theory]
     [InlineData("datos", "datos/a.txt")]
     [InlineData("datos/a.txt", "datos")]
-    [InlineData("datos", "Datos/a.txt")]
     [InlineData("Datos/", "datos")]
     [InlineData("paquete.json/", "paquete.json/x.txt")]
     public void Un_archivo_y_una_carpeta_con_el_mismo_nombre_se_rechazan_sin_dejar_nada(string first, string second)
@@ -491,6 +493,141 @@ public sealed class PackageLifecycleAttackTests : IAsyncLifetime, IDisposable
         Assert.Equal(1, other.RequestCount("suplantado"));
         Assert.Empty(Directory.EnumerateFiles(_folder.Path, "redirigido*"));
     }
+
+    [WindowsOnlyFact("las uniones de directorio son una funcionalidad de NTFS")]
+    public void Una_union_en_el_sitio_del_paquete_se_reemplaza_y_se_desinstala_sin_tocar_su_destino()
+    {
+        string victim = Path.Combine(_outside.Path, "victima.txt");
+        File.WriteAllText(victim, "no me toques");
+        Directory.CreateDirectory(_locations.Packages);
+        string package = Samples.ValidPackage(_folder.Combine("a.paquete"));
+        string target = Path.Combine(_locations.Packages, "rodaje-transiciones");
+
+        Junction(target, _outside.Path);
+        string directory = _installer.Install(package).Package.Directory;
+        Assert.Equal(["rodaje-transiciones"], Installed());
+        Assert.Equal(["victima.txt"], FilesIn(_outside.Path));
+        Assert.Equal((FileAttributes)0, File.GetAttributes(target) & FileAttributes.ReparsePoint);
+        PackageIntegrity.Verify(directory);
+
+        _installer.Uninstall("rodaje-transiciones");
+        Junction(target, _outside.Path);
+        _installer.Uninstall("rodaje-transiciones");
+        Junction(Path.Combine(_locations.Packages, ".anterior-0123456789ab-rodaje-transiciones"), _outside.Path);
+        _installer.CleanUpLeftovers();
+
+        Assert.Empty(Installed());
+        Assert.Equal(["victima.txt"], FilesIn(_outside.Path));
+        Assert.Equal("no me toques", File.ReadAllText(victim));
+    }
+
+    [Theory]
+    [InlineData("../")]
+    [InlineData("..\\")]
+    [InlineData("C:/")]
+    [InlineData("nul/")]
+    [InlineData("a:b/")]
+    [InlineData(" /")]
+    [InlineData("./")]
+    [InlineData("x/../")]
+    public void Una_carpeta_envoltorio_hostil_se_quita_o_se_rechaza_pero_nunca_se_sigue(string wrapper)
+    {
+        string package = Samples.Zip(_folder.Combine("envoltura.paquete"),
+            (wrapper + "paquete.json", Samples.Manifest()), (wrapper + "transiciones/deslizar.json", "{}"));
+
+        try
+        {
+            string directory = _installer.Install(package).Package.Directory;
+            PackageIntegrity.Verify(directory);
+            Assert.Equal(["integridad.json", "paquete.json", "transiciones/deslizar.json"], FilesIn(directory));
+        }
+        catch (PackageInstallException)
+        {
+            Assert.Empty(Installed());
+        }
+
+        Assert.All(FilesIn(_folder.Path), file => Assert.True(
+            file.StartsWith("complementos/paquetes/rodaje-transiciones/", StringComparison.Ordinal) || file is "envoltura.paquete" or "complementos/.operacion.lock", file));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Un_zip_que_dice_un_nombre_en_la_cabecera_local_y_otro_en_el_directorio_central_no_escribe_fuera(bool hostileInCentralDirectory)
+    {
+        string package = Samples.ValidPackage(_folder.Combine("a.paquete"));
+        byte[] bytes = File.ReadAllBytes(package);
+        byte[] name = Encoding.UTF8.GetBytes("transiciones/deslizar.json");
+        byte[] hostile = Encoding.UTF8.GetBytes("../../../../../../fuera.js");
+        Assert.Equal(name.Length, hostile.Length);
+        int local = bytes.AsSpan().IndexOf(name);
+        int central = bytes.AsSpan().LastIndexOf(name);
+        Assert.NotEqual(local, central);
+        hostile.CopyTo(bytes, hostileInCentralDirectory ? central : local);
+        File.WriteAllBytes(package, bytes);
+
+        if (hostileInCentralDirectory)
+        {
+            var ex = Assert.Throws<PackageInstallException>(() => _installer.Install(package));
+            Assert.Contains("ruta no permitida", ex.Message, StringComparison.Ordinal);
+            Assert.Empty(Installed());
+        }
+        else
+        {
+            // Manda el directorio central: el nombre de la cabecera local no se usa para decidir dónde se escribe.
+            string directory = _installer.Install(package).Package.Directory;
+            Assert.Equal(["integridad.json", "paquete.json", "transiciones/deslizar.json"], FilesIn(directory));
+        }
+
+        Assert.Empty(Directory.EnumerateFiles(Path.GetDirectoryName(_folder.Path)!, "fuera.js"));
+        Assert.DoesNotContain(FilesIn(_folder.Path), file => file.EndsWith("fuera.js", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Una_carpeta_llamada_integridad_json_no_da_por_verificado_el_paquete()
+    {
+        // Sin integridad.json, Ensure toma lo que haya como base; una carpeta con ese nombre no deja escribirla y quien
+        // llama (el módulo o el FFmpeg GPL) solo trata PackageInstallException: otra excepción dejaba la carpeta por verificada.
+        string directory = _installer.Install(Samples.ValidPackage(_folder.Combine("a.paquete"))).Package.Directory;
+        string integrity = Path.Combine(directory, PackageIntegrity.FileName);
+        File.Delete(integrity);
+        Directory.CreateDirectory(integrity);
+        File.WriteAllText(Path.Combine(integrity, "version.dll"), "colada");
+
+        Assert.Throws<PackageInstallException>(() => PackageIntegrity.Ensure(directory));
+        Assert.Throws<PackageInstallException>(() => PackageIntegrity.Ensure(directory));
+        Assert.Throws<PackageInstallException>(() => PackageIntegrity.Verify(directory));
+    }
+
+    [Theory]
+    [InlineData("bin")]
+    [InlineData("bin/modulo.exe/red.onnx")]
+    public async Task Un_modelo_declarado_sobre_una_carpeta_o_bajo_un_archivo_del_paquete_falla_sin_dejar_restos(string file)
+    {
+        (string json, _) = Model("choca", file, seed: 11);
+        string directory = _installer.Install(ModulePackage("modulo-choca", "1.0.0", json)).Package.Directory;
+        string[] before = FilesIn(directory);
+
+        // PackageService convierte estas tres en «faltan sus modelos»; un «bin.parcial» sobrante dejaba el módulo como no instalado.
+        Exception ex = await Assert.ThrowsAnyAsync<Exception>(() => Store().PlaceAsync(Assert.Single(ModelsOf(directory)), directory, null, default));
+        Assert.True(ex is PackageDownloadException or IOException or UnauthorizedAccessException, ex.ToString());
+
+        Assert.Equal(before, FilesIn(directory));
+        PackageIntegrity.Verify(directory);
+    }
+
+    // Los mismos casos con otras mayúsculas: solo son el mismo archivo donde el sistema de archivos no las distingue.
+    [WindowsOnlyFact("BIN/MODULO.EXE y bin/modulo.exe son el mismo archivo solo en NTFS")]
+    public Task Un_modelo_declarado_sobre_un_archivo_del_paquete_con_otras_mayusculas_tampoco_queda_verificado() =>
+        Un_modelo_declarado_sobre_un_archivo_del_paquete_nunca_queda_verificado_con_otro_contenido("BIN/MODULO.EXE");
+
+    [WindowsOnlyFact("INTEGRIDAD.JSON e integridad.json son el mismo archivo solo en NTFS")]
+    public void La_integridad_que_trae_el_paquete_con_otras_mayusculas_tampoco_vale() =>
+        La_integridad_que_trae_el_paquete_no_vale_se_calcula_al_instalar("INTEGRIDAD.JSON");
+
+    [WindowsOnlyFact("datos y Datos son la misma entrada solo en NTFS")]
+    public void Un_archivo_y_una_carpeta_con_el_mismo_nombre_y_otras_mayusculas_se_rechazan() =>
+        Un_archivo_y_una_carpeta_con_el_mismo_nombre_se_rechazan_sin_dejar_nada("datos", "Datos/a.txt");
 
     /// <summary>Responde 200 sin <c>Content-Length</c> y con un cuerpo que no termina.</summary>
     private sealed class EndlessHandler : HttpMessageHandler
