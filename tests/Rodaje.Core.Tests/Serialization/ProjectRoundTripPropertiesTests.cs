@@ -309,7 +309,7 @@ public sealed class ProjectRoundTripPropertiesTests : IDisposable
     /// </summary>
     private static class SchemaCheck
     {
-        // Un archivo se escribe en 13, 14 o 15 según lo que contenga: se valida contra el esquema de su versión.
+        // Un archivo se escribe en 13, 14, 15 o 16 según lo que contenga: se valida contra el esquema de su versión.
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<int, JsonDocument> Schemas = new();
 
         public static void AssertValid(string json, string context)

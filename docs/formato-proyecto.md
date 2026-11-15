@@ -1,10 +1,10 @@
 # Formato de proyecto `.rodaje`
 
-Un proyecto de Rodaje se guarda en un archivo con extensión `.rodaje`. Es texto JSON en UTF-8, sin marca BOM, indentado con dos espacios y con saltos de línea LF. Se eligió JSON legible y no un formato binario por dos razones: el proyecto es el trabajo de quien edita y debe poder abrirse, revisarse e incluso repararse con un editor de texto, y otros programas (un editor de audio, herramientas en Python) deben poder leer y escribir el mismo proyecto sin depender del código de Rodaje. Por eso este documento describe el formato completo, con sus reglas, y junto a él se publica un esquema JSON en `schema/rodaje-proyecto.v15.schema.json` (los de las versiones 1 a 14 se conservan para los archivos viejos) que cualquier validador del estándar draft 2020-12 entiende.
+Un proyecto de Rodaje se guarda en un archivo con extensión `.rodaje`. Es texto JSON en UTF-8, sin marca BOM, indentado con dos espacios y con saltos de línea LF. Se eligió JSON legible y no un formato binario por dos razones: el proyecto es el trabajo de quien edita y debe poder abrirse, revisarse e incluso repararse con un editor de texto, y otros programas (un editor de audio, herramientas en Python) deben poder leer y escribir el mismo proyecto sin depender del código de Rodaje. Por eso este documento describe el formato completo, con sus reglas, y junto a él se publica un esquema JSON en `schema/rodaje-proyecto.v16.schema.json` (los de las versiones 1 a 15 se conservan para los archivos viejos) que cualquier validador del estándar draft 2020-12 entiende.
 
 El archivo nunca contiene video, audio ni imágenes. Solo guarda dónde están los archivos de origen y cómo se usan, de modo que editar jamás modifica el material original y un proyecto pesa unos pocos kilobytes.
 
-Por compatibilidad con Rodaje 1.0.1, el guardado usa `schemaVersion: 13` cuando la biblioteca no contiene ninguna imagen fija. Solo se escribe formato 14 si hay al menos un medio con `isStillImage: true`, aunque no se use en un clip, y formato 15 si alguna secuencia es HDR (`colorSpace` distinto de `sdr-709`). Es una ampliación provisional de D-050; Daniel puede cambiarla. La lectura migra las tres versiones al modelo actual en memoria.
+Por compatibilidad con Rodaje 1.0.1, el guardado usa `schemaVersion: 13` cuando la biblioteca no contiene ninguna imagen fija. Solo se escribe formato 14 si hay al menos un medio con `isStillImage: true`, aunque no se use en un clip, formato 15 si alguna secuencia es HDR (`colorSpace` distinto de `sdr-709`) y formato 16 solo si el proyecto usa algún campo del 16 (ver «Formato 16»). Es una ampliación provisional de D-050; Daniel puede cambiarla. La lectura migra todas las versiones al modelo actual en memoria.
 
 ## Unidades: el tiempo en ticks
 
@@ -434,3 +434,14 @@ Si alguna vez un proyecto no abre porque está dañado, la copia `.bak` contiene
 En el formato 14, `MediaRef.isStillImage` distingue PNG, JPEG, WebP, BMP y TIFF de los videos. Su `duration` vale 0, `frameRate` es nulo y no tienen audio. Sus clips empiezan con 5 s por defecto; `sourceIn` y `sourceOut` describen un origen virtual sin límite de material (también permite entrada negativa al alargar por la izquierda). Los keyframes siguen ese tiempo virtual, pero la imagen siempre es el cuadro 0. La migración 13 → 14 solo cambia la versión: los medios anteriores conservan sus metadatos y el indicador nuevo vale falso.
 
 En el formato 15, `Sequence.colorSpace` dice en qué espacio se trabaja y se exporta la secuencia. La migración 14 → 15 solo cambia la versión: una secuencia sin el campo es `sdr-709`, como eran todas; un Rodaje anterior rechaza el 15 en lugar de exportar una secuencia HDR como SDR sin avisar.
+
+### Formato 16
+
+El 16 es una sola subida que comparten cuatro bloques. Cada uno añade campos opcionales que solo se escriben cuando se usan, y registra en `ProjectSerializer.Format16Uses` una comprobación que dice si el proyecto usa alguno; `ProjectSerializer.MinimumSchemaVersion` escribe 16 si alguna da verdadero y, si no, 15, 14 o 13 como antes, byte a byte igual que la 1.0.3. Así un proyecto sin nada nuevo lo sigue abriendo la 1.0.x, y uno que usa el 16 lo rechaza con el aviso de siempre («creado con una versión más nueva de Rodaje (formato 16)») en lugar de perder datos. La migración 15 → 16 solo cambia la versión. Mientras ningún bloque añada campos, `schema/rodaje-proyecto.v16.schema.json` es el del 15 con el número cambiado.
+
+| Bloque | Decisión | Campos que añade | Se escribe 16 si |
+|---|---|---|---|
+| Editar por el texto | D-061 | `transcripts` en el proyecto (una transcripción por medio, con palabras y hablantes) | hay alguna transcripción |
+| Intercambio (EDL, FCPXML, OTIO) | D-062 | `startTimecode` en la secuencia; `timecode` y `reel` en el medio | algún medio o secuencia tiene TC o carrete |
+| Plantillas de movimiento | D-064 | generador `template` en los clips (documento, valores y capas) | algún clip usa una plantilla |
+| Trabajo en grupo | D-067 | `contentKey` y `contentHash` en el medio | algún medio tiene identidad de contenido |

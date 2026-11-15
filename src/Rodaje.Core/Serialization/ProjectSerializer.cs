@@ -7,7 +7,7 @@ namespace Rodaje.Core.Serialization;
 
 /// <summary>
 /// Lee y escribe proyectos en el formato <c>.rodaje</c>: JSON en UTF-8 descrito en
-/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v15.schema.json</c>.
+/// <c>docs/formato-proyecto.md</c> y en el esquema <c>schema/rodaje-proyecto.v16.schema.json</c>.
 /// </summary>
 public static class ProjectSerializer
 {
@@ -25,6 +25,29 @@ public static class ProjectSerializer
 
     private static readonly UTF8Encoding Utf8NoBom = new(encoderShouldEmitUTF8Identifier: false, throwOnInvalidBytes: true);
 
+    /// <summary>
+    /// Qué obliga a escribir el formato 16. Cada bloque que añade campos al 16 (editar por texto D-061, intercambio
+    /// D-062, plantillas D-064, trabajo en grupo D-067) registra aquí una comprobación que es verdadera solo si el
+    /// proyecto usa alguno de sus campos; sin ninguna, el archivo se sigue escribiendo en 15, 14 o 13.
+    /// </summary>
+    internal static readonly Func<Project, bool>[] Format16Uses =
+    [
+    ];
+
+    /// <summary>
+    /// La versión más baja que representa el proyecto, para que una versión anterior de Rodaje lo siga abriendo:
+    /// 16 si usa algo del 16, 15 si alguna secuencia es HDR, 14 si hay imágenes fijas y, si no, 13 (D-050).
+    /// </summary>
+    public static int MinimumSchemaVersion(Project project) => MinimumSchemaVersion(project, Format16Uses);
+
+    internal static int MinimumSchemaVersion(Project project, IReadOnlyList<Func<Project, bool>> format16Uses)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        return format16Uses.Any(uses => uses(project)) ? 16
+            : project.Sequences.Any(sequence => sequence.ColorSpace != SequenceColorSpace.Sdr709) ? 15
+            : project.Media.Any(media => media.IsStillImage) ? 14 : 13;
+    }
+
     /// <summary>Convierte el proyecto en texto JSON indentado con saltos de línea LF.</summary>
     /// <exception cref="ProjectFormatException">
     /// Si el proyecto tiene un valor que el archivo no puede guardar tal cual (un número NaN o infinito, o un texto con
@@ -38,8 +61,7 @@ public static class ProjectSerializer
         {
             var document = new Project
             {
-                SchemaVersion = project.Sequences.Any(sequence => sequence.ColorSpace != SequenceColorSpace.Sdr709) ? 15
-                    : project.Media.Any(media => media.IsStillImage) ? 14 : 13,
+                SchemaVersion = MinimumSchemaVersion(project),
                 Id = project.Id,
                 Name = project.Name,
                 Media = project.Media,
