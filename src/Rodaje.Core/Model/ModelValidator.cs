@@ -47,7 +47,10 @@ public static partial class ModelValidator
             ValidateSequence(project, sequence, errors, checkId);
         }
 
-        long text = project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).Sum(c => (long)(c.Generator?.Text.Length ?? 0) + WordsLength(c));
+        ValidateTranscripts(project, errors, checkId);
+
+        long text = project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).Sum(c => (long)(c.Generator?.Text.Length ?? 0) + WordsLength(c))
+            + TranscriptsLength(project);
         if (text > MaxProjectTextLength)
         {
             errors.Add($"Los textos del proyecto suman {text} caracteres y el máximo es {MaxProjectTextLength}.");

@@ -119,6 +119,20 @@ internal static class ProjectDump
             Line(sb, 1, $"medio {m.Id} «{m.Name}» {m.Path} {m.Duration.Ticks} v={m.HasVideo} a={m.HasAudio} fps={m.FrameRate} {m.Width}x{m.Height} {m.SampleRate}Hz {m.AudioChannels}ch");
         }
 
+        foreach (MediaTranscript? t in project.Transcripts ?? [])
+        {
+            Line(sb, 1, $"transcripción {t?.Id} medio={t?.MediaId} «{t?.Language}» «{t?.Model}» {t?.Created.Ticks} {t?.MediaDuration.Ticks}");
+            foreach (TranscriptSpeaker? s in t?.Speakers ?? [])
+            {
+                Line(sb, 2, $"hablante {s?.Id} «{s?.Name}» {s?.Color ?? "-"}");
+            }
+
+            foreach (SpokenWord? w in t?.Words ?? [])
+            {
+                Line(sb, 2, $"palabra {w?.Start.Ticks}-{w?.End.Ticks} «{w?.Text}» c={(w is null ? "-" : R(w.Confidence))} sp={w?.SpeakerId ?? "-"} p={w?.ParagraphStart}");
+            }
+        }
+
         foreach (Sequence s in project.Sequences)
         {
             Line(sb, 1, $"secuencia {s.Id} «{s.Name}» {s.FrameRate} {s.Width}x{s.Height} {s.SampleRate}Hz");
