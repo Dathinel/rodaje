@@ -437,7 +437,7 @@ En el formato 15, `Sequence.colorSpace` dice en qué espacio se trabaja y se exp
 
 ### Formato 16
 
-El 16 es una sola subida que comparten cuatro bloques. Cada uno añade campos opcionales que solo se escriben cuando se usan, y registra en `ProjectSerializer.Format16Uses` una comprobación que dice si el proyecto usa alguno; `ProjectSerializer.MinimumSchemaVersion` escribe 16 si alguna da verdadero y, si no, 15, 14 o 13 como antes, byte a byte igual que la 1.0.3. Así un proyecto sin nada nuevo lo sigue abriendo la 1.0.x, y uno que usa el 16 lo rechaza con el aviso de siempre («creado con una versión más nueva de Rodaje (formato 16)») en lugar de perder datos. La migración 15 → 16 solo cambia la versión. Mientras ningún bloque añada campos, `schema/rodaje-proyecto.v16.schema.json` es el del 15 con el número cambiado.
+El 16 es una sola subida que comparten cuatro bloques. Cada uno añade campos opcionales que solo se escriben cuando se usan, y registra en `ProjectSerializer.Format16Uses` una comprobación que dice si el proyecto usa alguno; `ProjectSerializer.MinimumSchemaVersion` escribe 16 si alguna da verdadero y, si no, 15, 14 o 13 como antes, byte a byte igual que la 1.0.3. Así un proyecto sin nada nuevo lo sigue abriendo la 1.0.x, y uno que usa el 16 lo rechaza con el aviso de siempre («creado con una versión más nueva de Rodaje (formato 16)») en lugar de perder datos. La migración 15 → 16 solo cambia la versión. `schema/rodaje-proyecto.v16.schema.json` se regenera cada vez que un bloque añade campos.
 
 | Bloque | Decisión | Campos que añade | Se escribe 16 si |
 |---|---|---|---|
@@ -445,3 +445,27 @@ El 16 es una sola subida que comparten cuatro bloques. Cada uno añade campos op
 | Intercambio (EDL, FCPXML, OTIO) | D-062 | `startTimecode` en la secuencia; `timecode` y `reel` en el medio | algún medio o secuencia tiene TC o carrete |
 | Plantillas de movimiento | D-064 | generador `template` en los clips (documento, valores y capas) | algún clip usa una plantilla |
 | Trabajo en grupo | D-067 | `contentKey` y `contentHash` en el medio | algún medio tiene identidad de contenido |
+
+#### Transcripciones (D-061)
+
+`transcripts`, en la raíz, solo aparece si hay alguna. Cada transcripción es de un medio entero y en tiempo del origen (no del clip): cualquier clip de ese medio, con cualquier recorte o velocidad, muestra su parte. Las palabras usan claves cortas porque son casi todo el peso (una hora de habla, unas 9 000 palabras, ocupa ~0,5 MB):
+
+```json
+"transcripts": [
+  {
+    "id": "transcript-1",
+    "mediaId": "media-1",
+    "language": "es",
+    "model": "large-v3-turbo-q5_0",
+    "created": "2026-11-15T10:00:00Z",
+    "mediaDuration": 7056000000,
+    "speakers": [ { "id": "speaker-1", "name": "Ana", "color": "#3A7BD5" } ],
+    "words": [
+      { "s": 0, "e": 352800000, "t": "Hola", "c": 0.98, "sp": "speaker-1", "p": true },
+      { "s": 423360000, "e": 705600000, "t": "a", "c": 0.91 }
+    ]
+  }
+]
+```
+
+`s` y `e` son el inicio y el fin en ticks del medio, `t` el texto, `c` la probabilidad (0–1), `sp` el hablante (opcional) y `p` si la palabra abre párrafo (opcional, falso por omisión). Reglas: el medio existe y tiene como mucho una transcripción; las palabras van en orden, con `0 ≤ s ≤ e ≤ mediaDuration`, texto no vacío y sin caracteres de control, y un `sp` declarado en `speakers`; ids únicos; como mucho 200 000 palabras. Quitar el medio quita su transcripción; reenlazarlo la conserva, y si la duración nueva difiere más de un cuadro de `mediaDuration` la app avisa de que puede no coincidir.
