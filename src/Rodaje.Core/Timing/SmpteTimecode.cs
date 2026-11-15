@@ -1,12 +1,13 @@
 namespace Rodaje.Core.Timing;
 
-public readonly record struct Timecode
+/// <summary>Código de tiempo SMPTE: cuadro absoluto, base nominal y drop frame (a 29,97 y 59,94). La presentación en pantalla es <c>Rodaje.Engine.Presentation.Timecode</c>.</summary>
+public readonly record struct SmpteTimecode
 {
     public long Frame { get; }
     public int Base { get; }
     public bool DropFrame { get; }
 
-    public Timecode(long frame, int nominalBase, bool dropFrame)
+    public SmpteTimecode(long frame, int nominalBase, bool dropFrame)
     {
         if (frame < 0)
             throw new ArgumentOutOfRangeException(nameof(frame), "El cuadro no puede ser negativo.");
@@ -29,34 +30,34 @@ public readonly record struct Timecode
 
     public static bool CanDropFrame(Rational rate) => rate == Rational.Ntsc30 || rate == Rational.Ntsc60;
 
-    public static Timecode Parse(string text, Rational rate)
+    public static SmpteTimecode Parse(string text, Rational rate)
     {
         int nominalBase = NominalBase(rate);
         if (text is { Length: 11 } && text[8] is ';' or '.' or ',' && !CanDropFrame(rate))
             throw new ArgumentException("La tasa no admite drop frame.", nameof(rate));
-        if (TryParseCore(text, nominalBase, CanDropFrame(rate), out Timecode timecode))
+        if (TryParseCore(text, nominalBase, CanDropFrame(rate), out SmpteTimecode timecode))
             return timecode;
         throw new FormatException("El código de tiempo no es válido para la tasa indicada.");
     }
 
-    public static bool TryParse(string? text, Rational rate, out Timecode timecode)
+    public static bool TryParse(string? text, Rational rate, out SmpteTimecode timecode)
     {
         timecode = default;
         return TryGetNominalBase(rate, out int nominalBase)
             && TryParseCore(text, nominalBase, CanDropFrame(rate), out timecode);
     }
 
-    public static Timecode FromFrame(long frame, Rational rate, bool dropFrame)
+    public static SmpteTimecode FromFrame(long frame, Rational rate, bool dropFrame)
     {
         int nominalBase = NominalBase(rate);
         if (dropFrame && !CanDropFrame(rate))
             throw new ArgumentException("La tasa no admite drop frame.", nameof(dropFrame));
         if (frame < 0)
             throw new ArgumentOutOfRangeException(nameof(frame), "El cuadro no puede ser negativo.");
-        return new Timecode(frame % FramesPerDay(nominalBase, dropFrame), nominalBase, dropFrame);
+        return new SmpteTimecode(frame % FramesPerDay(nominalBase, dropFrame), nominalBase, dropFrame);
     }
 
-    public static Timecode FromTime(Time time, Rational rate, bool dropFrame) =>
+    public static SmpteTimecode FromTime(Time time, Rational rate, bool dropFrame) =>
         FromFrame(time.ToFrames(rate), rate, dropFrame);
 
     public Time ToTime(Rational rate) => Time.FromFrames(Frame, rate);
@@ -94,7 +95,7 @@ public readonly record struct Timecode
 
     public override string ToString() => Format();
 
-    public Timecode AddFrames(long frames) => new(checked(Frame + frames), Base, DropFrame);
+    public SmpteTimecode AddFrames(long frames) => new(checked(Frame + frames), Base, DropFrame);
 
     private static bool IsSupportedBase(int nominalBase) => nominalBase is 24 or 25 or 30 or 48 or 50 or 60;
 
@@ -118,7 +119,7 @@ public readonly record struct Timecode
     private static int FramesPerDay(int nominalBase, bool dropFrame) =>
         nominalBase * 86_400 - (dropFrame ? nominalBase / 15 * 1296 : 0);
 
-    private static bool TryParseCore(string? text, int nominalBase, bool canDropFrame, out Timecode timecode)
+    private static bool TryParseCore(string? text, int nominalBase, bool canDropFrame, out SmpteTimecode timecode)
     {
         timecode = default;
         if (text is not { Length: 11 } || text[2] != ':' || text[5] != ':')
@@ -144,7 +145,7 @@ public readonly record struct Timecode
             frame -= dropped * (totalMinutes - totalMinutes / 10);
         }
 
-        timecode = new Timecode(frame, nominalBase, dropFrame);
+        timecode = new SmpteTimecode(frame, nominalBase, dropFrame);
         return true;
     }
 

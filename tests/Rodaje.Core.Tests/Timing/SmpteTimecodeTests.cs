@@ -1,11 +1,11 @@
 using System.Diagnostics;
 using Rational = Rodaje.Core.Timing.Rational;
 using Time = Rodaje.Core.Timing.Time;
-using Timecode = Rodaje.Core.Timing.Timecode;
+using SmpteTimecode = Rodaje.Core.Timing.SmpteTimecode;
 
 namespace Rodaje.Core.Tests.Timing;
 
-public sealed class TimecodeTests
+public sealed class SmpteTimecodeTests
 {
     [Theory]
     [InlineData(24000, 1001, 24, false)]
@@ -26,8 +26,8 @@ public sealed class TimecodeTests
     public void RatesUseTheNearestSupportedBase(long numerator, long denominator, int nominalBase, bool dropFrame)
     {
         Rational rate = new(numerator, denominator);
-        Assert.Equal(nominalBase, Timecode.NominalBase(rate));
-        Assert.Equal(dropFrame, Timecode.CanDropFrame(rate));
+        Assert.Equal(nominalBase, SmpteTimecode.NominalBase(rate));
+        Assert.Equal(dropFrame, SmpteTimecode.CanDropFrame(rate));
     }
 
     [Theory]
@@ -39,8 +39,8 @@ public sealed class TimecodeTests
     public void UnsupportedRatesAreRejected(long numerator, long denominator)
     {
         Rational rate = new(numerator, denominator);
-        Assert.Throws<ArgumentOutOfRangeException>(() => Timecode.NominalBase(rate));
-        Assert.False(Timecode.TryParse("00:00:00:00", rate, out Timecode result));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SmpteTimecode.NominalBase(rate));
+        Assert.False(SmpteTimecode.TryParse("00:00:00:00", rate, out SmpteTimecode result));
         Assert.Equal(default, result);
     }
 
@@ -70,13 +70,13 @@ public sealed class TimecodeTests
     public void DropFrameLabelsMatchRealFrames(int numerator, string text, long expected)
     {
         Rational rate = new(numerator, 1001);
-        Timecode parsed = Timecode.Parse(text, rate);
+        SmpteTimecode parsed = SmpteTimecode.Parse(text, rate);
         Assert.Equal(expected, parsed.Frame);
         Assert.Equal(numerator / 1000, parsed.Base);
         Assert.True(parsed.DropFrame);
         Assert.Equal(text, parsed.Format());
         Assert.Equal(text, parsed.ToString());
-        Assert.Equal(parsed, Timecode.FromFrame(expected, rate, true));
+        Assert.Equal(parsed, SmpteTimecode.FromFrame(expected, rate, true));
     }
 
     [Theory]
@@ -93,11 +93,11 @@ public sealed class TimecodeTests
     public void NonDropLabelsUseNominalBase(int numerator, int denominator, string text, long expected)
     {
         Rational rate = new(numerator, denominator);
-        Timecode parsed = Timecode.Parse(text, rate);
+        SmpteTimecode parsed = SmpteTimecode.Parse(text, rate);
         Assert.Equal(expected, parsed.Frame);
         Assert.False(parsed.DropFrame);
         Assert.Equal(text, parsed.Format());
-        Assert.Equal(parsed, Timecode.FromFrame(expected, rate, false));
+        Assert.Equal(parsed, SmpteTimecode.FromFrame(expected, rate, false));
         Assert.Equal(Time.FromFrames(expected, rate), parsed.ToTime(rate));
     }
 
@@ -107,7 +107,7 @@ public sealed class TimecodeTests
     [InlineData("00:01:00,02")]
     public void DropFrameSeparatorsAreNormalized(string text)
     {
-        Assert.True(Timecode.TryParse(text, Rational.Ntsc30, out Timecode result));
+        Assert.True(SmpteTimecode.TryParse(text, Rational.Ntsc30, out SmpteTimecode result));
         Assert.Equal(1800, result.Frame);
         Assert.Equal("00:01:00;02", result.Format());
     }
@@ -143,8 +143,8 @@ public sealed class TimecodeTests
     [InlineData("００:00:00:00")]
     public void InvalidTextFailsWithoutOtherExceptions(string? text)
     {
-        Assert.Throws<FormatException>(() => Timecode.Parse(text!, Rational.Ntsc30));
-        Assert.False(Timecode.TryParse(text, Rational.Ntsc30, out Timecode result));
+        Assert.Throws<FormatException>(() => SmpteTimecode.Parse(text!, Rational.Ntsc30));
+        Assert.False(SmpteTimecode.TryParse(text, Rational.Ntsc30, out SmpteTimecode result));
         Assert.Equal(default, result);
     }
 
@@ -155,8 +155,8 @@ public sealed class TimecodeTests
     [InlineData("00:01:00;03")]
     public void FourLabelsAreSkippedAtNtsc60(string text)
     {
-        Assert.Throws<FormatException>(() => Timecode.Parse(text, Rational.Ntsc60));
-        Assert.False(Timecode.TryParse(text, Rational.Ntsc60, out _));
+        Assert.Throws<FormatException>(() => SmpteTimecode.Parse(text, Rational.Ntsc60));
+        Assert.False(SmpteTimecode.TryParse(text, Rational.Ntsc60, out _));
     }
 
     [Theory]
@@ -174,11 +174,11 @@ public sealed class TimecodeTests
         foreach (char separator in new[] { ';', '.', ',' })
         {
             string text = $"00:00:00{separator}00";
-            Assert.Throws<ArgumentException>(() => Timecode.Parse(text, rate));
-            Assert.False(Timecode.TryParse(text, rate, out _));
+            Assert.Throws<ArgumentException>(() => SmpteTimecode.Parse(text, rate));
+            Assert.False(SmpteTimecode.TryParse(text, rate, out _));
         }
-        Assert.Throws<ArgumentException>(() => Timecode.FromFrame(0, rate, true));
-        Assert.Throws<ArgumentException>(() => Timecode.FromTime(Time.Zero, rate, true));
+        Assert.Throws<ArgumentException>(() => SmpteTimecode.FromFrame(0, rate, true));
+        Assert.Throws<ArgumentException>(() => SmpteTimecode.FromTime(Time.Zero, rate, true));
     }
 
     [Theory]
@@ -194,13 +194,13 @@ public sealed class TimecodeTests
     public void FrameFactoriesWrapAtTwentyFourHours(int numerator, int denominator, bool dropFrame, long perDay)
     {
         Rational rate = new(numerator, denominator);
-        Assert.Equal(0, Timecode.FromFrame(perDay, rate, dropFrame).Frame);
-        Assert.Equal(1, Timecode.FromFrame(perDay * 3 + 1, rate, dropFrame).Frame);
-        Assert.Equal(long.MaxValue % perDay, Timecode.FromFrame(long.MaxValue, rate, dropFrame).Frame);
-        Timecode last = Timecode.FromFrame(perDay - 1, rate, dropFrame);
+        Assert.Equal(0, SmpteTimecode.FromFrame(perDay, rate, dropFrame).Frame);
+        Assert.Equal(1, SmpteTimecode.FromFrame(perDay * 3 + 1, rate, dropFrame).Frame);
+        Assert.Equal(long.MaxValue % perDay, SmpteTimecode.FromFrame(long.MaxValue, rate, dropFrame).Frame);
+        SmpteTimecode last = SmpteTimecode.FromFrame(perDay - 1, rate, dropFrame);
         Assert.StartsWith("23:59:59", last.Format(), StringComparison.Ordinal);
-        Assert.Equal(last, Timecode.Parse(last.Format(), rate));
-        Assert.Equal(0, Timecode.FromTime(Time.FromFrames(perDay, rate), rate, dropFrame).Frame);
+        Assert.Equal(last, SmpteTimecode.Parse(last.Format(), rate));
+        Assert.Equal(0, SmpteTimecode.FromTime(Time.FromFrames(perDay, rate), rate, dropFrame).Frame);
     }
 
     [Theory]
@@ -212,10 +212,10 @@ public sealed class TimecodeTests
     {
         Rational rate = new(numerator, denominator);
         Time start = Time.FromFrames(1800, rate);
-        Assert.Equal(1800, Timecode.FromTime(start, rate, dropFrame).Frame);
-        Assert.Equal(1799, Timecode.FromTime(new Time(start.Ticks - 1), rate, dropFrame).Frame);
-        Assert.Equal(start, Timecode.FromTime(start, rate, dropFrame).ToTime(rate));
-        Assert.Throws<ArgumentOutOfRangeException>(() => Timecode.FromTime(new Time(-1), rate, dropFrame));
+        Assert.Equal(1800, SmpteTimecode.FromTime(start, rate, dropFrame).Frame);
+        Assert.Equal(1799, SmpteTimecode.FromTime(new Time(start.Ticks - 1), rate, dropFrame).Frame);
+        Assert.Equal(start, SmpteTimecode.FromTime(start, rate, dropFrame).ToTime(rate));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SmpteTimecode.FromTime(new Time(-1), rate, dropFrame));
     }
 
     [Theory]
@@ -225,7 +225,7 @@ public sealed class TimecodeTests
     [InlineData(120)]
     public void ConstructorRejectsInvalidBases(int nominalBase)
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Timecode(0, nominalBase, false));
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SmpteTimecode(0, nominalBase, false));
     }
 
     [Theory]
@@ -235,37 +235,37 @@ public sealed class TimecodeTests
     [InlineData(50)]
     public void ConstructorRejectsDropFrameForOtherBases(int nominalBase)
     {
-        Assert.Throws<ArgumentException>(() => new Timecode(0, nominalBase, true));
+        Assert.Throws<ArgumentException>(() => new SmpteTimecode(0, nominalBase, true));
     }
 
     [Fact]
     public void ConstructorAndAdditionKeepAbsoluteFramesAndCheckBounds()
     {
-        Timecode original = new(2589407, 30, true);
-        Timecode next = original.AddFrames(1);
+        SmpteTimecode original = new(2589407, 30, true);
+        SmpteTimecode next = original.AddFrames(1);
         Assert.Equal(2589408, next.Frame);
         Assert.Equal(30, next.Base);
         Assert.True(next.DropFrame);
         Assert.Equal("00:00:00;00", next.Format());
         Assert.Equal(original, next.AddFrames(-1));
         Assert.Equal(original, original.AddFrames(0));
-        Assert.Equal("00:01:00;02", new Timecode(1799, 30, true).AddFrames(1).Format());
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Timecode(-1, 30, true));
-        Assert.Throws<ArgumentOutOfRangeException>(() => Timecode.FromFrame(-1, Rational.Ntsc30, true));
+        Assert.Equal("00:01:00;02", new SmpteTimecode(1799, 30, true).AddFrames(1).Format());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new SmpteTimecode(-1, 30, true));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SmpteTimecode.FromFrame(-1, Rational.Ntsc30, true));
         Assert.Throws<ArgumentOutOfRangeException>(() => original.AddFrames(-2589408));
-        Assert.Throws<OverflowException>(() => new Timecode(long.MaxValue, 30, false).AddFrames(1));
+        Assert.Throws<OverflowException>(() => new SmpteTimecode(long.MaxValue, 30, false).AddFrames(1));
         Assert.Throws<ArgumentOutOfRangeException>(() => original.AddFrames(long.MinValue));
     }
 
     [Fact]
     public void DefaultRateIsRejectedWithoutDivisionByZero()
     {
-        Assert.False(Timecode.CanDropFrame(default));
-        Assert.False(Timecode.TryParse("00:00:00:00", default, out Timecode result));
+        Assert.False(SmpteTimecode.CanDropFrame(default));
+        Assert.False(SmpteTimecode.TryParse("00:00:00:00", default, out SmpteTimecode result));
         Assert.Equal(default, result);
-        Assert.Throws<ArgumentOutOfRangeException>(() => Timecode.NominalBase(default));
-        Assert.Throws<ArgumentOutOfRangeException>(() => Timecode.FromFrame(0, default, false));
-        Assert.Throws<ArgumentOutOfRangeException>(() => Timecode.Parse("00:00:00:00", default));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SmpteTimecode.NominalBase(default));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SmpteTimecode.FromFrame(0, default, false));
+        Assert.Throws<ArgumentOutOfRangeException>(() => SmpteTimecode.Parse("00:00:00:00", default));
     }
 
     [Fact]
@@ -273,7 +273,7 @@ public sealed class TimecodeTests
     {
         for (long frame = 0; frame < 2589408; frame++)
         {
-            Timecode parsed = Timecode.Parse(Timecode.FromFrame(frame, Rational.Ntsc30, true).Format(), Rational.Ntsc30);
+            SmpteTimecode parsed = SmpteTimecode.Parse(SmpteTimecode.FromFrame(frame, Rational.Ntsc30, true).Format(), Rational.Ntsc30);
             if (parsed.Frame != frame)
             {
                 Assert.Fail($"El cuadro {frame} volvió como {parsed.Frame}.");
@@ -288,12 +288,12 @@ public sealed class TimecodeTests
     {
         // Calienta la misma ruta antes de medir, incluida la compilación diferida del formato.
         for (int frame = 0; frame < 10000; frame++)
-            _ = Timecode.Parse(Timecode.FromFrame(frame, Rational.Ntsc30, true).Format(), Rational.Ntsc30);
+            _ = SmpteTimecode.Parse(SmpteTimecode.FromFrame(frame, Rational.Ntsc30, true).Format(), Rational.Ntsc30);
 
         Stopwatch stopwatch = Stopwatch.StartNew();
         for (long frame = 0; frame < 2589408; frame++)
         {
-            Timecode parsed = Timecode.Parse(Timecode.FromFrame(frame, Rational.Ntsc30, true).Format(), Rational.Ntsc30);
+            SmpteTimecode parsed = SmpteTimecode.Parse(SmpteTimecode.FromFrame(frame, Rational.Ntsc30, true).Format(), Rational.Ntsc30);
             if (parsed.Frame != frame)
                 Assert.Fail($"El cuadro {frame} volvió como {parsed.Frame}.");
         }
