@@ -16,7 +16,7 @@
 #                        segundo de reproducción), comprueba antes que la ventana queda lista y falla si no sale con 0,
 #                        deja rodaje-error.txt o un informe en fallos\. Sin audio, con datos aislados y hasta 180 s.
 # Los videos se importan y se ponen seguidos en la pista principal; un .rodaje se abre.
-# Solo recompila si el exe falta o algún fuente de src\ es más nuevo que él. Sale con 0 si todo fue bien.
+# Solo recompila si el exe falta o algún fuente de src\ o Directory.Build.* es más nuevo que él. Sale con 0 si todo fue bien.
 [CmdletBinding(PositionalBinding = $false)]
 param(
     [Parameter(ValueFromRemainingArguments = $true)]
@@ -143,6 +143,8 @@ if (-not $hayCambios) {
     $fechaExe = (Get-Item -LiteralPath $Exe).LastWriteTimeUtc
     $hayCambios = [bool](Get-ChildItem -LiteralPath (Join-Path $Raiz 'src') -Recurse -File -Include *.cs, *.csproj, *.xaml, *.hlsl, *.manifest |
         Where-Object { $_.FullName -notmatch '\\(bin|obj)\\' -and $_.LastWriteTimeUtc -gt $fechaExe } | Select-Object -First 1)
+    # La versión vive en Directory.Build.props: subirla también obliga a recompilar.
+    $hayCambios = $hayCambios -or [bool](Get-ChildItem -LiteralPath $Raiz -File -Filter 'Directory.Build.*' | Where-Object { $_.LastWriteTimeUtc -gt $fechaExe })
 }
 if (($hayCambios -and -not $SinPublicar) -or -not (Test-Path -LiteralPath $Exe)) {
     if (-not (Publicar)) { Write-Host ''; exit 1 }

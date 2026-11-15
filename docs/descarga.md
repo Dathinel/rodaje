@@ -16,7 +16,7 @@ Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Decisi�
 ## Estado
 
 - **Clave**: la privada vive fuera del repositorio, en `%USERPROFILE%\.rodaje-claves\catalogo-privada.pem` de quien publica (`*.pem` está en `.gitignore`), con al menos dos respaldos físicos fuera del equipo; la pública, en `clave-catalogo.txt`. Si se pierde, los Rodaje ya publicados no aceptarán índices nuevos; si alguien la copia, se genera otra con `-NuevaClave -Reemplazar` y se publica una versión nueva de Rodaje.
-- **Catálogo**: `Dathinel/rodaje-catalogo` (público, CC0, sin código), release `v8` (25-oct, 83 entradas: la v6 sumó `rodaje-codificadores-gpl` 0.2.0, la v7 `rodaje-transiciones` 1.2.0 y la v8 las entradas `app` de Subtitular, Rastrear y Lanzador) con todo lo publicado:
+- **Catálogo**: `Dathinel/rodaje-catalogo` (público, CC0, sin código), release `v9` (15-nov, 84 entradas: la v6 sumó `rodaje-codificadores-gpl` 0.2.0, la v7 `rodaje-transiciones` 1.2.0, la v8 las entradas `app` de Subtitular, Rastrear y Lanzador y la v9 `modulo-raw` 1.1.0) con todo lo publicado:
 
 | Repositorio | Versiones | `.paquete` | Modelos |
 |---|---|---|---|
@@ -34,7 +34,7 @@ Cómo baja Rodaje sus paquetes, módulos y modelos, y cómo se publican. Decisi�
 | `modulo-voz` | 1.0.0 | 7,7 MB | 39, 198 MB (Hugging Face y los léxicos misaki en su release) |
 | `modulo-audio-ia` | 1.0.0 | 7,5 MB | 4, 10 MB (en su release: Silero VAD y DeepFilterNet3) |
 | `modulo-vision` | 1.0.0 y 1.1.0 | 17,3 MB | 4, 211 MB (Hugging Face) |
-| `modulo-raw` | 1.0.0 | 1,8 MB | — |
+| `modulo-raw` | 1.0.0 y 1.1.0 | 1,9 MB | — |
 | `rodaje-codificadores-gpl` | 0.2.0 | 18,9 MB | — (su release adjunta la fuente correspondiente, 150 MB) |
 
   La 1.0.1 de `modulo-traducir` carga el modelo aunque la carpeta tenga «ñ» o tildes (página de códigos UTF-8 en su manifiesto: LLamaSharp pasa la ruta como texto ANSI).
