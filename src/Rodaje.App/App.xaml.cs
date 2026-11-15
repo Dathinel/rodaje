@@ -40,7 +40,15 @@ public partial class App : Application
         Theme.ThemeResources.ThemeChanged += (_, _) => _engine.SetSurround(Theme.ThemeResources.Current.Color("ViewerSurroundBrush"));
         string? warning = string.Join(" ", themeWarnings.Prepend(_settingsWarning).Where(w => !string.IsNullOrEmpty(w)));
         _window = new MainWindow(_options, _engine, _prober, _settings, warning.Length == 0 ? null : warning);
-        _window.Activate();
+        if (_options.RunsInBackground)
+        {
+            _window.ShowInBackground();
+        }
+        else
+        {
+            _window.Activate();
+        }
+
         // Apagar o cerrar la sesión de Windows no es un fallo: se cierra la sesión del registro antes de que Windows
         // termine el proceso.
         _ = SessionEndWatcher.Install(WinRT.Interop.WindowNative.GetWindowHandle(_window), Program.Crashes.EndSession);
