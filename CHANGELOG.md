@@ -8,7 +8,9 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ## [Sin publicar]
 
-Lo que va a la 1.1, con ideas tomadas de los editores de referencia.
+## [1.0.3] - 2026-11-15
+
+Con ideas tomadas de los editores de referencia.
 
 ### Corregido
 - **Pegar tras importar:** si cambia el proyecto, la secuencia o el cursor mientras se leen los medios, se avisa y se descarta la importación sin alterar la biblioteca ni pegar en otro destino.
