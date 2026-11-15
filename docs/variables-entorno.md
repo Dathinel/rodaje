@@ -9,6 +9,7 @@ Todas las variables que lee Rodaje empiezan con `RODAJE_`. Ninguna es obligatori
 | `RODAJE_ENTORNO` | Usa otro `.entorno` (SDK de .NET, FFmpeg, modelos) en vez del de la carpeta del proyecto; por ejemplo, el del checkout principal desde un worktree, para no descargarlo dos veces | `Probar.bat`, `build\dotnet-local.cmd` y los `.ps1` de `build\` (a través de `comun.psm1`); `FfmpegLocator` (busca `<entorno>\ffmpeg\bin`); `FfmpegTool` de las pruebas; el módulo de traducción (busca `<entorno>\modelos`) |
 | `RODAJE_FFMPEG` | Carpeta con las DLL de FFmpeg (o ruta de `ffmpeg.exe` para las pruebas). El editor la ignora si junto a su ejecutable hay una carpeta `ffmpeg\`: la distribución usa siempre el FFmpeg LGPL que trae | `FfmpegLocator` (Rodaje.Media); `FfmpegTool` (pruebas) |
 | `RODAJE_PROXIES` | Carpeta de los proxies; sin ella, `%LOCALAPPDATA%\Rodaje\proxies` | `ProxyStore.DefaultDirectory` (Rodaje.Media) |
+| `RODAJE_RENDER` | Carpeta del render en caché de la línea de tiempo (D-060), desechable; sin ella, `%LOCALAPPDATA%\Rodaje\render` | `RenderCacheStore` (Rodaje.Media) |
 | `RODAJE_DATOS` | Carpeta de `ajustes.json`, `atajos.json`, `complementos\` (paquetes, módulos y elementos propios) y `cache\` de la app: miniaturas, formas de onda y `cache\shaders` (el bytecode compilado de los shaders de efectos; borrarlo solo obliga a recompilar en segundo plano). Sin ella, `%LOCALAPPDATA%\Rodaje`. Sirve para probar la app sin tocar los datos de siempre | `AppDataPaths.Root` (Rodaje.App); `ShaderCache.DefaultDirectory` (Rodaje.Render) |
 | `RODAJE_MODELOS` | Carpeta de modelos de IA que los módulos miran antes que `modelos\` junto a su exe y que el almacén compartido | Módulos de audio, subtítulos, traducción, visión y voz (`ModelFiles`, `Transcriber`, `Voices`) |
 | `RODAJE_VOZ_MODELO` | Otro archivo `.onnx` de Kokoro para el módulo de voz | `KokoroEngine` (módulo de voz) |
@@ -23,6 +24,8 @@ Todas las variables que lee Rodaje empiezan con `RODAJE_`. Ninguna es obligatori
 | `RODAJE_MEDIR_LINEA` | Ruta de un informe: al abrir, la línea de tiempo arma un proyecto de 200 clips con el primer video abierto (o uno sintético), mide desplazamiento, zoom y arrastre, escribe el informe y cierra la app | `TimelineBenchmark` (Rodaje.App) |
 | `RODAJE_AUTOPRUEBA_CAPTURAS` | Carpeta donde `--autoprueba` guarda en PNG la ventana (dibujada por XAML) y cuadros del visor | `SelfTestRun` (Rodaje.App) |
 | `RODAJE_CONTRASTE_ALTO` | Solo con `--autoprueba` y `1`: la paleta propia toma colores de contraste alto (negro, blanco y cian) sin cambiar Windows, para revisar las vistas propias en capturas; los controles de WinUI no cambian de tema | `ThemeResources` (Rodaje.App) |
+
+`--autoprueba`, `--medir` y `--arranque` corren de fondo: el armazón y la ventana se crean fuera de pantalla, sin botón en la barra de tareas y sin poder tomar el foco, para no estorbar a quien usa el equipo; las capturas salen igual (`WindowCapture`, con `PrintWindow`). La opción `--visible` las deja a la vista como antes (`AppOptions.RunsInBackground`).
 
 ## Pruebas
 
