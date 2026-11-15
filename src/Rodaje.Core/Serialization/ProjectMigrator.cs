@@ -31,6 +31,7 @@ public sealed class ProjectMigrator
         [12] = AllowTracking,
         [13] = AllowStillImages,
         [14] = AllowHdrSequences,
+        [15] = AllowFormat16,
     };
 
     private readonly IReadOnlyDictionary<int, Action<JsonObject>> _chain;
@@ -277,6 +278,9 @@ public sealed class ProjectMigrator
 
     /// <summary>14 → 15: solo el número. Una secuencia sin <c>colorSpace</c> es SDR (<c>sdr-709</c>), como eran todas.</summary>
     internal static void AllowHdrSequences(JsonObject root) => root[VersionProperty] = 15;
+
+    /// <summary>15 → 16: solo el número. Los campos del 16 son opcionales y un 15 no tiene ninguno.</summary>
+    internal static void AllowFormat16(JsonObject root) => root[VersionProperty] = 16;
 
     private static void RemoveSpeed(JsonNode? effects)
     {
