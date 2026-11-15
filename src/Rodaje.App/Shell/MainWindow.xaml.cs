@@ -706,7 +706,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         // Hasta el primer diseño no se sabe el alto de las demás filas: se estima y SizeChanged lo corrige.
         TimelineRow.Height = new GridLength(TimelineProportion.Height(s.TimelineShare, height, 100));
         AppWindow.MoveAndResize(new RectInt32(fit.X, fit.Y, fit.Width, fit.Height));
-        if (s.WindowMaximized && AppWindow.Presenter is OverlappedPresenter presenter)
+        if (s.WindowMaximized && !_options.RunsInBackground && AppWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.Maximize();
         }
@@ -814,7 +814,8 @@ internal sealed partial class MainWindow : Window, IShellHost
     {
         AppSettings s = _settings.Current;
         // Con el visor a pantalla completa el presenter no dice si la ventana estaba maximizada: se queda lo guardado antes.
-        if (AppWindow.Presenter.Kind != AppWindowPresenterKind.FullScreen)
+        // De fondo la ventana nunca se maximiza: tampoco se guarda su estado.
+        if (AppWindow.Presenter.Kind != AppWindowPresenterKind.FullScreen && !_options.RunsInBackground)
         {
             bool maximized = AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Maximized };
             s.WindowMaximized = maximized;
@@ -1033,7 +1034,28 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
     }
 
-    private void OnActivated(object sender, WindowActivatedEventArgs args)
+    /// <summary>Corrida automática sin <c>--visible</c> (<see cref="AppOptions.RunsInBackground"/>).</summary>
+    internal bool RunsInBackground => _options.RunsInBackground;
+
+    /// <summary>
+    /// Autoprueba y medición: la ventana se pinta fuera de pantalla, sin botón en la barra de tareas y sin poder activarse
+    /// (deshabilitada para Win32: el foco de XAML no arrastra el del teclado de quien usa el equipo).
+    /// </summary>
+    internal void ShowInBackground()
+    {
+        var hwnd = (TerraFX.Interop.Windows.HWND)_hwnd;
+        _ = SetWindowLongPtrW(hwnd, TerraFX.Interop.Windows.GWL.GWL_EXSTYLE,
+            GetWindowLongPtrW(hwnd, TerraFX.Interop.Windows.GWL.GWL_EXSTYLE) | TerraFX.Interop.Windows.WS.WS_EX_NOACTIVATE | TerraFX.Interop.Windows.WS.WS_EX_TOOLWINDOW);
+        _ = EnableWindow(hwnd, TerraFX.Interop.Windows.BOOL.FALSE);
+        AppWindow.Move(new PointInt32(StartupSplash.OffScreen, StartupSplash.OffScreen));
+        AppWindow.Show(false);
+        // Sin activarse no llega Activated: lo que espera a la primera activación se hace aquí.
+        OnFirstActivation();
+    }
+
+    private void OnActivated(object sender, WindowActivatedEventArgs args) => OnFirstActivation();
+
+    private void OnFirstActivation()
     {
         if (_activatedOnce)
         {
