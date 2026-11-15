@@ -445,3 +445,11 @@ El 16 es una sola subida que comparten cuatro bloques. Cada uno añade campos op
 | Intercambio (EDL, FCPXML, OTIO) | D-062 | `startTimecode` en la secuencia; `timecode` y `reel` en el medio | algún medio o secuencia tiene TC o carrete |
 | Plantillas de movimiento | D-064 | generador `template` en los clips (documento, valores y capas) | algún clip usa una plantilla |
 | Trabajo en grupo | D-067 | `contentKey` y `contentHash` en el medio | algún medio tiene identidad de contenido |
+
+**Campos del intercambio (D-062).** Los tres son textos opcionales que no se escriben si son nulos:
+
+- `startTimecode` (secuencia): código de tiempo del primer cuadro, `HH:MM:SS:FF` o con `;` antes de los cuadros en drop frame; nulo es `00:00:00:00`. Si la tasa de la secuencia es de TC SMPTE (24, 25, 30, 48, 50 o 60 cuadros, o sus variantes NTSC), tiene que ser un TC válido a esa tasa: drop frame solo a 29,97 y 59,94, y sin los números que salta.
+- `timecode` (medio): el TC del primer cuadro del archivo, tal como lo da FFmpeg (`timecode` del flujo de video, de la pista `tmcd` de un MOV o del contenedor MXF). Se valida igual, a la tasa del medio; un medio sin tasa (solo audio) solo se comprueba por la forma.
+- `reel` (medio): carrete o nombre de cinta (`reel_name`), de 1 a 256 caracteres sin caracteres de control.
+
+Un medio importado de una EDL cuyo archivo aún no se encontró se guarda **provisional**: ancho, alto, frecuencia de muestreo y canales a cero, y la duración que usan sus clips. Sus clips están en el TC del evento (como si el medio empezara en `00:00:00:00`); al reenlazarlo con el archivo de verdad se corren a `TC del clip − TC inicial del archivo`, en el mismo paso del historial.

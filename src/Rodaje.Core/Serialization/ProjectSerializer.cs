@@ -32,6 +32,7 @@ public static class ProjectSerializer
     /// </summary>
     internal static readonly Func<Project, bool>[] Format16Uses =
     [
+        project => project.Media.Any(m => m.Timecode is not null || m.Reel is not null) || project.Sequences.Any(s => s.StartTimecode is not null),
     ];
 
     /// <summary>
