@@ -7,9 +7,11 @@ using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Titles;
+using Rodaje.App.Services.Transcripts;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
 using Rodaje.App.Views.Analysis;
+using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -60,10 +62,11 @@ internal static class AutoSubtitlesDialog
             return;
         }
 
-        (Time Start, Time End) window = AutoSubtitles.Window(clip);
+        // Se transcribe el medio entero (D-061): la transcripción se guarda y sirve para todos sus clips.
+        (Time Start, Time End) window = MediaTranscriber.Window(media);
         if (window.End <= window.Start || window.End - window.Start > ModuleMedia.MaxAudioSpan)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "El clip dura más de tres horas: córtalo y transcribe cada parte.");
+            session.Notify(NotificationSeverity.Informational, Title, "El medio dura más de tres horas: no se puede transcribir entero.");
             return;
         }
 
@@ -109,6 +112,8 @@ internal static class AutoSubtitlesDialog
         ModuleJob? job = null;
         // La propuesta se descarta al empezar cada transcripción: si la nueva falla o se cancela, no queda la anterior.
         var draft = new TranscriptionDraft();
+        // La transcripción nueva del medio, si esta vez se pidió al módulo: se guarda en el mismo paso que los subtítulos.
+        MediaTranscript? fresh = null;
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         void ShowActivity()
@@ -134,7 +139,7 @@ internal static class AutoSubtitlesDialog
                 ThemeResources.Color("BeatMarkColor"));
         }
 
-        async Task Transcribe()
+        async Task Transcribe(bool force = false)
         {
             draft.Begin();
             Show(draft.Cues);
@@ -147,16 +152,25 @@ internal static class AutoSubtitlesDialog
             timer.Start();
             try
             {
-                Transcript transcript = await AutoSubtitles.RunAsync(modules, module, media.Path, window, wanted,
-                    $"Subtítulos de «{media.Name}»", cancel.Token, j => job = j);
-                IReadOnlyList<SpeechSegment> segments = AutoSubtitles.ToSequence(clip, transcript);
+                fresh = null;
+                MediaTranscript? stored = force ? null : MediaTranscriber.Reusable(session.Project, media.Id, wanted);
+                if (stored is null)
+                {
+                    Transcript transcript = await AutoSubtitles.RunAsync(modules, module, media.Path, window, wanted,
+                        $"Subtítulos de «{media.Name}»", cancel.Token, j => job = j);
+                    string model = AutoSubtitles.Plan(modules, module) is { } plan ? Path.GetFileNameWithoutExtension(AiParameters.WhisperFile(plan.Subtitles.Model)) : "whisper";
+                    stored = fresh = MediaTranscriber.FromTranscript(transcript, media, "transcript-" + Guid.NewGuid().ToString("N"), wanted, model, DateTime.UtcNow);
+                }
+
+                IReadOnlyList<SpeechSegment> segments = AutoSubtitles.ToSequence(clip, stored);
                 IReadOnlyList<SubtitleCue> cues = AutoSubtitles.Cues(segments, frameRate);
                 draft.Complete(wanted, segments, cues);
                 _language = wanted;
                 Show(cues);
+                string origin = fresh is null ? " de la transcripción guardada" : "";
                 status.Text = cues.Count == 0
                     ? "No se oyó voz en el clip."
-                    : string.Create(SpanishNumbers.Format, $"{cues.Count} subtítulos{(transcript.Language is { Length: > 0 } found && wanted == "auto" ? $" (idioma: {found})" : "")}. Revísalos y aplica.");
+                    : string.Create(SpanishNumbers.Format, $"{cues.Count} subtítulos{origin}{(stored.Language is { Length: > 0 } found && wanted == "auto" ? $" (idioma: {found})" : "")}. Revísalos y aplica.");
             }
             catch (OperationCanceledException)
             {
@@ -193,7 +207,7 @@ internal static class AutoSubtitlesDialog
 
         language.SelectionChanged += (_, _) => again.IsEnabled = draft.CanTranscribe(Selected());
         Task current = Task.CompletedTask;
-        again.Click += (_, _) => UiTask.Run(current = Transcribe());
+        again.Click += (_, _) => UiTask.Run(current = Transcribe(force: true));
         list.ItemClick += (_, e) =>
         {
             int index = e.ClickedItem is string label ? labels.IndexOf(label) : -1;
@@ -229,7 +243,9 @@ internal static class AutoSubtitlesDialog
         IReadOnlyList<SubtitleCue> applied = draft.Cues;
         var proposal = new ModuleProposal(AutoSubtitles.Description, sequenceId,
             [.. applied.Select(c => new PreviewMark(PreviewMarkKind.Clip, c.Start, c.End, c.Text))],
-            _ => [AutoSubtitles.Command(sequenceId, chosen, SubtitleStyles.NewSubtitle())]);
+            _ => fresh is { } transcript
+                ? [new SetTranscriptCommand(media.Id, transcript), AutoSubtitles.Command(sequenceId, chosen, SubtitleStyles.NewSubtitle())]
+                : [AutoSubtitles.Command(sequenceId, chosen, SubtitleStyles.NewSubtitle())]);
         if (services.Proposals is { } proposals)
         {
             proposals.Show(proposal);
