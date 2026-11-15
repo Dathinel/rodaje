@@ -153,7 +153,9 @@ $ffmpeg = Join-Path $carpetaPortable 'Rodaje\app\ffmpeg\ffmpeg.exe'
 function Generar([string]$ruta, [int]$ancho, [int]$alto, [string]$fps, [int]$segundos) {
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $ruta) | Out-Null
     $anterior = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
-    & $ffmpeg -hide_banner -loglevel error -y -f lavfi -i "testsrc2=size=${ancho}x${alto}:rate=$fps" -f lavfi -i "sine=frequency=440:sample_rate=48000" `
+    # testsrc2 deja lisas las esquinas izquierdas de la autoprueba de seguimiento. Ruido fijo (sin «t»), con semilla
+    # y suavizado para que dé textura reproducible; los cuadros tapados por las figuras móviles se pueden perder.
+    & $ffmpeg -hide_banner -loglevel error -y -f lavfi -i "testsrc2=size=${ancho}x${alto}:rate=$fps,noise=alls=40:allf=u:all_seed=42,gblur=sigma=1" -f lavfi -i "sine=frequency=440:sample_rate=48000" `
         -t $segundos -c:v libopenh264 -b:v 8M -g 48 -pix_fmt yuv420p -c:a aac -ac 2 -b:a 192k -movflags +faststart $ruta 2>&1 | ForEach-Object { Nota "  ffmpeg: $_" }
     $ErrorActionPreference = $anterior
     if (-not (Test-Path -LiteralPath $ruta)) { throw "ffmpeg no pudo generar $ruta" }
