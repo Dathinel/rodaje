@@ -22,8 +22,8 @@ public sealed class TranscriptFormatTests
             Speakers = [new TranscriptSpeaker { Id = "speaker-1", Name = "Ana", Color = "#3A7BD5" }],
             Words =
             [
-                new TranscriptWord { Start = Time.Zero, End = Time.FromSeconds(0.5), Text = "Hola", Confidence = 0.98, SpeakerId = "speaker-1", ParagraphStart = true },
-                new TranscriptWord { Start = Time.FromSeconds(0.6), End = Time.FromSeconds(1), Text = "a", Confidence = 0.91 },
+                new SpokenWord { Start = Time.Zero, End = Time.FromSeconds(0.5), Text = "Hola", Confidence = 0.98, SpeakerId = "speaker-1", ParagraphStart = true },
+                new SpokenWord { Start = Time.FromSeconds(0.6), End = Time.FromSeconds(1), Text = "a", Confidence = 0.91 },
             ],
         });
         return project;
