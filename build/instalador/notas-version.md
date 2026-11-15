@@ -2,12 +2,12 @@ Rodaje {{VERSION}} ({{FECHA}}): editor de video nativo para Windows, compilado d
 
 ## Novedades de la {{VERSION}}
 
-- **Personalización:** temas Grafito, Claro, Alto contraste y «Seguir a Windows», acento, escala de la interfaz, editor de temas propios y perfiles exportables.
-- **Imágenes fijas** como clips (PNG, JPEG, WebP, BMP, TIFF) con efecto Ken Burns, y captura rápida de fotograma.
-- **Selección múltiple** en el inspector, pistas que se eliminan y reordenan, y la **gráfica de fotogramas clave**.
-- **HDR de punta a punta:** secuencias HDR10 y HLG compuestas en lineal BT.2020, exportación HEVC/AV1/ProRes con metadatos, visor HDR en scRGB y conversión HDR → SDR con mapeo de tonos.
-- **Rendimiento:** CPU en reposo del reproductor a la mitad, filas fuera de pantalla sin materializar.
-- **Más de 90 correcciones** de una pasada completa con el ratón y una auditoría por partes: Salir pregunta por los cambios, un solo aviso de fallo, exportar «Varias versiones» sin sobrescribir, el cuadro numérico del inspector se aplica al clip correcto. Todo en el historial de cambios del repositorio.
+- **Copiar, duplicar y pegar clips** con sus enlazados, grupos y transiciones; **pegar insertando** (Ctrl+Alt+V) y pegar en otro proyecto, que importa solo los medios que falten.
+- **Sincronizar por el sonido** dos o más clips (cámara y grabadora) y **montaje al ritmo** de la música; **asas de fundido** en los clips de audio con curva a elegir.
+- **HDR:** MaxCLL/MaxFALL medidos al exportar HDR10, «Expandir a HDR» por clip, LUT y curvas en PQ y visor HDR según el monitor de la ventana. **CinemaDNG revelado en la GPU** con el módulo RAW de cine 1.1.0 (sin GPU, sigue en la CPU).
+- **Personalización:** «Seguir a Windows» cambia al momento, color propio de las pistas y controles teñidos con el tema.
+- **Comodidad:** proyectos recientes, autoguardado configurable, Ir a tiempo (Ctrl+J), menú Reproducción, rueda de Desplazamiento, exportar entre entrada y salida u otros proyectos a la vez, submuestreo de color y aviso de versión nueva (Ayuda › Buscar actualizaciones).
+- **Más solidez:** unas 570 pruebas nuevas y arreglos en complementos (restos al actualizar o desinstalar), estabilización de clips cortos y pegar tras importar. Todo en el historial de cambios del repositorio.
 
 ## Qué trae
 
