@@ -70,7 +70,7 @@ public sealed class TranscriptDocumentTests
             DocWord word = doc.Words[i];
             Assert.True(word.SeqStart <= word.SeqEnd);
             Assert.True(i == 0 || doc.Words[i - 1].SeqStart <= word.SeqStart, "fuera de orden");
-            TranscriptWord source = transcript.Words[word.WordIndex];
+            SpokenWord source = transcript.Words[word.WordIndex];
             Time expected = reverse ? source.End : source.Start;
             Time back = clip.ToSourceTime(word.SeqStart);
             if (back >= clip.SourceIn && back < clip.SourceOut)
@@ -108,7 +108,7 @@ public sealed class TranscriptDocumentTests
             .Add("a1", "a", "m2", 0, 100, 0)
             .Add("a1", "b", "m2", 100, 200, 300)
             .WithTranscript();
-        List<TranscriptWord> words = f.Project.Transcripts[0].Words;
+        List<SpokenWord> words = f.Project.Transcripts[0].Words;
         f.Project.Transcripts[0].Speakers.Add(new TranscriptSpeaker { Id = "s1", Name = "Ana" });
         words[3].SpeakerId = "s1";
         words[4].SpeakerId = "s1";
@@ -149,7 +149,7 @@ public sealed class TranscriptDocumentTests
     public void Find_ignores_case_accents_and_punctuation()
     {
         TrimFixture f = Whole();
-        List<TranscriptWord> words = f.Project.Transcripts[0].Words;
+        List<SpokenWord> words = f.Project.Transcripts[0].Words;
         words[2].Text = "Camión,";
         words[3].Text = "rojo.";
         words[7].Text = "CAMION";

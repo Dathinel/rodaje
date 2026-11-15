@@ -23,7 +23,7 @@ internal static class TranscriptFixture
             Language = "es",
             Model = "prueba",
             MediaDuration = f.Project.GetMedia(mediaId).Duration,
-            Words = [.. Enumerable.Range(0, words).Select(i => new TranscriptWord
+            Words = [.. Enumerable.Range(0, words).Select(i => new SpokenWord
             {
                 Start = F(i * step),
                 End = F(i * step + length),

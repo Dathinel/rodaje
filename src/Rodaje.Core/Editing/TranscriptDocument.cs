@@ -81,10 +81,10 @@ public sealed class TranscriptDocument
 
             ClipTimeMap map = clip.TimeMap;
             int first = words.Count;
-            List<TranscriptWord> source = transcript.Words;
+            List<SpokenWord> source = transcript.Words;
             for (int i = FirstCandidate(source, clip.SourceIn); i < source.Count; i++)
             {
-                TranscriptWord word = source[i];
+                SpokenWord word = source[i];
                 if (word.Start >= clip.SourceOut)
                 {
                     break;
@@ -181,7 +181,7 @@ public sealed class TranscriptDocument
     }
 
     // Las palabras van en orden de inicio y ninguna dura más que el medio: basta saltar las que terminan antes del clip.
-    private static int FirstCandidate(List<TranscriptWord> words, Time sourceIn)
+    private static int FirstCandidate(List<SpokenWord> words, Time sourceIn)
     {
         int lo = 0, hi = words.Count;
         while (lo < hi)
