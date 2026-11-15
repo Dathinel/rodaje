@@ -41,8 +41,12 @@ public static class InterchangeFiles
         _ => ".otio",
     };
 
-    /// <summary>Lee un archivo y lo deja listo para añadir a <paramref name="target"/>; no lo modifica.</summary>
-    public static InterchangeResult Read(string path, Project target, InterchangeOptions options, IIdGenerator ids)
+    /// <summary>
+    /// Lee un archivo y lo deja listo para añadir a <paramref name="target"/>, sin modificarlo. <paramref name="targetDirectory"/>
+    /// es la carpeta del proyecto (sus rutas relativas se resuelven contra ella para reconocer los medios que ya tiene).
+    /// Lanza <see cref="InterchangeException"/> si el archivo está roto o pasa de un presupuesto.
+    /// </summary>
+    public static InterchangeResult Read(string path, Project target, string? targetDirectory, InterchangeOptions options, IIdGenerator ids)
     {
         InterchangeFormat format = FormatOf(path) ?? throw new InterchangeException($"«{Path.GetFileName(path)}» no es una EDL, un FCPXML ni un OpenTimelineIO.");
         var info = new FileInfo(path);
@@ -52,14 +56,15 @@ public static class InterchangeFiles
         }
 
         string text = Encoding.UTF8.GetString(File.ReadAllBytes(path));
-        return Parse(text, format, Path.GetDirectoryName(Path.GetFullPath(path)), target, options, ids);
+        return Parse(text, format, Path.GetDirectoryName(Path.GetFullPath(path)), target, targetDirectory, options, ids);
     }
 
-    public static InterchangeResult Parse(string text, InterchangeFormat format, string? baseDirectory, Project target, InterchangeOptions options, IIdGenerator ids)
+    /// <summary>Como <see cref="Read"/> con el texto ya leído; <paramref name="baseDirectory"/> es la carpeta del archivo importado.</summary>
+    public static InterchangeResult Parse(string text, InterchangeFormat format, string? baseDirectory, Project target, string? targetDirectory, InterchangeOptions options, IIdGenerator ids)
     {
         var report = new InterchangeReport();
         TimelineDraft draft = ReadDraft(text, format, baseDirectory, options, report);
-        return SequenceBuilder.Build(draft, target, ids, report);
+        return SequenceBuilder.Build(draft, target, targetDirectory, ids, report);
     }
 
     /// <summary>Lo leído antes de fusionarlo con un proyecto, con identificadores locales.</summary>
@@ -74,7 +79,7 @@ public static class InterchangeFiles
     /// Los textos que escribiría <see cref="Write"/>, sin tocar el disco. El informe sale de <see cref="Fidelity.Project"/>,
     /// la misma regla que comprueban las pruebas de ida y vuelta: los escritores no informan por su cuenta.
     /// </summary>
-    public static IReadOnlyList<InterchangeOutput> Format(Project project, Sequence sequence, string? projectDirectory, InterchangeFormat format, InterchangeOptions options, InterchangeReport report)
+    public static IReadOnlyList<InterchangeOutput> Serialize(Project project, Sequence sequence, string? projectDirectory, InterchangeFormat format, InterchangeOptions options, InterchangeReport report)
     {
         Fidelity.Project(project, sequence, format, options, report);
         return format switch
@@ -92,7 +97,7 @@ public static class InterchangeFiles
         string folder = Path.GetDirectoryName(Path.GetFullPath(path)) ?? ".";
         string stem = Path.GetFileNameWithoutExtension(path);
         string extension = Path.GetExtension(path);
-        foreach (InterchangeOutput output in Format(project, sequence, projectDirectory, format, options, report))
+        foreach (InterchangeOutput output in Serialize(project, sequence, projectDirectory, format, options, report))
         {
             string file = Path.Combine(folder, stem + output.Suffix + extension);
             File.WriteAllText(file, output.Text, new UTF8Encoding(false));

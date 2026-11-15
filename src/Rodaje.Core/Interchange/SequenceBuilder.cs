@@ -9,9 +9,10 @@ public static class SequenceBuilder
     /// Prepara <paramref name="draft"/> para añadirlo a <paramref name="target"/> sin tocarlo: identificadores nuevos para
     /// todo (medios, secuencias, pistas, clips, enlaces, grupos, transiciones y marcadores), medios deduplicados por ruta
     /// normalizada y reutilizados si el proyecto ya los tiene, solapes sin transición resueltos con aviso, y el conjunto
-    /// validado con <see cref="ModelValidator"/>. Lanza <see cref="InterchangeException"/> si no es válido.
+    /// validado con <see cref="ModelValidator"/>. Las rutas relativas de <paramref name="target"/> se resuelven contra
+    /// <paramref name="targetDirectory"/>. Lanza <see cref="InterchangeException"/> si no es válido.
     /// </summary>
-    public static InterchangeResult Build(TimelineDraft draft, Project target, IIdGenerator ids, InterchangeReport report) =>
+    public static InterchangeResult Build(TimelineDraft draft, Project target, string? targetDirectory, IIdGenerator ids, InterchangeReport report) =>
         throw new NotImplementedException("SequenceBuilder: pendiente (fase F3 de D-062).");
 
     /// <summary>

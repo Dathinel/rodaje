@@ -1,6 +1,9 @@
 namespace Rodaje.Core.Interchange.Otio;
 
-/// <summary>Lee OpenTimelineIO; lo que no entiende va al informe y nunca rompe la lectura.</summary>
+/// <summary>
+/// Lee OpenTimelineIO. Un elemento que no entiende se convierte en hueco o en clip sin medio y va al informe; un archivo roto o
+/// que pasa de <see cref="InterchangeLimits"/> lanza <see cref="InterchangeException"/>.
+/// </summary>
 public static class OtioReader
 {
     public static TimelineDraft Read(string text, string? baseDirectory, InterchangeOptions options, InterchangeReport report) =>

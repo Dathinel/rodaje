@@ -6,7 +6,7 @@ Rodaje importa y exporta líneas de tiempo en **EDL CMX 3600**, **FCPXML 1.10** 
 
 | Pieza | Qué hace |
 |---|---|
-| `InterchangeFiles` | Fachada: `FormatOf`, `Read`/`Parse` (archivo → `InterchangeResult` listo para añadir al proyecto), `Format`/`Write` (secuencia → textos o archivos), `Preview` (solo el informe) |
+| `InterchangeFiles` | Fachada: `FormatOf`, `Read`/`Parse` (archivo → `InterchangeResult` listo para añadir al proyecto), `Serialize`/`Write` (secuencia → textos o archivos), `Preview` (solo el informe) |
 | `TimelineDraft` | Lo que entrega un lector y lo que `Fidelity.Project` dice que debe entregar: un `Project` con medios y secuencias (compuestos y principal) con identificadores locales |
 | `Fidelity` | Qué sobrevive en cada formato (la tabla de abajo). De ella salen el informe y la prueba de ida y vuelta: `Read(Write(s))` debe dar `Project(s)` (`Difference` las compara sin mirar identificadores) |
 | `TimelineWalk` | Vista plana para escribir: por pista, clips y huecos seguidos con su medio, su compuesto y sus transiciones; aplana compuestos con presupuesto y detección de ciclos |
@@ -42,6 +42,7 @@ Importar crea **una secuencia nueva** en el proyecto abierto, en un solo paso de
 | Marcadores de secuencia | `* LOC:` tras el evento que lo cubre | `marker` en el elemento del `spine` que lo cubre, en su tiempo local | `Marker.2` |
 | Regiones | no | `chapter-marker` (solo inicio): aprox. | `Marker` con duración |
 | Colores de clip, grupos, enlaces | no | enlaces aprox.; lo demás no | **meta** |
+| Subtítulos | `.srt` aparte (`SubtitleFiles`) | `.srt` aparte (`caption`, más adelante) | `.srt` aparte + **meta** |
 | Nombre y ruta del medio | `* FROM CLIP NAME:` y `* SOURCE FILE:` | `asset`/`media-rep src` (`file://`) | `ExternalReference.target_url` |
 | Código de tiempo de cámara | carrete y TC de origen | `start` del `asset` y `tcFormat` | `available_range.start_time` |
 
@@ -50,7 +51,7 @@ Importar crea **una secuencia nueva** en el proyecto abierto, en un solo paso de
 ## Tiempo, tasas y código de tiempo
 
 - Todo se convierte a `Time` (705 600 000 ticks/s). FCPXML (`"1001/30000s"`) se lee como fracción exacta. OTIO guarda `RationalTime{value, rate}` en coma flotante: 23,976, 29,97 y 59,94 (tolerancia 1e-3) se normalizan a `24000/1001`, `30000/1001` y `60000/1001` con un aviso `Info`; un redondeo que mueva un cuadro de video o más de una muestra de audio es aproximado.
-- **`Timecode`** (`Rodaje.Core.Timing`): cuadro + base nominal (24, 25, 30, 48, 50, 60) + drop frame. Drop frame solo a 29,97 (salta 2 números por minuto salvo cada 10) y 59,94 (salta 4), escrito con `;`; 23,976 siempre sin drop frame con base 24. Cifras de referencia: `00:01:00;02` = 1800 y `00:10:00;00` = 17 982 a 29,97; `00:01:00;04` = 3600 a 59,94; `23:59:59;29` = 2 589 407.
+- **`SmpteTimecode`** (`Rodaje.Core.Timing`; `Rodaje.Engine.Presentation.Timecode` es otra cosa: el texto del reloj en pantalla): cuadro + base nominal (24, 25, 30, 48, 50, 60) + drop frame. Drop frame solo a 29,97 (salta 2 números por minuto salvo cada 10) y 59,94 (salta 4), escrito con `;`; 23,976 siempre sin drop frame con base 24. Cifras de referencia: `00:01:00;02` = 1800 y `00:10:00;00` = 17 982 a 29,97; `00:01:00;04` = 3600 a 59,94; `23:59:59;29` = 2 589 407.
 - **TC de inicio** de la secuencia: `Sequence.StartTimecode` (nulo = `00:00:00:00`); al exportar sin él se propone `01:00:00:00`.
 - **TC de los medios:** `MediaRef.Timecode` y `MediaRef.Reel` (formato 16, solo escritos si tienen valor), leídos de `timecode` y `reel_name` de FFmpeg. Sin TC, el origen empieza en `00:00:00:00` y el carrete es el nombre del archivo.
 - **Solo la EDL cuantiza:** un clip de audio entre cuadros se redondea y va al informe. Un medio a otra tasa: en EDL su TC se expresa a la tasa de la secuencia con aviso; en FCPXML y OTIO va con la suya.
@@ -83,7 +84,7 @@ El archivo importado no es de confianza. El lector de XML propio salta la DTD si
 | Fase | Qué | Estado |
 |---|---|---|
 | F0 | Firmas, este documento y D-062 | hecho |
-| F1 | `Timecode` | pendiente |
+| F1 | `SmpteTimecode` | pendiente |
 | F2 | Formato 16 (`startTimecode`, `timecode`, `reel`), TC de los medios, reenlazado con datos desconocidos | pendiente |
 | F3 | `TimelineWalk`, `SequenceBuilder`, `Fidelity`, límites | pendiente |
 | F4 | EDL, OTIO, FCPXML | pendiente |
