@@ -28,7 +28,7 @@ public sealed class MediaTranscript
     public List<TranscriptSpeaker> Speakers { get; set; } = [];
 
     /// <summary>Palabras en orden de inicio.</summary>
-    public List<TranscriptWord> Words { get; set; } = [];
+    public List<SpokenWord> Words { get; set; } = [];
 
     public MediaTranscript Clone() => new()
     {
@@ -54,7 +54,7 @@ public sealed class MediaTranscript
 }
 
 /// <summary>Una palabra de una <see cref="MediaTranscript"/>; claves cortas en el JSON porque son casi todo su peso.</summary>
-public sealed class TranscriptWord
+public sealed class SpokenWord
 {
     [JsonPropertyName("s")]
     public Time Start { get; set; }
@@ -78,9 +78,9 @@ public sealed class TranscriptWord
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public bool ParagraphStart { get; set; }
 
-    public TranscriptWord Clone() => (TranscriptWord)MemberwiseClone();
+    public SpokenWord Clone() => (SpokenWord)MemberwiseClone();
 
-    public bool ContentEquals(TranscriptWord other)
+    public bool ContentEquals(SpokenWord other)
     {
         ArgumentNullException.ThrowIfNull(other);
         return Start == other.Start && End == other.End && Text == other.Text && Confidence.Equals(other.Confidence)
