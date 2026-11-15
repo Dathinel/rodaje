@@ -25,6 +25,9 @@ internal static unsafe partial class StartupSplash
     private const int DwmCaptionColor = 35;
     private const int DwmTextColor = 36;
 
+    /// <summary>Coordenada fuera de cualquier monitor para las ventanas de una corrida de fondo (<see cref="AppOptions.RunsInBackground"/>).</summary>
+    public const int OffScreen = -20000;
+
     private static nint _hwnd;
     private static nint _panelBrush;
     private static nint _logo;
@@ -35,8 +38,11 @@ internal static unsafe partial class StartupSplash
 
     public static bool IsShown => _hwnd != 0;
 
-    /// <summary>Crea y pinta el armazón. Si algo falla, no hay armazón y la app sigue como siempre.</summary>
-    public static void Show(AppSettings settings)
+    /// <summary>
+    /// Crea y pinta el armazón. Si algo falla, no hay armazón y la app sigue como siempre. De fondo
+    /// (<paramref name="background"/>) va fuera de pantalla, sin foco ni botón en la barra de tareas.
+    /// </summary>
+    public static void Show(AppSettings settings, bool background)
     {
         try
         {
@@ -72,7 +78,9 @@ internal static unsafe partial class StartupSplash
             int height = (int)((settings.WindowHeight > 0 ? settings.WindowHeight : 900) * scale);
             const uint OverlappedWindow = 0x00CF0000;
             const int UseDefault = unchecked((int)0x80000000);
-            _hwnd = CreateWindowExW(0, ClassName, "Rodaje", OverlappedWindow, UseDefault, UseDefault, width, height, 0, 0, instance, 0);
+            int origin = background ? OffScreen : UseDefault;
+            const uint NoActivateToolWindow = 0x08000080; // WS_EX_NOACTIVATE | WS_EX_TOOLWINDOW
+            _hwnd = CreateWindowExW(background ? NoActivateToolWindow : 0, ClassName, "Rodaje", OverlappedWindow, origin, origin, width, height, 0, 0, instance, 0);
             if (_hwnd == 0)
             {
                 return;
@@ -80,7 +88,7 @@ internal static unsafe partial class StartupSplash
 
             // CW_USEDEFAULT no mira el área de trabajo: 1440×900 en un portátil pasaría bajo la barra de tareas.
             var monitor = new MONITORINFO { cbSize = (uint)sizeof(MONITORINFO) };
-            if (GetWindowRect(_hwnd, out RECT placed) != 0 && GetMonitorInfoW(MonitorFromWindow(_hwnd, 2), &monitor) != 0) // MONITOR_DEFAULTTONEAREST
+            if (!background && GetWindowRect(_hwnd, out RECT placed) != 0 && GetMonitorInfoW(MonitorFromWindow(_hwnd, 2), &monitor) != 0) // MONITOR_DEFAULTTONEAREST
             {
                 RECT w = monitor.rcWork;
                 ScreenRect fit = new ScreenRect(placed.Left, placed.Top, placed.Right - placed.Left, placed.Bottom - placed.Top)
@@ -95,7 +103,7 @@ internal static unsafe partial class StartupSplash
             _ = DwmSetWindowAttribute(_hwnd, DwmCaptionColor, &caption, sizeof(uint));
             _ = DwmSetWindowAttribute(_hwnd, DwmTextColor, &text, sizeof(uint));
             // SW_SHOWDEFAULT respeta el modo con que se abrió el programa (un acceso directo puede pedirlo maximizado).
-            _ = ShowWindow(_hwnd, settings.WindowMaximized ? 3 : 10);
+            _ = ShowWindow(_hwnd, background ? 4 : settings.WindowMaximized ? 3 : 10); // 4 = SW_SHOWNOACTIVATE
             _ = UpdateWindow(_hwnd);
             Program.Metrics.Milestone("armazon_visible");
         }

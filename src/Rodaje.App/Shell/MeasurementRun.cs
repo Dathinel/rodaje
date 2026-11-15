@@ -116,7 +116,12 @@ internal sealed class MeasurementRun(MainWindow window, PlayerEngine engine, Met
                 $"CPU del proceso en reproducción: {cpu:0.0} % de un núcleo; memoria privada {self.PrivateMemorySize64 / 1048576.0:0} MB, conjunto de trabajo {self.WorkingSet64 / 1048576.0:0} MB"));
         }
 
-        _ = SetForegroundWindow((HWND)window.Hwnd);
+        // De fondo no se quita el primer plano a quien usa el equipo: la tecla va por PostMessage (SendSpace).
+        if (!window.RunsInBackground)
+        {
+            _ = SetForegroundWindow((HWND)window.Hwnd);
+        }
+
         window.ExportButton.Focus(FocusState.Keyboard);
         await Task.Delay(300);
         int before = _toggles;

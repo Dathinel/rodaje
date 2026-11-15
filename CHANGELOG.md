@@ -8,6 +8,10 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ## [Sin publicar]
 
+### Cambiado
+
+- La autoprueba y las medidas (`--autoprueba`, `--medir`, `--arranque`) corren de fondo: la ventana no aparece en pantalla ni toma el foco; `--visible` la muestra como antes.
+
 ## [1.0.3] - 2026-11-15
 
 Con ideas tomadas de los editores de referencia.
