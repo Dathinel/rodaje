@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Crashes;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.RenderCache;
@@ -183,7 +184,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
             token = _scanCancel.Token;
         }
 
-        _ = ScanAsync(plan, token);
+        UiTask.Run(ScanAsync(plan, token));
     }
 
     /// <summary>Â«Secuencia â€º Calcular de entrada a salidaÂ»: va delante de lo demÃ¡s (tambiÃ©n en modo manual).</summary>
@@ -405,7 +406,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
 
         if (plan is not null && scan is not null)
         {
-            _ = Task.Run(() => Publish(plan, scan, setPlan: false));
+            UiTask.Run(Task.Run(() => Publish(plan, scan, setPlan: false)));
         }
     }
 
