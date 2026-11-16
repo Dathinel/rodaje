@@ -272,6 +272,7 @@ internal partial interface IMMNotificationClient
     int OnPropertyValueChanged(nint deviceId, PropertyKey key);
 }
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 internal static unsafe partial class NativeMethods
 {
     public const uint CoinitMultithreaded = 0;

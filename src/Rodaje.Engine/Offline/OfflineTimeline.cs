@@ -131,7 +131,7 @@ public sealed class OfflineTimeline : IDisposable, IEvaluatorFrames
         _mainSlots = new OfflineReaders.Slot?[_lanes.Length];
         _incomingSlots = new OfflineReaders.Slot?[_lanes.Length];
 
-        long dedicated = device is { IsDisposed: false } gpu ? gpu.DedicatedVideoMemory : 0;
+        long dedicated = OperatingSystem.IsWindowsVersionAtLeast(7) && device is { IsDisposed: false } gpu ? gpu.DedicatedVideoMemory : 0;
         long budget = new TimelineSessionOptions { VramBudgetBytes = options.VramBudgetBytes }.ResolveVramBudget(dedicated);
         var decoderOptions = new VideoDecoderOptions
         {

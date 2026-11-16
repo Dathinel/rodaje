@@ -77,7 +77,7 @@ public sealed class TimelineSession : IDisposable
                 AllowHardwareDecoding = options.AllowHardwareDecoding,
                 CompactReferencePool = options.CompactReferencePool,
             };
-            long vramBudget = options.ResolveVramBudget(device is { IsDisposed: false } gpu ? gpu.DedicatedVideoMemory : 0);
+            long vramBudget = options.ResolveVramBudget(OperatingSystem.IsWindowsVersionAtLeast(7) && device is { IsDisposed: false } gpu ? gpu.DedicatedVideoMemory : 0);
             _scheduler = new TimelineScheduler(plan, clock, backend, decoderOptions, options, vramBudget);
             _scheduler.EndReached += (_, e) => EndReached?.Invoke(this, e);
             _scheduler.DecodeFailed += (_, e) => DecodeFailed?.Invoke(this, e);

@@ -7,7 +7,9 @@ public static class AudioOutput
     /// <summary>Abre el dispositivo de salida predeterminado; si no hay ninguno usable, devuelve una salida muda con el reloj del sistema.</summary>
     /// <remarks>Mirar <see cref="IAudioOutput.HasDevice"/> y <see cref="IAudioOutput.FallbackReason"/> para avisar al usuario.</remarks>
     public static IAudioOutput Open(IAudioSampleSource source, AudioOutputOptions? options = null) =>
-        Open(source, options ?? new AudioOutputOptions(), WasapiOutput.Open);
+        Open(source, options ?? new AudioOutputOptions(), OperatingSystem.IsWindows()
+            ? WasapiOutput.Open
+            : (_, _) => throw new AudioDeviceUnavailableException("La salida de audio en este sistema todavía no está disponible."));
 
     internal static IAudioOutput Open(
         IAudioSampleSource source,

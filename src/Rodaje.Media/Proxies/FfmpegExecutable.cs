@@ -15,7 +15,7 @@ namespace Rodaje.Media.Proxies;
 /// </remarks>
 public sealed class FfmpegExecutable
 {
-    public const string FileName = "ffmpeg.exe";
+    public static string FileName { get; } = FfmpegLocator.ExecutableName("ffmpeg");
 
     /// <summary>DLL que <c>ffmpeg.exe</c> importa además de las que carga Rodaje.</summary>
     public static IReadOnlyList<string> ExtraLibraries { get; } = ["avfilter-12", "avdevice-63"];
@@ -58,7 +58,7 @@ public sealed class FfmpegExecutable
     public static FfmpegExecutable Locate()
     {
         FfmpegLibrary.EnsureInitialized();
-        return Open(System.IO.Path.Combine(FfmpegLibrary.Directory!, FileName));
+        return Open(System.IO.Path.Combine(FfmpegLocator.ExecutableDirectory(FfmpegLibrary.Directory!), FileName));
     }
 
     /// <summary>Como <see cref="Locate"/>, pero devuelve el motivo en español en vez de lanzar.</summary>
@@ -224,17 +224,17 @@ public sealed class FfmpegExecutable
                 $"No existe {path}. Los proxies necesitan el ffmpeg.exe LGPL junto a las DLL; ejecuta Probar.bat preparar-entorno.");
         }
 
-        string? missing = ExtraLibraries.FirstOrDefault(l => !File.Exists(System.IO.Path.Combine(directory, l + ".dll")));
+        string? missing = ExtraLibraries.FirstOrDefault(l => !File.Exists(CompanionPath(directory, l)));
         if (missing is not null)
         {
-            throw new FfmpegNotFoundException($"Falta {missing}.dll junto a {path}; ffmpeg.exe la necesita para arrancar.");
+            throw new FfmpegNotFoundException($"Falta {CompanionPath(directory, missing)}; {FileName} la necesita para arrancar.");
         }
 
         // Antes de ejecutar nada: si el exe cambia durante la verificación, la siguiente apertura lo vuelve a verificar.
         string stamp = Stamp(path, ExtraLibraries);
         foreach (string library in ExtraLibraries)
         {
-            if (FfmpegLibrary.CompanionLibraryProblem(System.IO.Path.Combine(directory, library + ".dll")) is { } companion)
+            if (FfmpegLibrary.CompanionLibraryProblem(CompanionPath(directory, library)) is { } companion)
             {
                 throw new FfmpegNotFoundException($"{companion} Rodaje solo puede usar un FFmpeg LGPL ({path}).");
             }
@@ -282,10 +282,20 @@ public sealed class FfmpegExecutable
     }
 
     // Tamaño y fecha del exe y de las DLL extra; una cadena vacía en la parte de un archivo que falta.
+    // Junto al exe en Windows y en la distribución; en ../lib en el .entorno de Linux y macOS.
+    private static string CompanionPath(string executableDirectory, string library)
+    {
+        string file = FfmpegLocator.LibraryFileName(library);
+        string lib = System.IO.Path.Combine(executableDirectory, "..", FfmpegLocator.LibrarySubdirectory);
+        return OperatingSystem.IsWindows() || File.Exists(System.IO.Path.Combine(executableDirectory, file))
+            ? System.IO.Path.Combine(executableDirectory, file)
+            : System.IO.Path.GetFullPath(System.IO.Path.Combine(lib, file));
+    }
+
     private static string Stamp(string path, IReadOnlyList<string> libraries)
     {
         string directory = System.IO.Path.GetDirectoryName(path)!;
-        return string.Join('|', libraries.Select(l => System.IO.Path.Combine(directory, l + ".dll")).Prepend(path).Select(file =>
+        return string.Join('|', libraries.Select(l => CompanionPath(directory, l)).Prepend(path).Select(file =>
         {
             var info = new FileInfo(file);
             return info.Exists ? $"{info.Length}:{info.LastWriteTimeUtc.Ticks}" : "";
@@ -345,7 +355,7 @@ public sealed class FfmpegExecutable
             throw new FfmpegNotFoundException($"No se pudo ejecutar {path}: {ex.Message}", ex);
         }
 
-        ChildProcessJob.TryAssign(process);
+        ChildProcessGuard.TryAssign(process);
         process.StandardInput.Close();
         Task<string> output = process.StandardOutput.ReadToEndAsync();
         Task<string> error = process.StandardError.ReadToEndAsync();
