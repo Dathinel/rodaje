@@ -100,7 +100,7 @@ public sealed unsafe class SharedMemoryRegion : IDisposable
         {
             Mode = FileMode.CreateNew,
             Access = FileAccess.ReadWrite,
-            Share = FileShare.None,
+            Share = FileShare.ReadWrite, // en Unix .NET bloquea con flock: el módulo tiene que poder abrirla.
             UnixCreateMode = Mode0600,
         });
         try

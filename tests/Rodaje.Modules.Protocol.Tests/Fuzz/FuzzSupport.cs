@@ -163,11 +163,3 @@ public sealed class FuzzGroup
     public const string Name = "Fuzz del protocolo";
 }
 
-/// <summary>Omite la prueba fuera de Windows: la memoria compartida con nombre no existe en Linux («Named maps are not supported»).</summary>
-public sealed class WindowsFactAttribute : FactAttribute
-{
-    public WindowsFactAttribute()
-    {
-        if (!OperatingSystem.IsWindows()) Skip = "Solo Windows: la memoria compartida con nombre (MemoryMappedFile) no existe en Linux.";
-    }
-}
