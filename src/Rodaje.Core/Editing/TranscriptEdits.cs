@@ -220,8 +220,17 @@ public static partial class TranscriptEdits
             throw new ArgumentOutOfRangeException(nameof(keep), "Lo que se deja de cada pausa debe ser menor que la pausa mínima.");
         }
 
+        return RemovePauses(ctx, Pauses(document, minimum), keep, ripple, scope);
+    }
+
+    /// <summary>Como la anterior, con las pausas elegidas (de <see cref="Pauses"/>), cada una más larga que <paramref name="keep"/>.</summary>
+    public static IReadOnlyList<(Time Start, Time End)> RemovePauses(
+        EditContext ctx, IEnumerable<(string ClipId, Time Start, Time End)> pauses, Time keep, bool ripple, RippleScope scope)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(pauses);
         Time half = Time.FromTicks(keep.Ticks / 2);
-        return RemoveByClip(ctx, Pauses(document, minimum).Select(p => (p.ClipId, p.Start + half, p.End - (keep - half))), ripple, scope);
+        return RemoveByClip(ctx, pauses.Where(p => p.End - p.Start > keep).Select(p => (p.ClipId, p.Start + half, p.End - (keep - half))), ripple, scope);
     }
 
     // Clip a clip, del que empieza más tarde al que empieza antes: el ripple de un clip solo corre lo que va a su derecha,

@@ -43,7 +43,7 @@ public sealed class TranscriptPanelModel
     public bool ShowRemoved { get; set; }
     public IReadOnlyList<RemovedTranscriptSpan> RemovedWords { get; private set; } = [];
     public MediaTranscript? CurrentTranscript => Document.Words.Count == 0 ? null
-        : _transcripts.FirstOrDefault(t => t.Id == Document.Words[Math.Max(0, SelectionFirst)].TranscriptId);
+        : _transcripts.FirstOrDefault(t => t.Id == Document.Words[SelectionFirst >= 0 ? SelectionFirst : Math.Max(0, ActiveWord)].TranscriptId);
     public IReadOnlyList<TranscriptSpeaker> Speakers => CurrentTranscript?.Speakers ?? [];
     public int ActiveWord { get; private set; } = -1;
     public int SelectionFirst => _anchor < 0 ? -1 : Math.Min(_anchor, _caret);
@@ -172,6 +172,9 @@ public sealed class TranscriptPanelModel
         : new EditTranscriptCommand(transcript.MediaId,
             t => TranscriptEdits.UpdateSpeaker(t, speakerId, name, color), "Editar hablante");
 
+    /// <summary>Las palabras elegidas son de más de un medio: no hay un juego de hablantes común.</summary>
+    public bool SelectionCrossesMedia => SelectedWords.Select(i => Document.Words[i].TranscriptId).Distinct().Skip(1).Any();
+
     public ICommand? AssignSpeaker(int number)
     {
         if (SelectionCount == 0 || CurrentTranscript is not { } transcript || number < 0
@@ -218,15 +221,6 @@ public sealed class TranscriptPanelModel
         if (chosen.Length == Pauses.Count)
             return Edits.RemovePauses(_sequence.Id, Document.TrackId, MinimumPause, KeepPause, ripple: true, RippleScope.Track);
 
-        // El núcleo ofrece todas las pausas; para una selección se reutiliza su edición de tramos, en un solo paso.
-        return new SequenceEditCommand("Quitar pausas", _sequence.Id, ctx =>
-        {
-            Time half = Time.FromTicks(KeepPause.Ticks / 2);
-            foreach (IGrouping<string, PauseChoice> group in chosen.GroupBy(p => p.ClipId)
-                         .OrderByDescending(g => ctx.Sequence.GetClip(g.Key).Clip.Start))
-            {
-                AnalysisEdits.RemoveSpans(ctx, group.Key, group.Select(p => (p.Start + half, p.End - (KeepPause - half))), true, RippleScope.Track);
-            }
-        });
+        return Edits.RemovePauses(_sequence.Id, [.. chosen.Select(p => (p.ClipId, p.Start, p.End))], KeepPause, ripple: true, RippleScope.Track);
     }
 }

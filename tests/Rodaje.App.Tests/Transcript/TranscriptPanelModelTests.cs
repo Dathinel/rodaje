@@ -333,4 +333,43 @@ public sealed class TranscriptPanelModelTests
         }
         Assert.Equal(TranscriptShortcuts.PanelKeys.Count, TranscriptShortcuts.PanelKeys.Select(k => k.Chord).Distinct().Count());
     }
+
+    [Fact]
+    public void Without_selection_the_current_transcript_is_the_one_playing_and_a_mixed_selection_is_flagged()
+    {
+        Project project = Talk();
+        project.Media.Add(new MediaRef { Id = "m2", Path = @"C:\otra.wav", Duration = S(6), HasAudio = true, SampleRate = 48000, AudioChannels = 2 });
+        project.Sequences[0].AudioTracks[0].Clips.Add(new Clip { Id = "c2", MediaId = "m2", SourceOut = S(6), Start = S(6) });
+        project.Transcripts.Add(new MediaTranscript
+        {
+            Id = "t2", MediaId = "m2", Language = "es", Model = "prueba", MediaDuration = S(6),
+            Words = [new SpokenWord { Text = "otra", Start = S(1), End = S(1.2), Confidence = 1 }],
+        });
+        TranscriptPanelModel model = Model(project);
+
+        model.UpdateActiveWord(S(7.5));
+        Assert.Equal("t2", model.CurrentTranscript?.Id);
+
+        model.SelectWord(4);
+        model.SelectWord(5, extend: true);
+        Assert.True(model.SelectionCrossesMedia);
+        Assert.Null(model.AssignSpeaker(0));
+    }
+
+    [Fact]
+    public void Removing_only_some_pauses_goes_through_the_core_and_keeps_the_others()
+    {
+        Project project = Talk();
+        TranscriptPanelModel model = Model(project);
+        Assert.Equal(4, model.Pauses.Count);
+        foreach (PauseChoice pause in model.Pauses.Skip(1)) pause.IsChecked = false;
+
+        ICommand command = model.RemovePauses()!;
+        command.Apply(project);
+
+        Assert.True(model.Rebuild(project, project.Sequences[0], version: 1));
+        Assert.Equal(3, model.Pauses.Count);
+        // La primera pausa (0,2–1 s) queda en lo que se deja, ajustado al cuadro: 0,6 s menos.
+        Assert.Equal(S(5.4), project.Sequences[0].Duration);
+    }
 }

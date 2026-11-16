@@ -280,9 +280,29 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
 
     private void FollowCursor()
     {
+        int previous = Model.ActiveWord;
         if (_services is null || Visibility != Visibility.Visible || !Model.UpdateActiveWord(_services.Session.Position)) return;
-        foreach ((TextBlock text, DocParagraph paragraph) in _realized) Highlight(text, paragraph);
+        // Solo los párrafos de la palabra que deja de sonar y de la que empieza: esto corre en cada cuadro de la reproducción.
+        foreach ((TextBlock text, DocParagraph paragraph) in _realized)
+        {
+            if (Holds(paragraph, previous) || Holds(paragraph, Model.ActiveWord)) Highlight(text, paragraph);
+        }
+
         RevealWord(Model.ActiveWord);
+    }
+
+    private static bool Holds(DocParagraph paragraph, int word) => word >= paragraph.FirstWord && word < paragraph.FirstWord + paragraph.Count;
+
+    // Con el foco en un cuadro de texto (el buscador, el de corregir), las teclas son suyas: WinUI puede dar el foco a una
+    // parte interna de la plantilla, así que se sube hasta encontrar el cuadro.
+    private static bool IsInTextBox(DependencyObject? element)
+    {
+        for (; element is not null; element = VisualTreeHelper.GetParent(element))
+        {
+            if (element is TextBox) return true;
+        }
+
+        return false;
     }
 
     private void RevealWord(int word)
@@ -318,7 +338,7 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
     public bool TryHandleShortcut(KeyChord chord)
     {
         if (_services is null || Visibility != Visibility.Visible) return false;
-        bool textInput = XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox;
+        bool textInput = XamlRoot is { } root && IsInTextBox(FocusManager.GetFocusedElement(root) as DependencyObject);
         foreach ((string id, KeyChord keys) in TranscriptShortcuts.PanelKeys)
         {
             if (keys != chord) continue;
@@ -335,7 +355,9 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
                 case TranscriptShortcuts.ExtendRight: Model.ExtendSelection(1); SelectionChanged(); RevealWord(Model.SelectionFirst + Model.SelectionCount - 1); break;
                 case TranscriptShortcuts.CorrectWord: ShowWordEditor(); break;
                 default:
-                    if (id.StartsWith(TranscriptShortcuts.AssignSpeaker, StringComparison.Ordinal))
+                    if (id.StartsWith(TranscriptShortcuts.AssignSpeaker, StringComparison.Ordinal) && Model.SelectionCrossesMedia)
+                        _services.Session.Notify(NotificationSeverity.Informational, "Transcripción", "Elige palabras de un solo medio para asignarles hablante.");
+                    else if (id.StartsWith(TranscriptShortcuts.AssignSpeaker, StringComparison.Ordinal))
                         _services.Session.ExecuteTranscript(Model.AssignSpeaker(id[^1] - '0'));
                     break;
             }

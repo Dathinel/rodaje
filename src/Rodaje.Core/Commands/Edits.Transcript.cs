@@ -30,6 +30,14 @@ public static partial class Edits
         RippleScope scope = RippleScope.Track, IIdGenerator? ids = null) =>
         new("Quitar pausas", sequenceId, ctx => { TranscriptEdits.RemovePauses(ctx, Document(ctx, guideTrackId), minimum, keep, ripple, scope); }, ids);
 
+    /// <summary>«Quitar pausas» con las pausas elegidas en el panel.</summary>
+    public static SequenceEditCommand RemovePauses(string sequenceId, IEnumerable<(string ClipId, Time Start, Time End)> pauses, Time keep,
+        bool ripple, RippleScope scope = RippleScope.Track, IIdGenerator? ids = null)
+    {
+        (string, Time, Time)[] copy = [.. pauses];
+        return new("Quitar pausas", sequenceId, ctx => { TranscriptEdits.RemovePauses(ctx, copy, keep, ripple, scope); }, ids);
+    }
+
     private static SequenceEditCommand RemoveWords(string name, string sequenceId, string? guideTrackId, IEnumerable<int> words, bool ripple,
         RippleScope scope, Func<Time, Time, Time>? cutPoint, IIdGenerator? ids)
     {
