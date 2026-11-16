@@ -8,6 +8,7 @@ using Rodaje.Playback.Composition;
 using TerraFX.Interop.DirectX;
 using static TerraFX.Interop.DirectX.D3D11;
 using Rodaje.Render.Effects;
+using Rodaje.Render.Interpolation;
 using Rodaje.Render.Shaders;
 using Rodaje.Render.Text;
 using static Rodaje.Render.RenderException;
@@ -69,6 +70,7 @@ public sealed unsafe partial class Compositor : IDisposable
     private readonly RenderTargetPool _pool;
     private readonly LutTextures _luts;
     private readonly LayerRenderer _layers;
+    private readonly FrameInterpolator _interpolator;
     private RenderTarget? _output;
     private ID3D11Texture2D* _staging;
     private TitleRasterizer? _titles;
@@ -108,6 +110,7 @@ public sealed unsafe partial class Compositor : IDisposable
         {
             _effects = new EffectPipeline(_device, _context, shaders ?? ShaderCache.Default);
             _layers = new LayerRenderer(gpu, _pipeline, _effects, _views, _pool, _luts);
+            _interpolator = new FrameInterpolator(gpu, _views, _pool, shaders ?? ShaderCache.Default);
             CreateTarget();
         }
         catch
@@ -152,6 +155,8 @@ public sealed unsafe partial class Compositor : IDisposable
 
     /// <summary>Vistas de superficies del decodificador guardadas, para diagnóstico.</summary>
     public int CachedViewCount => _views.Count;
+
+    internal int InterpolationTextureCount => _interpolator.TextureCount;
 
     /// <summary>De dónde salen las LUT. Sin proveedor, una capa con LUT sale sin ella y se cuenta en <see cref="CompositeResult.MissingContent"/>.</summary>
     public IEffectResources? Resources
@@ -235,6 +240,7 @@ public sealed unsafe partial class Compositor : IDisposable
             _layers.ShowQualifierMask = false;
             _layers.EndFrame();
             _pipeline.Unbind();
+            _interpolator.EndFrame();
             _views.EndFrame();
             _pool.EndFrame();
             _gpu.UnlockContext();
@@ -310,7 +316,7 @@ public sealed unsafe partial class Compositor : IDisposable
                 continue;
             }
 
-            if (_layers.Usable(layer) is not { } payload)
+            if (Usable(layer) is not { } payload)
             {
                 stats.LayersSkipped++;
                 continue;
@@ -333,7 +339,7 @@ public sealed unsafe partial class Compositor : IDisposable
             }
 
             bound = false;
-            LayerSource? incoming = layer.Transition is { } transition && _layers.Usable(transition.Incoming) is { } entering
+            LayerSource? incoming = layer.Transition is { } transition && Usable(transition.Incoming) is { } entering
                 ? LayerSource.Of(entering)
                 : null;
             if (_layers.Draw(layer, LayerSource.Of(payload), incoming, geometry, destination, ref stats))
@@ -423,7 +429,7 @@ public sealed unsafe partial class Compositor : IDisposable
             return DrawWithNested(layer, geometry, destination, titles, ref stats);
         }
 
-        if (_layers.Usable(layer) is not { } payload)
+        if (Usable(layer) is not { } payload)
         {
             stats.LayersSkipped++;
             return false;
@@ -466,7 +472,7 @@ public sealed unsafe partial class Compositor : IDisposable
     {
         if (layer.Nested is not { } nested)
         {
-            return _layers.Usable(layer) is { } payload ? LayerSource.Of(payload) : null;
+            return Usable(layer) is { } payload ? LayerSource.Of(payload) : null;
         }
 
         rented = _pool.Rent(destination.Width, destination.Height, LayerRenderer.IntermediateFormat);
@@ -479,6 +485,18 @@ public sealed unsafe partial class Compositor : IDisposable
         var inner = new Destination(rented, destination.Width, destination.Height, destination.SequenceWidth, destination.SequenceHeight);
         DrawLayers(nested, geometry, inner, titles, transparent: true, ref stats);
         return LayerSource.Of(new ImageView(rented, destination.Width, destination.Height));
+    }
+
+    private D3D11TexturePayload? Usable(LayerFrame layer)
+    {
+        D3D11TexturePayload? payload = _layers.Usable(layer);
+        if (payload is not null && layer.Sampling is FrameSampling.Blend or FrameSampling.OpticalFlow
+            && layer.Next?.Payload is D3D11TexturePayload next)
+        {
+            return _interpolator.Blend(payload, next, layer.Fraction) ?? payload;
+        }
+
+        return payload;
     }
 
     private static void RasterizeTitles(TitleRasterizer titles, IReadOnlyList<LayerFrame> layers)
@@ -572,6 +590,7 @@ public sealed unsafe partial class Compositor : IDisposable
         _gpu.LockContext();
         try
         {
+            _interpolator.Trim();
             _pool.Trim();
         }
         finally
@@ -700,6 +719,7 @@ public sealed unsafe partial class Compositor : IDisposable
         try
         {
             _views.Trim();
+            _interpolator.Trim();
             _pool.Trim();
         }
         finally
@@ -725,6 +745,7 @@ public sealed unsafe partial class Compositor : IDisposable
     public void Dispose()
     {
         _views.Dispose();
+        _interpolator?.Dispose();
         _pool.Dispose();
         _luts.Dispose();
         _layers?.Dispose();

@@ -118,6 +118,19 @@ internal sealed unsafe class RenderTargetPool : IDisposable
 
     public int Count => _targets.Count;
 
+    internal bool Reserve(long bytes)
+    {
+        while (Bytes + bytes > CapBytes && EvictOldestFree())
+        {
+        }
+
+        if (Bytes + bytes > CapBytes) return false;
+        Bytes += bytes;
+        return true;
+    }
+
+    internal void ReleaseReservation(long bytes) => Bytes -= bytes;
+
     /// <summary>Tope según la VRAM dedicada: 7,5 %, entre 96 y 300 MB (300 MB con 4 GB, 150 MB con 2 GB).</summary>
     public static long CapFor(long dedicatedVideoMemory) =>
         Math.Clamp((long)(dedicatedVideoMemory * 0.075), MinCapBytes, MaxCapBytes);
