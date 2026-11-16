@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+  <resources>
+    <format id="r1" name="FFVideoFormat1080p2997" frameDuration="1001/30000s" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)"/>
+    <asset id="r2" name="Toma01" uid="asset-toma01" start="0s" duration="30030/30000s" format="r1" hasVideo="1" hasAudio="1" audioSources="1" audioChannels="2" audioRate="48000">
+      <media-rep kind="original-media" src="file:///C:/Medios/Toma01.mov"/>
+    </asset>
+    <asset id="r3" name="Toma02" uid="asset-toma02" start="0s" duration="30030/30000s" format="r1" hasVideo="1" hasAudio="1" audioSources="1" audioChannels="2" audioRate="48000">
+      <media-rep kind="original-media" src="file:///C:/Medios/Toma02.mov"/>
+    </asset>
+  </resources>
+  <library>
+    <event name="Evento 1">
+      <project name="Proyecto 1">
+        <sequence format="r1" duration="40040/30000s" tcStart="0s" tcFormat="NDF">
+          <spine>
+            <asset-clip ref="r2" offset="0s" name="Toma01" start="0s" duration="10010/30000s" format="r1" tcFormat="NDF"/>
+            <asset-clip ref="r3" offset="10010/30000s" name="Toma02" start="5005/30000s" duration="20020/30000s" format="r1" tcFormat="NDF"/>
+            <gap name="Hueco" offset="30030/30000s" duration="10010/30000s" start="0s"/>
+          </spine>
+        </sequence>
+      </project>
+    </event>
+  </library>
+</fcpxml>

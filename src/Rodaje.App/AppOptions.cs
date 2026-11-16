@@ -12,7 +12,8 @@ namespace Rodaje.App;
 /// <c>--autoprueba</c> abre la ventana con el clip de prueba, pasa por todas las pestañas del inspector con un clip
 /// seleccionado, reproduce un momento y sale con 0 (la usa <c>probar.ps1</c> con el exe de Native AOT);
 /// <c>--arranque</c> escribe las marcas de arranque en el registro en cuanto la interfaz responde (con archivos, cuando se
-/// ve el primer cuadro) y cierra (la usa <c>build\medir-arranque.ps1</c>).
+/// ve el primer cuadro) y cierra (la usa <c>build\medir-arranque.ps1</c>); <c>--visible</c> deja a la vista la ventana de
+/// esas tres, que si no van de fondo.
 /// </summary>
 internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSeconds, string? LogPath, bool EnableAudio, int UiHz)
 {
@@ -27,6 +28,11 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
     /// <summary>La maneja una herramienta (medida, autoprueba, arranque): sin autoguardado ni preguntas al cerrar.</summary>
     public bool IsAutomated => MeasureSeconds is not null || SelfTest || StartupProbe;
 
+    public bool Visible { get; init; }
+
+    /// <summary>Corrida automática sin <c>--visible</c>: armazón y ventana fuera de pantalla, sin foco ni botón en la barra de tareas.</summary>
+    public bool RunsInBackground => IsAutomated && !Visible;
+
     public const string TestClipPattern = "h264-1080p-23976-aac-*.mp4";
 
     public static AppOptions Parse(string[] args)
@@ -40,6 +46,7 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
         bool noProxies = false;
         bool selfTest = false;
         bool startup = false;
+        bool visible = false;
         for (int i = 0; i < args.Length; i++)
         {
             string a = args[i];
@@ -71,6 +78,10 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             {
                 startup = true;
             }
+            else if (a.Equals("--visible", StringComparison.OrdinalIgnoreCase))
+            {
+                visible = true;
+            }
             else if (a.Equals("--sin-audio", StringComparison.OrdinalIgnoreCase))
             {
                 audio = false;
@@ -86,7 +97,7 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             files.Add(clip);
         }
 
-        return new AppOptions(files, measure, log, audio, uiHz) { Scenario = scenario, NoProxies = noProxies, SelfTest = selfTest, StartupProbe = startup };
+        return new AppOptions(files, measure, log, audio, uiHz) { Scenario = scenario, NoProxies = noProxies, SelfTest = selfTest, StartupProbe = startup, Visible = visible };
     }
 
     private static string? FindTestClip()

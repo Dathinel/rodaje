@@ -12,6 +12,10 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 - **Intercambio con otros editores (D-062):** Archivo › «Importar línea de tiempo…» y «Exportar línea de tiempo…» en EDL CMX 3600, FCPXML 1.10 y OpenTimelineIO, en C# propio dentro del núcleo (sin la librería de OTIO ni `System.Xml`, que sumaba 3,9 MB al exe). Al exportar se avisa antes de lo que no llega igual y después se puede copiar o guardar el informe con el TC de cada aviso. Importar trae el montaje como clip compuesto en pistas nuevas, en un paso del historial, y abre el reenlazado si faltan medios. Rodaje → OTIO → Rodaje no pierde nada si nadie editó el archivo fuera. Detalle en `docs/intercambio.md`.
 - **Código de tiempo de cámara:** los medios guardan su TC y su carrete (`timecode`, `reel_name` de FFmpeg, también de la pista `tmcd` de un MOV) y la secuencia su TC de inicio; el proyecto pasa al formato 16 solo si alguno tiene valor. Un medio importado de una EDL sin haber visto su archivo se reenlaza por el carrete y sus clips se corren al TC real del archivo.
 
+### Cambiado
+
+- La autoprueba y las medidas (`--autoprueba`, `--medir`, `--arranque`) corren de fondo: la ventana no aparece en pantalla ni toma el foco; `--visible` la muestra como antes.
+
 ## [1.0.3] - 2026-11-15
 
 Con ideas tomadas de los editores de referencia.

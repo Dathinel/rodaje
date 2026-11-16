@@ -152,7 +152,7 @@ public static class RandomTimelines
         if (options.Titles && kind == TrackKind.Video && random.Next(12) == 0)
         {
             long length = 25 + random.Next(75);
-            return new Clip { Id = id, Generator = new ClipGenerator { Text = $"Título {number}" }, SourceIn = Time.Zero, SourceOut = frames(length) };
+            return new Clip { Id = id, Generator = new ClipGenerator { Text = $"Título {number}", Style = new TextStyle() }, SourceIn = Time.Zero, SourceOut = frames(length) };
         }
 
         MediaRef media = project.Media[random.Next(project.Media.Count)];

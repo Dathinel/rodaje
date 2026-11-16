@@ -16,6 +16,9 @@ public static class EnvironmentVariables
     /// <summary>Carpeta de los proxies; sin ella, <c>%LOCALAPPDATA%\Rodaje\proxies</c>.</summary>
     public const string Proxies = "RODAJE_PROXIES";
 
+    /// <summary>Carpeta del render en caché (D-060); sin ella, <c>%LOCALAPPDATA%\Rodaje\render</c>.</summary>
+    public const string Render = "RODAJE_RENDER";
+
     /// <summary>Carpeta de los ajustes, atajos, complementos y cachés de la app; sin ella, <c>%LOCALAPPDATA%\Rodaje</c>.</summary>
     public const string Datos = "RODAJE_DATOS";
 
