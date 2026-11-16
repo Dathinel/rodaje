@@ -11,7 +11,8 @@ public sealed record AutoProxyDecision(bool Generate, string? Reason)
 /// <summary>
 /// Cuándo generar el proxy de un video al importarlo: lo que recomienda la política de siempre (<see cref="ProxyPolicy"/>:
 /// más de 1080p, tasa muy alta, HEVC de más de 8 bits en varias capas) y, con una GPU modesta (menos de 4 GB de VRAM o
-/// desconocida), también los intra pesados (ProRes, DNxHD, CineForm) y el HEVC de 10 bits desde 1080p.
+/// desconocida), también los intra pesados (ProRes, DNxHD, CineForm) y el HEVC de 10 bits desde 1080p. El FFV1 de más de
+/// 10 bits desde 1080p (el intermedio HDR del CinemaDNG, D-065) se decodifica en la CPU y pide proxy con cualquier GPU.
 /// </summary>
 public static class AutoProxyRule
 {
@@ -30,6 +31,11 @@ public static class AutoProxyRule
 
         bool modestGpu = dedicatedVideoMemory < ModestGpuBytes;
         bool fullHd = Math.Max(candidate.Width, candidate.Height) >= 1920 || Math.Min(candidate.Width, candidate.Height) >= 1080;
+        if (fullHd && candidate.BitDepth > 10 && candidate.Codec.Equals("ffv1", StringComparison.OrdinalIgnoreCase))
+        {
+            return new AutoProxyDecision(true, $"FFV1 de {candidate.BitDepth} bits se decodifica en la CPU y no va en tiempo real.");
+        }
+
         if (!modestGpu || !fullHd)
         {
             return AutoProxyDecision.No;
