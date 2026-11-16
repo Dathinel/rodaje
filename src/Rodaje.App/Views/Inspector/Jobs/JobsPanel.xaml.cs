@@ -45,7 +45,7 @@ internal sealed partial class JobsPanel : UserControl, IEditorView
     /// <summary>Cambió cuántos trabajos hay en curso (para el título de la pestaña).</summary>
     public event EventHandler<int>? ActiveCountChanged;
 
-    public int ActiveCount => _jobs.ActiveCount + _activeModuleCount + _activeExportCount;
+    public int ActiveCount => _jobs.ActiveCount + _activeModuleCount + _activeExportCount + _activeRenderCache;
 
     public ObservableCollection<JobItem> Items { get; } = [];
 
@@ -63,6 +63,7 @@ internal sealed partial class JobsPanel : UserControl, IEditorView
             _activeModuleCount = active;
             PublishActiveCount();
         };
+        AttachRenderCache(services);
         Exports.Attach(services);
         Exports.ActiveCountChanged += (_, active) =>
         {

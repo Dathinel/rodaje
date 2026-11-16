@@ -18,7 +18,7 @@ using Rodaje.Render;
 namespace Rodaje.App.Views.Raw;
 
 /// <summary>
-/// «Importar CinemaDNG…» (Archivo): se elige un cuadro de la carpeta, el balance, la exposición y la calidad, y la
+/// «Importar CinemaDNG…» (Archivo): se elige un cuadro de la carpeta, el balance, la exposición, la calidad y el intermedio, y la
 /// carpeta entra a la biblioteca como un video (revelado por modulo-raw en Trabajos, con avance y cancelar).
 /// </summary>
 internal static class CinemaDngDialog
@@ -91,10 +91,16 @@ internal static class CinemaDngDialog
             panel.Children.Add(quality);
         }
 
+        var intermediate = new ComboBox { Header = "Intermedio", Width = AnalysisUi.PreviewWidth };
+        intermediate.Items.Add("SDR · ProRes 422 HQ, 10 bits");
+        intermediate.Items.Add("HDR sin recortar · FFV1 16 bits, PQ BT.2020 (unas 5 veces más grande)");
+        intermediate.SelectedIndex = CinemaDngImport.DefaultIntermediate(session.Sequence.ColorSpace) == CinemaDngIntermediate.HdrPq ? 1 : 0;
+        panel.Children.Add(intermediate);
+
         panel.Children.Add(new TextBlock
         {
             Text = develop.Description
-                + "Se guarda una copia ProRes 422 HQ; los DNG no cambian. Para revelar con otros ajustes, vuelve a importar.",
+                + "Se guarda una copia aparte; los DNG no cambian. Para revelar con otros ajustes, vuelve a importar.",
             TextWrapping = TextWrapping.Wrap,
             Opacity = 0.8,
         });
@@ -109,7 +115,8 @@ internal static class CinemaDngDialog
         }
 
         services.Settings.Current.LastMediaFolder = sequence.Folder;
-        var options = new CinemaDngOptions(balance.SelectedIndex == 1 ? "luz-dia" : "camara", exposure, quality is null || quality.SelectedIndex == 0);
+        var options = new CinemaDngOptions(balance.SelectedIndex == 1 ? "luz-dia" : "camara", exposure, quality is null || quality.SelectedIndex == 0,
+            intermediate.SelectedIndex == 1 ? CinemaDngIntermediate.HdrPq : CinemaDngIntermediate.Sdr709);
         scope.Report(null, $"Revelando «{sequence.Name}»…");
         CinemaDngResult result;
         try
@@ -150,7 +157,7 @@ internal static class CinemaDngDialog
             session.Notify(NotificationSeverity.Success, Title, string.Create(SpanishNumbers.Format,
                 $"«{sequence.Name}»: {result.Frames} fotogramas de {result.Width}×{result.Height} a {(double)result.RateNumerator / result.RateDenominator:0.###} cuadros/s")
                 + (result.Camera.Length > 0 ? $" ({result.Camera})" : "")
-                + string.Create(SpanishNumbers.Format, $". Revelado en la {result.Developer}: {result.MillisecondsPerFrame:0} ms por fotograma."));
+                + string.Create(SpanishNumbers.Format, $". Revelado en la {result.Developer}: {result.MillisecondsPerFrame:0} ms y {result.MegabytesPerFrame:0.#} MB por fotograma."));
         }
     }
 }

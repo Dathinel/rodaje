@@ -23,6 +23,7 @@ using Rodaje.App.Views.Player;
 using Rodaje.App.Views.Plugins;
 using Rodaje.App.Views.Preferences;
 using Rodaje.App.Views.Shortcuts;
+using Rodaje.Core.Timing;
 using Rodaje.Engine.Timeline;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
@@ -69,6 +70,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     private PluginsView? _pluginsView;
     private ExportView? _exportView;
     private readonly ExportJobList _exports;
+    private readonly Services.RenderCache.RenderCacheHost _renderCache;
     private readonly ModuleManager _modules;
     private readonly AutosaveService? _autosave;
     private IDisposable? _pageShortcuts;
@@ -122,7 +124,18 @@ internal sealed partial class MainWindow : Window, IShellHost
         IEffectContent? content = EffectContentFactory.CreateOrNull(packages);
         Program.Metrics.Milestone("paquetes");
         var preview = new PreviewYield(engine, engine.SetPreviewQuality, () => settings.Current);
-        _exports = new ExportJobList(new AppExportRunner(content, preview, () => TitleFontFiles.Find(packages.Installed)), SynchronizationContext.Current)
+        // En la autoprueba y las medidas no se calcula nada de fondo: la franja y la cobertura sí se ven.
+        _renderCache = new Services.RenderCache.RenderCacheHost(engine,
+            options.IsAutomated ? Services.RenderCache.RenderCacheMode.Off : settings.Current.RenderCacheMode,
+            settings.Current.RenderCacheFolder, settings.Current.RenderCacheCapGb, content,
+            () => TitleFontFiles.Find(packages.Installed), engine.IsFontMissing)
+        {
+            ProjectDirectory = () => session?.FilePath is { } file ? Path.GetDirectoryName(file) : null,
+        };
+        engine.PlanChanged += _renderCache.OnPlan;
+        engine.SourceFailed += _renderCache.OnSourceFailed;
+        _exports = new ExportJobList(new AppExportRunner(content, preview, () => TitleFontFiles.Find(packages.Installed),
+            configure: _renderCache.WithRenderCache), SynchronizationContext.Current)
         {
             Concurrency = new ExportConcurrency(Environment.ProcessorCount, () => engine.DedicatedVideoMemory)
             {
@@ -150,6 +163,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             Modules = _modules, Proposals = new ModuleProposals(session), LongActions = _longActions,
             AutoProxies = CreateAutoProxies(session),
             WatchedFolders = new WatchedFolderInbox(session, () => settings.Current),
+            RenderCache = _renderCache,
         };
         engine.SetContent(content);
         IReadOnlyList<string> fonts = TitleFontFiles.Find(packages.Installed);
@@ -187,6 +201,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
         _bindings.Add(_router.Bind(ActionIds.ShowMixer, ToggleMixer));
         _bindings.Add(_router.Bind(ActionIds.ShowHistory, () => HistoryButton.Flyout.ShowAt(HistoryButton)));
+        _bindings.Add(_router.Bind(TimelineShortcuts.RenderCache, RequestRenderCache));
         _bindings.Add(Views.Analysis.AnalysisCommands.Bind(_router, _services));
         _bindings.Add(Views.Timeline.TransitionCommands.Bind(_router, _services));
         _bindings.Add(Views.Voice.VoiceCommands.Bind(_router, _services));
@@ -373,11 +388,26 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     internal KeyboardShortcutHost Keyboard => _keyboard;
 
+    /// <summary>«Secuencia › Calcular de entrada a salida»: el tramo marcado, o la secuencia entera si no hay marcas.</summary>
+    private void RequestRenderCache()
+    {
+        EditorSession session = _services.Session;
+        if (session.IsSourceActive)
+        {
+            return;
+        }
+
+        (Time start, Time end) = session.SequenceIn is { } markIn && session.SequenceOut is { } markOut && markOut > markIn
+            ? (markIn, markOut)
+            : (Time.Zero, session.Sequence.Duration);
+        _renderCache.Request(start, end);
+    }
+
     private void ShowPreferences() => UiTask.Run(ShowPreferencesAsync());
 
     private async Task ShowPreferencesAsync()
     {
-        var view = new PreferencesView();
+        var view = new PreferencesView { ClearRenderCache = _renderCache.Clear };
         SaveLayout();
         AppSettings current = _settings.Current;
         view.Attach(current, _router.Registry, new WorkspaceProfile
@@ -413,6 +443,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         _services.Player.SetProxyUsage(_settings.Current.ProxyUsage);
         _services.Player.TenBitViewer = _settings.Current.TenBitViewer;
         _services.Player.HdrViewer = _settings.Current.HdrViewer;
+        _renderCache.Configure(_options.IsAutomated ? Services.RenderCache.RenderCacheMode.Off : _settings.Current.RenderCacheMode,
+            _settings.Current.RenderCacheFolder, _settings.Current.RenderCacheCapGb);
         _router.Registry.Preset = _settings.Current.ShortcutPreset;
         if (_autosave is { } autosave)
         {
@@ -1235,6 +1267,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         Player.CloseExternal();
         _autosave?.Complete();
         _exports.Dispose();
+        _renderCache.Dispose();
         // Pide shutdown a los módulos abiertos; si alguno no sale, lo mata (y el Job Object cubre el resto).
         // Un fallo al cerrarlos (Wait lo relanza como AggregateException) se informa y no salta el resto del cierre.
         try

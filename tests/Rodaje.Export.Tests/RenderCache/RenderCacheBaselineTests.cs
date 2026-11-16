@@ -23,6 +23,7 @@ namespace Rodaje.Export.Tests.RenderCache;
 
 [Collection(ExportGpuGroup.Name)]
 [Trait("Categoria", "Rendimiento")]
+[Trait("Categoria", "TiempoReal")]
 public sealed class RenderCacheBaselineTests(ITestOutputHelper output)
 {
     private const int FrameRate = 30;

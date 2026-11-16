@@ -112,13 +112,27 @@ public sealed class RenderCacheService
     /// <summary>El trabajo en curso, si hay.</summary>
     public RenderCacheWork? Current => _current?.Work;
 
-    /// <summary>Los tramos de una revisión del plan; en <see cref="RenderCacheMode.Smart"/> rehace la cola.</summary>
-    public void SetPlan(long revision, IReadOnlyList<RenderCostSpan> spans, long cursorFrame, Rational rate)
+    /// <summary>
+    /// Los tramos de una revisión del plan; en <see cref="RenderCacheMode.Smart"/> rehace la cola. El trozo en curso se
+    /// adopta si <paramref name="adopt"/> dice que sigue vigente (mismas huellas en los mismos cuadros): cuenta para la
+    /// revisión nueva y sus cuadros no se vuelven a encolar.
+    /// </summary>
+    /// <param name="frameCount">Cuadros de la secuencia; sin él, el final del último tramo (un trozo corto pedido después se
+    /// ensancharía hacia atrás hasta ese final).</param>
+    public void SetPlan(long revision, IReadOnlyList<RenderCostSpan> spans, long cursorFrame, Rational rate, Func<RenderCacheWork, bool>? adopt = null,
+        long? frameCount = null)
     {
         ArgumentNullException.ThrowIfNull(spans);
         _revision = revision;
         _rate = rate;
-        _frameCount = spans.Count == 0 ? 0 : spans.Max(s => s.End);
+        _frameCount = frameCount ?? (spans.Count == 0 ? 0 : spans.Max(s => s.End));
+        (long Start, long End) skip = (0, 0);
+        if (_current is { } running && running.Work.Revision != revision && adopt?.Invoke(running.Work) == true)
+        {
+            _current = running with { Work = running.Work with { Revision = revision } };
+            skip = (running.Work.FirstFrame, running.Work.FirstFrame + running.Work.Count);
+        }
+
         if (Mode != RenderCacheMode.Smart)
         {
             if (Mode == RenderCacheMode.Off)
@@ -134,7 +148,21 @@ public sealed class RenderCacheService
         {
             foreach (RenderCostSpan span in spans.Where(s => s.Class == wanted && s.End > s.Start).OrderBy(s => Distance(s, cursorFrame)))
             {
-                Enqueue(span.Start, span.End);
+                if (span.End <= skip.Start || span.Start >= skip.End)
+                {
+                    Enqueue(span.Start, span.End);
+                    continue;
+                }
+
+                if (span.Start < skip.Start)
+                {
+                    Enqueue(span.Start, skip.Start);
+                }
+
+                if (span.End > skip.End)
+                {
+                    Enqueue(skip.End, span.End);
+                }
             }
         }
 

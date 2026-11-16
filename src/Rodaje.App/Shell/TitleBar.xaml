@@ -78,6 +78,7 @@
                 <MenuFlyoutItem Text="Añadir pista de video" Tag="timeline.videoTrack" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Añadir pista de audio" Tag="timeline.audioTrack" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Cerrar todos los huecos" Tag="timeline.closeGaps" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Calcular de entrada a salida" Tag="sequence.renderCache" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Añadir texto" Tag="clip.addText" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Añadir pista de subtítulos" Tag="timeline.subtitleTrack" Click="OnActionClick" />

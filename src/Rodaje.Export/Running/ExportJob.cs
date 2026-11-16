@@ -141,11 +141,20 @@ public sealed class ExportJob : IDisposable
         {
             Publish(ExportJobState.Preparing, 0, force: true);
             IReadOnlyList<EncoderSpec> encoders = _encoders ?? _options.Encoders!.GetAsync(token).GetAwaiter().GetResult();
-            ExportPlan plan = ExportPlan.Create(Request, encoders);
+            ExportPlan plan;
+            using (Measure("Plan"))
+            {
+                plan = ExportPlan.Create(Request, encoders);
+            }
             Plan = plan;
             StreamCopy = plan.Video is null ? null : StreamCopyPlanner.Decide(plan, token);
             ExportStreamCopy? copy = StreamCopy?.Copy;
-            GpuDevice? gpu = plan.Video is null || copy is not null ? null : CreateDevice();
+            GpuDevice? gpu;
+            ExportDevicePool.Lease? deviceLease = null;
+            using (Measure("Device"))
+            {
+                gpu = plan.Video is null || copy is not null ? null : CreateDevice(out deviceLease);
+            }
             try
             {
                 Profile = ExportPerformanceProfile.For(Request.Settings.Performance, gpu?.DedicatedVideoMemory ?? 0);
@@ -182,7 +191,14 @@ public sealed class ExportJob : IDisposable
             finally
             {
                 _converter = null;
-                gpu?.Dispose();
+                if (deviceLease is null)
+                {
+                    gpu?.Dispose();
+                }
+                else
+                {
+                    deviceLease.Dispose();
+                }
             }
 
             if (plan.Settings.Video is { Projection: ExportProjection.Equirectangular } && plan.Video is not null)
@@ -190,7 +206,10 @@ public sealed class ExportJob : IDisposable
                 SphericalMetadata.Inject(Request.OutputPath);
             }
 
-            Verify(plan, token);
+            using (Measure("Verify"))
+            {
+                Verify(plan, token);
+            }
             Publish(ExportJobState.Completed, Volatile.Read(ref _written), force: true);
         }
 #pragma warning disable CA1031 // Todo error del hilo termina en un estado final con su código; nada se escapa del hilo.
@@ -223,10 +242,17 @@ public sealed class ExportJob : IDisposable
         }
     }
 
-    private GpuDevice CreateDevice()
+    private GpuDevice CreateDevice(out ExportDevicePool.Lease? lease)
     {
+        lease = null;
         try
         {
+            if (_options.DevicePool is { } devices)
+            {
+                lease = devices.Acquire();
+                return lease.Device;
+            }
+
             return _options.CreateDevice?.Invoke() ?? GpuDevice.Create();
         }
         catch (Exception ex) when (ex is not ExportException)
@@ -234,6 +260,8 @@ public sealed class ExportJob : IDisposable
             throw new ExportException(ExportErrorCode.GpuFailed, $"No se pudo abrir la GPU para exportar: {ex.Message}", ex);
         }
     }
+
+    private ExportMeasurement Measure(string phase) => new(_options.Measure, phase);
 
     private IReadOnlyList<string> VideoArguments(ExportPlan plan) => _options.VideoThreads is { } threads
         ? [.. plan.Arguments.Video, "-threads:v:0", threads.ToString(CultureInfo.InvariantCulture)]
@@ -268,7 +296,12 @@ public sealed class ExportJob : IDisposable
     private ExportSinkResult EncodeVideo(ExportPlan plan, GpuDevice gpu, FfmpegPipeSink sink, ExportSinkRequest request, CancellationToken token)
     {
         VideoExportSettings settings = plan.Settings.Video!;
-        using TitleRasterizer titles = CreateTitles(gpu);
+        TitleRasterizer titleResources;
+        using (Measure("Titles"))
+        {
+            titleResources = CreateTitles(gpu);
+        }
+        using TitleRasterizer titles = titleResources;
         var options = new OfflineTimelineOptions
         {
             Titles = titles,
@@ -278,14 +311,27 @@ public sealed class ExportJob : IDisposable
             LookaheadFrames = Profile!.LookaheadFrames,
             MaxDecodersPerMedia = Profile.MaxDecodersPerMedia,
         };
-        using OfflineTimeline timeline = OfflineTimeline.Open(plan.Request.Project, Request.SequenceId, gpu, options);
+        OfflineTimeline opened;
+        using (Measure("Timeline"))
+        {
+            opened = OfflineTimeline.Open(plan.Request.Project, Request.SequenceId, gpu, options);
+        }
+        using OfflineTimeline timeline = opened;
         Time end = plan.End > timeline.Duration ? timeline.Duration : plan.End;
-        timeline.Prepare(plan.Start, end, token);
+        using (Measure("PrepareDecoders"))
+        {
+            timeline.Prepare(plan.Start, end, token);
+        }
         CheckFonts(titles, timeline.GeneratedContents(plan.Start, end));
         ExportVideoFormat format = plan.Video!;
         bool alpha = format.PixelFormat.HasAlpha();
         bool blend = plan.ConvertsRate && settings.FrameRateConversion == FrameRateConversion.Blend;
-        using var frames = new FrameSource(this, plan, timeline, gpu, titles, alpha, blend);
+        FrameSource source;
+        using (Measure("Compositor"))
+        {
+            source = new FrameSource(this, plan, timeline, gpu, titles, alpha, blend);
+        }
+        using var frames = source;
         if (settings.MeasureLightLevels && format.Color.Transfer == ExportTransfer.Pq && timeline.ColorSpace != Rodaje.Core.Model.SequenceColorSpace.Sdr709)
         {
             ContentLight measured = MeasureLight(plan, frames, gpu, timeline, token);
@@ -296,13 +342,21 @@ public sealed class ExportJob : IDisposable
         }
 
         ExportSourceRegion? region = settings.Crop is { } crop ? new ExportSourceRegion(crop.X, crop.Y, crop.Width, crop.Height) : null;
-        using var converter = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter, region: region,
-            source: timeline.ColorSpace);
+        ExportFrameConverter conversion;
+        using (Measure("Converter"))
+        {
+            conversion = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter, region: region,
+                source: timeline.ColorSpace);
+        }
+        using var converter = conversion;
         _converter = converter;
         void Write(in ExportVideoFrame frame)
         {
             Request.Pause?.Wait(token);
-            sink.WriteVideo(in frame, token);
+            using (Measure("PipeWrite"))
+            {
+                sink.WriteVideo(in frame, token);
+            }
             Interlocked.Increment(ref _written);
         }
 
@@ -319,7 +373,10 @@ public sealed class ExportJob : IDisposable
                 _rate.Clear();
             }
 
-            sink.Start(request with { Pass = pass }, token);
+            using (Measure("StartEncoder"))
+            {
+                sink.Start(request with { Pass = pass }, token);
+            }
             Publish(ExportJobState.Encoding, 0, force: true);
             for (long i = 0; i < plan.FrameCount; i++)
             {
@@ -328,14 +385,25 @@ public sealed class ExportJob : IDisposable
                 _frame = i;
                 if (converter.Pending == converter.Capacity)
                 {
-                    converter.TryRead(write);
+                    using (Measure("ReadbackAndPipe"))
+                    {
+                        converter.TryRead(write);
+                    }
                 }
 
-                frames.Submit(converter, i, token);
+                using (Measure(i == 0 ? "FirstFrame" : "RemainingFrames"))
+                {
+                    frames.Submit(converter, i, token);
+                }
                 Publish(ExportJobState.Encoding, Volatile.Read(ref _written));
             }
 
-            while (converter.TryRead(write))
+            bool Read()
+            {
+                using var measurement = Measure("ReadbackAndPipe");
+                return converter.TryRead(write);
+            }
+            while (Read())
             {
                 Publish(ExportJobState.Encoding, Volatile.Read(ref _written));
             }
@@ -346,9 +414,13 @@ public sealed class ExportJob : IDisposable
                 Publish(ExportJobState.Finalizing, Volatile.Read(ref _written), force: true);
             }
 
-            result = sink.Complete(token);
+            using (Measure("FinishEncoder"))
+            {
+                result = sink.Complete(token);
+            }
         }
 
+        _options.Measure?.Invoke("GpuReadWait", converter.ReadWait);
         return result!;
     }
 
@@ -425,7 +497,7 @@ public sealed class ExportJob : IDisposable
             return;
         }
 
-        ExportReport report = verifier.Inspect(Result.OutputPath, token);
+        ExportReport report = _options.VerifyMovPackets ? verifier.InspectMovPackets(Result.OutputPath, token) : verifier.Inspect(Result.OutputPath, token);
         Report = report;
         IReadOnlyList<string> problems = ExportVerifier.Check(report, expected);
         if (problems.Count > 0)
@@ -602,6 +674,7 @@ public sealed class ExportJob : IDisposable
             CloseActiveDecoder();
 
             (Compositor a, Compositor? b, float weight) = Compose(index, token);
+            using var measurement = _job.Measure("ConvertSubmit");
             if (b is null)
             {
                 converter.Submit(a.Texture, index);
@@ -693,7 +766,12 @@ public sealed class ExportJob : IDisposable
             Time time = Time.FromFrames(_plan.FirstFrame + index, _plan.OutputRate);
             if (!_plan.ConvertsRate)
             {
-                Compose(_compositors[0], _timeline.Render(Math.Min(_plan.FirstFrame + index, _timeline.FrameCount - 1), token));
+                CompositionFrame frame;
+                using (_job.Measure("Decode"))
+                {
+                    frame = _timeline.Render(Math.Min(_plan.FirstFrame + index, _timeline.FrameCount - 1), token);
+                }
+                Compose(_compositors[0], frame);
                 return (_compositors[0], null, 0);
             }
 
@@ -748,6 +826,7 @@ public sealed class ExportJob : IDisposable
 
         private void Compose(Compositor compositor, CompositionFrame frame)
         {
+            using var measurement = _job.Measure("Compose");
             using (frame)
             {
                 CompositeResult result;

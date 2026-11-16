@@ -384,7 +384,9 @@ public sealed class ProxyGenerator : IDisposable
                 $"el proxy empieza en {video.StartTime} y el original en {original.StartTime}; sus cuadros no coincidirían.");
         }
 
-        if (!original.IsVariableFrameRate && video.FrameRate != original.FrameRate)
+        // Las marcas en ms (Matroska) dan en un clip corto una media un 0,2 % distinta: vale si ningún cuadro se corre medio cuadro.
+        if (!original.IsVariableFrameRate && video.FrameRate != original.FrameRate
+            && Math.Abs(video.FrameCount * ((video.FrameRate.ToDouble() / original.FrameRate.ToDouble()) - 1)) >= 0.5)
         {
             throw new ProxyEncodeException($"el proxy quedó a {video.FrameRate} fps y el original es de {original.FrameRate}.");
         }

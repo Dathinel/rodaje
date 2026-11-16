@@ -10,7 +10,7 @@ internal static class RawShaders
     // size: ancho, alto, curva (0 lineal, 1 Rec.709, 2 sRGB). pattern: canal (0 R, 1 G, 2 B) en (0,0), (1,0), (0,1) y (1,1)
     // del bloque de 2×2. scale: multiplicador de cada canal dividido por el blanco (el menor multiplicador es 1) y la ganancia
     // 2^EV. row0..row2: la matriz de la cámara (tras el balance) a RGB lineal de salida, por filas.
-    private const string Develop = """
+    internal const string Develop = """
         cbuffer Develop : register(b0)
         {
             uint4 size;
