@@ -87,8 +87,16 @@ El archivo importado no es de confianza. El lector de XML propio salta la DTD si
 | F1 | `SmpteTimecode` | hecho |
 | F2 | Formato 16 (`startTimecode`, `timecode`, `reel`), TC de los medios, reenlazado con datos desconocidos | hecho |
 | F3 | `TimelineWalk`, `SequenceBuilder`, `Fidelity.Difference`, XML propio, límites | hecho |
-| F4 | EDL, OTIO, FCPXML | pendiente |
-| F5 | Servicio, diálogos, menú y autoprueba | pendiente |
+| F4t | Muestras escritas a mano y corpus hostil (Gemini) | hecho |
+| F4a | EDL (Claude; reasignada de ChatGPT, ocupado) | hecho |
+| F4c | FCPXML (Gemini; reasignada de ChatGPT) | hecho |
+| F4b | OTIO con `metadata.rodaje` y huellas (Gemini) | en curso |
+| F5 | Servicio, diálogos, menú y autoprueba | hecho, se une tras F4b |
+| F7 | FCP 7 XML (xmeml) | sin empezar (opcional) |
+
+**Peso en el exe** (F5, `build\app.ps1 -SoloPublicar` con EDL y FCPXML): `dist\Rodaje\app\Rodaje.exe` pasa de 39,40 MB (1.0.3) a 39,97 MB, +0,57 MB, sin advertencias de recorte ni de AOT. Objetivo: ≤ 3 MB.
+
+**Importar en la app.** Rodaje tiene una sola secuencia principal: la línea de tiempo importada entra como secuencia nueva y, en el cursor, un clip compuesto que la muestra en una pista de video nueva y otro enlazado en una de audio nueva, todo en un paso del historial. Doble clic entra en ella; «Descomponer» deja sus clips en la secuencia. (Decisión provisional de Claude: el diseño decía «secuencia nueva», pero la app no tiene dónde elegir otra secuencia principal.)
 
 **Cifras de F3** (`InterchangeCommonTests`, categoría `Rendimiento`; corpus de la semilla 1: 10 000 clips en 8 pistas y 400 medios; Release, prioridad baja, con el equipo ocupado por otras compilaciones): recorrer la secuencia 63 a 265 ms, fusionarla con un proyecto (identificadores nuevos, medios y validación) 255 a 650 ms, de los que validar es 157 a 576 ms; 16 a 18 MB asignados. Los umbrales de la prueba son los objetivos del diseño con el margen ×3.
 
