@@ -24,6 +24,7 @@ public static class QuickTools
     public const string Reframe = "vision.reframe";
     public const string VoiceOver = "audio.voiceOver";
     public const string SyncAudio = "analysis.syncAudio";
+    public const string RemoveFillers = "transcript.removeFillers";
 
     /// <summary>Herramientas de análisis del menú de clip que aplican al medio seleccionado.</summary>
     public static IReadOnlyList<string> ContextMenuActionIds(bool hasAudio, bool hasVideo)
@@ -55,6 +56,7 @@ public static class QuickTools
         new(RemoveBackground, "Quitar fondo", "\uE7A8", "Recorta a la persona del video elegido y vuelve transparente el fondo (módulo «Visión con IA»).", "Imagen"),
         new(Reframe, "Reencuadre automático", "\uE7AD", "Sigue al sujeto con un recorte 9:16, 1:1 o 4:5 que se mueve suave (módulo «Visión con IA»).", "Imagen"),
         new(AutoSubtitles, "Subtítulos automáticos", "", "Escribe los subtítulos a partir de la voz.", "Texto y voz"),
+        new(RemoveFillers, "Quitar muletillas…", "", "Revisa las muletillas de la transcripción y quita las marcadas.", "Texto y voz"),
         new(TextToSpeech, "Texto a voz", "", "Lee un texto en voz alta y lo pone en una pista de audio.", "Texto y voz"),
         new(AddText, "Añadir texto", "", "Un título de 5 s en el cursor.", "Texto y voz"),
         new(VoiceOver, "Grabar voz", "", "Graba tu voz desde el cursor mientras suena el resto.", "Texto y voz"),
@@ -78,6 +80,10 @@ public static class QuickTools
         string videoMissing = stillSelected ? "No aplica a imágenes fijas." : "Selecciona un clip de video.";
         return actionId switch
         {
+            RemoveFillers when audio is null => No("Selecciona un clip con voz."),
+            RemoveFillers when project.FindTranscript(audio.MediaId) is null => No("Transcribe el medio desde «Subtítulos automáticos» del menú del clip."),
+            RemoveFillers when Locked(sequence, audio.Id) is { } locked => No(locked),
+            RemoveFillers => Yes,
             "analysis.silences" => audio is null ? No("Selecciona un clip con sonido.") : Yes,
             "analysis.beats" => audio is null ? No("Selecciona el clip de música.") : Yes,
             "analysis.ducking" when audio is null => No("Selecciona el clip de música."),
