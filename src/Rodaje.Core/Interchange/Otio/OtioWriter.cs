@@ -88,28 +88,27 @@ public static class OtioWriter
             writer.WriteStartObject("metadata");
             writer.WriteStartObject("rodaje");
             writer.WriteNumber("v", 1);
-            writer.WritePropertyName("sequence");
-            mainSeqElem.WriteTo(writer);
 
-            writer.WriteStartArray("sequences");
-            bool isFirst = true;
-            foreach (JsonElement seqElem in rootProj.GetProperty("sequences").EnumerateArray())
+            // Con pistas elegidas, la secuencia entera no viaja: volvería lo que no se exportó. Quedan los ajustes por clip.
+            bool whole = options.VideoTracks is null && options.IncludeAudio;
+            if (whole)
             {
-                if (isFirst)
+                writer.WritePropertyName("sequence");
+                mainSeqElem.WriteTo(writer);
+
+                writer.WriteStartArray("sequences");
+                foreach (JsonElement seqElem in rootProj.GetProperty("sequences").EnumerateArray().Skip(1))
                 {
-                    isFirst = false;
-                    continue;
+                    seqElem.WriteTo(writer);
                 }
 
-                seqElem.WriteTo(writer);
+                writer.WriteEndArray();
+
+                writer.WritePropertyName("media");
+                mediaArrayElem.WriteTo(writer);
             }
 
-            writer.WriteEndArray();
-
-            writer.WritePropertyName("media");
-            mediaArrayElem.WriteTo(writer);
-
-            writer.WriteString("huella", timelineHuella);
+            writer.WriteString("huella", whole ? timelineHuella : "");
             writer.WriteEndObject(); // rodaje
             writer.WriteEndObject(); // metadata
 
@@ -256,12 +255,18 @@ public static class OtioWriter
         writer.WriteEndObject(); // Transition.1
     }
 
+    private static long MediaStartFrame(MediaRef media, Rational rate) =>
+        media.Timecode is not null && SmpteTimecode.TryParse(media.Timecode, media.FrameRate ?? rate, out SmpteTimecode tc) ? tc.Frame : 0;
+
+    private static Time MediaStart(MediaRef media, Rational rate) => Time.FromFrames(MediaStartFrame(media, rate), media.FrameRate ?? rate);
+
     private static void WriteCompoundStack(
         Utf8JsonWriter writer, Project project, WalkClip walkClip, Sequence inner, Rational rate, string? projectDirectory, InterchangeOptions options, Dictionary<string, JsonElement> clipJsonElements)
     {
         writer.WriteStartObject();
         writer.WriteString("OTIO_SCHEMA", "Stack.1");
         writer.WriteString("name", inner.Name);
+        writer.WriteBoolean("enabled", walkClip.Clip.Enabled);
 
         writer.WriteStartObject("source_range");
         writer.WriteString("OTIO_SCHEMA", "TimeRange.1");
@@ -280,6 +285,9 @@ public static class OtioWriter
         writer.WriteEndObject(); // source_range
 
         writer.WriteStartObject("metadata");
+        writer.WriteStartObject("rodaje");
+        writer.WriteString("secuencia", inner.Id);
+        writer.WriteEndObject();
         writer.WriteEndObject();
         writer.WriteStartArray("markers");
         writer.WriteEndArray();
@@ -303,12 +311,15 @@ public static class OtioWriter
         writer.WriteString("OTIO_SCHEMA", "Clip.2");
         string clipName = walkClip.Media?.Name ?? (clip.Generator is not null ? "Título" : "Clip");
         writer.WriteString("name", clipName);
+        writer.WriteBoolean("enabled", clip.Enabled);
 
+        // En OTIO el rango del clip va en el tiempo del medio, que empieza en su TC (available_range).
+        Time mediaStart = clip.Generator is null && walkClip.Media is { Path.Length: > 0 } m ? MediaStart(m, rate) : Time.Zero;
         writer.WriteStartObject("source_range");
         writer.WriteString("OTIO_SCHEMA", "TimeRange.1");
         writer.WriteStartObject("start_time");
         writer.WriteString("OTIO_SCHEMA", "RationalTime.1");
-        (double stVal, double stRate) = OtioTime.TimeToRationalTime(clip.SourceIn, rate);
+        (double stVal, double stRate) = OtioTime.TimeToRationalTime(clip.SourceIn + mediaStart, rate);
         writer.WriteNumber("value", stVal);
         writer.WriteNumber("rate", stRate);
         writer.WriteEndObject();
@@ -355,13 +366,7 @@ public static class OtioWriter
             writer.WriteStartObject("start_time");
             writer.WriteString("OTIO_SCHEMA", "RationalTime.1");
             Rational mediaRate = media.FrameRate ?? rate;
-            long mediaStartFrame = 0;
-            if (media.Timecode is not null && SmpteTimecode.TryParse(media.Timecode, mediaRate, out SmpteTimecode mTc))
-            {
-                mediaStartFrame = mTc.Frame;
-            }
-
-            writer.WriteNumber("value", mediaStartFrame);
+            writer.WriteNumber("value", MediaStartFrame(media, rate));
             writer.WriteNumber("rate", mediaRate.ToDouble());
             writer.WriteEndObject();
 

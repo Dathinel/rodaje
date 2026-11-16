@@ -228,6 +228,13 @@ internal static class FcpxmlFidelity
         var keptEffects = new List<EffectInstance>();
         foreach (EffectInstance effect in clip.Effects)
         {
+            // Desactivado no cambia la imagen ni el sonido: FCPXML no tiene cómo llevarlo apagado.
+            if (!effect.Enabled)
+            {
+                report.Add(IssueSeverity.Lost, IssueKind.Effect, $"El efecto desactivado «{effect.Type}» no se lleva a FCPXML.", clipId: clip.Id);
+                continue;
+            }
+
             if (effect.Type is BuiltInEffects.Transform or BuiltInEffects.Audio or BuiltInEffects.Crop)
             {
                 foreach (var (name, parameter) in effect.Parameters)
