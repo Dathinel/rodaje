@@ -26,6 +26,9 @@ public enum ItemKind
 
     /// <summary>Un preajuste de exportación (<c>rodaje.exportpreset</c>): contenedor, códecs, tamaño, tasa y sonoridad.</summary>
     ExportPreset,
+
+    /// <summary>Plantilla de movimiento <c>rodaje.template</c>; distinta de la plantilla de proyecto.</summary>
+    MotionTemplate,
 }
 
 /// <summary>
