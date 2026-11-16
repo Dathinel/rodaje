@@ -141,7 +141,13 @@ internal sealed class VideoClipPlan
         double fraction = (double)remainder / (double)denominator;
         double t = Forward ? fraction : 1 - fraction;
         long b = Forward ? a + 1 : a - 1;
-        if (t < 0.002 || t > 0.998 || b < 0 || b > (_materialEnd - Time.FromTicks(1)).ToFrames(FrameRate))
+
+        // Dentro del clip B no sale del tramo recortado; en el tramo de una transición sí se lee más allá del corte.
+        Time shown = timeline < Start ? Start : timeline >= End ? End - Time.FromTicks(1) : timeline;
+        bool inClip = shown >= TimeMap.Start && shown < TimeMap.End;
+        long first = inClip ? TimeMap.SourceIn.ToFrames(FrameRate) : 0;
+        long last = ((inClip ? TimeMap.SourceOut : _materialEnd) - Time.FromTicks(1)).ToFrames(FrameRate);
+        if (t < 0.002 || t > 0.998 || b < first || b > last)
         {
             return nearest;
         }

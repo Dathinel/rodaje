@@ -57,6 +57,8 @@ F0 a F6 en `main`; guía en [`guia/camara-lenta.md`](guia/camara-lenta.md). La c
 
 ## Pendiente
 
+De la revisión del bloque siguiente (Devin, 16-nov; ya arreglado: el cuadro B acotado al tramo recortado fuera de las transiciones y los huecos de la lectura por adelantado contados por lector, no por carril): sin pendientes nuevos de ese bloque.
+
 De la revisión de bloque (Gemini, 16-nov; ya arreglado: el cuadro B en la lectura por adelantado, en reversa al exportar y con proxies, el visor en pausa cuando B llega tarde, el modo a 1× tras recortar, pegar atributos, la selección mixta y el congelado):
 
 - Las texturas libres del interpolador retienen presupuesto del `RenderTargetPool` hasta 240 cuadros y `Rent` no puede expulsarlas.
