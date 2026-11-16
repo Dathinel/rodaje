@@ -60,6 +60,14 @@ internal static partial class UnixRuntime
             return false;
         }
 
+        // Solo dentro de la carpeta de una sesión del editor: así las regiones tampoco se buscan en otra parte.
+        string? session = Path.GetDirectoryName(path);
+        if (session is null || Path.GetDirectoryName(session) != BaseDirectory()
+            || !Path.GetFileName(session).StartsWith(SessionPrefix, StringComparison.Ordinal))
+        {
+            return false;
+        }
+
         string name = Path.GetFileName(path);
         return name.Length == SocketPrefix.Length + 16 && name.StartsWith(SocketPrefix, StringComparison.Ordinal)
             && name[SocketPrefix.Length..].All(char.IsAsciiHexDigitLower);
@@ -159,6 +167,12 @@ internal static partial class UnixRuntime
     internal static void ExitWhenParentDies()
     {
         int parent = GetPPid();
+        if (parent <= 1)
+        {
+            // El editor murió antes de llegar aquí: ya es hijo de init y no hay a quién vigilar.
+            _ = Kill(Environment.ProcessId, 9);
+        }
+
         var watcher = new Thread(() =>
         {
             while (GetPPid() == parent)

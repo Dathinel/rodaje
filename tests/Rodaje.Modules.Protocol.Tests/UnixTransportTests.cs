@@ -49,6 +49,7 @@ public sealed class UnixTransportTests
         Assert.False(ModuleProcess.IsValidPipeName(Path.Combine(session, "x.0123456789abcdef")));
         Assert.False(ModuleProcess.IsValidPipeName(session + "/../e.1/m.0123456789abcdef"));
         Assert.False(ModuleProcess.IsValidPipeName("/" + new string('a', 120) + "/m.0123456789abcdef"));
+        Assert.False(ModuleProcess.IsValidPipeName("/tmp/otra-carpeta/e.1/m.0123456789abcdef"));
         Assert.False(ModuleProcess.IsValidPipeName(null));
     }
 
