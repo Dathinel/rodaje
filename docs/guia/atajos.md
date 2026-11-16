@@ -84,6 +84,7 @@ Sin tecla de fábrica (se asignan en el panel): Invertir, Fundido de entrada has
 | Añadir región | R | (sin tecla) | = |
 | Ajuste | N | = | F8 |
 | Cambiar control de huecos | Ctrl+L | (sin tecla) | = |
+| Calcular de entrada a salida | Ctrl+Mayús+R | = | = |
 
 Sin tecla de fábrica (se asignan en el panel): Añadir pista de subtítulos, Añadir pista de video, Añadir pista de audio, Pista principal magnética, Fundido cruzado automático, Bloquear envolventes, Ignorar grupos, Salir del clip compuesto, Cerrar todos los huecos, Ir al hueco siguiente, Ir al hueco anterior, Silenciar u ocultar la pista elegida, Solo de la pista elegida, Bloquear la pista elegida.
 

@@ -261,6 +261,38 @@ public sealed class RenderCacheServiceTests
         Assert.Equal(cut, worker.Started[^1]);
     }
 
+    [Fact]
+    public void El_trozo_en_curso_que_sigue_vigente_se_adopta_y_no_se_encola_otra_vez()
+    {
+        (RenderCacheService service, Clock clock, Worker worker) = Create();
+        service.SetPlan(1, [new(0, 120, RenderCostClass.Heavy)], 0, Rational.Fps30);
+        Start(service, clock);
+        Assert.Equal(new RenderCacheWork(0, 60, 1), worker.Started[0]);
+
+        service.SetPlan(2, [new(0, 120, RenderCostClass.Heavy)], 0, Rational.Fps30, work => work.FirstFrame == 0);
+
+        Assert.Equal([new RenderCacheWork(60, 60, 2)], service.Pending);
+        Assert.Equal(new RenderCacheWork(0, 60, 2), service.Current);
+        worker.Finish(published: true);
+        service.Tick();
+        Assert.Equal((1, 0), (service.Completed, service.Discarded));
+    }
+
+    [Fact]
+    public void El_trozo_en_curso_que_ya_no_vale_no_se_adopta()
+    {
+        (RenderCacheService service, Clock clock, Worker worker) = Create();
+        service.SetPlan(1, [new(0, 120, RenderCostClass.Heavy)], 0, Rational.Fps30);
+        Start(service, clock);
+
+        service.SetPlan(2, [new(0, 120, RenderCostClass.Heavy)], 0, Rational.Fps30, _ => false);
+
+        Assert.Equal([new RenderCacheWork(0, 60, 2), new RenderCacheWork(60, 60, 2)], service.Pending);
+        worker.Finish(published: true);
+        service.Tick();
+        Assert.Equal((0, 1), (service.Completed, service.Discarded));
+    }
+
     private static void Start(RenderCacheService service, Clock clock)
     {
         clock.Advance(TimeSpan.FromSeconds(3));

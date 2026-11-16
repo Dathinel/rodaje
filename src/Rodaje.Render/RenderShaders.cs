@@ -258,7 +258,7 @@ internal static class RenderShaders
 
         """;
 
-    private const string Source = Prelude + """
+    internal const string Source = Prelude + """
         Texture2D<float4> composite : register(t2);
 
         VsOut VsQuad(uint id : SV_VertexID)

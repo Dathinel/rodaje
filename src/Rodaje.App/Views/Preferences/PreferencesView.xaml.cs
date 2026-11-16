@@ -40,6 +40,9 @@ internal sealed partial class PreferencesView : UserControl
         HdrViewerBox.Items.Add("Automático (si el monitor de la ventana está en HDR)");
         HdrViewerBox.Items.Add("Siempre (salvo en un monitor SDR)");
         HdrViewerBox.Items.Add("Nunca (SDR)");
+        RenderCacheModeBox.Items.Add("Inteligente (lo rojo y luego lo amarillo, en reposo)");
+        RenderCacheModeBox.Items.Add("Manual (solo Secuencia › Calcular de entrada a salida)");
+        RenderCacheModeBox.Items.Add("Apagado");
         ShortcutPresetBox.Items.Add("Estilo Rodaje");
         ShortcutPresetBox.Items.Add("Estilo Ágil");
         ShortcutPresetBox.Items.Add("Estilo Clásico");
@@ -103,8 +106,27 @@ internal sealed partial class PreferencesView : UserControl
         TenBitViewerBox.SelectedIndex = (int)_model.TenBitViewer;
         HdrViewerBox.SelectedIndex = (int)_model.HdrViewer;
         ShortcutPresetBox.SelectedIndex = (int)_model.ShortcutPreset;
+        RenderCacheModeBox.SelectedIndex = (int)_model.RenderCacheMode;
+        RenderCacheFolderBox.Text = _model.RenderCacheFolder;
+        RenderCacheCapBox.Value = _model.RenderCacheCapGb;
         LoadPersonalization(settings);
         _loading = false;
+    }
+
+    /// <summary>«Borrar el render en caché»: devuelve los bytes liberados; nulo sin render en caché.</summary>
+    public Func<long>? ClearRenderCache { get; set; }
+
+    private void OnClearRenderCacheClick(object sender, RoutedEventArgs e)
+    {
+        if (ClearRenderCache is not { } clear)
+        {
+            return;
+        }
+
+        RenderCacheClearButton.IsEnabled = false;
+        long freed = clear();
+        RenderCacheClearText.Text = string.Create(SpanishNumbers.Format, $"Liberados {freed / (1024.0 * 1024 * 1024):0.##} GB.");
+        RenderCacheClearButton.IsEnabled = true;
     }
 
     public void Apply()
@@ -123,6 +145,9 @@ internal sealed partial class PreferencesView : UserControl
         model.PreviewQuality = (PreviewQuality)Math.Max(0, PreviewQualityBox.SelectedIndex);
         model.TenBitViewer = (TenBitViewer)Math.Max(0, TenBitViewerBox.SelectedIndex);
         model.HdrViewer = (HdrViewer)Math.Max(0, HdrViewerBox.SelectedIndex);
+        model.RenderCacheMode = (Services.RenderCache.RenderCacheMode)Math.Max(0, RenderCacheModeBox.SelectedIndex);
+        model.RenderCacheFolder = RenderCacheFolderBox.Text;
+        model.RenderCacheCapGb = RenderCacheCapBox.Value;
         model.SetLinkedAudioVideoTracks(LinkedAudioTracksPanel.Children.OfType<CheckBox>()
             .Where(checkBox => checkBox.IsChecked == true)
             .Select(checkBox => (int)checkBox.Tag));

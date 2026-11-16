@@ -65,6 +65,22 @@
 
         <ScrollViewer Grid.Row="3" HorizontalScrollMode="Disabled" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0">
             <StackPanel>
+                <Grid x:Name="RenderCacheRow" Padding="12,8" ColumnSpacing="8" RowSpacing="4" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Text="Render en caché" Style="{StaticResource PanelTitleTextStyle}" />
+                    <TextBlock x:Name="RenderCacheText" Grid.Row="1" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                    <ProgressBar x:Name="RenderCacheProgress" Grid.Row="2" Maximum="100" />
+                    <Button x:Name="RenderCacheCancel" Grid.Column="1" Grid.RowSpan="3" Style="{StaticResource ToolButtonStyle}" Content="&#xE711;"
+                            FontSize="{StaticResource IconFontSize}" Click="OnRenderCacheCancelClick" ToolTipService.ToolTip="Cancelar el cálculo y vaciar la cola" />
+                </Grid>
                 <local:ModuleJobsView x:Name="Modules" />
                 <export:ExportJobsView x:Name="Exports" />
             </StackPanel>

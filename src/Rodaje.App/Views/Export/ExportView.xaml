@@ -112,6 +112,8 @@
                             <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="16">
                                 <CheckBox x:Name="FastStartBox" Content="Reproducir mientras se descarga (faststart)" Click="OnFastStartClick" />
                                 <CheckBox x:Name="ChaptersBox" Content="Capítulos desde los marcadores" Click="OnChaptersClick" />
+                                <CheckBox x:Name="RenderCacheBox" Content="Usar el render en caché" Click="OnRenderCacheClick"
+                                          ToolTipService.ToolTip="Lee los tramos ya calculados en lugar de componerlos: más rápido, con una generación más de ProRes 422 HQ. Solo en los cuadros de la rejilla de la secuencia, sin cambiar tamaño, tasa, entrelazado ni alfa." />
                             </StackPanel>
                             <TextBlock x:Name="SubtitlesLabel" Grid.Row="2" Text="Subtítulos" Style="{StaticResource FieldLabelStyle}" />
                             <ComboBox x:Name="SubtitlesBox" Grid.Row="2" Grid.Column="1" Style="{StaticResource FieldComboStyle}" SelectionChanged="OnSubtitlesChanged" DropDownClosed="OnDropDownClosed"

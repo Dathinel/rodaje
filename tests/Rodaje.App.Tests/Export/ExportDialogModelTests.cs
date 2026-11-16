@@ -131,6 +131,20 @@ public sealed class ExportDialogModelTests
     }
 
     [Fact]
+    public void Render_cache_is_off_by_default_and_the_checkbox_change_reaches_the_request()
+    {
+        using var dir = new TempDirectory();
+        var project = ExportTestData.Project();
+        var model = new ExportDialogModel(new ExportPreferences { Folder = dir.Path }, project.Sequences[0], [], SimulatedEncoders.All, project.Name, dir.Path);
+
+        Assert.False(model.CreateRequest(project.Clone(), "sec", dir.Path).Settings.UseRenderCache);
+
+        model.Update(s => s with { UseRenderCache = true });
+
+        Assert.True(model.CreateRequest(project.Clone(), "sec", dir.Path).Settings.UseRenderCache);
+    }
+
+    [Fact]
     public void Versions_refuse_an_empty_sequence_and_say_why()
     {
         var project = ExportTestData.Project();

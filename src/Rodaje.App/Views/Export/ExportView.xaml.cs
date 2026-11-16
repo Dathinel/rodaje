@@ -269,6 +269,7 @@ internal sealed partial class ExportView : UserControl
         FastStartBox.IsEnabled = s.Container is ExportContainer.Mp4 or ExportContainer.Mov or ExportContainer.M4a;
         ChaptersBox.IsChecked = s.ChaptersFromMarkers;
         ChaptersBox.IsEnabled = s.Container is ExportContainer.Mp4 or ExportContainer.Mov or ExportContainer.Mkv;
+        RenderCacheBox.IsChecked = s.UseRenderCache;
         Visibility subtitles = model.HasSubtitles ? Visibility.Visible : Visibility.Collapsed;
         SubtitlesLabel.Visibility = SubtitlesBox.Visibility = subtitles;
         Fill(SubtitlesBox, SubtitleModes.Select(m => m.Name), model.AllowsSoftSubtitles ? IndexOf(SubtitleModes, m => m.Mode == s.Subtitles) : 0);
@@ -604,6 +605,9 @@ internal sealed partial class ExportView : UserControl
 
     private void OnChaptersClick(object sender, RoutedEventArgs e) =>
         _model?.Update(s => s with { ChaptersFromMarkers = ChaptersBox.IsChecked == true });
+
+    private void OnRenderCacheClick(object sender, RoutedEventArgs e) =>
+        _model?.Update(s => s with { UseRenderCache = RenderCacheBox.IsChecked == true });
 
     private void OnVideoToggled(object sender, RoutedEventArgs e)
     {

@@ -67,7 +67,7 @@ internal sealed class TimelineOverlay
 /// de pantalla alrededor de lo visible; desplazarse dentro de ella solo mueve una transformación, y al salir (o al
 /// cambiar el zoom o el proyecto) se vuelve a armar.
 /// </summary>
-internal sealed class TimelineRenderer
+internal sealed partial class TimelineRenderer
 {
     public const double RulerHeight = 28;
 
@@ -227,6 +227,7 @@ internal sealed class TimelineRenderer
         _rulerShift.ScaleX = scale;
         _rulerShift.TranslateX = (_windowLeft * scale) - vp.ScrollX;
         RenderOverlay(overlay);
+        RenderCacheStrip(vp);
         RenderPlayhead(scene.Position);
         LastRenderMs = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
     }
