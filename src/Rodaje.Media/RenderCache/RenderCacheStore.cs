@@ -592,7 +592,8 @@ public sealed class RenderCacheStore : IRenderCacheStore
             var info = new FileInfo(fragment.MoviePath);
             if (info.Exists)
             {
-                return info.LastWriteTimeUtc;
+                // Touch deja el último uso en la fecha de acceso: así sobrevive a reabrir el almacén.
+                return info.LastAccessTimeUtc;
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)

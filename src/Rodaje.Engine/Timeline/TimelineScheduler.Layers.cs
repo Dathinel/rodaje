@@ -208,7 +208,8 @@ internal sealed partial class TimelineScheduler
                 _titles.Prepare(other);
             }
 
-            if (titles[i].Start <= time && !ready)
+            // Bajo un tramo del render en caché el título ya va en el fragmento: no hay que esperarlo.
+            if (titles[i].Start <= time && !ready && !(lane.Covered.Count > 0 && VideoLayerPlan.IsCovered(lane.Covered, time)))
             {
                 settled = false;
                 if (running && !_seekPending)
