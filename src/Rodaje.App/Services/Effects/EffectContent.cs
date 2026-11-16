@@ -126,14 +126,19 @@ public sealed class EffectContent : IAwaitableEffectContent
     /// <summary>Cierra los videos de máscara abiertos: se abrió otro proyecto (o el mismo de nuevo).</summary>
     public void CloseMattes() => _mattes.Clear();
 
-    public TransitionCurves? FindTransition(string reference)
+    public TransitionCurves? FindTransition(string reference) => FindTransition(reference, null);
+
+    public TransitionCurves? FindTransition(string reference, string? values)
     {
         if (string.IsNullOrEmpty(reference))
         {
             return null;
         }
 
-        return _transitions.GetOrAdd(reference, LoadTransition);
+        // El salto de línea no puede ir en una referencia: separa la clave sin ambigüedad.
+        return string.IsNullOrEmpty(values)
+            ? _transitions.GetOrAdd(reference, r => LoadTransition(r, null))
+            : _transitions.GetOrAdd(reference + "\n" + values, _ => LoadTransition(reference, values));
     }
 
     /// <summary>Sube con cada <see cref="Invalidate"/>: las transiciones del plan ya armado pueden haber cambiado.</summary>
@@ -223,11 +228,11 @@ public sealed class EffectContent : IAwaitableEffectContent
         }
     }
 
-    private TransitionCurves? LoadTransition(string reference)
+    private TransitionCurves? LoadTransition(string reference, string? values)
     {
         try
         {
-            return _loader.LoadTransition(reference) is { } preset ? ToCurves(preset) : null;
+            return (values is null ? _loader.LoadTransition(reference) : _loader.LoadTransition(reference, values)) is { } preset ? ToCurves(preset) : null;
         }
         catch (Exception ex) when (ex is PackageContentException or IOException or UnauthorizedAccessException)
         {

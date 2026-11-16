@@ -83,6 +83,15 @@ internal sealed class FakeEffectContent : IEffectContent
 
     public TransitionCurves? FindTransition(string reference) => Transitions.GetValueOrDefault(reference);
 
+    /// <summary>Valores de plantilla con que se pidió cada transición (D-064).</summary>
+    public List<string?> TemplateValuesAsked { get; } = [];
+
+    public TransitionCurves? FindTransition(string reference, string? values)
+    {
+        TemplateValuesAsked.Add(values);
+        return values is null ? FindTransition(reference) : Transitions.GetValueOrDefault(reference + "|" + values);
+    }
+
     public StabilizationTrack? FindStabilization(string analysis, double intensity, bool autoCrop)
     {
         StabilizationRequests.Add((analysis, intensity, autoCrop));
