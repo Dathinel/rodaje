@@ -29,6 +29,7 @@ public static class TimelineShortcuts
     public const string CloseGaps = "timeline.closeGaps";
     public const string NextGap = "timeline.nextGap";
     public const string PreviousGap = "timeline.previousGap";
+    public const string RenderCache = "sequence.renderCache";
     public const string ReplaceSource = "edit.replaceSource";
     public const string FitToFillSource = "edit.fitToFillSource";
     public const string SuperimposeSource = "edit.superimposeSource";
@@ -54,6 +55,7 @@ public static class TimelineShortcuts
         new(NudgeLeft, "Mover clip un fotograma a la izquierda", ShortcutGroups.Edit, ["Alt+←"], classic: ["Ctrl+Alt+←"]) { ShortLabel = "Empujar ←", Repeats = true, Description = "Corre la selección (con sus enlazados y su grupo) un fotograma, sin pisar nada." },
         new(NudgeRight, "Mover clip un fotograma a la derecha", ShortcutGroups.Edit, ["Alt+→"], classic: ["Ctrl+Alt+→"]) { ShortLabel = "Empujar →", Repeats = true, Description = "Corre la selección (con sus enlazados y su grupo) un fotograma, sin pisar nada." },
         new(CloseGaps, "Cerrar todos los huecos", ShortcutGroups.Timeline, []) { ShortLabel = "Sin huecos", Description = "Junta los clips de la pista elegida (o de la principal) sin desincronizar los enlazados." },
+        new(RenderCache, "Calcular de entrada a salida", ShortcutGroups.Timeline, ["Ctrl+Mayús+R"]) { ShortLabel = "Calcular caché", Description = "Calcula el render en caché de la entrada a la salida de la secuencia (o de toda si no hay marcas), delante de lo demás." },
         new(NextGap, "Ir al hueco siguiente", ShortcutGroups.Timeline, []) { ShortLabel = "Hueco →", Description = "Lleva el cursor al próximo tramo vacío de cualquier pista." },
         new(PreviousGap, "Ir al hueco anterior", ShortcutGroups.Timeline, []) { ShortLabel = "← Hueco", Description = "Lleva el cursor al tramo vacío anterior de cualquier pista." },
         new(MuteTrack, "Silenciar u ocultar la pista elegida", ShortcutGroups.Timeline, []) { ShortLabel = "Silenciar pista", Description = "Silencia la pista de audio cuya cabecera está elegida (una de video se oculta); otra vez la vuelve a activar." },

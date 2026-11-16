@@ -23,6 +23,7 @@ using Rodaje.App.Views.Player;
 using Rodaje.App.Views.Plugins;
 using Rodaje.App.Views.Preferences;
 using Rodaje.App.Views.Shortcuts;
+using Rodaje.Core.Timing;
 using Rodaje.Engine.Timeline;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
@@ -197,6 +198,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
         _bindings.Add(_router.Bind(ActionIds.ShowMixer, ToggleMixer));
         _bindings.Add(_router.Bind(ActionIds.ShowHistory, () => HistoryButton.Flyout.ShowAt(HistoryButton)));
+        _bindings.Add(_router.Bind(TimelineShortcuts.RenderCache, RequestRenderCache));
         _bindings.Add(Views.Analysis.AnalysisCommands.Bind(_router, _services));
         _bindings.Add(Views.Timeline.TransitionCommands.Bind(_router, _services));
         _bindings.Add(Views.Voice.VoiceCommands.Bind(_router, _services));
@@ -382,6 +384,21 @@ internal sealed partial class MainWindow : Window, IShellHost
     internal ShortcutRouter Router => _router;
 
     internal KeyboardShortcutHost Keyboard => _keyboard;
+
+    /// <summary>«Secuencia › Calcular de entrada a salida»: el tramo marcado, o la secuencia entera si no hay marcas.</summary>
+    private void RequestRenderCache()
+    {
+        EditorSession session = _services.Session;
+        if (session.IsSourceActive)
+        {
+            return;
+        }
+
+        (Time start, Time end) = session.SequenceIn is { } markIn && session.SequenceOut is { } markOut && markOut > markIn
+            ? (markIn, markOut)
+            : (Time.Zero, session.Sequence.Duration);
+        _renderCache.Request(start, end);
+    }
 
     private void ShowPreferences() => UiTask.Run(ShowPreferencesAsync());
 
