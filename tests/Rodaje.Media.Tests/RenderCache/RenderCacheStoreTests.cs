@@ -431,6 +431,34 @@ public sealed class RenderCacheStoreTests : IDisposable
         Assert.Equal(Start.AddMinutes(12).UtcDateTime, File.GetLastAccessTimeUtc(fragment.MoviePath));
     }
 
+    [Fact]
+    public void Sin_anterior_un_fragmento_viejo_de_pocos_cuadros_no_tapa_al_continuo()
+    {
+        RenderCacheKey[] keys = [.. Enumerable.Range(1, 60).Select(i => MakeKey((ulong)i))];
+        RenderCacheFragment sparse = CommitFake(_store, keys[..8]);
+        RenderCacheFragment continuous = CommitFake(_store, keys);
+
+        Assert.True(_store.TryGet(keys[0], null, out RenderCacheHit hit));
+
+        Assert.Equal(continuous.MoviePath, hit.Fragment.MoviePath);
+        Assert.NotEqual(sparse.MoviePath, hit.Fragment.MoviePath);
+    }
+
+    [Fact]
+    public void Un_commit_durante_la_limpieza_no_se_olvida_del_indice()
+    {
+        RenderCacheFragment old = CommitFake(_store, [MakeKey(1)]);
+        RenderCacheFragment? during = null;
+        _store.AfterEnumerate = () => during = CommitFake(_store, [MakeKey(2)]);
+
+        _store.Cleanup();
+
+        Assert.True(_store.TryGet(MakeKey(1), null, out RenderCacheHit kept));
+        Assert.Equal(old.MoviePath, kept.Fragment.MoviePath);
+        Assert.True(_store.TryGet(MakeKey(2), null, out RenderCacheHit published));
+        Assert.Equal(during!.MoviePath, published.Fragment.MoviePath);
+    }
+
     private static RenderCacheKey MakeKey(ulong value) => new(0x1234_5678_9ABC_DEF0, value);
 
     private static RenderCacheFragmentMetadata CreateMetadata(

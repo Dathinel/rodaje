@@ -31,7 +31,10 @@ public sealed class RenderCacheJobTests(ITestOutputHelper output) : IDisposable
     public async Task El_fragmento_tiene_los_mismos_pixeles_que_exportar_el_tramo_y_publica_sus_huellas(
         long num, long den, SequenceColorSpace colorSpace, int count)
     {
-        Project project = Scene(new Rational(num, den), colorSpace);
+        // 640×360: en la CI, 48 cuadros de 1080p en WARP iban a 0,77 cuadros/s y vencía la espera.
+        const int width = 640;
+        const int height = 360;
+        Project project = Scene(new Rational(num, den), colorSpace, width, height);
         const long first = 7;
         RenderCacheKey[] keys = Keys(project, first, count);
         var store = Store();
@@ -45,14 +48,14 @@ public sealed class RenderCacheJobTests(ITestOutputHelper output) : IDisposable
         });
         var clock = Stopwatch.StartNew();
 
-        RenderCacheFragment fragment = Assert.IsType<RenderCacheFragment>(await job.RunAsync().WaitAsync(TimeSpan.FromMinutes(2)));
+        RenderCacheFragment fragment = Assert.IsType<RenderCacheFragment>(await job.RunAsync().WaitAsync(TimeSpan.FromMinutes(5)));
 
         double fps = count / clock.Elapsed.TotalSeconds;
         output.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"Cálculo 1920×1080 WARP, {count} cuadros {num}/{den} {colorSpace}: {fps:0.00} cuadros/s ({clock.Elapsed.TotalSeconds:0.000} s, incluida preparación y verificación)."));
+            $"Cálculo {width}×{height} WARP, {count} cuadros {num}/{den} {colorSpace}: {fps:0.00} cuadros/s ({clock.Elapsed.TotalSeconds:0.000} s, incluida preparación y verificación)."));
         Assert.True(checkedCurrent);
         Assert.Equal(keys, fragment.Metadata.Frames);
-        Assert.Equal((1920, 1080, project.Sequences[0].FrameRate, colorSpace, "prores_hq", false),
+        Assert.Equal((width, height, project.Sequences[0].FrameRate, colorSpace, "prores_hq", false),
             (fragment.Metadata.Width, fragment.Metadata.Height, fragment.Metadata.FrameRate, fragment.Metadata.ColorSpace,
                 fragment.Metadata.Codec, fragment.Metadata.PlaybackOnly));
         Assert.Equal(new FileInfo(fragment.MoviePath).Length, fragment.Metadata.MovieBytes);
@@ -77,9 +80,9 @@ public sealed class RenderCacheJobTests(ITestOutputHelper output) : IDisposable
         using ExportJob export = new ExportRunner(Options()).Start(new ExportRequest(project.Clone(), "sec", reference, settings,
             new ExportRange(Time.FromFrames(first, project.Sequences[0].FrameRate), Time.FromFrames(first + count, project.Sequences[0].FrameRate))),
             [ExportEncoderCatalog.Find("prores_ks")!]);
-        await export.Completion.WaitAsync(TimeSpan.FromMinutes(2));
+        await export.Completion.WaitAsync(TimeSpan.FromMinutes(5));
         Assert.True(export.Progress.State == ExportJobState.Completed, export.Failure?.ToString());
-        await CompareFramesAsync(fragment.MoviePath, reference, count);
+        await CompareFramesAsync(fragment.MoviePath, reference, count, width, height);
         output.WriteLine($"{count} cuadros decodificados y comparados a 10 bits 4:2:2: idénticos (PSNR infinito).");
     }
 
@@ -213,10 +216,11 @@ public sealed class RenderCacheJobTests(ITestOutputHelper output) : IDisposable
 
     private RenderCacheStore Store() => new(Path.Combine(_folder, "almacen"));
 
-    private static Project Scene(Rational? rate = null, SequenceColorSpace colorSpace = SequenceColorSpace.Sdr709)
+    private static Project Scene(Rational? rate = null, SequenceColorSpace colorSpace = SequenceColorSpace.Sdr709,
+        int width = 1920, int height = 1080)
     {
         Rational fps = rate ?? Rational.Fps24;
-        GeneratedMedia generated = TestMediaGenerator.CreateDefault()!.GetOrCreate(new MediaSpec("cache-f3a", 1920, 1080, fps, TimeSpan.FromSeconds(4)));
+        GeneratedMedia generated = TestMediaGenerator.CreateDefault()!.GetOrCreate(new MediaSpec("cache-f3a", width, height, fps, TimeSpan.FromSeconds(4)));
         var media = new MediaRef { Id = "m", Path = generated.Path };
         MediaProbe.Probe(media.Path).ApplyTo(media);
         var clip = new Clip { Id = "c", MediaId = media.Id, SourceOut = media.Duration };
@@ -225,7 +229,7 @@ public sealed class RenderCacheJobTests(ITestOutputHelper output) : IDisposable
         clip.Effects.Add(color);
         var sequence = new Sequence
         {
-            Id = "sec", Width = 1920, Height = 1080, FrameRate = fps, ColorSpace = colorSpace,
+            Id = "sec", Width = width, Height = height, FrameRate = fps, ColorSpace = colorSpace,
             VideoTracks = [new Track { Id = "v", Kind = TrackKind.Video, Clips = [clip] }],
         };
         return new Project { Id = "p", Sequences = [sequence], Media = [media] };
@@ -243,7 +247,7 @@ public sealed class RenderCacheJobTests(ITestOutputHelper output) : IDisposable
         return [.. Enumerable.Range(0, count).Select(i => recipes.KeyAt(first + i)!.Value)];
     }
 
-    private async Task CompareFramesAsync(string actualPath, string expectedPath, int count)
+    private async Task CompareFramesAsync(string actualPath, string expectedPath, int count, int width, int height)
     {
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(30));
         CancellationToken token = timeout.Token;
@@ -255,7 +259,7 @@ public sealed class RenderCacheJobTests(ITestOutputHelper output) : IDisposable
             {
                 Task<string> actualErrors = actual.StandardError.ReadToEndAsync(token);
                 Task<string> expectedErrors = expected.StandardError.ReadToEndAsync(token);
-                byte[] a = new byte[1920 * 1080 * 4];
+                byte[] a = new byte[width * height * 4];
                 byte[] b = new byte[a.Length];
                 for (int frame = 0; frame < count; frame++)
                 {

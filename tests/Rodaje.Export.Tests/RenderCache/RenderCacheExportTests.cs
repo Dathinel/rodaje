@@ -221,14 +221,33 @@ public sealed partial class RenderCacheExportTests(ITestOutputHelper output) : I
         Assert.Equal(ExportJobState.Completed, jobOffGrid.Progress.State);
         Assert.Equal(0, jobOffGrid.CachedFrames);
 
-        // 2. Entrelazados
+        // 2. Entrelazados: una secuencia de 60 fps sale entrelazada a 30; la tasa de campos es la de la
+        // secuencia, así que no hay conversión de tasa y lo único que excluye el caché es el entrelazado.
+        Project interlacedProject = ExportProjects.TwoTracks();
+        interlacedProject.Sequences[0].FrameRate = Rational.Fps60;
+        string interlacedFragmentPath = store.CreateTemporaryPath();
+        ExportJob jobGen60 = runnerGen.Start(new ExportRequest(interlacedProject, "sec", interlacedFragmentPath, proresHq, range), encoders);
+        await jobGen60.Completion.WaitAsync(TimeSpan.FromMinutes(2));
+        Assert.True(jobGen60.Progress.State == ExportJobState.Completed, jobGen60.Failure?.ToString());
+
+        RecipeBuilder recipes60 = CreateRecipeBuilder(interlacedProject, "sec");
+        var keys60 = new List<RenderCacheKey>();
+        for (long f = 60; f < 120; f++)
+        {
+            keys60.Add(recipes60.KeyAt(f)!.Value);
+        }
+
+        store.Commit(interlacedFragmentPath, new RenderCacheFragmentMetadata(
+            Width: 1920, Height: 1080, FrameRate: Rational.Fps60, ColorSpace: SequenceColorSpace.Sdr709,
+            Codec: "prores_hq", PlaybackOnly: false, Frames: keys60, MovieBytes: new FileInfo(interlacedFragmentPath).Length));
+
         string interlacedPath = Path.Combine(_tempFolder, "interlaced.mov");
         var interlacedSettings = proresHq with
         {
             UseRenderCache = true,
-            Video = proresHq.Video! with { FrameRate = Rational.Fps25, FieldOrder = ExportFieldOrder.TopFirst },
+            Video = proresHq.Video! with { FrameRate = Rational.Fps30, FieldOrder = ExportFieldOrder.TopFirst },
         };
-        ExportJob jobInterlaced = runner.Start(new ExportRequest(project, "sec", interlacedPath, interlacedSettings, range), encoders);
+        ExportJob jobInterlaced = runner.Start(new ExportRequest(interlacedProject, "sec", interlacedPath, interlacedSettings, range), encoders);
         await jobInterlaced.Completion.WaitAsync(TimeSpan.FromMinutes(2));
         Assert.True(jobInterlaced.Progress.State == ExportJobState.Completed, jobInterlaced.Failure?.ToString());
         Assert.Equal(0, jobInterlaced.CachedFrames);
