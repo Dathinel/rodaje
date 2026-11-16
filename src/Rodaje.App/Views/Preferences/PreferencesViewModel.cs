@@ -26,6 +26,11 @@ public sealed class PreferencesViewModel(AppSettings settings)
     public TenBitViewer TenBitViewer { get => Settings.TenBitViewer; set => Settings.TenBitViewer = value; }
     public HdrViewer HdrViewer { get => Settings.HdrViewer; set => Settings.HdrViewer = value; }
     public ShortcutPreset ShortcutPreset { get => Settings.ShortcutPreset; set => Settings.ShortcutPreset = value; }
+    public Services.RenderCache.RenderCacheMode RenderCacheMode { get => Settings.RenderCacheMode; set => Settings.RenderCacheMode = Enum.IsDefined(value) ? value : Services.RenderCache.RenderCacheMode.Smart; }
+    public string RenderCacheFolder { get => Settings.RenderCacheFolder ?? ""; set => Settings.RenderCacheFolder = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); }
+
+    /// <summary>Tope en GB; NaN o menos de 1, el automático.</summary>
+    public double RenderCacheCapGb { get => Settings.RenderCacheCapGb ?? double.NaN; set => Settings.RenderCacheCapGb = double.IsFinite(value) && value >= 1 ? Math.Min(value, 100_000) : null; }
 
     public void SetLinkedAudioVideoTracks(IEnumerable<int> videoTracks)
     {

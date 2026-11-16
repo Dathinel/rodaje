@@ -68,6 +68,7 @@ internal static partial class SelfTestRun
             await ModuleAsync(window);
             await FormatAsync(window, engine);
             await InterchangeAsync(window);
+            await RenderCacheAsync(window);
             window.InspectorPane.Show(InspectorView.Tab.Properties);
             await LayoutAsync(window);
             if (window.Session.Sequence.Duration.Ticks > 0)

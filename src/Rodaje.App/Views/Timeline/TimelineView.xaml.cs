@@ -133,6 +133,10 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         _headers.CanStep = (trackId, up) => Session is { } s && Rodaje.Core.Editing.TimelineEdits.CanStepTrack(s.Sequence, trackId, up);
         _headers.SubtitleTrackRequested += () => Session?.AddSubtitleTrack();
         _headers.SubtitleRoleRequested += (trackId, subtitles) => Session?.SetSubtitleRole(trackId, subtitles);
+        if (services.RenderCache is { } cache)
+        {
+            cache.StripChanged += (_, _) => DispatcherQueue.RunLater(() => ShowCacheStrip(cache));
+        }
         _headers.VoiceOverRequested += trackId => Voice.VoiceCommands.RecordVoiceOver(services, trackId);
         _headers.SubtitleFileRequested += trackId =>
         {
@@ -212,6 +216,24 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         {
             Focus(state);
         }
+    }
+
+    /// <summary>Pone una franja dada (la autoprueba la usa para ver los cuatro estados).</summary>
+    internal void SetCacheStrip(IReadOnlyList<Services.RenderCache.CacheStripSpan> spans, Rodaje.Core.Timing.Rational rate)
+    {
+        _renderer?.SetCacheStrip(spans, rate);
+        Invalidate();
+    }
+
+    /// <summary>Trozos de la franja a la vista, por estado.</summary>
+    internal IReadOnlyDictionary<Services.RenderCache.CacheStripState, int> CacheStripCounts =>
+        _renderer?.CacheStripCounts ?? new Dictionary<Services.RenderCache.CacheStripState, int>();
+
+    /// <summary>La franja del render en caché, solo si es de la secuencia que se ve (no del visor de origen).</summary>
+    private void ShowCacheStrip(Services.RenderCache.RenderCacheHost cache)
+    {
+        bool mine = Session is { IsSourceActive: false } session && cache.StripSequenceId == session.SequenceId;
+        SetCacheStrip(mine ? cache.Strip : [], cache.StripRate);
     }
 
     /// <summary>Pide un dibujo para el próximo cuadro (varios pedidos en el mismo cuadro se juntan).</summary>

@@ -102,6 +102,9 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
     /// <summary>La tasa de la secuencia de <see cref="Strip"/>.</summary>
     public Rational StripRate { get; private set; } = Rational.Fps30;
 
+    /// <summary>La secuencia de <see cref="Strip"/> (el visor de origen también abre planes).</summary>
+    public string? StripSequenceId { get; private set; }
+
     public string Directory
     {
         get
@@ -434,6 +437,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
 
             Strip = strip;
             StripRate = scan.FrameRate;
+            StripSequenceId = plan.SequenceId;
         }
 
         _player.ApplyCoverage(plan.Generation, coverage);

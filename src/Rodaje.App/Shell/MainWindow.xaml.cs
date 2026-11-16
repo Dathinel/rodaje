@@ -387,7 +387,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private async Task ShowPreferencesAsync()
     {
-        var view = new PreferencesView();
+        var view = new PreferencesView { ClearRenderCache = _renderCache.Clear };
         SaveLayout();
         AppSettings current = _settings.Current;
         view.Attach(current, _router.Registry, new WorkspaceProfile
@@ -423,6 +423,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         _services.Player.SetProxyUsage(_settings.Current.ProxyUsage);
         _services.Player.TenBitViewer = _settings.Current.TenBitViewer;
         _services.Player.HdrViewer = _settings.Current.HdrViewer;
+        _renderCache.Configure(_options.IsAutomated ? Services.RenderCache.RenderCacheMode.Off : _settings.Current.RenderCacheMode,
+            _settings.Current.RenderCacheFolder, _settings.Current.RenderCacheCapGb);
         _router.Registry.Preset = _settings.Current.ShortcutPreset;
         if (_autosave is { } autosave)
         {

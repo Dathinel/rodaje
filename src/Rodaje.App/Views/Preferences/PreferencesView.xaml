@@ -28,6 +28,15 @@
             <ComboBox x:Name="PreviewQualityBox" Header="Calidad de la vista previa" />
             <ComboBox x:Name="TenBitViewerBox" Header="Visor de 10 bits" />
             <ComboBox x:Name="HdrViewerBox" Header="Visor HDR en scRGB" />
+            <TextBlock Text="Render en caché" FontWeight="SemiBold" />
+            <ComboBox x:Name="RenderCacheModeBox" Header="Calcular en segundo plano" />
+            <TextBox x:Name="RenderCacheFolderBox" Header="Carpeta" PlaceholderText="%LOCALAPPDATA%\Rodaje\render" />
+            <NumberBox x:Name="RenderCacheCapBox" Header="Tope en GB (vacío: el menor entre 50 GB y el 10 % del disco libre)" Minimum="1" Maximum="100000" SpinButtonPlacementMode="Inline" />
+            <StackPanel Orientation="Horizontal" Spacing="12">
+                <Button x:Name="RenderCacheClearButton" Content="Borrar el render en caché" Click="OnClearRenderCacheClick" />
+                <TextBlock x:Name="RenderCacheClearText" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" />
+            </StackPanel>
+            <TextBlock Text="Los tramos pesados se calculan a ProRes 422 HQ tras 3 s sin editar ni reproducir y se ven como un solo clip; la franja sobre la regla dice qué está en caché. Se puede borrar sin perder trabajo." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
         </StackPanel></TabViewItem>
         <TabViewItem Header="Teclado" IsClosable="False"><StackPanel Padding="12"><ComboBox x:Name="ShortcutPresetBox" Header="Estilo de teclado" /></StackPanel></TabViewItem>
         <TabViewItem Header="Personalización" IsClosable="False">
