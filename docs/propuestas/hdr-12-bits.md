@@ -128,3 +128,12 @@ Primer intento: agy entregó solo el cierre de cuatro líneas y perdió la lista
 **Descartados:**
 - *«`zscale` no admite `min=gbr` con `pin=2020`»* (alta). La cadena exacta está medida en el ffmpeg del entorno: blanco → 0,58068 y +2 EV → 0,72915, con las etiquetas correctas en ffprobe. El `format=yuv444p16le` final no sobra: fija la salida de la negociación.
 - *«`AutoProxyRule` no mira `ffv1`»* (media). Es justo lo que añade la fase 3; el diseño ya lo decía.
+
+## Revisión independiente (Claude, 16-nov)
+
+Verificado en local: fases 1 a 4 cumplen su «Terminado cuando» (rampa 3030/2954 niveles, blanco y +2 EV en PQ, lectura a 4,0 y 1,0, proxy con PQ, autoprueba del exe). Arreglado en el PR de la revisión: el proxy de un MKV corto y la prueba de color en BT.2020 (ver `hdr.md`).
+
+**Tareas que quedan:**
+- **Las pruebas con `modulo-raw` no corren en la CI.** La CI no compila `libraw.dll`, así que `RawModuleAsync` devuelve nulo y las pruebas de la rampa, las luces y la carta de color terminan en verde sin ejecutar nada. Deberían marcarse como omitidas (salto dinámico de xUnit) o la CI debería traer `libraw.dll`, para que un verde signifique que se probaron.
+- **WAV más corto que los DNG.** Con `-shortest`, ffmpeg recorta el video al audio (48 DNG y un WAV de 2 s a 23,976 dan 47 cuadros), pero la notificación cuenta los DNG. Viene de D-059 y pasa también con el ProRes.
+- **Autoprueba inestable con el equipo cargado:** el paso de máscaras falló una vez («La estrella no recorta el clip») y pasó al repetirlo.
