@@ -29,7 +29,7 @@ public sealed partial class ShutdownBudgetTests
     /// presupuesto. La cota fina, con los plazos por omisión, la mide
     /// <see cref="A_frozen_module_is_dead_within_the_default_budget_plus_margin"/> (TiempoReal).
     /// </remarks>
-    [Fact]
+    [FreezableFact]
     public async Task A_frozen_module_is_dead_when_dispose_returns()
     {
         ModuleClientOptions options = new() { ShutdownGrace = TimeSpan.FromMilliseconds(500) };
@@ -54,7 +54,7 @@ public sealed partial class ShutdownBudgetTests
         }
     }
 
-    [Fact]
+    [FreezableFact]
     [Trait("Categoria", "TiempoReal")]
     public async Task A_frozen_module_is_dead_within_the_default_budget_plus_margin()
     {
@@ -138,4 +138,13 @@ public sealed partial class ShutdownBudgetTests
 
     [LibraryImport("libc", EntryPoint = "kill", SetLastError = true)]
     private static partial int SysKill(int pid, int signal);
+}
+
+/// <summary>Congelar un módulo solo está escrito para Windows y Linux; en macOS se omite (pendiente: SIGSTOP allí colgaba la prueba).</summary>
+public sealed class FreezableFactAttribute : FactAttribute
+{
+    public FreezableFactAttribute()
+    {
+        if (OperatingSystem.IsMacOS()) Skip = "Congelar un proceso no está escrito para macOS.";
+    }
 }
