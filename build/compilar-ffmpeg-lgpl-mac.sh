@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # macos-15 arm64. Uso: bash build/compilar-ffmpeg-lgpl-mac.sh [directorio de salida]
-# Homebrew aporta solo herramientas; las ocho bibliotecas se compilan desde fuentes verificadas.
+# Homebrew aporta solo herramientas; las ocho bibliotecas se compilan desde fuentes verificadas. zlib es la del sistema
+# (/usr/lib/libz): sin ella, --disable-autodetect deja fuera el codificador PNG y las cabeceras comprimidas de MOV.
 set -euo pipefail
 # shellcheck source=build/ffmpeg-lgpl-comun.sh
 source "$(dirname "$0")/ffmpeg-lgpl-comun.sh"
@@ -121,7 +122,7 @@ cmake --install "$trabajo/webp-build"
     printf '%s\n' n9.0.2-17-g2a571b6068 > VERSION
     ./configure --prefix="$paquete" --cc="$CC" --cxx="$CXX" --arch=aarch64 --target-os=darwin \
         --enable-version3 --enable-shared --disable-static --disable-gpl --disable-nonfree \
-        --disable-autodetect --disable-ffplay --disable-doc --disable-debug \
+        --disable-autodetect --enable-zlib --disable-ffplay --disable-doc --disable-debug \
         --enable-videotoolbox --enable-audiotoolbox \
         --enable-libopenh264 --enable-libdav1d --enable-libvpx --enable-libopus \
         --enable-libmp3lame --enable-libsvtav1 --enable-libkvazaar --enable-libwebp \
