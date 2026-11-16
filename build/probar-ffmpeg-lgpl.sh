@@ -29,7 +29,7 @@ for lib in avfilter avdevice; do
 done
 bash "$BUILD_DIR/auditar-ffmpeg.sh" "$paquete" "$sistema"
 "$paquete/bin/ffmpeg" -hide_banner -encoders > "$prueba/encoders.txt" 2>&1
-codificadores=(libopenh264 libsvtav1 libvpx-vp9 libopus libmp3lame libkvazaar libwebp prores_ks ffv1 aac)
+codificadores=(libopenh264 libsvtav1 libvpx-vp9 libopus libmp3lame libkvazaar libwebp prores_ks ffv1 aac png)
 [[ "$sistema" != mac ]] || codificadores+=(h264_videotoolbox)
 for codificador in "${codificadores[@]}"; do
     awk '{print $2}' "$prueba/encoders.txt" | grep -Fx -- "$codificador" || fallar "Falta codificador: $codificador"
