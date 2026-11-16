@@ -310,8 +310,8 @@ public sealed class OfflineTimeline : IDisposable, IEvaluatorFrames
         for (int i = 0; i < _lanes.Length; i++)
         {
             FrameEvaluator.Lane lane = _lanes[i];
-            _mainSlots[i] = lane.Main is { } main ? _readers.Request(main.Source, main.FrameAt(time), time, mustHave: true, main) : null;
-            _incomingSlots[i] = lane.Incoming is { } incoming ? _readers.Request(incoming.Source, incoming.FrameAt(time), time, mustHave: true, incoming) : null;
+            _mainSlots[i] = lane.Main is { } main ? _readers.RequestSample(main, time, mustHave: true) : null;
+            _incomingSlots[i] = lane.Incoming is { } incoming ? _readers.RequestSample(incoming, time, mustHave: true) : null;
         }
 
         if (step is { } known)
@@ -327,6 +327,11 @@ public sealed class OfflineTimeline : IDisposable, IEvaluatorFrames
         long sequenceFrame, CancellationToken cancellationToken)
     {
         OfflineReaders.Slot slot = (incoming ? _incomingSlots : _mainSlots)[ordinal]!;
+        if (slot.Index != index)
+        {
+            slot = _readers.Request(clip.Source, index, slot.LastUse, mustHave: true, clip)!;
+        }
+
         DecodedFrame frame = _readers.Wait(slot, _options.FrameTimeout, sequenceFrame, cancellationToken);
         VideoStreamInfo? stream = slot.Source.Stream;
         return (frame, stream?.SampleAspectRatio ?? new Rational(1, 1), TimelineScheduler.NormalizeRotation(stream?.Rotation ?? 0));
@@ -351,8 +356,8 @@ public sealed class OfflineTimeline : IDisposable, IEvaluatorFrames
             foreach (FrameEvaluator.Lane lane in _lanes)
             {
                 lane.PickAhead(ahead);
-                if ((lane.AheadMain is { } m && !_readers.HasRoom(m.Source, m.FrameAt(ahead), m))
-                    || (lane.AheadIncoming is { } i && !_readers.HasRoom(i.Source, i.FrameAt(ahead), i)))
+                if ((lane.AheadMain is { } m && !_readers.HasRoomForSample(m, ahead))
+                    || (lane.AheadIncoming is { } i && !_readers.HasRoomForSample(i, ahead)))
                 {
                     return;
                 }
@@ -360,8 +365,8 @@ public sealed class OfflineTimeline : IDisposable, IEvaluatorFrames
 
             foreach (FrameEvaluator.Lane lane in _lanes)
             {
-                if ((lane.AheadMain is { } m && _readers.Request(m.Source, m.FrameAt(ahead), ahead, mustHave: false, m) is null)
-                    || (lane.AheadIncoming is { } i && _readers.Request(i.Source, i.FrameAt(ahead), ahead, mustHave: false, i) is null))
+                if ((lane.AheadMain is { } m && _readers.RequestSample(m, ahead, mustHave: false) is null)
+                    || (lane.AheadIncoming is { } i && _readers.RequestSample(i, ahead, mustHave: false) is null))
                 {
                     return;
                 }

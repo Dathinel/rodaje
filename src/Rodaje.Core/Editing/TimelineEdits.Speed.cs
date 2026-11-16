@@ -706,7 +706,8 @@ public static partial class TimelineEdits
     }
 
     /// <summary>Una velocidad que equivale a 1× sin desplazamiento vuelve a ser nula, como en el formato 3.</summary>
-    private static ClipSpeed? Normalize(ClipSpeed speed) => speed.IsIdentity && speed.Offset == Time.Zero ? null : speed;
+    private static ClipSpeed? Normalize(ClipSpeed speed) =>
+        speed.IsIdentity && speed.Offset == Time.Zero && speed.FrameSampling == FrameSampling.Nearest ? null : speed;
 
     private static List<(Track Track, Clip Clip)> EditableSpeedGroup(EditContext ctx, string clipId)
     {
