@@ -15,7 +15,11 @@ using Rodaje.Modules.Protocol;
 namespace Rodaje.App.Views.Subtitles;
 
 /// <summary>Una palabra del resultado de <c>subtitulos</c>, en segundos del audio entregado al módulo.</summary>
-internal sealed record TranscriptWord(double Start, double End, string Text);
+internal sealed record TranscriptWord(double Start, double End, string Text)
+{
+    /// <summary>Probabilidad que dio el módulo («p»), de 0 a 1; 1 si no la dio.</summary>
+    public double Confidence { get; init; } = 1;
+}
 
 /// <summary>Un segmento del resultado de <c>subtitulos</c>; <see cref="Words"/> puede venir vacío.</summary>
 internal sealed record TranscriptSegment(double Start, double End, string Text, IReadOnlyList<TranscriptWord> Words);
@@ -207,7 +211,8 @@ internal static class AutoSubtitles
                 {
                     if (TryTimes(w, out double ws0, out double we0) && Text(w) is { } wt)
                     {
-                        words.Add(new TranscriptWord(ws0, we0, wt));
+                        double p = w.TryGetProperty("p", out JsonElement pe) && pe.ValueKind == JsonValueKind.Number && pe.TryGetDouble(out double pv) ? pv : 1;
+                        words.Add(new TranscriptWord(ws0, we0, wt) { Confidence = p });
                     }
                 }
             }
@@ -273,6 +278,61 @@ internal static class AutoSubtitles
         }
 
         return [.. result.OrderBy(s => s.Start)];
+    }
+
+    /// <summary>
+    /// Lleva a la secuencia la transcripción guardada del medio (D-061), sin llamar al módulo: las palabras cuyo centro cae
+    /// en el tramo del clip, por su mapa de tiempo; cada párrafo de la transcripción es un segmento.
+    /// </summary>
+    public static IReadOnlyList<SpeechSegment> ToSequence(Clip clip, MediaTranscript stored)
+    {
+        ArgumentNullException.ThrowIfNull(clip);
+        ArgumentNullException.ThrowIfNull(stored);
+        ClipTimeMap map = clip.TimeMap;
+        List<SpeechSegment> result = [];
+        List<SpeechWord> words = [];
+        void Close()
+        {
+            if (words.Count > 0)
+            {
+                words = [.. words.OrderBy(w => w.Start)];
+                result.Add(new SpeechSegment(words[0].Start, words.Max(w => w.End), string.Join(' ', words.Select(w => w.Text)), words));
+                words = [];
+            }
+        }
+
+        foreach (SpokenWord word in stored.Words)
+        {
+            Time center = word.Start + Time.FromTicks((word.End - word.Start).Ticks / 2);
+            if (center < clip.SourceIn || center >= clip.SourceOut)
+            {
+                continue;
+            }
+
+            if (word.ParagraphStart)
+            {
+                Close();
+            }
+
+            Time x = map.TimelineOf(word.Start), y = map.TimelineOf(word.End);
+            words.Add(new SpeechWord(Time.Min(x, y), Time.Max(x, y), word.Text));
+        }
+
+        Close();
+        return [.. result.OrderBy(s => s.Start)];
+    }
+
+    /// <summary>Las palabras de un segmento (las que faltan, repartidas por largo), limpias y partidas en los espacios.</summary>
+    internal static IEnumerable<(double Start, double End, string Text, double Confidence)> WordsOf(TranscriptSegment segment)
+    {
+        ArgumentNullException.ThrowIfNull(segment);
+        foreach (TranscriptWord word in segment.Words.Count > 0 ? segment.Words : Spread(segment))
+        {
+            foreach ((double a, double b, string text) in Split(word.Start, Math.Max(word.Start, word.End), word.Text))
+            {
+                yield return (a, b, text, word.Confidence);
+            }
+        }
     }
 
     /// <summary>Los subtítulos como quedarán, para la vista previa.</summary>

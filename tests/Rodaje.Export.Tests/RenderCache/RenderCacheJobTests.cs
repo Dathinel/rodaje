@@ -144,6 +144,7 @@ public sealed class RenderCacheJobTests(ITestOutputHelper output) : IDisposable
     }
 
     [FfmpegTheory]
+    [Trait("Categoria", "TiempoReal")]
     [InlineData(false)]
     [InlineData(true)]
     public async Task Una_pausa_larga_o_cancelada_borra_el_fragmento_incompleto(bool cancelWhilePaused)
