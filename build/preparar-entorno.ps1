@@ -1,10 +1,14 @@
 ﻿# Instala en .entorno\ el SDK de .NET fijado, la caché NuGet y las DLL de FFmpeg (LGPL), sin tocar nada global.
 # Uso: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1 [-Forzar] [-SoloFFmpeg]
+#      pwsh -NoProfile -File build/preparar-entorno.ps1      (PowerShell 7 en Linux o macOS)
 #
-# Resistente a apagones: descarga a .zip.part, verifica la huella, descomprime en una carpeta temporal
-# que ya trae la marca (.sdk-<versión> o .ffmpeg-<versión>) y la renombra (atómico). Los demás scripts miran esas marcas.
+# Resistente a apagones: descarga a .part, verifica la huella, descomprime en una carpeta temporal
+# que ya trae la marca (.sdk-<versión>, .ffmpeg-<versión> o .libraw-<versión>) y la renombra (atómico).
+# Los demás scripts miran esas marcas. En Unix los paquetes .tar.gz y .tar.xz los abre el tar del sistema,
+# que conserva los bits de ejecución y los enlaces simbólicos.
 #
-# Solo para probar este script: RODAJE_SDK_URL (URL o ruta de un .zip) y RODAJE_SDK_SHA512, juntas.
+# Solo para probar este script: RODAJE_SDK_URL + RODAJE_SDK_SHA512, o RODAJE_FFMPEG_URL +
+# RODAJE_FFMPEG_SHA256 (las dos variables juntas), en cualquier sistema.
 
 param(
     [switch]$Forzar,
@@ -13,21 +17,71 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+$Sep = [System.IO.Path]::DirectorySeparatorChar
 
-# Fuente: https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json
-# Se actualiza junto con global.json, que es lo que leen los demás scripts.
+# RID del anfitrión: Windows (PowerShell 5.1 o pwsh) es win-x64; en pwsh para Unix lo dice RuntimeIdentifier.
+if ($env:OS -eq 'Windows_NT') {
+    $Rid = 'win-x64'
+} else {
+    $Rid = [System.Runtime.InteropServices.RuntimeInformation]::RuntimeIdentifier
+}
+if ($Rid -notin @('win-x64', 'linux-x64', 'osx-arm64')) {
+    Write-Host ""
+    Write-Host "Este sistema ($Rid) no tiene todavía un entorno previsto: solo win-x64, linux-x64 y osx-arm64."
+    exit 1
+}
+
+# Huellas SHA-512 del SDK 10.0.401: entrada «sdk» de
+# https://builds.dotnet.microsoft.com/dotnet/release-metadata/10.0/releases.json (campo «hash» de cada archivo).
+# Se actualizan junto con global.json, que es lo que leen los demás scripts.
 $SdkVersion = '10.0.401'
-$SdkUrl     = "https://builds.dotnet.microsoft.com/dotnet/Sdk/$SdkVersion/dotnet-sdk-$SdkVersion-win-x64.zip"
-$SdkSha512  = '24b670ad3d923bfcf47df6c3b034152398b42f6dbc388e10d783aee1cfb5e5817d399fc0ae2a12cfa822a55e61d34830ccb15c50ef6efee437ab874bb7c79430'
+$SdkPorRid = @{
+    'win-x64'   = @{ Paquete = "dotnet-sdk-$SdkVersion-win-x64.zip"
+                     Hash    = '24b670ad3d923bfcf47df6c3b034152398b42f6dbc388e10d783aee1cfb5e5817d399fc0ae2a12cfa822a55e61d34830ccb15c50ef6efee437ab874bb7c79430'
+                     Archivos = @('dotnet.exe') }
+    'linux-x64' = @{ Paquete = "dotnet-sdk-$SdkVersion-linux-x64.tar.gz"
+                     Hash    = '51c8b999af9e8dd9998c9edc5944e19a90788862068acd38694e098889054ce8c23d4f0c5cccfa16bf187d044562359e5ee69a9f8ad0bbe913ba90311fbce25b'
+                     Archivos = @('dotnet') }
+    'osx-arm64' = @{ Paquete = "dotnet-sdk-$SdkVersion-osx-arm64.tar.gz"
+                     Hash    = '69f64eb00dc045398755c440b152225d544301a345a146a16e86a56a0c52b7c94b2c331520e976dbb821f18d31930aafbd25bb85961e3517e0665414ce0cbcff'
+                     Archivos = @('dotnet') }
+}
+$Sdk       = $SdkPorRid[$Rid]
+$SdkUrl    = "https://builds.dotnet.microsoft.com/dotnet/Sdk/$SdkVersion/$($Sdk.Paquete)"
+$SdkSha512 = $Sdk.Hash
 
 # DLL LGPL propias (build\compilar-ffmpeg-lgpl.ps1): la variante lgpl-shared de BtbN (scripts 6c9aec5, FFmpeg 2a571b6)
-# sin chromaprint ni libzvbi, que meten código GPL. Si .entorno\ffmpeg-lgpl\ tiene el zip (lo deja ese script), se toma
-# de ahí; si no, de la release ffmpeg-<versión> de Dathinel/rodaje (pendiente de subir: zip, .sha256 y la fuente).
+# sin chromaprint ni libzvbi, que meten código GPL. Si .entorno\ffmpeg-lgpl\ tiene el paquete (lo deja ese script), se toma
+# de ahí; si no, de la release ffmpeg-<versión> de Dathinel/rodaje (pendiente de subir: paquete, .sha256 y la fuente).
 # La serie mayor debe coincidir con FFmpeg.AutoGen (9.x: avcodec-63, avformat-63, avutil-61, swresample-7, swscale-10).
-# dotnet-local.cmd, Probar.bat y probar.ps1 leen la versión de la línea siguiente: debe empezar por "$FfmpegVersion = '".
+# dotnet-local.cmd, dotnet-local.sh, Probar.bat y probar.ps1 leen la versión de la línea siguiente: debe empezar por "$FfmpegVersion = '".
 $FfmpegVersion = 'n9.0.2-17-g2a571b6068-rodaje1'
-$FfmpegUrl     = "https://github.com/Dathinel/rodaje/releases/download/ffmpeg-$FfmpegVersion/ffmpeg-$FfmpegVersion-win64-lgpl-shared-9.0.zip"
-$FfmpegSha256  = '573d569b6221f97b0f3482b7c65c3b58b97c56ce66ca1100fb84086a79d00b88'
+# Paquete de cada RID dentro de la release ffmpeg-<versión> (misma receta en los tres). Sha256 vacío = todavía no
+# publicado: se avisa y se omite. dotnet-local.sh lee esta tabla para saber si exigir la marca .ffmpeg-<versión>.
+$FfmpegPorRid = @{
+    'win-x64' = @{
+        Variante = 'win64';   Paquete = "ffmpeg-$FfmpegVersion-win64-lgpl-shared-9.0.zip"
+        Sha256   = '573d569b6221f97b0f3482b7c65c3b58b97c56ce66ca1100fb84086a79d00b88'
+        Archivos = @('bin/ffmpeg.exe', 'bin/ffprobe.exe', 'bin/avcodec-63.dll', 'bin/avformat-63.dll',
+            'bin/avutil-61.dll', 'bin/swresample-7.dll', 'bin/swscale-10.dll')
+    }
+    'linux-x64' = @{
+        Variante = 'linux64';  Paquete = "ffmpeg-$FfmpegVersion-linux64-lgpl-shared-9.0.tar.xz"
+        Sha256   = ''
+        Archivos = @('bin/ffmpeg', 'bin/ffprobe', 'lib/libavcodec.so.63', 'lib/libavformat.so.63',
+            'lib/libavutil.so.61', 'lib/libswresample.so.7', 'lib/libswscale.so.10')
+    }
+    'osx-arm64' = @{
+        Variante = 'macarm64'; Paquete = "ffmpeg-$FfmpegVersion-macarm64-lgpl-shared-9.0.tar.xz"
+        Sha256   = ''
+        Archivos = @('bin/ffmpeg', 'bin/ffprobe', 'lib/libavcodec.63.dylib', 'lib/libavformat.63.dylib',
+            'lib/libavutil.61.dylib', 'lib/libswresample.7.dylib', 'lib/libswscale.10.dylib')
+    }
+}
+$Ffmpeg        = $FfmpegPorRid[$Rid]
+$FfmpegCarpeta = "ffmpeg-$FfmpegVersion-$($Ffmpeg.Variante)-lgpl-shared-9.0"
+$FfmpegUrl     = "https://github.com/Dathinel/rodaje/releases/download/ffmpeg-$FfmpegVersion/$($Ffmpeg.Paquete)"
+$FfmpegSha256  = $Ffmpeg.Sha256
 
 # LibRaw para modulo-raw (CinemaDNG): binarios oficiales de libraw.org, LGPL-2.1 o CDDL-1.0 a elegir (se usa la LGPL,
 # como DLL dinámica). La DLL importa el runtime de Visual C++ 2015-2022 (msvcp140, vcruntime140, vcruntime140_1).
@@ -66,6 +120,16 @@ if ($env:RODAJE_SDK_URL -or $env:RODAJE_SDK_SHA512) {
     Paso "AVISO: modo de prueba, el SDK sale de $SdkUrl en vez de la descarga oficial."
 }
 
+if ($env:RODAJE_FFMPEG_URL -or $env:RODAJE_FFMPEG_SHA256) {
+    if (-not ($env:RODAJE_FFMPEG_URL -and $env:RODAJE_FFMPEG_SHA256)) {
+        Write-Host "RODAJE_FFMPEG_URL y RODAJE_FFMPEG_SHA256 son solo para pruebas y van juntas; falta una de las dos."
+        exit 1
+    }
+    $FfmpegUrl = $env:RODAJE_FFMPEG_URL
+    $FfmpegSha256 = $env:RODAJE_FFMPEG_SHA256.ToLowerInvariant()
+    Paso "AVISO: modo de prueba, FFmpeg sale de $FfmpegUrl en vez de la descarga oficial."
+}
+
 # Restos de una instalación cortada.
 if (Test-Path -LiteralPath $Entorno) {
     Get-ChildItem -LiteralPath $Entorno -Directory | Where-Object { $_.Name -like 'dotnet.tmp-*' -or $_.Name -like 'ffmpeg.tmp-*' -or $_.Name -like 'libraw.tmp-*' } | ForEach-Object {
@@ -75,18 +139,18 @@ if (Test-Path -LiteralPath $Entorno) {
 }
 
 # Descarga, verifica y deja $Componente.Carpeta en .entorno\ con su marca, o termina el script con un mensaje.
-# Interior: subcarpeta del zip que pasa a ser la carpeta final ('' = la raíz del zip).
+# Interior: subcarpeta del paquete que pasa a ser la carpeta final ('' = la raíz del paquete).
 function Instalar($c) {
     $destino = Join-Path $Entorno $c.Carpeta
     $marca = Join-Path $destino $c.Marca
     $completo = (Test-Path -LiteralPath $marca)
     foreach ($a in $c.Archivos) { if (-not (Test-Path -LiteralPath (Join-Path $destino $a))) { $completo = $false } }
     if ($completo -and -not $Forzar) {
-        Paso "Ya está $($c.Nombre) en .entorno\$($c.Carpeta)"
+        Paso "Ya está $($c.Nombre) en .entorno$Sep$($c.Carpeta)"
         return
     }
     if ((Test-Path -LiteralPath $destino) -and -not $completo) {
-        Paso "La carpeta .entorno\$($c.Carpeta) está incompleta (sin la marca $($c.Marca)); se va a reinstalar."
+        Paso "La carpeta .entorno$Sep$($c.Carpeta) está incompleta (sin la marca $($c.Marca)); se va a reinstalar."
     }
 
     New-Item -ItemType Directory -Force -Path $Entorno | Out-Null
@@ -119,16 +183,36 @@ function Instalar($c) {
         Write-Host "Vuelve a ejecutar el script; si se repite, el archivo publicado cambió y hay que actualizar el hash."
         exit 1
     }
+    # En la CI, cada paquete descargado deja su huella SHA-256 en el resumen del trabajo.
+    if ($env:GITHUB_STEP_SUMMARY) {
+        $sha256 = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
+        [System.IO.File]::AppendAllText($env:GITHUB_STEP_SUMMARY,
+            '- ' + $c.Zip + ': `' + $sha256 + '`' + [Environment]::NewLine,
+            (New-Object System.Text.UTF8Encoding($false)))
+    }
 
     $temporal = Join-Path $Entorno ($c.Carpeta + '.tmp-' + [Guid]::NewGuid().ToString('N').Substring(0, 8))
     Paso "Descomprimiendo (primero en una carpeta temporal, para que un apagón no deje nada a medias)..."
-    Add-Type -AssemblyName System.IO.Compression.FileSystem
     try {
-        [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $temporal)
+        if ($c.Url -like '*.zip') {
+            Add-Type -AssemblyName System.IO.Compression.FileSystem
+            [System.IO.Compression.ZipFile]::ExtractToDirectory($zip, $temporal)
+        } else {
+            # .tar.gz / .tar.xz con el tar del sistema, que conserva bits de ejecución y enlaces simbólicos.
+            # Rutas relativas a .entorno: el tar de GNU leería «C:\...» como archivo remoto.
+            New-Item -ItemType Directory -Force -Path $temporal | Out-Null
+            Push-Location $Entorno
+            try {
+                tar -xf (Split-Path -Leaf $zip) -C (Split-Path -Leaf $temporal)
+            } finally {
+                Pop-Location
+            }
+            if ($LASTEXITCODE -ne 0) { throw "tar devolvió el código $LASTEXITCODE" }
+        }
         $origen = $temporal
         if ($c.Interior) { $origen = Join-Path $temporal $c.Interior }
         foreach ($a in $c.Archivos) {
-            if (-not (Test-Path -LiteralPath (Join-Path $origen $a))) { throw "el archivo no trae $a donde se esperaba" }
+            if (-not (Test-Path -LiteralPath (Join-Path $origen $a))) { throw "el paquete no trae $a donde se esperaba" }
         }
         [System.IO.File]::WriteAllText((Join-Path $origen $c.Marca), $c.Version)
     } catch {
@@ -140,13 +224,13 @@ function Instalar($c) {
     }
 
     if (Test-Path -LiteralPath $destino) {
-        Paso "Quitando la versión anterior de .entorno\$($c.Carpeta)..."
+        Paso "Quitando la versión anterior de .entorno$Sep$($c.Carpeta)..."
         try {
             Remove-Item -LiteralPath $destino -Recurse -Force
         } catch {
             Remove-Item -LiteralPath $temporal -Recurse -Force -ErrorAction SilentlyContinue
             Write-Host ""
-            Write-Host "No se pudo borrar la carpeta .entorno\$($c.Carpeta) anterior. Suele pasar cuando algún programa"
+            Write-Host "No se pudo borrar la carpeta .entorno$Sep$($c.Carpeta) anterior. Suele pasar cuando algún programa"
             Write-Host "la está usando (una compilación abierta, un proceso dotnet colgado o Rodaje abierto)."
             Write-Host "Cierra Visual Studio, las consolas que estén compilando, o reinicia, y vuelve a intentarlo."
             Write-Host "Detalle técnico: $($_.Exception.Message)"
@@ -154,40 +238,46 @@ function Instalar($c) {
         }
     }
     [System.IO.Directory]::Move($origen, $destino)
-    # Si el zip traía una carpeta interior, queda la cáscara vacía; si un apagón la deja, se borra al empezar.
+    # Si el paquete traía una carpeta interior, queda la cáscara vacía; si un apagón la deja, se borra al empezar.
     if ($origen -ne $temporal) { Remove-Item -LiteralPath $temporal -Recurse -Force -ErrorAction SilentlyContinue }
-    # El .zip se borra al final: si algo se cortó antes, no hay que volver a bajarlo.
+    # El paquete se borra al final: si algo se cortó antes, no hay que volver a bajarlo.
     Remove-Item -LiteralPath $zip -Force
-    Paso "Listo: $($c.Nombre) instalado en .entorno\$($c.Carpeta)."
+    Paso "Listo: $($c.Nombre) instalado en .entorno$Sep$($c.Carpeta)."
 }
 
 if (-not $SoloFFmpeg) {
     Instalar @{
         Nombre = "el SDK de .NET $SdkVersion"; Carpeta = 'dotnet'; Version = $SdkVersion
-        Marca = ".sdk-$SdkVersion"; Archivos = @('dotnet.exe'); Interior = ''
+        Marca = ".sdk-$SdkVersion"; Archivos = $Sdk.Archivos; Interior = ''
         Url = $SdkUrl; Hash = $SdkSha512; Algoritmo = 'SHA512'
-        Zip = "dotnet-sdk-$SdkVersion-win-x64.zip"; Peso = 'unos 280 MB'
+        Zip = $Sdk.Paquete; Peso = 'unos 280 MB'
     }
     New-Item -ItemType Directory -Force -Path (Join-Path $Entorno 'nuget') | Out-Null
 }
 
-$FfmpegCarpeta = "ffmpeg-$FfmpegVersion-win64-lgpl-shared-9.0"
-$FfmpegLocal = Join-Path $Entorno "ffmpeg-lgpl\$FfmpegCarpeta.zip"
-Instalar @{
-    Nombre = "FFmpeg $FfmpegVersion (LGPL)"; Carpeta = 'ffmpeg'; Version = $FfmpegVersion
-    Marca = ".ffmpeg-$FfmpegVersion"; Interior = $FfmpegCarpeta
-    Archivos = @('bin\ffmpeg.exe', 'bin\ffprobe.exe', 'bin\avcodec-63.dll', 'bin\avformat-63.dll',
-        'bin\avutil-61.dll', 'bin\swresample-7.dll', 'bin\swscale-10.dll')
-    Url = $(if (Test-Path -LiteralPath $FfmpegLocal) { $FfmpegLocal } else { $FfmpegUrl }); Hash = $FfmpegSha256; Algoritmo = 'SHA256'
-    Zip = "$FfmpegCarpeta.zip"; Peso = 'unos 75 MB'
+$FfmpegLocal = Join-Path $Entorno (Join-Path 'ffmpeg-lgpl' $Ffmpeg.Paquete)
+if ($FfmpegSha256) {
+    Instalar @{
+        Nombre = "FFmpeg $FfmpegVersion (LGPL)"; Carpeta = 'ffmpeg'; Version = $FfmpegVersion
+        Marca = ".ffmpeg-$FfmpegVersion"; Interior = $FfmpegCarpeta
+        Archivos = $Ffmpeg.Archivos
+        Url = $(if (Test-Path -LiteralPath $FfmpegLocal) { $FfmpegLocal } else { $FfmpegUrl }); Hash = $FfmpegSha256; Algoritmo = 'SHA256'
+        Zip = $Ffmpeg.Paquete; Peso = 'unos 75 MB'
+    }
+} else {
+    Paso "FFmpeg para $Rid todavía no está publicado; se omite."
 }
 
-Instalar @{
-    Nombre = "LibRaw $LibRawVersion (LGPL-2.1)"; Carpeta = 'libraw'; Version = $LibRawVersion
-    Marca = ".libraw-$LibRawVersion"; Interior = "LibRaw-$LibRawVersion"
-    Archivos = @('bin\libraw.dll', 'LICENSE.LGPL', 'COPYRIGHT')
-    Url = $LibRawUrl; Hash = $LibRawSha256; Algoritmo = 'SHA256'
-    Zip = "LibRaw-$LibRawVersion-Win64.zip"; Peso = 'unos 3,5 MB'
+if ($Rid -eq 'win-x64') {
+    Instalar @{
+        Nombre = "LibRaw $LibRawVersion (LGPL-2.1)"; Carpeta = 'libraw'; Version = $LibRawVersion
+        Marca = ".libraw-$LibRawVersion"; Interior = "LibRaw-$LibRawVersion"
+        Archivos = @('bin\libraw.dll', 'LICENSE.LGPL', 'COPYRIGHT')
+        Url = $LibRawUrl; Hash = $LibRawSha256; Algoritmo = 'SHA256'
+        Zip = "LibRaw-$LibRawVersion-Win64.zip"; Peso = 'unos 3,5 MB'
+    }
+} else {
+    Paso "LibRaw solo tiene paquete para Windows; se omite en $Rid."
 }
 
 Paso "Entorno listo dentro del proyecto."
