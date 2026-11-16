@@ -66,6 +66,12 @@ public class SpeedEditorTests
             Calls.Add($"preset {clipId} {preset}");
             return _inner.ApplySpeedPreset(sequenceId, clipId, preset, scope);
         }
+
+        public ICommand SetFrameSampling(string sequenceId, IReadOnlyList<string> clipIds, FrameSampling sampling)
+        {
+            Calls.Add($"sampling {string.Join(',', clipIds)} {sampling}");
+            return _inner.SetFrameSampling(sequenceId, clipIds, sampling);
+        }
     }
 
     private sealed class Harness
@@ -542,4 +548,117 @@ public class SpeedEditorTests
         Assert.Equal(new[] { h.Audio.Id, h.Second.Id }, h.Editor.Targets().Select(c => c.Id));
         Assert.Equal(h.Second.Id, h.Editor.Target()!.Id);
     });
+
+    [Fact]
+    public void ModoDeMuestreo_EnVariosClipsEnUnPaso_YUndoLosDevuelve() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        h.Session.Select([h.Video.Id, h.Second.Id]);
+        int steps = h.Session.History.Count;
+
+        Assert.True(h.Editor.SetFrameSampling(FrameSampling.OpticalFlow));
+        Assert.Equal(steps + 1, h.Session.History.Count);
+        Assert.Equal("Cuadros intermedios", h.Session.UndoDescription);
+
+        Assert.Equal(FrameSampling.OpticalFlow, h.Editor.Read(h.Video).Sampling);
+        Assert.Equal(FrameSampling.OpticalFlow, h.Editor.Read(h.Second).Sampling);
+        Assert.Equal(FrameSampling.OpticalFlow, h.Video.Speed!.FrameSampling);
+        Assert.Equal(FrameSampling.OpticalFlow, h.Second.Speed!.FrameSampling);
+
+        h.Session.Undo();
+        Assert.Equal(steps, h.Session.History.Count);
+        Assert.Null(h.Video.Speed);
+        Assert.Null(h.Second.Speed);
+        Assert.Equal(FrameSampling.Nearest, h.Editor.Read(h.Video).Sampling);
+        Assert.Equal(FrameSampling.Nearest, h.Editor.Read(h.Second).Sampling);
+    });
+
+    [Fact]
+    public void ModoDeMuestreo_A1xSeGuardaYVuelveANearestSinVelocidad() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+        h.Session.Select([h.Video.Id]);
+        Assert.Null(h.Video.Speed);
+
+        Assert.True(h.Editor.SetFrameSampling(FrameSampling.Blend));
+        Assert.NotNull(h.Video.Speed);
+        Assert.True(h.Video.Speed.IsIdentity);
+        Assert.Equal(FrameSampling.Blend, h.Video.Speed.FrameSampling);
+        Assert.Equal(FrameSampling.Blend, h.Editor.Read(h.Video).Sampling);
+
+        Assert.True(h.Editor.SetFrameSampling(FrameSampling.Nearest));
+        Assert.Null(h.Video.Speed);
+        Assert.Equal(FrameSampling.Nearest, h.Editor.Read(h.Video).Sampling);
+    });
+
+    [Fact]
+    public void ModoDeMuestreo_CongeladoImagenAudioNoCambian_YCanChangeSamplingEsFalso() => UiThread.Run(async () =>
+    {
+        Harness h = await Harness.TwoClips();
+
+        // Video normal
+        SpeedState videoState = h.Editor.Read(h.Video);
+        Assert.True(videoState.IsVideo);
+        Assert.True(videoState.CanChangeSampling);
+        Assert.Equal(FrameSampling.Nearest, videoState.Sampling);
+
+        // Audio
+        SpeedState audioState = h.Editor.Read(h.Audio);
+        Assert.False(audioState.IsVideo);
+        Assert.False(audioState.CanChangeSampling);
+
+        var testTrack = new Track { Id = "v_test", Kind = TrackKind.Video, Name = "VTest" };
+        h.Session.Sequence.VideoTracks.Add(testTrack);
+
+        // Congelado en pista de video
+        var frozenClip = new Clip { Id = "frozen-clip", Speed = new ClipSpeed { Freeze = true } };
+        testTrack.Clips.Add(frozenClip);
+        SpeedState frozenState = h.Editor.Read(frozenClip);
+        Assert.True(frozenState.IsVideo);
+        Assert.True(frozenState.IsFrozen);
+        Assert.False(frozenState.CanChangeSampling);
+
+        // Imagen fija en pista de video
+        var stillMedia = new MediaRef { Id = "still-media", Path = "foto.png", IsStillImage = true, HasVideo = true, Duration = Time.Zero };
+        h.Session.Project.Media.Add(stillMedia);
+        var stillClip = new Clip { Id = "still-clip", MediaId = "still-media", SourceIn = Time.Zero, SourceOut = S(5), Start = S(0), Duration = S(5) };
+        testTrack.Clips.Add(stillClip);
+        SpeedState stillState = h.Editor.Read(stillClip);
+        Assert.True(stillState.IsVideo);
+        Assert.False(stillState.CanChangeSampling);
+
+        // Título (generador) en pista de video
+        var titleClip = new Clip { Id = "title-clip", Generator = new ClipGenerator(), SourceIn = Time.Zero, SourceOut = S(5), Start = S(5), Duration = S(5) };
+        testTrack.Clips.Add(titleClip);
+        SpeedState titleState = h.Editor.Read(titleClip);
+        Assert.True(titleState.IsVideo);
+        Assert.False(titleState.CanChangeSampling);
+
+        // Compuesto en pista de video
+        var compoundClip = new Clip { Id = "compound-clip", SequenceId = "comp-seq", SourceIn = Time.Zero, SourceOut = S(5), Start = S(10), Duration = S(5) };
+        testTrack.Clips.Add(compoundClip);
+        SpeedState compoundState = h.Editor.Read(compoundClip);
+        Assert.True(compoundState.IsVideo);
+        Assert.False(compoundState.CanChangeSampling);
+
+        // Intentar cambiar sampling cuando solo hay elementos no modificables devuelve false
+        h.Session.Select([h.Audio.Id]);
+        Assert.False(h.Editor.SetFrameSampling(FrameSampling.OpticalFlow));
+        Assert.Null(h.Audio.Speed);
+    });
+
+    [Fact]
+    public void SpeedTabValues_ContieneOpcionesDeMuestreoConTextosEsperados()
+    {
+        IReadOnlyList<SamplingOption> options = SpeedTabValues.SamplingOptions;
+        Assert.Equal(3, options.Count);
+        Assert.Equal((FrameSampling.Nearest, "Cuadro más cercano"), (options[0].Sampling, options[0].Name));
+        Assert.Equal((FrameSampling.Blend, "Mezcla de cuadros"), (options[1].Sampling, options[1].Name));
+        Assert.Equal((FrameSampling.OpticalFlow, "Flujo óptico"), (options[2].Sampling, options[2].Name));
+
+        ChoiceList<FrameSampling> choices = SpeedTabValues.SamplingChoices();
+        Assert.Equal(3, choices.Count);
+        Assert.Equal(["Cuadro más cercano", "Mezcla de cuadros", "Flujo óptico"], choices.Labels);
+        Assert.Equal([FrameSampling.Nearest, FrameSampling.Blend, FrameSampling.OpticalFlow], choices.Values);
+    }
 }

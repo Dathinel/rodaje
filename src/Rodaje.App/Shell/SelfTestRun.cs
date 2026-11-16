@@ -55,6 +55,7 @@ internal static partial class SelfTestRun
             await ShortcutsAsync(window);
             await ShowCurveAsync(window);
             await ToggleReverseAsync(window);
+            await InterpolationAsync(window);
             await TitleAsync(window, engine);
             await ImageAsync(window, engine);
             await MasksAsync(window, engine);
