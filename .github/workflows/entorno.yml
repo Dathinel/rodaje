@@ -11,13 +11,11 @@ on:
       - 'build/preparar-entorno.ps1'
       - 'build/dotnet-local.cmd'
       - 'build/dotnet-local.sh'
-      - 'build/traer-ffmpeg-ci.sh'
       - 'global.json'
       - '.github/workflows/entorno.yml'
 
 permissions:
   contents: read
-  actions: read
 
 concurrency:
   group: entorno-${{ github.ref }}
@@ -34,13 +32,6 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
-
-      # FFmpeg de Linux y macOS aún sin publicar: se trae de los artefactos de ffmpeg-lgpl.yml con la huella fijada.
-      - name: FFmpeg LGPL de los artefactos
-        if: runner.os != 'Windows'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash build/traer-ffmpeg-ci.sh
 
       # pwsh 7 en Unix; PowerShell 5.1 (powershell.exe) en Windows, como lo llama dotnet-local.cmd.
       - name: Preparar el entorno

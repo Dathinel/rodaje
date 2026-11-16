@@ -57,8 +57,8 @@ $SdkSha512 = $Sdk.Hash
 # dotnet-local.cmd, dotnet-local.sh, Probar.bat y probar.ps1 leen la versión de la línea siguiente: debe empezar por "$FfmpegVersion = '".
 $FfmpegVersion = 'n9.0.2-17-g2a571b6068-rodaje1'
 # Paquete de cada RID dentro de la release ffmpeg-<versión> (misma receta en los tres). Sha256 vacío = todavía no
-# publicado: se avisa y se omite. Las de Linux y macOS son las de los artefactos de ffmpeg-lgpl.yml (16-nov), aún sin
-# subir a la release: mientras, la CI los trae con build/traer-ffmpeg-ci.sh. dotnet-local.sh lee esta tabla para saber si exigir la marca .ffmpeg-<versión>.
+# publicado: se avisa y se omite. Las de Linux y macOS son las de ffmpeg-lgpl.yml (corridas 43943855884 y
+# 43968642464), publicadas en la misma release. dotnet-local.sh lee esta tabla para saber si exigir la marca .ffmpeg-<versión>.
 $FfmpegPorRid = @{
     'win-x64' = @{
         Variante = 'win64';   Paquete = "ffmpeg-$FfmpegVersion-win64-lgpl-shared-9.0.zip"
