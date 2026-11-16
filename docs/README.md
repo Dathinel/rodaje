@@ -39,6 +39,7 @@ Detalle de ingeniería de cada subsistema en `src/` (diseño sin dependencias ci
   - **[Capa Render (`Rodaje.Render`)](arquitectura/render.md):** Composición acelerada en Direct3D 11, pipeline de color lineal / Rec.709, shaders HLSL, renderizado de máscaras y transformaciones geométricas.
   - **[Capa Exportación (`Rodaje.Export`)](arquitectura/exportacion.md):** Coordinador de exportación por tuberías, codificadores por GPU (NVENC/AMF/QSV/MF) y software, y verificación con `ffprobe`.
   - **[Capa Aplicación (`Rodaje.App`)](arquitectura/app.md) y [Vistas](arquitectura/app-vistas.md):** Interfaz gráfica WinUI 3, desacoplamiento de lógica en `Logic/`, diseño de controles y enlace de datos.
+- **[Interpolación de fotogramas](interpolacion.md):** Cuadros intermedios por mezcla o flujo óptico en la GPU para cámara lenta, rampas y otra cadencia (D-063).
 - **[Render en caché](render-en-cache.md):** Tramos pesados precalculados a fragmentos ProRes 422 HQ por huella de cuadro (D-060), con la medición que eligió el códec.
 - **[Arranque y distribución](arranque-y-distribucion.md):** Medición de arranques en frío (215 ms) y caliente (50 ms), recortador AOT, empaquetado portable e instalador.
 - **[Pruebas a mano](pruebas-a-mano.md):** Lo que se repasa con la app abierta antes de dar por buena una función o de publicar, porque depende de la red, de la ventana, del navegador o de medios reales.

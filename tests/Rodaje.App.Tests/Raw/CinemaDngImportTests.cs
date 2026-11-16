@@ -311,4 +311,187 @@ public sealed class CinemaDngImportTests(ITestOutputHelper output) : IDisposable
             CinemaDngImport.Scan(dir)!, new CinemaDngOptions(), outputFolder, "Cancelar", cancellationToken: cancel.Token));
         Assert.Empty(Directory.Exists(outputFolder) ? Directory.GetFiles(outputFolder) : []);
     }
+
+    [Fact]
+    public void Hdr_encoder_arguments_write_lossless_ffv1_in_pq_bt2020_from_planes()
+    {
+        IReadOnlyList<string> args = CinemaDngImport.EncoderArguments(4096, 2160, 24_000, 1_001, @"C:\toma.wav", @"C:\salida.mkv", CinemaDngIntermediate.HdrPq);
+        Assert.Equal(
+            "-hide_banner -nostdin -loglevel error -y -f rawvideo -pix_fmt gbrpf16le -s 4096x2160 -framerate 24000/1001 -i pipe:0 -i C:\\toma.wav "
+            + "-map 0:v:0 -map 1:a:0? -c:a pcm_s24le -shortest "
+            + "-vf zscale=tin=linear:pin=2020:min=gbr:rin=full:t=smpte2084:p=2020:m=2020_ncl:r=full:npl=203,format=yuv444p16le "
+            + "-c:v ffv1 -level 3 -g 1 -slices 24 -slicecrc 1 -pix_fmt yuv444p16le "
+            + "-color_primaries bt2020 -color_trc smpte2084 -colorspace bt2020nc -color_range pc -f matroska C:\\salida.mkv",
+            string.Join(' ', args));
+        Assert.Equal(CinemaDngImport.EncoderArguments(64, 32, 25, 1, null, "x.mov"), CinemaDngImport.EncoderArguments(64, 32, 25, 1, null, "x.mov", CinemaDngIntermediate.Sdr709));
+    }
+
+    [Fact]
+    public void Hdr_develops_linear_in_bt2020_on_both_paths()
+    {
+        var hdr = new CinemaDngOptions(Exposure: 2, Intermediate: CinemaDngIntermediate.HdrPq);
+        using JsonDocument good = JsonDocument.Parse("""{"cuadros":[{"patron":"RGGB","blanco":3839,"balance":[1.8,1,1.4],"matriz":[1,0,0,0,1,0,0,0,1]}]}""");
+        RawDevelopParameters frame = CinemaDngImport.ReadMosaicParameters(good.RootElement, 1, hdr)[0];
+        Assert.Equal(RawOutputCurve.Linear, frame.Curve);
+        Assert.Equal(RawDevelopParameters.Bt709ToBt2020, frame.Matrix);
+        Assert.Equal(2, frame.Exposure);
+
+        using JsonDocument libraw = CinemaDngImport.Parameters(hdr);
+        Assert.Equal("rec2020", libraw.RootElement.GetProperty("espacio").GetString());
+        Assert.Equal("lineal", libraw.RootElement.GetProperty("curva").GetString());
+        using JsonDocument sdr = CinemaDngImport.Parameters(new CinemaDngOptions());
+        Assert.Equal("""{"balance":"camara","exposicion":0,"espacio":"rec709","curva":"rec709","calidad":"alta"}""", sdr.RootElement.GetRawText());
+    }
+
+    /// <summary>
+    /// Criterio de la fase 1 (docs/propuestas/hdr-12-bits.md): la rampa de 12 bits importada en HDR conserva más de 2000
+    /// niveles de Y por la GPU (WARP) y por LibRaw, los dos caminos coinciden, y ffprobe ve PQ BT.2020 de rango completo.
+    /// </summary>
+    [FfmpegLibraryFact]
+    public async Task A_12_bit_ramp_keeps_over_2000_levels_in_the_hdr_intermediate_on_both_paths()
+    {
+        if (await RawModuleAsync() is not { } raw)
+        {
+            return;
+        }
+
+        await using ModuleManager manager = raw.Manager;
+        const int Levels = 3840, Block = 4, Width = Levels * Block, Height = 32;
+        string dir = WriteFrames("Rampa HDR", new SyntheticDng
+        {
+            Width = Width,
+            Height = Height,
+            Neutral = [1.0, 1.0, 1.0],
+            FrameRate = (25, 1),
+            Scene = (x, _) => { double v = x / Block / (double)(Levels - 1); return (v, v, v); },
+        }, 2);
+
+        var hdr = new CinemaDngOptions(HighQuality: false, Intermediate: CinemaDngIntermediate.HdrPq);
+        CinemaDngResult gpu = await CinemaDngImport.RunAsync(manager, raw.Module, FfmpegExecutable.Locate(), CinemaDngImport.Scan(dir)!, hdr,
+            Path.Combine(_folder.Path, "medios"), "Rampa GPU", createDevice: GpuDevice.CreateWarp);
+        CinemaDngResult cpu = await CinemaDngImport.RunAsync(manager, raw.Module, FfmpegExecutable.Locate(), CinemaDngImport.Scan(dir)!, hdr,
+            Path.Combine(_folder.Path, "medios"), "Rampa CPU", createDevice: () => null);
+        Assert.StartsWith("GPU (", gpu.Developer, StringComparison.Ordinal);
+        Assert.Equal("CPU (LibRaw)", cpu.Developer);
+        Assert.EndsWith(".mkv", gpu.Path, StringComparison.Ordinal);
+        Assert.True(gpu.MegabytesPerFrame > 0);
+
+        MediaInfo info = MediaProbe.Probe(gpu.Path);
+        output.WriteLine($"{info.Video!.Codec} {info.Video.PixelFormat} {info.Video.Color}");
+        Assert.Equal(("ffv1", "yuv444p16le", 16), (info.Video.Codec, info.Video.PixelFormat, info.Video.BitDepth));
+        Assert.Equal(new VideoColor(YuvMatrix.Bt2020, true) { Transfer = HdrTransfer.Pq, Bt2020Primaries = true }, info.Video.Color);
+
+        ushort[] a = await LumaRowAsync(gpu.Path, Width, Height);
+        ushort[] b = await LumaRowAsync(cpu.Path, Width, Height);
+        ushort[] fromGpu = [.. Enumerable.Range(0, Levels).Select(i => a[(i * Block) + 2])];
+        ushort[] fromCpu = [.. Enumerable.Range(0, Levels).Select(i => b[(i * Block) + 2])];
+        int worst = Enumerable.Range(0, Levels).Max(i => Math.Abs(fromGpu[i] - fromCpu[i]));
+        output.WriteLine($"GPU: {fromGpu.Distinct().Count()} niveles (Y {fromGpu.Min()}..{fromGpu.Max()}); LibRaw: {fromCpu.Distinct().Count()} niveles "
+            + $"(Y {fromCpu.Min()}..{fromCpu.Max()}); mayor diferencia {worst} códigos de 16 bits. {gpu.MegabytesPerFrame:0.00} MB por cuadro.");
+        Assert.True(fromGpu.Distinct().Count() >= 2000);
+        Assert.True(fromCpu.Distinct().Count() >= 2000);
+        Assert.InRange(worst, 0, ParityCodes);
+    }
+
+    /// <summary>
+    /// Lo que guarda el intermedio HDR por encima del blanco: con 0 EV el blanco del sensor da PQ(203 nits); con +2 EV el
+    /// mismo blanco da PQ(812 nits), no PQ(203), y un cuarto del blanco sube a PQ(203); igual por la GPU y por LibRaw.
+    /// </summary>
+    [FfmpegLibraryFact]
+    public async Task Highlights_above_white_survive_in_the_hdr_intermediate_on_both_paths()
+    {
+        if (await RawModuleAsync() is not { } raw)
+        {
+            return;
+        }
+
+        await using ModuleManager manager = raw.Manager;
+        const int Width = 128, Height = 64;
+        string dir = WriteFrames("Luces", new SyntheticDng
+        {
+            Width = Width,
+            Height = Height,
+            Neutral = [1.0, 1.0, 1.0],
+            FrameRate = (25, 1),
+            Scene = (x, _) => x < Width / 2 ? (1.0, 1.0, 1.0) : (0.25, 0.25, 0.25),
+        }, 1);
+
+        int white203 = PqCode(203), white812 = PqCode(812), quarter = PqCode(203 * 0.25);
+        foreach ((string name, Func<GpuDevice?> device) in ((string, Func<GpuDevice?>)[])[("GPU", GpuDevice.CreateWarp), ("LibRaw", () => null)])
+        {
+            foreach ((double ev, int expectedWhite, int expectedQuarter) in ((double, int, int)[])[(0, white203, quarter), (2, white812, white203)])
+            {
+                CinemaDngResult result = await CinemaDngImport.RunAsync(manager, raw.Module, FfmpegExecutable.Locate(), CinemaDngImport.Scan(dir)!,
+                    new CinemaDngOptions(Exposure: ev, Intermediate: CinemaDngIntermediate.HdrPq), Path.Combine(_folder.Path, "medios"), $"Luces {name}",
+                    createDevice: device);
+                ushort[] row = await LumaRowAsync(result.Path, Width, Height);
+                output.WriteLine($"{name} {ev:+0;-0;0} EV: blanco Y {row[Width / 4]} (esperado {expectedWhite}), cuarto Y {row[3 * Width / 4]} (esperado {expectedQuarter}).");
+                Assert.InRange(row[Width / 4], expectedWhite - HalfStep(expectedWhite == white203 ? 203 : 812), expectedWhite + 2);
+                Assert.InRange(row[3 * Width / 4], expectedQuarter - ParityCodes, expectedQuarter + ParityCodes);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Lo que baja el código PQ un escalón de media precisión por debajo de <paramref name="nits"/> (2^-11 relativo, unos 3
+    /// códigos): la GPU entrega rgba16f y su blanco puede quedar en 0,99951 en lugar de 1,0; LibRaw da el código exacto.
+    /// </summary>
+    private static int HalfStep(double nits) => PqCode(nits) - PqCode(nits * (1 - Math.Pow(2, -11))) + 1;
+
+    /// <summary>La tolerancia de D-059 entre la GPU y LibRaw (±3 de 255) llevada a códigos de 16 bits.</summary>
+    private const int ParityCodes = 3 * 257;
+
+    /// <summary>El código de 16 bits de rango completo de <paramref name="nits"/> en PQ (SMPTE ST 2084).</summary>
+    private static int PqCode(double nits)
+    {
+        const double M1 = 2610.0 / 16384, M2 = 2523.0 / 4096 * 128, C1 = 3424.0 / 4096, C2 = 2413.0 / 4096 * 32, C3 = 2392.0 / 4096 * 32;
+        double y = Math.Pow(nits / 10_000, M1);
+        return (int)Math.Round(Math.Pow((C1 + (C2 * y)) / (1 + (C3 * y)), M2) * 65535);
+    }
+
+    private async Task<(ModuleManager Manager, ModuleDescriptor Module)?> RawModuleAsync()
+    {
+        string? modules = ModuleCatalog.FindDevelopmentModules(AppContext.BaseDirectory);
+        ModuleManager manager = new(new ModuleManagerOptions { Roots = modules is null ? [] : [new ModuleRoot(modules, ModuleOrigin.Development)], PingInterval = NoWatchdog });
+        manager.Refresh();
+        if (manager.FindByFunction(CinemaDngImport.MosaicFunction) is { } module && File.Exists(Path.Combine(Path.GetDirectoryName(module.EntryPath)!, "libraw.dll")))
+        {
+            return (manager, module);
+        }
+
+        output.WriteLine("Sin modulo-raw compilado con libraw.dll: se omite.");
+        await manager.DisposeAsync();
+        return null;
+    }
+
+    private string WriteFrames(string name, SyntheticDng dng, int frames)
+    {
+        string dir = Path.Combine(_folder.Path, name);
+        Directory.CreateDirectory(dir);
+        byte[] bytes = dng.Write();
+        for (int i = 0; i < frames; i++)
+        {
+            File.WriteAllBytes(Path.Combine(dir, $"F_{i:000}.dng"), bytes);
+        }
+
+        return dir;
+    }
+
+    /// <summary>La fila del centro del plano Y del primer cuadro, leída a yuv444p16le.</summary>
+    private static async Task<ushort[]> LumaRowAsync(string path, int width, int height)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo(FfmpegExecutable.Locate().Path) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true };
+        foreach (string a in (string[])["-hide_banner", "-loglevel", "error", "-i", path, "-frames:v", "1", "-f", "rawvideo", "-pix_fmt", "yuv444p16le", "pipe:1"])
+        {
+            start.ArgumentList.Add(a);
+        }
+
+        using var process = System.Diagnostics.Process.Start(start)!;
+        using var memory = new MemoryStream();
+        await process.StandardOutput.BaseStream.CopyToAsync(memory);
+        await process.WaitForExitAsync();
+        byte[] data = memory.ToArray();
+        Assert.True(data.Length >= width * height * 6, $"ffmpeg dio {data.Length} bytes");
+        return [.. Enumerable.Range(0, width).Select(x => BitConverter.ToUInt16(data, ((height / 2 * width) + x) * 2))];
+    }
 }

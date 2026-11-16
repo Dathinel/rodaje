@@ -65,10 +65,10 @@ public enum FrameSampling
     /// <summary>El cuadro que contiene el instante del origen.</summary>
     Nearest,
 
-    /// <summary>Reservado: mezcla de los dos cuadros vecinos. Hoy se muestra como <see cref="Nearest"/>.</summary>
+    /// <summary>Mezcla de los dos cuadros vecinos, pesada por la fracción del instante del origen.</summary>
     Blend,
 
-    /// <summary>Reservado para el módulo de flujo óptico (fase 7). Hoy se muestra como <see cref="Nearest"/>.</summary>
+    /// <summary>Cuadro intermedio por flujo óptico en la GPU (D-063); cae a <see cref="Blend"/> por encima de 4× y al cuadro más cercano en un corte de escena.</summary>
     OpticalFlow,
 }
 

@@ -58,6 +58,29 @@ public class FormatV4Tests
         Assert.Null(ClipOf(project, "clip-1").Speed);
     }
 
+    [Theory]
+    [InlineData(FrameSampling.Nearest)]
+    [InlineData(FrameSampling.Blend)]
+    [InlineData(FrameSampling.OpticalFlow)]
+    public void FrameSampling_RoundTrips(FrameSampling sampling)
+    {
+        Project project = ProjectSerializer.Deserialize(Example);
+        ClipOf(project, "clip-4").Speed!.FrameSampling = sampling;
+
+        string json = ProjectSerializer.Serialize(project);
+        Project back = ProjectSerializer.Deserialize(json);
+
+        Assert.Equal(sampling, ClipOf(back, "clip-4").Speed!.FrameSampling);
+        string name = sampling switch
+        {
+            FrameSampling.Nearest => "nearest",
+            FrameSampling.Blend => "blend",
+            FrameSampling.OpticalFlow => "opticalFlow",
+            _ => throw new ArgumentOutOfRangeException(nameof(sampling)),
+        };
+        Assert.Contains($"\"frameSampling\": \"{name}\"", json, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void ClipWithoutSpeed_WritesNoDurationNorSpeed()
     {

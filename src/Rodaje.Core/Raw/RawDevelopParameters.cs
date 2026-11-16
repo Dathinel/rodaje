@@ -17,6 +17,14 @@ public sealed record RawDevelopParameters
 {
     public const double MaxExposure = 6;
 
+    /// <summary>RGB lineal BT.709 a BT.2020, por filas (la misma de los shaders del compositor).</summary>
+    public static IReadOnlyList<float> Bt709ToBt2020 { get; } =
+    [
+        0.627404f, 0.329283f, 0.043313f,
+        0.069097f, 0.919540f, 0.011362f,
+        0.016391f, 0.088013f, 0.895595f,
+    ];
+
     public required BayerPattern Pattern { get; init; }
 
     /// <summary>Código del blanco con el negro restado (1 a 65 535): lo que llega a 1,0 antes del balance.</summary>
@@ -74,6 +82,21 @@ public sealed record RawDevelopParameters
         {
             throw new ArgumentException($"Parámetros de revelado no válidos: {problem}.");
         }
+    }
+
+    /// <summary>Una copia cuya matriz sale en BT.2020 (<see cref="Bt709ToBt2020"/> × <see cref="Matrix"/>, que da Rec.709).</summary>
+    public RawDevelopParameters WithRec2020Primaries()
+    {
+        var m = new float[9];
+        for (int r = 0; r < 3; r++)
+        {
+            for (int c = 0; c < 3; c++)
+            {
+                m[(r * 3) + c] = (Bt709ToBt2020[r * 3] * Matrix[c]) + (Bt709ToBt2020[(r * 3) + 1] * Matrix[3 + c]) + (Bt709ToBt2020[(r * 3) + 2] * Matrix[6 + c]);
+            }
+        }
+
+        return this with { Matrix = m };
     }
 
     /// <summary>Los multiplicadores con el menor en 1 (como <c>scale_colors</c> de LibRaw sin recuperar las luces).</summary>
