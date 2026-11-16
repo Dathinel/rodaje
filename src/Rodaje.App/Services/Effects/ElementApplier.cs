@@ -15,7 +15,7 @@ namespace Rodaje.App.Services.Effects;
 /// donde termina el clip (o, si no hay corte ahí, al de su inicio) y un estilo de texto al título seleccionado (o a uno
 /// nuevo en el cursor).
 /// </summary>
-public sealed class ElementApplier(EditorSession session, IContentLoader loader)
+public sealed class ElementApplier(EditorSession session, IContentLoader loader, Func<PackageScan>? installed = null)
 {
     private readonly IContentLoader _loader = loader ?? throw new ArgumentNullException(nameof(loader));
 
@@ -25,7 +25,7 @@ public sealed class ElementApplier(EditorSession session, IContentLoader loader)
     public static bool CanApply(LibraryElement element)
     {
         ArgumentNullException.ThrowIfNull(element);
-        return element.IsAvailable && element.Kind is ItemKind.Effect or ItemKind.Filter or ItemKind.Lut or ItemKind.Transition or ItemKind.TextStyle;
+        return element.IsAvailable && element.Kind is ItemKind.Effect or ItemKind.Filter or ItemKind.Lut or ItemKind.Transition or ItemKind.TextStyle or ItemKind.MotionTemplate;
     }
 
     /// <summary>
@@ -87,6 +87,11 @@ public sealed class ElementApplier(EditorSession session, IContentLoader loader)
             return false;
         }
 
+        if (element.Kind == ItemKind.MotionTemplate)
+        {
+            return await ApplyMotionTemplateAsync(element);
+        }
+
         TrackKind kind = element.IsBuiltIn && EffectRegistry.Find(element.Reference) is { Target: EffectTarget.Audio } ? TrackKind.Audio : TrackKind.Video;
         if (element.Kind == ItemKind.Transition)
         {
@@ -140,6 +145,53 @@ public sealed class ElementApplier(EditorSession session, IContentLoader loader)
 
         // Mientras se leía el archivo pudo cambiar de proyecto o borrarse el clip.
         return Session.SequenceId == sequenceId && Session.Sequence.FindClip(clipId) is not null && Session.Execute(command);
+    }
+
+    /// <summary>
+    /// Una plantilla de movimiento (D-064): la de títulos va al cursor como un clip; la de transición, al corte del clip
+    /// seleccionado, y la de efecto, al clip seleccionado, las dos con sus valores por defecto.
+    /// </summary>
+    private async Task<bool> ApplyMotionTemplateAsync(LibraryElement element)
+    {
+        string sequenceId = Session.SequenceId;
+        string reference = element.Reference;
+        MotionTemplates.MotionTemplateEntry? entry = installed is null ? null : await Task.Run(() => MotionTemplates.MotionTemplateCatalog.Find(installed(), reference));
+        if (entry is null || Session.SequenceId != sequenceId)
+        {
+            if (entry is null)
+            {
+                Session.Notify(NotificationSeverity.Warning, $"No se pudo usar «{element.Name}»", "La plantilla ya no está instalada o no se puede leer.");
+            }
+
+            return false;
+        }
+
+        switch (entry.Kind)
+        {
+            case TemplateKind.Title:
+                return Session.AddTemplate(entry);
+            case TemplateKind.Transition:
+                return ApplyTransition(element);
+        }
+
+        if (Target(TrackKind.Video) is not { } clip)
+        {
+            Session.Notify(NotificationSeverity.Informational, $"Aplicar «{element.Name}»", "Selecciona un clip de video en la línea de tiempo.");
+            return false;
+        }
+
+        try
+        {
+            string clipId = clip.Id;
+            return await Task.Run(() => _loader.LoadEffect(reference, null)) is { } effect && Session.SequenceId == sequenceId
+                && Session.Sequence.FindClip(clipId) is not null
+                && Session.Execute(EffectCommands.ApplyEffect(sequenceId, clipId, effect, reference, "{}"));
+        }
+        catch (Exception ex) when (ex is PackageContentException or NotImplementedException or IOException or UnauthorizedAccessException)
+        {
+            Session.Notify(NotificationSeverity.Warning, $"No se pudo aplicar «{element.Name}»", ex.Message);
+            return false;
+        }
     }
 
     private bool ApplyTransition(LibraryElement element)

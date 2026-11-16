@@ -50,6 +50,11 @@ public static class ClipLabels
     public static string TitleName(ClipGenerator generator)
     {
         ArgumentNullException.ThrowIfNull(generator);
+        if (generator.Template is { Name.Length: > 0 } template)
+        {
+            return template.Name;
+        }
+
         if (generator.Kind != GeneratorKinds.Text)
         {
             return generator.Kind;

@@ -121,6 +121,7 @@ internal sealed partial class TimelineView
         menu.Items.Add(paste);
         AddKenBurnsItems(menu);
         AddCompoundItems(menu);
+        AddTemplateItems(menu);
         AddOrganizeItems(menu);
         AddAnalysisItems(menu);
         menu.ShowAt(LanesHost, new FlyoutShowOptions { Position = p });
