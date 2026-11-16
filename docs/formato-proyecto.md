@@ -298,7 +298,7 @@ Un clip puede llevar `speed`; si no lo lleva (o es `null`) se reproduce a 1× y 
 | `reverse` | El origen corre hacia atrás: el clip empieza en `sourceOut`. |
 | `freeze` | Cuadro congelado: muestra `sourceIn` durante `duration`, y `sourceOut` es `sourceIn + 1`. Solo en pistas de video, sin `reverse`, curva ni otra velocidad. |
 | `preservePitch` | El audio mantiene el tono (por omisión, sí). |
-| `frameSampling` | `nearest`; `blend` y `opticalFlow` están reservados y hoy se ven como `nearest`. |
+| `frameSampling` | `nearest` (el cuadro que contiene el instante), `blend` (mezcla de los dos vecinos) u `opticalFlow` (cuadro intermedio por flujo óptico; por encima de 4× mezcla). Válidos desde el formato 4: un Rodaje 1.0.3 o anterior los ve como `nearest`. También se guarda en un clip a 1× para conformar otra cadencia (24 en 30). |
 
 El origen de cada instante se calcula exacto con enteros, sin redondeos acumulados. Sea `I(u)` lo que avanza el origen tras `u` ticks de la línea de tiempo (`u·num/den`, o la integral de la curva). En el instante `t` del clip, con `τ = t − start` y `p(τ) = ⌊I(offset + τ)⌋ − ⌊I(offset)⌋`, se ve `sourceIn + p(τ)` (o `sourceOut − 1 − p(τ)` en reversa). Por eso `sourceOut − sourceIn` debe valer exactamente `⌈I(offset + duration)⌉ − ⌊I(offset)⌋`, y `|offset| + duration` no puede pasar de 2^44 ticks (unas 6,9 horas). Los keyframes de los efectos siguen en tiempo del origen; en un congelado avanzan con un tiempo virtual, `sourceIn + offset + τ`. Los clips de un mismo enlace llevan la misma velocidad (`rate`, `curve`, `reverse` y `freeze`). Un ejemplo con velocidad constante, reversa, curva y congelado está en `tests/Rodaje.Core.Tests/Serialization/ejemplos/proyecto-v4.rodaje`.
 
