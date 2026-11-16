@@ -25,7 +25,7 @@ Todas las variables que lee Rodaje empiezan con `RODAJE_`. Ninguna es obligatori
 | `RODAJE_AUTOPRUEBA_CAPTURAS` | Carpeta donde `--autoprueba` guarda en PNG la ventana (dibujada por XAML) y cuadros del visor | `SelfTestRun` (Rodaje.App) |
 | `RODAJE_CONTRASTE_ALTO` | Solo con `--autoprueba` y `1`: la paleta propia toma colores de contraste alto (negro, blanco y cian) sin cambiar Windows, para revisar las vistas propias en capturas; los controles de WinUI no cambian de tema | `ThemeResources` (Rodaje.App) |
 
-`--autoprueba`, `--medir` y `--arranque` corren de fondo: el armazón y la ventana se crean fuera de pantalla, sin botón en la barra de tareas y sin poder tomar el foco, para no estorbar a quien usa el equipo; las capturas salen igual (`WindowCapture`, con `PrintWindow`). La opción `--visible` las deja a la vista como antes (`AppOptions.RunsInBackground`).
+`--autoprueba`, `--medir` y `--arranque` corren de fondo: el armazón y la ventana se crean fuera de pantalla, sin botón en la barra de tareas y sin poder tomar el foco, para no estorbar a quien usa el equipo; las capturas salen igual (`WindowCapture`, con `PrintWindow`). La opción `--visible` las deja a la vista como antes (`AppOptions.RunsInBackground`). Un exe publicado antes de ese modo (sin `--visible`) abriría la ventana a la vista: `buildpp.ps1` y `build\medir-arranque.ps1` se niegan a lanzarlo, y `build\probar-fondo.ps1` comprueba, vigilando las ventanas del proceso, que una corrida no asoma ni toma el primer plano. `-Medir` suena por la salida de audio.
 
 ## Pruebas
 

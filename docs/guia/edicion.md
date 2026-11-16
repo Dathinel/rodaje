@@ -106,6 +106,7 @@ Pestaña **Velocidad** del panel derecho (Ctrl+R la abre con el clip seleccionad
 - **Mantener tono**, activo de fábrica: el audio no se agudiza ni se agrava. Por encima de 8× se oye granuloso y por debajo de 0,25× metálico; sigue sonando.
 - **Congelar** (Mayús+R) mete 3 s del cuadro del cursor. **Invertir** reproduce al revés, cuadro exacto; con videos de más de 1080p necesita un proxy, que se genera solo.
 - **Curva:** Ninguna, Personalizada, Montaje, Héroe, Bala, Entrada rápida y Salida rápida. En Personalizada, arrastra los puntos (doble clic añade o quita, de 2 a 64) sobre el editor: altura logarítmica de 0,1× a 10×.
+- **Cuadros intermedios:** Cuadro más cercano, Mezcla de cuadros y Flujo óptico para cámara lenta fluida y conformar 24 en 30. Ver [Cámara lenta](camara-lenta.md).
 - Desde el teclado, sobre la selección: **Ctrl+Alt+.** más rápido y **Ctrl+Alt+,** más lento.
 - Con velocidad distinta de 1×, los keyframes y la envolvente del clip siguen al material, no a la línea de tiempo.
 

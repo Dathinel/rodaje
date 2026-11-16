@@ -165,3 +165,15 @@ Hace falta al menos un paquete con plantillas instalado (el `.paquete` de `Compl
 10. Una plantilla de transición sobre un corte y una de efecto sobre un clip: desde su menú se aplican con sus valores por defecto (sus parámetros aún no se editan en el inspector y arrastrar la de transición a un corte aún no hace nada).
 11. Selecciona a la vez un título y una plantilla: di qué panel sale y si confunde. Con una plantilla seleccionada, «Aplicar al texto seleccionado» de un estilo de texto no debe ofrecerse.
 12. Abre un proyecto con plantillas sin el paquete instalado: se ve igual y el panel sigue editando.
+
+## Cuadros intermedios: mezcla y flujo óptico (D-063)
+
+1. Pon un clip con movimiento (un paneo o alguien caminando) a **0,25×** en Inspector › Velocidad. Reproduce: va a saltos. Cambia **Cuadros intermedios** a «Mezcla de cuadros»: fundidos entre cuadros, con contornos dobles. Cambia a «Flujo óptico»: el movimiento debe verse continuo y nítido. El clip lleva **≈** delante de la velocidad (`≈ 0,25×`).
+2. Con «Flujo óptico», para y avanza cuadro a cuadro (flechas): mira los bordes de lo que se mueve delante del fondo. Di si ves bordes de goma o halos y en qué tipo de plano.
+3. Reproduce 10 s a 0,25× en una secuencia de 60 cuadros/s: la barra de estado no debe contar cuadros perdidos. Prueba lo mismo con un 4K.
+4. Un clip de 24 cuadros/s en una secuencia de 30, a 1×: con «Cuadro más cercano» se nota el tirón de cada cuarto cuadro; con «Flujo óptico» debe desaparecer. El clip a 1× conserva el modo y muestra solo `≈`.
+5. Un clip que por dentro tenga un cambio de plano, a 0,25× con flujo: en el corte no debe verse un fundido ni una deformación entre los dos planos, solo el salto.
+6. Selecciona varios clips y cambia el modo: **Ctrl+Z** una vez los devuelve todos. En un congelado, una foto, un título o un compuesto el desplegable sale apagado.
+7. Reversa a 0,5× con flujo y una rampa (curva «Bala»): igual de continuo que hacia adelante.
+8. Exporta el tramo a 0,25× con flujo: el archivo debe verse como la vista previa en pausa.
+9. Guarda, cierra y abre el proyecto: el modo sigue. Ábrelo con Rodaje 1.0.3: se ve como «Cuadro más cercano» (lo esperado).
