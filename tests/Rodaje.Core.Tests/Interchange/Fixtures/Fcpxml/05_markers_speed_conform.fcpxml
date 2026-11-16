@@ -15,11 +15,11 @@
             <asset-clip ref="r2" offset="3600s" name="TomaVeloz" start="0s" duration="60060/30000s" format="r1" tcFormat="DF">
               <conform-rate srcFrameRate="23.98" scaleEnabled="1"/>
               <timeMap>
-                <timept start="0s" value="0s" interp="linear"/>
-                <timept start="60060/30000s" value="120120/30000s" interp="linear"/>
+                <timept time="0s" value="0s" interp="linear"/>
+                <timept time="60060/30000s" value="120120/30000s" interp="linear"/>
               </timeMap>
-              <marker start="10010/30000s" duration="1001/30000s" value="MarcaImportante" note="Nota de prueba"/>
-              <chapter-marker start="30030/30000s" duration="1001/30000s" value="CapituloUno" posterOffset="1001/30000s"/>
+              <marker start="20020/30000s" duration="1001/30000s" value="MarcaImportante" note="Nota de prueba"/>
+              <chapter-marker start="60060/30000s" duration="1001/30000s" value="CapituloUno" posterOffset="1001/30000s"/>
             </asset-clip>
           </spine>
         </sequence>
