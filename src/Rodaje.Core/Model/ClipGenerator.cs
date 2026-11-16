@@ -7,6 +7,9 @@ namespace Rodaje.Core.Model;
 public static class GeneratorKinds
 {
     public const string Text = "text";
+
+    /// <summary>Plantilla de movimiento de varias capas de texto (formato 16, D-064).</summary>
+    public const string Template = "template";
 }
 
 /// <summary>
@@ -44,6 +47,10 @@ public sealed class ClipGenerator
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public List<TextSpan>? Spans { get; set; }
 
+    /// <summary>Plantilla de movimiento, solo en <see cref="GeneratorKinds.Template"/>.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public GeneratorTemplate? Template { get; set; }
+
     public ClipGenerator Clone() => new()
     {
         Kind = Kind,
@@ -53,6 +60,7 @@ public sealed class ClipGenerator
         Edges = Edges.Clone(),
         Words = Words?.ConvertAll(w => w.Clone()),
         Spans = Spans?.ConvertAll(s => s with { }),
+        Template = Template?.Clone(),
     };
 
     public bool ContentEquals(ClipGenerator other)
@@ -72,7 +80,8 @@ public sealed class ClipGenerator
                 && Box.HeightFraction == other.Box.HeightFraction)
             && (Spans?.Count ?? 0) == (other.Spans?.Count ?? 0) && (Spans is null || other.Spans is null || Spans.SequenceEqual(other.Spans))
             && (Words is null ? other.Words is null : other.Words is not null && Words.Count == other.Words.Count
-                && Words.Zip(other.Words).All(p => p.First.ContentEquals(p.Second)));
+                && Words.Zip(other.Words).All(p => p.First.ContentEquals(p.Second)))
+            && (Template is null ? other.Template is null : other.Template is not null && Template.ContentEquals(other.Template));
     }
 }
 

@@ -59,7 +59,7 @@ public static partial class ModelValidator
 
         ValidateTranscripts(project, errors, checkId);
 
-        long text = project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).Sum(c => (long)(c.Generator?.Text.Length ?? 0) + WordsLength(c))
+        long text = project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).Sum(c => (long)(c.Generator?.Text.Length ?? 0) + WordsLength(c) + TemplateTextLength(c))
             + TranscriptsLength(project);
         if (text > MaxProjectTextLength)
         {
