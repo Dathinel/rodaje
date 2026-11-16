@@ -240,7 +240,7 @@ public static class PackageLibrary
             JsonElement e = document.RootElement;
             if (SafeText.HasUnreadableString(e) || e.ValueKind != JsonValueKind.Object
                 || !e.TryGetProperty("kind", out JsonElement kindElement) || kindElement.ValueKind != JsonValueKind.String
-                || ManifestReader.ParseItemKind(kindElement.GetString()!) is not { } kind)
+                || (StringOf(e, "format") == Content.TemplateDocument.Format ? ItemKind.MotionTemplate : ManifestReader.ParseItemKind(kindElement.GetString()!)) is not { } kind)
             {
                 return null;
             }

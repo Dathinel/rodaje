@@ -90,6 +90,12 @@ internal static class TrimmingSupport
                 throw new EditException($"El clip «{name}» {plan.Problem}.");
             }
 
+            if (plan.Clip.Generator?.Template is { } template && plan.End - plan.Start < plan.Clip.Duration
+                && plan.End - plan.Start < Time.FromSeconds(template.MinSeconds))
+            {
+                throw new EditException($"La plantilla «{template.Name}» no puede durar menos de {template.MinSeconds:0.##} s.");
+            }
+
             // Un generador no tiene archivo: su origen virtual no tiene principio ni final.
             if (plan.Clip.Generator is null && (plan.Clip.IsCompound || !ctx.MediaOf(plan.Clip).IsStillImage))
             {

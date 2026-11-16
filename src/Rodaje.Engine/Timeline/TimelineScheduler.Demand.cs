@@ -163,6 +163,16 @@ internal sealed partial class TimelineScheduler
             media.Layers++;
             media.Priority = Math.Max(media.Priority, priority);
             media.Windows.Add(new Window(due, due + 1, Due: true, clip, Priority: priority, Approximate: approximate));
+            FrameSample sample = clip.SampleAt(time);
+            if (sample.T > 0)
+            {
+                if (due != sample.A)
+                {
+                    media.Windows.Add(new Window(sample.A, sample.A + 1, Due: true, clip, Priority: priority));
+                }
+
+                media.Windows.Add(new Window(sample.B, sample.B + 1, Due: true, clip, Priority: priority));
+            }
             if (!clip.Forward)
             {
                 // En reversa lo que viene está debajo: hasta el keyframe del GOP siguiente al de lo adelantado (dos GOP),

@@ -277,7 +277,7 @@ public sealed class SnapshotCompletenessTests
     /// <summary>Crea objetos del modelo con todos sus datos llenos y distintos de los de por omisión, siempre iguales.</summary>
     private sealed class Filler(int salt = 0)
     {
-        private const int MaxDepth = 9;
+        private const int MaxDepth = 12;
         private int _counter = salt;
 
         public object? Create(Type type, int depth)
@@ -327,6 +327,11 @@ public sealed class SnapshotCompletenessTests
             if (type == typeof(Rational))
             {
                 return Rational.Ntsc24;
+            }
+
+            if (type == typeof(System.Text.Json.JsonElement))
+            {
+                return System.Text.Json.JsonDocument.Parse($"\"v{_counter}\"").RootElement;
             }
 
             if (type.IsEnum)
