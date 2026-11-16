@@ -50,7 +50,7 @@ public sealed class VideoColorTests
         }
     }
 
-    [Theory]
+    [FfmpegLibraryTheory]
     [InlineData(AVColorTransferCharacteristic.AVCOL_TRC_SMPTE2084, HdrTransfer.Pq)]
     [InlineData(AVColorTransferCharacteristic.AVCOL_TRC_ARIB_STD_B67, HdrTransfer.Hlg)]
     [InlineData(AVColorTransferCharacteristic.AVCOL_TRC_BT709, HdrTransfer.None)]
@@ -78,7 +78,7 @@ public sealed class VideoColorTests
         AVColorSpace space, AVColorRange range, AVPixelFormat format, int height, YuvMatrix matrix, bool full) =>
         Assert.Equal(new VideoColor(matrix, full), VideoColor.Resolve(space, range, format, height));
 
-    [Fact]
+    [FfmpegLibraryFact]
     public void Conversion_through_swscale_keeps_what_the_samples_mean()
     {
         var bt709Full = new VideoColor(YuvMatrix.Bt709, true);

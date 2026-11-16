@@ -6,6 +6,7 @@ namespace Rodaje.Media.Tests;
 public sealed class GpuOutputBitsTests
 {
     [Fact]
+    [Trait("Categoria", "SoloWindows")]
     public void WarpNoTieneMonitores_YDaOchoBits()
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
