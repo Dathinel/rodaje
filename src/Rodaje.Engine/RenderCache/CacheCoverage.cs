@@ -146,13 +146,9 @@ public sealed class CacheCoverage
     {
         var pieces = new List<(Time, Time)>();
         Time from = start;
-        foreach ((Time s, Time e) in covered)
+        for (int i = VideoLayerPlan.FirstEndingAfter(covered, start); i < covered.Count; i++)
         {
-            if (e <= from)
-            {
-                continue;
-            }
-
+            (Time s, Time e) = covered[i];
             if (s >= end)
             {
                 break;

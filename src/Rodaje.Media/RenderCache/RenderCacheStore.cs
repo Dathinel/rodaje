@@ -96,6 +96,9 @@ public sealed class RenderCacheStore : IRenderCacheStore
         }
     }
 
+    /// <summary>Para las pruebas: corre entre enumerar la carpeta y reconciliar el índice en <see cref="Cleanup"/>.</summary>
+    internal Action? AfterEnumerate { get; set; }
+
     /// <summary>Carpeta en disco donde se guardan los fragmentos.</summary>
     public string Directory { get; }
 
@@ -114,7 +117,7 @@ public sealed class RenderCacheStore : IRenderCacheStore
     /// <summary>
     /// El cuadro de <paramref name="key"/>, si está en el índice. Con varios fragmentos para la misma huella se prefiere
     /// el mismo fragmento de <paramref name="previous"/> con el cuadro siguiente, después cualquiera del mismo fragmento,
-    /// y finalmente el primero.
+    /// y si no, el que deja más cuadros por delante en su fragmento.
     /// </summary>
     /// <param name="key">Huella del cuadro.</param>
     /// <param name="previous">Acierto anterior, para favorecer continuidad.</param>
@@ -158,8 +161,16 @@ public sealed class RenderCacheStore : IRenderCacheStore
                 }
             }
 
-            // 3. El primero
+            // 3. El que deja más cuadros por delante: un fragmento viejo de pocos cuadros no tapa a uno continuo.
             hit = hits[0];
+            for (int i = 1; i < hits.Count; i++)
+            {
+                if (hits[i].Fragment.Metadata.Frames.Count - hits[i].FrameIndex > hit.Fragment.Metadata.Frames.Count - hit.FrameIndex)
+                {
+                    hit = hits[i];
+                }
+            }
+
             Touch(hit.Fragment);
             return true;
         }
@@ -343,10 +354,19 @@ public sealed class RenderCacheStore : IRenderCacheStore
         int temporary = 0, orphans = 0, evicted = 0, protectedCount = 0;
         long freed = 0;
 
+        // Solo se reconcilia lo que ya estaba en el índice antes de enumerar: un Commit de otro hilo durante la limpieza
+        // publica archivos que la enumeración no vio y no debe olvidarse.
+        HashSet<string> indexed;
+        lock (_lock)
+        {
+            indexed = [.. _fragments.Keys];
+        }
+
         List<FileInfo> files;
         try
         {
             files = new DirectoryInfo(Directory).EnumerateFiles().ToList();
+            AfterEnumerate?.Invoke();
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
@@ -440,7 +460,7 @@ public sealed class RenderCacheStore : IRenderCacheStore
         lock (_lock)
         {
             var validPaths = validFragments.Select(f => f.MoviePath).ToHashSet(StringComparer.OrdinalIgnoreCase);
-            var toForget = _fragments.Values.Where(f => !validPaths.Contains(f.MoviePath)).ToList();
+            var toForget = _fragments.Values.Where(f => indexed.Contains(f.MoviePath) && !validPaths.Contains(f.MoviePath)).ToList();
             foreach (RenderCacheFragment f in toForget)
             {
                 ForgetCore(f);
