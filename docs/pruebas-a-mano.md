@@ -120,6 +120,16 @@ Fallos: (1) tras **Alt+X** la barra de contexto desaparece pero la regla sigue s
 3. Repite con `RODAJE_FORZAR_WARP=1` (o en una máquina sin GPU): el diálogo dice «Se revela en la CPU con LibRaw», ofrece la calidad y la notificación dice «Revelado en la CPU (LibRaw)». Los dos ProRes deben verse iguales a simple vista (solo cambia el interpolado en los bordes finos).
 4. Con el módulo 1.0.0 instalado (sin `mosaico`) todo sigue por la CPU sin ningún aviso.
 
+## CinemaDNG en HDR sin recortar (D-065)
+
+Con una toma real con cielo o ventanas que se quemen (o la carta sintética si no hay ninguna):
+
+1. En una secuencia **HDR10 (PQ)** (Archivo › «Formato del proyecto…»), Archivo › **Importar CinemaDNG…**: «Intermedio» debe proponer «HDR sin recortar · FFV1 16 bits, PQ BT.2020». En una secuencia SDR debe proponer el ProRes.
+2. Importa en HDR con **+2 EV**. La notificación dice «N ms y M MB por fotograma»: apunta los dos en `docs/hdr.md` (fase D, segunda parte; hoy solo hay cifras sintéticas). Compara con la misma toma en SDR: el tiempo no debería pasar de 1,25 veces.
+3. Pon el clip en la secuencia HDR y baja «Exposición» en Color a −2 EV: las nubes y las ventanas deben recuperar detalle. Con el ProRes SDR importado a +2 EV, lo mismo solo las pone grises.
+4. Pon el clip HDR en una secuencia **SDR**: se ve un paso más brillante que el ProRes hasta poner 203 en «Brillo de referencia HDR» (Propiedades); con 203 debe verse como el ProRes, sin bandas.
+5. Mira que el clip HDR de 4K reproduce con su proxy con la misma fluidez que un ProRes 4K, y que el proxy se ve con los colores del original (sirve para cortar; en degradados puede tener bandas).
+
 ## Intercambio con otros editores (EDL, FCPXML, OpenTimelineIO)
 
 1. Con un montaje de varias pistas (cortes, un fundido **Ctrl+T**, un clip a 2× y un marcador), Archivo › **Exportar línea de tiempo…** y guarda como `.otio`. No debe pedir nada: OTIO lo lleva todo. Repite como `.fcpxml` y `.edl`: antes de escribir aparece «Exportar a …» con el resumen de lo que no llega igual (en EDL, por ejemplo, los efectos y las pistas de audio de la 3 en adelante). Al terminar, «Ver informe» lista cada aviso con su TC de la secuencia; prueba **Copiar** y **Guardar como .txt**. La EDL escribe un archivo por pista de video (`nombre.edl`, `nombre_V2.edl`…).

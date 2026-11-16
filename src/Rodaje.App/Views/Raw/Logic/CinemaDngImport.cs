@@ -4,6 +4,7 @@ using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
 using Rodaje.App.Services.Modules;
+using Rodaje.Core.Model;
 using Rodaje.Core.Raw;
 using Rodaje.Media.Gpu;
 using Rodaje.Media.Proxies;
@@ -59,6 +60,13 @@ internal static class CinemaDngImport
 
     /// <summary>La función del módulo que entrega el mosaico para la GPU; un módulo anterior a la 1.1 no la tiene.</summary>
     public const string MosaicFunction = "mosaico";
+
+    /// <summary>
+    /// El intermedio que propone el diálogo: HDR si la secuencia activa es HDR; en una SDR, el ProRes de siempre (un PQ ahí
+    /// toma 100 nits de blanco de referencia y se vería un paso más brillante).
+    /// </summary>
+    public static CinemaDngIntermediate DefaultIntermediate(SequenceColorSpace space) =>
+        space == SequenceColorSpace.Sdr709 ? CinemaDngIntermediate.Sdr709 : CinemaDngIntermediate.HdrPq;
 
     /// <summary>Lo que se reserva de memoria compartida como mucho (archivos y cuadros revelados de un lote).</summary>
     public const long MaxBatchBytes = 512L * 1024 * 1024;
