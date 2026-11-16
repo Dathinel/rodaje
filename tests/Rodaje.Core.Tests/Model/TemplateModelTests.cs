@@ -82,7 +82,16 @@ public sealed class TemplateModelTests
         Assert.False(original.SameContent(copy));
     }
 
-    public static TheoryData<string> Broken => ["kind", "template-on-text", "no-layers", "17-layers", "dup-id", "big-doc", "bad-value", "neg-start", "bad-style", "bad-min", "bad-source", "control-text"];
+    [Fact]
+    public void A_generator_with_null_text_is_reported_not_thrown()
+    {
+        Clip clip = MakeTemplate("t1", 40, 5);
+        clip.Generator!.Text = null!;
+
+        Assert.Null(Record.Exception(() => ModelValidator.Validate(WithTemplate(clip))));
+    }
+
+    public static TheoryData<string> Broken => ["kind", "template-on-text", "no-layers", "17-layers", "dup-id", "big-doc", "bad-value", "neg-start", "bad-style", "bad-min", "bad-source", "long-nested", "long-array", "long-option", "control-text"];
 
     [Theory]
     [MemberData(nameof(Broken))]
@@ -104,6 +113,11 @@ public sealed class TemplateModelTests
             case "bad-style": t.Layers[0].Style.Size = 0; break;
             case "bad-min": t.MinSeconds = 601; break;
             case "bad-source": t.Source = "no es referencia"; break;
+            case "long-nested": t.Values["nombre"] = JsonSerializer.SerializeToElement(new JsonObject { ["family"] = new string('a', 10_001) }); break;
+            case "long-array": t.Values["nombre"] = JsonSerializer.SerializeToElement(new JsonObject { ["features"] = new JsonArray([.. Enumerable.Range(0, 5000).Select(i => (JsonNode)"liga")]) }); break;
+            case "long-option":
+                clip.Effects.Add(new EffectInstance { Id = "fx", Type = BuiltInEffects.Transform, Options = { [BuiltInEffects.CommonOptions.TemplateValues] = new string('a', ModelValidator.MaxTemplateValuesLength + 1) } });
+                break;
             default: t.Layers[0].Text = "a\u0001b"; break;
         }
 
