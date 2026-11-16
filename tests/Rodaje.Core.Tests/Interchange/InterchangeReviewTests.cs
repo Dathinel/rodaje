@@ -138,4 +138,23 @@ public sealed class InterchangeReviewTests
         WalkClip only = Assert.Single(flat[0].Items.OfType<WalkClip>());
         Assert.Equal(F(100), only.Duration);
     }
+
+    /// <summary>Lo encontró la autoprueba: una pista «Video 1» silenciada volvía como «V1» y sonando, sin aviso.</summary>
+    [Fact]
+    public void Fcpxml_track_names_and_states_come_back_as_the_rule_says_and_are_reported()
+    {
+        TimelineDraft draft = RandomTimelines.Create(12);
+        draft.Sequence.VideoTracks[0].Name = "Video 1";
+        draft.Sequence.AudioTracks[0].Name = "Entrevista";
+        draft.Sequence.AudioTracks[0].Muted = true;
+        var options = new InterchangeOptions { FrameRate = draft.Sequence.FrameRate };
+        var report = new InterchangeReport();
+
+        TimelineDraft expected = Fidelity.Project(draft.Project, draft.Sequence, InterchangeFormat.Fcpxml, options, report);
+        string text = InterchangeFiles.Serialize(draft.Project, draft.Sequence, null, InterchangeFormat.Fcpxml, options, new InterchangeReport())[0].Text;
+        TimelineDraft read = InterchangeFiles.ReadDraft(text, InterchangeFormat.Fcpxml, null, options, new InterchangeReport());
+
+        Assert.Null(Fidelity.Difference(expected, read));
+        Assert.Contains(report.Issues, i => i.Kind == IssueKind.Track && i.Name == "Entrevista");
+    }
 }

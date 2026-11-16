@@ -78,12 +78,43 @@ internal static class FcpxmlFidelity
         sequence.VideoTracks.RemoveAll(t => t.Clips.Count == 0);
         sequence.AudioTracks.RemoveAll(t => t.Clips.Count == 0);
 
+        // El lector rehace las pistas por «lane»: vuelven con su número por nombre y sin estados, efectos ni envíos.
+        for (int i = 0; i < sequence.VideoTracks.Count; i++)
+        {
+            ResetTrack(sequence.VideoTracks[i], $"V{i + 1}", report);
+        }
+
+        for (int i = 0; i < sequence.AudioTracks.Count; i++)
+        {
+            ResetTrack(sequence.AudioTracks[i], $"A{i + 1}", report);
+        }
+
         foreach (Marker marker in sequence.Markers)
         {
             marker.Color = null;
         }
 
         sequence.Markers.Sort((a, b) => a.Time.CompareTo(b.Time));
+    }
+
+    private static void ResetTrack(Track track, string name, InterchangeReport report)
+    {
+        if (track.Muted || track.Hidden || track.Solo || track.Locked || track.Effects.Count > 0 || track.Sends.Count > 0 || track.Output is not null)
+        {
+            report.Add(IssueSeverity.Lost, IssueKind.Track, "El FCPXML no lleva el estado (silencio, oculta, solo, bloqueo), los efectos ni los envíos de la pista.", track.Name);
+        }
+
+        track.Name = name;
+        track.Muted = false;
+        track.Hidden = false;
+        track.Solo = false;
+        track.Locked = false;
+        track.Armed = false;
+        track.Role = null;
+        track.Output = null;
+        track.Height = null;
+        track.Sends.Clear();
+        track.Effects.Clear();
     }
 
     private static void ProjectTrack(Track track, Sequence sequence, bool isSpine, InterchangeReport report)
