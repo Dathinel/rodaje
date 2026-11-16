@@ -74,8 +74,15 @@ public enum RelinkMatchKind
 }
 
 /// <summary>El archivo que se encontró para un medio que faltaba.</summary>
-public sealed record RelinkMatch(string MediaId, string Path, RelinkMatchKind Kind)
+/// <param name="MediaId">El medio de la biblioteca.</param>
+/// <param name="Path">El archivo encontrado.</param>
+/// <param name="Kind">Cómo se encontró.</param>
+/// <param name="Probe">Los datos del archivo cuando hay que copiarlos al medio (uno provisional, D-062); nulo si coinciden.</param>
+public sealed record RelinkMatch(string MediaId, string Path, RelinkMatchKind Kind, RelinkProbe? Probe = null)
 {
+    /// <summary>El cambio que aplica este hallazgo.</summary>
+    public MediaRelinkTarget Target => new(MediaId, Path, Probe);
+
     /// <summary>
     /// Hay que confirmarlo antes de enlazar: con otro nombre solo se comparan la extensión, las pistas, el tamaño de imagen y
     /// la duración, no el contenido (el proyecto no guarda una huella del original), así que puede ser otro archivo parecido.
@@ -100,7 +107,7 @@ public sealed record RelinkSearchResult(
     /// Lo encontrado, listo para <see cref="Commands.RelinkMediaCommand"/>; incluye lo que pide confirmación
     /// (<see cref="RelinkMatch.NeedsConfirmation"/>), que el diálogo no aplica sin que el usuario lo confirme.
     /// </summary>
-    public IReadOnlyList<MediaRelinkTarget> Targets => [.. Found.Select(f => new MediaRelinkTarget(f.MediaId, f.Path))];
+    public IReadOnlyList<MediaRelinkTarget> Targets => [.. Found.Select(f => f.Target)];
 }
 
 /// <summary>Límites de la búsqueda.</summary>
@@ -214,10 +221,11 @@ public static class MediaRelinkSearch
                 RelinkProbe expected = RelinkProbe.Of(media);
                 List<string> fitting = [.. candidatesOf(media)
                     .Select(f => f.Path)
-                    .Where(p => !IsTaken(p) && ProbeOf(p) is { } probe && probe.Matches(expected, options.DurationTolerance))];
+                    .Where(p => !IsTaken(p) && ProbeOf(p) is { } probe && probe.Matches(expected, options.DurationTolerance)
+                        && (!expected.IsProvisional || MediaRelinkEdits.CheckReplacement(project, media, probe) is null))];
                 if (Choose(media.Path, fitting, FingerprintOf, out List<string> tied) is { } chosen)
                 {
-                    found[media.Id] = new RelinkMatch(media.Id, chosen, kind);
+                    found[media.Id] = new RelinkMatch(media.Id, chosen, kind, expected.IsProvisional ? ProbeOf(chosen) : null);
                     taken.Add(MediaRelinkEdits.NormalizePath(chosen));
                 }
                 else if (tied.Count > 1)
@@ -227,11 +235,19 @@ public static class MediaRelinkSearch
             }
         }
 
-        Pass(RelinkMatchKind.SameName, m => byName[FileName(m.Path)]);
+        // Un medio de una EDL puede llamarse como su carrete, sin extensión: vale un archivo con ese nombre y cualquier extensión.
+        ILookup<string, RelinkFile> byStem = files.ToLookup(f => Stem(FileName(f.Path)), StringComparer.OrdinalIgnoreCase);
+        Pass(RelinkMatchKind.SameName, m => Extension(FileName(m.Path)).Length == 0 ? byStem[FileName(m.Path)] : byName[FileName(m.Path)]);
         if (options.IncludeRenamed)
         {
             Pass(RelinkMatchKind.Renamed, m =>
             {
+                // Uno provisional (D-062) no tiene datos con que reconocerlo si cambió de nombre: se elige a mano.
+                if (RelinkProbe.Of(m).IsProvisional)
+                {
+                    return [];
+                }
+
                 string name = FileName(m.Path);
                 string extension = Extension(name);
                 // Esta pasada abre cada archivo con la misma extensión: los que solo están en la nube no se abren, porque
@@ -276,6 +292,8 @@ public static class MediaRelinkSearch
         int slash = path.AsSpan().LastIndexOfAny('\\', '/');
         return path[(slash + 1)..];
     }
+
+    private static string Stem(string fileName) => fileName[..^Extension(fileName).Length];
 
     private static string Extension(string fileName)
     {

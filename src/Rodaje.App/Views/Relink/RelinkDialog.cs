@@ -184,7 +184,7 @@ internal static class RelinkDialog
                         continue;
                     }
 
-                    pending[match.MediaId] = new MediaRelinkTarget(match.MediaId, match.Path);
+                    pending[match.MediaId] = match.Target;
                     row.Status.Text = $"Encontrado: {match.Path}";
                 }
 

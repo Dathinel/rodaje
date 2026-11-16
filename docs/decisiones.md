@@ -646,6 +646,12 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
 - **Consecuencia.** Nueva carpeta desechable y `RODAJE_RENDER`; `MediaDuplicates` usa `ContentFingerprint`; `TimelineStats.LateFrames`.
 - **Verificación.** `FrameRecipeTests` (mutación de las 71 propiedades incluidas), `RecipeBuilderTests` (huella igual si y solo si la exportación compone lo mismo, cuadro a cuadro), `RenderCacheStoreTests`, `CacheCoverageTests` (2000 seeks y reproducción cruzando caché y vivo sin refrescos tarde), `RenderCacheJobTests` (fragmento igual byte a byte a una exportación ProRes HQ; pausa ≤12 ms en WARP), `RenderCacheServiceTests`, `RenderCostModelTests` y `RenderCacheBaselineTests` (medición).
 
+## D-061. Editar por el texto: la transcripción es del medio y la línea de tiempo manda (15 de noviembre de 2026; aprobada por Daniel; después de la 1.0.3)
+
+- **Contexto.** Quitar lo que sobra de lo que se dice (frases repetidas, muletillas, pausas) se hacía escuchando y cortando. Diseño completo en [`propuestas/editar-por-texto.md`](propuestas/editar-por-texto.md).
+- **Decisión.** Una transcripción por medio, en tiempo del origen, guardada en el proyecto (`transcripts`, formato 16, solo si hay alguna: sin ella el archivo sigue en 15, 14 o 13). El panel es una vista calculada de la secuencia (`TranscriptDocument`), no un segundo modelo: cortar, recortar o cambiar la velocidad de un clip actualiza el texto sin hacer nada. Borrar y mover texto son las ediciones de siempre (`AnalysisEdits.RemoveSpans`, pegar insertando) en un solo paso del historial. Sin texto libre ni hablantes automáticos.
+- **Opciones tomadas (las recomendadas del diseño).** La transcripción va dentro del `.rodaje`; sin fundido de audio en los cortes; una sola pista guía elegible; hablantes manuales; sin texto libre (F2 corrige una palabra); copiar clips a otro proyecto no lleva la transcripción; con «todas las pistas», una música que atraviesa la frase hace fallar el borrado entero con un aviso.
+
 ## D-062. Intercambio de líneas de tiempo con EDL, FCPXML y OpenTimelineIO, en C# propio dentro del núcleo (15 de noviembre de 2026; aprobada por Daniel como bloque; después de la 1.0.3)
 
 - **Contexto.** Rodaje solo entregaba renders; no podía llevar un montaje a etalonaje o sonido ni abrir uno hecho en otro editor.

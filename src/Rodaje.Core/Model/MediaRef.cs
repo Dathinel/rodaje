@@ -44,6 +44,17 @@ public sealed class MediaRef
 
     public int AudioChannels { get; set; }
 
+    /// <summary>
+    /// Código de tiempo del primer cuadro del archivo, <c>HH:MM:SS:FF</c> o <c>HH:MM:SS;FF</c> (formato 16, D-062); nulo si
+    /// el archivo no trae: el origen empieza en <c>00:00:00:00</c>.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Timecode { get; set; }
+
+    /// <summary>Carrete o nombre de cinta de la cámara (formato 16, D-062); nulo si no trae: se usa el nombre del archivo.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? Reel { get; set; }
+
     /// <summary>Devuelve la ruta absoluta, resolviendo las relativas contra la carpeta del proyecto.</summary>
     /// <remarks>
     /// <c>\Videos\a.mp4</c> y <c>C:a.mp4</c> tienen raíz pero no son absolutas: se resuelven contra la

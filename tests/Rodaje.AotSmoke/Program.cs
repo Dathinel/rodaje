@@ -474,6 +474,64 @@ try
 
     Avance("Formato 5: título con estilo copiado, dividido, guardado y leído.");
 
+    // Formato 16: una transcripción por medio (editar por texto, D-061), con las palabras en una línea
+    {
+        var ids16 = new SequentialIdGenerator();
+        Project p16 = ProjectFactory.CreateDefault("Formato 16", ids16, Rational.Fps30);
+        p16.Media.Add(new MediaRef
+        {
+            Id = "entrevista",
+            Path = "entrevista.mp4",
+            Name = "entrevista",
+            Duration = S(60),
+            HasVideo = true,
+            HasAudio = true,
+            FrameRate = Rational.Fps30,
+            Width = 1920,
+            Height = 1080,
+            SampleRate = 48000,
+            AudioChannels = 2,
+        });
+        var palabras = new List<SpokenWord>();
+        for (int i = 0; i < 20; i++)
+        {
+            palabras.Add(new SpokenWord
+            {
+                Start = S(i),
+                End = S(i + 0.8),
+                Text = $"palabra{i}",
+                Confidence = 0.9,
+                SpeakerId = i % 2 == 0 ? "ana" : null,
+                ParagraphStart = i == 0,
+            });
+        }
+
+        p16.Transcripts.Add(new MediaTranscript
+        {
+            Id = "tr-entrevista",
+            MediaId = "entrevista",
+            Language = "es",
+            Model = "large-v3-turbo-q5_0",
+            Created = new DateTime(2026, 11, 15, 12, 30, 0, DateTimeKind.Utc),
+            MediaDuration = S(60),
+            Speakers = [new TranscriptSpeaker { Id = "ana", Name = "Ana", Color = "#3A7BD5" }],
+            Words = palabras,
+        });
+        Exigir(ModelValidator.Validate(p16).Count == 0, "el proyecto con transcripción es válido: " + string.Join("; ", ModelValidator.Validate(p16)));
+        string texto16 = ProjectSerializer.Serialize(p16);
+        Exigir(texto16.Contains("\"schemaVersion\": 16", StringComparison.Ordinal), "un proyecto con transcripción se guarda en formato 16");
+        Exigir(texto16.Contains("""{"s":0,"e":564480000,"t":"palabra0","c":0.9,"sp":"ana","p":true}""", StringComparison.Ordinal),
+            "las palabras se escriben en una línea");
+        Project otra16 = ProjectSerializer.Deserialize(texto16);
+        Exigir(ProjectSerializer.Serialize(otra16) == texto16, "el formato 16 se lee y escribe igual");
+        Exigir(otra16.Transcripts[0].ContentEquals(p16.Transcripts[0]), "la transcripción vuelve igual");
+        otra16.Transcripts.Clear();
+        Exigir(!ProjectSerializer.Serialize(otra16).Contains("transcripts", StringComparison.Ordinal),
+            "sin transcripciones no se escribe el campo ni sube la versión");
+    }
+
+    Avance("Formato 16: transcripción de medio con hablante, en una línea, con ida y vuelta exacta.");
+
     Time frame = Time.FromFrames(1, Rational.Ntsc30);
     Exigir(Time.FromFrames(30000, Rational.Ntsc30).ToFrames(Rational.Ntsc30) == 30000, "30000 cuadros a 29,97 fps vuelven a ser 30000");
     Exigir(frame + frame == Time.FromFrames(2, Rational.Ntsc30), "sumar cuadros NTSC no acumula error");
