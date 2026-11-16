@@ -141,7 +141,8 @@ public sealed unsafe class SharedMemoryRegion : IDisposable
         try
         {
             // Entre la comprobación y el open el nombre pudo cambiar: se mira otra vez lo abierto, sin seguir el nombre.
-            if (new FileInfo(path).LinkTarget is not null || stream.Length < 1)
+            // Los permisos se leen del descriptor abierto (fstat), no del nombre.
+            if (new FileInfo(path).LinkTarget is not null || File.GetUnixFileMode(stream.SafeFileHandle) != Mode0600 || stream.Length < 1)
                 throw new ModuleCallException(ErrorCodes.BufferOutOfRange, "La región cambió al abrirla o está vacía.");
             long capacity = stream.Length;
             MemoryMappedFile file = MemoryMappedFile.CreateFromFile(stream, mapName: null, capacity, MemoryMappedFileAccess.ReadWrite,
