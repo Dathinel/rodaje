@@ -199,6 +199,45 @@ public class FrameRecipeTests
     };
 
     [Fact]
+    public void Cada_parametro_de_un_efecto_y_de_una_transicion_cambia_la_huella()
+    {
+        RenderCacheKey? KeyWith(int effectSlot, int transitionSlot)
+        {
+            var sources = new Sources();
+            var frame = new DecodedFrame(3, Time.Zero, Time.FromTicks(1), null, 0);
+            var incoming = new DecodedFrame(4, Time.Zero, Time.FromTicks(1), null, 0);
+            sources.Media[frame] = "medio";
+            sources.Media[incoming] = "medio-entra";
+            var effect = default(EffectValues);
+            var mix = default(EffectValues);
+            if (effectSlot >= 0)
+            {
+                effect[effectSlot] = 0.5f;
+            }
+
+            if (transitionSlot >= 0)
+            {
+                mix[transitionSlot] = 0.5f;
+            }
+
+            var layer = new LayerFrame(0, "c", frame, BaseTransform)
+            {
+                Effects = [new LayerEffect(ColorCode, effect, null)],
+                Transition = new LayerTransition(CrossfadeCode, 0.5f, mix, new LayerFrame(0, "entra", incoming, LayerTransform.Identity)),
+            };
+            using var composition = new CompositionFrame(Time.Zero, 1920, 1080, [layer]);
+            return FrameRecipe.Compute(composition, Format, sources);
+        }
+
+        var keys = new HashSet<RenderCacheKey> { KeyWith(-1, -1)!.Value };
+        for (int slot = 0; slot < EffectDefinition.MaxParameters; slot++)
+        {
+            Assert.True(keys.Add(KeyWith(slot, -1)!.Value), $"El parámetro {slot} del efecto no entra en la huella.");
+            Assert.True(keys.Add(KeyWith(-1, slot)!.Value), $"El parámetro {slot} de la transición no entra en la huella.");
+        }
+    }
+
+    [Fact]
     public void Cada_propiedad_de_la_composicion_esta_clasificada_una_sola_vez()
     {
         Assert.Equal(FrameRecipe.Included.Keys.OrderBy(t => t.Name), FrameRecipe.Excluded.Keys.OrderBy(t => t.Name));

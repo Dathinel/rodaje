@@ -412,6 +412,25 @@ public sealed class RenderCacheStoreTests : IDisposable
         Assert.False(File.Exists(f3.MoviePath));
     }
 
+    [Fact]
+    public void Leer_cuadro_a_cuadro_no_escribe_la_fecha_del_archivo_en_cada_lectura()
+    {
+        var keys = new[] { MakeKey(51), MakeKey(52), MakeKey(53) };
+        _clock.Now = Start;
+        RenderCacheFragment fragment = CommitFake(_store, keys);
+        _clock.Now = Start.AddMinutes(10);
+        Assert.True(_store.TryGet(keys[0], null, out RenderCacheHit hit));
+
+        _clock.Now = Start.AddMinutes(10).AddSeconds(30);
+        Assert.True(_store.TryGet(keys[1], hit, out hit));
+        Assert.True(_store.TryGet(keys[2], hit, out _));
+        Assert.Equal(Start.AddMinutes(10).UtcDateTime, File.GetLastAccessTimeUtc(fragment.MoviePath));
+
+        _clock.Now = Start.AddMinutes(12);
+        Assert.True(_store.TryGet(keys[0], null, out _));
+        Assert.Equal(Start.AddMinutes(12).UtcDateTime, File.GetLastAccessTimeUtc(fragment.MoviePath));
+    }
+
     private static RenderCacheKey MakeKey(ulong value) => new(0x1234_5678_9ABC_DEF0, value);
 
     private static RenderCacheFragmentMetadata CreateMetadata(
