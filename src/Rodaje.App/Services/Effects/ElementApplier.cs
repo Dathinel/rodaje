@@ -68,7 +68,7 @@ public sealed class ElementApplier(EditorSession session, IContentLoader loader,
 
     private async Task<bool> ApplyTextStyleAsync(LibraryElement element)
     {
-        if (Session.SelectedTitle is not { } title)
+        if (Session.SelectedTitle is not { Generator.Template: null } title)
         {
             return await AddTitleAsync(element);
         }

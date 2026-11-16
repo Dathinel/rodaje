@@ -51,9 +51,15 @@ public static class TemplateThumbnails
     public const int Frames = 12;
     public const int Width = 192;
     public const int Height = 108;
+    /// <summary>Sube cuando cambia cómo se compone la tira: las guardadas con otra versión se vuelven a hacer.</summary>
+    public const int Version = 1;
+
+    /// <summary>Tope de la carpeta de la caché; al pasarlo se borran las tiras más viejas.</summary>
+    public const long MaxCacheBytes = 64L * 1024 * 1024;
     private const string SequenceId = "miniatura";
     private static readonly byte[] PngSignature = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
     private static readonly uint[] CrcTable = BuildCrcTable();
+    private static readonly string FramesKey = string.Create(System.Globalization.CultureInfo.InvariantCulture, $"RodajeTira{Version}\0");
 
     public static string CacheFolder => Path.Combine(AppDataPaths.Root, "cache", "plantillas");
 
@@ -83,9 +89,23 @@ public static class TemplateThumbnails
         ArgumentNullException.ThrowIfNull(strip);
         Directory.CreateDirectory(folder);
         string path = CachePath(folder, documentText);
-        string temp = path + ".tmp";
-        File.WriteAllBytes(temp, EncodePng(strip));
-        File.Move(temp, path, overwrite: true);
+        // Nombre propio: dos hilos que guarden la misma tira no se pisan el temporal.
+        string temp = $"{path}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            File.WriteAllBytes(temp, EncodePng(strip));
+            File.Move(temp, path, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && File.Exists(path))
+        {
+            // Otro hilo acaba de dejar la misma tira (mismo documento, mismo contenido): vale la suya.
+        }
+        finally
+        {
+            File.Delete(temp);
+        }
+
+        Media.DiskCacheTrimmer.Trim(folder, "*.png", MaxCacheBytes);
     }
 
     /// <summary>Un proyecto de 192 × 108 con la plantilla sola, con sus valores por defecto y su duración.</summary>
@@ -211,7 +231,7 @@ public static class TemplateThumbnails
         header[10] = header[11] = header[12] = 0;
         WriteChunk(png, "IHDR", header);
         // Los cuadros de la tira van en un fragmento de texto: quien la lea no tiene que suponer que son 12.
-        WriteChunk(png, "tEXt", Encoding.ASCII.GetBytes("Frames\0" + strip.Frames.ToString(System.Globalization.CultureInfo.InvariantCulture)));
+        WriteChunk(png, "tEXt", Encoding.ASCII.GetBytes(FramesKey + strip.Frames.ToString(System.Globalization.CultureInfo.InvariantCulture)));
         WriteChunk(png, "IDAT", data.GetBuffer().AsSpan(0, (int)data.Length));
         WriteChunk(png, "IEND", []);
         return png.ToArray();
@@ -252,9 +272,9 @@ public static class TemplateThumbnails
                 width = BinaryPrimitives.ReadInt32BigEndian(body);
                 height = BinaryPrimitives.ReadInt32BigEndian(body[4..]);
             }
-            else if (type.SequenceEqual("tEXt"u8) && body.StartsWith("Frames\0"u8))
+            else if (type.SequenceEqual("tEXt"u8) && body.StartsWith(Encoding.ASCII.GetBytes(FramesKey)))
             {
-                _ = int.TryParse(body[7..], System.Globalization.CultureInfo.InvariantCulture, out frames);
+                _ = int.TryParse(body[FramesKey.Length..], System.Globalization.CultureInfo.InvariantCulture, out frames);
             }
             else if (type.SequenceEqual("IDAT"u8))
             {

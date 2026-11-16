@@ -22,12 +22,14 @@ public static class PackageWriter
     {
         ArgumentNullException.ThrowIfNull(output);
         ArgumentNullException.ThrowIfNull(package);
-        if (!Identifiers.IsValid(package.Id) || !Identifiers.IsValid(package.ItemId) || !Identifiers.IsValid(package.AppId))
+        if (!Identifiers.IsValid(package.Id) || !Identifiers.IsValid(package.ItemId) || !Identifiers.IsValid(package.AppId)
+            || package.Id == PackageLibrary.OwnPackageId)
         {
             throw new ArgumentException("El id del paquete, del elemento o del programa no es válido.", nameof(package));
         }
 
-        if (!SafePaths.TryNormalizeRelative(package.File, out string? file) || file == PackageManifest.FileName)
+        if (!SafePaths.TryNormalizeRelative(package.File, out string? file)
+            || file.Equals(PackageManifest.FileName, StringComparison.OrdinalIgnoreCase) || file.Equals(PackageIntegrity.FileName, StringComparison.OrdinalIgnoreCase))
         {
             throw new ArgumentException($"«{package.File}» no es una ruta relativa dentro del paquete.", nameof(package));
         }

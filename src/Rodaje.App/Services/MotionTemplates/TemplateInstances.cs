@@ -92,29 +92,30 @@ public static class TemplateInstances
     {
         ArgumentNullException.ThrowIfNull(current);
         ArgumentNullException.ThrowIfNull(newer);
-        Dictionary<string, string> oldLabels = Labels(current.Document);
+        Dictionary<string, TemplateParameter> old = Parameters(current.Document);
         var kept = new Dictionary<string, JsonElement>();
         var reset = new List<string>();
         foreach ((string id, JsonElement value) in current.Values)
         {
-            if (newer.Document.Parameters.Any(p => p.Id == id) && IsValid(newer.Document, id, value))
+            // Mismo id y mismo tipo, y válido junto a los ya conservados (un tamaño y un borde pueden chocar entre sí).
+            kept[id] = value;
+            if (newer.Document.Parameters.FirstOrDefault(p => p.Id == id) is not { } parameter
+                || (old.TryGetValue(id, out TemplateParameter? before) && before.Type != parameter.Type)
+                || !IsValid(newer.Document, kept))
             {
-                kept[id] = value;
-            }
-            else
-            {
-                reset.Add(oldLabels.GetValueOrDefault(id, id));
+                kept.Remove(id);
+                reset.Add(old.TryGetValue(id, out TemplateParameter? named) ? named.Label : id);
             }
         }
 
         return (Create(newer.Document, newer.DocumentText, newer.ProjectSource, newer.Name, kept), reset);
     }
 
-    private static bool IsValid(TemplateDocument document, string id, JsonElement value)
+    private static bool IsValid(TemplateDocument document, Dictionary<string, JsonElement> values)
     {
         try
         {
-            _ = TemplateInstantiator.Instantiate(document, new Dictionary<string, JsonNode?> { [id] = JsonNode.Parse(value.GetRawText()) });
+            _ = TemplateInstantiator.Instantiate(document, values.ToDictionary(p => p.Key, p => JsonNode.Parse(p.Value.GetRawText())));
             return true;
         }
         catch (PackageContentException)
@@ -123,11 +124,11 @@ public static class TemplateInstances
         }
     }
 
-    private static Dictionary<string, string> Labels(string documentText)
+    private static Dictionary<string, TemplateParameter> Parameters(string documentText)
     {
         try
         {
-            return ContentReaders.ReadTemplate(documentText).Parameters.ToDictionary(p => p.Id, p => p.Label);
+            return ContentReaders.ReadTemplate(documentText).Parameters.ToDictionary(p => p.Id);
         }
         catch (PackageContentException)
         {

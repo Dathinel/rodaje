@@ -52,13 +52,19 @@ internal sealed partial class TemplatePanel
             FontSize = ThemeResources.Size("BodyFontSize"),
         };
         AutomationProperties.SetName(box, parameter.Label);
-        box.TextChanged += (_, _) => Commit(parameter, JsonValue.Create(TitleEditor.FromTextBox(box.Text))!, single: false);
+        bool typing = false;
+        box.TextChanged += (_, _) =>
+        {
+            typing = true;
+            Commit(parameter, JsonValue.Create(TitleEditor.FromTextBox(box.Text))!, single: false);
+            typing = false;
+        };
         box.LostFocus += (_, _) => EndChange();
         _refreshers.Add(value =>
         {
-            // Mientras se escribe no se pisa lo que hay en el campo (el cursor saltaría al principio).
+            // El refresco de la propia tecla no pisa el campo (el cursor saltaría); deshacer con el foco dentro sí lo actualiza.
             string text = Text(value) ?? "";
-            if (box.FocusState == FocusState.Unfocused && TitleEditor.FromTextBox(box.Text) != text)
+            if (!typing && TitleEditor.FromTextBox(box.Text) != text)
             {
                 box.Text = text;
             }
@@ -76,6 +82,7 @@ internal sealed partial class TemplatePanel
         var hex = new TextBox { Height = 28, MinHeight = 28, FontSize = ThemeResources.Size("BodyFontSize"), MinWidth = 0 };
         AutomationProperties.SetName(hex, parameter.Label);
         bool fromCode = false;
+        string shownHex = "";
         picker.ColorChanged += (_, e) =>
         {
             if (!fromCode)
@@ -89,6 +96,10 @@ internal sealed partial class TemplatePanel
             if (StyleColors.Normalize(hex.Text) is { } value)
             {
                 Commit(parameter, JsonValue.Create(value)!, single: true);
+            }
+            else
+            {
+                hex.Text = shownHex;
             }
         }
 
@@ -104,10 +115,12 @@ internal sealed partial class TemplatePanel
         _refreshers.Add(value =>
         {
             string text = Text(value) ?? "#FFFFFF";
-            if (hex.FocusState == FocusState.Unfocused)
+            if (hex.FocusState == FocusState.Unfocused || text != shownHex)
             {
                 hex.Text = text;
             }
+
+            shownHex = text;
 
             if (StyleColors.TryParse(text, out (byte A, byte R, byte G, byte B) c))
             {
