@@ -362,11 +362,17 @@ public static class ClipAttributeEdits
 
             TimelineEdits.SetReverse(ctx, clip.Id, speed is { Reverse: true });
 
-            // A 1× el origen no tiene velocidad: el destino vuelve al tono y al muestreo por defecto, no se queda con los suyos.
             TimelineEdits.SetPreservePitch(ctx, clip.Id, speed?.PreservePitch ?? true);
             FrameSampling sampling = speed?.FrameSampling ?? default;
             foreach ((_, Clip member) in ctx.Sequence.GetLinkGroup(clip.Id))
             {
+                if (sampling != FrameSampling.Nearest && member.Speed is null)
+                {
+                    Time duration = member.Duration;
+                    member.Speed = new ClipSpeed { PreservePitch = speed?.PreservePitch ?? true };
+                    member.Duration = duration;
+                }
+
                 if (member.Speed is { } own)
                 {
                     own.FrameSampling = sampling;

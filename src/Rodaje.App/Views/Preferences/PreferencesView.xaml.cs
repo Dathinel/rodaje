@@ -125,7 +125,7 @@ internal sealed partial class PreferencesView : UserControl
 
         RenderCacheClearButton.IsEnabled = false;
         long freed = clear();
-        RenderCacheClearText.Text = string.Create(System.Globalization.CultureInfo.CurrentCulture, $"Liberados {freed / (1024.0 * 1024 * 1024):0.##} GB.");
+        RenderCacheClearText.Text = string.Create(SpanishNumbers.Format, $"Liberados {freed / (1024.0 * 1024 * 1024):0.##} GB.");
         RenderCacheClearButton.IsEnabled = true;
     }
 

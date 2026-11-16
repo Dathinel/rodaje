@@ -1,3 +1,4 @@
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Playback;
 using Rodaje.Playback.Composition;
@@ -57,6 +58,11 @@ internal sealed partial class TimelineScheduler
         }
 
         settled &= exact || missing;
+        FrameSample sample = clip.SampleAt(time);
+        if ((!running || _seekPending) && sample.T > 0)
+        {
+            settled &= _cache.Contains(media.Id, sample.B) || media.Unavailable.Contains(sample.B);
+        }
         if (running && !exact && !missing && !_seekPending)
         {
             layer.Late++;
@@ -298,8 +304,18 @@ internal sealed partial class TimelineScheduler
         IReadOnlyList<LayerTransform>? motion = MotionSampler.Sample(plan?.Motion,
             new ClipMotionSource(plan, clip, frame.Index, transition, entering, progress), time, FrameTicks, layer.Effects, ref lists);
         Look look = layer.CurrentLook;
+        FrameSample sample = clip.SampleAt(time);
+        DecodedFrame? next = null;
+        if (sample.T > 0 && frame.Index == sample.A && layer.CurrentMedia is { } media)
+        {
+            _cache.TryGetLatest(media.Id, sample.B, sample.B, out next, out _);
+        }
+
         return new LayerFrame(trackIndex, clip.ClipId, frame, transform, look.SampleAspectRatio, look.Rotation)
         {
+            Next = next,
+            Fraction = next is null ? 0 : sample.T,
+            Sampling = next is null ? FrameSampling.Nearest : sample.Mode,
             DisplayWidth = look.DisplayWidth,
             DisplayHeight = look.DisplayHeight,
             IsProxy = look.IsProxy,
@@ -319,6 +335,9 @@ internal sealed partial class TimelineScheduler
         private readonly EffectList _effects = new();
         private bool _hasMotion;
         private DecodedFrame? _frame;
+        private DecodedFrame? _next;
+        private float _fraction;
+        private FrameSampling _sampling;
         private int _trackIndex;
         private string _clipId = "";
         private LayerTransform _transform;
@@ -364,6 +383,9 @@ internal sealed partial class TimelineScheduler
             }
 
             _generated = layer.Generated;
+            _next = layer.Next is { } next && next.TryRetain() ? next : null;
+            _fraction = _next is null ? 0 : layer.Fraction;
+            _sampling = _next is null ? FrameSampling.Nearest : layer.Sampling;
             _trackIndex = layer.TrackIndex;
             _clipId = layer.ClipId;
             _transform = layer.Transform;
@@ -445,8 +467,12 @@ internal sealed partial class TimelineScheduler
                 transition = _transition with { Incoming = incoming };
             }
 
+            DecodedFrame? retainedNext = _next is { } next && next.TryRetain() ? next : null;
             return new LayerFrame(_trackIndex, _clipId, _frame, _transform, _sampleAspectRatio, _rotation)
             {
+                Next = retainedNext,
+                Fraction = retainedNext is null ? 0 : _fraction,
+                Sampling = retainedNext is null ? FrameSampling.Nearest : _sampling,
                 DisplayWidth = _displayWidth,
                 DisplayHeight = _displayHeight,
                 IsProxy = _isProxy,
@@ -472,6 +498,11 @@ internal sealed partial class TimelineScheduler
             }
 
             _generated = null;
+            if (_next is not null)
+            {
+                released.Add(_next);
+                _next = null;
+            }
 
             if (_hasTransition)
             {

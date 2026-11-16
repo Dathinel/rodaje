@@ -399,6 +399,27 @@ public static class TemplateInstantiator
         }
     }
 
+    /// <summary>Con los valores como JSON de un objeto (la opción <c>template.values</c> del proyecto); nulo o vacío, los de la plantilla.</summary>
+    public static TemplateInstance Instantiate(TemplateDocument document, string? valuesJson)
+    {
+        if (string.IsNullOrEmpty(valuesJson))
+        {
+            return Instantiate(document);
+        }
+
+        JsonObject parsed;
+        try
+        {
+            parsed = JsonNode.Parse(valuesJson) as JsonObject ?? throw new PackageContentException("Los valores de la plantilla no son un objeto JSON.");
+        }
+        catch (JsonException ex)
+        {
+            throw new PackageContentException("Los valores de la plantilla no son JSON válido.", ex);
+        }
+
+        return Instantiate(document, parsed.ToDictionary(p => p.Key, p => p.Value));
+    }
+
     private static TemplateInstance InstantiateBody(TemplateDocument document, IReadOnlyDictionary<string, JsonNode?>? values)
     {
         JsonObject body = document.Body;

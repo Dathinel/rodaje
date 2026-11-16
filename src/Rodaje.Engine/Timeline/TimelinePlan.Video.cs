@@ -75,29 +75,42 @@ internal sealed partial class TimelinePlan
                 ClipTimeMap map = clip.TimeMap;
                 Time material = Material(m);
                 clips.Add(new VideoClipPlan(clip.Id, key, map, clip.Start + head, clip.End + tail, material, rate, sequence.FrameRate,
-                    effects, m.Width, m.Height, m.IsStillImage) { Outgoing = transition });
+                    effects, m.Width, m.Height, m.IsStillImage, clip.Speed?.FrameSampling ?? FrameSampling.Nearest) { Outgoing = transition });
 
                 if (entering is { } e2)
                 {
                     incoming.Add(new VideoClipPlan(clip.Id, key, map, clip.Start - e2.Before, clip.Start + e2.After, material, rate,
-                        sequence.FrameRate, effects, m.Width, m.Height, m.IsStillImage));
+                        sequence.FrameRate, effects, m.Width, m.Height, m.IsStillImage, clip.Speed?.FrameSampling ?? FrameSampling.Nearest));
                 }
             }
 
             (List<GroupClipPlan> main, List<GroupClipPlan> entering2) = Groups(track, trackIndex, instances, depth);
+            List<List<GeneratedClipPlan>> generated = Generated(track, sequence);
             var plan = new VideoLayerPlan(trackIndex, track.Id, clips)
             {
                 Companion = incoming.Count > 0 && !track.Hidden
                     ? new VideoLayerPlan(trackIndex, track.Id + VideoLayerPlan.CompanionSuffix, incoming) { IsNested = depth > 0 }
                     : null,
-                Generated = Generated(track, sequence),
+                Generated = generated[0],
                 Groups = main,
                 IncomingGroups = entering2,
                 IsNested = depth > 0,
             };
             output[position] = plan;
+
+            // Las capas de las plantillas por encima de la primera van en carriles propios justo encima de la pista: cada
+            // carril muestra un título a la vez y las capas de un mismo clip se solapan.
+            List<VideoLayerPlan> extra = [.. generated.Skip(1).Select((lane, k) =>
+                new VideoLayerPlan(trackIndex, $"{track.Id}{TemplateLaneSeparator}{k + 1}", []) { Generated = lane, IsNested = depth > 0 })];
+            output.InsertRange(position + 1, extra);
+            _templateLanes[plan] = extra;
             return plan;
         }
+
+        /// <summary>Los carriles de capas de plantilla que <see cref="Add"/> puso encima de <paramref name="plan"/>.</summary>
+        private List<VideoLayerPlan> TemplateLanes(VideoLayerPlan plan) => _templateLanes.GetValueOrDefault(plan) ?? [];
+
+        private readonly Dictionary<VideoLayerPlan, List<VideoLayerPlan>> _templateLanes = new(ReferenceEqualityComparer.Instance);
 
         /// <summary>
         /// Reparte los tramos de los compuestos en grupos que no se pisan (el que sale y el que entra en una transición van en
@@ -161,7 +174,9 @@ internal sealed partial class TimelinePlan
                 foreach (Track slotTrack in slotTracks)
                 {
                     slotTrack.SortClips();
-                    lanes.Add(Add(slotTrack, trackIndex, Layers, groups: true, depth + 1));
+                    VideoLayerPlan lane = Add(slotTrack, trackIndex, Layers, groups: true, depth + 1);
+                    lanes.Add(lane);
+                    lanes.AddRange(TemplateLanes(lane));
                 }
 
                 foreach (Instance instance in slots[s])
@@ -186,20 +201,43 @@ internal sealed partial class TimelinePlan
     /// Los títulos activos de la pista. No entran en <c>included</c>: no tienen decodificador ni transiciones (una
     /// transición contra un título se ve como corte) y no cuentan para la demanda.
     /// </summary>
-    private static List<GeneratedClipPlan> Generated(Track track, Sequence sequence)
+    /// <remarks>El carril 0 lleva los títulos y la primera capa de cada plantilla; el carril k, la capa k (D-064).</remarks>
+    private static List<List<GeneratedClipPlan>> Generated(Track track, Sequence sequence)
     {
-        var generated = new List<GeneratedClipPlan>();
+        var lanes = new List<List<GeneratedClipPlan>> { new() };
         foreach (Clip clip in Ordered(track))
         {
-            if (clip is { Enabled: true, Generator: not null } && clip.Duration > Time.Zero
-                && GeneratedClipPlan.From(clip, sequence.Width, sequence.Height) is { } plan)
+            if (clip is not { Enabled: true, Generator: not null } || clip.Duration <= Time.Zero)
             {
-                generated.Add(plan);
+                continue;
+            }
+
+            if (GeneratedClipPlan.From(clip, sequence.Width, sequence.Height) is { } plan)
+            {
+                lanes[0].Add(plan);
+                continue;
+            }
+
+            IReadOnlyList<GeneratedClipPlan?> layers = GeneratedClipPlan.Layers(clip, sequence.Width, sequence.Height);
+            for (int k = 0; k < layers.Count; k++)
+            {
+                if (lanes.Count == k)
+                {
+                    lanes.Add([]);
+                }
+
+                if (layers[k] is { } layer)
+                {
+                    lanes[k].Add(layer);
+                }
             }
         }
 
-        return generated;
+        return lanes;
     }
+
+    /// <summary>Separa el id de la pista del número de capa en los carriles de plantilla.</summary>
+    internal const string TemplateLaneSeparator = "#capa";
 
     private static TransitionPlan Transition(Cut cut, Sequence sequence, IEffectContent? content, ref int missing)
     {

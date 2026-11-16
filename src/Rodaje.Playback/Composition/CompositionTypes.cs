@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Rodaje.Core.Effects;
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.Playback.Composition;
@@ -187,6 +188,12 @@ public sealed class LayerFrame : IDisposable
 
     public DecodedFrame Frame { get; }
 
+    public DecodedFrame? Next { get; init; }
+
+    public float Fraction { get; init; }
+
+    public FrameSampling Sampling { get; init; }
+
     public LayerTransform Transform { get; }
 
     /// <summary>Forma del píxel del origen (ancho / alto); 1:1 si los píxeles son cuadrados.</summary>
@@ -234,6 +241,7 @@ public sealed class LayerFrame : IDisposable
     public void Dispose()
     {
         Frame.Dispose();
+        Next?.Dispose();
         if (Nested is { } nested)
         {
             foreach (LayerFrame layer in nested)

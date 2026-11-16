@@ -548,7 +548,8 @@ internal sealed class TransitionPlan
         if (definition.Type == BuiltInTransitions.Preset)
         {
             string reference = t.Options.GetValueOrDefault(BuiltInTransitions.PresetOptions.Preset) ?? "";
-            curves = reference.Length > 0 ? content?.FindTransition(reference) : null;
+            string? templateValues = t.Options.GetValueOrDefault(BuiltInEffects.CommonOptions.TemplateValues);
+            curves = reference.Length > 0 ? content?.FindTransition(reference, templateValues) : null;
             fellBack = curves is null;
             definition = curves is not null && EffectRegistry.Find(curves.MixCode) is { IsTransition: true, Stage: EffectStage.Transition } mix
                 && mix.Type != BuiltInTransitions.Preset
