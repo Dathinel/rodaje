@@ -86,6 +86,13 @@ internal static class ProjectJson
             options.Converters.Add(new WellFormedStringConverter(locate));
         }
 
+        if (checkedWrites || checkedReads)
+        {
+            // En las opciones de archivo (ReadInfo, WriteInfo, LocateInfo), no en FileOptions: el esquema se
+            // genera con esta última y sigue describiendo las palabras como objetos con su forma.
+            options.Converters.Add(new SpokenWordsJsonConverter());
+        }
+
         options.MakeReadOnly();
         return options;
     }

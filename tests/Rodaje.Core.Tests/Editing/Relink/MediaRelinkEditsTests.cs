@@ -48,6 +48,65 @@ public class MediaRelinkEditsTests
     }
 
     [Fact]
+    public void Relink_keeps_the_media_transcript()
+    {
+        Project project = CommandFixtures.Create();
+        var transcript = new MediaTranscript
+        {
+            Id = "tr-1",
+            MediaId = "media-1",
+            Language = "es",
+            Model = "whisper",
+            MediaDuration = CoreTime.FromSeconds(60),
+            Words = [new SpokenWord { Start = CoreTime.Zero, End = CoreTime.FromSeconds(1), Text = "hola", Confidence = 0.9 }],
+        };
+        project.Transcripts.Add(transcript);
+        MediaTranscript snapshot = transcript.Clone();
+        var history = new UndoStack(project);
+
+        RelinkProbe longer = RelinkProbe.Of(project.GetMedia("media-1")) with { Duration = CoreTime.FromSeconds(90) };
+        history.Execute(new RelinkMediaCommand([new MediaRelinkTarget("media-1", "/nuevo/toma.mp4", longer)]));
+
+        // Se conserva la misma transcripción, con su duración de entonces: así se sabe que puede no coincidir (D-061).
+        Assert.Same(transcript, project.FindTranscript("media-1"));
+        Assert.True(transcript.ContentEquals(snapshot));
+        Assert.Single(project.Transcripts);
+
+        history.Undo();
+        Assert.Same(transcript, project.FindTranscript("media-1"));
+        Assert.Single(project.Transcripts);
+        history.Redo();
+        Assert.Same(transcript, project.FindTranscript("media-1"));
+        Assert.Single(project.Transcripts);
+        Assert.Equal(CoreTime.FromSeconds(90), project.GetMedia("media-1").Duration);
+    }
+
+    [Fact]
+    public void Relink_to_a_still_image_is_rejected_with_a_transcript()
+    {
+        Project project = CommandFixtures.Create();
+        project.Transcripts.Add(new MediaTranscript
+        {
+            Id = "tr-1",
+            MediaId = "media-1",
+            Language = "es",
+            Model = "whisper",
+            MediaDuration = CoreTime.FromSeconds(60),
+            Words = [new SpokenWord { Start = CoreTime.Zero, End = CoreTime.FromSeconds(1), Text = "hola", Confidence = 0.9 }],
+        });
+        string before = ProjectSerializer.Serialize(project);
+        MediaRef media = project.GetMedia("media-1");
+        RelinkProbe still = RelinkProbe.Of(media) with { IsStillImage = true, Duration = CoreTime.Zero, FrameRate = null, HasAudio = false };
+
+        // Dejar la transcripción de una imagen fija invalidaría el proyecto: el paso se revierte entero.
+        Assert.Throws<EditException>(() => new RelinkMediaCommand([new MediaRelinkTarget("media-1", "/foto.png", still)]).Apply(project));
+
+        Assert.Equal(before, ProjectSerializer.Serialize(project));
+        Assert.False(media.IsStillImage);
+        Assert.NotNull(project.FindTranscript("media-1"));
+    }
+
+    [Fact]
     public void A_different_file_chosen_by_hand_updates_the_media_data()
     {
         Project project = CommandFixtures.Create();

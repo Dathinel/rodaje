@@ -40,12 +40,14 @@ public sealed class AddMediaCommand : ICommand
     public bool TryMerge(ICommand following) => false;
 }
 
-/// <summary>Quita un medio que ningún clip use.</summary>
+/// <summary>Quita un medio que ningún clip use; su transcripción, si la tiene, se quita con él.</summary>
 public sealed class RemoveMediaCommand : ICommand
 {
     private readonly string _mediaId;
     private MediaRef? _removed;
     private int _index;
+    private MediaTranscript? _removedTranscript;
+    private int _transcriptIndex;
 
     public RemoveMediaCommand(string mediaId)
     {
@@ -76,6 +78,16 @@ public sealed class RemoveMediaCommand : ICommand
         _removed = project.Media[index];
         _index = index;
         project.Media.RemoveAt(index);
+
+        // Sin el medio la transcripción quedaría inválida; al deshacer vuelve a la misma posición.
+        _removedTranscript = null;
+        int transcriptIndex = project.Transcripts.FindIndex(t => t?.MediaId == _mediaId);
+        if (transcriptIndex >= 0)
+        {
+            _removedTranscript = project.Transcripts[transcriptIndex];
+            _transcriptIndex = transcriptIndex;
+            project.Transcripts.RemoveAt(transcriptIndex);
+        }
     }
 
     public void Revert(Project project)
@@ -87,6 +99,10 @@ public sealed class RemoveMediaCommand : ICommand
         }
 
         project.Media.Insert(Math.Min(_index, project.Media.Count), _removed);
+        if (_removedTranscript is not null)
+        {
+            project.Transcripts.Insert(Math.Min(_transcriptIndex, project.Transcripts.Count), _removedTranscript);
+        }
     }
 
     public bool TryMerge(ICommand following) => false;
