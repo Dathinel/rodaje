@@ -1,11 +1,12 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Los clips de prueba se generan con el ffmpeg.exe LGPL de .entorno y se guardan en TestResults\media-cache -->
-    <NoWarn>$(NoWarn);CA1707;CA1515;CA1861</NoWarn>
+    <!-- CA1416: lo de Direct3D y WASAPI lo deciden en ejecución Skip y la categoría SoloWindows (D-066). -->
+    <NoWarn>$(NoWarn);CA1416;CA1707;CA1515;CA1861</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

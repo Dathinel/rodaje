@@ -30,9 +30,9 @@ public sealed class FfmpegLibraryTests : IDisposable
         Assert.Equal(Path.Combine(_root, "explicit"), candidates[0]);
         Assert.Equal(Path.Combine(_root, "env-ffmpeg"), candidates[1]);
         Assert.Equal(Path.Combine(app, "ffmpeg"), candidates[2]);
-        Assert.Equal(Path.Combine(_root, "entorno", "ffmpeg", "bin"), candidates[3]);
-        Assert.Equal(Path.Combine(app, ".entorno", "ffmpeg", "bin"), candidates[4]);
-        Assert.Contains(Path.Combine(_root, ".entorno", "ffmpeg", "bin"), candidates);
+        Assert.Equal(Path.Combine(_root, "entorno", "ffmpeg", FfmpegLocator.LibrarySubdirectory), candidates[3]);
+        Assert.Equal(Path.Combine(app, ".entorno", "ffmpeg", FfmpegLocator.LibrarySubdirectory), candidates[4]);
+        Assert.Contains(Path.Combine(_root, ".entorno", "ffmpeg", FfmpegLocator.LibrarySubdirectory), candidates);
     }
 
     [Fact]
@@ -55,10 +55,10 @@ public sealed class FfmpegLibraryTests : IDisposable
 
         Assert.Equal(main, FfmpegLocator.MainCheckoutOfWorktree(worktree));
         IReadOnlyList<string> candidates = FfmpegLocator.Candidates(null, Path.Combine(worktree, "tests", "bin"), _ => null);
-        Assert.Contains(Path.Combine(main, ".entorno", "ffmpeg", "bin"), candidates);
+        Assert.Contains(Path.Combine(main, ".entorno", "ffmpeg", FfmpegLocator.LibrarySubdirectory), candidates);
         Assert.True(
-            candidates.ToList().IndexOf(Path.Combine(worktree, ".entorno", "ffmpeg", "bin"))
-            < candidates.ToList().IndexOf(Path.Combine(main, ".entorno", "ffmpeg", "bin")),
+            candidates.ToList().IndexOf(Path.Combine(worktree, ".entorno", "ffmpeg", FfmpegLocator.LibrarySubdirectory))
+            < candidates.ToList().IndexOf(Path.Combine(main, ".entorno", "ffmpeg", FfmpegLocator.LibrarySubdirectory)),
             "El .entorno propio del worktree va antes que el del checkout principal.");
     }
 
@@ -80,10 +80,10 @@ public sealed class FfmpegLibraryTests : IDisposable
         Directory.CreateDirectory(complete);
         foreach (string name in FfmpegLocator.RequiredLibraries)
         {
-            File.WriteAllBytes(Path.Combine(complete, name + ".dll"), []);
+            File.WriteAllBytes(Path.Combine(complete, FfmpegLocator.LibraryFileName(name)), []);
         }
 
-        File.WriteAllBytes(Path.Combine(partial, "avcodec-63.dll"), []);
+        File.WriteAllBytes(Path.Combine(partial, FfmpegLocator.LibraryFileName("avcodec-63")), []);
 
         Assert.Equal(complete, FfmpegLocator.Find([Path.Combine(_root, "no-existe"), partial, complete]));
         Assert.Null(FfmpegLocator.Find([partial]));

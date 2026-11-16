@@ -6,7 +6,7 @@
 set -uo pipefail
 filtro="$1"
 estado=0
-for p in Core Packages Playback TestServer; do
+for p in Core Packages Playback TestServer Media Audio Engine TestMedia; do
   proyecto="tests/Rodaje.$p.Tests/Rodaje.$p.Tests.csproj"
   dotnet restore "$proyecto" --locked-mode || { estado=1; continue; }
   dotnet test "$proyecto" --no-restore --filter "$filtro" \
