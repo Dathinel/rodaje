@@ -43,6 +43,7 @@ internal sealed partial class TitleBar : UserControl
     public event EventHandler<InspectorView.Tab>? InspectorTabRequested;
 
     public event EventHandler? MarkersPanelRequested;
+    public event EventHandler? TranscriptPanelRequested;
 
     /// <summary>Se eligió Salir.</summary>
     public event EventHandler? ExitRequested;
@@ -134,6 +135,7 @@ internal sealed partial class TitleBar : UserControl
     }
 
     private void OnMarkersClick(object sender, RoutedEventArgs e) => MarkersPanelRequested?.Invoke(this, EventArgs.Empty);
+    private void OnTranscriptClick(object sender, RoutedEventArgs e) => TranscriptPanelRequested?.Invoke(this, EventArgs.Empty);
 
     /// <summary>
     /// Rehace Archivo › Proyectos recientes con los de <paramref name="settings"/>. No comprueba que existan (una

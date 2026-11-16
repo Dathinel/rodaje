@@ -6,6 +6,20 @@ namespace Rodaje.App.Tests.Analysis;
 
 public class QuickToolsTests
 {
+    [Fact]
+    public void RemoveFillersRequiresTranscribedAudioAndUnlockedTrackWithoutAModule()
+    {
+        Project project = Project();
+        Sequence sequence = project.Sequences[0];
+        QuickToolState State() => QuickTools.State(QuickTools.RemoveFillers, project, sequence, ["voz"], false);
+        Assert.False(State().Available);
+        project.Transcripts.Add(new MediaTranscript { Id = "tr", MediaId = "m", Language = "es" });
+        Assert.True(State().Available);
+        sequence.AudioTracks[0].Locked = true;
+        Assert.Contains("bloqueada", State().Reason, StringComparison.Ordinal);
+        Assert.False(QuickTools.State(QuickTools.RemoveFillers, project, sequence, [], false).Available);
+    }
+
     /// <summary>Video con su audio enlazado (voz) y una música que se cruza con él en otra pista; y un título.</summary>
     private static Project Project()
     {
@@ -92,7 +106,7 @@ public class QuickToolsTests
         Assert.Contains("módulo", State(QuickTools.AutoSubtitles, ["cam"], module: false).Reason, StringComparison.Ordinal);
         Assert.True(State(QuickTools.TextToSpeech, []).Available);
         Assert.True(State(QuickTools.VoiceOver, []).Available);
-        Assert.Equal(14, QuickTools.All.Count);
+        Assert.Equal(15, QuickTools.All.Count);
     }
 
     [Fact]
