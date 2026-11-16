@@ -173,7 +173,7 @@ public sealed class IndependentReviewTests
 
         List<string> files = [.. read.Sequence.VideoTracks[0].Clips
             .Select(c => read.Project.FindSequence(c.SequenceId!)!.VideoTracks[0].Clips.Single())
-            .Select(c => Path.GetFileName(read.Project.FindMedia(c.MediaId)!.Path))];
+            .Select(c => read.Project.FindMedia(c.MediaId)!.Name)];
         Assert.Equal(["A.mov", "B.mov"], files);
     }
 
