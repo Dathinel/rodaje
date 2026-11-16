@@ -211,6 +211,18 @@ public sealed class InterchangeCommonTests(ITestOutputHelper output)
         Assert.Equal(expected, SequenceBuilder.NormalizePath(raw, @"C:\base"));
     }
 
+    /// <summary>En la CI de Linux también: una ruta de Windows sale como file:///C:/… y vuelve igual.</summary>
+    [Fact]
+    public void A_windows_path_goes_to_a_file_uri_and_back_on_any_system()
+    {
+        const string path = @"C:\Mis videos\Tomaña #1.mov";
+
+        string uri = SequenceBuilder.ToFileUri(path);
+
+        Assert.Equal("file:///C:/Mis%20videos/Toma%C3%B1a%20%231.mov", uri);
+        Assert.Equal(path, SequenceBuilder.NormalizePath(uri, null));
+    }
+
     [Fact]
     public void The_xml_reader_reads_fcpxml_with_its_doctype_entities_and_cdata()
     {
