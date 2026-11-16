@@ -144,6 +144,29 @@ public sealed class CacheCoverageTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void Un_titulo_sin_rasterizar_bajo_el_cache_no_retiene_el_cuadro()
+    {
+        var backend = new FakeTimelineBackend();
+        var titles = new TimelineTitleTests.FakeTitles();
+        var b = new TimelineBuilder(1, 0);
+        b.AddTitle(0, S(1), S(2), "Uno", id: "uno");
+        backend.Register(FragmentA, Samples.Info(Rational.Fps30, 60, audio: false) with { Path = FragmentA });
+        using TimelineSession session = TimelineSessionTests.Open(b, backend,
+            new TimelineSessionOptions { Titles = titles, TimeProvider = new ManualTimeProvider() });
+        Assert.True(session.ApplyCoverage(new CacheCoverage(session.PlanRevision, [new CachedSpan(30, 60, FragmentA, 0)])));
+
+        session.Seek(S(1.5));
+        for (int i = 0; i < 5 && session.IsSeekPending; i++)
+        {
+            backend.RunDecoders();
+            session.Tick().Dispose();
+        }
+
+        Assert.False(session.IsSeekPending);
+        Assert.Equal(0, session.Stats.LateTitles);
+    }
+
+    [Fact]
     public void Editar_retira_la_cobertura_y_una_cobertura_vieja_no_entra()
     {
         var backend = new FakeTimelineBackend();
