@@ -10,6 +10,7 @@ for p in Core Packages Playback TestServer Analysis Modules.Protocol; do
   proyecto="tests/Rodaje.$p.Tests/Rodaje.$p.Tests.csproj"
   dotnet restore "$proyecto" --locked-mode || { estado=1; continue; }
   dotnet test "$proyecto" --no-restore --filter "$filtro" \
-    --logger "trx;LogFilePrefix=$p" --results-directory TestResults \n    --blame-hang-timeout 10m --blame-hang-dump-type none || estado=1
+    --logger "trx;LogFilePrefix=$p" --results-directory TestResults \
+    --blame-hang-timeout 10m --blame-hang-dump-type none || estado=1
 done
 exit $estado
