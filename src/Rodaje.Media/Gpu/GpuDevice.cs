@@ -75,6 +75,9 @@ public sealed unsafe class GpuDevice : IDisposable
 
     public bool IsDisposed => _device == null;
 
+    /// <summary>Cerrado o perdido (TDR, controlador actualizado, GPU que se apaga): ya no sirve y hay que crear otro.</summary>
+    public bool IsLost => _device == null || _device->GetDeviceRemovedReason().FAILED;
+
     /// <summary><c>ID3D11Device*</c> para el renderizador, sin referencia propia: vale hasta <see cref="Dispose"/>.</summary>
     public nint NativeDevice => (nint)Device;
 
