@@ -1191,6 +1191,88 @@
           }
         }
       }
+    },
+    "transcripts": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "mediaId": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string"
+          },
+          "model": {
+            "type": "string"
+          },
+          "created": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "mediaDuration": {
+            "type": "integer",
+            "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+          },
+          "speakers": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "color": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              }
+            }
+          },
+          "words": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "s": {
+                  "type": "integer",
+                  "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                },
+                "e": {
+                  "type": "integer",
+                  "description": "Tiempo exacto en ticks: 705 600 000 ticks por segundo."
+                },
+                "t": {
+                  "type": "string"
+                },
+                "c": {
+                  "type": "number"
+                },
+                "sp": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "p": {
+                  "type": "boolean"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   }
 }
