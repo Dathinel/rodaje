@@ -125,6 +125,7 @@ public sealed class FrameSamplingEditsTests
         var f = new TrimFixture()
             .Add("v1", "s", "m1", 0, 50, 0)
             .Add("v1", "t", "m2", 0, 100, 50, link: "T")
+            .Add("v2", "t2", "m2", 0, 100, 50, link: "T")
             .Add("a1", "ta", "m2", 0, 100, 50, link: "T");
         f.Clip("s").Speed = new ClipSpeed { FrameSampling = sampling };
         f.Clip("s").Duration = F(50);
@@ -132,7 +133,7 @@ public sealed class FrameSamplingEditsTests
         ClipAttributeEdits.Paste(f.Ctx, ["t"], ClipAttributes.Capture(f.Sequence, "s"), ClipAttributeKinds.Speed);
 
         f.AssertValid();
-        foreach (string id in new[] { "t", "ta" })
+        foreach (string id in new[] { "t", "t2" })
         {
             Clip clip = f.Clip(id);
             Assert.NotNull(clip.Speed);
@@ -140,6 +141,90 @@ public sealed class FrameSamplingEditsTests
             Assert.Equal(sampling, clip.Speed.FrameSampling);
             Assert.Equal(F(100), clip.Duration);
         }
+
+        Assert.Null(f.Clip("ta").Speed);
+    }
+
+    [Fact]
+    public void Copying_attributes_from_linked_audio_preserves_video_frame_sampling()
+    {
+        var f = new TrimFixture()
+            .Add("v1", "s", "m1", 0, 50, 0, link: "S")
+            .Add("a1", "sa", "m1", 0, 50, 0, link: "S")
+            .Add("v1", "target", "m2", 0, 100, 50);
+
+        TimelineEdits.SetFrameSampling(f.Ctx, ["s"], FrameSampling.OpticalFlow);
+        Assert.Null(f.Clip("sa").Speed);
+        Assert.NotNull(f.Clip("s").Speed);
+
+        ClipAttributes attrs = ClipAttributes.Capture(f.Sequence, "sa");
+        Assert.NotNull(attrs.Speed);
+        Assert.Equal(FrameSampling.OpticalFlow, attrs.Speed.FrameSampling);
+
+        ClipAttributeEdits.Paste(f.Ctx, ["target"], attrs, ClipAttributeKinds.Speed);
+        f.AssertValid();
+
+        Clip target = f.Clip("target");
+        Assert.NotNull(target.Speed);
+        Assert.Equal(FrameSampling.OpticalFlow, target.Speed.FrameSampling);
+    }
+
+    [Fact]
+    public void Pasting_one_times_nearest_clears_speed_on_target_with_optical_flow()
+    {
+        var f = new TrimFixture()
+            .Add("v1", "source", "m1", 0, 50, 0)
+            .Add("v1", "target", "m2", 0, 100, 50);
+
+        TimelineEdits.SetFrameSampling(f.Ctx, ["target"], FrameSampling.OpticalFlow);
+        Assert.NotNull(f.Clip("target").Speed);
+        Assert.Null(f.Clip("source").Speed);
+
+        ClipAttributeEdits.Paste(f.Ctx, ["target"], ClipAttributes.Capture(f.Sequence, "source"), ClipAttributeKinds.Speed);
+        f.AssertValid();
+
+        Assert.Null(f.Clip("target").Speed);
+    }
+
+    [Fact]
+    public void Pasting_speed_does_not_set_frame_sampling_on_audio_or_still_images()
+    {
+        var f = new TrimFixture()
+            .Add("v1", "s", "m1", 0, 50, 0)
+            .Add("v1", "tv", "m2", 0, 100, 50, link: "L")
+            .Add("a1", "ta", "m2", 0, 100, 50, link: "L");
+
+        f.Project.Media.Add(new MediaRef { Id = "still", Name = "foto.png", IsStillImage = true, HasVideo = true, Duration = Time.Zero });
+        f.Add("v2", "stillClip", "still", 0, 100, 50);
+
+        TimelineEdits.SetFrameSampling(f.Ctx, ["s"], FrameSampling.OpticalFlow);
+
+        ClipAttributeEdits.Paste(f.Ctx, ["tv", "stillClip"], ClipAttributes.Capture(f.Sequence, "s"), ClipAttributeKinds.Speed);
+        f.AssertValid();
+
+        Assert.NotNull(f.Clip("tv").Speed);
+        Assert.Equal(FrameSampling.OpticalFlow, f.Clip("tv").Speed!.FrameSampling);
+        Assert.Null(f.Clip("ta").Speed);
+        Assert.Null(f.Clip("stillClip").Speed);
+    }
+
+    [Fact]
+    public void Pasting_speed_when_target_selection_is_linked_audio_clears_video_optical_flow()
+    {
+        var f = new TrimFixture()
+            .Add("v1", "source", "m1", 0, 50, 0)
+            .Add("v1", "tv", "m2", 0, 100, 50, link: "L")
+            .Add("a1", "ta", "m2", 0, 100, 50, link: "L");
+
+        TimelineEdits.SetFrameSampling(f.Ctx, ["tv"], FrameSampling.OpticalFlow);
+        Assert.NotNull(f.Clip("tv").Speed);
+        Assert.Null(f.Clip("ta").Speed);
+
+        ClipAttributeEdits.Paste(f.Ctx, ["ta"], ClipAttributes.Capture(f.Sequence, "source"), ClipAttributeKinds.Speed);
+        f.AssertValid();
+
+        Assert.Null(f.Clip("tv").Speed);
+        Assert.Null(f.Clip("ta").Speed);
     }
 
     [Theory]
@@ -159,5 +244,54 @@ public sealed class FrameSamplingEditsTests
         Assert.Equal(new Rational(1, 2), f.Clip("t").Speed!.Rate);
         Assert.Equal(sampling, f.Clip("t").Speed!.FrameSampling);
         Assert.Equal(F(200), f.Clip("t").Duration);
+    }
+
+    [Fact]
+    public void FreezeFrame_always_uses_nearest_sampling_even_if_source_has_interpolated_sampling()
+    {
+        var f = new TrimFixture().Add("v1", "c", "m1", 0, 50, 0);
+        TimelineEdits.SetFrameSampling(f.Ctx, ["c"], FrameSampling.OpticalFlow);
+
+        string frozenId = TimelineEdits.FreezeFrame(f.Ctx, "c", F(20), F(10));
+
+        f.AssertValid();
+        Clip frozen = f.Clip(frozenId);
+        Assert.NotNull(frozen.Speed);
+        Assert.True(frozen.Speed.Freeze);
+        Assert.Equal(FrameSampling.Nearest, frozen.Speed.FrameSampling);
+    }
+
+    [Fact]
+    public void Splitting_at_one_times_with_interpolation_then_returning_to_nearest_clears_speed_and_allows_join()
+    {
+        var f = new TrimFixture().Add("v1", "c", "m1", 0, 100, 0);
+        TimelineEdits.SetFrameSampling(f.Ctx, ["c"], FrameSampling.Blend);
+
+        IReadOnlyList<string> rightIds = TimelineEdits.Split(f.Ctx, "c", F(50));
+        string rightId = rightIds[0];
+
+        TimelineEdits.SetFrameSampling(f.Ctx, ["c", rightId], FrameSampling.Nearest);
+
+        f.AssertValid();
+        Clip left = f.Clip("c");
+        Clip right = f.Clip(rightId);
+
+        Assert.Null(left.Speed);
+        Assert.Null(right.Speed);
+        Assert.NotNull(left.TimeMap.Join(right.TimeMap));
+    }
+
+    [Fact]
+    public void Trimming_in_at_one_times_with_interpolation_then_returning_to_nearest_clears_speed()
+    {
+        var f = new TrimFixture().Add("v1", "c", "m1", 0, 100, 0);
+        TimelineEdits.SetFrameSampling(f.Ctx, ["c"], FrameSampling.Blend);
+
+        TimelineEdits.Trim(f.Ctx, "c", TrimEdge.In, F(20));
+        TimelineEdits.SetFrameSampling(f.Ctx, ["c"], FrameSampling.Nearest);
+
+        f.AssertValid();
+        Clip clip = f.Clip("c");
+        Assert.Null(clip.Speed);
     }
 }

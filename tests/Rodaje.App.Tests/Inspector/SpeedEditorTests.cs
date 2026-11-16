@@ -661,4 +661,69 @@ public class SpeedEditorTests
         Assert.Equal(["Cuadro más cercano", "Mezcla de cuadros", "Flujo óptico"], choices.Labels);
         Assert.Equal([FrameSampling.Nearest, FrameSampling.Blend, FrameSampling.OpticalFlow], choices.Values);
     }
+
+    [Fact]
+    public void SpeedTabValues_SelectedSamplingIndex_WithMixedSelection_ConsidersOnlyApplicableClips()
+    {
+        var videoState = new SpeedState(
+            ClipId: "video-clip",
+            Rate: SpeedState.Normal,
+            SourceDuration: S(5),
+            Duration: S(5),
+            PreservePitch: true,
+            IsFrozen: false,
+            IsReversed: false,
+            HasCurve: false,
+            HasAudio: false,
+            IsVideo: true,
+            Sampling: FrameSampling.OpticalFlow,
+            CanChangeSampling: true);
+
+        var audioState = new SpeedState(
+            ClipId: "audio-clip",
+            Rate: SpeedState.Normal,
+            SourceDuration: S(5),
+            Duration: S(5),
+            PreservePitch: true,
+            IsFrozen: false,
+            IsReversed: false,
+            HasCurve: false,
+            HasAudio: true,
+            IsVideo: false,
+            Sampling: FrameSampling.Nearest,
+            CanChangeSampling: false);
+
+        var frozenState = new SpeedState(
+            ClipId: "frozen-clip",
+            Rate: SpeedState.Normal,
+            SourceDuration: S(5),
+            Duration: S(5),
+            PreservePitch: true,
+            IsFrozen: true,
+            IsReversed: false,
+            HasCurve: false,
+            HasAudio: false,
+            IsVideo: true,
+            Sampling: FrameSampling.Nearest,
+            CanChangeSampling: false);
+
+        IReadOnlyList<SpeedState> deciders = SpeedTabValues.SamplingDeciders([videoState, audioState, frozenState]);
+        Assert.Single(deciders);
+        Assert.Same(videoState, deciders[0]);
+
+        int index = SpeedTabValues.SelectedSamplingIndex([videoState, audioState, frozenState]);
+        Assert.Equal(SpeedTabValues.SamplingChoices().IndexOf(FrameSampling.OpticalFlow), index);
+
+        // Videos con diferente muestreo devuelven -1 (mixto)
+        var secondVideo = videoState with { ClipId = "video-2", Sampling = FrameSampling.Blend };
+        Assert.Equal(-1, SpeedTabValues.SelectedSamplingIndex([videoState, secondVideo, audioState]));
+
+        // Si ninguno admite cambio, deciden todos (si coinciden en Nearest, índice 0)
+        IReadOnlyList<SpeedState> nonApplicable = SpeedTabValues.SamplingDeciders([audioState, frozenState]);
+        Assert.Equal(2, nonApplicable.Count);
+        Assert.Equal(SpeedTabValues.SamplingChoices().IndexOf(FrameSampling.Nearest), SpeedTabValues.SelectedSamplingIndex([audioState, frozenState]));
+
+        // Lista vacía devuelve -1
+        Assert.Equal(-1, SpeedTabValues.SelectedSamplingIndex([]));
+    }
 }

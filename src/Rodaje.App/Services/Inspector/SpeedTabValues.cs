@@ -34,6 +34,60 @@ public static class SpeedTabValues
         return list;
     }
 
+    /// <summary>
+    /// Los clips que deciden el modo de cuadros intermedios a mostrar: solo aquellos que admiten cambiarlo (<see cref="SpeedState.CanChangeSampling"/>),
+    /// o todos si ninguno lo admite (p. ej. solo audio o congelados).
+    /// </summary>
+    public static IReadOnlyList<SpeedState> SamplingDeciders(IReadOnlyList<SpeedState> states)
+    {
+        ArgumentNullException.ThrowIfNull(states);
+        var applicable = new List<SpeedState>();
+        for (int i = 0; i < states.Count; i++)
+        {
+            if (states[i].CanChangeSampling)
+            {
+                applicable.Add(states[i]);
+            }
+        }
+
+        return applicable.Count > 0 ? applicable : states;
+    }
+
+    /// <summary>
+    /// Índice en <see cref="SamplingChoices"/> a seleccionar en el desplegable de cuadros intermedios;
+    /// −1 si la selección es mixta o no hay elementos.
+    /// </summary>
+    public static int SelectedSamplingIndex(IReadOnlyList<SpeedState> states)
+    {
+        ArgumentNullException.ThrowIfNull(states);
+        if (states.Count == 0)
+        {
+            return -1;
+        }
+
+        if (states.Count == 1)
+        {
+            return SamplingChoices().IndexOf(states[0].Sampling);
+        }
+
+        IReadOnlyList<SpeedState> deciders = SamplingDeciders(states);
+        if (deciders.Count == 0)
+        {
+            return -1;
+        }
+
+        FrameSampling first = deciders[0].Sampling;
+        for (int i = 1; i < deciders.Count; i++)
+        {
+            if (deciders[i].Sampling != first)
+            {
+                return -1;
+            }
+        }
+
+        return SamplingChoices().IndexOf(first);
+    }
+
     /// <summary>Por encima el sonido, con o sin «Mantener tono», se oye granuloso; sigue sonando (decisión de diseño).</summary>
     public const double GrainyAbove = 8;
 

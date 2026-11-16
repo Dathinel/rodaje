@@ -221,6 +221,11 @@ public static partial class TimelineEdits
             else
             {
                 clip.Speed.FrameSampling = sampling;
+                if (clip.Speed.IsIdentity && sampling == FrameSampling.Nearest)
+                {
+                    clip.Speed.Offset = Time.Zero;
+                }
+
                 clip.Speed = Normalize(clip.Speed);
             }
         }
@@ -402,7 +407,7 @@ public static partial class TimelineEdits
             Id = ctx.Ids.NewId("clip"),
             MediaId = primary.MediaId,
             Enabled = primary.Enabled,
-            Speed = new ClipSpeed { Freeze = true, FrameSampling = primary.Speed?.FrameSampling ?? FrameSampling.Nearest },
+            Speed = new ClipSpeed { Freeze = true, FrameSampling = FrameSampling.Nearest },
             Effects = primary.Effects.ConvertAll(effect => effect.Clone()),
         };
         MaskEdits.RenewIds(ctx, frozen.Effects, "fx");
