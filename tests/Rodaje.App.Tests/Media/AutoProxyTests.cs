@@ -32,6 +32,16 @@ public class AutoProxyTests
     }
 
     [Fact]
+    public void Ffv1DeMasDe10Bits_SiempreDesde1080p()
+    {
+        Assert.True(AutoProxyRule.Decide(Candidate(1920, 1080, "ffv1", 16), BigGpu).Generate);
+        Assert.Contains("FFV1 de 12 bits", AutoProxyRule.Decide(Candidate(1080, 1920, "ffv1", 12), BigGpu).Reason);
+        Assert.False(AutoProxyRule.Decide(Candidate(1280, 720, "ffv1", 16), BigGpu).Generate);
+        Assert.False(AutoProxyRule.Decide(Candidate(1920, 1080, "ffv1", 8), BigGpu).Generate);
+        Assert.False(AutoProxyRule.Decide(Candidate(1920, 1080, "ffv1", 10), BigGpu).Generate);
+    }
+
+    [Fact]
     public void EsperaAlResolvedorYRespetaElAjuste()
     {
         MediaSourceResolver? resolver = null;
