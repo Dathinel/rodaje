@@ -84,8 +84,12 @@ El archivo importado no es de confianza. El lector de XML propio salta la DTD si
 | Fase | Qué | Estado |
 |---|---|---|
 | F0 | Firmas, este documento y D-062 | hecho |
-| F1 | `SmpteTimecode` | pendiente |
-| F2 | Formato 16 (`startTimecode`, `timecode`, `reel`), TC de los medios, reenlazado con datos desconocidos | pendiente |
-| F3 | `TimelineWalk`, `SequenceBuilder`, `Fidelity`, límites | pendiente |
+| F1 | `SmpteTimecode` | hecho |
+| F2 | Formato 16 (`startTimecode`, `timecode`, `reel`), TC de los medios, reenlazado con datos desconocidos | hecho |
+| F3 | `TimelineWalk`, `SequenceBuilder`, `Fidelity.Difference`, XML propio, límites | hecho |
 | F4 | EDL, OTIO, FCPXML | pendiente |
 | F5 | Servicio, diálogos, menú y autoprueba | pendiente |
+
+**Cifras de F3** (`InterchangeCommonTests`, categoría `Rendimiento`; corpus de la semilla 1: 10 000 clips en 8 pistas y 400 medios; Release, prioridad baja, con el equipo ocupado por otras compilaciones): recorrer la secuencia 63 a 265 ms, fusionarla con un proyecto (identificadores nuevos, medios y validación) 255 a 650 ms, de los que validar es 157 a 576 ms; 16 a 18 MB asignados. Los umbrales de la prueba son los objetivos del diseño con el margen ×3.
+
+**Reglas al fusionar** (`SequenceBuilder`): un clip que pisa a otro sin transición pasa a una pista nueva justo encima («V1 (solapes)»), sin perder nada; un medio provisional dura lo que usan sus clips; un clip que se sale de un medio conocido se recorta (o no se importa si empieza después de su final). Al aplanar compuestos (`TimelineWalk`), en el video manda la pista más alta del compuesto, en el audio solo entra su primera pista, un clip con velocidad tapado en parte se deja fuera y las transiciones de dentro se pierden; todo va al informe.
