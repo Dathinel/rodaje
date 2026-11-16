@@ -62,7 +62,8 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
     /// <summary>Los clips de texto seleccionados.</summary>
     public IReadOnlyList<Clip> Targets() => InspectorTargets.Selected(Session, IsTitle).ConvertAll(t => t.Clip);
 
-    private static bool IsTitle((Track Track, Clip Clip) target) => target.Clip.Generator is not null;
+    // Una plantilla se edita por sus parámetros, no como texto suelto.
+    private static bool IsTitle((Track Track, Clip Clip) target) => target.Clip.Generator is { Template: null };
 
     /// <summary>Cambia el texto. Las teclas seguidas se funden en un paso; una pausa o <see cref="EndTyping"/> lo cierra.</summary>
     public bool SetText(string text)
