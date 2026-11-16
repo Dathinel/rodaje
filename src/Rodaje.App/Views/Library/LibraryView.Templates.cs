@@ -9,6 +9,7 @@ using Rodaje.App.Services.MotionTemplates;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Packages;
 using Rodaje.Packages.Content;
 
@@ -38,7 +39,7 @@ internal sealed partial class LibraryView
         PackageScan installed = services.Packages.Installed;
         DispatcherQueue dispatcher = DispatcherQueue;
         string folder = TemplateThumbnails.CacheFolder;
-        void Show(MotionTemplateEntry entry, TemplateStrip strip) => dispatcher.TryEnqueue(() =>
+        void Show(MotionTemplateEntry entry, TemplateStrip strip) => dispatcher.RunLater(() =>
         {
             if (!cancel.IsCancellationRequested && items.TryGetValue(entry.Reference, out ElementItem? item))
             {
