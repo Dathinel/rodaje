@@ -36,7 +36,7 @@ public enum RenderCacheState
 public sealed record RenderCacheWork(long FirstFrame, int Count, long Revision);
 
 /// <summary>Pausa cooperativa del trabajo en curso: quien calcula mira <see cref="WaitWhilePaused"/> entre cuadros.</summary>
-public sealed class RenderCachePause : IDisposable
+public sealed partial class RenderCachePause : IDisposable
 {
     private readonly ManualResetEventSlim _running = new(initialState: true);
 
