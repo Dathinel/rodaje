@@ -1,8 +1,14 @@
 using System.Diagnostics;
+using System.Globalization;
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.Offline;
+using Rodaje.Engine.RenderCache;
 using Rodaje.Media.Export;
 using Rodaje.Media.Gpu;
+using Rodaje.Media.RenderCache;
+using Rodaje.Media.Video;
+using Rodaje.Playback;
 using Rodaje.Playback.Composition;
 using Rodaje.Render;
 using Rodaje.Render.Export;
@@ -32,6 +38,7 @@ public sealed class ExportJob : IDisposable
     private long _lastPublish;
     private long _frame = -1;
     private long _written;
+    private long _cachedFrames;
     private int _pass = 1;
     private int _passCount = 1;
 
@@ -57,6 +64,11 @@ public sealed class ExportJob : IDisposable
     }
 
     public ExportException? Failure => Volatile.Read(ref _failure);
+
+    /// <summary>Cuadros de la salida que se leyeron del render en caché en lugar de componerse (D-060).</summary>
+    public long CachedFrames => Volatile.Read(ref _cachedFrames);
+
+    public long FramesWritten => Interlocked.Read(ref _written);
 
     /// <summary>El último cuadro de la salida reducido (hasta 320 px de ancho), cada medio segundo.</summary>
     public ExportThumbnail? Thumbnail => _thumbnail;
@@ -155,7 +167,7 @@ public sealed class ExportJob : IDisposable
                     EstimatedBytes = EstimateBytes(plan),
                 });
                 var request = new ExportSinkRequest(Request.OutputPath, plan.Settings.Container, plan.Video, plan.VideoEncoder,
-                    copy is null ? plan.Arguments.Video : FfmpegArguments.Container(plan.Settings),
+                    copy is null ? VideoArguments(plan) : FfmpegArguments.Container(plan.Settings),
                     plan.Audio, wave, plan.AudioEncoder, plan.Arguments.Audio, plan.Video is null ? 0 : plan.FrameCount)
                 {
                     Metadata = plan.Metadata,
@@ -223,6 +235,10 @@ public sealed class ExportJob : IDisposable
         }
     }
 
+    private IReadOnlyList<string> VideoArguments(ExportPlan plan) => _options.VideoThreads is { } threads
+        ? [.. plan.Arguments.Video, "-threads:v:0", threads.ToString(CultureInfo.InvariantCulture)]
+        : plan.Arguments.Video;
+
     private string MixAudio(ExportPlan plan, string work, CancellationToken token)
     {
         using OfflineAudio audio = OfflineAudio.Open(Request.Project, Request.SequenceId, Request.ProjectDirectory);
@@ -285,6 +301,7 @@ public sealed class ExportJob : IDisposable
         _converter = converter;
         void Write(in ExportVideoFrame frame)
         {
+            Request.Pause?.Wait(token);
             sink.WriteVideo(in frame, token);
             Interlocked.Increment(ref _written);
         }
@@ -296,6 +313,7 @@ public sealed class ExportJob : IDisposable
         {
             _pass = pass;
             Interlocked.Exchange(ref _written, 0);
+            Interlocked.Exchange(ref _cachedFrames, 0);
             lock (_gate)
             {
                 _rate.Clear();
@@ -306,6 +324,7 @@ public sealed class ExportJob : IDisposable
             for (long i = 0; i < plan.FrameCount; i++)
             {
                 token.ThrowIfCancellationRequested();
+                Request.Pause?.Wait(token);
                 _frame = i;
                 if (converter.Pending == converter.Capacity)
                 {
@@ -495,23 +514,33 @@ public sealed class ExportJob : IDisposable
     }
 
     /// <summary>
-    /// Compone el cuadro <c>i</c> de la salida y lo encola en el conversor: el de la secuencia si la tasa es la misma; si
-    /// no, el instante más cercano o la mezcla de los dos vecinos (con dos compositores que guardan qué cuadro tienen).
+    /// Compone el cuadro <c>i</c> de la salida y lo encola en el conversor: el del fragmento en caché si está disponible y
+    /// es equivalente (D-060); si no, el de la secuencia o el instante de la conversión de tasa.
     /// </summary>
     private sealed class FrameSource : IDisposable
     {
         private readonly ExportJob _job;
         private readonly ExportPlan _plan;
         private readonly OfflineTimeline _timeline;
+        private readonly GpuDevice _gpu;
         private readonly Compositor[] _compositors;
         private readonly long[] _held = [-1, -1];
         private readonly Time _sequenceFrame;
+        private readonly bool _alpha;
+        private readonly IRenderCacheStore? _renderCache;
+        private readonly RecipeBuilder? _recipes;
+        private readonly bool _canUseCache;
+        private RenderCacheHit? _previousHit;
+        private VideoDecoder? _activeDecoder;
+        private string? _activeDecoderMoviePath;
 
         public FrameSource(ExportJob job, ExportPlan plan, OfflineTimeline timeline, GpuDevice gpu, TitleRasterizer titles, bool alpha, bool blend)
         {
             _job = job;
             _plan = plan;
             _timeline = timeline;
+            _gpu = gpu;
+            _alpha = alpha;
             _sequenceFrame = Time.FromFrames(1, timeline.FrameRate);
             _compositors = new Compositor[blend ? 2 : 1];
             for (int c = 0; c < _compositors.Length; c++)
@@ -524,10 +553,54 @@ public sealed class ExportJob : IDisposable
                     TransparentBackground = alpha,
                 };
             }
+
+            if (_plan.Settings.UseRenderCache)
+            {
+                // Las huellas tienen que ser las mismas con las que la app calculó los fragmentos: sin quien las dé, no hay caché.
+                _renderCache = job._options.RenderCache;
+                _recipes = _renderCache is null ? null : job._options.RecipeBuilder?.Invoke(job.Request);
+            }
+
+            _canUseCache = _plan.Settings.UseRenderCache
+                && !_plan.ConvertsRate
+                && !_plan.Interlaced
+                && !_alpha
+                && !(_plan.Settings.Video?.Alpha ?? false)
+                && _plan.Settings.Video is { Crop: null, BitDepth: <= 10 }
+                && !_plan.Video!.Color.FullRange
+                && _plan.Video.Width == _timeline.Width
+                && _plan.Video.Height == _timeline.Height
+                && IsMatchingColorSpace(_plan.Video.Color, _timeline.ColorSpace)
+                && _renderCache is not null
+                && _recipes is not null;
         }
 
         public void Submit(ExportFrameConverter converter, long index, CancellationToken token)
         {
+            if (_canUseCache)
+            {
+                long sequenceFrame = _plan.FirstFrame + index;
+                if (sequenceFrame >= 0 && sequenceFrame < _timeline.FrameCount)
+                {
+                    RenderCacheKey? key = _recipes!.KeyAt(sequenceFrame, token);
+                    if (key is { } validKey && _renderCache!.TryGet(validKey, _previousHit, out RenderCacheHit hit))
+                    {
+                        if (!hit.Fragment.Metadata.PlaybackOnly
+                            && hit.Fragment.Metadata.Width == _plan.Video!.Width
+                            && hit.Fragment.Metadata.Height == _plan.Video.Height
+                            && hit.Fragment.Metadata.ColorSpace == _timeline.ColorSpace)
+                        {
+                            if (TrySubmitCached(converter, hit, index, sequenceFrame, token))
+                            {
+                                return;
+                            }
+                        }
+                    }
+                }
+            }
+
+            CloseActiveDecoder();
+
             (Compositor a, Compositor? b, float weight) = Compose(index, token);
             if (b is null)
             {
@@ -538,6 +611,71 @@ public sealed class ExportJob : IDisposable
                 converter.SubmitBlend(a.Texture, b.Texture, weight, index);
             }
         }
+
+        private bool TrySubmitCached(ExportFrameConverter converter, RenderCacheHit hit, long index, long sequenceFrame, CancellationToken token)
+        {
+            DecodedFrame? decoded = null;
+            try
+            {
+                if (_activeDecoder is not null && !string.Equals(_activeDecoderMoviePath, hit.Fragment.MoviePath, StringComparison.OrdinalIgnoreCase))
+                {
+                    CloseActiveDecoder();
+                }
+
+                if (_activeDecoder is null)
+                {
+                    _activeDecoder = VideoDecoder.Open(hit.Fragment.MoviePath, new VideoDecoderOptions
+                    {
+                        Device = _gpu,
+                        AllowHardwareDecoding = false,
+                    });
+                    _activeDecoderMoviePath = hit.Fragment.MoviePath;
+                }
+
+                decoded = _activeDecoder.GetFrame(hit.FrameIndex, token);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                _renderCache!.Forget(hit.Fragment);
+                CloseActiveDecoder();
+                decoded = null;
+            }
+
+            if (decoded is null)
+            {
+                _renderCache!.Forget(hit.Fragment);
+                CloseActiveDecoder();
+                return false;
+            }
+
+            _previousHit = hit;
+            _held[0] = -1;
+            Interlocked.Increment(ref _job._cachedFrames);
+
+            var layer = new LayerFrame(0, "cache", decoded!, LayerTransform.Identity, new Rational(1, 1), 0);
+            using var compFrame = new CompositionFrame(Time.FromFrames(sequenceFrame, _timeline.FrameRate), _timeline.Width, _timeline.Height, [layer]);
+            _compositors[0].RenderStrict(compFrame, Geometry);
+            converter.Submit(_compositors[0].Texture, index);
+            return true;
+        }
+
+        private void CloseActiveDecoder()
+        {
+            if (_activeDecoder is not null)
+            {
+                _activeDecoder.Dispose();
+                _activeDecoder = null;
+                _activeDecoderMoviePath = null;
+            }
+        }
+
+        private static bool IsMatchingColorSpace(ExportColor color, SequenceColorSpace sequenceColor) => sequenceColor switch
+        {
+            SequenceColorSpace.Sdr709 => color.Transfer == ExportTransfer.Bt709 && !color.IsHdr && color.Matrix is ExportMatrix.Bt709 or ExportMatrix.Bt601,
+            SequenceColorSpace.HdrPq => color.Transfer == ExportTransfer.Pq,
+            SequenceColorSpace.HdrHlg => color.Transfer == ExportTransfer.Hlg,
+            _ => false,
+        };
 
         /// <summary>Compone el cuadro <c>index</c> y lo mide; con mezcla de dos cuadros se miden los dos (cota superior de la mezcla).</summary>
         public void Measure(ContentLightMeter meter, long index, CancellationToken token)
@@ -585,6 +723,7 @@ public sealed class ExportJob : IDisposable
 
         public void Dispose()
         {
+            CloseActiveDecoder();
             foreach (Compositor compositor in _compositors)
             {
                 compositor.Dispose();

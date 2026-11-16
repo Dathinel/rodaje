@@ -14,8 +14,12 @@ internal static partial class SelfTestRun
     {
         var watch = Stopwatch.StartNew();
         EditorSession session = window.Session;
-        Clip clip = session.MainTrack?.Clips.FirstOrDefault()
-            ?? throw new InvalidOperationException("La autoprueba de transcripción necesita el clip de prueba.");
+        // Sin el clip de prueba (la autoprueba de arranque de la CI) no hay medio que transcribir, como en los demás pasos.
+        if (session.MainTrack?.Clips.FirstOrDefault() is not { Generator: null } clip)
+        {
+            return;
+        }
+
         MediaRef media = session.Project.GetMedia(clip.MediaId);
         int count = (int)Math.Floor(media.Duration.ToSeconds() / 0.4);
         if (count < 3) throw new InvalidOperationException("El clip de prueba necesita al menos tres palabras.");

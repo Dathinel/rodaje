@@ -2,6 +2,7 @@ using Rodaje.Audio;
 using Rodaje.Audio.Metering;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
+using Rodaje.Engine.RenderCache;
 using Rodaje.Media.Gpu;
 using Rodaje.Media.Video;
 using Rodaje.Playback;
@@ -32,6 +33,7 @@ public sealed class TimelineSession : IDisposable
     private readonly TimelineScheduler _scheduler;
     private readonly string _audioStatus;
     private Project _project;
+    private TimelinePlan _basePlan;
     private bool _disposed;
 
     internal TimelineSession(Project project, string sequenceId, GpuDevice? device, TimelineSessionOptions options, IClipBackend backend)
@@ -46,6 +48,7 @@ public sealed class TimelineSession : IDisposable
         _projectDirectory = options.ProjectDirectory ?? Environment.CurrentDirectory;
         _content = options.Content;
         TimelinePlan plan = TimelinePlan.Build(project, sequenceId, _projectDirectory, options.Content);
+        _basePlan = plan;
 
         var created = new Stack<IDisposable>();
         try
@@ -304,12 +307,39 @@ public sealed class TimelineSession : IDisposable
         TimelinePlan plan = TimelinePlan.Build(project, SequenceId, _projectDirectory, _content);
         AudioPlan previous = _scheduler.Plan.Audio;
         _project = project;
+
+        // La cobertura del render en caché sale en el acto: vuelve con ApplyCoverage cuando las recetas nuevas estén.
+        _basePlan = plan;
+        PlanRevision++;
         _scheduler.Reload(plan);
         if (!plan.Audio.SoundsLike(previous))
         {
             // Rehacer la mezcla por delante solo si cambió lo que suena: mover una capa no toca el audio.
             _mixer?.Reload(plan.Audio);
         }
+    }
+
+    /// <summary>Sube en cada <see cref="Reload"/>: una cobertura del render en caché solo vale para la revisión de la que salió.</summary>
+    public long PlanRevision { get; private set; }
+
+    /// <summary>Hay tramos que se ven desde el render en caché.</summary>
+    public bool HasCoverage => _scheduler.Plan.Coverage is not null;
+
+    /// <summary>
+    /// Pone los tramos del render en caché calculados para <see cref="PlanRevision"/>; con otra revisión no hace nada y
+    /// devuelve <c>false</c> (las recetas son de un plan viejo). Una cobertura vacía la retira.
+    /// </summary>
+    public bool ApplyCoverage(CacheCoverage coverage)
+    {
+        ThrowIfDisposed();
+        ArgumentNullException.ThrowIfNull(coverage);
+        if (coverage.Revision != PlanRevision)
+        {
+            return false;
+        }
+
+        _scheduler.Reload(coverage.Apply(_basePlan));
+        return true;
     }
 
     /// <summary>El proyecto que ya se reproduce cambió en el lugar (por ejemplo, con <c>UndoStack</c>): se vuelve a leer.</summary>
