@@ -52,6 +52,9 @@ public sealed record ExportRunnerOptions
 
     /// <summary>Las huellas de la secuencia que se exporta, calculadas igual que las de los fragmentos (las da la app).</summary>
     public Func<ExportRequest, RecipeBuilder>? RecipeBuilder { get; init; }
+
+    /// <summary>Tope de hilos del codificador de video; nulo deja que FFmpeg decida.</summary>
+    public int? VideoThreads { get; init; }
 }
 
 /// <summary>
@@ -65,6 +68,11 @@ public sealed class ExportRunner
     public ExportRunner(ExportRunnerOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        if (options.VideoThreads is { } threads)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threads);
+        }
+
         Options = options;
     }
 

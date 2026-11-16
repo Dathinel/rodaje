@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Globalization;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.Offline;
@@ -66,6 +67,8 @@ public sealed class ExportJob : IDisposable
 
     /// <summary>Cuadros de la salida que se leyeron del render en caché en lugar de componerse (D-060).</summary>
     public long CachedFrames => Volatile.Read(ref _cachedFrames);
+
+    public long FramesWritten => Interlocked.Read(ref _written);
 
     /// <summary>El último cuadro de la salida reducido (hasta 320 px de ancho), cada medio segundo.</summary>
     public ExportThumbnail? Thumbnail => _thumbnail;
@@ -164,7 +167,7 @@ public sealed class ExportJob : IDisposable
                     EstimatedBytes = EstimateBytes(plan),
                 });
                 var request = new ExportSinkRequest(Request.OutputPath, plan.Settings.Container, plan.Video, plan.VideoEncoder,
-                    copy is null ? plan.Arguments.Video : FfmpegArguments.Container(plan.Settings),
+                    copy is null ? VideoArguments(plan) : FfmpegArguments.Container(plan.Settings),
                     plan.Audio, wave, plan.AudioEncoder, plan.Arguments.Audio, plan.Video is null ? 0 : plan.FrameCount)
                 {
                     Metadata = plan.Metadata,
@@ -232,6 +235,10 @@ public sealed class ExportJob : IDisposable
         }
     }
 
+    private IReadOnlyList<string> VideoArguments(ExportPlan plan) => _options.VideoThreads is { } threads
+        ? [.. plan.Arguments.Video, "-threads:v:0", threads.ToString(CultureInfo.InvariantCulture)]
+        : plan.Arguments.Video;
+
     private string MixAudio(ExportPlan plan, string work, CancellationToken token)
     {
         using OfflineAudio audio = OfflineAudio.Open(Request.Project, Request.SequenceId, Request.ProjectDirectory);
@@ -294,6 +301,7 @@ public sealed class ExportJob : IDisposable
         _converter = converter;
         void Write(in ExportVideoFrame frame)
         {
+            Request.Pause?.Wait(token);
             sink.WriteVideo(in frame, token);
             Interlocked.Increment(ref _written);
         }
@@ -316,6 +324,7 @@ public sealed class ExportJob : IDisposable
             for (long i = 0; i < plan.FrameCount; i++)
             {
                 token.ThrowIfCancellationRequested();
+                Request.Pause?.Wait(token);
                 _frame = i;
                 if (converter.Pending == converter.Capacity)
                 {
