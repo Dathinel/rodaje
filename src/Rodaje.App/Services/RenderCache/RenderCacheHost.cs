@@ -12,22 +12,22 @@ using Rodaje.Playback.Composition;
 namespace Rodaje.App.Services.RenderCache;
 
 /// <summary>Un plan que el reproductor acaba de abrir o recargar.</summary>
-/// <param name="Generation">Sube con cada sesiÃ³n nueva del reproductor: la revisiÃ³n vuelve a 0 al abrir otra.</param>
+/// <param name="Generation">Sube con cada sesión nueva del reproductor: la revisión vuelve a 0 al abrir otra.</param>
 /// <param name="Revision">La <c>TimelineSession.PlanRevision</c> de ese plan.</param>
 public sealed record RenderCachePlan(Project Project, string SequenceId, int Generation, long Revision, long CursorFrame);
 
-/// <summary>Lo que el render en cachÃ© necesita del reproductor.</summary>
+/// <summary>Lo que el render en caché necesita del reproductor.</summary>
 public interface IRenderCachePlayer
 {
     PlaybackSnapshot Snapshot { get; }
 
-    /// <summary>Cuadros con refrescos tarde medidos al reproducir (los Ãºltimos).</summary>
+    /// <summary>Cuadros con refrescos tarde medidos al reproducir (los últimos).</summary>
     IReadOnlyList<long> LateFrames { get; }
 
-    /// <summary>Compone en una GPU de verdad (sin ella, en WARP, todo cuesta unas 54 veces mÃ¡s).</summary>
+    /// <summary>Compone en una GPU de verdad (sin ella, en WARP, todo cuesta unas 54 veces más).</summary>
     bool HasGpu { get; }
 
-    /// <summary>Pone la cobertura en la sesiÃ³n de esa generaciÃ³n, si sigue abierta y en esa revisiÃ³n.</summary>
+    /// <summary>Pone la cobertura en la sesión de esa generación, si sigue abierta y en esa revisión.</summary>
     void ApplyCoverage(int generation, CacheCoverage coverage);
 }
 
@@ -35,8 +35,8 @@ public interface IRenderCachePlayer
 public sealed record RenderCacheStatus(RenderCacheState State, RenderCacheWork? Current, double Progress, int Pending, int Completed, int Failed);
 
 /// <summary>
-/// El render en cachÃ© en la app (D-060): calcula las huellas y la previsiÃ³n de cada plan del reproductor en un hilo
-/// aparte, pone la cobertura en la sesiÃ³n, pinta la franja y lleva el <see cref="RenderCacheService"/> con trabajos
+/// El render en caché en la app (D-060): calcula las huellas y la previsión de cada plan del reproductor en un hilo
+/// aparte, pone la cobertura en la sesión, pinta la franja y lleva el <see cref="RenderCacheService"/> con trabajos
 /// <see cref="RenderCacheJob"/> sobre una copia del proyecto. Se usa desde cualquier hilo.
 /// </summary>
 public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
@@ -91,13 +91,13 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         _timer = new Timer(_ => Tick(), null, tick ?? TimeSpan.FromMilliseconds(250), tick ?? TimeSpan.FromMilliseconds(250));
     }
 
-    /// <summary>La franja cambiÃ³ (desde cualquier hilo).</summary>
+    /// <summary>La franja cambió (desde cualquier hilo).</summary>
     public event EventHandler? StripChanged;
 
-    /// <summary>El estado del cÃ¡lculo cambiÃ³ (desde cualquier hilo).</summary>
+    /// <summary>El estado del cálculo cambió (desde cualquier hilo).</summary>
     public event EventHandler? StatusChanged;
 
-    /// <summary>Lo que pinta la franja sobre la regla para el Ãºltimo plan.</summary>
+    /// <summary>Lo que pinta la franja sobre la regla para el último plan.</summary>
     public IReadOnlyList<CacheStripSpan> Strip { get; private set; } = [];
 
     /// <summary>La tasa de la secuencia de <see cref="Strip"/>.</summary>
@@ -137,10 +137,10 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         }
     }
 
-    /// <summary>El tope por omisiÃ³n: el menor entre 50 GB y el 10 % del espacio libre, con un mÃ­nimo de 5 GB.</summary>
+    /// <summary>El tope por omisión: el menor entre 50 GB y el 10 % del espacio libre, con un mínimo de 5 GB.</summary>
     public static long DefaultCap(long freeBytes) => Math.Max(5 * GiB, Math.Min(50 * GiB, freeBytes / 10));
 
-    /// <summary>Preferencias â€º Rendimiento: el modo cambia en el acto; otra carpeta u otro tope abren el almacÃ©n de nuevo.</summary>
+    /// <summary>Preferencias › Rendimiento: el modo cambia en el acto; otra carpeta u otro tope abren el almacén de nuevo.</summary>
     public void Configure(RenderCacheMode mode, string? folder, double? capGb)
     {
         lock (_gate)
@@ -161,7 +161,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         Rescan();
     }
 
-    /// <summary>El reproductor abriÃ³ o recargÃ³ un plan: huellas y previsiÃ³n 150 ms despuÃ©s, en otro hilo.</summary>
+    /// <summary>El reproductor abrió o recargó un plan: huellas y previsión 150 ms después, en otro hilo.</summary>
     public void OnPlan(RenderCachePlan plan)
     {
         ArgumentNullException.ThrowIfNull(plan);
@@ -184,7 +184,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         UiTask.Run(ScanAsync(plan, token));
     }
 
-    /// <summary>Â«Secuencia â€º Calcular de entrada a salidaÂ»: va delante de lo demÃ¡s (tambiÃ©n en modo manual).</summary>
+    /// <summary>«Secuencia › Calcular de entrada a salida»: va delante de lo demás (también en modo manual).</summary>
     public void Request(Time start, Time end)
     {
         lock (_gate)
@@ -212,7 +212,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
                 }
             }
 
-            // Delante va lo primero: se encola de atrÃ¡s adelante.
+            // Delante va lo primero: se encola de atrás adelante.
             for (int i = spans.Count - 1; i >= 0; i--)
             {
                 _service.Request(spans[i].Item1, spans[i].Item2);
@@ -222,7 +222,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         StatusChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Corta el cÃ¡lculo en curso y vacÃ­a la cola (Trabajos â€º Cancelar).</summary>
+    /// <summary>Corta el cálculo en curso y vacía la cola (Trabajos › Cancelar).</summary>
     public void Cancel()
     {
         lock (_gate)
@@ -233,7 +233,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         StatusChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Borra todo lo que no se estÃ¡ leyendo; devuelve los bytes liberados.</summary>
+    /// <summary>Borra todo lo que no se está leyendo; devuelve los bytes liberados.</summary>
     public long Clear()
     {
         long freed;
@@ -247,7 +247,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         return freed;
     }
 
-    /// <summary>Un fragmento del cachÃ© no se pudo leer al reproducir: sale del Ã­ndice y la cobertura se rehace sin Ã©l.</summary>
+    /// <summary>Un fragmento del caché no se pudo leer al reproducir: sale del índice y la cobertura se rehace sin él.</summary>
     public void OnSourceFailed(string path)
     {
         lock (_gate)
@@ -261,7 +261,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         Rescan();
     }
 
-    /// <summary>La exportaciÃ³n con Â«Usar el render en cachÃ©Â»: el mismo almacÃ©n y las mismas huellas que los fragmentos.</summary>
+    /// <summary>La exportación con «Usar el render en caché»: el mismo almacén y las mismas huellas que los fragmentos.</summary>
     public ExportRunnerOptions WithRenderCache(ExportRunnerOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
@@ -285,7 +285,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
                 return false;
             }
 
-            FfmpegExecutable ffmpeg = _ffmpeg.Value ?? throw new InvalidOperationException("No se encontrÃ³ el ffmpeg.exe LGPL.");
+            FfmpegExecutable ffmpeg = _ffmpeg.Value ?? throw new InvalidOperationException("No se encontró el ffmpeg.exe LGPL.");
             var options = new ExportRunnerOptions { Ffmpeg = ffmpeg, Content = _content, FontFiles = _fontFiles };
             job = new RenderCacheJob(plan.Project.Clone(), plan.SequenceId, work.FirstFrame, work.Count, keys, _store, options, StillCurrent, pause);
             _job = job;
@@ -383,7 +383,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         catch (OperationCanceledException)
         {
         }
-#pragma warning disable CA1031 // Una secuencia que no se puede recorrer se queda sin cachÃ©; el reproductor sigue.
+#pragma warning disable CA1031 // Una secuencia que no se puede recorrer se queda sin caché; el reproductor sigue.
         catch (Exception)
 #pragma warning restore CA1031
         {
