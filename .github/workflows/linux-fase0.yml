@@ -1,0 +1,66 @@
+# Fase 0 de Linux y macOS (D-066): pruebas de concepto de experimentos/linux-fase0. No es parte de la CI del producto:
+# corre a mano o al subir a una rama linux/fase0*. Cada trabajo llama al ci.sh de su carpeta y sube su salida/.
+
+name: Fase 0 Linux y macOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['linux/fase0*']
+    paths: ['experimentos/linux-fase0/**', '.github/workflows/linux-fase0.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fase0-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+
+jobs:
+  uno-linux:
+    name: (a) Uno AOT en Linux bajo Xvfb
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Paquetes
+        run: sudo apt-get update -q && sudo apt-get install -y -q xvfb xdotool imagemagick libfontconfig1 libgl1 libegl1 libx11-6 libxrandr2 libxi6 libxcursor1 fonts-dejavu-core
+      - name: Prueba
+        run: xvfb-run -a -s "-screen 0 1280x800x24" bash experimentos/linux-fase0/uno/ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-linux
+          path: |
+            experimentos/linux-fase0/uno/salida/*.json
+            experimentos/linux-fase0/uno/salida/*.txt
+            experimentos/linux-fase0/uno/salida/*.log
+            experimentos/linux-fase0/uno/salida/*.png
+
+  uno-mac:
+    name: (a) Uno AOT en macOS
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Prueba
+        run: bash experimentos/linux-fase0/uno/ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-mac
+          path: |
+            experimentos/linux-fase0/uno/salida/*.json
+            experimentos/linux-fase0/uno/salida/*.txt
+            experimentos/linux-fase0/uno/salida/*.log
