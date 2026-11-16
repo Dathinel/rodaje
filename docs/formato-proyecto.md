@@ -304,7 +304,7 @@ El origen de cada instante se calcula exacto con enteros, sin redondeos acumulad
 
 ### Títulos y clips generados (formato 5)
 
-Un clip puede llevar `generator` en lugar de `mediaId`: su imagen no sale de un archivo sino que la genera Rodaje. Hoy el único tipo es `text`, un título; `kind` es abierto (color sólido y formas llegarán sin cambiar el formato) y un tipo desconocido se conserva al guardar y no se dibuja. Un generador no tiene medio, así que su origen es virtual y no tiene límites: `sourceOut − sourceIn` sigue siendo la duración en la pista, los keyframes de sus efectos siguen en tiempo del origen y `sourceIn` puede ser negativo (al alargar el inicio de un título). Va solo en pistas de video, sin `speed`, y `mediaId` no se escribe.
+Un clip puede llevar `generator` en lugar de `mediaId`: su imagen no sale de un archivo sino que la genera Rodaje. El primer tipo fue `text`, un título; `kind` es abierto (color sólido y formas llegarán sin cambiar el formato) y un tipo desconocido se conserva al guardar y no se dibuja. La excepción es `template` (plantillas de movimiento, D-064), que pide el formato 16 para que un Rodaje anterior rechace el archivo en vez de dejar los rótulos invisibles. Un generador no tiene medio, así que su origen es virtual y no tiene límites: `sourceOut − sourceIn` sigue siendo la duración en la pista, los keyframes de sus efectos siguen en tiempo del origen y `sourceIn` puede ser negativo (al alargar el inicio de un título). Va solo en pistas de video, sin `speed`, y `mediaId` no se escribe.
 
 ```
 { "id": "clip-9", "sourceIn": 0, "sourceOut": 2116800000, "start": 705600000, "linkId": null, "enabled": true,
@@ -335,7 +335,7 @@ Un clip puede llevar `generator` en lugar de `mediaId`: su imagen no sale de un 
 | `edges` | Qué bordes animan: `in` la entrada y `out` la salida (las dos verdaderas por omisión). `before` y `after` (ticks, opcionales, 0 por omisión) dicen cuánto del título original queda antes del borde izquierdo y después del derecho: dividir un título los guarda para que cada trozo se vea igual que antes, también con el corte en plena entrada o salida, y apaga el borde interno cuya animación quedó entera al otro lado (un corte lejos de la entrada y la salida deja los bordes internos apagados y sin desfase). Recortar no los toca, así que la animación sigue al nuevo borde. |
 | `words` | Opcional. Las palabras transcritas de un subtítulo automático, para editar por palabra: lista de `{ "start", "end", "text" }` con los tiempos en ticks del origen del clip (como los keyframes; un subtítulo nuevo tiene `sourceIn` 0, así que van desde su borde izquierdo y pueden empezar un poco antes de él). Cada `text` tiene de 1 a 100 caracteres sin espacios ni caracteres de control; `start` ≤ `end`, en orden de `start`, dentro de ±360 000 s; hasta 2000 palabras. El texto que se ve es siempre `text` del generador: si se edita a mano, las palabras no cambian. Dividir el clip las copia enteras a los dos trozos (las que quedan fuera de `sourceIn`–`sourceOut` no se ven). |
 
-Topes del estilo: `size` mayor que 0 y hasta 1000; `stroke.width` hasta la mitad de `size`; `shadow.blur` hasta 64; `lineHeight` mayor que 0 y hasta 10; desplazamientos, márgenes y radios hasta 1000 en valor absoluto; `reference` de 1 a 16 384; nombres de familia hasta 128 caracteres; hasta 64 puntos por curva. En todo el proyecto, los textos de los generadores y sus palabras transcritas suman como mucho 2 000 000 de caracteres.
+Topes del estilo: `size` mayor que 0 y hasta 1000; `stroke.width` hasta la mitad de `size`; `shadow.blur` hasta 64; `lineHeight` mayor que 0 y hasta 10; desplazamientos, márgenes y radios hasta 1000 en valor absoluto; `reference` de 1 a 16 384; nombres de familia hasta 128 caracteres; hasta 64 puntos por curva. En todo el proyecto, los textos de los generadores (también los de cada capa de un `template`) y sus palabras transcritas suman como mucho 2 000 000 de caracteres.
 
 `words` y `style.highlight` se agregaron dentro del formato 5 sin subir la versión ni migrar: son opcionales, un archivo sin él se lee como antes y el esquema `rodaje-proyecto.v5.schema.json` lo describe. Un Rodaje anterior abre un archivo con `words` pero, como con cualquier campo desconocido, lo pierde al guardar; el texto de los subtítulos no cambia.
 
@@ -443,7 +443,7 @@ El 16 es una sola subida que comparten cuatro bloques. Cada uno añade campos op
 |---|---|---|---|
 | Editar por el texto | D-061 | `transcripts` en el proyecto (una transcripción por medio, con palabras y hablantes) | hay alguna transcripción |
 | Intercambio (EDL, FCPXML, OTIO) | D-062 | `startTimecode` en la secuencia; `timecode` y `reel` en el medio | algún medio o secuencia tiene TC o carrete |
-| Plantillas de movimiento | D-064 | generador `template` en los clips (documento, valores y capas) | algún clip usa una plantilla |
+| Plantillas de movimiento | D-064 | generador `template` en los clips (documento, valores y capas) | algún clip lleva un generador `template` |
 | Trabajo en grupo | D-067 | `contentKey` y `contentHash` en el medio | algún medio tiene identidad de contenido |
 
 #### Transcripciones (D-061)
@@ -495,7 +495,7 @@ Un título o rótulo hecho con una plantilla de movimiento (`motion-template`, v
 |---|---|
 | `template.layers` | **El resultado instanciado**, lo que se dibuja: de 1 a 16 capas con `id` único y, cada una, las reglas de un título (`text`, `style` completo, `box`) más `x`, `y` (píxeles de la `reference` de su estilo, desde el centro, escalados con la misma razón que el estilo y sumados a la transformación del clip) y `start`, `end` (segundos de desfase desde el borde izquierdo y antes del derecho, ≥ 0). La capa de abajo va primera |
 | `template.document` | Copia del `rodaje.template` como texto, hasta 256 KB, para volver a instanciar con otros valores. El núcleo no lo interpreta: lo hace la app con el lector de paquetes y entrega las capas nuevas |
-| `template.values` | Los valores puestos, un objeto plano `id → valor` (texto, número, booleano u objeto `font`) |
+| `template.values` | Los valores puestos, un objeto plano `id → valor`: texto (también los colores `#RRGGBB[AA]`), número, booleano u objeto `font`; un `choice` guarda su `value` |
 | `template.source`, `template.name` | De dónde salió (`paquete@versión/elemento`, vacío si es propia) y su nombre. Copia completa, como el estilo (D-029): el proyecto se ve igual sin el paquete |
 | `template.minSeconds` | La duración más corta a la que se puede recortar el clip (0 a 600 s) |
 | `text` | Vacío en un `template`: el texto está en cada capa |
