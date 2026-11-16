@@ -111,6 +111,12 @@ public static class SequenceBuilder
             }
 
             path = uri.LocalPath;
+
+            // Una ruta de Windows («file:///C:/…») leída en otro sistema sigue siendo de Windows: así vuelve igual que salió.
+            if (!OperatingSystem.IsWindows() && path.Length >= 4 && path[0] == '/' && char.IsAsciiLetter(path[1]) && path[2] == ':' && path[3] == '/')
+            {
+                return path[1..].Replace('/', '\\');
+            }
         }
         else if (path.Contains("://", StringComparison.Ordinal))
         {
@@ -138,6 +144,31 @@ public static class SequenceBuilder
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// <c>file:///</c> de una ruta local, igual en Windows y en otros sistemas: una ruta de Windows con su letra de unidad no
+    /// se resuelve contra la carpeta actual al escribirla desde Linux.
+    /// </summary>
+    public static string ToFileUri(string path)
+    {
+        ArgumentNullException.ThrowIfNull(path);
+        string slashed = path.Replace('\\', '/');
+        bool drive = slashed.Length >= 3 && char.IsAsciiLetter(slashed[0]) && slashed[1] == ':' && slashed[2] == '/';
+        if (!drive && !slashed.StartsWith('/'))
+        {
+            try
+            {
+                slashed = Path.GetFullPath(path).Replace('\\', '/');
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                return "file:///";
+            }
+        }
+
+        IEnumerable<string> parts = slashed.TrimStart('/').Split('/').Select((part, i) => i == 0 && drive ? part : Uri.EscapeDataString(part));
+        return "file:///" + string.Join('/', parts);
     }
 
     /// <summary>Clave con que se comparan dos medios: la ruta completa, o el texto tal cual si no es una ruta local completa (un carrete).</summary>
