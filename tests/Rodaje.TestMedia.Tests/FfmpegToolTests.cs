@@ -13,7 +13,7 @@ public sealed class FfmpegToolTests : IDisposable
 
     private string FakeExe(params string[] parts)
     {
-        string path = Path.Combine([_root, .. parts, "ffmpeg.exe"]);
+        string path = Path.Combine([_root, .. parts, Rodaje.Media.FfmpegLocator.ExecutableName("ffmpeg")]);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllBytes(path, []);
         return path;

@@ -18,7 +18,7 @@ public sealed class RegionFuzzTests
     /// Un módulo hostil devuelve un búfer al azar en un <c>result</c>: el cliente lo acepta solo si está entero dentro de
     /// una región suya; si no, corta con <see cref="ModuleProtocolException"/>. Nunca otra excepción ni un cuelgue.
     /// </summary>
-    [WindowsFact]
+    [Fact]
     public async Task Result_buffers_are_accepted_only_inside_the_editor_regions()
     {
         await FuzzSupport.RunCasesAsync(Cases, async seed =>
@@ -82,7 +82,7 @@ public sealed class RegionFuzzTests
     /// destino es lo bastante grande; si un búfer se sale de la región, responde <c>buffer-out-of-range</c>; si el destino
     /// es corto, <c>internal</c>. La conexión sigue sirviendo después.
     /// </summary>
-    [WindowsFact]
+    [Fact]
     public async Task Copy_with_random_buffers_is_exact_or_refused_with_the_right_code()
     {
         (ModuleClient client, Task<bool> host) = await Support.ConnectInProcessAsync();

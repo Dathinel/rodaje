@@ -9,7 +9,7 @@
       dispositivo de audio o la variable que activa las pruebas largas.
   -->
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Rodaje.TestMedia</RootNamespace>
     <IsPackable>false</IsPackable>
     <IsTestProject>false</IsTestProject>

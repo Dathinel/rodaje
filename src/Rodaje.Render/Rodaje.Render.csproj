@@ -1,7 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- net10.0 para que las pruebas de Engine (también net10.0, D-066) puedan referenciarlo; sigue siendo solo de Windows
+         por el atributo de abajo, hasta que la fase 3 lo pase a IGpu. -->
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Rodaje.Render</RootNamespace>
     <!-- Composición de capas en Direct3D 11 y presentación en una cadena de intercambio -->
     <IsAotCompatible>true</IsAotCompatible>
@@ -12,6 +14,9 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Rodaje.Render.Tests" />
+    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute">
+      <_Parameter1>windows7.0</_Parameter1>
+    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>

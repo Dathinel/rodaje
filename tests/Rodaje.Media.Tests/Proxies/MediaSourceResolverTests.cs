@@ -15,7 +15,7 @@ public sealed class MediaSourceResolverTests : IDisposable
     public MediaSourceResolverTests()
     {
         _store = new ProxyStore(_temp.Combine("proxies"));
-        _source = _temp.Combine("medios\\toma 4K ñ.mov");
+        _source = _temp.Combine(Path.Combine("medios", "toma 4K ñ.mov"));
         Directory.CreateDirectory(Path.GetDirectoryName(_source)!);
         File.WriteAllBytes(_source, Enumerable.Range(0, 300_000).Select(i => (byte)i).ToArray());
     }
