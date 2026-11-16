@@ -8,6 +8,7 @@ namespace Rodaje.Media.Tests;
 public sealed class RawIntermediateReadTests
 {
     [FfmpegLibraryFact(Encoder = "ffv1")]
+    [Trait("Categoria", "SoloWindows")] // Sube el cuadro a una textura de WARP.
     public void RawIntermediate_ffv1_pq_preserves_color_and_uploads_as_p016()
     {
         using var media = new RawIntermediateMedia();
