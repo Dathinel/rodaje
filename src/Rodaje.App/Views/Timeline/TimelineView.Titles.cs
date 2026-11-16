@@ -1,12 +1,14 @@
 using Microsoft.UI.Xaml;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Effects;
+using Rodaje.App.Services.MotionTemplates;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Titles;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Packages;
+using Rodaje.Packages.Content;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 
@@ -78,6 +80,20 @@ internal sealed partial class TimelineView
             _dropTitle ??= (await e.DataView.GetDataAsync(TitleDrag.DragFormat))?.ToString();
             if (_dropTitle is not { } reference || target is not { } t || _services is not { } services)
             {
+                return;
+            }
+
+            // Una plantilla de movimiento de títulos se suelta igual que un estilo (D-064).
+            PackageScan installed = services.Packages.Installed;
+            string droppedOn = session.SequenceId;
+            if (PackageReference.TryParse(reference, out PackageReference? parsed)
+                && installed.Find(parsed.PackageId)?.Manifest.FindItem(parsed.ItemId, ItemKind.MotionTemplate) is not null)
+            {
+                if (await Task.Run(() => MotionTemplateCatalog.Find(installed, reference)) is { Kind: TemplateKind.Title } template && session.SequenceId == droppedOn)
+                {
+                    session.AddTemplate(template, t.Track?.Id, t.At);
+                }
+
                 return;
             }
 

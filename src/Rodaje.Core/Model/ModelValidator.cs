@@ -59,7 +59,7 @@ public static partial class ModelValidator
 
         ValidateTranscripts(project, errors, checkId);
 
-        long text = project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).Sum(c => (long)(c.Generator?.Text.Length ?? 0) + WordsLength(c) + TemplateTextLength(c))
+        long text = project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).Sum(c => (long)(c.Generator?.Text?.Length ?? 0) + WordsLength(c) + TemplateTextLength(c))
             + TranscriptsLength(project);
         if (text > MaxProjectTextLength)
         {
@@ -508,12 +508,16 @@ public static partial class ModelValidator
         }
     }
 
+    /// <summary>Tope de «template.values»: entra en la clave de la caché de transiciones.</summary>
+    public const int MaxTemplateValuesLength = 2 * GeneratorTemplate.MaxDocumentBytes;
+
     /// <summary>Las opciones que el tipo define deben tener un valor aceptado; las demás se conservan sin mirar.</summary>
     private static void ValidateOptions(EffectDefinition definition, Dictionary<string, string> options, string where, List<string> errors)
     {
         foreach ((string name, string value) in options)
         {
-            bool accepted = value is not null && (definition.FindOption(name) is { } option
+            bool accepted = value is not null && (name != BuiltInEffects.CommonOptions.TemplateValues || value.Length <= MaxTemplateValuesLength)
+                && (definition.FindOption(name) is { } option
                 ? option.Accepts(value)
                 : name != BuiltInEffects.CommonOptions.Source || OptionDefinition.IsWellFormedReference(value));
             if (!accepted)

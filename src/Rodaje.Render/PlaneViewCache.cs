@@ -58,7 +58,9 @@ internal sealed unsafe class PlaneViewCache(ID3D11Device* device, TimeProvider? 
 
         if (_entries.Count >= MaxEntries)
         {
-            Clear();
+            // Llena: vistas de un solo uso. Vaciarla aquí soltaría vistas que quien llama aún tiene en la mano.
+            owned = true;
+            return Create(payload);
         }
 
         PlaneViews views = Create(payload);

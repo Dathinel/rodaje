@@ -140,7 +140,8 @@ public sealed unsafe class D3D11TexturePayload : IDisposable
     /// <paramref name="texture"/> es un <c>ID3D11Texture2D*</c> de <paramref name="device"/>, muestreable desde un shader;
     /// se toma una referencia propia y quien llama conserva la suya.
     /// </summary>
-    public static D3D11TexturePayload FromTexture(GpuDevice device, nint texture, int arraySlice, int width, int height, VideoColor color)
+    public static D3D11TexturePayload FromTexture(GpuDevice device, nint texture, int arraySlice, int width, int height, VideoColor color,
+        FramePixelFormat? pixelFormat = null)
     {
         ArgumentNullException.ThrowIfNull(device);
         ArgumentOutOfRangeException.ThrowIfZero(texture);
@@ -157,7 +158,7 @@ public sealed unsafe class D3D11TexturePayload : IDisposable
         }
 
         native->AddRef();
-        return new D3D11TexturePayload(device, native, arraySlice, width, height) { _ownedTexture = native, Color = color };
+        return new D3D11TexturePayload(device, native, arraySlice, width, height, pixelFormat) { _ownedTexture = native, Color = color };
     }
 
     /// <summary>

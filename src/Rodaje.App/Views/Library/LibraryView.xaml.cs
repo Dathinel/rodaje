@@ -283,6 +283,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
         OwnTitle.Text = LibraryElements.OwnTitle(_category);
         LoadTransitionPreviews();
+        LoadTemplatePreviews();
 
         Sounds.Clear();
         foreach (LibraryElement element in LibraryElements.For(LibraryCategory.Audio, packages.Installed))
@@ -531,7 +532,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             e.Data.SetData(TransitionDrag.DragFormat, transition.ToString());
         }
 
-        if (item.Element.Kind == ItemKind.TextStyle)
+        if (item.Element.Kind is ItemKind.TextStyle or ItemKind.MotionTemplate)
         {
             e.Data.SetData(TitleDrag.DragFormat, item.Element.Reference);
         }
@@ -572,6 +573,10 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         if (item.Element.Kind == ItemKind.Sound)
         {
             AddSoundItems(menu, item.Element);
+        }
+        else if (item.Element.Kind == ItemKind.MotionTemplate)
+        {
+            AddTemplateItems(menu, item.Element);
         }
         else if (item.Element.Kind == ItemKind.TextStyle)
         {
@@ -615,7 +620,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
     private ElementApplier? Applier() => _services is not { } services
         ? null
-        : _applier ??= new ElementApplier(services.Session, new InstalledContentLoader(() => services.Packages.Installed));
+        : _applier ??= new ElementApplier(services.Session, new InstalledContentLoader(() => services.Packages.Installed), () => services.Packages.Installed);
 
     private void OnMediaContextRequested(UIElement sender, ContextRequestedEventArgs args)
     {

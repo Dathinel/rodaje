@@ -64,8 +64,8 @@ internal static partial class SelfTestRun
         await Task.Delay(100);
     }
 
-    /// <summary>Interpolación F2: un clip a 0,5× con mezcla compone la capa a t = 0,5 y difiere del cuadro más cercano.</summary>
-    private static async Task BlendAsync(MainWindow window, PlayerEngine engine)
+    /// <summary>Un clip a la velocidad dada con mezcla o flujo compone la capa a la fracción esperada y difiere del cuadro más cercano.</summary>
+    private static async Task SampledAsync(MainWindow window, PlayerEngine engine, Rational rate, FrameSampling sampling, float fraction)
     {
         EditorSession session = window.Session;
         if (session.MainTrack is not { Clips.Count: > 0 } main)
@@ -79,12 +79,12 @@ internal static partial class SelfTestRun
         Time target = clip.Start + Time.FromFrames(15, session.Sequence.FrameRate);
         try
         {
-            if (!session.Execute(Edits.SetSpeed(session.SequenceId, clip.Id, new Rational(1, 2), session.SpeedScope)))
+            if (!session.Execute(Edits.SetSpeed(session.SequenceId, clip.Id, rate, session.SpeedScope)))
             {
-                throw new InvalidOperationException("La autoprueba no pudo poner el clip a 0,5×.");
+                throw new InvalidOperationException($"La autoprueba no pudo poner el clip a {rate}.");
             }
 
-            // El clip de prueba y la secuencia tienen la misma cadencia: un cuadro impar a 0,5× cae a mitad del par.
+            // El clip de prueba y la secuencia tienen la misma cadencia: la fracción del cuadro 15 sale de la velocidad.
             session.Seek(target);
             FrameCapture nearest = await CaptureAtAsync(target, FrameSampling.Nearest);
             if (nearest.Composition.LayersDrawn == 0 || nearest.Composition.LayersSkipped != 0)
@@ -92,20 +92,20 @@ internal static partial class SelfTestRun
                 throw new InvalidOperationException("La autoprueba no recibió la capa con Nearest.");
             }
 
-            if (!session.Execute(new SequenceEditCommand("Mezcla de cuadros (autoprueba)", session.SequenceId,
-                ctx => ctx.Sequence.GetClip(clip.Id).Clip.Speed!.FrameSampling = FrameSampling.Blend)))
+            if (!session.Execute(new SequenceEditCommand("Cuadros intermedios (autoprueba)", session.SequenceId,
+                ctx => ctx.Sequence.GetClip(clip.Id).Clip.Speed!.FrameSampling = sampling)))
             {
-                throw new InvalidOperationException("La autoprueba no pudo activar la mezcla de cuadros.");
+                throw new InvalidOperationException($"La autoprueba no pudo activar {sampling}.");
             }
 
-            FrameCapture blended = await CaptureAtAsync(target, FrameSampling.Blend);
+            FrameCapture blended = await CaptureAtAsync(target, sampling);
             if (blended.Composition.LayersDrawn == 0 || blended.Composition.LayersSkipped != 0
                 || nearest.Rgba.AsSpan().SequenceEqual(blended.Rgba))
             {
-                throw new InvalidOperationException("La mezcla a t = 0,5 no compuso la capa o no cambió los píxeles frente a Nearest.");
+                throw new InvalidOperationException($"{sampling} a {rate} no compuso la capa o no cambió los píxeles frente a Nearest.");
             }
 
-            Program.Metrics.Note("autoprueba: interpolación a 0,5×, t = 0,5; capa compuesta y distinta de Nearest");
+            Program.Metrics.Note($"autoprueba: {sampling} a {rate}, t = {fraction}; capa compuesta y distinta de Nearest");
         }
         finally
         {
@@ -122,7 +122,7 @@ internal static partial class SelfTestRun
                 FrameCapture capture = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
                 if (capture.TimelineTime == at && session.EditPosition == at
                     && (mode is null || capture.Samples.Any(s => s.ClipId == clip.Id && s.Sampling == mode
-                        && (mode == FrameSampling.Nearest || (s.HasNext && Math.Abs(s.Fraction - 0.5f) < 0.0001f)))))
+                        && (mode == FrameSampling.Nearest || (s.HasNext && Math.Abs(s.Fraction - fraction) < 0.0001f)))))
                 {
                     return capture;
                 }
