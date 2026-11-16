@@ -418,4 +418,30 @@ public sealed class HdrIntermediateProxyTests(ITestOutputHelper output)
         output.WriteLine($"{encoder}: {color}");
         Assert.Equal((HdrTransfer.Pq, true), (color.Transfer, color.Bt2020Primaries));
     }
+
+    /// <summary>
+    /// Matroska guarda las marcas en ms: el MP4 de 12 cuadros a 24 declara 12000/499 de media, y antes el proxy se rechazaba
+    /// por la tasa aunque cada cuadro cayera en su sitio (una toma CinemaDNG corta).
+    /// </summary>
+    [ProxyTheory]
+    [InlineData("24", 12)]
+    [InlineData("24000/1001", 12)]
+    [InlineData("24", 29)]
+    public async Task The_proxy_of_a_short_mkv_keeps_its_frames(string rate, int frames)
+    {
+        using var temp = new TempDirectory();
+        string source = temp.Combine("corto.mkv");
+        FfmpegTool.Default!.Run(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", $"testsrc2=size=320x180:rate={rate}",
+            "-frames:v", frames.ToString(System.Globalization.CultureInfo.InvariantCulture), "-c:v", "ffv1", "-pix_fmt", "yuv444p16le", source]);
+        using var generator = new ProxyGenerator(new ProxyStore(temp.Combine("proxies")), ProxyTestEnvironment.Executable!, new ProxyGeneratorOptions
+        {
+            EncoderPreference = ["libopenh264"],
+            HardwareDecoding = false,
+        });
+
+        ProxyEntry proxy = await generator.GenerateAsync(source);
+        MediaInfo probed = MediaProbe.Probe(proxy.ProxyPath);
+        output.WriteLine($"{rate} × {frames}: el proxy declara {probed.Video!.FrameRate}.");
+        Assert.Equal((frames, MediaProbe.Probe(source).Video!.FrameRate), (proxy.Metadata.FrameCount, proxy.Metadata.FrameRate));
+    }
 }

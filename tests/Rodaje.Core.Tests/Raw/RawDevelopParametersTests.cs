@@ -25,5 +25,10 @@ public sealed class RawDevelopParametersTests
         {
             Assert.Equal(1.0, m[r * 3] + m[(r * 3) + 1] + m[(r * 3) + 2], 4);
         }
+
+        // Primero la cámara y luego BT.709 → BT.2020: con la cámara que cambia R por G, la fila R toma las columnas cambiadas.
+        IReadOnlyList<float> b = RawDevelopParameters.Bt709ToBt2020;
+        IReadOnlyList<float> swapped = (identity with { Matrix = [0, 1, 0, 1, 0, 0, 0, 0, 1] }).WithRec2020Primaries().Matrix;
+        Assert.Equal([b[1], b[0], b[2], b[4], b[3], b[5], b[7], b[6], b[8]], swapped);
     }
 }
