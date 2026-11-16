@@ -8,6 +8,10 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ## [Sin publicar]
 
+### Añadido
+
+- **Render en caché, base del motor (D-060):** cada cuadro tiene una huella de lo que decide sus píxeles (mover un tramo o deshacer la conserva), un almacén de fragmentos ProRes 422 HQ de 2 s en `%LOCALAPPDATA%\Rodaje\render` (o `RODAJE_RENDER`) con tope y limpieza, la reproducción de los tramos en caché como un solo clip, el cálculo de un fragmento con pausa al reproducir, el servicio que calcula en reposo, la previsión de lo que va lento y la opción de exportación «Usar el render en caché» (apagada por omisión). Falta conectarlo en la app: la franja de colores sobre la regla y Preferencias.
+
 ### Cambiado
 
 - La autoprueba y las medidas (`--autoprueba`, `--medir`, `--arranque`) corren de fondo: la ventana no aparece en pantalla ni toma el foco; `--visible` la muestra como antes.
