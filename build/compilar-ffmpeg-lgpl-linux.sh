@@ -40,6 +40,8 @@ carpetas=("$trabajo/paquete"/*)
 [[ ${#carpetas[@]} == 1 && -d "${carpetas[0]}" ]] || fallar 'Estructura inesperada de BtbN'
 paquete="$trabajo/paquete/$nombre"
 mv "${carpetas[0]}" "$paquete"
+# Rodaje no usa ffplay (en Mac ni se compila): fuera, con su SDL.
+rm -f "$paquete/bin/ffplay"
 # Cada DSO resuelve sus dependencias junto a si mismo, incluso cargado con dlopen por Rodaje.
 # Solo Linux: la receta Windows y sus bytes no pasan por aqui.
 # shellcheck disable=SC2016 # ORIGIN lo expande el cargador ELF, no Bash.

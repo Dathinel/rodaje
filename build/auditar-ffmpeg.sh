@@ -34,7 +34,8 @@ permitida() {
     if [[ "$sistema" == linux ]]; then
         if [[ "$dep" =~ $propia_linux ]]; then [[ -f "$raiz/lib/$dep" ]]; return; fi
         case "$dep" in
-            libc.so.6|libm.so.6|libpthread.so.0|libdl.so.2|librt.so.1|ld-linux-x86-64.so.2) return 0 ;;
+            # glibc y el runtime de GCC del sistema (excepción de biblioteca de runtime): no viajan en el paquete.
+            libc.so.6|libm.so.6|libmvec.so.1|libpthread.so.0|libdl.so.2|librt.so.1|ld-linux-x86-64.so.2|libgcc_s.so.1|libstdc++.so.6) return 0 ;;
         esac
     else
         case "$dep" in
