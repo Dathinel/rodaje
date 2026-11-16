@@ -31,15 +31,14 @@ internal static partial class SelfTestRun
             throw new InvalidOperationException($"El render en caché no recorrió la secuencia: {cache.Strip.Count} tramos para {frames} cuadros.");
         }
 
-        IReadOnlyList<CacheStripSpan> real = cache.Strip;
         Rational rate = cache.StripRate;
         long quarter = frames / 4;
-        window.TimelinePane.SetCacheStrip([new(0, quarter, CacheStripState.Light), new(quarter, 2 * quarter, CacheStripState.Tight),
+        window.TimelinePane.PinCacheStrip([new(0, quarter, CacheStripState.Light), new(quarter, 2 * quarter, CacheStripState.Tight),
             new(2 * quarter, 3 * quarter, CacheStripState.Heavy), new(3 * quarter, frames, CacheStripState.Cached)], rate);
         await Task.Delay(250);
         IReadOnlyDictionary<CacheStripState, int> shown = window.TimelinePane.CacheStripCounts;
         await CaptureAsync(window, "regla-cache");
-        window.TimelinePane.SetCacheStrip(real, rate);
+        window.TimelinePane.PinCacheStrip(null, rate);
         foreach (CacheStripState state in (CacheStripState[])[CacheStripState.Tight, CacheStripState.Heavy, CacheStripState.Cached])
         {
             if (shown.GetValueOrDefault(state) != 1)

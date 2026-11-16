@@ -218,11 +218,21 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         }
     }
 
-    /// <summary>Pone una franja dada (la autoprueba la usa para ver los cuatro estados).</summary>
-    internal void SetCacheStrip(IReadOnlyList<Services.RenderCache.CacheStripSpan> spans, Rodaje.Core.Timing.Rational rate)
+    /// <summary>
+    /// Pone una franja dada y la deja fija hasta llamar con <c>null</c>, que vuelve a la del render en caché (la autoprueba
+    /// la usa para ver los cuatro estados sin que un cálculo que termina entretanto la pise).
+    /// </summary>
+    internal void PinCacheStrip(IReadOnlyList<Services.RenderCache.CacheStripSpan>? spans, Rodaje.Core.Timing.Rational rate)
     {
-        _renderer?.SetCacheStrip(spans, rate);
-        Invalidate();
+        _cacheStripPinned = spans is not null;
+        if (spans is not null)
+        {
+            SetCacheStrip(spans, rate);
+        }
+        else if (_services?.RenderCache is { } cache)
+        {
+            ShowCacheStrip(cache);
+        }
     }
 
     /// <summary>Trozos de la franja a la vista, por estado.</summary>
@@ -232,9 +242,22 @@ internal sealed partial class TimelineView : UserControl, IEditorView
     /// <summary>La franja del render en caché, solo si es de la secuencia que se ve (no del visor de origen).</summary>
     private void ShowCacheStrip(Services.RenderCache.RenderCacheHost cache)
     {
+        if (_cacheStripPinned)
+        {
+            return;
+        }
+
         bool mine = Session is { IsSourceActive: false } session && cache.StripSequenceId == session.SequenceId;
         SetCacheStrip(mine ? cache.Strip : [], cache.StripRate);
     }
+
+    private void SetCacheStrip(IReadOnlyList<Services.RenderCache.CacheStripSpan> spans, Rodaje.Core.Timing.Rational rate)
+    {
+        _renderer?.SetCacheStrip(spans, rate);
+        Invalidate();
+    }
+
+    private bool _cacheStripPinned;
 
     /// <summary>Pide un dibujo para el próximo cuadro (varios pedidos en el mismo cuadro se juntan).</summary>
     internal void Invalidate(bool content = false)

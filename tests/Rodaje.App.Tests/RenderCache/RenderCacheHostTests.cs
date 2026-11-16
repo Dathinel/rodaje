@@ -111,6 +111,26 @@ public sealed class RenderCacheHostTests : IDisposable
         Assert.Equal(RenderCacheState.Waiting, host.Status.State);
     }
 
+    [Fact]
+    public async Task Un_trozo_se_calcula_con_el_proyecto_del_que_salieron_sus_huellas_aunque_llegue_otro_plan()
+    {
+        Project first = Titles(seconds: 3);
+        Project second = Titles(seconds: 3);
+        second.Sequences[0].VideoTracks[0].Clips[0].Generator!.Text = "Otro";
+        var player = new FakePlayer();
+        using var host = new RenderCacheHost(player, RenderCacheMode.Manual, _folder, 10, null, null, _ => false, () => null,
+            tick: Timeout.InfiniteTimeSpan);
+        host.OnPlan(new RenderCachePlan(first, "sec", 1, 4, 0));
+        await player.NextAsync();
+
+        host.OnPlan(new RenderCachePlan(second, "sec", 1, 5, 0));
+
+        (RenderCachePlan plan, RenderCacheKey[] keys) = host.JobInput(new RenderCacheWork(0, 30, 4))!.Value;
+        Assert.Same(first, plan.Project);
+        Assert.Equal(30, keys.Length);
+        Assert.Null(host.JobInput(new RenderCacheWork(0, 30, 5)));
+    }
+
     private static string Commit(RenderCacheStore store, RenderCacheScan scan, long first, int count)
     {
         string temporary = store.CreateTemporaryPath();
