@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+  <resources>
+    <format id="r1" name="FFVideoFormat1080p50" frameDuration="1/50s" width="1920" height="1080"/>
+    <asset id="r2" name="ClipAnidado" uid="asset-anidado" start="0s" duration="200/50s" format="r1" hasVideo="1">
+      <media-rep kind="original-media" src="file:///C:/Medios/ClipAnidado.mov"/>
+    </asset>
+    <media id="r-compound" name="SecuenciaCompuesta">
+      <sequence format="r1" duration="100/50s" tcStart="0s" tcFormat="NDF">
+        <spine>
+          <asset-clip ref="r2" offset="0s" name="ClipAnidado" start="0s" duration="100/50s" format="r1"/>
+        </spine>
+      </sequence>
+    </media>
+  </resources>
+  <library>
+    <event name="Evento 1">
+      <project name="Proyecto 1">
+        <sequence format="r1" duration="100/50s" tcStart="0s" tcFormat="NDF">
+          <spine>
+            <ref-clip ref="r-compound" offset="0s" name="SecuenciaCompuesta" start="0s" duration="100/50s"/>
+          </spine>
+        </sequence>
+      </project>
+    </event>
+  </library>
+</fcpxml>

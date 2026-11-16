@@ -66,6 +66,13 @@ public sealed class Sequence
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public SequenceColorSpace ColorSpace { get; set; }
 
+    /// <summary>
+    /// Código de tiempo del primer cuadro, <c>HH:MM:SS:FF</c> o <c>HH:MM:SS;FF</c> (formato 16, D-062); nulo es
+    /// <c>00:00:00:00</c>. Lo usan la EDL, el FCPXML y el OTIO.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StartTimecode { get; set; }
+
     public const double MinMasterGainDb = -60;
 
     public const double MaxMasterGainDb = 24;
