@@ -47,7 +47,7 @@ public static class SequenceBuilder
             byKey[key] = media;
 
             // Solo una ruta local completa identifica un archivo: un carrete («TOMA01») de otra EDL puede ser otra tarjeta.
-            if (!Path.IsPathFullyQualified(key))
+            if (!IsFullPath(key))
             {
                 continue;
             }
@@ -178,6 +178,10 @@ public static class SequenceBuilder
         IEnumerable<string> parts = slashed.TrimStart('/').Split('/').Select((part, i) => i == 0 && drive ? part : Uri.EscapeDataString(part));
         return "file:///" + string.Join('/', parts);
     }
+
+    /// <summary>Ruta completa en este sistema, o de Windows con su unidad (un proyecto de Windows abierto en otro sistema).</summary>
+    private static bool IsFullPath(string path) =>
+        Path.IsPathFullyQualified(path) || (path.Length >= 3 && char.IsAsciiLetter(path[0]) && path[1] == ':' && path[2] is '\\' or '/');
 
     /// <summary>Clave con que se comparan dos medios: la ruta completa, o el texto tal cual si no es una ruta local completa (un carrete).</summary>
     private static string MediaKey(string path, string? directory)
