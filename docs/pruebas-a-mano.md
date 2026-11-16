@@ -2,6 +2,21 @@
 
 Lo que no cubren las pruebas automáticas ni la autoprueba del exe y conviene repasar con la app abierta antes de publicar. Cada apartado dice qué hacer y qué tiene que pasar. Las pruebas automáticas se corren con `Probar.bat`; la autoprueba, con `Rodaje.bat -Autoprueba`.
 
+## Editar por el texto
+
+Hace falta el módulo «Subtítulos automáticos» y un video con voz de unos minutos.
+
+1. Pon el video en la línea de tiempo, elige su clip y abre **Subtítulos automáticos…**. Se transcribe el medio entero; al aplicar, los subtítulos y la transcripción entran en un solo paso (un Ctrl+Z quita los dos).
+2. Corta el clip en dos, separa las mitades y pide otra vez **Subtítulos automáticos…** en la segunda: los subtítulos salen al instante, con el aviso «de la transcripción guardada». «Transcribir de nuevo» sigue disponible.
+3. **Ver › Transcripción**: el texto aparece por párrafos y la palabra que suena se resalta al reproducir; el panel solo se desplaza cuando la palabra sale de la vista.
+4. Selecciona una frase (clic y Mayús+clic) y pulsa **Supr**: la frase desaparece del texto, la línea de tiempo se cierra con el video enlazado y al escucharlo no se come sílabas ni deja chasquidos (si se oyen, apúntalo: es la pregunta 2 del diseño, fundido en cada corte).
+5. **Retroceso** con otra frase: queda el hueco. **Ctrl+X** en una frase y **Ctrl+V** con el cursor del panel en otra palabra: la frase se mueve ahí con su video.
+6. **Ctrl+F**, escribe una palabra con tilde sin ella («camion»): la encuentra.
+7. **Quitar muletillas…**: las seguras vienen marcadas y las dudosas no; al quitar, el texto pierde justo esas.
+8. **F2** en una palabra, escribe «dos palabras» e Intro: se parte en dos. **Alt+1** en un párrafo: aparece el hablante con su color; pon el mismo medio en otra pista guía o en otro clip y el hablante también sale ahí.
+9. Activa «Mostrar lo quitado»: la frase borrada en el paso 4 aparece tachada y en gris; «Recuperar» la devuelve con su video y la línea de tiempo vuelve a durar lo de antes.
+10. Guarda, cierra y abre el proyecto: la transcripción sigue. Quita la última transcripción (quitando el medio) y guarda: el archivo vuelve a la versión anterior del formato.
+
 ## Exportar entre la entrada y la salida
 
 1. En la secuencia, lleva el cursor a los 2 s y pulsa **I**; a los 6 s, **O**. La barra de contexto muestra las marcas.
@@ -104,3 +119,11 @@ Fallos: (1) tras **Alt+X** la barra de contexto desaparece pero la regla sigue s
 2. Importa con exposición +1 EV. Al terminar, la notificación trae «Revelado en la GPU (…): N ms por fotograma»; apunta N en `docs/hdr.md` (fase D, cifras). El clip de la biblioteca se ve como antes (balance de la toma, gris del 18 % en su sitio, un paso más claro).
 3. Repite con `RODAJE_FORZAR_WARP=1` (o en una máquina sin GPU): el diálogo dice «Se revela en la CPU con LibRaw», ofrece la calidad y la notificación dice «Revelado en la CPU (LibRaw)». Los dos ProRes deben verse iguales a simple vista (solo cambia el interpolado en los bordes finos).
 4. Con el módulo 1.0.0 instalado (sin `mosaico`) todo sigue por la CPU sin ningún aviso.
+
+## Intercambio con otros editores (EDL, FCPXML, OpenTimelineIO)
+
+1. Con un montaje de varias pistas (cortes, un fundido **Ctrl+T**, un clip a 2× y un marcador), Archivo › **Exportar línea de tiempo…** y guarda como `.otio`. No debe pedir nada: OTIO lo lleva todo. Repite como `.fcpxml` y `.edl`: antes de escribir aparece «Exportar a …» con el resumen de lo que no llega igual (en EDL, por ejemplo, los efectos y las pistas de audio de la 3 en adelante). Al terminar, «Ver informe» lista cada aviso con su TC de la secuencia; prueba **Copiar** y **Guardar como .txt**. La EDL escribe un archivo por pista de video (`nombre.edl`, `nombre_V2.edl`…).
+2. Archivo › **Importar línea de tiempo…** y elige el `.otio`: en un solo paso del historial aparecen dos pistas nuevas con un clip compuesto enlazado en el cursor; doble clic lo abre y dentro está el montaje igual que el original (efectos, color y transiciones incluidos). **Ctrl+Z** lo quita entero. Clic derecho › **Descomponer** deja sus clips en la secuencia.
+3. Importa la `.edl`: los medios aparecen; si moviste o renombraste el material antes, se abre «Faltan medios» y «Buscar en carpeta» los encuentra por el nombre del carrete; los clips quedan en su sitio aunque la cámara grabara con TC (por ejemplo, empezando en `01:00:00:00`).
+4. Abre en DaVinci Resolve (gratis) la `.edl`, el `.fcpxml` y el `.otio` exportados: el corte, los fundidos y las velocidades deben coincidir. Si puedes, exporta desde Resolve una línea de tiempo corta a los tres formatos y guárdalos para las pruebas (pregunta 2 de D-062).
+5. Importa un `.fcpxml` de Final Cut o Resolve con títulos: los títulos quedan como huecos y el informe los nombra con su texto.

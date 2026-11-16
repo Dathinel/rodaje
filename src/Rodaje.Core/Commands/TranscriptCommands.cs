@@ -1,6 +1,53 @@
 using Rodaje.Core.Model;
+using Rodaje.Core.Editing;
 
 namespace Rodaje.Core.Commands;
+
+/// <summary>Edita una transcripción con instantáneas independientes para deshacer y rehacer.</summary>
+public sealed class EditTranscriptCommand : ICommand
+{
+    private readonly string _mediaId;
+    private readonly Func<MediaTranscript, MediaTranscript> _change;
+    private MediaTranscript? _before;
+    private MediaTranscript? _after;
+
+    public EditTranscriptCommand(string mediaId, Func<MediaTranscript, MediaTranscript> change, string description)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(mediaId);
+        ArgumentNullException.ThrowIfNull(change);
+        ArgumentNullException.ThrowIfNull(description);
+        _mediaId = mediaId;
+        _change = change;
+        Description = description;
+    }
+
+    public string Description { get; }
+
+    public void Apply(Project project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        int index = project.Transcripts.FindIndex(t => t.MediaId == _mediaId);
+        if (index < 0) throw new EditException("El medio ya no tiene transcripción.");
+        MediaTranscript before = project.Transcripts[index].Clone();
+        MediaTranscript after = _after?.Clone() ?? _change(before.Clone()).Clone();
+        if (after.MediaId != _mediaId) throw new EditException("La transcripción es de otro medio.");
+        ProjectGuard.ApplyValidated(project, "No se pudo editar la transcripción",
+            () => project.Transcripts[index] = after.Clone(), () => project.Transcripts[index] = before.Clone());
+        _before ??= before;
+        _after ??= after;
+    }
+
+    public void Revert(Project project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        if (_before is null) throw new InvalidOperationException("El comando todavía no se ha aplicado.");
+        int index = project.Transcripts.FindIndex(t => t.MediaId == _mediaId);
+        if (index < 0) throw new EditException("El medio ya no tiene transcripción.");
+        project.Transcripts[index] = _before.Clone();
+    }
+
+    public bool TryMerge(ICommand following) => false;
+}
 
 /// <summary>
 /// Pone, reemplaza o quita (con <c>null</c>) la transcripción de un medio en un paso del historial (D-061). Se valida

@@ -247,6 +247,50 @@ public sealed partial class RenderCacheExportTests(ITestOutputHelper output) : I
     }
 
     [ProxyFact]
+    public async Task Con_subtitulos_aparte_las_huellas_salen_sin_ellos_en_la_imagen()
+    {
+        Project project = ExportProjects.TwoTracks();
+        var subtitles = new Track { Id = "subs", Kind = TrackKind.Video, Name = "Español", Role = TrackRoles.Subtitles };
+        subtitles.Clips.Add(new Clip
+        {
+            Id = "s1", Start = ExportProjects.S(1), SourceIn = Time.Zero, SourceOut = ExportProjects.S(1),
+            Generator = new ClipGenerator { Text = "Hola", Style = new TextStyle() },
+        });
+        project.Sequences[0].VideoTracks.Add(subtitles);
+        IReadOnlyList<EncoderSpec> encoders = await Encoders.Value;
+        var settings = new ExportSettings
+        {
+            Container = ExportContainer.Mov,
+            Subtitles = SubtitleExport.Embedded,
+            UseRenderCache = true,
+            Video = new VideoExportSettings { Codec = ExportCodec.ProRes, Profile = "hq", BitDepth = 10, Chroma = ChromaSubsampling.Chroma422, RateControl = RateControl.ProfileDefined },
+            Audio = null,
+            FastStart = false,
+        };
+
+        Project? seen = null;
+        var runner = new ExportRunner(new ExportRunnerOptions
+        {
+            Ffmpeg = Skip.ProxyExecutable!,
+            CreateDevice = () => GpuDevice.CreateWarp(),
+            RenderCache = new RenderCacheStore(Path.Combine(_tempFolder, "almacen_subtitulos")),
+            RecipeBuilder = r =>
+            {
+                seen = r.Project;
+                return CreateRecipeBuilder(r.Project, r.SequenceId);
+            },
+        });
+
+        var range = new ExportRange(ExportProjects.S(1), ExportProjects.S(1.2));
+        ExportJob job = runner.Start(new ExportRequest(project, "sec", Path.Combine(_tempFolder, "subs.mov"), settings, range), encoders);
+        await job.Completion.WaitAsync(TimeSpan.FromMinutes(2));
+
+        Assert.True(job.Progress.State == ExportJobState.Completed, job.Failure?.ToString());
+        Assert.NotNull(seen);
+        Assert.True(seen.FindSequence("sec")!.VideoTracks.Single(t => t.Role == TrackRoles.Subtitles).Hidden);
+    }
+
+    [ProxyFact]
     public async Task Sin_casilla_no_lee_cache_y_fragmento_borrado_a_mitad_se_olvida()
     {
         Project project = ExportProjects.TwoTracks();

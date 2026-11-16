@@ -36,10 +36,12 @@
                 <MenuFlyoutItem Text="Importar medios..." Tag="file.import" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Importar CinemaDNG..." Tag="file.importCinemaDng" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Importar subtítulos..." Tag="file.importSubtitles" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Importar línea de tiempo..." Tag="file.importTimeline" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Carpetas vigiladas..." Tag="file.watchedFolders" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Exportar..." Tag="file.export" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Exportar fotograma..." Tag="file.exportFrame" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Exportar subtítulos..." Tag="file.exportSubtitles" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Exportar línea de tiempo..." Tag="file.exportTimeline" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Atajos de teclado..." Tag="view.shortcuts" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Preferencias..." Tag="view.preferences" Click="OnActionClick" />
@@ -107,6 +109,7 @@
                 </MenuFlyoutSubItem>
                 <MenuFlyoutSubItem Text="Texto y voz">
                     <MenuFlyoutItem Text="Subtítulos automáticos..." Tag="tools.autoSubtitles" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Quitar muletillas…" Tag="transcript.removeFillers" Click="OnActionClick" />
                     <MenuFlyoutItem Text="Traducir pista..." Tag="tools.translateTrack" Click="OnActionClick" />
                     <MenuFlyoutItem Text="Texto a voz..." Tag="voice.textToSpeech" Click="OnActionClick" />
                     <MenuFlyoutItem Text="Grabar voz en off..." Tag="audio.voiceOver" Click="OnActionClick" />
@@ -119,6 +122,7 @@
                 </MenuFlyoutSubItem>
             </MenuBarItem>
             <MenuBarItem Title="Ver">
+                <MenuFlyoutItem Text="Transcripción" Click="OnTranscriptClick" />
                 <MenuFlyoutSubItem Text="Paneles">
                     <MenuFlyoutItem Text="Propiedades" Tag="inspector:Properties" Click="OnInspectorClick" />
                     <MenuFlyoutItem Text="Texto" Tag="inspector:Text" Click="OnInspectorClick" />

@@ -3,6 +3,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services.Shortcuts;
 using Windows.System;
 using Windows.UI.Core;
@@ -69,13 +70,25 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
         LastKeyDownTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         var chord = new KeyChord((int)e.Key, CurrentModifiers());
         bool handled = _intercept?.Invoke(chord) == true
-            || (_root.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is IFocusedShortcutTarget target && target.TryHandleShortcut(chord))
+            || TryFocusedShortcut(chord)
             || (!FocusedSliderTakes(chord) && _router.Dispatch(chord, e.KeyStatus.WasKeyDown, FocusKind(e.OriginalSource)));
         if (handled)
         {
             _consumed.Add(e.Key);
             e.Handled = true;
         }
+    }
+
+    private bool TryFocusedShortcut(KeyChord chord)
+    {
+        DependencyObject? focused = _root.XamlRoot is { } root ? FocusManager.GetFocusedElement(root) as DependencyObject : null;
+        while (focused is not null)
+        {
+            if (focused is IFocusedShortcutTarget target) return target.TryHandleShortcut(chord);
+            focused = VisualTreeHelper.GetParent(focused);
+        }
+
+        return false;
     }
 
     private void OnPreviewKeyUp(object sender, KeyRoutedEventArgs e)

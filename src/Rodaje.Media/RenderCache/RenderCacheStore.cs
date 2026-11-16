@@ -63,6 +63,8 @@ public sealed class RenderCacheStore : IRenderCacheStore
 
     private const string TempMarker = ".tmp";
 
+    private static readonly TimeSpan TouchInterval = TimeSpan.FromMinutes(1);
+
     private readonly TimeProvider _time;
     private readonly object _lock = new();
     private readonly Dictionary<RenderCacheKey, List<RenderCacheHit>> _index = new();
@@ -567,7 +569,15 @@ public sealed class RenderCacheStore : IRenderCacheStore
     private void Touch(RenderCacheFragment fragment)
     {
         DateTime now = _time.GetUtcNow().UtcDateTime;
+        bool recent = _lastUsed.TryGetValue(fragment.MoviePath, out DateTime last) && now - last < TouchInterval;
         _lastUsed[fragment.MoviePath] = now;
+
+        // TryGet se llama por cada cuadro de la secuencia: escribir la fecha del archivo cada vez costaría segundos.
+        if (recent)
+        {
+            return;
+        }
+
         try
         {
             File.SetLastAccessTimeUtc(fragment.MoviePath, now);

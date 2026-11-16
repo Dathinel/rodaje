@@ -69,7 +69,7 @@ public sealed class CacheCoverage
         }
 
         long second = Math.Max(1, Time.FromSeconds(1).ToFrames(frameRate));
-        long shortest = Math.Max(1, second / 4);
+        long shortest = ShortestSpan(frameRate);
         var spans = new List<CachedSpan>(found.Count);
         foreach (CachedSpan span in found)
         {
@@ -82,6 +82,9 @@ public sealed class CacheCoverage
 
         return new CacheCoverage(revision, spans);
     }
+
+    /// <summary>Cuadros que debe tener como mínimo un tramo para verse desde el caché (un cuarto de segundo).</summary>
+    public static long ShortestSpan(Rational frameRate) => Math.Max(1, Math.Max(1, Time.FromSeconds(1).ToFrames(frameRate)) / 4);
 
     /// <summary>
     /// El plan con el carril del caché encima de todo y los carriles vivos recortados fuera de lo cubierto. Sin tramos,
@@ -110,7 +113,8 @@ public sealed class CacheCoverage
         {
             Time start = Time.FromFrames(span.FirstFrame, rate);
             Time end = Time.FromFrames(span.EndFrame, rate);
-            Time anchor = Time.FromFrames(span.FirstFragmentFrame, rate);
+            // Un tick de más: con un periodo que no es entero en ticks, el redondeo de inicio y fin podía caer en el cuadro anterior.
+            Time anchor = Time.FromFrames(span.FirstFragmentFrame, rate) + Time.FromTicks(1);
             ClipTimeMap map = ClipTimeMap.Create(start, end - start, anchor, null);
             cache.Add(new VideoClipPlan($"{TimelinePlan.CacheTrackId}:{span.FirstFrame}", new SourceKey(span.MoviePath, span.MoviePath), map, start, end,
                 Time.FromFrames(span.FirstFragmentFrame + span.Count, rate), rate, rate, null, plan.Width, plan.Height));

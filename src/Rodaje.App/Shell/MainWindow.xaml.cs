@@ -192,6 +192,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(Views.Voice.VoiceCommands.Bind(_router, _services));
         _bindings.Add(Views.Subtitles.SubtitleCommands.Bind(_router, _services));
         _bindings.Add(Views.Subtitles.SubtitleFileCommands.Bind(_router, _services));
+        _bindings.Add(Views.Interchange.InterchangeCommands.Bind(_router, _services));
         _bindings.Add(Views.Translate.TranslateCommands.Bind(_router, _services));
         _bindings.Add(Views.Raw.RawCommands.Bind(_router, _services));
         _bindings.Add(Views.Vision.VisionCommands.Bind(_router, _services));
@@ -200,6 +201,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         TitleBar.Attach(_services);
         TitleBar.InspectorTabRequested += (_, tab) => Inspector.Show(tab);
         TitleBar.MarkersPanelRequested += (_, _) => Library.ShowMarkers();
+        TitleBar.TranscriptPanelRequested += (_, _) => Library.ShowTranscript();
         TitleBar.ExitRequested += (_, _) => RequestClose();
         TitleBar.RecentProjectMissing += (_, path) =>
         {
@@ -452,6 +454,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     internal Services.LongActions.LongActionService LongActions => _longActions;
 
     internal Views.Inspector.InspectorView InspectorPane => Inspector;
+    internal Views.Library.LibraryView LibraryPane => Library;
 
     internal ExportView? ExportPage => _exportView;
 

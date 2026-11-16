@@ -101,7 +101,7 @@ Sin tecla de fábrica (se asignan en el panel): Añadir pista de subtítulos, A�
 | Herramienta de rango | G | (sin tecla) | = |
 | Herramienta de zoom | Z | (sin tecla) | = |
 
-Sin tecla de fábrica (se asignan en el panel): Herramienta de selección.
+Sin tecla de fábrica (se asignan en el panel): Herramienta de selección, Quitar muletillas….
 
 ## Vista
 
@@ -131,7 +131,7 @@ Sin tecla de fábrica (se asignan en el panel): Complementos, Distribución equi
 | Preferencias | Ctrl+, | = | = |
 | Exportar fotograma | Ctrl+Mayús+E | = | = |
 
-Sin tecla de fábrica (se asignan en el panel): Importar subtítulos, Exportar subtítulos, Carpetas vigiladas….
+Sin tecla de fábrica (se asignan en el panel): Importar subtítulos, Exportar subtítulos, Importar línea de tiempo, Exportar línea de tiempo, Carpetas vigiladas….
 
 ## Ratón
 
