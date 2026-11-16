@@ -178,6 +178,6 @@ public sealed class InterchangeService(IMediaProber prober, IIdGenerator? ids = 
         bool known = SmpteTimecode.TryParse(start, rate, out SmpteTimecode origin);
         return report.ToText(t => known
             ? SmpteTimecode.FromFrame(origin.Frame + Math.Max(0, t.ToFrames(rate)), rate, origin.DropFrame).Format()
-            : t.ToSeconds().ToString("0.00", System.Globalization.CultureInfo.CurrentCulture) + " s");
+            : t.ToSeconds().ToString("0.00", Format.SpanishNumbers.Format) + " s");
     }
 }
