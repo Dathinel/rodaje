@@ -322,7 +322,8 @@ internal sealed partial class ElementItem(LibraryElement element) : ObservableOb
     public string Source { get; } = element.Source;
 
     public string Tooltip { get; } = (string.IsNullOrEmpty(element.Description) ? element.Name : $"{element.Name}\n{element.Description}")
-        + (ElementApplier.CanApply(element) ? "\nDoble clic: aplicar al clip seleccionado." : "");
+        + (element.Kind == Rodaje.Packages.ItemKind.MotionTemplate ? "\nDoble clic: usar en la línea de tiempo."
+            : ElementApplier.CanApply(element) ? "\nDoble clic: aplicar al clip seleccionado." : "");
 
     public double Opacity { get; } = element.IsAvailable ? 1 : 0.5;
 
