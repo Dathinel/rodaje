@@ -468,7 +468,7 @@ El 16 es una sola subida que comparten cuatro bloques. Cada uno añade campos op
 ]
 ```
 
-`s` y `e` son el inicio y el fin en ticks del medio, `t` el texto, `c` la probabilidad (0–1), `sp` el hablante (opcional) y `p` si la palabra abre párrafo (opcional, falso por omisión). Reglas: el medio existe y tiene como mucho una transcripción; las palabras van en orden, con `0 ≤ s ≤ e ≤ mediaDuration`, texto no vacío y sin caracteres de control, y un `sp` declarado en `speakers`; ids únicos; como mucho 200 000 palabras. Quitar el medio quita su transcripción; reenlazarlo la conserva, y si la duración nueva difiere más de un cuadro de `mediaDuration` la app avisa de que puede no coincidir.
+Al guardar, la lista `words` de cada transcripción va en una sola línea (indentada pesaría el doble); al leer da igual cómo venga. `s` y `e` son el inicio y el fin en ticks del medio, `t` el texto, `c` la probabilidad (0–1), `sp` el hablante (opcional) y `p` si la palabra abre párrafo (opcional, falso por omisión). Reglas: el medio existe y tiene como mucho una transcripción; las palabras van en orden, con `0 ≤ s ≤ e ≤ mediaDuration`, texto no vacío y sin caracteres de control, y un `sp` declarado en `speakers`; ids únicos; como mucho 200 000 palabras. Quitar el medio quita su transcripción; reenlazarlo la conserva, y si la duración nueva difiere más de un cuadro de `mediaDuration` la app avisa de que puede no coincidir.
 
 **Campos del intercambio (D-062).** Los tres son textos opcionales que no se escriben si son nulos:
 
