@@ -18,7 +18,7 @@ public sealed class SamplesOtioTests
     private static string FixtureDirectory =>
         Path.Combine(ProjectSchemaTests.FindRepoRoot(), "tests", "Rodaje.Core.Tests", "Interchange", "Fixtures", "Otio");
 
-    [Fact(Skip = "Pendiente del lector de OTIO (F4b)")]
+    [Fact]
     public void Sample01_clips_gap_linear_timewarp()
     {
         string json = LoadFixture("01_clips_gap_linear_timewarp.otio");
@@ -81,7 +81,7 @@ public sealed class SamplesOtioTests
         Assert.Equal("Audio1", mediaAudio.Name);
     }
 
-    [Fact(Skip = "Pendiente del lector de OTIO (F4b)")]
+    [Fact]
     public void Sample02_transitions_and_markers()
     {
         string json = LoadFixture("02_transitions_and_markers.otio");
@@ -136,7 +136,7 @@ public sealed class SamplesOtioTests
         Assert.Equal(Time.FromFrames(15, rate), marker.Time);
     }
 
-    [Fact(Skip = "Pendiente del lector de OTIO (F4b)")]
+    [Fact]
     public void Sample03_nested_stack_compound()
     {
         string json = LoadFixture("03_nested_stack_compound.otio");
@@ -190,7 +190,7 @@ public sealed class SamplesOtioTests
         Assert.Equal("MediaOutro", mediaOutro.Name);
     }
 
-    [Fact(Skip = "Pendiente del lector de OTIO (F4b)")]
+    [Fact]
     public void Sample04_generator_and_unknown()
     {
         string json = LoadFixture("04_generator_and_unknown.otio");
