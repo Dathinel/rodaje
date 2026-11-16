@@ -32,6 +32,7 @@ public static class ProjectSerializer
     /// </summary>
     internal static readonly Func<Project, bool>[] Format16Uses =
     [
+        project => project.Transcripts.Count > 0,
         project => project.Media.Any(m => m.Timecode is not null || m.Reel is not null) || project.Sequences.Any(s => s.StartTimecode is not null),
     ];
 
@@ -67,6 +68,7 @@ public static class ProjectSerializer
                 Name = project.Name,
                 Media = project.Media,
                 Sequences = project.Sequences,
+                Transcripts = project.Transcripts,
             };
             return JsonSerializer.Serialize(document, ProjectJson.WriteInfo);
         }
