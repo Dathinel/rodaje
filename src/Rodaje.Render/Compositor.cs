@@ -658,6 +658,7 @@ public sealed unsafe partial class Compositor : IDisposable
             _gpu.UnlockContext();
         }
 
+        PixelFingerprint.Record("composicion-float", pixels.AsSpan());
         return pixels;
     }
 
@@ -708,6 +709,7 @@ public sealed unsafe partial class Compositor : IDisposable
             _gpu.UnlockContext();
         }
 
+        PixelFingerprint.Record("composicion", pixels.AsSpan());
         return pixels;
     }
 
