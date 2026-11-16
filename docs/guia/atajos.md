@@ -131,7 +131,7 @@ Sin tecla de fábrica (se asignan en el panel): Complementos, Distribución equi
 | Preferencias | Ctrl+, | = | = |
 | Exportar fotograma | Ctrl+Mayús+E | = | = |
 
-Sin tecla de fábrica (se asignan en el panel): Importar subtítulos, Exportar subtítulos, Carpetas vigiladas….
+Sin tecla de fábrica (se asignan en el panel): Importar subtítulos, Exportar subtítulos, Importar línea de tiempo, Exportar línea de tiempo, Carpetas vigiladas….
 
 ## Ratón
 
