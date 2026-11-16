@@ -35,6 +35,9 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
     private readonly DispatcherQueueTimer _settle;
     private static readonly ProxyPolicy DefaultPolicy = new();
 
+    private ChoiceList<FrameSampling> _samplingChoices = new();
+    private readonly ClosedListRetry _samplingRetry = new();
+
     private SpeedEditor? _editor;
     private EditorServices? _services;
     private MediaSourceResolver? _resolver;
@@ -75,6 +78,7 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
             QuickPanel.Children.Add(button);
         }
 
+        SamplingBox.RetryWhenClosed(_samplingRetry, Refresh);
         BuildCurveTiles();
     }
 
@@ -239,6 +243,14 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         ResetButton.IsEnabled = multi ? clips.Any(c => editor.Read(c).CanReset) : state.CanReset;
         PitchBox.IsChecked = state.PreservePitch;
         PitchBox.IsEnabled = !multi && state.CanChangePitch;
+        bool canChangeSampling = multi ? clips.Any(c => editor.Read(c).CanChangeSampling) : state.CanChangeSampling;
+        SamplingBox.IsEnabled = canChangeSampling;
+        int selectedSampling = multi
+            ? (clips.Count > 0 && clips.Select(c => editor.Read(c).Sampling).Distinct().Count() == 1 ? (int)editor.Read(clips[0]).Sampling : -1)
+            : (int)state.Sampling;
+        ChoiceList<FrameSampling> samplingChoices = SpeedTabValues.SamplingChoices();
+        int samplingIndex = selectedSampling >= 0 ? samplingChoices.IndexOf((FrameSampling)selectedSampling) : -1;
+        _samplingChoices = ComboBoxChoices.Show(SamplingBox, _samplingChoices, samplingChoices, samplingIndex, retry: _samplingRetry);
         ReverseBox.IsChecked = state.IsReversed;
         ReverseBox.IsEnabled = !multi && state.CanReverse;
         ReverseBadge.Visibility = !multi && state.IsReversed ? Visibility.Visible : Visibility.Collapsed;
@@ -567,6 +579,12 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
     {
         _editor?.SetPreservePitch(PitchBox.IsChecked == true);
         Refresh();
+    }
+
+    private void OnSamplingSelected(object sender, SelectionChangedEventArgs e)
+    {
+        DispatcherQueue.Choose(_samplingChoices, SamplingBox.SelectedIndex, _updating, sampling =>
+            () => _editor?.SetFrameSampling(sampling));
     }
 
     private void OnFreezeClick(object sender, RoutedEventArgs e) => _editor?.Freeze();

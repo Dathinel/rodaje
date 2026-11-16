@@ -11,6 +11,8 @@ namespace Rodaje.App.Services.Inspector;
 /// <param name="Duration">Lo que dura en la pista.</param>
 /// <param name="HasAudio">El clip o alguno de sus enlazados suena.</param>
 /// <param name="IsVideo">Está en una pista de video (solo esos se congelan).</param>
+/// <param name="Sampling">Modo de cuadros intermedios del clip.</param>
+/// <param name="CanChangeSampling">Se pueden cambiar los cuadros intermedios (falso en congelado, imagen fija, título, compuesto o audio).</param>
 public sealed record SpeedState(
     string ClipId,
     Rational Rate,
@@ -21,7 +23,9 @@ public sealed record SpeedState(
     bool IsReversed,
     bool HasCurve,
     bool HasAudio,
-    bool IsVideo)
+    bool IsVideo,
+    FrameSampling Sampling,
+    bool CanChangeSampling)
 {
     public static readonly Rational Normal = new(1, 1);
 
@@ -131,17 +135,26 @@ public sealed partial class SpeedEditor
             { Curve: not null } => SpeedMath.RateForDuration(clip.SourceDuration, clip.Duration),
             _ => speed.Rate,
         };
+        bool isStill = Session.Project.FindMedia(clip.MediaId)?.IsStillImage == true;
+        bool isTitle = clip.Generator is not null;
+        bool isCompound = clip.IsCompound;
+        bool isFrozen = speed?.Freeze ?? false;
+        bool canChangeSampling = video && !isFrozen && !isStill && !isTitle && !isCompound;
+        FrameSampling sampling = speed?.FrameSampling ?? FrameSampling.Nearest;
+
         return new SpeedState(
             clip.Id,
             rate,
             clip.SourceDuration,
             clip.Duration,
             speed?.PreservePitch ?? true,
-            speed?.Freeze ?? false,
+            isFrozen,
             speed is { Reverse: true, Freeze: false },
             speed?.Curve is not null,
             audio,
-            video);
+            video,
+            sampling,
+            canChangeSampling);
     }
 
     /// <summary>Se puede congelar el cuadro del cursor: clip de video sin congelar y con el cursor dentro.</summary>
@@ -288,6 +301,23 @@ public sealed partial class SpeedEditor
 
         Session.BreakMerge();
         bool done = Session.Execute(Commands.SetPreservePitch(Session.SequenceId, clip.Id, preservePitch));
+        Session.BreakMerge();
+        return done;
+    }
+
+    /// <summary>Modo de interpolación de cuadros intermedios para toda la selección de video en un solo paso del historial.</summary>
+    public bool SetFrameSampling(FrameSampling sampling)
+    {
+        EndChange();
+        List<Clip> clips = Targets().Where(c => Read(c).CanChangeSampling).ToList();
+        if (clips.Count == 0 || clips.All(c => Read(c).Sampling == sampling))
+        {
+            return false;
+        }
+
+        List<string> ids = [.. clips.Select(c => c.Id)];
+        Session.BreakMerge();
+        bool done = Session.Execute(Commands.SetFrameSampling(Session.SequenceId, ids, sampling));
         Session.BreakMerge();
         return done;
     }

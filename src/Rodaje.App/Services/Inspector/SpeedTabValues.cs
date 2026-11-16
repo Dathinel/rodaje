@@ -1,3 +1,4 @@
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.App.Services.Inspector;
@@ -13,6 +14,25 @@ public static class SpeedTabValues
 
     /// <summary>Lo que dura el cuadro congelado que mete «Congelar».</summary>
     public static Time FreezeDuration { get; } = Time.FromSeconds(3);
+
+    /// <summary>Opciones de cuadros intermedios para el desplegable del inspector.</summary>
+    public static IReadOnlyList<SamplingOption> SamplingOptions { get; } =
+    [
+        new(FrameSampling.Nearest, "Cuadro más cercano"),
+        new(FrameSampling.Blend, "Mezcla de cuadros"),
+        new(FrameSampling.OpticalFlow, "Flujo óptico"),
+    ];
+
+    public static ChoiceList<FrameSampling> SamplingChoices()
+    {
+        var list = new ChoiceList<FrameSampling>();
+        foreach (SamplingOption option in SamplingOptions)
+        {
+            list.Add(option.Name, option.Sampling);
+        }
+
+        return list;
+    }
 
     /// <summary>Por encima el sonido, con o sin «Mantener tono», se oye granuloso; sigue sonando (decisión de diseño).</summary>
     public const double GrainyAbove = 8;
@@ -38,3 +58,6 @@ public static class SpeedTabValues
             : null;
     }
 }
+
+/// <summary>Opción de muestreo de cuadros intermedios para la interfaz de velocidad.</summary>
+public sealed record SamplingOption(FrameSampling Sampling, string Name);

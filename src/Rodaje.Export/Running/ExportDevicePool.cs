@@ -18,6 +18,12 @@ public sealed class ExportDevicePool : IDisposable
         lock (_gate)
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            if (_device is { IsLost: true } lost && _users == 0)
+            {
+                lost.Dispose();
+                _device = null;
+            }
+
             _device ??= _create();
             _users++;
             return new Lease(this, _device);

@@ -55,7 +55,7 @@ public static class FrameRecipe
         [typeof(LayerFrame)] =
         [
             "Nested", "Generated", "TrackIndex", "Frame", "Transform", "SampleAspectRatio", "Rotation", "DisplayWidth", "DisplayHeight",
-            "IsProxy", "Effects", "Blend", "Transition", "MotionSamples", "TextMotion",
+            "IsProxy", "Effects", "Blend", "Transition", "MotionSamples", "TextMotion", "Next", "Fraction", "Sampling",
         ],
         [typeof(LayerTransform)] = ["X", "Y", "Scale", "RotationDegrees", "Opacity", "HdrReferenceNits", "HdrExpandNits", "Stabilization", "Crop", "Shape", "Pin"],
         [typeof(LayerShape)] = ["AnchorX", "AnchorY", "ScaleX", "ScaleY", "SkewX", "SkewY", "FlipX", "FlipY"],
@@ -77,8 +77,7 @@ public static class FrameRecipe
         [typeof(CompositionFrame)] = ["TimelineTime"],
 
         // ClipId no cambia píxeles (solo la historia de la reducción temporal, que no se guarda). El resto sale de los demás campos.
-        // En F1 el renderizador aún ignora el par de interpolación.
-        [typeof(LayerFrame)] = ["ClipId", "IsPlain", "Next", "Fraction", "Sampling"],
+        [typeof(LayerFrame)] = ["ClipId", "IsPlain"],
         [typeof(LayerShape)] = ["IsNone"],
         [typeof(LayerCornerPin)] = ["IsNone"],
         [typeof(LayerStabilization)] = ["Scale", "RotationDegrees"],
@@ -213,6 +212,19 @@ public static class FrameRecipe
                 Text(source.ContentHash);
                 Text(source.Format);
                 Long(layer.Frame.Index);
+                if (layer.Sampling is FrameSampling.Blend or FrameSampling.OpticalFlow && layer.Next is { } next)
+                {
+                    if (sources.Source(new LayerFrame(layer.TrackIndex, layer.ClipId, next, layer.Transform)) is not { } nextSource)
+                    {
+                        return false;
+                    }
+
+                    Int((int)layer.Sampling);
+                    Float(layer.Fraction);
+                    Text(nextSource.ContentHash);
+                    Text(nextSource.Format);
+                    Long(next.Index);
+                }
             }
 
             Transform(layer.Transform);
