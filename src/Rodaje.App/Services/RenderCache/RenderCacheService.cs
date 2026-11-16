@@ -117,12 +117,15 @@ public sealed class RenderCacheService
     /// adopta si <paramref name="adopt"/> dice que sigue vigente (mismas huellas en los mismos cuadros): cuenta para la
     /// revisión nueva y sus cuadros no se vuelven a encolar.
     /// </summary>
-    public void SetPlan(long revision, IReadOnlyList<RenderCostSpan> spans, long cursorFrame, Rational rate, Func<RenderCacheWork, bool>? adopt = null)
+    /// <param name="frameCount">Cuadros de la secuencia; sin él, el final del último tramo (un trozo corto pedido después se
+    /// ensancharía hacia atrás hasta ese final).</param>
+    public void SetPlan(long revision, IReadOnlyList<RenderCostSpan> spans, long cursorFrame, Rational rate, Func<RenderCacheWork, bool>? adopt = null,
+        long? frameCount = null)
     {
         ArgumentNullException.ThrowIfNull(spans);
         _revision = revision;
         _rate = rate;
-        _frameCount = spans.Count == 0 ? 0 : spans.Max(s => s.End);
+        _frameCount = frameCount ?? (spans.Count == 0 ? 0 : spans.Max(s => s.End));
         (long Start, long End) skip = (0, 0);
         if (_current is { } running && running.Work.Revision != revision && adopt?.Invoke(running.Work) == true)
         {

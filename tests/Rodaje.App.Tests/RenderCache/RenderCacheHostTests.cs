@@ -131,6 +131,44 @@ public sealed class RenderCacheHostTests : IDisposable
         Assert.Null(host.JobInput(new RenderCacheWork(0, 30, 5)));
     }
 
+    [Fact]
+    public void Los_recursos_de_archivo_entran_por_su_contenido_aunque_lleven_file_y_ruta_relativa()
+    {
+        string folder = Directory.CreateDirectory(Path.Combine(_folder, "proyecto", "luts")).Parent!.FullName;
+        File.WriteAllBytes(Path.Combine(folder, "luts", "calida.cube"), [1, 2, 3, 4]);
+        var sources = new AppRecipeSources(null, _ => false, "");
+
+        string? absolute = sources.Resource(new ResourceKey("file:" + Path.Combine(folder, "luts", "calida.cube").Replace(Path.DirectorySeparatorChar, '/')), null);
+        string? relative = sources.Resource(new ResourceKey("file:luts/calida.cube"), folder);
+
+        Assert.NotNull(absolute);
+        Assert.Equal(absolute, relative);
+        Assert.Null(sources.Resource(new ResourceKey("file:luts/falta.cube"), folder));
+        Assert.Null(sources.Resource(new ResourceKey("file:luts/calida.cube"), null));
+        Assert.Null(sources.Resource(new ResourceKey("rodaje-filtros@1.0.0/calida"), null));
+        Assert.Equal("0.1,0.2 0.3,0.4", sources.Resource(new ResourceKey("0.1,0.2 0.3,0.4"), folder));
+    }
+
+    [Fact]
+    public void La_exportacion_lee_el_almacen_vigente_tras_cambiar_de_carpeta()
+    {
+        var player = new FakePlayer();
+        using var host = new RenderCacheHost(player, RenderCacheMode.Manual, _folder, 10, null, null, _ => false, () => null,
+            tick: Timeout.InfiniteTimeSpan);
+        IRenderCacheStore store = host.WithRenderCache(new ExportRunnerOptions { Ffmpeg = null! }).RenderCache!;
+        string other = Path.Combine(_folder, "otra");
+
+        host.Configure(RenderCacheMode.Manual, other, 10);
+
+        Assert.Equal(Path.GetFullPath(other), store.Directory);
+    }
+
+    [Fact]
+    public void Sin_saber_el_espacio_libre_no_se_frena()
+    {
+        Assert.True(RenderCacheHost.FreeBytes(@"\\servidor-que-no-existe\compartida\render") >= RenderCacheService.MinimumFreeBytes);
+    }
+
     private static string Commit(RenderCacheStore store, RenderCacheScan scan, long first, int count)
     {
         string temporary = store.CreateTemporaryPath();

@@ -445,6 +445,21 @@ public sealed class RenderCacheStoreTests : IDisposable
     }
 
     [Fact]
+    public void Un_cuadro_no_consecutivo_del_mismo_fragmento_no_gana_a_otro_continuo()
+    {
+        RenderCacheKey x = MakeKey(100);
+        RenderCacheKey[] run = [.. Enumerable.Range(1, 60).Select(i => MakeKey((ulong)i))];
+        RenderCacheFragment first = CommitFake(_store, [x, run[0], run[1]]);
+        RenderCacheFragment continuous = CommitFake(_store, run);
+        var end = new RenderCacheHit(first, 2);
+
+        Assert.True(_store.TryGet(run[0], end, out RenderCacheHit next));
+
+        Assert.Equal(continuous.MoviePath, next.Fragment.MoviePath);
+        Assert.Equal(0, next.FrameIndex);
+    }
+
+    [Fact]
     public void Un_commit_durante_la_limpieza_no_se_olvida_del_indice()
     {
         RenderCacheFragment old = CommitFake(_store, [MakeKey(1)]);
