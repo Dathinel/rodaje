@@ -3,7 +3,6 @@ using System.Diagnostics;
 using System.IO.Pipes;
 using System.Runtime.InteropServices;
 using Microsoft.Win32.SafeHandles;
-using System.Runtime.Versioning;
 using System.Text;
 
 namespace Rodaje.Modules.Protocol;
@@ -13,7 +12,6 @@ namespace Rodaje.Modules.Protocol;
 /// Si el proceso muere, el cliente falla con <see cref="ModuleExitedException"/>; si el cliente se corta (mensaje
 /// hostil, módulo colgado), el proceso se mata. <see cref="DisposeAsync"/> pide <c>shutdown</c> y mata si no sale.
 /// </summary>
-[SupportedOSPlatform("windows")]
 public sealed partial class ModuleProcess : IAsyncDisposable
 {
     private const int StderrTail = 2048;
@@ -114,7 +112,7 @@ public sealed partial class ModuleProcess : IAsyncDisposable
         ModuleClientOptions? options = null, Action<Process>? started = null, CancellationToken cancellationToken = default)
     {
         options ??= new ModuleClientOptions();
-        string pipeName = SharedMemoryRegion.NamePrefix + "pipe." + Guid.NewGuid().ToString("N");
+        string pipeName = NewPipeName();
         NamedPipeServerStream pipe = new(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte,
             PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly, PipeBufferBytes, PipeBufferBytes);
 
@@ -311,10 +309,48 @@ public sealed partial class ModuleProcess : IAsyncDisposable
         return code == 0 ? null : $"Rodaje: el módulo {module} salió con el código {code} tras «shutdown».";
     }
 
+    /// <summary>
+    /// Nombre de la tubería de un módulo nuevo. En Windows, una tubería con nombre de <c>Local</c>; en Linux y macOS, la ruta
+    /// de un socket de dominio Unix en la carpeta 0700 de la sesión (.NET usa la ruta tal cual si es absoluta), corta para
+    /// caber en <c>sun_path</c>: con el nombre por omisión de .NET en <c>$TMPDIR</c> no cabe en macOS.
+    /// </summary>
+    internal static string NewPipeName()
+    {
+        if (OperatingSystem.IsWindows()) return SharedMemoryRegion.NamePrefix + "pipe." + Guid.NewGuid().ToString("N");
+        if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+        {
+            string path = UnixRuntime.NewSocketPath();
+            return UnixRuntime.IsValidSocketPath(path)
+                ? path
+                : throw new ModuleProtocolException($"La ruta del socket del módulo ({path}) no cabe en {UnixRuntime.SocketPathLimit} bytes; define XDG_RUNTIME_DIR con una ruta corta.");
+        }
+
+        throw new PlatformNotSupportedException("Los módulos solo corren en Windows, Linux y macOS.");
+    }
+
+    /// <summary>¿Puede <paramref name="name"/> ser la tubería que el editor le pasa a un módulo en este sistema?</summary>
+    internal static bool IsValidPipeName(string? name) =>
+        OperatingSystem.IsWindows() ? SharedMemoryRegion.IsValidName(name)
+        : (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()) && UnixRuntime.IsValidSocketPath(name);
+
     internal static void AuthenticateClient(NamedPipeServerStream pipe, int expectedProcessId)
     {
-        if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out uint clientProcessId))
-            throw new ModuleProtocolException("No se pudo comprobar la identidad del proceso conectado al módulo.");
+        uint clientProcessId;
+        if (OperatingSystem.IsWindows())
+        {
+            if (!GetNamedPipeClientProcessId(pipe.SafePipeHandle, out clientProcessId))
+                throw new ModuleProtocolException("No se pudo comprobar la identidad del proceso conectado al módulo.");
+        }
+        else if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+        {
+            // CurrentUserOnly ya exigió el mismo usuario al aceptar; aquí, además, el mismo proceso.
+            clientProcessId = (uint)UnixRuntime.PeerProcessId(pipe.SafePipeHandle);
+        }
+        else
+        {
+            throw new ModuleProtocolException("No se puede comprobar la identidad del módulo en este sistema.");
+        }
+
         if (clientProcessId != (uint)expectedProcessId)
         {
             pipe.Dispose();
@@ -322,6 +358,7 @@ public sealed partial class ModuleProcess : IAsyncDisposable
         }
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     [LibraryImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool GetNamedPipeClientProcessId(SafePipeHandle pipe, out uint clientProcessId);

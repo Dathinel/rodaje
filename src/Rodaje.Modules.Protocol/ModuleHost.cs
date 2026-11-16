@@ -1,7 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Pipes;
-using System.Runtime.Versioning;
 using System.Text.Json;
 
 namespace Rodaje.Modules.Protocol;
@@ -11,7 +10,6 @@ public delegate ValueTask<ModuleOutput> ModuleFunction(ModuleCall call, Cancella
 public sealed record ModuleOutput(JsonElement? Value = null, IReadOnlyList<SharedBufferRef>? Buffers = null);
 
 /// <summary>Una llamada en curso dentro del módulo.</summary>
-[SupportedOSPlatform("windows")]
 public sealed class ModuleCall
 {
     private readonly ModuleHost _host;
@@ -58,13 +56,15 @@ public sealed class ModuleCall
 /// <see cref="MaxConcurrentCalls"/>) y convierte excepciones en <see cref="ErrorMessage"/>. Termina cuando el editor
 /// cierra la conexión, pide <c>shutdown</c> o manda algo malformado.
 /// </summary>
-[SupportedOSPlatform("windows")]
 public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersion.Current, int maxProtocol = ProtocolVersion.Current)
 {
     public const string PipeArgument = "--rodaje-pipe";
 
     private readonly Dictionary<string, ModuleFunction> _functions = new(StringComparer.Ordinal);
     private readonly ConcurrentDictionary<string, SharedMemoryRegion> _regions = new(StringComparer.Ordinal);
+
+    // Linux y macOS: la carpeta del socket, donde el editor crea las regiones; null en Windows o sin socket (pruebas).
+    private string? _regionDirectory;
 
     public ModuleInfo Info { get; } = info.Validate() is { } reason ? throw new ArgumentException(reason, nameof(info)) : info;
 
@@ -112,11 +112,18 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
     public async Task<int> RunAsync(string[] args, CancellationToken cancellationToken = default)
     {
         int at = Array.IndexOf(args, PipeArgument);
-        if (at < 0 || at + 1 >= args.Length || !SharedMemoryRegion.IsValidName(args[at + 1]))
+        if (at < 0 || at + 1 >= args.Length || !ModuleProcess.IsValidPipeName(args[at + 1]))
         {
             await Console.Error.WriteLineAsync($"Este programa es un módulo de Rodaje ({Info.Name}); lo abre el editor.").ConfigureAwait(false);
             return 64;
         }
+        if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
+        {
+            // Si el editor muere de golpe, el módulo no se queda vivo gastando CPU (en Windows lo hace el Job Object).
+            UnixRuntime.ExitWhenParentDies();
+            _regionDirectory = Path.GetDirectoryName(args[at + 1]);
+        }
+
         NamedPipeClientStream pipe = new(".", args[at + 1], PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
         try
         {
@@ -211,7 +218,7 @@ public sealed class ModuleHost(ModuleInfo info, int minProtocol = ProtocolVersio
         }
     }
 
-    internal SharedMemoryRegion Region(string name) => _regions.GetOrAdd(name, SharedMemoryRegion.Open);
+    internal SharedMemoryRegion Region(string name) => _regions.GetOrAdd(name, n => SharedMemoryRegion.Open(n, _regionDirectory));
 
     private async Task<bool> HandshakeAsync(MessageChannel channel, CancellationToken cancellationToken)
     {

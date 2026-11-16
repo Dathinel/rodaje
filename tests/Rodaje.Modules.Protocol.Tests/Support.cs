@@ -25,11 +25,11 @@ internal static class Support
 
     /// <summary>El módulo de ejemplo; <c>RODAJE_MODULO_ECO</c> apunta a otro, por ejemplo el publicado con AOT.</summary>
     public static string EchoExe =>
-        Environment.GetEnvironmentVariable("RODAJE_MODULO_ECO") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Echo.exe");
+        Environment.GetEnvironmentVariable("RODAJE_MODULO_ECO") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "Rodaje.Module.Echo.exe" : "Rodaje.Module.Echo");
 
     public static async Task<(NamedPipeServerStream Editor, NamedPipeClientStream Module)> PipePairAsync()
     {
-        string name = "Rodaje.Mod.prueba." + Guid.NewGuid().ToString("N");
+        string name = ModuleProcess.NewPipeName();
         NamedPipeServerStream editor = new(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly,
             ModuleProcess.PipeBufferBytes, ModuleProcess.PipeBufferBytes);
         NamedPipeClientStream module = new(".", name, PipeDirection.InOut, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);

@@ -6,9 +6,13 @@
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <!-- RID fijo: con PublishAot y sin RID el SDK toma el del anfitrión (linux-x64 en la CI) y el lockfile cambia -->
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- Los tres RID en RuntimeIdentifiers: el lockfile es el mismo en cualquier anfitrión y con o sin «-r»; el RID del
+         ejecutable es el del sistema que compila (las pruebas del protocolo lo lanzan en Linux y macOS). -->
+    <RuntimeIdentifiers>win-x64;linux-x64;osx-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX'))">osx-arm64</RuntimeIdentifier>
     <RootNamespace>Rodaje.Module.Echo</RootNamespace>
     <AssemblyName>Rodaje.Module.Echo</AssemblyName>
     <IsPackable>false</IsPackable>

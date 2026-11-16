@@ -1,5 +1,5 @@
 # Integración continua de Rodaje.
-# - linux: Core, Packages y Playback, que compilan para net10.0 sin Windows.
+# - linux y macos: los proyectos que compilan para net10.0 sin Windows (build/pruebas-linux.sh).
 # - windows: la solución entera con el entorno propio (.entorno, D-005). Bloquea; sin exclusiones por nombre.
 # Las pruebas largas y de hardware solo corren con RODAJE_PRUEBAS_LARGAS=1, que aquí no se pone: esas,
 # TiempoReal y Rendimiento las corre nocturna.yml.
@@ -25,6 +25,7 @@ env:
 
 jobs:
   linux:
+    # El nombre lo exige la protección de main; ya cubre todos los proyectos sin Windows.
     name: Linux (Core, Packages, Playback)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -43,9 +44,9 @@ jobs:
           set -euo pipefail
           dotnet restore Rodaje.slnx --locked-mode -p:EnableWindowsTargeting=true
           # Los módulos que se publican con AOT, también con -r win-x64: su lockfile y el de lo que referencian no
-          # pueden depender de que se pase el RID. La app, el lanzador y AotSmoke se publican sin -r (lo llevan en el
+          # pueden depender de que se pase el RID. La app, el lanzador, AotSmoke y el eco se publican sin -r (lo llevan en el
           # .csproj), porque como propiedad global llegaría a Rodaje.Core y demás bibliotecas y cambiaría sus lockfiles.
-          for m in Echo Voice Subtitles AudioAi Vision Raw; do
+          for m in Voice Subtitles AudioAi Vision Raw; do
             dotnet restore "modules/Rodaje.Module.$m/Rodaje.Module.$m.csproj" -r win-x64 --locked-mode -p:EnableWindowsTargeting=true
           done
 
@@ -60,6 +61,29 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pruebas-linux
+          path: TestResults/**/*.trx
+          if-no-files-found: ignore
+
+  macos:
+    name: macOS (proyectos sin Windows)
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/preparar-linux
+
+      - name: Pruebas
+        shell: bash
+        run: bash build/pruebas-linux.sh 'Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento'
+
+      - name: Resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pruebas-macos
           path: TestResults/**/*.trx
           if-no-files-found: ignore
 
