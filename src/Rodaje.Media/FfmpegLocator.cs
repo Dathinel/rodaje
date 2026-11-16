@@ -117,16 +117,16 @@ public static class FfmpegLocator
         string? entorno = getEnvironmentVariable(EnvironmentVariables.Entorno);
         if (!string.IsNullOrWhiteSpace(entorno))
         {
-            Add(Path.Combine(entorno, "ffmpeg", "bin"));
+            Add(Path.Combine(entorno, "ffmpeg", LibrarySubdirectory));
         }
 
         for (DirectoryInfo? dir = new(Path.GetFullPath(baseDirectory)); dir is not null; dir = dir.Parent)
         {
-            Add(Path.Combine(dir.FullName, ".entorno", "ffmpeg", "bin"));
+            Add(Path.Combine(dir.FullName, ".entorno", "ffmpeg", LibrarySubdirectory));
             string? main = MainCheckoutOfWorktree(dir.FullName);
             if (main is not null)
             {
-                Add(Path.Combine(main, ".entorno", "ffmpeg", "bin"));
+                Add(Path.Combine(main, ".entorno", "ffmpeg", LibrarySubdirectory));
             }
         }
 
@@ -141,7 +141,7 @@ public static class FfmpegLocator
     }
 
     public static bool HasAllLibraries(string directory) =>
-        RequiredLibraries.All(name => File.Exists(Path.Combine(directory, name + ".dll")));
+        RequiredLibraries.All(name => File.Exists(Path.Combine(directory, LibraryFileName(name))));
 
     /// <summary>
     /// En un worktree, <c>.git</c> es un archivo con <c>gitdir: &lt;principal&gt;/.git/worktrees/&lt;nombre&gt;</c>;

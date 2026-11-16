@@ -368,6 +368,7 @@ public sealed class RenderCacheStoreTests : IDisposable
     }
 
     [Fact]
+    [Trait("Categoria", "SoloWindows")]
     public void Fragmento_abierto_se_salta_sin_excepcion_durante_desalojo()
     {
         var k = MakeKey(1);

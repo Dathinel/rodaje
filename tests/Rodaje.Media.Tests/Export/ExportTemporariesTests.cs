@@ -120,6 +120,7 @@ public sealed class ExportTemporariesTests(ITestOutputHelper output)
     }
 
     [Fact]
+    [Trait("Categoria", "SoloWindows")]
     public void A_temporary_still_open_keeps_its_entry_for_the_next_start()
     {
         using var scratch = new ExportScratch();
