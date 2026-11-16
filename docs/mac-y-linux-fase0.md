@@ -116,7 +116,7 @@ Prototipo `shaders/` (detalle, tabla por caso y mapa de registros en su [README]
 | Vulkan en la RTX 3050 frente a WARP | 116 de 168 | 41 de 77 |
 | Control: Vulkan frente a D3D11 **en la misma RTX 3050** | **164 de 168** | 73 de 77 |
 
-**El criterio «≤ 1e-3 frente a WARP en todas las variantes» no se cumple**, ni en lavapipe ni en la GPU real. La causa está localizada y no es la traducción de HLSL a SPIR-V:
+El trabajo de la CI comprueba que la comparación corre entera y que no baja de 116 casos; no exige los 168. **El criterio «≤ 1e-3 frente a WARP en todas las variantes» no se cumple**, ni en lavapipe ni en la GPU real. La causa está localizada y no es la traducción de HLSL a SPIR-V:
 
 - **El filtro bilineal no es el mismo en cada rasterizador.** WARP trunca la fracción a 1/256; la RTX 3050 y lavapipe no. Solo, eso da hasta 1,5e-3 (un caso de una sola lectura lo reproduce emulado). Leyendo en centros de texel o en fracciones exactas en 8 bits, la diferencia baja a 4,9e-4 (1 ULP de media precisión).
 - **Las funciones con mucha pendiente lo amplifican.** 40 de los 52 casos que fallan en lavapipe llevan `ADVANCED` (croma, calificador, curvas): el error medio sigue en ~1e-4, pero unos pocos píxeles en el borde de una rampa llegan a 2e-2. El mismo croma con 4:4:4 en vez de 4:2:0 da 7,6e-6.
