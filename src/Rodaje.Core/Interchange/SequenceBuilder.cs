@@ -45,6 +45,13 @@ public static class SequenceBuilder
             }
 
             byKey[key] = media;
+
+            // Solo una ruta local completa identifica un archivo: un carrete («TOMA01») de otra EDL puede ser otra tarjeta.
+            if (!Path.IsPathFullyQualified(key))
+            {
+                continue;
+            }
+
             MediaRef? existing = target.Media.FirstOrDefault(m => m.Path.Length > 0 && string.Equals(MediaKey(m.Path, targetDirectory), key, StringComparison.OrdinalIgnoreCase));
             if (existing is not null && existing.IsStillImage == media.IsStillImage)
             {
