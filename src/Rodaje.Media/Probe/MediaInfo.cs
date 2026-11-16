@@ -49,6 +49,8 @@ public sealed record MediaInfo
         media.Height = Video?.DisplayHeight ?? 0;
         media.SampleRate = Audio?.SampleRate ?? 0;
         media.AudioChannels = Audio?.Channels ?? 0;
+        media.Timecode = Tags.Timecode is { Length: 11 } timecode ? timecode : null;
+        media.Reel = Tags.Reel is { Length: > 0 and <= Core.Model.ModelValidator.MaxReelLength } reel && !reel.Any(char.IsControl) ? reel : null;
         if (string.IsNullOrEmpty(media.Name))
         {
             media.Name = System.IO.Path.GetFileNameWithoutExtension(Path);

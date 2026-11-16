@@ -131,6 +131,15 @@ public static unsafe class MediaProbe
             MediaTags.Read(format->streams[videoIndex]->metadata, tags);
         }
 
+        // El TC de un MOV va en su pista tmcd, un flujo de datos (y FFmpeg no siempre lo copia al de video).
+        for (int i = 0; i < format->nb_streams; i++)
+        {
+            if (format->streams[i]->codecpar->codec_type == AVMediaType.AVMEDIA_TYPE_DATA)
+            {
+                MediaTags.Read(format->streams[i]->metadata, tags);
+            }
+        }
+
         string container = Marshal.PtrToStringUTF8((nint)format->iformat->name) ?? "";
         if (video is { FrameCount: <= 1 } image && audio is null && MediaSupport.IsStillImageFormat(container, image.Codec))
         {

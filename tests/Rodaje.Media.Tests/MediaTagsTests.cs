@@ -1,4 +1,6 @@
+using Rodaje.Core.Model;
 using Rodaje.Media.Probe;
+using Rodaje.TestMedia;
 
 namespace Rodaje.Media.Tests;
 
@@ -27,5 +29,37 @@ public sealed class MediaTagsTests
         Assert.Equal("Pixel 8", MediaTags.Parse(new Dictionary<string, string> { ["com.android.model"] = "Pixel 8" }).Camera);
         Assert.Equal(MediaTags.None, MediaTags.Parse(new Dictionary<string, string> { ["creation_time"] = "1970-01-01T00:00:00Z", ["encoder"] = "Lavf" }));
         Assert.Null(MediaTags.Parse(new Dictionary<string, string> { ["creation_time"] = "ayer" }).Created);
+    }
+
+    [Fact]
+    public void Lee_el_codigo_de_tiempo_y_el_carrete()
+    {
+        MediaTags tags = MediaTags.Parse(new Dictionary<string, string> { ["timecode"] = "01:00:00;00", ["reel_name"] = "A001" });
+
+        Assert.Equal(("01:00:00;00", "A001"), (tags.Timecode, tags.Reel));
+        Assert.Equal((null, null), (MediaTags.None.Timecode, MediaTags.None.Reel));
+    }
+
+    /// <summary>Un MOV con pista tmcd, como los de cámara: el TC llega al medio (D-062).</summary>
+    [FfmpegLibraryFact]
+    public void Un_mov_con_timecode_lo_lleva_al_medio()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "rodaje-tc-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string path = Path.Combine(folder, "toma.mov");
+            FfmpegTool.Default!.Run(["-v", "error", "-f", "lavfi", "-i", "testsrc2=size=160x90:rate=30000/1001", "-t", "1", "-c:v", "mpeg4",
+                "-timecode", "01:00:00;00", "-metadata:s:v:0", "reel_name=A001", path]);
+
+            var media = new MediaRef { Path = path };
+            MediaProbe.Probe(path).ApplyTo(media);
+
+            Assert.Equal("01:00:00;00", media.Timecode);
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
     }
 }

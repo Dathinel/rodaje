@@ -4,9 +4,15 @@ using FFmpeg.AutoGen.Abstractions;
 
 namespace Rodaje.Media.Probe;
 
-/// <summary>Lo que el archivo dice de su grabación: cuándo y con qué cámara. Nulo lo que no trae.</summary>
+/// <summary>Lo que el archivo dice de su grabación: cuándo, con qué cámara, su código de tiempo y su carrete. Nulo lo que no trae.</summary>
 public sealed record MediaTags(DateTimeOffset? Created, string? Camera)
 {
+    /// <summary>TC del primer cuadro (<c>timecode</c> de FFmpeg: flujo de video, pista <c>tmcd</c> de MOV o contenedor MXF).</summary>
+    public string? Timecode { get; init; }
+
+    /// <summary>Carrete (<c>reel_name</c>).</summary>
+    public string? Reel { get; init; }
+
     public static MediaTags None { get; } = new(null, null);
 
     /// <summary>
@@ -50,7 +56,7 @@ public sealed record MediaTags(DateTimeOffset? Created, string? Camera)
             ({ } m, { } o) when o.StartsWith(m, StringComparison.OrdinalIgnoreCase) => o,
             ({ } m, { } o) => $"{m} {o}",
         };
-        return new MediaTags(created, camera);
+        return new MediaTags(created, camera) { Timecode = Get("timecode"), Reel = Get("reel_name") };
     }
 
     internal static unsafe Dictionary<string, string> Read(AVDictionary* dictionary, Dictionary<string, string>? into = null)
