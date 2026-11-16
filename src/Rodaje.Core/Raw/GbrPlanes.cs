@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 namespace Rodaje.Core.Raw;
 
 /// <summary>
@@ -15,14 +17,15 @@ public static class GbrPlanes
         }
 
         int pixels = rgba16f.Length / 8;
-        ReadOnlySpan<ushort> source = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ushort>(rgba16f);
-        Span<ushort> planes = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ushort>(gbr);
+        ReadOnlySpan<ulong> source = MemoryMarshal.Cast<byte, ulong>(rgba16f);
+        Span<ushort> planes = MemoryMarshal.Cast<byte, ushort>(gbr);
         Span<ushort> g = planes[..pixels], b = planes.Slice(pixels, pixels), r = planes.Slice(2 * pixels, pixels);
-        for (int i = 0; i < pixels; i++)
+        for (int i = 0; i < source.Length; i++)
         {
-            r[i] = source[i * 4];
-            g[i] = source[(i * 4) + 1];
-            b[i] = source[(i * 4) + 2];
+            ulong p = source[i];
+            r[i] = (ushort)p;
+            g[i] = (ushort)(p >> 16);
+            b[i] = (ushort)(p >> 32);
         }
     }
 }
