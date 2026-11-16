@@ -174,7 +174,36 @@ public class SpeedMappingTests
         Assert.Null(SpeedBadge.Text(new Clip()));
         Assert.Null(SpeedBadge.Text(new Clip { Speed = new ClipSpeed() }));
         Assert.Equal("❚❚ Congelado", SpeedBadge.Text(new Clip { Speed = new ClipSpeed { Freeze = true } }));
+        Assert.Equal("❚❚ Congelado", SpeedBadge.Text(new Clip { Speed = new ClipSpeed { Freeze = true, FrameSampling = FrameSampling.Blend } }));
         Assert.Equal("Curva", SpeedBadge.Text(new Clip { Speed = new ClipSpeed { Curve = new SpeedCurve() } }));
+    }
+
+    [Theory]
+    [InlineData(1, 2, false, FrameSampling.Blend, "≈ 0,5×")]
+    [InlineData(1, 2, true, FrameSampling.Blend, "◀ ≈ 0,5×")]
+    [InlineData(1, 2, false, FrameSampling.OpticalFlow, "≈ 0,5×")]
+    [InlineData(1, 2, true, FrameSampling.OpticalFlow, "◀ ≈ 0,5×")]
+    [InlineData(1, 1, false, FrameSampling.Blend, "≈")]
+    [InlineData(1, 1, true, FrameSampling.Blend, "◀ ≈")]
+    [InlineData(1, 1, false, FrameSampling.OpticalFlow, "≈")]
+    [InlineData(1, 1, true, FrameSampling.OpticalFlow, "◀ ≈")]
+    [InlineData(1, 1, false, FrameSampling.Nearest, null)]
+    [InlineData(1, 1, true, FrameSampling.Nearest, "◀")]
+    [InlineData(1, 2, false, FrameSampling.Nearest, "0,5×")]
+    [InlineData(1, 2, true, FrameSampling.Nearest, "◀ 0,5×")]
+    public void ElIndicadorMuestraMarcaDeInterpolacion(long num, long den, bool reverse, FrameSampling sampling, string? expected)
+    {
+        Assert.Equal("≈", SpeedBadge.Interpolated);
+        var clip = new Clip
+        {
+            Speed = new ClipSpeed
+            {
+                Rate = new Rational(num, den),
+                Reverse = reverse,
+                FrameSampling = sampling,
+            },
+        };
+        Assert.Equal(expected, SpeedBadge.Text(clip));
     }
 
     [Fact]

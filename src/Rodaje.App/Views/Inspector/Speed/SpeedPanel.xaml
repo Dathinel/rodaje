@@ -95,6 +95,19 @@
 
                         <CheckBox x:Name="PitchBox" Content="Mantener tono" FontSize="{StaticResource BodyFontSize}" Click="OnPitchClick"
                                   ToolTipService.ToolTip="La voz y la música suenan igual de agudas a cualquier velocidad" />
+
+                        <Grid ColumnSpacing="8">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Cuadros intermedios" Style="{StaticResource LabelTextStyle}" VerticalAlignment="Center"
+                                       ToolTipService.ToolTip="Qué se ve entre dos cuadros del origen en una cámara lenta o con otra cadencia" />
+                            <ComboBox x:Name="SamplingBox" Grid.Column="1" HorizontalAlignment="Stretch" MinWidth="0" Height="28"
+                                      FontSize="{StaticResource BodyFontSize}" AutomationProperties.Name="Cuadros intermedios"
+                                      ToolTipService.ToolTip="Qué se ve entre dos cuadros del origen en una cámara lenta o con otra cadencia"
+                                      SelectionChanged="OnSamplingSelected" />
+                        </Grid>
                     </StackPanel>
                 </inspector:InspectorSection>
 

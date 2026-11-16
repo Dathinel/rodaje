@@ -95,4 +95,15 @@ public static partial class Edits
 
     public static SequenceEditCommand SetPreservePitch(string sequenceId, string clipId, bool preservePitch, IIdGenerator? ids = null) =>
         new("Mantener tono", sequenceId, ctx => TimelineEdits.SetPreservePitch(ctx, clipId, preservePitch), ids);
+
+    /// <summary>Modo de interpolación de cuadros intermedios sobre varios clips y sus enlazados de video en un solo paso del historial.</summary>
+    public static SequenceEditCommand SetFrameSampling(
+        string sequenceId,
+        IEnumerable<string> clipIds,
+        FrameSampling sampling,
+        IIdGenerator? ids = null)
+    {
+        string[] idsArray = [.. clipIds];
+        return new("Cuadros intermedios", sequenceId, ctx => TimelineEdits.SetFrameSampling(ctx, idsArray, sampling), ids);
+    }
 }
