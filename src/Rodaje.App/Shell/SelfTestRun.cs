@@ -56,6 +56,7 @@ internal static partial class SelfTestRun
             await ShowCurveAsync(window);
             await ToggleReverseAsync(window);
             await TitleAsync(window, engine);
+            await TemplatesAsync(window, engine);
             await ImageAsync(window, engine);
             await MasksAsync(window, engine);
             await TrackingAsync(window, engine);
