@@ -210,6 +210,8 @@ internal static class XmlLite
 
         private bool Attributes(XmlNode node)
         {
+            // Con un conjunto: buscar cada atributo entre los anteriores sería cuadrático con miles de atributos.
+            var names = new HashSet<string>(StringComparer.Ordinal);
             while (true)
             {
                 bool space = Spaces();
@@ -259,9 +261,14 @@ internal static class XmlLite
                 var value = new StringBuilder();
                 AppendText(value, text.AsSpan(_pos, end - _pos));
                 _pos = end + 1;
-                if (node[name] is not null)
+                if (!names.Add(name))
                 {
                     throw Error($"el atributo «{name}» está dos veces");
+                }
+
+                if (++_elements > limits.MaxObjects)
+                {
+                    throw new InterchangeException($"El XML tiene más de {limits.MaxObjects} elementos y atributos.");
                 }
 
                 node.Attributes.Add(new(name, value.ToString()));
