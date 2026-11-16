@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Format;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.App.Services.RenderCache;
@@ -10,7 +11,8 @@ public static class RenderCacheStatusText
         ArgumentNullException.ThrowIfNull(status);
         string now = status.State switch
         {
-            RenderCacheState.Working when status.Current is { } work => $"Calculando desde {Time.FromFrames(work.FirstFrame, rate).ToSeconds():0.#} s ({work.Count} cuadros)",
+            RenderCacheState.Working when status.Current is { } work =>
+                string.Create(SpanishNumbers.Format, $"Calculando desde {Time.FromFrames(work.FirstFrame, rate).ToSeconds():0.#} s ({work.Count} cuadros)"),
             RenderCacheState.Paused => "En pausa mientras se reproduce o se mueve el cursor",
             RenderCacheState.Waiting => "Espera 3 s sin editar ni reproducir",
             RenderCacheState.Blocked => "Parado: el tope del caché o el disco libre no dejan calcular más",
