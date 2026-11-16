@@ -18,7 +18,7 @@ public sealed class SamplesFcpxmlTests
     private static string FixtureDirectory =>
         Path.Combine(ProjectSchemaTests.FindRepoRoot(), "tests", "Rodaje.Core.Tests", "Interchange", "Fixtures", "Fcpxml");
 
-    [Fact(Skip = "Pendiente del lector de FCPXML (F4c)")]
+    [Fact]
     public void Sample01_two_clips_and_gap()
     {
         string xml = LoadFixture("01_two_clips_and_gap.fcpxml");
@@ -52,7 +52,7 @@ public sealed class SamplesFcpxmlTests
         Assert.Equal("Toma02", media2.Name);
     }
 
-    [Fact(Skip = "Pendiente del lector de FCPXML (F4c)")]
+    [Fact]
     public void Sample02_transition()
     {
         string xml = LoadFixture("02_transition.fcpxml");
@@ -92,7 +92,7 @@ public sealed class SamplesFcpxmlTests
         Assert.Equal(TransitionAlignment.Center, transition.Alignment);
     }
 
-    [Fact(Skip = "Pendiente del lector de FCPXML (F4c)")]
+    [Fact]
     public void Sample03_connected_lanes()
     {
         string xml = LoadFixture("03_connected_lanes.fcpxml");
@@ -137,7 +137,7 @@ public sealed class SamplesFcpxmlTests
         Assert.Equal("Musica", mediaAudio.Name);
     }
 
-    [Fact(Skip = "Pendiente del lector de FCPXML (F4c)")]
+    [Fact]
     public void Sample04_compound_clip()
     {
         string xml = LoadFixture("04_compound_clip.fcpxml");
@@ -171,7 +171,7 @@ public sealed class SamplesFcpxmlTests
         Assert.Equal("ClipAnidado", innerMedia.Name);
     }
 
-    [Fact(Skip = "Pendiente del lector de FCPXML (F4c)")]
+    [Fact]
     public void Sample05_markers_speed_conform()
     {
         string xml = LoadFixture("05_markers_speed_conform.fcpxml");
