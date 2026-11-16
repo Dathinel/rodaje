@@ -132,3 +132,22 @@ Reglas que valen para los dos: los hilos de decodificación **no llaman a `IGpu`
 2. ¿Las vistas (mip o porción concreta de una textura) se piden explícitas o se quedan implícitas? Hoy solo las usan los planos del decodificador y `GenerateMips`.
 3. ¿`Readback` de formatos de más de 8 bits con conversión, o siempre en el formato del objetivo? Se propone siempre el del objetivo.
 4. Unicomp: ¿necesita más de 4 objetivos de color o lectura de profundidad? Si sí, sube el límite de `GpuTargets`.
+
+## Revisión de Unicomp (16-nov) y qué cambia
+
+Unicomp revisó el borrador: el contrato vale y no sobra nada. Entra en la fase 3:
+
+- **Contrato (obligatorio en *Raster*):**
+  1. topología `LineList` y `LineStrip` (aristas del CAD);
+  2. `DepthBias` y `SlopeScaledDepthBias` en el estado de *Raster*;
+  3. profundidad con `Test`, `Write` y `Compare` por separado (probar sin escribir);
+  4. índices de 16 o de 32 bits.
+- **Opcional, por `GpuCaps`:**
+  5. `Readback` de una caja pequeña de `D32Float` (lectura de profundidad para la selección). Más de 4 objetivos de color no hace falta: `GpuTargets` se queda en 4.
+  6. Plantilla `D32FloatS8` para los cortes con tapa, sin prisa.
+  7. Opción «preferir software» (WARP en Windows, lavapipe en Linux) para las autopruebas.
+- **Preguntas abiertas resueltas:**
+  - 1: indiferente para Unicomp, así que decide la medida de la fase 3;
+  - 2: vistas implícitas;
+  - 3: `Readback` siempre en el formato del objetivo;
+  - 4: queda respondida por el punto 5.
