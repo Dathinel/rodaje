@@ -113,7 +113,8 @@ public sealed class CacheCoverage
         {
             Time start = Time.FromFrames(span.FirstFrame, rate);
             Time end = Time.FromFrames(span.EndFrame, rate);
-            Time anchor = Time.FromFrames(span.FirstFragmentFrame, rate);
+            // Un tick de más: con un periodo que no es entero en ticks, el redondeo de inicio y fin podía caer en el cuadro anterior.
+            Time anchor = Time.FromFrames(span.FirstFragmentFrame, rate) + Time.FromTicks(1);
             ClipTimeMap map = ClipTimeMap.Create(start, end - start, anchor, null);
             cache.Add(new VideoClipPlan($"{TimelinePlan.CacheTrackId}:{span.FirstFrame}", new SourceKey(span.MoviePath, span.MoviePath), map, start, end,
                 Time.FromFrames(span.FirstFragmentFrame + span.Count, rate), rate, rate, null, plan.Width, plan.Height));

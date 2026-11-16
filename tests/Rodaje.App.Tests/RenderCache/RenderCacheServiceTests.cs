@@ -80,6 +80,24 @@ public sealed class RenderCacheServiceTests
     }
 
     [Fact]
+    public void Apagar_con_un_trozo_en_pausa_lo_corta_y_no_lo_reanuda()
+    {
+        (RenderCacheService service, Clock clock, Worker worker) = Create();
+        service.SetPlan(1, [new(0, 120, RenderCostClass.Heavy)], 0, Rational.Fps30);
+        Start(service, clock);
+        service.NotifyPlaying(true);
+
+        service.Mode = RenderCacheMode.Off;
+        service.NotifyPlaying(false);
+        clock.Advance(TimeSpan.FromSeconds(3));
+        service.Tick();
+
+        Assert.True(worker.Token.IsCancellationRequested);
+        Assert.True(worker.Pause!.IsPauseRequested);
+        Assert.Empty(service.Pending);
+    }
+
+    [Fact]
     public void Un_trozo_que_falla_no_se_repite_sin_fin()
     {
         (RenderCacheService service, Clock clock, Worker worker) = Create();

@@ -66,6 +66,7 @@ public sealed class RenderCacheService
     private long _revision;
     private Rational _rate = Rational.Fps30;
     private long _frameCount;
+    private RenderCacheMode _mode = RenderCacheMode.Smart;
     private (RenderCacheWork Work, ExportPauseToken Pause, CancellationTokenSource Cancel, Task Task)? _current;
 
     public RenderCacheService(IRenderCacheWorker worker, TimeProvider time, Func<long> freeBytes, Func<long> usedBytes, long capBytes)
@@ -82,7 +83,19 @@ public sealed class RenderCacheService
         _lastActivity = time.GetTimestamp();
     }
 
-    public RenderCacheMode Mode { get; set; } = RenderCacheMode.Smart;
+    /// <summary>Pasar a <see cref="RenderCacheMode.Off"/> corta el trabajo en curso y vacía la cola.</summary>
+    public RenderCacheMode Mode
+    {
+        get => _mode;
+        set
+        {
+            _mode = value;
+            if (value == RenderCacheMode.Off)
+            {
+                Cancel();
+            }
+        }
+    }
 
     public RenderCacheState State { get; private set; }
 
@@ -173,7 +186,7 @@ public sealed class RenderCacheService
         bool rested = !_playing && !_scrubbing && _time.GetElapsedTime(_lastActivity) >= Rest;
         if (_current is { } running)
         {
-            if (rested && running.Pause.IsPauseRequested)
+            if (rested && Mode != RenderCacheMode.Off && running.Pause.IsPauseRequested)
             {
                 running.Pause.Resume();
             }
