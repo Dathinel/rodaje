@@ -543,17 +543,32 @@ internal sealed class VideoLayerPlan(int trackIndex, string trackId, IReadOnlyLi
         return lo;
     }
 
+    /// <summary>Si <paramref name="time"/> cae en algún tramo (en orden y sin solaparse), por búsqueda binaria.</summary>
     internal static bool IsCovered(IReadOnlyList<(Time Start, Time End)> spans, Time time)
     {
-        foreach ((Time start, Time end) in spans)
+        int i = FirstEndingAfter(spans, time);
+        return i < spans.Count && spans[i].Start <= time;
+    }
+
+    /// <summary>Índice del primer tramo que termina después de <paramref name="time"/> (en orden y sin solaparse).</summary>
+    internal static int FirstEndingAfter(IReadOnlyList<(Time Start, Time End)> spans, Time time)
+    {
+        int lo = 0;
+        int hi = spans.Count;
+        while (lo < hi)
         {
-            if (time >= start && time < end)
+            int mid = (lo + hi) >>> 1;
+            if (spans[mid].End <= time)
             {
-                return true;
+                lo = mid + 1;
+            }
+            else
+            {
+                hi = mid;
             }
         }
 
-        return false;
+        return lo;
     }
 
     public VideoClipPlan? ClipAt(Time time)

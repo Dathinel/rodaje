@@ -24,13 +24,25 @@ internal sealed record CinemaDngFolder(string Folder, IReadOnlyList<string> Fram
 /// <summary>Cómo se revela al importar (lo que el diálogo deja elegir).</summary>
 /// <param name="Balance"><c>camara</c> (el de la toma) o <c>luz-dia</c>.</param>
 /// <param name="Exposure">Pasos (EV) en luz lineal.</param>
-internal sealed record CinemaDngOptions(string Balance = "camara", double Exposure = 0, bool HighQuality = true);
+internal sealed record CinemaDngOptions(string Balance = "camara", double Exposure = 0, bool HighQuality = true,
+    CinemaDngIntermediate Intermediate = CinemaDngIntermediate.Sdr709);
+
+/// <summary>
+/// El archivo que deja la importación: ProRes 422 HQ Rec.709 de 10 bits (recorta en el blanco) o FFV1 de 16 bits sin pérdida
+/// en PQ BT.2020 con 1,0 = 203 nits, que guarda las luces por encima del blanco (docs/propuestas/hdr-12-bits.md, D-065).
+/// </summary>
+internal enum CinemaDngIntermediate
+{
+    Sdr709,
+    HdrPq,
+}
 
 /// <summary>Lo que quedó: el archivo intermedio, lo que dijo el módulo del primer cuadro y cómo se reveló.</summary>
 /// <param name="Developer">«GPU (nombre del adaptador)» o «CPU (LibRaw)».</param>
-/// <param name="MillisecondsPerFrame">Tiempo medio por fotograma de leer o revelar (sin contar la escritura del ProRes).</param>
+/// <param name="MillisecondsPerFrame">Tiempo medio por fotograma de leer o revelar (sin contar la escritura del intermedio).</param>
+/// <param name="MegabytesPerFrame">Tamaño del intermedio por fotograma, en MB (10^6 bytes).</param>
 internal sealed record CinemaDngResult(string Path, int Width, int Height, int Frames, int RateNumerator, int RateDenominator, string Camera,
-    string Developer, double MillisecondsPerFrame);
+    string Developer, double MillisecondsPerFrame, double MegabytesPerFrame);
 
 /// <summary>
 /// Importar una carpeta CinemaDNG como un medio, sin tocar el motor: el editor lee cada DNG a memoria compartida y
@@ -180,12 +192,14 @@ internal static class CinemaDngImport
         int batch = BatchSize(moduleBytes, sequence.LargestFrameBytes);
         SharedMemoryRegion region = call.CreateRegion(batch * (sequence.LargestFrameBytes + moduleBytes));
         byte[]? developed = onGpu ? GC.AllocateUninitializedArray<byte>((int)frameBytes) : null;
+        bool hdr = options.Intermediate == CinemaDngIntermediate.HdrPq;
+        byte[]? planes = hdr ? GC.AllocateUninitializedArray<byte>(checked((int)((long)width * height * 6))) : null;
 
         Directory.CreateDirectory(outputFolder);
-        string final = UniquePath(outputFolder, sequence.Name, ".mov");
+        string final = UniquePath(outputFolder, sequence.Name, hdr ? ".mkv" : ".mov");
         string temporary = final + ".rodaje-tmp";
         using JsonDocument parameters = onGpu ? MosaicParameters(options, width, height) : Parameters(options);
-        using Process encoder = StartEncoder(ffmpeg, width, height, num, den, sequence.Audio, temporary);
+        using Process encoder = StartEncoder(ffmpeg, width, height, num, den, sequence.Audio, temporary, options.Intermediate);
         Task<string> errors = encoder.StandardError.ReadToEndAsync(CancellationToken.None);
         bool done = false;
         double moduleMilliseconds = 0;
@@ -221,11 +235,11 @@ internal static class CinemaDngImport
                     if (onGpu)
                     {
                         IReadOnlyList<RawDevelopParameters> frames = ReadMosaicParameters(result.Value, count, options);
-                        await Task.Run(() => DevelopAndWrite(call, result.Buffers, frames, developer!, developed!, stdin), token).ConfigureAwait(false);
+                        await Task.Run(() => DevelopAndWrite(call, result.Buffers, frames, developer!, developed!, planes, stdin), token).ConfigureAwait(false);
                     }
                     else
                     {
-                        await Task.Run(() => Write(call, result.Buffers, frameBytes, stdin), token).ConfigureAwait(false);
+                        await Task.Run(() => Write(call, result.Buffers, frameBytes, planes, stdin), token).ConfigureAwait(false);
                     }
                 }
                 catch (IOException)
@@ -248,7 +262,8 @@ internal static class CinemaDngImport
             File.Move(temporary, final);
             done = true;
             double perFrame = (moduleMilliseconds + (developer?.Elapsed.TotalMilliseconds ?? 0)) / Math.Max(1, total);
-            return new CinemaDngResult(final, width, height, total, num, den, camera, onGpu ? $"GPU ({gpu!.AdapterName})" : "CPU (LibRaw)", perFrame);
+            double megabytes = new FileInfo(final).Length / 1e6 / Math.Max(1, total);
+            return new CinemaDngResult(final, width, height, total, num, den, camera, onGpu ? $"GPU ({gpu!.AdapterName})" : "CPU (LibRaw)", perFrame, megabytes);
         }
         finally
         {
@@ -273,7 +288,7 @@ internal static class CinemaDngImport
         }
     }
 
-    private static void Write(ModuleCall call, IReadOnlyList<SharedBufferRef> frames, long frameBytes, Stream stdin)
+    private static void Write(ModuleCall call, IReadOnlyList<SharedBufferRef> frames, long frameBytes, byte[]? planes, Stream stdin)
     {
         foreach (SharedBufferRef frame in frames)
         {
@@ -283,12 +298,12 @@ internal static class CinemaDngImport
                 throw new ModuleProtocolException("«revelar» devolvió un fotograma de otro tamaño.");
             }
 
-            stdin.Write(pixels);
+            WriteFrame(pixels, planes, stdin);
         }
     }
 
     private static void DevelopAndWrite(ModuleCall call, IReadOnlyList<SharedBufferRef> mosaics, IReadOnlyList<RawDevelopParameters> frames,
-        GpuRawDeveloper developer, byte[] developed, Stream stdin)
+        GpuRawDeveloper developer, byte[] developed, byte[]? planes, Stream stdin)
     {
         for (int i = 0; i < mosaics.Count; i++)
         {
@@ -299,8 +314,21 @@ internal static class CinemaDngImport
             }
 
             developer.Develop(MemoryMarshal.Cast<byte, ushort>(bytes), frames[i], developed, developer.Width * 8);
-            stdin.Write(developed);
+            WriteFrame(developed, planes, stdin);
         }
+    }
+
+    /// <summary>El cuadro rgba16f tal cual (SDR) o en los planos G, B, R de <c>gbrpf16le</c> (HDR).</summary>
+    private static void WriteFrame(ReadOnlySpan<byte> rgba16f, byte[]? planes, Stream stdin)
+    {
+        if (planes is null)
+        {
+            stdin.Write(rgba16f);
+            return;
+        }
+
+        GbrPlanes.FromRgbaHalf(rgba16f, planes);
+        stdin.Write(planes);
     }
 
     /// <summary>Si «info» dice que el cuadro es un mosaico de Bayer que «mosaico» puede dar.</summary>
@@ -326,7 +354,7 @@ internal static class CinemaDngImport
 
     /// <summary>
     /// Los parámetros de revelado de cada cuadro de una respuesta de «mosaico» (<c>cuadros</c>: patrón, blanco, balance y
-    /// matriz), con la exposición de <paramref name="options"/> y la curva Rec.709 de la importación.
+    /// matriz), con la exposición de <paramref name="options"/>: curva Rec.709 en SDR; lineal y primarios BT.2020 en HDR.
     /// </summary>
     /// <exception cref="ModuleProtocolException">No trae <paramref name="count"/> cuadros válidos.</exception>
     internal static IReadOnlyList<RawDevelopParameters> ReadMosaicParameters(JsonElement? value, int count, CinemaDngOptions options)
@@ -356,8 +384,13 @@ internal static class CinemaDngImport
                 Multipliers = multipliers,
                 Matrix = matrix,
                 Exposure = Math.Clamp(options.Exposure, -6, 6),
-                Curve = RawOutputCurve.Rec709,
+                Curve = options.Intermediate == CinemaDngIntermediate.HdrPq ? RawOutputCurve.Linear : RawOutputCurve.Rec709,
             };
+            if (options.Intermediate == CinemaDngIntermediate.HdrPq)
+            {
+                parameters = parameters.WithRec2020Primaries();
+            }
+
             if (parameters.Validate() is { } problem)
             {
                 throw new ModuleProtocolException($"«mosaico» devolvió parámetros de revelado no válidos: {problem}.");
@@ -426,20 +459,28 @@ internal static class CinemaDngImport
             o.TryGetProperty(name, out JsonElement t) && t.ValueKind == JsonValueKind.String ? t.GetString()?.Trim() : null;
     }
 
-    private static JsonDocument Parameters(CinemaDngOptions options) => JsonDocument.Parse(string.Create(CultureInfo.InvariantCulture,
-        $$"""{"balance":"{{(options.Balance == "luz-dia" ? "luz-dia" : "camara")}}","exposicion":{{Math.Clamp(options.Exposure, -6, 6):0.###}},"espacio":"rec709","curva":"rec709","calidad":"{{(options.HighQuality ? "alta" : "rapida")}}"}"""));
+    private const string SdrSpace = "\"espacio\":\"rec709\",\"curva\":\"rec709\"";
+    private const string HdrSpace = "\"espacio\":\"rec2020\",\"curva\":\"lineal\"";
+
+    internal static JsonDocument Parameters(CinemaDngOptions options) => JsonDocument.Parse(string.Create(CultureInfo.InvariantCulture,
+        $$"""{"balance":"{{(options.Balance == "luz-dia" ? "luz-dia" : "camara")}}","exposicion":{{Math.Clamp(options.Exposure, -6, 6):0.###}},{{(options.Intermediate == CinemaDngIntermediate.HdrPq ? HdrSpace : SdrSpace)}},"calidad":"{{(options.HighQuality ? "alta" : "rapida")}}"}"""));
 
     /// <summary>Los de «mosaico»: el balance y el tamaño; la exposición y la curva van en la GPU.</summary>
     internal static JsonDocument MosaicParameters(CinemaDngOptions options, int width, int height) => JsonDocument.Parse(string.Create(CultureInfo.InvariantCulture,
         $$"""{"balance":"{{(options.Balance == "luz-dia" ? "luz-dia" : "camara")}}","espacio":"rec709","ancho":{{width}},"alto":{{height}}}"""));
 
-    /// <summary>Argumentos de <c>ffmpeg.exe</c>: rgba16f por la entrada estándar → ProRes 422 HQ de 10 bits en MOV, Rec.709.</summary>
-    public static IReadOnlyList<string> EncoderArguments(int width, int height, int num, int den, string? audio, string output)
+    /// <summary>
+    /// Argumentos de <c>ffmpeg.exe</c>: rgba16f por la entrada estándar → ProRes 422 HQ de 10 bits en MOV, Rec.709; o, en HDR,
+    /// planos gbrpf16le lineales → <c>zscale</c> a PQ BT.2020 (1,0 = 203 nits) → FFV1 yuv444p16le sin pérdida en MKV.
+    /// </summary>
+    public static IReadOnlyList<string> EncoderArguments(int width, int height, int num, int den, string? audio, string output,
+        CinemaDngIntermediate intermediate = CinemaDngIntermediate.Sdr709)
     {
+        bool hdr = intermediate == CinemaDngIntermediate.HdrPq;
         List<string> args =
         [
             "-hide_banner", "-nostdin", "-loglevel", "error", "-y",
-            "-f", "rawvideo", "-pix_fmt", "rgbaf16le", "-s", $"{width}x{height}", "-framerate", $"{num}/{den}", "-i", "pipe:0",
+            "-f", "rawvideo", "-pix_fmt", hdr ? "gbrpf16le" : "rgbaf16le", "-s", $"{width}x{height}", "-framerate", $"{num}/{den}", "-i", "pipe:0",
         ];
         if (audio is not null)
         {
@@ -452,6 +493,18 @@ internal static class CinemaDngImport
             args.AddRange(["-map", "1:a:0?", "-c:a", "pcm_s24le", "-shortest"]);
         }
 
+        if (hdr)
+        {
+            args.AddRange(
+            [
+                "-vf", "zscale=tin=linear:pin=2020:min=gbr:rin=full:t=smpte2084:p=2020:m=2020_ncl:r=full:npl=203,format=yuv444p16le",
+                "-c:v", "ffv1", "-level", "3", "-g", "1", "-slices", "24", "-slicecrc", "1", "-pix_fmt", "yuv444p16le",
+                "-color_primaries", "bt2020", "-color_trc", "smpte2084", "-colorspace", "bt2020nc", "-color_range", "pc",
+                "-f", "matroska", output,
+            ]);
+            return args;
+        }
+
         args.AddRange(
         [
             "-vf", "scale=out_color_matrix=bt709:out_range=tv",
@@ -462,7 +515,8 @@ internal static class CinemaDngImport
         return args;
     }
 
-    private static Process StartEncoder(FfmpegExecutable ffmpeg, int width, int height, int num, int den, string? audio, string output)
+    private static Process StartEncoder(FfmpegExecutable ffmpeg, int width, int height, int num, int den, string? audio, string output,
+        CinemaDngIntermediate intermediate)
     {
         var info = new ProcessStartInfo(ffmpeg.EnsureUnchanged().Path)
         {
@@ -473,7 +527,7 @@ internal static class CinemaDngImport
             StandardErrorEncoding = Encoding.UTF8,
             WorkingDirectory = Path.GetDirectoryName(ffmpeg.Path)!,
         };
-        foreach (string argument in EncoderArguments(width, height, num, den, audio, output))
+        foreach (string argument in EncoderArguments(width, height, num, den, audio, output, intermediate))
         {
             info.ArgumentList.Add(argument);
         }
