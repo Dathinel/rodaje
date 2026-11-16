@@ -113,7 +113,17 @@ public sealed class TranscriptEditsInvariantTests
                 undo.Undo();
                 Assert.Equal(saved, ProjectSerializer.Serialize(f.Project));
 
-                undo.Execute(Edits.MoveWords("seq", null, first, count, before, ids: new SequentialIdGenerator()));
+                try
+                {
+                    undo.Execute(Edits.MoveWords("seq", null, first, count, before, ids: new SequentialIdGenerator()));
+                }
+                catch (EditException refused) when (refused.Message.Contains("hueco", StringComparison.Ordinal))
+                {
+                    // Una frase que cruza un hueco entre clips no se mueve, y no deja nada a medias.
+                    Assert.Equal(saved, ProjectSerializer.Serialize(f.Project));
+                    continue;
+                }
+
                 Assert.NotEqual(saved, ProjectSerializer.Serialize(f.Project));
                 undo.Undo();
                 Assert.Equal(saved, ProjectSerializer.Serialize(f.Project));
