@@ -1155,21 +1155,6 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         }
     }
 
-    private static int Signature(CompositionFrame frame)
-    {
-        var hash = new HashCode();
-        hash.Add(frame.Layers.Count);
-        foreach (LayerFrame layer in frame.Layers)
-        {
-            hash.Add(layer.TrackIndex);
-            hash.Add(layer.ClipId);
-            hash.Add(layer.Frame.Index);
-            hash.Add(layer.Transform);
-        }
-
-        return hash.ToHashCode();
-    }
-
     private enum CommandKind
     {
         TogglePlay,

@@ -54,7 +54,9 @@ internal sealed class VideoClipPlan
         MaxRate = map.RateRange(start, end).Max;
         bool seen = _firstGrid <= _lastGrid;
         FirstFrame = FrameAt(seen ? Time.FromFrames(_firstGrid, sequenceRate) : start);
-        LastFrame = FrameAt(seen ? Time.FromFrames(_lastGrid, sequenceRate) : start);
+        long lastA = FrameAt(seen ? Time.FromFrames(_lastGrid, sequenceRate) : start);
+        LastFrame = lastA;
+        LastFrame = seen && HasPairFrom(lastA) ? (Forward ? lastA + 1 : lastA - 1) : lastA;
     }
 
     public bool IsStillImage { get; }
@@ -224,19 +226,12 @@ internal sealed class VideoClipPlan
             return long.MaxValue;
         }
 
-        if (_everyFrameShown)
+        if (_everyFrameShown || HasPairFrom(index - 1))
         {
             return index;
         }
 
-        Time at = ShownAt(index);
-        long grid = at.ToFrames(SequenceRate);
-        if (Time.FromFrames(grid, SequenceRate) < at)
-        {
-            grid++;
-        }
-
-        return grid > _lastGrid ? long.MaxValue : FrameAt(Time.FromFrames(grid, SequenceRate));
+        return NextPrimaryShown(index);
     }
 
     /// <summary>Algún cuadro de la secuencia muestra el cuadro <paramref name="index"/> del origen.</summary>
@@ -262,6 +257,11 @@ internal sealed class VideoClipPlan
 
         if (!Forward)
         {
+            if (HasPairFrom(index + 1))
+            {
+                return index;
+            }
+
             // El primer cuadro de la secuencia que muestra uno que no pasa de index.
             long first = CeilingGrid(ShownAtReverse(index));
             return first > _lastGrid ? LastFrame : FrameAt(Time.FromFrames(first, SequenceRate));
@@ -269,7 +269,8 @@ internal sealed class VideoClipPlan
 
         // El último cuadro de la secuencia antes del primero que muestra uno mayor que index.
         long grid = CeilingGrid(ShownAt(index + 1)) - 1;
-        return grid < _firstGrid ? FirstFrame : FrameAt(Time.FromFrames(Math.Min(grid, _lastGrid), SequenceRate));
+        long a = grid < _firstGrid ? FirstFrame : FrameAt(Time.FromFrames(Math.Min(grid, _lastGrid), SequenceRate));
+        return a < index && HasPairFrom(a) ? a + 1 : a;
     }
 
     /// <summary>Cuadros del origen entre <paramref name="after"/> y <paramref name="before"/>, sin contarlos, que la secuencia muestra.</summary>
@@ -279,7 +280,7 @@ internal sealed class VideoClipPlan
     {
         long count = 0;
         long last = Math.Min(before - 1, HighestFrame);
-        for (long i = NextShown(Math.Max(after + 1, LowestFrame)); i <= last; i = NextShown(i + 1))
+        for (long i = NextPrimaryShown(Math.Max(after + 1, LowestFrame)); i <= last; i = NextPrimaryShown(i + 1))
         {
             count++;
         }
@@ -297,6 +298,11 @@ internal sealed class VideoClipPlan
         }
 
         long grids = _lastGrid + 1 - Math.Max(_firstGrid, ShownAt(index).ToFrames(SequenceRate));
+        if (!IsStillImage && Sampling != FrameSampling.Nearest && !TimeMap.Freeze)
+        {
+            grids *= 2;
+        }
+
         long frames = Forward ? LastFrame + 1 - Math.Max(index, FirstFrame) : Math.Min(index, FirstFrame) + 1 - LastFrame;
         return Math.Max(0, Math.Min(frames, grids));
     }
@@ -304,8 +310,8 @@ internal sealed class VideoClipPlan
     /// <summary>El cuadro mostrado en el cuadro <paramref name="sequenceFrame"/> de la secuencia, acotado al tramo visible.</summary>
     public long ShownUntil(long sequenceFrame) =>
         sequenceFrame >= _lastGrid ? LastFrame
-        : sequenceFrame <= _firstGrid ? FirstFrame
-        : FrameAt(Time.FromFrames(sequenceFrame, SequenceRate));
+        : sequenceFrame < _firstGrid ? FirstFrame
+        : SampleAt(Time.FromFrames(sequenceFrame, SequenceRate)).B;
 
     /// <summary>El mismo clip visible solo en <c>[start, end)</c> (la parte que no cubre el render en caché).</summary>
     public VideoClipPlan Trim(Time start, Time end) =>
@@ -368,7 +374,83 @@ internal sealed class VideoClipPlan
 
         // El último cuadro de la secuencia antes de que se vea uno menor que index muestra el buscado.
         long grid = CeilingGrid(ShownAtReverse(index - 1)) - 1;
-        return grid < _firstGrid ? FirstFrame : FrameAt(Time.FromFrames(Math.Min(grid, _lastGrid), SequenceRate));
+        long a = grid < _firstGrid ? FirstFrame : FrameAt(Time.FromFrames(Math.Min(grid, _lastGrid), SequenceRate));
+        return a > index && HasPairFrom(a) ? a - 1 : a;
+    }
+
+    private long NextPrimaryShown(long index)
+    {
+        if (!Forward)
+        {
+            if (index > FirstFrame)
+            {
+                return long.MaxValue;
+            }
+
+            if (index <= LastFrame)
+            {
+                return FrameAt(Time.FromFrames(_lastGrid, SequenceRate));
+            }
+
+            if (_everyFrameShown)
+            {
+                return index;
+            }
+
+            long revGrid = CeilingGrid(ShownAtReverse(index - 1)) - 1;
+            return revGrid < _firstGrid ? FirstFrame : FrameAt(Time.FromFrames(Math.Min(revGrid, _lastGrid), SequenceRate));
+        }
+
+        if (index <= FirstFrame)
+        {
+            return FirstFrame;
+        }
+
+        if (index > LastFrame)
+        {
+            return long.MaxValue;
+        }
+
+        if (_everyFrameShown)
+        {
+            return index;
+        }
+
+        Time at = ShownAt(index);
+        long grid = at.ToFrames(SequenceRate);
+        if (Time.FromFrames(grid, SequenceRate) < at)
+        {
+            grid++;
+        }
+
+        return grid > _lastGrid ? long.MaxValue : FrameAt(Time.FromFrames(grid, SequenceRate));
+    }
+
+    private bool HasPairFrom(long a)
+    {
+        if (IsStillImage || Sampling == FrameSampling.Nearest || TimeMap.Freeze || _firstGrid > _lastGrid)
+        {
+            return false;
+        }
+
+        long last = Forward
+            ? Math.Min(_lastGrid, CeilingGrid(ShownAt(a + 1)) - 1)
+            : Math.Min(_lastGrid, CeilingGrid(ShownAtReverse(a - 1)) - 1);
+        for (long g = last; g >= _firstGrid; g--)
+        {
+            Time time = Time.FromFrames(g, SequenceRate);
+            if (FrameAt(time) != a)
+            {
+                return false;
+            }
+
+            if (SampleAt(time).T > 0)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>El primer cuadro de la secuencia que empieza en o después de <paramref name="time"/>.</summary>

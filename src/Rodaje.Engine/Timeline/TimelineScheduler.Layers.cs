@@ -61,7 +61,7 @@ internal sealed partial class TimelineScheduler
         FrameSample sample = clip.SampleAt(time);
         if ((!running || _seekPending) && sample.T > 0)
         {
-            settled &= _cache.Contains(media.Id, sample.B) || media.Unavailable.Contains(sample.B);
+            settled &= HasCachedVariant(media, sample.B, layer.CurrentVariant) || media.Unavailable.Contains(sample.B);
         }
         if (running && !exact && !missing && !_seekPending)
         {
@@ -306,7 +306,8 @@ internal sealed partial class TimelineScheduler
         Look look = layer.CurrentLook;
         FrameSample sample = clip.SampleAt(time);
         DecodedFrame? next = null;
-        if (sample.T > 0 && frame.Index == sample.A && layer.CurrentMedia is { } media)
+        if (sample.T > 0 && frame.Index == sample.A && layer.CurrentMedia is { } media
+            && HasCachedVariant(media, sample.B, layer.CurrentVariant))
         {
             _cache.TryGetLatest(media.Id, sample.B, sample.B, out next, out _);
         }
@@ -325,6 +326,11 @@ internal sealed partial class TimelineScheduler
             MotionSamples = motion,
         };
     }
+
+    private bool HasCachedVariant(MediaState media, long index, Variant? variant) =>
+        _cache.TryGetSlot(media.Id, index, out int slot)
+        && _decoders.TryGetValue(slot, out DecoderState? decoder)
+        && decoder.Variant == variant;
 
     /// <summary>Un cuadro de la secuencia en ticks: la unidad del obturador del desenfoque de movimiento.</summary>
     private long FrameTicks => Time.FromFrames(1, _plan.FrameRate).Ticks;
