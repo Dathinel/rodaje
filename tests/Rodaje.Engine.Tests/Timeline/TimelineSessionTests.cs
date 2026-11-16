@@ -262,6 +262,39 @@ public sealed class TimelineSessionTests
         Assert.Equal((1L, 0L, 1L), (layer.Cuts, layer.PreRollHits, layer.PreRollMisses));
         Assert.True(layer.LateAtCuts >= 1);
         Assert.Equal(layer.LateAtCuts, layer.LateRefreshes);
+        Assert.NotEmpty(session.Stats.LateFrames);
+    }
+
+    [Fact]
+    public void Late_frames_recoge_el_cuadro_de_un_refresco_tarde_y_no_pasa_de_256()
+    {
+        var backend = new FakeTimelineBackend { ManualDecoding = true };
+        var b = new TimelineBuilder(1, 0, Rational.Fps30);
+        b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
+        b.AddVideo(0, "m", Time.Zero, Time.Zero, S(20), "m");
+        using TimelineSession session = Open(b, backend, new TimelineSessionOptions { PreRoll = TimeSpan.Zero });
+        Settle(session, backend);
+
+        Time refresh30 = Time.FromFrames(1, Rational.Fps30);
+        session.Play();
+        for (int i = 0; i < 300; i++)
+        {
+            backend.Clock.Advance(refresh30);
+            session.Tick().Dispose();
+        }
+
+        TimelineStats stats = session.Stats;
+        Assert.True(stats.LateRefreshes > 256);
+        Assert.Equal(256, stats.LateFrames.Count);
+        Assert.Equal(300, stats.LateFrames[^1]);
+
+        for (int i = 1; i < stats.LateFrames.Count; i++)
+        {
+            Assert.True(stats.LateFrames[i] >= stats.LateFrames[i - 1]);
+        }
+
+        session.ResetStats();
+        Assert.Empty(session.Stats.LateFrames);
     }
 
     [Fact]
