@@ -90,6 +90,10 @@ internal sealed partial class TimelineScheduler : IDisposable
     private readonly Dictionary<string, EffectListRing> _titleEffects = [];
     private readonly Dictionary<string, EffectListRing> _groupEffects = [];
     private long _lateTitles;
+    private const int LateFramesCapacity = 256;
+    private readonly long[] _lateRing = new long[LateFramesCapacity];
+    private int _lateHead;
+    private int _lateCount;
     private readonly List<HeldLayer> _held = [];
     private int _heldCount;
     private long _seekAt;
@@ -429,6 +433,7 @@ internal sealed partial class TimelineScheduler : IDisposable
                 TransitionPreRollHits = all.Where(l => l.IsCompanion).Sum(l => l.PreRollHits),
                 TransitionPreRollMisses = all.Where(l => l.IsCompanion).Sum(l => l.PreRollMisses),
                 TransitionLateRefreshes = all.Where(l => l.IsCompanion).Sum(l => l.Late),
+                LateFrames = SnapshotLateFrames(),
                 Approximated = all.Sum(l => l.Approximated),
                 LateTitles = _lateTitles,
                 DecodersOpenedWhilePlaying = _openedWhilePlaying,
@@ -457,6 +462,8 @@ internal sealed partial class TimelineScheduler : IDisposable
                 layer.ResetStats();
             }
 
+            _lateHead = 0;
+            _lateCount = 0;
             _vramPeak = Committed();
             _vramOverruns = 0;
             _heldRefreshes = 0;
@@ -464,6 +471,33 @@ internal sealed partial class TimelineScheduler : IDisposable
             _lateTitles = 0;
             _openedWhilePlaying = 0;
         }
+    }
+
+    private void RecordLateFrame(long frame)
+    {
+        _lateRing[_lateHead] = frame;
+        _lateHead = (_lateHead + 1) % LateFramesCapacity;
+        if (_lateCount < LateFramesCapacity)
+        {
+            _lateCount++;
+        }
+    }
+
+    private long[] SnapshotLateFrames()
+    {
+        if (_lateCount == 0)
+        {
+            return [];
+        }
+
+        long[] snapshot = new long[_lateCount];
+        int start = (_lateHead - _lateCount + LateFramesCapacity) % LateFramesCapacity;
+        for (int i = 0; i < _lateCount; i++)
+        {
+            snapshot[i] = _lateRing[(start + i) % LateFramesCapacity];
+        }
+
+        return snapshot;
     }
 
     /// <summary>Cierra todos los decodificadores y espera a que terminen: después se puede liberar el dispositivo.</summary>
