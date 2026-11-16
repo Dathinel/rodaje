@@ -78,6 +78,18 @@
           },
           "audioChannels": {
             "type": "integer"
+          },
+          "timecode": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "reel": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }
@@ -125,6 +137,12 @@
               "sdr-709",
               "hdr-pq",
               "hdr-hlg"
+            ]
+          },
+          "startTimecode": {
+            "type": [
+              "string",
+              "null"
             ]
           },
           "masterGainDb": {
