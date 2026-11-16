@@ -390,9 +390,16 @@ public sealed class FfmpegTool
             {
                 Stream stdout = process.StandardOutput.BaseStream;
                 readOutput(stdout);
-                if (stdout.CanRead)
+                try
                 {
-                    stdout.CopyTo(Stream.Null);
+                    if (stdout.CanRead)
+                    {
+                        stdout.CopyTo(Stream.Null);
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    // readOutput cerró la tubería; en Linux CanRead sigue diciendo que se puede leer.
                 }
             }
 

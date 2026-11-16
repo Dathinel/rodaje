@@ -13,7 +13,8 @@ internal static class MediaTestEnvironment
     /// <summary>Dispositivo compartido entre pruebas (vive todo el proceso de pruebas).</summary>
     public static GpuDevice? Gpu => SharedGpu.Value;
 
-    public static string FfmpegExe => Path.Combine(FfmpegLibrary.Directory ?? "", "ffmpeg.exe");
+    public static string FfmpegExe =>
+        Path.Combine(FfmpegLocator.ExecutableDirectory(FfmpegLibrary.Directory ?? ""), FfmpegLocator.ExecutableName("ffmpeg"));
 
     public static string FfprobeExe => Path.Combine(FfmpegLibrary.Directory ?? "", "ffprobe.exe");
 
