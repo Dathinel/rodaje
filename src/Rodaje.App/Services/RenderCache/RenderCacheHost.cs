@@ -59,6 +59,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
     private RenderCacheStore _store;
     private RenderCacheService _service;
     private long _capBytes;
+    private double? _capGb;
     private RenderCachePlan? _plan;
     private RenderCacheScan? _scan;
 
@@ -91,6 +92,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         _sources = new(() => new AppRecipeSources(_content, _fontMissing, RenderCacheJob.Chain(_ffmpeg.Value?.Version ?? "")),
             LazyThreadSafetyMode.ExecutionAndPublication);
         (_store, _service, _capBytes) = Open(folder, capGb, mode);
+        _capGb = capGb;
         _lastCleanup = _time.GetTimestamp();
         _timer = new Timer(_ => Tick(), null, tick ?? TimeSpan.FromMilliseconds(250), tick ?? TimeSpan.FromMilliseconds(250));
     }
@@ -156,10 +158,12 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         lock (_gate)
         {
             string directory = Path.GetFullPath(string.IsNullOrWhiteSpace(folder) ? RenderCacheStore.DefaultDirectory : folder);
-            if (!string.Equals(directory, _store.Directory, StringComparison.OrdinalIgnoreCase) || Cap(directory, capGb) != _capBytes)
+            // El tope automático depende del disco libre, que cambia siempre: se compara lo pedido, no lo calculado.
+            if (!string.Equals(directory, _store.Directory, StringComparison.OrdinalIgnoreCase) || capGb != _capGb)
             {
                 _service.Cancel();
                 (_store, _service, _capBytes) = Open(folder, capGb, mode);
+                _capGb = capGb;
                 _completed = 0;
             }
             else
@@ -168,7 +172,8 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
             }
         }
 
-        Rescan();
+        // Otro modo u otro almacén rehacen la cola con las huellas ya calculadas.
+        Rescan(setPlan: true);
     }
 
     /// <summary>El reproductor abrió o recargó un plan: huellas y previsión 150 ms después, en otro hilo.</summary>
@@ -435,7 +440,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
     }
 
     /// <summary>La cobertura y la franja de nuevo con las huellas ya calculadas (tras un fragmento, al parar o al olvidar uno).</summary>
-    private void Rescan()
+    private void Rescan(bool setPlan = false)
     {
         RenderCachePlan? plan;
         RenderCacheScan? scan;
@@ -447,7 +452,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
 
         if (plan is not null && scan is not null)
         {
-            UiTask.Run(Task.Run(() => Publish(plan, scan, setPlan: false)));
+            UiTask.Run(Task.Run(() => Publish(plan, scan, setPlan)));
         }
     }
 
