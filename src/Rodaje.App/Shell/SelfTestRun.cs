@@ -59,6 +59,7 @@ internal static partial class SelfTestRun
             await SampledAsync(window, engine, new Rational(1, 2), FrameSampling.Blend, 0.5f);
             await SampledAsync(window, engine, new Rational(1, 4), FrameSampling.OpticalFlow, 0.75f);
             await TitleAsync(window, engine);
+            await TemplatesAsync(window, engine);
             await ImageAsync(window, engine);
             await MasksAsync(window, engine);
             await TrackingAsync(window, engine);
@@ -105,8 +106,23 @@ internal static partial class SelfTestRun
             code = 2;
         }
 
+        WriteReport(metrics);
         Program.ExitCode = code;
         window.Close();
+    }
+
+    /// <summary>Las cifras que anotan los pasos («autoprueba: …») quedan en <c>autoprueba.txt</c>, en la carpeta de datos de la corrida.</summary>
+    private static void WriteReport(Metrics metrics)
+    {
+        try
+        {
+            Directory.CreateDirectory(AppDataPaths.Root);
+            File.WriteAllText(Path.Combine(AppDataPaths.Root, "autoprueba.txt"), metrics.Report([]), new System.Text.UTF8Encoding(false));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // El informe es para leer cifras: sin él la autoprueba vale igual.
+        }
     }
 
     private static bool IsUpstreamCreditShown(MainWindow window) =>

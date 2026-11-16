@@ -45,7 +45,11 @@ internal static partial class PresetReader
         }
 
         var body = (JsonObject)JsonNode.Parse(b.GetRawText(), documentOptions: DocumentOptions)!;
-        _ = ValidateTemplateBody(kind, body);
+        if (ValidateTemplateBody(kind, body).Layers.FirstOrDefault(l => l.Start + l.End >= duration) is { } hidden)
+        {
+            throw Fail($"La capa «{Show(hidden.Id)}» no llega a verse: start más end tiene que ser menor que durationSeconds.");
+        }
+
         IReadOnlyList<TemplateParameter> parameters = ReadTemplateParameters(root, body);
         return new TemplateDocument(id, name, kind, width, height, duration, minimum, body, parameters);
     }
@@ -218,6 +222,12 @@ internal static partial class PresetReader
                 if (i == segments.Length - 1)
                 {
                     throw Fail("Un destino tiene que señalar un campo de la capa.");
+                }
+
+                // Cambiar el id dejaría sin capa a los destinos siguientes.
+                if (i == segments.Length - 2 && segments[^1] == "id")
+                {
+                    throw Fail("Un destino no puede cambiar el id de una capa.");
                 }
             }
         }

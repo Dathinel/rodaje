@@ -176,6 +176,8 @@ public sealed class TemplateReaderTests
     [InlineData("parameters/6/options/0/label", "null", "label")]
     [InlineData("parameters/6/options/0/value", "null", "value")]
     [InlineData("parameters/6/options/0/value", "\"400\"", "tipo")]
+    [InlineData("parameters/0/targets/0", "\"layers/nombre/id\"", "id de una capa")]
+    [InlineData("body/layers/0/start", "4.9", "no llega a verse")]
     public void Cada_regla_rechaza_el_campo_invalido(string path, string json, string expected)
     {
         JsonObject root = Title();
