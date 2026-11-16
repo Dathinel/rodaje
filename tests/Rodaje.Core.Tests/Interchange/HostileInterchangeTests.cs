@@ -92,7 +92,7 @@ public sealed class HostileInterchangeTests
     // OpenTimelineIO
     // =========================================================================
 
-    [Fact(Skip = "Pendiente del lector de OTIO (F4b)")]
+    [Fact]
     public void Otio_ten_thousand_nested_stacks_throws_interchange_exception()
     {
         var sb = new StringBuilder();
@@ -112,7 +112,7 @@ public sealed class HostileInterchangeTests
             InterchangeFiles.ReadDraft(json, InterchangeFormat.Otio, null, new InterchangeOptions(), new InterchangeReport()));
     }
 
-    [Fact(Skip = "Pendiente del lector de OTIO (F4b)")]
+    [Fact]
     public void Otio_rate_zero_throws_interchange_exception()
     {
         string json = """
@@ -148,7 +148,7 @@ public sealed class HostileInterchangeTests
             InterchangeFiles.ReadDraft(json, InterchangeFormat.Otio, null, new InterchangeOptions(), new InterchangeReport()));
     }
 
-    [Theory(Skip = "Pendiente del lector de OTIO (F4b)")]
+    [Theory]
     [InlineData("NaN")]
     [InlineData("1e308")]
     public void Otio_value_nan_or_overflow_throws_interchange_exception(string value)
@@ -244,7 +244,7 @@ public sealed class HostileInterchangeTests
         }
     }
 
-    [Fact(Skip = "Pendiente del lector de OTIO (F4b)")]
+    [Fact]
     public void Otio_invalid_timecode_throws_or_reports_warning()
     {
         string json = """
@@ -325,7 +325,7 @@ public sealed class HostileInterchangeTests
         }
     }
 
-    [Fact(Skip = "Pendiente del lector de OTIO (F4b)")]
+    [Fact]
     public void Otio_hostile_paths_are_rejected_or_reported()
     {
         string longName = new string('x', 40_000);
