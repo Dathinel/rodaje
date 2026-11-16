@@ -50,6 +50,7 @@ internal static partial class SelfTestRun
             }
 
             await ToolsAsync(window);
+            await TranscriptAsync(window);
             await PreferencesAsync(window);
             await ShortcutsAsync(window);
             await ShowCurveAsync(window);

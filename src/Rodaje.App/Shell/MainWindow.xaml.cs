@@ -201,6 +201,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         TitleBar.Attach(_services);
         TitleBar.InspectorTabRequested += (_, tab) => Inspector.Show(tab);
         TitleBar.MarkersPanelRequested += (_, _) => Library.ShowMarkers();
+        TitleBar.TranscriptPanelRequested += (_, _) => Library.ShowTranscript();
         TitleBar.ExitRequested += (_, _) => RequestClose();
         TitleBar.RecentProjectMissing += (_, path) =>
         {
@@ -453,6 +454,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     internal Services.LongActions.LongActionService LongActions => _longActions;
 
     internal Views.Inspector.InspectorView InspectorPane => Inspector;
+    internal Views.Library.LibraryView LibraryPane => Library;
 
     internal ExportView? ExportPage => _exportView;
 

@@ -109,6 +109,7 @@
                 </MenuFlyoutSubItem>
                 <MenuFlyoutSubItem Text="Texto y voz">
                     <MenuFlyoutItem Text="Subtítulos automáticos..." Tag="tools.autoSubtitles" Click="OnActionClick" />
+                    <MenuFlyoutItem Text="Quitar muletillas…" Tag="transcript.removeFillers" Click="OnActionClick" />
                     <MenuFlyoutItem Text="Traducir pista..." Tag="tools.translateTrack" Click="OnActionClick" />
                     <MenuFlyoutItem Text="Texto a voz..." Tag="voice.textToSpeech" Click="OnActionClick" />
                     <MenuFlyoutItem Text="Grabar voz en off..." Tag="audio.voiceOver" Click="OnActionClick" />
@@ -121,6 +122,7 @@
                 </MenuFlyoutSubItem>
             </MenuBarItem>
             <MenuBarItem Title="Ver">
+                <MenuFlyoutItem Text="Transcripción" Click="OnTranscriptClick" />
                 <MenuFlyoutSubItem Text="Paneles">
                     <MenuFlyoutItem Text="Propiedades" Tag="inspector:Properties" Click="OnInspectorClick" />
                     <MenuFlyoutItem Text="Texto" Tag="inspector:Text" Click="OnInspectorClick" />

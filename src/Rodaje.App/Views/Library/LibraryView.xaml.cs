@@ -69,6 +69,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     private MediaItem? _menuTarget;
     private ElementApplier? _applier;
     private bool _markersOpen;
+    private bool _transcriptOpen;
 
     public LibraryView()
     {
@@ -112,9 +113,23 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
     public void ShowMarkers(string? editMarkerId = null)
     {
+        TranscriptTab.IsChecked = false;
+        _transcriptOpen = false;
         _markersOpen = true;
         UpdateVisibility();
         if (editMarkerId is not null) MarkersView.EditMarker(editMarkerId);
+    }
+
+    internal Transcript.TranscriptPanel TranscriptPanel => TranscriptView;
+
+    public void ShowTranscript()
+    {
+        _markersOpen = false;
+        _transcriptOpen = true;
+        TranscriptTab.IsChecked = true;
+        CategoryTitle.Text = "Transcripción";
+        UpdateVisibility();
+        TranscriptView.Refresh();
     }
 
     public void Attach(EditorServices services)
@@ -147,6 +162,23 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         services.Packages.Changed += (_, _) => RefreshPackages();
         WatchOwnElements(services.Packages.Locations.Own);
         MarkersView.Attach(services);
+        TranscriptView.Attach(services);
+        services.Shortcuts.Bind(Analysis.QuickTools.RemoveFillers, () =>
+        {
+            EditorSession session = services.Session;
+            Analysis.QuickToolState state = Analysis.QuickTools.State(Analysis.QuickTools.RemoveFillers, session.Project, session.Sequence, session.SelectedClipIds, false);
+            if (!state.Available)
+            {
+                session.Notify(NotificationSeverity.Informational, "Quitar muletillas", state.Reason!);
+                return;
+            }
+
+            string? track = session.SelectedClipIds.Select(id => session.Sequence.FindClip(id))
+                .FirstOrDefault(f => f is not null && session.Project.FindTranscript(f.Value.Clip.MediaId) is not null)?.Track.Id;
+            ShowTranscript();
+            TranscriptView.ShowGuideTrack(track);
+            UiTask.Run(TranscriptView.ShowFillersAsync());
+        });
         RefreshMedia();
         RefreshPackages();
         UiTask.Run(services.Packages.RefreshAsync());
@@ -270,14 +302,17 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     private void UpdateVisibility()
     {
         bool markers = _markersOpen;
-        bool media = !markers && _category == LibraryCategory.Media;
-        bool audio = !markers && _category == LibraryCategory.Audio;
-        bool ai = !markers && _category == LibraryCategory.Ai;
-        bool elements = !markers && !media && !audio && !ai;
+        bool transcript = _transcriptOpen;
+        bool special = markers || transcript;
+        bool media = !special && _category == LibraryCategory.Media;
+        bool audio = !special && _category == LibraryCategory.Audio;
+        bool ai = !special && _category == LibraryCategory.Ai;
+        bool elements = !special && !media && !audio && !ai;
         bool library = _allMedia.Count > 0 || _organization.Folders.Count > 0;
         bool details = DetailsToggle.IsChecked == true;
         LibraryQuery query = Query();
         MarkersView.Visibility = markers ? Visibility.Visible : Visibility.Collapsed;
+        TranscriptView.Visibility = transcript ? Visibility.Visible : Visibility.Collapsed;
         MediaPanel.Visibility = media && library ? Visibility.Visible : Visibility.Collapsed;
         WatchedBanner.Visibility = media && _services?.WatchedFolders is { Pending.Count: > 0 } ? Visibility.Visible : Visibility.Collapsed;
         MediaGrid.Visibility = !details && Media.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -294,7 +329,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         OwnPanel.Visibility = OwnElements.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         AiPanel.Visibility = ai ? Visibility.Visible : Visibility.Collapsed;
         ImportButton.Visibility = media || audio ? Visibility.Visible : Visibility.Collapsed;
-        string? empty = markers ? null : _category switch
+        string? empty = special ? null : _category switch
         {
             LibraryCategory.Media when !library =>
                 "Importa videos o audios, o arrástralos aquí. Doble clic en uno lo añade al final de la pista principal; también puedes arrastrarlo a la línea de tiempo.",
@@ -310,8 +345,15 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
     private void OnCategoryChecked(object sender, RoutedEventArgs e)
     {
+        if (sender is RadioButton { Tag: "Transcript" } && CategoryTitle is not null)
+        {
+            ShowTranscript();
+            return;
+        }
+
         if (sender is RadioButton { Tag: "Markers" } markersButton && CategoryTitle is not null)
         {
+            _transcriptOpen = false;
             _markersOpen = true;
             CategoryTitle.Text = ToolTipService.GetToolTip(markersButton) as string ?? "Marcadores";
             UpdateVisibility();
@@ -324,6 +366,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         }
 
         _markersOpen = false;
+        _transcriptOpen = false;
         _category = category;
         CategoryTitle.Text = ToolTipService.GetToolTip(button) as string ?? tag;
         RefreshPackages();

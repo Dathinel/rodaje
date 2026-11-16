@@ -5,7 +5,7 @@ namespace Rodaje.App.Services.Shortcuts;
 
 /// <summary>
 /// Todas las acciones con teclado de Rodaje, en el orden en que la app las registra: las del armazón
-/// (<see cref="EditorShortcuts"/>) y las de la línea de tiempo, el reproductor, los subtítulos y la ventana. Se arma sin
+/// (<see cref="EditorShortcuts"/>) y las de la línea de tiempo, el reproductor, los subtítulos, la transcripción y la ventana. Se arma sin
 /// WinUI: la guía <c>docs/guia/atajos.md</c> y la hoja de atajos de Ayuda salen de <see cref="All"/>, y una prueba
 /// comprueba que la guía esté al día.
 /// </summary>
@@ -18,6 +18,7 @@ public static class ShortcutCatalog
         .. PlayerShortcuts.Catalog,
         .. SubtitleShortcuts.Catalog,
         .. InterchangeShortcuts.Catalog,
+        .. TranscriptShortcuts.Catalog,
         .. ShellShortcuts.Catalog,
     ];
 

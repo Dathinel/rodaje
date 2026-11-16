@@ -2,6 +2,19 @@
 
 Lo que no cubren las pruebas automáticas ni la autoprueba del exe y conviene repasar con la app abierta antes de publicar. Cada apartado dice qué hacer y qué tiene que pasar. Las pruebas automáticas se corren con `Probar.bat`; la autoprueba, con `Rodaje.bat -Autoprueba`.
 
+## Editar por el texto
+
+Hace falta el módulo «Subtítulos automáticos» y un video con voz de unos minutos.
+
+1. Pon el video en la línea de tiempo, elige su clip y abre **Subtítulos automáticos…**. Se transcribe el medio entero; al aplicar, los subtítulos y la transcripción entran en un solo paso (un Ctrl+Z quita los dos).
+2. Corta el clip en dos, separa las mitades y pide otra vez **Subtítulos automáticos…** en la segunda: los subtítulos salen al instante, con el aviso «de la transcripción guardada». «Transcribir de nuevo» sigue disponible.
+3. **Ver › Transcripción**: el texto aparece por párrafos y la palabra que suena se resalta al reproducir; el panel solo se desplaza cuando la palabra sale de la vista.
+4. Selecciona una frase (clic y Mayús+clic) y pulsa **Supr**: la frase desaparece del texto, la línea de tiempo se cierra con el video enlazado y al escucharlo no se come sílabas ni deja chasquidos (si se oyen, apúntalo: es la pregunta 2 del diseño, fundido en cada corte).
+5. **Retroceso** con otra frase: queda el hueco. **Ctrl+X** en una frase y **Ctrl+V** con el cursor del panel en otra palabra: la frase se mueve ahí con su video.
+6. **Ctrl+F**, escribe una palabra con tilde sin ella («camion»): la encuentra.
+7. **Quitar muletillas…**: las seguras vienen marcadas y las dudosas no; al quitar, el texto pierde justo esas.
+8. Guarda, cierra y abre el proyecto: la transcripción sigue. Quita la última transcripción (quitando el medio) y guarda: el archivo vuelve a la versión anterior del formato.
+
 ## Exportar entre la entrada y la salida
 
 1. En la secuencia, lleva el cursor a los 2 s y pulsa **I**; a los 6 s, **O**. La barra de contexto muestra las marcas.
