@@ -48,10 +48,37 @@ internal static partial class SelfTestRun
             || !panel.Model.Document.Words.Select(w => w.Text).SequenceEqual(before.Where((_, i) => i != 1).Select(w => w.Text)))
             throw new InvalidOperationException("Borrar texto no quitó exactamente una palabra con ripple.");
 
+        panel.ShowRemovedWords(true);
+        panel.UpdateLayout();
+        if (!panel.HasVisibleRemovedWords)
+            throw new InvalidOperationException("Mostrar lo quitado no dibujó la palabra descartada.");
+        RemovedTranscriptSpan removed = panel.Model.RemovedWords.Single();
+        if (!session.ExecuteTranscript(panel.Model.Recover(removed)) || session.Sequence.Duration != duration
+            || !panel.Model.Document.Words.Select(w => w.Text).SequenceEqual(before.Select(w => w.Text)))
+            throw new InvalidOperationException("Recuperar no restauró el texto y la duración.");
+        session.Undo();
+        panel.ShowRemovedWords(false);
         session.Undo();
         if (session.Sequence.Duration != duration || !panel.Model.Document.Words.SequenceEqual(before))
             throw new InvalidOperationException("Deshacer no restauró la transcripción y la duración.");
 
+        if (!session.ExecuteTranscript(panel.Model.AddSpeaker("Ana", "#123456")))
+            throw new InvalidOperationException("No se pudo añadir un hablante.");
+        panel.Model.SelectWord(1);
+        if (!session.ExecuteTranscript(panel.Model.AssignSpeaker(1)))
+            throw new InvalidOperationException("No se pudo asignar el hablante.");
+        panel.UpdateLayout();
+        if (!panel.HasVisibleSpeakerNames || !panel.Model.Document.Paragraphs.Any(p => panel.Model.SpeakerOf(p) is { Name: "Ana", Color: "#123456" }))
+            throw new InvalidOperationException("El panel no mostró el hablante y su color.");
+        panel.Model.SelectWord(1);
+        if (!session.ExecuteTranscript(panel.Model.CorrectWord("palabra corregida"))
+            || !panel.Model.Document.Words.Skip(1).Take(2).Select(w => w.Text).SequenceEqual(["palabra", "corregida"]))
+            throw new InvalidOperationException("Corregir no partió la palabra en el panel.");
+        session.Undo();
+        session.Undo();
+        session.Undo();
+        if (!panel.Model.Document.Words.SequenceEqual(before))
+            throw new InvalidOperationException("Deshacer no restauró las palabras y sus hablantes.");
         session.Undo();
         window.LibraryPane.ShowMarkers();
         double stepMs = watch.Elapsed.TotalMilliseconds;

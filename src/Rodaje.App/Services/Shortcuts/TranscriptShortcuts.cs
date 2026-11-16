@@ -15,6 +15,8 @@ public static class TranscriptShortcuts
     public const string SelectAll = "transcript.selectAll";
     public const string ExtendLeft = "transcript.extendLeft";
     public const string ExtendRight = "transcript.extendRight";
+    public const string CorrectWord = "transcript.correctWord";
+    public const string AssignSpeaker = "transcript.assignSpeaker";
 
     public static IReadOnlyList<ShortcutAction> Catalog { get; } =
     [
@@ -32,5 +34,7 @@ public static class TranscriptShortcuts
         (SelectAll, KeyChord.Parse("Ctrl+A")),
         (ExtendLeft, KeyChord.Parse("Ctrl+Mayús+Izquierda")),
         (ExtendRight, KeyChord.Parse("Ctrl+Mayús+Derecha")),
+        (CorrectWord, KeyChord.Parse("F2")),
+        .. Enumerable.Range(0, 10).Select(n => (AssignSpeaker + n, KeyChord.Parse("Alt+" + n))),
     ];
 }

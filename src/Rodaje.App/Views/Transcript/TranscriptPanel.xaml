@@ -26,6 +26,10 @@
                 <Button Content="Quitar muletillas…" Click="OnFillersClick" />
                 <Button Content="Quitar pausas…" Click="OnPausesClick" />
             </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Hablantes…" Click="OnSpeakersClick" />
+                <ToggleSwitch x:Name="ShowRemovedToggle" Header="Mostrar lo quitado" Toggled="OnShowRemovedToggled" />
+            </StackPanel>
             <TextBlock x:Name="SummaryText" FontSize="12" />
         </StackPanel>
         <TextBlock x:Name="EmptyText" Grid.Row="3" Text="Transcribe el medio desde «Subtítulos automáticos» del menú del clip." TextWrapping="Wrap" />
@@ -38,7 +42,7 @@
                     <DataTemplate>
                         <Grid>
                             <Canvas IsHitTestVisible="False" />
-                            <TextBlock TextWrapping="Wrap" IsTextSelectionEnabled="False" Tapped="OnWordTapped" DoubleTapped="OnWordDoubleTapped" SizeChanged="OnParagraphSizeChanged" />
+                            <TextBlock TextWrapping="Wrap" IsTextSelectionEnabled="False" Tapped="OnWordTapped" DoubleTapped="OnWordDoubleTapped" RightTapped="OnWordRightTapped" SizeChanged="OnParagraphSizeChanged" />
                         </Grid>
                     </DataTemplate>
                 </ItemsRepeater.ItemTemplate>

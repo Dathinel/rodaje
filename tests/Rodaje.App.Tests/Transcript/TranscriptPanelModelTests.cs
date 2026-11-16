@@ -234,6 +234,89 @@ public sealed class TranscriptPanelModelTests
     }
 
     [Fact]
+    public void Corrections_capture_the_source_word_and_rebuild_search_and_paragraphs()
+    {
+        Project project = Talk();
+        TranscriptPanelModel model = Model(project);
+        model.SelectWord(1);
+        ICommand correction = Assert.IsAssignableFrom<ICommand>(model.CorrectWord("una frase"));
+        model.SelectWord(4);
+        correction.Apply(project);
+        Assert.True(model.Rebuild(project, project.Sequences[0]));
+        Assert.Equal(["Hola", "una", "frase", "bueno", "hola", "fin"], model.Document.Words.Select(w => w.Text));
+        model.Find("una frase");
+        Assert.True(model.FindNext());
+        Assert.Null(model.CorrectWord("dos"));
+        model.SelectWord(2);
+        Assert.IsAssignableFrom<ICommand>(model.SplitParagraph()).Apply(project);
+        Assert.True(model.Rebuild(project, project.Sequences[0]));
+        Assert.Contains(model.Document.Paragraphs, p => p.FirstWord == 2);
+        model.SelectWord(2);
+        Assert.IsAssignableFrom<ICommand>(model.CorrectWord("")).Apply(project);
+        Assert.True(model.Rebuild(project, project.Sequences[0]));
+        Assert.DoesNotContain(model.Document.Words, w => w.Text == "frase");
+    }
+
+    [Fact]
+    public void Speaker_actions_change_source_words_and_expose_the_name_and_color_for_every_clip()
+    {
+        Project project = Talk();
+        Clip repeat = project.Sequences[0].AudioTracks[0].Clips[0].Clone();
+        repeat.Id = "repeat";
+        repeat.Start = S(6);
+        project.Sequences[0].AudioTracks[0].Clips.Add(repeat);
+        TranscriptPanelModel model = Model(project);
+        Assert.Null(model.AssignSpeaker(1));
+        Assert.IsAssignableFrom<ICommand>(model.AddSpeaker("Ana", "#123456")).Apply(project);
+        Assert.True(model.Rebuild(project, project.Sequences[0]));
+        model.SelectWord(1);
+        model.SelectWord(2, extend: true);
+        Assert.Null(model.AssignSpeaker(2));
+        Assert.Null(model.AssignSpeaker(-1));
+        Assert.IsAssignableFrom<ICommand>(model.AssignSpeaker(1)).Apply(project);
+        Assert.True(model.Rebuild(project, project.Sequences[0]));
+        Assert.Equal(4, model.Document.Words.Count(w => w.SpeakerId is not null));
+        DocParagraph[] paragraphs = [.. model.Document.Paragraphs.Where(p => p.SpeakerId is not null)];
+        Assert.Equal(2, paragraphs.Length);
+        Assert.All(paragraphs, p => Assert.Equal("Ana", model.SpeakerOf(p)?.Name));
+        string id = model.Speakers[0].Id;
+        Assert.IsAssignableFrom<ICommand>(model.UpdateSpeaker(id, "María", "#ABCDEF")).Apply(project);
+        Assert.True(model.Rebuild(project, project.Sequences[0]));
+        Assert.All(paragraphs, p => Assert.Equal(("María", "#ABCDEF"), (model.SpeakerOf(p)?.Name, model.SpeakerOf(p)?.Color)));
+        model.SelectWord(6);
+        Assert.IsAssignableFrom<ICommand>(model.AssignSpeaker(0)).Apply(project);
+        Assert.True(model.Rebuild(project, project.Sequences[0]));
+        Assert.Null(model.Document.Words[1].SpeakerId);
+        Assert.Null(model.Document.Words[6].SpeakerId);
+    }
+
+    [Fact]
+    public void Show_removed_preserves_document_indices_and_recovery_restores_duration_and_text()
+    {
+        Project project = Talk();
+        TranscriptPanelModel model = Model(project);
+        string[] before = [.. model.Document.Words.Select(w => w.Text)];
+        Time duration = project.Sequences[0].Duration;
+        Assert.False(model.ShowRemoved);
+        Assert.Empty(model.RemovedWords);
+        model.SelectWord(1);
+        model.SelectWord(2, extend: true);
+        Assert.IsAssignableFrom<ICommand>(model.DeleteSelection(true)).Apply(project);
+        Assert.True(model.Rebuild(project, project.Sequences[0], version: 1));
+        RemovedTranscriptSpan span = Assert.Single(model.RemovedWords);
+        model.ShowRemoved = true;
+        Assert.False(model.Rebuild(project, project.Sequences[0], version: 1));
+        Assert.Equal(["Hola", "hola", "fin"], model.Document.Words.Select(w => w.Text));
+        Assert.IsType<SequenceEditCommand>(model.Recover(span)).Apply(project);
+        Assert.True(model.Rebuild(project, project.Sequences[0], version: 2));
+        Assert.Equal(before, model.Document.Words.Select(w => w.Text));
+        Assert.Equal(duration, project.Sequences[0].Duration);
+        Assert.True(model.ShowRemoved);
+        Assert.Empty(model.RemovedWords);
+        Assert.Null(model.Recover(span));
+    }
+
+    [Fact]
     public void PanelKeysAreFixedAndOnlyTheMenuActionIsInTheCatalog()
     {
         Assert.Contains(ShortcutCatalog.All, action => action.Id == TranscriptShortcuts.RemoveFillers);
@@ -241,6 +324,13 @@ public sealed class TranscriptPanelModelTests
         Assert.Contains((TranscriptShortcuts.Delete, KeyChord.Parse("Supr")), TranscriptShortcuts.PanelKeys);
         Assert.Contains((TranscriptShortcuts.Lift, KeyChord.Parse("Retroceso")), TranscriptShortcuts.PanelKeys);
         Assert.Contains((TranscriptShortcuts.ExtendRight, KeyChord.Parse("Ctrl+Mayús+Derecha")), TranscriptShortcuts.PanelKeys);
+        Assert.Contains((TranscriptShortcuts.CorrectWord, KeyChord.Parse("F2")), TranscriptShortcuts.PanelKeys);
+        Assert.DoesNotContain(ShortcutCatalog.All, action => action.Id == TranscriptShortcuts.CorrectWord);
+        for (int i = 0; i <= 9; i++)
+        {
+            Assert.Contains((TranscriptShortcuts.AssignSpeaker + i, KeyChord.Parse("Alt+" + i)), TranscriptShortcuts.PanelKeys);
+            Assert.DoesNotContain(ShortcutCatalog.All, action => action.Id == TranscriptShortcuts.AssignSpeaker + i);
+        }
         Assert.Equal(TranscriptShortcuts.PanelKeys.Count, TranscriptShortcuts.PanelKeys.Select(k => k.Chord).Distinct().Count());
     }
 }

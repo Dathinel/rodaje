@@ -7,7 +7,7 @@ namespace Rodaje.Core.Editing;
 /// Ediciones desde el texto (D-061): convierten palabras de un <see cref="TranscriptDocument"/> en tramos de la
 /// secuencia y los quitan o mueven con las ediciones de siempre (<see cref="AnalysisEdits.RemoveSpans"/>, pegar insertando).
 /// </summary>
-public static class TranscriptEdits
+public static partial class TranscriptEdits
 {
     /// <summary>
     /// Tramos de la secuencia, por clip, que ocupan las palabras dadas (índices de <see cref="TranscriptDocument.Words"/>):
