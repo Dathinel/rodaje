@@ -38,3 +38,30 @@ Los tramos pesados de la secuencia se precalculan a fragmentos intermedios y se 
 - **Coste por apertura** para `RenderCostModel`: unos 45 ms en 1080p y 180 ms en 4K (abrir y primer cuadro de ProRes); un fragmento abre un decodificador cada 2 s.
 - **Factor sin GPU**: componer en WARP cuesta unas 54 veces lo de la GPU (38,6 frente a 0,7 ms en la escena C); es donde el caché más ayuda.
 - Escenas B, D y E (desenfoque de movimiento, compuestos anidados, títulos por letra) y la medida con audio y presentación quedan para la prueba de hardware de F4.
+
+## Cómo está construido
+
+| Pieza | Dónde | Qué hace |
+|---|---|---|
+| `FrameEvaluator` | `Rodaje.Engine/Timeline` | Las capas de un instante sobre `TimelinePlan`; lo usan la exportación y la receta |
+| `FrameRecipe`, `RenderCacheKey` | `Rodaje.Playback/Composition` | La huella de 128 bits y la clasificación de cada propiedad (incluida o excluida) |
+| `RecipeBuilder` | `Rodaje.Engine/RenderCache` | La huella de cada cuadro sin decodificar; `null` donde falta contenido o es un respaldo |
+| `ContentFingerprint` | `Rodaje.Media/RenderCache` | Huella de contenido del medio, sin ruta (también la usa `MediaDuplicates`) |
+| `RenderCacheStore` | `Rodaje.Media/RenderCache` | Fragmentos `.mov` + `.json`, índice huella → cuadro, tope y limpieza |
+| `CacheCoverage` | `Rodaje.Engine/RenderCache` | Tramos que se ven desde el caché; los aplica al plan con `TimelineSession.ApplyCoverage` |
+| `RenderCacheJob`, `ExportPauseToken` | `Rodaje.Export/Running` | Un tramo → un fragmento, con pausa cooperativa |
+| `RenderCacheService`, `RenderCostModel` | `Rodaje.App/Services/RenderCache` | Qué calcular y cuándo; qué tramo va lento |
+
+**Por qué la cobertura va en el plan.** Poner una capa encima no basta: el planificador seguiría pidiendo y recorriendo las capas tapadas. Recortar los clips vivos fuera de lo cubierto hace que la demanda, la presentación y el pre-roll vean el borde de un tramo en caché como un corte más, sin tocar `TimelineScheduler`.
+
+**Lo que falta medir.** Calcular va a 10,2 cuadros/s en 1080p contando preparar y verificar cada fragmento de 2 s (objetivo: 2× tiempo real); la prueba con hardware de la reproducción (escenas A y C) espera a que la app calcule fragmentos reales (F5b).
+
+## Pendiente de la revisión del bloque (Gemini, 15-nov)
+
+Arreglados: el trozo cortado por una pausa larga vuelve a la cola (#522), los títulos bajo el caché no retienen el cuadro y el tope sigue el último uso tras reabrir el almacén (#524). Quedan como tareas, para cuando la app conecte el servicio (F5b):
+
+- **`RecipeFormat.Chain` sin calcular.** Hay que pasarle la huella de los shaders de render, efectos y exportación, el preajuste del codificador y la versión de FFmpeg; sin ella, una versión nueva del render daría por buenos fragmentos viejos.
+- **Fragmento ilegible.** Si un `.mov` del caché falla al decodificar, la app debe llamar a `Forget` y volver a aplicar la cobertura (en vivo) en lugar de dejar el tramo en negro.
+- **Trozo en curso al cambiar de plan.** Si sigue vigente, adoptarlo en vez de encolar un duplicado.
+- **`LateFrames` por capa.** Varias capas tarde en el mismo cuadro lo apuntan varias veces y acortan la ventana de 256.
+- **Exportar con la casilla.** La app tiene que pasar a la exportación el mismo almacén y el mismo `RecipeBuilder` con que calcula los fragmentos (`ExportRunnerOptions.RenderCache` y `RecipeBuilder`); sin ellos la casilla no hace nada.
