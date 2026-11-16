@@ -579,28 +579,7 @@ public static class FcpxmlWriter
         return clean.ToString(CultureInfo.InvariantCulture);
     }
 
-    private static string ToUri(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path))
-        {
-            return "file:///";
-        }
-
-        try
-        {
-            if (Uri.TryCreate(path, UriKind.Absolute, out Uri? uri) && uri.IsFile)
-            {
-                return uri.AbsoluteUri;
-            }
-
-            string full = Path.GetFullPath(path);
-            return new Uri(full).AbsoluteUri;
-        }
-        catch
-        {
-            return "file:///" + Uri.EscapeDataString(path.Replace('\\', '/'));
-        }
-    }
+    private static string ToUri(string path) => string.IsNullOrWhiteSpace(path) ? "file:///" : SequenceBuilder.ToFileUri(path);
 
     private abstract class SpineElement(Time start, Time duration)
     {
