@@ -14,6 +14,23 @@ public static class ContentReaders
 
     public static EffectPreset ReadEffect(Stream stream) => PresetReader.ReadEffect(stream);
 
+    /// <summary>Lee y comprueba un documento <c>rodaje.template</c> v1, incluidos los destinos publicados.</summary>
+    public static TemplateDocument ReadTemplate(Stream stream) => PresetReader.ReadTemplate(stream);
+
+    public static TemplateDocument ReadTemplate(string json)
+    {
+        ArgumentNullException.ThrowIfNull(json);
+        try
+        {
+            using var stream = new MemoryStream(SafeText.StrictUtf8.GetBytes(json));
+            return ReadTemplate(stream);
+        }
+        catch (System.Text.EncoderFallbackException ex)
+        {
+            throw new PackageContentException("El archivo tiene un texto que no es Unicode válido.", ex);
+        }
+    }
+
     /// <summary>Lee <c>rodaje.preset</c> v2 y también v1.</summary>
     public static TransitionPreset ReadTransition(Stream stream) => PresetReader.ReadTransition(stream);
 
