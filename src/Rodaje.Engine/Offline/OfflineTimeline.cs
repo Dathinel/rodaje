@@ -89,7 +89,7 @@ public sealed record OfflineTimelineOptions
 /// <see cref="ReverseFrameReader"/> y entrega de mayor a menor (un seek por tramo, no por cuadro).
 /// </para>
 /// </remarks>
-public sealed class OfflineTimeline : IDisposable
+public sealed class OfflineTimeline : IDisposable, IEvaluatorFrames
 {
     /// <summary>Un decodificador sin cuadros pedidos se cierra tras este tramo de la secuencia sin usarse.</summary>
     private static readonly Time IdleClose = Time.FromSeconds(2);
@@ -100,7 +100,10 @@ public sealed class OfflineTimeline : IDisposable
     private readonly OfflineTimelineOptions _options;
     private readonly Func<string, bool> _mediaExists;
     private readonly OfflineReaders _readers;
-    private readonly Lane[] _lanes;
+    private readonly FrameEvaluator _evaluator;
+    private readonly FrameEvaluator.Lane[] _lanes;
+    private readonly OfflineReaders.Slot?[] _mainSlots;
+    private readonly OfflineReaders.Slot?[] _incomingSlots;
     private readonly Time _frameDuration;
     private List<MissingContentItem>? _missing;
     private Time? _last;
@@ -122,7 +125,10 @@ public sealed class OfflineTimeline : IDisposable
         _mediaExists = mediaExists ?? (backend is MediaClipBackend ? File.Exists : static _ => true);
         Backend = backend;
         _frameDuration = Time.FromFrames(1, _plan.FrameRate);
-        _lanes = [.. _plan.Layers.Select(l => new Lane(l) { Content = options.Content })];
+        _evaluator = new FrameEvaluator(_plan, options.Content);
+        _lanes = _evaluator.Lanes;
+        _mainSlots = new OfflineReaders.Slot?[_lanes.Length];
+        _incomingSlots = new OfflineReaders.Slot?[_lanes.Length];
 
         long dedicated = device is { IsDisposed: false } gpu ? gpu.DedicatedVideoMemory : 0;
         long budget = new TimelineSessionOptions { VramBudgetBytes = options.VramBudgetBytes }.ResolveVramBudget(dedicated);
@@ -300,11 +306,12 @@ public sealed class OfflineTimeline : IDisposable
 
         _last = time;
         _readers.ReleaseBefore(time, IdleClose);
-        foreach (Lane lane in _lanes)
+        _evaluator.Pick(time);
+        for (int i = 0; i < _lanes.Length; i++)
         {
-            lane.Pick(time);
-            lane.MainSlot = lane.Main is { } main ? _readers.Request(main.Source, main.FrameAt(time), time, mustHave: true, main) : null;
-            lane.IncomingSlot = lane.Incoming is { } incoming ? _readers.Request(incoming.Source, incoming.FrameAt(time), time, mustHave: true, incoming) : null;
+            FrameEvaluator.Lane lane = _lanes[i];
+            _mainSlots[i] = lane.Main is { } main ? _readers.Request(main.Source, main.FrameAt(time), time, mustHave: true, main) : null;
+            _incomingSlots[i] = lane.Incoming is { } incoming ? _readers.Request(incoming.Source, incoming.FrameAt(time), time, mustHave: true, incoming) : null;
         }
 
         if (step is { } known)
@@ -313,7 +320,16 @@ public sealed class OfflineTimeline : IDisposable
         }
 
         PrefetchTitles(time, step ?? _frameDuration);
-        return Build(time, frame, cancellationToken);
+        return _evaluator.Build(time, frame, this, cancellationToken);
+    }
+
+    (DecodedFrame Frame, Rational SampleAspectRatio, int Rotation) IEvaluatorFrames.Get(int ordinal, VideoClipPlan clip, bool incoming, long index,
+        long sequenceFrame, CancellationToken cancellationToken)
+    {
+        OfflineReaders.Slot slot = (incoming ? _incomingSlots : _mainSlots)[ordinal]!;
+        DecodedFrame frame = _readers.Wait(slot, _options.FrameTimeout, sequenceFrame, cancellationToken);
+        VideoStreamInfo? stream = slot.Source.Stream;
+        return (frame, stream?.SampleAspectRatio ?? new Rational(1, 1), TimelineScheduler.NormalizeRotation(stream?.Rotation ?? 0));
     }
 
     /// <summary>Pide por delante los cuadros de los próximos instantes mientras quepan en la capacidad de cada decodificador.</summary>
@@ -332,7 +348,7 @@ public sealed class OfflineTimeline : IDisposable
                 continue;
             }
 
-            foreach (Lane lane in _lanes)
+            foreach (FrameEvaluator.Lane lane in _lanes)
             {
                 lane.PickAhead(ahead);
                 if ((lane.AheadMain is { } m && !_readers.HasRoom(m.Source, m.FrameAt(ahead), m))
@@ -342,7 +358,7 @@ public sealed class OfflineTimeline : IDisposable
                 }
             }
 
-            foreach (Lane lane in _lanes)
+            foreach (FrameEvaluator.Lane lane in _lanes)
             {
                 if ((lane.AheadMain is { } m && _readers.Request(m.Source, m.FrameAt(ahead), ahead, mustHave: false, m) is null)
                     || (lane.AheadIncoming is { } i && _readers.Request(i.Source, i.FrameAt(ahead), ahead, mustHave: false, i) is null))
@@ -364,7 +380,7 @@ public sealed class OfflineTimeline : IDisposable
         }
 
         Time until = time + Time.FromTicks(step.Ticks * _options.LookaheadFrames);
-        foreach (Lane lane in _lanes)
+        foreach (FrameEvaluator.Lane lane in _lanes)
         {
             IReadOnlyList<GeneratedClipPlan> generated = lane.Layer.Generated;
             for (int i = lane.Layer.FirstGeneratedEndingAfter(time); i < generated.Count && generated[i].Start <= until; i++)
@@ -374,230 +390,6 @@ public sealed class OfflineTimeline : IDisposable
                     titles.Prepare(content);
                 }
             }
-        }
-    }
-
-    private CompositionFrame Build(Time time, long frame, CancellationToken cancellationToken)
-    {
-        var layers = new List<LayerFrame>(_lanes.Length);
-        try
-        {
-            foreach (Lane lane in _lanes)
-            {
-                if (!lane.Layer.IsNested && Assemble(lane, time, frame, cancellationToken) is { } layer)
-                {
-                    layers.Add(layer);
-                }
-            }
-
-            return new CompositionFrame(time, Width, Height, layers);
-        }
-        catch
-        {
-            layers.ForEach(l => l.Dispose());
-            throw;
-        }
-    }
-
-    /// <summary>Como <c>TimelineScheduler.Assemble</c>: el título, el compuesto o el clip del carril, con su transición.</summary>
-    private LayerFrame? Assemble(Lane lane, Time time, long frame, CancellationToken cancellationToken)
-    {
-        if (lane.Layer.GeneratedAt(time) is { } title)
-        {
-            return title.Layer(lane.Layer.TrackIndex, time, lane.TitleEffects, lane.Content, _frameDuration.Ticks);
-        }
-
-        GroupClipPlan? group = lane.Layer.GroupAt(time);
-        if (group is null && lane.Main is null)
-        {
-            return lane.Layer.IncomingGroupAt(time) is { } alone ? Group(lane, alone, time, frame, null, entering: true, 0, null, cancellationToken) : null;
-        }
-
-        LayerFrame? incoming = null;
-        try
-        {
-            if (lane.Transition is { } transition)
-            {
-                float progress = transition.Progress(time);
-                incoming = lane.Incoming is { } entering
-                    ? Layer(lane, entering, _readers.Wait(lane.IncomingSlot!, _options.FrameTimeout, frame, cancellationToken), lane.IncomingEffects,
-                        lane.IncomingSlot!, time, transition, entering: true, progress, null)
-                    : lane.Layer.IncomingGroupAt(time) is { } enteringGroup
-                        ? Group(lane, enteringGroup, time, frame, transition, entering: true, progress, null, cancellationToken)
-                        : null;
-                if (incoming is not null)
-                {
-                    LayerTransition mix = transition.Layer(time, progress, incoming);
-                    return group is not null
-                        ? Group(lane, group, time, frame, transition, entering: false, progress, mix, cancellationToken)
-                        : Layer(lane, lane.Main!, _readers.Wait(lane.MainSlot!, _options.FrameTimeout, frame, cancellationToken), lane.MainEffects,
-                            lane.MainSlot!, time, transition, entering: false, progress, mix);
-                }
-            }
-
-            return group is not null
-                ? Group(lane, group, time, frame, null, entering: false, 0, null, cancellationToken)
-                : Layer(lane, lane.Main!, _readers.Wait(lane.MainSlot!, _options.FrameTimeout, frame, cancellationToken), lane.MainEffects,
-                    lane.MainSlot!, time, null, entering: false, 0, null);
-        }
-        catch
-        {
-            incoming?.Dispose();
-            throw;
-        }
-    }
-
-    /// <summary>Como <c>TimelineScheduler.BuildGroup</c>: las capas de los carriles del compuesto en una capa compuesta.</summary>
-    private LayerFrame? Group(Lane lane, GroupClipPlan group, Time time, long frame, TransitionPlan? transition, bool entering, float progress,
-        LayerTransition? withTransition, CancellationToken cancellationToken)
-    {
-        var children = new List<LayerFrame>(group.Lanes.Count);
-        try
-        {
-            foreach (VideoLayerPlan inner in group.Lanes)
-            {
-                if (Assemble(_lanes[inner.Ordinal], time, frame, cancellationToken) is { } child)
-                {
-                    children.Add(child);
-                }
-            }
-        }
-        catch
-        {
-            children.ForEach(c => c.Dispose());
-            throw;
-        }
-
-        if (children.Count == 0 && transition is null)
-        {
-            return null;
-        }
-
-        Time source = group.EffectTimeAt(time);
-        EffectPlan? plan = group.Effects;
-        LayerTransform transform = EffectPlan.Transform(plan, source);
-        if (transition is not null)
-        {
-            transform = transition.Apply(transform, entering, progress);
-        }
-
-        IReadOnlyList<LayerEffect> effects = [];
-        EffectListRing ring = entering ? lane.IncomingGroupEffects : lane.GroupEffects;
-        EffectList? lists = null;
-        if (plan is { EffectCount: > 0 })
-        {
-            lists = ring.Next();
-            plan.Evaluate(source, lists.Reset(plan.EffectCount), lane.Content);
-            effects = lists;
-        }
-
-        IReadOnlyList<LayerTransform>? motion = MotionSampler.Sample(plan?.Motion, new GroupMotionSource(group, transition, entering, progress), time,
-            _frameDuration.Ticks, ring, ref lists);
-        return new LayerFrame(lane.Layer.TrackIndex, group.ClipId, children, transform)
-        {
-            Effects = effects,
-            Blend = plan?.Blend ?? BlendMode.Normal,
-            Transition = withTransition,
-            MotionSamples = motion,
-        };
-    }
-
-    /// <summary>Como <c>TimelineScheduler.Build</c>: transformación, transición, efectos en tiempo del origen y mezcla.</summary>
-    private LayerFrame Layer(Lane lane, VideoClipPlan clip, DecodedFrame frame, EffectListRing ring, OfflineReaders.Slot slot, Time time,
-        TransitionPlan? transition, bool entering, float progress, LayerTransition? withTransition)
-    {
-        Time source = clip.EffectTimeAt(time);
-        EffectPlan? plan = clip.Effects;
-        LayerTransform transform = EffectPlan.Stabilized(plan, EffectPlan.Transform(plan, source), frame.Index);
-        if (transition is not null)
-        {
-            transform = transition.Apply(transform, entering, progress);
-        }
-
-        IReadOnlyList<LayerEffect> effects = [];
-        EffectList? lists = null;
-        if (plan is { EffectCount: > 0 })
-        {
-            lists = ring.Next();
-            plan.Evaluate(source, lists.Reset(plan.EffectCount), lane.Content);
-            effects = lists;
-        }
-
-        IReadOnlyList<LayerTransform>? motion = MotionSampler.Sample(plan?.Motion,
-            new ClipMotionSource(plan, clip, frame.Index, transition, entering, progress), time, _frameDuration.Ticks, ring, ref lists);
-        VideoStreamInfo? stream = slot.Source.Stream;
-        return new LayerFrame(lane.Layer.TrackIndex, clip.ClipId, frame, transform, stream?.SampleAspectRatio ?? new Rational(1, 1),
-            TimelineScheduler.NormalizeRotation(stream?.Rotation ?? 0))
-        {
-            Effects = effects,
-            Blend = plan?.Blend ?? BlendMode.Normal,
-            Transition = withTransition,
-            MotionSamples = motion,
-        };
-    }
-
-    /// <summary>Una pista visible: su carril principal y el compañero, y lo que muestra cada uno en el instante pedido.</summary>
-    private sealed class Lane(VideoLayerPlan layer)
-    {
-        public VideoLayerPlan Layer { get; } = layer;
-
-        public IEffectResources? Content { get; init; }
-
-        public EffectListRing MainEffects { get; } = new();
-
-        public EffectListRing IncomingEffects { get; } = new();
-
-        public EffectListRing TitleEffects { get; } = new();
-
-        public EffectListRing GroupEffects { get; } = new();
-
-        public EffectListRing IncomingGroupEffects { get; } = new();
-
-        public VideoClipPlan? Main { get; private set; }
-
-        public VideoClipPlan? Incoming { get; private set; }
-
-        public TransitionPlan? Transition { get; private set; }
-
-        public OfflineReaders.Slot? MainSlot { get; set; }
-
-        public OfflineReaders.Slot? IncomingSlot { get; set; }
-
-        public VideoClipPlan? AheadMain { get; private set; }
-
-        public VideoClipPlan? AheadIncoming { get; private set; }
-
-        public void Pick(Time time) => (Main, Incoming, Transition) = Choose(time);
-
-        public void PickAhead(Time time) => (AheadMain, AheadIncoming, _) = Choose(time);
-
-        /// <summary>
-        /// Como <c>TimelineScheduler.Compose</c> con todas las capas listas: el clip del carril principal y, si está en su
-        /// transición, el que entra por el compañero; sin principal, el que entra va solo y sin transición.
-        /// </summary>
-        /// <remarks>Con un compuesto en el principal no hay clip principal; uno que entra va en <see cref="Incoming"/> solo con su transición.</remarks>
-        private (VideoClipPlan?, VideoClipPlan?, TransitionPlan?) Choose(Time time)
-        {
-            VideoClipPlan? main = Layer.ClipAt(time);
-            VideoClipPlan? incoming = Layer.Companion?.ClipAt(time);
-            GroupClipPlan? group = Layer.GroupAt(time);
-            GroupClipPlan? enteringGroup = Layer.IncomingGroupAt(time);
-            if (group is null && main is null)
-            {
-                return (enteringGroup is null ? incoming : null, null, null);
-            }
-
-            if ((group is not null ? group.Outgoing : main!.Outgoing) is not { } transition || !transition.Covers(time))
-            {
-                return (main, null, null);
-            }
-
-            if (incoming is not null && incoming.ClipId == transition.ToClipId)
-            {
-                return (main, incoming, transition);
-            }
-
-            return (main, null, enteringGroup?.ClipId == transition.ToClipId ? transition : null);
         }
     }
 }
