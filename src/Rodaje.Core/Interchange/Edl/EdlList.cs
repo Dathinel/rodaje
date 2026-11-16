@@ -233,6 +233,11 @@ internal sealed class EdlList
 
             long recordIn = origin.Frame + Frames(item.Start);
             long duration = Math.Max(1, Frames(item.Start + item.Duration) - Frames(item.Start));
+            if (recordIn + duration > (long)nominal * 86_400 - (origin.DropFrame ? nominal / 15 * 1296 : 0))
+            {
+                report.Add(IssueSeverity.Lost, IssueKind.Rounding, "Un clip que pasa de las 24 h del TC no cabe en la EDL (el TC daría la vuelta).", media.Name, clip.Id, item.Start);
+                return null;
+            }
             ClipSpeed? speed = clip.Speed;
             int? tenths = null;
             Time anchor = clip.SourceIn;
@@ -416,7 +421,7 @@ internal sealed class EdlList
                 source = new MediaRef
                 {
                     Id = $"edl-medio-{media.Count}",
-                    Path = path ?? edlEvent.ClipName ?? edlEvent.Reel,
+                    Path = path ?? (IsNetwork(edlEvent.ClipName) ? null : edlEvent.ClipName) ?? edlEvent.Reel,
                     Name = edlEvent.ClipName ?? edlEvent.Reel,
                     Reel = edlEvent.Reel,
                     FrameRate = rate,
@@ -526,6 +531,10 @@ internal sealed class EdlList
             throw new InterchangeException($"La EDL necesita una tasa de 24, 25, 30, 48, 50 o 60 cuadros (o sus variantes NTSC); la secuencia va a {rate}.");
         }
     }
+
+    /// <summary>Una ruta de red no se sondea sola (podría abrir una conexión): no sirve de ruta provisional.</summary>
+    private static bool IsNetwork(string? text) =>
+        text is not null && (text.StartsWith(@"\\", StringComparison.Ordinal) || text.StartsWith("//", StringComparison.Ordinal) || text.Contains("://", StringComparison.Ordinal));
 
     private static int ChannelOrder(string channel) => channel switch { "V" => 0, "A" => 1, _ => 2 };
 
