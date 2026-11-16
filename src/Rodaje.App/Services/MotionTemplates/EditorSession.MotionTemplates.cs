@@ -66,9 +66,16 @@ public sealed partial class EditorSession
         try
         {
             TemplateDocument document = ContentReaders.ReadTemplate(template.Document);
+            // Salir de un campo sin tocarlo no es un paso del historial.
+            if (document.Parameters.FirstOrDefault(p => p.Id == parameterId) is { } parameter
+                && JsonNode.DeepEquals(TemplateInstances.Current(document, template.Values, parameter), value))
+            {
+                return false;
+            }
+
             Dictionary<string, JsonElement> values = TemplateInstances.With(template.Values, parameterId, value);
             return Execute(Edits.SetTemplateValues(SequenceId, clipId, values, TemplateInstances.Layers(document, values, template.Source), _ids,
-                $"template:{clipId}:{parameterId}"));
+                parameterId));
         }
         catch (PackageContentException ex)
         {

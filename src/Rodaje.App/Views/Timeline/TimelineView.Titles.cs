@@ -89,10 +89,22 @@ internal sealed partial class TimelineView
             if (PackageReference.TryParse(reference, out PackageReference? parsed)
                 && installed.Find(parsed.PackageId)?.Manifest.FindItem(parsed.ItemId, ItemKind.MotionTemplate) is not null)
             {
-                if (await Task.Run(() => MotionTemplateCatalog.Find(installed, reference)) is { Kind: TemplateKind.Title } template && session.SequenceId == droppedOn)
+                if (await Task.Run(() => MotionTemplateCatalog.Find(installed, reference)) is not { } template || session.SequenceId != droppedOn)
                 {
-                    session.AddTemplate(template, t.Track?.Id, t.At);
+                    return;
                 }
+
+                if (template.Kind != TemplateKind.Title)
+                {
+                    session.Notify(NotificationSeverity.Informational, $"«{template.Name}» no se suelta en una pista",
+                        template.Kind == TemplateKind.Transition
+                            ? "Es una plantilla de transición: selecciona un clip pegado a otro y haz doble clic en ella."
+                            : "Es una plantilla de efecto: selecciona un clip de video y haz doble clic en ella.");
+                    return;
+                }
+
+                // La pista bajo el puntero se eligió con la duración de un título; si la plantilla dura más y no cabe, va a la libre más alta.
+                session.AddTemplate(template, TemplateDrops.FitsIn(t.Track, t.At, template.Document.DurationSeconds) ? t.Track!.Id : null, t.At);
 
                 return;
             }

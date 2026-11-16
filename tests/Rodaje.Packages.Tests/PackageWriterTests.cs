@@ -39,6 +39,9 @@ public sealed class PackageWriterTests
     [InlineData("paquete", "con espacio", "plantillas/barra.json")]
     [InlineData("paquete", "barra", "../fuera.json")]
     [InlineData("paquete", "barra", "paquete.json")]
+    [InlineData("paquete", "barra", "Paquete.json")]
+    [InlineData("paquete", "barra", "integridad.json")]
+    [InlineData("propios", "barra", "plantillas/barra.json")]
     public void Rechaza_ids_y_rutas_que_no_valen(string id, string itemId, string file)
     {
         Assert.Throws<ArgumentException>(() => PackageWriter.Write(Package with { Id = id, ItemId = itemId, File = file }, []));

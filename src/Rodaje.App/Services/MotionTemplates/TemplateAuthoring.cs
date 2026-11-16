@@ -35,6 +35,24 @@ public static class TemplateAuthoring
     public const double MinSize = 8;
     public const double MaxSize = 400;
 
+    /// <summary>Tope del id de una plantilla propia: deja sitio a «-2» si el archivo ya existe y a «plantilla.» al exportarla.</summary>
+    public const int MaxIdLength = 50;
+
+    /// <summary>El tamaño más pequeño que admite el estilo: un borde no pasa de la mitad del tamaño.</summary>
+    public static double MinSizeOf(TextStyle style)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+        return Math.Max(MinSize, Math.Ceiling(style.AllStrokes().Select(s => s.Width * 2).DefaultIfEmpty(0).Max()));
+    }
+
+    /// <summary>El id de archivo y de elemento de una plantilla con ese nombre: minúsculas sin tildes, sin nombres reservados y acotado.</summary>
+    public static string Identifier(string name)
+    {
+        ArgumentNullException.ThrowIfNull(name);
+        string id = PackageLibrary.ToIdentifier(name);
+        return id.Length > MaxIdLength ? PackageLibrary.ToIdentifier(id[..MaxIdLength]) : id;
+    }
+
     /// <summary>Los títulos de la selección que pueden ser capas, de abajo arriba y hasta el tope de capas.</summary>
     public static IReadOnlyList<Clip> Titles(Sequence sequence, IEnumerable<string> clipIds)
     {
@@ -74,7 +92,7 @@ public static class TemplateAuthoring
             }
 
             fields.Add(new(i, TemplateField.Font, false, "Fuente" + suffix));
-            if (style.Size is >= MinSize and <= MaxSize)
+            if (style.Size >= MinSizeOf(style) && style.Size <= MaxSize)
             {
                 fields.Add(new(i, TemplateField.Size, false, "Tamaño" + suffix));
             }
@@ -98,27 +116,35 @@ public static class TemplateAuthoring
 
         Time start = titles.Min(t => t.Start);
         Time end = titles.Max(t => t.End);
-        double duration = Math.Min((end - start).ToSeconds(), TemplateLimits.MaxSeconds);
+        double duration = (end - start).ToSeconds();
+        if (duration > TemplateLimits.MaxSeconds)
+        {
+            throw new ArgumentException($"Los títulos seleccionados abarcan más de {TemplateLimits.MaxSeconds / 60:0} minutos: una plantilla no puede durar tanto.", nameof(titles));
+        }
+
         double minimum = 0;
         var layers = new JsonArray();
         for (int i = 0; i < titles.Count; i++)
         {
             Clip clip = titles[i];
             ClipGenerator generator = clip.Generator!;
-            TextStyle style = generator.Style!;
+            // Un borde con la animación desactivada no la lleva a la plantilla.
+            TextStyle style = generator.Style!.Clone();
+            style.In = generator.Edges.In ? style.In : null;
+            style.Out = generator.Edges.Out ? style.Out : null;
             double unit = Math.Min((double)sequence.Width / style.Reference.Width, (double)sequence.Height / style.Reference.Height);
             EffectInstance? transform = clip.Effects.Find(e => e.Type == BuiltInEffects.Transform);
             double before = (clip.Start - start).ToSeconds();
             double after = (end - clip.End).ToSeconds();
-            minimum = Math.Max(minimum, before + after + (generator.Edges.In ? style.In?.DurationSeconds ?? 0 : 0) + (generator.Edges.Out ? style.Out?.DurationSeconds ?? 0 : 0));
+            minimum = Math.Max(minimum, before + after + (style.In?.DurationSeconds ?? 0) + (style.Out?.DurationSeconds ?? 0));
             var layer = new JsonObject
             {
                 ["id"] = LayerId(i),
                 ["text"] = generator.Text,
                 ["start"] = Round(before),
                 ["end"] = Round(after),
-                ["x"] = Round(Position(transform, BuiltInEffects.TransformParameters.X) / unit),
-                ["y"] = Round(Position(transform, BuiltInEffects.TransformParameters.Y) / unit),
+                ["x"] = Round(Math.Clamp(Position(transform, BuiltInEffects.TransformParameters.X) / unit, -TemplateLimits.MaxPosition, TemplateLimits.MaxPosition)),
+                ["y"] = Round(Math.Clamp(Position(transform, BuiltInEffects.TransformParameters.Y) / unit, -TemplateLimits.MaxPosition, TemplateLimits.MaxPosition)),
             };
             if (generator.Box?.WidthFraction is { } fraction)
             {
@@ -162,7 +188,7 @@ public static class TemplateAuthoring
             };
             if (field.Field == TemplateField.Size)
             {
-                parameter["min"] = MinSize;
+                parameter["min"] = MinSizeOf(titles[field.Layer].Generator!.Style!);
                 parameter["max"] = MaxSize;
                 parameter["step"] = 1;
             }
@@ -195,7 +221,7 @@ public static class TemplateAuthoring
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(json);
         Directory.CreateDirectory(folder);
-        string slug = AnimationPreset.Slug(name);
+        string slug = Identifier(name);
         string path = Path.Combine(folder, slug + AnimationPreset.FileExtension);
         for (int n = 2; File.Exists(path); n++)
         {
@@ -210,8 +236,14 @@ public static class TemplateAuthoring
     public static byte[] Export(MotionTemplateEntry entry, string author)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        string id = PackageReference.TryParse(entry.Reference, out PackageReference? reference) ? reference.ItemId : AnimationPreset.Slug(entry.Name);
-        var package = new SingleItemPackage("plantilla." + id, PackageVersion.Parse("1.0.0"), entry.Name,
+        string id = PackageReference.TryParse(entry.Reference, out PackageReference? reference) ? reference.ItemId : Identifier(entry.Name);
+        string packageId = "plantilla." + id;
+        if (packageId.Length > Identifiers.MaxLength)
+        {
+            packageId = packageId[..Identifiers.MaxLength].TrimEnd('-', '.');
+        }
+
+        var package = new SingleItemPackage(packageId, PackageVersion.Parse("1.0.0"), entry.Name,
             string.IsNullOrWhiteSpace(author) ? "Sin autor" : author.Trim(), "LicenseRef-Propio", "rodaje", id, ItemKind.MotionTemplate, entry.Name,
             $"plantillas/{id}.json");
         return PackageWriter.Write(package, System.Text.Encoding.UTF8.GetBytes(entry.DocumentText));

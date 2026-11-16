@@ -49,7 +49,8 @@ public static partial class Edits
     {
         var valuesCopy = new Dictionary<string, System.Text.Json.JsonElement>(values);
         List<TemplateLayer> layersCopy = layers.ConvertAll(l => l.Clone());
-        return new("Cambiar la plantilla", sequenceId, ctx => TemplateEdits.SetValues(ctx, clipId, valuesCopy, layersCopy), ids, mergeKey);
+        return new("Cambiar la plantilla", sequenceId, ctx => TemplateEdits.SetValues(ctx, clipId, valuesCopy, layersCopy), ids,
+            mergeKey is null ? null : $"template-values:{clipId}:{mergeKey}");
     }
 
     /// <summary>«Actualizar a X»: cambia la plantilla del clip por una versión más nueva ya instanciada (D-064): un paso.</summary>
