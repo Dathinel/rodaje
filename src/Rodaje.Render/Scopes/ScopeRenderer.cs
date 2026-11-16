@@ -193,6 +193,7 @@ public sealed unsafe class ScopeRenderer : IDisposable
                 }
 
                 _context->Unmap((ID3D11Resource*)_staging[slot], 0);
+                PixelFingerprint.Record("monitor", pixels.AsSpan());
                 (long sequence, ScopeKind kind) = _pending[slot];
                 latest = new ScopeImage(pixels, ImageWidth, ImageHeight, kind, sequence);
                 _read++;

@@ -94,6 +94,7 @@ internal sealed unsafe class OffscreenTarget : IDisposable
             staging->Release();
         }
 
+        PixelFingerprint.Record("presentacion", pixels.AsSpan());
         return new RgbaImage(pixels, Width, Height);
     }
 
