@@ -15,7 +15,6 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
     private ID3D11ComputeShader* _chroma;
     private ID3D11Buffer* _constants;
     private long _frame;
-    private bool _unsupported;
     private FlowInterpolator? _flow;
 
     public int TextureCount => _slots.Count + (_flow?.TextureCount ?? 0);
@@ -41,7 +40,8 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
 
     private D3D11TexturePayload? Interpolate(D3D11TexturePayload a, D3D11TexturePayload b, float fraction, bool opticalFlow)
     {
-        if (_unsupported || a.IsReleased || b.IsReleased || a.DxgiFormat != b.DxgiFormat || a.Width != b.Width || a.Height != b.Height
+        if (a.IsReleased || b.IsReleased || a.DxgiFormat != b.DxgiFormat || a.PixelFormat != b.PixelFormat
+            || a.Width != b.Width || a.Height != b.Height
             || a.DxgiFormat is not ((int)DXGI_FORMAT.DXGI_FORMAT_NV12 or (int)DXGI_FORMAT.DXGI_FORMAT_P010 or (int)DXGI_FORMAT.DXGI_FORMAT_P016)
             || !float.IsFinite(fraction))
         {
@@ -86,7 +86,6 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
             {
                 // Un controlador sin vistas de escritura sobre planos de video: la capa sale con el cuadro A, no se cae el cuadro.
                 budget.ReleaseReservation(bytes);
-                _unsupported = true;
                 return null;
             }
             catch
@@ -124,7 +123,7 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
             if (ownFirst) first.Release();
         }
 
-        D3D11TexturePayload payload = D3D11TexturePayload.FromTexture(gpu, (nint)slot.Texture, 0, a.Width, a.Height, a.Color);
+        D3D11TexturePayload payload = D3D11TexturePayload.FromTexture(gpu, (nint)slot.Texture, 0, a.Width, a.Height, a.Color, a.PixelFormat);
         _payloads.Add(payload);
         return payload;
     }

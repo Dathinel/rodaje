@@ -30,6 +30,9 @@ internal static class FlowShaders
         }
         """;
 
+    /// <summary>Todo el HLSL de la interpolación, para la huella del render en caché.</summary>
+    public static string Source => Blend + OpticalSource;
+
     public static ShaderVariant Luma { get; } = new(Blend, "CsBlend", "cs_5_0", "rodaje-flow.hlsl");
     public static ShaderVariant Chroma { get; } = new(Blend, "CsBlend", "cs_5_0", "rodaje-flow.hlsl", "CHROMA");
 
