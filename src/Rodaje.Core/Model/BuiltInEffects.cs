@@ -818,6 +818,9 @@ public static partial class BuiltInEffects
     {
         /// <summary>Referencia <c>paquete@versión/elemento</c> del filtro o efecto de paquete del que salió la copia.</summary>
         public const string Source = "source";
+
+        /// <summary>Valores de la plantilla de movimiento de la que salió (JSON compacto de un objeto id → valor, D-064).</summary>
+        public const string TemplateValues = "template.values";
     }
 }
 
