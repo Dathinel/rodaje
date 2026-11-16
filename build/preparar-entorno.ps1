@@ -74,7 +74,7 @@ $FfmpegPorRid = @{
     }
     'osx-arm64' = @{
         Variante = 'macarm64'; Paquete = "ffmpeg-$FfmpegVersion-macarm64-lgpl-shared-9.0.tar.xz"
-        Sha256   = '89c75e7b487d526415e9bd88e2c4fddfe9cad03fb78827bd5085f557f6a90112'
+        Sha256   = 'f041be2416542d7882b6db31d040ca97d2f999508722340aafb2a3c9d1f7050f'
         Archivos = @('bin/ffmpeg', 'bin/ffprobe', 'lib/libavcodec.63.dylib', 'lib/libavformat.63.dylib',
             'lib/libavutil.61.dylib', 'lib/libswresample.7.dylib', 'lib/libswscale.10.dylib')
     }
