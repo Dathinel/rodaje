@@ -158,9 +158,12 @@ public sealed class RenderCacheJobTests(ITestOutputHelper output) : IDisposable
         {
             await WaitUntilAsync(() => job.Export is { FramesWritten: >= 2 }, running);
             pause.Pause();
-            await WaitUntilAsync(() => pause.IsWaiting, running);
+
+            // Con el tope de 200 ms la pausa puede vencer antes de verla en espera en un runner lento: solo se espera a
+            // verla cuando se cancela a mano.
             if (cancelWhilePaused)
             {
+                await WaitUntilAsync(() => pause.IsWaiting, running);
                 await cancel.CancelAsync();
             }
 
