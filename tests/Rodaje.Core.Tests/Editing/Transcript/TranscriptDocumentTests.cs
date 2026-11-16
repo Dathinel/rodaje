@@ -165,6 +165,22 @@ public sealed class TranscriptDocumentTests
     }
 
     [Fact]
+    public void Find_skips_words_without_letters_between_the_ones_searched()
+    {
+        TrimFixture f = Whole();
+        List<SpokenWord> words = f.Project.Transcripts[0].Words;
+        words[4].Text = "hola";
+        words[5].Text = "—";
+        words[6].Text = "amigos";
+        words[0].Text = "[…]";
+
+        TranscriptDocument doc = f.Doc();
+
+        Assert.Equal([(4, 3)], doc.Find("hola amigos"));
+        Assert.Equal([(1, 1)], doc.Find("w1"));
+    }
+
+    [Fact]
     public void Freezes_stills_titles_and_media_without_transcript_show_nothing()
     {
         TrimFixture f = new TrimFixture()
