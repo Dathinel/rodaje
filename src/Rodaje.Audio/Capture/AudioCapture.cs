@@ -32,7 +32,10 @@ public interface IAudioCapture : IDisposable
 public static class AudioCapture
 {
     /// <summary>Los dispositivos de entrada activos, el predeterminado primero. Vacío si no hay o el servicio de audio no responde.</summary>
-    public static IReadOnlyList<AudioCaptureDevice> ListDevices()
+    public static IReadOnlyList<AudioCaptureDevice> ListDevices() => OperatingSystem.IsWindows() ? ListWasapiDevices() : [];
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
+    private static IReadOnlyList<AudioCaptureDevice> ListWasapiDevices()
     {
         var devices = new List<AudioCaptureDevice>();
         RunMta(wrappers =>
@@ -89,8 +92,11 @@ public static class AudioCapture
 
     /// <summary>Abre el dispositivo (el predeterminado si <paramref name="deviceId"/> es nulo) sin empezar a capturar.</summary>
     /// <exception cref="AudioDeviceUnavailableException">No hay micrófono, está en uso exclusivo o Windows lo rechazó.</exception>
-    public static IAudioCapture Open(string? deviceId, int sampleRate = 48_000) => new WasapiCapture(deviceId, sampleRate);
+    public static IAudioCapture Open(string? deviceId, int sampleRate = 48_000) => OperatingSystem.IsWindows()
+        ? new WasapiCapture(deviceId, sampleRate)
+        : throw new AudioDeviceUnavailableException("La captura de audio en este sistema todavía no está disponible.");
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     internal static IMMDeviceEnumerator CreateEnumerator(ComWrappers wrappers)
     {
         Com.Check(NativeMethods.CoCreateInstance(
@@ -99,6 +105,7 @@ public static class AudioCapture
     }
 
     /// <summary>Corre <paramref name="action"/> en un hilo MTA propio y espera; las excepciones de audio se tragan (lista vacía).</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private static void RunMta(Action<ComWrappers> action)
     {
         var thread = new Thread(() =>
@@ -132,6 +139,7 @@ public static class AudioCapture
 /// Un hilo propio (MTA, MMCSS «Pro Audio») abre el cliente, espera el evento del dispositivo y entrega cada paquete
 /// convertido a mono. El búfer de 200 ms da margen para que escribir el archivo no pierda muestras.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 internal sealed unsafe class WasapiCapture : IAudioCapture
 {
     private static readonly TimeSpan Buffer = TimeSpan.FromMilliseconds(200);

@@ -18,6 +18,7 @@ namespace Rodaje.Media.Gpu;
 /// medir más que la imagen (<see cref="CodedWidth"/> frente a <see cref="Width"/>): se recorta al muestrear.
 /// </para>
 /// </remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe class D3D11TexturePayload : IDisposable
 {
     private static long s_live;

@@ -541,7 +541,7 @@ internal static class CinemaDngImport
         }
 
         Process process = Process.Start(info) ?? throw new IOException("ffmpeg.exe no arrancó.");
-        ChildProcessJob.TryAssign(process);
+        ChildProcessGuard.TryAssign(process);
         return process;
     }
 

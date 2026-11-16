@@ -131,7 +131,7 @@ public sealed partial class ModelStore(string folder, FileDownloader downloader,
             File.Delete(target);
         }
 
-        if (OperatingSystem.IsWindows() && CreateHardLink(target, source, 0))
+        if (OperatingSystem.IsWindows() ? CreateHardLink(target, source, 0) : Link(source, target) == 0)
         {
             return;
         }
@@ -149,6 +149,10 @@ public sealed partial class ModelStore(string folder, FileDownloader downloader,
             throw;
         }
     }
+
+    // link(2) de Linux y macOS: mismo efecto que CreateHardLinkW; si falla (otro volumen), se copia.
+    [LibraryImport("libc", EntryPoint = "link", StringMarshalling = StringMarshalling.Utf8, SetLastError = true)]
+    private static partial int Link(string existing, string newPath);
 
     [LibraryImport("kernel32.dll", EntryPoint = "CreateHardLinkW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

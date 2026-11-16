@@ -14,6 +14,7 @@ namespace Rodaje.Media.Gpu;
 /// secuencias de varias llamadas (copiar y luego <c>Map</c>) van dentro del candado del contexto, que es
 /// el mismo que usa FFmpeg al decodificar en otro hilo.
 /// </remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe class GpuDevice : IDisposable
 {
     private readonly Lock _managedLock = new();

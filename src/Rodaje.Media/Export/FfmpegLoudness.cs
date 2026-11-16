@@ -108,7 +108,7 @@ public static class FfmpegLoudness
 
         using var process = new Process { StartInfo = info };
         process.Start();
-        ChildProcessJob.TryAssign(process);
+        ChildProcessGuard.TryAssign(process);
         using CancellationTokenRegistration registration = cancellationToken.Register(() =>
         {
             try

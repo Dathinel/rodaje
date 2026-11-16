@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Rodaje.Media</RootNamespace>
     <!-- Demultiplexado y decodificación con FFmpeg (LGPL, cargado por ruta absoluta) y Direct3D 11 -->
     <IsAotCompatible>true</IsAotCompatible>

@@ -6,7 +6,7 @@ namespace Rodaje.Export.Still;
 
 /// <summary>
 /// Escribe un cuadro ya bajado de la GPU como PNG o JPEG con el <c>ffmpeg.exe</c> LGPL verificado, por el mismo
-/// <see cref="FfmpegPipeSink"/> de la exportación (proceso en el <c>ChildProcessJob</c>, temporal <c>.rodaje-tmp</c>,
+/// <see cref="FfmpegPipeSink"/> de la exportación (proceso bajo el <c>ChildProcessGuard</c>, temporal <c>.rodaje-tmp</c>,
 /// registro para limpiar tras un apagón, comprobación de la salida y del disco).
 /// </summary>
 /// <remarks>

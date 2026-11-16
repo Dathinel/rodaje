@@ -190,14 +190,23 @@ public static class MediaRelinkEdits
         }
     }
 
-    /// <summary>¿Nombran <paramref name="a"/> y <paramref name="b"/> el mismo archivo? Sin distinguir mayúsculas, como en Windows.</summary>
+    /// <summary>
+    /// ¿Nombran <paramref name="a"/> y <paramref name="b"/> el mismo archivo? Sin distinguir mayúsculas, salvo dos rutas
+    /// POSIX en Linux: una ruta de Windows no las distingue en ningún sistema, ni macOS por omisión.
+    /// </summary>
     public static bool SamePath(string a, string b) =>
-        string.Equals(NormalizePath(a), NormalizePath(b), StringComparison.OrdinalIgnoreCase);
+        string.Equals(
+            NormalizePath(a),
+            NormalizePath(b),
+            OperatingSystem.IsLinux() && PortablePath.Classify(a) != StoredPathKind.WindowsAbsolute
+                && PortablePath.Classify(b) != StoredPathKind.WindowsAbsolute
+                ? StringComparison.Ordinal
+                : StringComparison.OrdinalIgnoreCase);
 
     /// <summary>
     /// Por qué <paramref name="path"/> no puede ser el archivo de <paramref name="media"/> porque ya es el de otro medio del
     /// proyecto o el que se eligió para otro en <paramref name="pending"/> (cambios aún sin aplicar). Las rutas se comparan
-    /// sin distinguir mayúsculas, como en Windows, y después de <see cref="NormalizePath"/>. <c>null</c> si está libre.
+    /// sin distinguir mayúsculas (salvo dos rutas POSIX en Linux) y después de <see cref="NormalizePath"/>. <c>null</c> si está libre.
     /// </summary>
     public static string? CheckTaken(Project project, MediaRef media, string path, IEnumerable<MediaRelinkTarget>? pending = null)
     {
