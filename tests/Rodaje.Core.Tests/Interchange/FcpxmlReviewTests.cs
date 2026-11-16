@@ -426,8 +426,12 @@ public sealed class FcpxmlReviewTests
     public void Relative_media_path_uses_project_directory()
     {
         var (project, sequence, _) = Model();
-        project.Media[0].Path = @"Medios\Plano con espacio.mov";
-        var root = Write(project, sequence, directory: @"C:\Edicion\Proyecto");
-        Assert.Equal("file:///C:/Edicion/Proyecto/Medios/Plano%20con%20espacio.mov", root.Element("resources")!.Element("asset")!.Element("media-rep")!["src"]);
+        // Rutas del sistema donde corre (la CI también corre en Linux).
+        string directory = Path.Combine(Path.GetTempPath(), "Edicion", "Proyecto");
+        project.Media[0].Path = Path.Combine("Medios", "Plano con espacio.mov");
+        var root = Write(project, sequence, directory: directory);
+        string src = root.Element("resources")!.Element("asset")!.Element("media-rep")!["src"]!;
+        Assert.Equal(SequenceBuilder.ToFileUri(Path.Combine(directory, "Medios", "Plano con espacio.mov")), src);
+        Assert.EndsWith("/Edicion/Proyecto/Medios/Plano%20con%20espacio.mov", src, StringComparison.Ordinal);
     }
 }
