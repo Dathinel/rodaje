@@ -25,7 +25,8 @@ env:
 
 jobs:
   linux:
-    name: Linux (proyectos sin Windows)
+    # El nombre lo exige la protección de main; ya cubre todos los proyectos sin Windows.
+    name: Linux (Core, Packages, Playback)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
