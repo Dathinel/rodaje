@@ -1,0 +1,140 @@
+name: FFmpeg LGPL para Linux y macOS
+
+on:
+  workflow_dispatch:
+    inputs:
+      destino:
+        description: Destino que compilar (solo artefactos, sin publicar)
+        required: true
+        default: los-dos
+        type: choice
+        options:
+          - linux64
+          - macarm64
+          - los-dos
+
+  # En el PR que toque la receta: horas en Linux, así que solo con esos archivos.
+  pull_request:
+    paths:
+      - 'build/compilar-ffmpeg-lgpl*.sh'
+      - 'build/ffmpeg-lgpl-*'
+      - 'build/auditar-ffmpeg.sh'
+      - 'build/probar-*ffmpeg*.sh'
+      - '.github/workflows/ffmpeg-lgpl.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  compilar:
+    name: FFmpeg LGPL / ${{ matrix.destino }}
+    strategy:
+      fail-fast: false
+      matrix:
+        destino: ${{ fromJSON((inputs.destino || 'los-dos') == 'los-dos' && '["linux64","macarm64"]' || format('["{0}"]', inputs.destino)) }}
+    runs-on: ${{ matrix.destino == 'linux64' && 'ubuntu-24.04' || 'macos-15' }}
+    timeout-minutes: 360
+    defaults:
+      run:
+        shell: bash
+    env:
+      SALIDA: ${{ github.workspace }}/salida-ffmpeg/${{ matrix.destino }}
+      RODAJE_MEMORIA: 8g
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+      HOMEBREW_NO_ANALYTICS: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Iniciar medicion y validar scripts
+        run: |
+          echo "INICIO_FFMPEG=$(date +%s)" >> "$GITHUB_ENV"
+          for script in build/compilar-ffmpeg-lgpl*.sh build/ffmpeg-lgpl-comun.sh build/auditar-ffmpeg.sh build/probar-*ffmpeg*.sh; do
+            bash -n "$script"
+          done
+          bash build/probar-auditoria-ffmpeg.sh
+
+      - name: Liberar espacio y preparar herramientas Linux
+        if: matrix.destino == 'linux64'
+        run: |
+          # Solo el runner efimero; conservar PowerShell y Docker.
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/share/boost /usr/share/swift /opt/hostedtoolcache/CodeQL
+          sudo docker image prune --all --force
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends patchelf binutils shellcheck xz-utils
+          sudo apt-get clean
+          df -h . /var/lib/docker
+          libre=$(df --output=avail -B1 /var/lib/docker | tail -n 1)
+          (( libre >= 30 * 1024 * 1024 * 1024 )) || { echo 'Se necesitan al menos 30 GiB libres'; exit 1; }
+          shellcheck -x build/compilar-ffmpeg-lgpl-linux.sh build/compilar-ffmpeg-lgpl-mac.sh build/auditar-ffmpeg.sh build/probar-ffmpeg-lgpl.sh
+
+      - name: Preparar herramientas Mac
+        if: matrix.destino == 'macarm64'
+        run: |
+          [[ "$(uname -m)" == arm64 ]]
+          brew install nasm meson ninja cmake pkg-config
+          command -v pwsh
+          command -v xz
+
+      - name: Compilar, auditar y empaquetar Linux
+        if: matrix.destino == 'linux64'
+        run: bash build/compilar-ffmpeg-lgpl-linux.sh "$SALIDA"
+
+      - name: Compilar, auditar y empaquetar Mac
+        if: matrix.destino == 'macarm64'
+        run: bash build/compilar-ffmpeg-lgpl-mac.sh "$SALIDA"
+
+      - name: Instalar el paquete local, moverlo y comprobar codificadores
+        env:
+          DESTINO: ${{ matrix.destino }}
+        run: |
+          sistema=linux
+          [[ "$DESTINO" != macarm64 ]] || sistema=mac
+          paquetes=("$SALIDA"/ffmpeg-*.tar.xz)
+          [[ ${#paquetes[@]} == 1 && -f "${paquetes[0]}" ]]
+          bash build/probar-ffmpeg-lgpl.sh "${paquetes[0]}" "$sistema" "$SALIDA/prueba-instalacion"
+
+      - name: Guardar binarios e informes
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-lgpl-${{ matrix.destino }}
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            ${{ env.SALIDA }}/ffmpeg-*.tar.xz
+            ${{ env.SALIDA }}/ffmpeg-*.tar.xz.sha256
+            ${{ env.SALIDA }}/configure.txt
+            ${{ env.SALIDA }}/auditoria.txt
+
+      - name: Guardar fuente correspondiente
+        uses: actions/upload-artifact@v4
+        with:
+          name: ffmpeg-lgpl-fuente-${{ matrix.destino }}
+          retention-days: 90
+          compression-level: 0
+          if-no-files-found: error
+          path: |
+            ${{ env.SALIDA }}/rodaje-ffmpeg-lgpl-fuente-*.tar.xz
+            ${{ env.SALIDA }}/rodaje-ffmpeg-lgpl-fuente-*.tar.xz.sha256
+
+      - name: Huella y duracion
+        if: always()
+        env:
+          DESTINO: ${{ matrix.destino }}
+          ESTADO: ${{ job.status }}
+        run: |
+          {
+            echo "### FFmpeg LGPL / $DESTINO"
+            echo "Estado: $ESTADO"
+            if [[ -n "${INICIO_FFMPEG:-}" ]]; then
+              echo "Duracion: $(( $(date +%s) - INICIO_FFMPEG )) segundos"
+            fi
+            shopt -s nullglob
+            for huella in "$SALIDA"/ffmpeg-*.tar.xz.sha256; do
+              echo '```text'
+              cat "$huella"
+              echo '```'
+            done
+          } >> "$GITHUB_STEP_SUMMARY"

@@ -1,0 +1,11 @@
+# nombre|version/commit|archivo|SHA-256|URL oficial|licencia del componente
+openh264|2.6.0|openh264-2.6.0.tar.gz|558544ad358283a7ab2930d69a9ceddf913f4a51ee9bf1bfb9e377322af81a69|https://github.com/cisco/openh264/archive/refs/tags/v2.6.0.tar.gz|BSD-2-Clause
+dav1d|1.5.4|dav1d-1.5.4.tar.xz|686616b7c69eb88d44459391ab25cac13b6647a3b288835c5784e71c1514a5c5|https://downloads.videolan.org/pub/videolan/dav1d/1.5.4/dav1d-1.5.4.tar.xz|BSD-2-Clause
+libvpx|1.15.2|libvpx-1.15.2.tar.gz|26fcd3db88045dee380e581862a6ef106f49b74b6396ee95c2993a260b4636aa|https://github.com/webmproject/libvpx/archive/refs/tags/v1.15.2.tar.gz|BSD-3-Clause
+opus|1.5.2|opus-1.5.2.tar.gz|65c1d2f78b9f2fb20082c38cbe47c951ad5839345876e46941612ee87f9a7ce1|https://downloads.xiph.org/releases/opus/opus-1.5.2.tar.gz|BSD-3-Clause
+lame|3.100|lame-3.100.tar.gz|ddfe36cab873794038ae2c1210557ad34857a4b6bdc515785d1da9e175b1da1e|https://downloads.sourceforge.net/project/lame/lame/3.100/lame-3.100.tar.gz|LGPL-2.0-or-later
+svt-av1|3.1.0|SVT-AV1-v3.1.0.tar.gz|3999586c261dc3d8690fd1489fc74da4e0fdff9159c8ce2b76ddfac001ad96d3|https://gitlab.com/AOMediaCodec/SVT-AV1/-/archive/v3.1.0/SVT-AV1-v3.1.0.tar.gz|BSD-3-Clause-Clear
+kvazaar|2.3.2|kvazaar-2.3.2.tar.xz|35e506a6d2be9ae343f17787eb80fa214492b276e9c88b6e93749050ae380070|https://github.com/ultravideo/kvazaar/releases/download/v2.3.2/kvazaar-2.3.2.tar.xz|BSD-3-Clause
+libwebp|1.6.0|libwebp-1.6.0.tar.gz|e4ab7009bf0629fd11982d4c2aa83964cf244cffba7347ecd39019a9e38c4564|https://storage.googleapis.com/downloads.webmproject.org/releases/webp/libwebp-1.6.0.tar.gz|BSD-3-Clause
+FFmpeg|2a571b606854520cf89804d8030c8b328e621689|FFmpeg-2a571b606854520cf89804d8030c8b328e621689.tar.gz|f02fc0809a13f37e3d4e1f74254d07e035a5ef01a6d91e727b915b1764d97540|https://github.com/FFmpeg/FFmpeg/archive/2a571b606854520cf89804d8030c8b328e621689.tar.gz|LGPL-3.0-or-later (configuracion seleccionada)
+FFmpeg-Builds|6c9aec5fc9a72ec3abedd1fa84db141fa18cf52b|FFmpeg-Builds-6c9aec5fc9a72ec3abedd1fa84db141fa18cf52b.tar.gz|81da4f7c878dc0f60e6b8d0049a112e32178e20f025d468fe4e99e77b2dfe0ec|https://github.com/BtbN/FFmpeg-Builds/archive/6c9aec5fc9a72ec3abedd1fa84db141fa18cf52b.tar.gz|MIT
