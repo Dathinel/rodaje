@@ -144,7 +144,27 @@ internal sealed class OfflineReaders : IDisposable
     public bool HasRoomForSample(VideoClipPlan clip, Time time)
     {
         FrameSample sample = clip.SampleAt(time);
-        return HasRoom(clip.Source, sample.A, clip) && (sample.T == 0 || HasRoom(clip.Source, sample.B, clip));
+        if (sample.T == 0)
+        {
+            return HasRoom(clip.Source, sample.A, clip);
+        }
+
+        lock (_gate)
+        {
+            if (!_sources.TryGetValue(clip.Source, out Source? source))
+            {
+                return true;
+            }
+
+            bool hasA = source.Slots.ContainsKey(sample.A);
+            bool hasB = source.Slots.ContainsKey(sample.B);
+            if (hasA && hasB)
+            {
+                return true;
+            }
+
+            return HasRoomLocked(source, hasA ? sample.B : sample.A, clip, hasA || hasB ? 1 : 2);
+        }
     }
 
     /// <summary>
@@ -202,14 +222,19 @@ internal sealed class OfflineReaders : IDisposable
     {
         lock (_gate)
         {
-            if (!_sources.TryGetValue(key, out Source? source) || source.Slots.ContainsKey(index))
-            {
-                return true;
-            }
-
-            Reader? reader = clip is { Forward: false } ? source.Reversed.GetValueOrDefault(clip.ClipId) : Peek(source, index);
-            return reader is null || reader.Assigned < reader.Capacity;
+            return !_sources.TryGetValue(key, out Source? source) || HasRoomLocked(source, index, clip, 1);
         }
+    }
+
+    private bool HasRoomLocked(Source source, long index, VideoClipPlan? clip, int needed)
+    {
+        if (source.Slots.ContainsKey(index))
+        {
+            return true;
+        }
+
+        Reader? reader = clip is { Forward: false } ? source.Reversed.GetValueOrDefault(clip.ClipId) : Peek(source, index);
+        return reader is null || reader.Assigned + needed <= reader.Capacity;
     }
 
     /// <summary>Espera a que el cuadro esté decodificado y devuelve una referencia propia (que desecha quien la recibe).</summary>
