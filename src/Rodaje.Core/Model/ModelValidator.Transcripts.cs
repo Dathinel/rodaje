@@ -84,6 +84,12 @@ public static partial class ModelValidator
                         break;
                     }
 
+                    if (!IsDisplayText(speaker.Name, MaxNameLength))
+                    {
+                        errors.Add($"{where} tiene un hablante con un nombre nulo, de más de {MaxNameLength} caracteres o con caracteres de control.");
+                        break;
+                    }
+
                     if (speaker.Color is not null && !MarkerStyle.IsColor(speaker.Color))
                     {
                         errors.Add($"{where} tiene un hablante con un color que no es #RRGGBB: «{speaker.Color}».");
