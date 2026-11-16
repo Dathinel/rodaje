@@ -266,6 +266,32 @@ public sealed class TimelineSessionTests
     }
 
     [Fact]
+    public void Late_frames_apunta_una_vez_el_cuadro_con_varias_capas_tarde()
+    {
+        var backend = new FakeTimelineBackend { ManualDecoding = true };
+        var b = new TimelineBuilder(3, 0, Rational.Fps30);
+        for (int t = 0; t < 3; t++)
+        {
+            b.AddMedia($"m{t}", Rational.Fps30, 3000, backend: backend);
+            b.AddVideo(t, $"m{t}", Time.Zero, Time.Zero, S(20), $"c{t}");
+        }
+
+        using TimelineSession session = Open(b, backend, new TimelineSessionOptions { PreRoll = TimeSpan.Zero });
+        Settle(session, backend);
+
+        session.Play();
+        for (int i = 0; i < 40; i++)
+        {
+            backend.Clock.Advance(Refresh60);
+            session.Tick().Dispose();
+        }
+
+        TimelineStats stats = session.Stats;
+        Assert.True(stats.LateRefreshes > stats.LateFrames.Count);
+        Assert.Equal(stats.LateFrames.Distinct().Count(), stats.LateFrames.Count);
+    }
+
+    [Fact]
     public void Late_frames_recoge_el_cuadro_de_un_refresco_tarde_y_no_pasa_de_256()
     {
         var backend = new FakeTimelineBackend { ManualDecoding = true };

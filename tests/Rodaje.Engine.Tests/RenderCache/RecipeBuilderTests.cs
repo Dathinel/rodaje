@@ -121,7 +121,9 @@ public sealed partial class RecipeBuilderTests(ITestOutputHelper output)
         Assert.All(Keys(b, 0, 90, content), k => Assert.NotNull(k));
     }
 
+    // TiempoReal: mide tiempo de reloj; en la CI de Windows con todos los proyectos a la vez dio 645 ms.
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public void Ocho_capas_y_1800_cuadros_en_poco_tiempo()
     {
         var b = new TimelineBuilder(8, 0, Rational.Fps30);

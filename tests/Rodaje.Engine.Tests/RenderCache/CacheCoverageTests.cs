@@ -255,6 +255,30 @@ public sealed class CacheCoverageTests(ITestOutputHelper output)
         }
     }
 
+    [Fact]
+    public void La_busqueda_binaria_de_lo_cubierto_da_lo_mismo_que_recorrer_todos_los_tramos()
+    {
+        var random = new Random(60);
+        var spans = new List<(Time Start, Time End)>();
+        long at = 0;
+        for (int i = 0; i < 500; i++)
+        {
+            at += random.Next(0, 5);
+            long length = random.Next(1, 6);
+            spans.Add((Time.FromTicks(at), Time.FromTicks(at + length)));
+            at += length;
+        }
+
+        for (int i = 0; i < 1000; i++)
+        {
+            Time time = Time.FromTicks(random.NextInt64(-2, at + 3));
+            Assert.Equal(spans.Any(s => time >= s.Start && time < s.End), VideoLayerPlan.IsCovered(spans, time));
+            Time end = time + Time.FromTicks(random.Next(1, 40));
+            long uncovered = Enumerable.Range(0, (int)(end - time).Ticks).Count(t => !spans.Any(s => time + Time.FromTicks(t) >= s.Start && time + Time.FromTicks(t) < s.End));
+            Assert.Equal(uncovered, CacheCoverage.Pieces(time, end, spans).Sum(p => (p.End - p.Start).Ticks));
+        }
+    }
+
     private sealed class FakeStore : IRenderCacheStore
     {
         private readonly Dictionary<RenderCacheKey, RenderCacheHit> _hits = [];
