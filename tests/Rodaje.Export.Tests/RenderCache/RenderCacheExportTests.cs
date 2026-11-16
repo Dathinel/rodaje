@@ -44,6 +44,7 @@ public sealed partial class RenderCacheExportTests(ITestOutputHelper output) : I
     }
 
     [ProxyFact]
+    [Trait("Categoria", "TiempoReal")]
     public async Task Exportar_con_render_en_cache_cumple_psnr_y_tarda_menos()
     {
         Project project = ExportProjects.TwoTracks();

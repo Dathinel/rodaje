@@ -293,6 +293,20 @@ public sealed class RenderCacheServiceTests
         Assert.Equal((0, 1), (service.Completed, service.Discarded));
     }
 
+    [Fact]
+    public void Un_tramo_corto_pedido_tras_el_ultimo_tramo_pesado_se_encola_donde_se_pidio()
+    {
+        (RenderCacheService service, _, _) = Create();
+        service.SetPlan(1, [new(0, 100, RenderCostClass.Heavy)], 0, Rational.Fps30, frameCount: 3000);
+        service.Cancel();
+
+        service.Request(2000, 2005);
+
+        RenderCacheWork work = Assert.Single(service.Pending);
+        Assert.Equal(2000, work.FirstFrame);
+        Assert.Equal(CacheCoverage.ShortestSpan(Rational.Fps30), work.Count);
+    }
+
     private static void Start(RenderCacheService service, Clock clock)
     {
         clock.Advance(TimeSpan.FromSeconds(3));

@@ -116,8 +116,8 @@ public sealed class RenderCacheStore : IRenderCacheStore
 
     /// <summary>
     /// El cuadro de <paramref name="key"/>, si está en el índice. Con varios fragmentos para la misma huella se prefiere
-    /// el mismo fragmento de <paramref name="previous"/> con el cuadro siguiente, después cualquiera del mismo fragmento,
-    /// y si no, el que deja más cuadros por delante en su fragmento.
+    /// el mismo fragmento de <paramref name="previous"/> con el cuadro siguiente y, si no, el que deja más cuadros por
+    /// delante en su fragmento (un cuadro no consecutivo del mismo fragmento rompería el tramo igual).
     /// </summary>
     /// <param name="key">Huella del cuadro.</param>
     /// <param name="previous">Acierto anterior, para favorecer continuidad.</param>
@@ -147,21 +147,9 @@ public sealed class RenderCacheStore : IRenderCacheStore
                         return true;
                     }
                 }
-
-                // 2. Mismo fragmento de previous
-                for (int i = 0; i < hits.Count; i++)
-                {
-                    RenderCacheHit candidate = hits[i];
-                    if (string.Equals(candidate.Fragment.MoviePath, prev.Fragment.MoviePath, StringComparison.OrdinalIgnoreCase))
-                    {
-                        hit = candidate;
-                        Touch(hit.Fragment);
-                        return true;
-                    }
-                }
             }
 
-            // 3. El que deja más cuadros por delante: un fragmento viejo de pocos cuadros no tapa a uno continuo.
+            // 2. El que deja más cuadros por delante: un fragmento viejo de pocos cuadros no tapa a uno continuo.
             hit = hits[0];
             for (int i = 1; i < hits.Count; i++)
             {

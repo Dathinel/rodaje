@@ -58,6 +58,7 @@ public sealed class RenderCacheJob
         {
             VideoThreads = Math.Min(options.VideoThreads ?? threads, threads),
             Verify = true,
+            VerifyMovPackets = true,
             TemporaryDirectory = options.TemporaryDirectory ?? store.Directory,
         });
     }
@@ -118,7 +119,7 @@ public sealed class RenderCacheJob
                 throw failure;
             }
 
-            ExportReport report = export.Report ?? ExportVerifier.For(_runner.Options.Ffmpeg).Inspect(temporary, cancellationToken);
+            ExportReport report = export.Report ?? ExportVerifier.For(_runner.Options.Ffmpeg).InspectMovPackets(temporary, cancellationToken);
             if (report.Video is not { } video || video.FrameCount != _frameCount || video.Width != _sequence.Width
                 || video.Height != _sequence.Height || video.FrameRate != _sequence.FrameRate || report.Audio is not null)
             {
@@ -133,6 +134,7 @@ public sealed class RenderCacheJob
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+            using var measurement = new ExportMeasurement(_runner.Options.Measure, "Commit");
             return _store.Commit(temporary, metadata);
         }
         finally

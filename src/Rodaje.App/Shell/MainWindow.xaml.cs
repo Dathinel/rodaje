@@ -128,7 +128,10 @@ internal sealed partial class MainWindow : Window, IShellHost
         _renderCache = new Services.RenderCache.RenderCacheHost(engine,
             options.IsAutomated ? Services.RenderCache.RenderCacheMode.Off : settings.Current.RenderCacheMode,
             settings.Current.RenderCacheFolder, settings.Current.RenderCacheCapGb, content,
-            () => TitleFontFiles.Find(packages.Installed), engine.IsFontMissing);
+            () => TitleFontFiles.Find(packages.Installed), engine.IsFontMissing)
+        {
+            ProjectDirectory = () => session?.FilePath is { } file ? Path.GetDirectoryName(file) : null,
+        };
         engine.PlanChanged += _renderCache.OnPlan;
         engine.SourceFailed += _renderCache.OnSourceFailed;
         _exports = new ExportJobList(new AppExportRunner(content, preview, () => TitleFontFiles.Find(packages.Installed),

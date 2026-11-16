@@ -95,9 +95,7 @@ public sealed record RenderCacheScan(long Revision, Rational FrameRate, RenderCa
                 }
                 else
                 {
-                    MediaRef? media = project.FindMedia(clip.MediaId);
-                    double megapixels = media is { Width: > 0, Height: > 0 } ? media.Width * (double)media.Height / 1e6 : sequence.Width * (double)sequence.Height / 1e6;
-                    layer = new LayerCostInput(DecodeMsPerMegapixel * megapixels, false, effects, clip.SequenceId is null ? 0 : 1,
+                    layer = new LayerCostInput(DecodeMsPerMegapixel * MediaMegapixels(project, clip, sequence), false, effects, clip.SequenceId is null ? 0 : 1,
                         LayerCostInput.CalculateIntermediateMs(sequence.Width, sequence.Height));
                 }
 
@@ -106,11 +104,12 @@ public sealed record RenderCacheScan(long Revision, Rational FrameRate, RenderCa
                 costs[end] -= each;
                 if (clip.Generator is null && OpensDecoder(project, clip))
                 {
-                    // El primer cuadro paga abrir el decodificador; solo ese cuadro, no todo el clip.
-                    costs[first] += RenderCostCalibration.DecoderOpenMs;
+                    // El primer cuadro paga abrir el decodificador (45 ms en 1080p, 180 en 4K en F0: crece con los píxeles).
+                    double open = RenderCostCalibration.DecoderOpenMs * Math.Max(1, MediaMegapixels(project, clip, sequence) / Megapixels1080);
+                    costs[first] += open;
                     if (first + 1 <= frameCount)
                     {
-                        costs[first + 1] -= RenderCostCalibration.DecoderOpenMs;
+                        costs[first + 1] -= open;
                     }
                 }
             }
@@ -126,6 +125,10 @@ public sealed record RenderCacheScan(long Revision, Rational FrameRate, RenderCa
         }
 
         return classes;
+
+        static double MediaMegapixels(Project project, Clip clip, Sequence sequence) => project.FindMedia(clip.MediaId) is { Width: > 0, Height: > 0 } media
+            ? media.Width * (double)media.Height / 1e6
+            : sequence.Width * (double)sequence.Height / 1e6;
 
         static bool OpensDecoder(Project project, Clip clip) => clip.SequenceId is null && project.FindMedia(clip.MediaId) is { IsStillImage: false };
     }
@@ -216,4 +219,5 @@ public sealed record RenderCacheScan(long Revision, Rational FrameRate, RenderCa
     }
 
     private const double DecodeMsPerMegapixel = 1.1;
+    private const double Megapixels1080 = 1920 * 1080 / 1e6;
 }

@@ -46,6 +46,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
     private const long GiB = 1024L * 1024 * 1024;
 
     private readonly Lock _gate = new();
+    private readonly ExportDevicePool _devices = new();
     private readonly IRenderCachePlayer _player;
     private readonly IEffectContent? _content;
     private readonly Func<IReadOnlyList<string>>? _fontFiles;
@@ -93,6 +94,9 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         _lastCleanup = _time.GetTimestamp();
         _timer = new Timer(_ => Tick(), null, tick ?? TimeSpan.FromMilliseconds(250), tick ?? TimeSpan.FromMilliseconds(250));
     }
+
+    /// <summary>La carpeta del proyecto abierto, contra la que se resuelven las rutas relativas (nula sin guardar).</summary>
+    public Func<string?> ProjectDirectory { get; init; } = () => null;
 
     /// <summary>La franja cambió (desde cualquier hilo).</summary>
     public event EventHandler? StripChanged;
@@ -246,6 +250,12 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         lock (_gate)
         {
             _service.Cancel();
+            if (_scanPlan is { } shown)
+            {
+                // Sin cobertura el reproductor suelta los fragmentos que lee; los que aún estén abiertos se borran en la limpieza siguiente.
+                _player.ApplyCoverage(shown.Generation, new CacheCoverage(shown.Revision, []));
+            }
+
             freed = _store.Cleanup(new RenderCacheCleanupOptions { MaxTotalBytes = 0, TemporaryMaxAge = TimeSpan.Zero }).BytesFreed;
         }
 
@@ -275,7 +285,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         {
             return options with
             {
-                RenderCache = _store,
+                RenderCache = new CurrentStore(this),
                 RecipeBuilder = request => RecipeBuilder.Create(request.Project, request.SequenceId, _sources.Value.Options(request.ProjectDirectory)),
             };
         }
@@ -292,15 +302,30 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
             }
 
             FfmpegExecutable ffmpeg = _ffmpeg.Value ?? throw new InvalidOperationException("No se encontró el ffmpeg.exe LGPL.");
-            var options = new ExportRunnerOptions { Ffmpeg = ffmpeg, Content = _content, FontFiles = _fontFiles };
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var options = new ExportRunnerOptions { Ffmpeg = ffmpeg, Content = _content, FontFiles = _fontFiles, DevicePool = _devices };
             job = new RenderCacheJob(input.Plan.Project.Clone(), input.Plan.SequenceId, work.FirstFrame, work.Count, input.Keys, _store, options,
-                StillCurrent, pause);
+                StillCurrent, pause, ProjectDirectory());
             _job = job;
             _jobKeys = input.Keys;
         }
 
-        RenderCacheFragment? fragment = await Task.Run(() => job.RunAsync(cancellationToken), cancellationToken).ConfigureAwait(false);
-        return fragment is not null;
+        try
+        {
+            RenderCacheFragment? fragment = await Task.Run(() => job.RunAsync(cancellationToken), cancellationToken).ConfigureAwait(false);
+            return fragment is not null;
+        }
+        finally
+        {
+            lock (_gate)
+            {
+                if (ReferenceEquals(_job, job))
+                {
+                    _job = null;
+                    _jobKeys = null;
+                }
+            }
+        }
     }
 
     /// <summary>El plan recorrido y las huellas de un trozo; nulo si el trozo es de otra revisión o le falta alguna huella.</summary>
@@ -329,6 +354,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         }
 
         _timer.Dispose();
+        _devices.Dispose();
     }
 
     /// <summary>Recoge el trabajo, pausa al reproducir o mover el cursor, limpia cada 10 min y rehace la franja si hace falta.</summary>
@@ -395,7 +421,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         {
             await Task.Delay(ScanDelay, _time, token).ConfigureAwait(false);
             RenderCacheScan scan = await Task.Run(() => RenderCacheScan.Run(plan.Project, plan.SequenceId, plan.Revision,
-                _sources.Value.Options(null), _player.HasGpu, token), token).ConfigureAwait(false);
+                _sources.Value.Options(ProjectDirectory()), _player.HasGpu, token), token).ConfigureAwait(false);
             Publish(plan, scan, setPlan: true);
         }
         catch (OperationCanceledException)
@@ -449,7 +475,8 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
                 _current = [.. scan.Keys.OfType<RenderCacheKey>()];
                 RenderCacheKey[]? running = _jobKeys;
                 _service.SetPlan(scan.Revision, scan.Work(strip), plan.CursorFrame, scan.FrameRate,
-                    work => running is not null && scan.KeysOf(work.FirstFrame, work.Count) is { } now && now.AsSpan().SequenceEqual(running));
+                    work => running is not null && scan.KeysOf(work.FirstFrame, work.Count) is { } now && now.AsSpan().SequenceEqual(running),
+                    scan.Keys.Length);
             }
 
             Strip = strip;
@@ -475,25 +502,74 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
     {
         var store = new RenderCacheStore(string.IsNullOrWhiteSpace(folder) ? null : folder);
         long cap = Cap(store.Directory, capGb);
-        var service = new RenderCacheService(this, _time, () => FreeBytes(store.Directory), store.TotalBytes, cap) { Mode = mode };
+        var service = new RenderCacheService(this, _time, () => FreeBytes(store.Directory), Cached(store.TotalBytes), cap) { Mode = mode };
         store.Cleanup(new RenderCacheCleanupOptions { MaxTotalBytes = cap, ProtectedKeys = _current });
         return (store, service, cap);
     }
 
     private static long Cap(string directory, double? capGb) => capGb is { } gb ? (long)(gb * GiB) : DefaultCap(FreeBytes(directory));
 
-    private static long FreeBytes(string directory)
+    /// <summary>Espacio libre del disco de la carpeta; si no se puede saber (una ruta de red, por ejemplo), no frena: manda el tope.</summary>
+    internal static long FreeBytes(string directory)
     {
         try
         {
             return new DriveInfo(Path.GetPathRoot(Path.GetFullPath(directory))!).AvailableFreeSpace;
         }
-#pragma warning disable CA1031 // Sin poder leer el disco no se calcula: se da por lleno.
+#pragma warning disable CA1031 // Cualquier fallo al preguntar al disco cuenta como «no se sabe».
         catch (Exception)
 #pragma warning restore CA1031
         {
-            return 0;
+            return long.MaxValue;
         }
+    }
+
+    /// <summary>Lo que ocupa la carpeta, leído como mucho cada 5 s: el servicio lo pregunta en cada tic mientras espera sitio.</summary>
+    private Func<long> Cached(Func<long> read)
+    {
+        long value = 0;
+        long at = long.MinValue;
+        return () =>
+        {
+            if (at == long.MinValue || _time.GetElapsedTime(at) >= TimeSpan.FromSeconds(5))
+            {
+                value = read();
+                at = _time.GetTimestamp();
+            }
+
+            return value;
+        };
+    }
+
+    /// <summary>El almacén vigente para la exportación: Preferencias puede cambiar de carpeta después de crear el exportador.</summary>
+    private sealed class CurrentStore(RenderCacheHost host) : IRenderCacheStore
+    {
+        private RenderCacheStore Store
+        {
+            get
+            {
+                lock (host._gate)
+                {
+                    return host._store;
+                }
+            }
+        }
+
+        public string Directory => Store.Directory;
+
+        public int Count => Store.Count;
+
+        public bool TryGet(RenderCacheKey key, RenderCacheHit? previous, out RenderCacheHit hit) => Store.TryGet(key, previous, out hit);
+
+        public string CreateTemporaryPath() => Store.CreateTemporaryPath();
+
+        public RenderCacheFragment Commit(string temporaryMoviePath, RenderCacheFragmentMetadata metadata) => Store.Commit(temporaryMoviePath, metadata);
+
+        public void Forget(RenderCacheFragment fragment) => Store.Forget(fragment);
+
+        public long TotalBytes() => Store.TotalBytes();
+
+        public RenderCacheCleanupReport Cleanup(RenderCacheCleanupOptions? options = null) => Store.Cleanup(options);
     }
 
     private static bool IsInside(string path, string directory) =>

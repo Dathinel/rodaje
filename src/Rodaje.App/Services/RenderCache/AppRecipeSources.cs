@@ -1,5 +1,5 @@
 using System.Collections.Concurrent;
-using System.Text.RegularExpressions;
+using Rodaje.App.Services.Effects;
 using Rodaje.Engine.RenderCache;
 using Rodaje.Engine.Timeline;
 using Rodaje.Media.Probe;
@@ -12,7 +12,7 @@ namespace Rodaje.App.Services.RenderCache;
 /// Lo que la receta lee de fuera en la app: la huella de contenido y el formato de cada medio, la identidad y el estado de
 /// cada recurso y si están las fuentes de un título. Se puede usar desde varios hilos (el cálculo de fondo y la exportación).
 /// </summary>
-internal sealed partial class AppRecipeSources(IEffectContent? content, Func<GeneratedContent, bool> fontMissing, string chain)
+internal sealed class AppRecipeSources(IEffectContent? content, Func<GeneratedContent, bool> fontMissing, string chain)
 {
     private readonly ConcurrentDictionary<string, (long Length, DateTime Written, RecipeMedia? Media)> _media = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, (long Length, DateTime Written, string? Hash)> _files = new(StringComparer.OrdinalIgnoreCase);
@@ -68,22 +68,33 @@ internal sealed partial class AppRecipeSources(IEffectContent? content, Func<Gen
     }
 
     /// <summary>
-    /// Un archivo (máscara FFV1, imagen, LUT suelta) entra por su huella de contenido; un elemento de paquete
-    /// (<c>paquete@versión/elemento</c>), por su referencia si ya está cargado; el texto de una forma o de unas curvas es su
-    /// propia identidad. Lo que falta o aún carga no tiene identidad: el cuadro se queda sin caché.
+    /// Un archivo (<c>file:</c> más su ruta: LUT suelta, máscara FFV1, imagen) entra por su huella de contenido; un elemento
+    /// de paquete (<c>paquete@versión/elemento</c>), por su referencia si ya está cargado; el texto de una forma o de unas
+    /// curvas es su propia identidad. Lo que falta o aún carga no tiene identidad: el cuadro se queda sin caché.
     /// </summary>
     internal string? Resource(ResourceKey key, string? projectDirectory)
     {
         string reference = key.Reference;
-        if (PackageReference().IsMatch(reference))
+        if (LutReference.IsFile(reference))
+        {
+            return LutReference.ResolveFile(reference, projectDirectory) is { } file ? FileHash(file) : null;
+        }
+
+        if (global::Rodaje.Packages.PackageReference.TryParse(reference, out _))
         {
             return content is not null && content.TryGetLut(key, out LutData? lut) && lut is not null ? reference : null;
         }
 
         if (reference.IndexOfAny(Path.GetInvalidPathChars()) < 0 && LooksLikeFile(reference))
         {
-            string path = Path.IsPathRooted(reference) ? reference : Path.Combine(projectDirectory ?? Environment.CurrentDirectory, reference);
-            return FileHash(path);
+            try
+            {
+                return FileHash(Path.IsPathRooted(reference) ? reference : Path.Combine(projectDirectory ?? Environment.CurrentDirectory, reference));
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                return null;
+            }
         }
 
         return reference;
@@ -114,7 +125,4 @@ internal sealed partial class AppRecipeSources(IEffectContent? content, Func<Gen
     {
         ".mkv", ".nut", ".mov", ".mp4", ".avi", ".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp", ".exr", ".cube", ".3dl",
     };
-
-    [GeneratedRegex(@"^[^@/\\|;]+@[^/\\|;]+/[^|;]+$")]
-    private static partial Regex PackageReference();
 }
