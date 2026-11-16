@@ -34,6 +34,16 @@ public static partial class ModelValidator
                 errors.Add($"La imagen fija «{media.Id}» debe tener duración cero, imagen, sin audio ni tasa de cuadros.");
             }
 
+            if (media.Timecode is not null && !IsTimecodeText(media.Timecode, media.FrameRate))
+            {
+                errors.Add($"El medio «{media.Id}» tiene un código de tiempo que no se entiende: «{Shorten(media.Timecode)}».");
+            }
+
+            if (media.Reel is { } reel && (reel.Length is 0 or > MaxReelLength || reel.Any(char.IsControl)))
+            {
+                errors.Add($"El medio «{media.Id}» tiene un carrete vacío, de más de {MaxReelLength} caracteres o con caracteres de control.");
+            }
+
             // Una ruta más larga de lo que admite Windows no se rechaza (la v1.0.0 la guardaba): el medio queda sin archivo.
             if (!IsUsablePath(media.Path))
             {
@@ -104,6 +114,11 @@ public static partial class ModelValidator
         if (sequence.Width <= 0 || sequence.Height <= 0 || sequence.SampleRate <= 0)
         {
             errors.Add($"La secuencia «{sequence.Id}» tiene dimensiones o frecuencia de muestreo no positivas.");
+        }
+
+        if (sequence.StartTimecode is not null && !IsTimecodeText(sequence.StartTimecode, sequence.FrameRate))
+        {
+            errors.Add($"La secuencia «{sequence.Id}» tiene un código de tiempo de inicio que no se entiende: «{Shorten(sequence.StartTimecode)}».");
         }
 
         if (!double.IsFinite(sequence.MasterGainDb) || sequence.MasterGainDb < Sequence.MinMasterGainDb || sequence.MasterGainDb > Sequence.MaxMasterGainDb)
