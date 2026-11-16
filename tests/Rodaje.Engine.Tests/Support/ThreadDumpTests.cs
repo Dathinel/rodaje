@@ -63,9 +63,7 @@ public sealed class ThreadDumpTests
         {
             string fake = Path.Combine(dir, "createdump");
             // Un guion y no una copia de sleep: si sleep es un binario múltiple (uutils), con otro nombre no arranca.
-            File.WriteAllText(fake, "#!/bin/sh
-while :; do sleep 1; done
-");
+            File.WriteAllText(fake, "#!/bin/sh\nwhile :; do sleep 1; done\n");
             File.SetUnixFileMode(fake, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             other = Process.Start(fake, "300");
             Assert.NotNull(other);
