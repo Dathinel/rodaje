@@ -82,3 +82,65 @@ jobs:
           path: |
             experimentos/linux-fase0/mac-vt/salida/*.jsonl
             experimentos/linux-fase0/mac-vt/salida/*.log
+
+  shaders-windows:
+    name: (d) DXC a SPIR-V y referencia WARP
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}\.entorno\nuget
+      DOTNET_ROOT: ${{ github.workspace }}\.entorno\dotnet
+      DOTNET_CLI_HOME: ${{ github.workspace }}\.entorno
+      DOTNET_MULTILEVEL_LOOKUP: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Caché del SDK y FFmpeg
+        uses: actions/cache@v4
+        with:
+          path: |
+            .entorno/dotnet
+            .entorno/ffmpeg
+          key: entorno-windows-${{ hashFiles('build/preparar-entorno.ps1', 'global.json') }}
+      - name: Preparar el entorno
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1
+      - name: Compilar variantes y dibujar referencias
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File experimentos\linux-fase0\shaders\ci.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shaders-windows
+          path: |
+            experimentos/linux-fase0/shaders/salida/spirv
+            experimentos/linux-fase0/shaders/salida/ref
+
+  shaders-linux:
+    name: (d) SPIR-V en lavapipe frente a WARP
+    needs: shaders-windows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      RODAJE_VK_GPU: llvmpipe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Paquetes
+        run: sudo apt-get update -q && sudo apt-get install -y -q mesa-vulkan-drivers libvulkan1 vulkan-tools
+      - uses: actions/download-artifact@v4
+        with:
+          name: shaders-windows
+          path: experimentos/linux-fase0/shaders/salida
+      - name: Vulkan del corredor
+        run: vulkaninfo --summary | grep -E "deviceName|driverInfo|apiVersion" || true
+      - name: Prueba
+        run: bash experimentos/linux-fase0/shaders/ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shaders-linux
+          path: |
+            experimentos/linux-fase0/shaders/salida/*.json
+            experimentos/linux-fase0/shaders/salida/*.txt
+            experimentos/linux-fase0/shaders/salida/*.log

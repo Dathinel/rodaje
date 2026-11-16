@@ -1,3 +1,8 @@
 <Project>
-  <!-- Vacío a propósito: corta el Directory.Build.targets de la raíz. -->
+  <!-- Corta el Directory.Build.targets de la raíz, pero con su misma fijación: el ILCompiler 10.0.12 del SDK tiene un aviso de seguridad. -->
+  <ItemGroup>
+    <KnownILCompilerPack Update="Microsoft.DotNet.ILCompiler">
+      <ILCompilerPackVersion Condition="'%(KnownILCompilerPack.TargetFramework)' == 'net10.0'">10.0.14</ILCompilerPackVersion>
+    </KnownILCompilerPack>
+  </ItemGroup>
 </Project>
