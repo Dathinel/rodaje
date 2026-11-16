@@ -1,5 +1,7 @@
 # `IGpu`: borrador del contrato
 
+**Superado:** el contrato vigente está en [igpu.md](igpu.md) (fase 3). Esto queda como historia de la fase 0 y de la revisión de Unicomp.
+
 Borrador de la fase 0 de D-066 ([propuestas/mac-y-linux.md](propuestas/mac-y-linux.md)); resultado de la fase en [mac-y-linux-fase0.md](mac-y-linux-fase0.md). **Solo es el contrato**: `Rodaje.Render` no se mueve a `IGpu` hasta la fase 3. Lo usarán dos motores (D3D11 en Windows, Vulkan en Linux y macOS) y dos programas: Rodaje y Unicomp (D-017 de Unicomp, por `externo/rodaje`).
 
 ## De dónde sale
