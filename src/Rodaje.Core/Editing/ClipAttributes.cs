@@ -87,10 +87,10 @@ public sealed class ClipAttributes
         List<(Track Track, Clip Clip)> group = sequence.GetLinkGroup(clipId);
         Side? video = SideOf(group, found, TrackKind.Video);
         Side? audio = SideOf(group, found, TrackKind.Audio);
-        Clip clip = found.Clip;
-        bool hasSpeed = clip.Generator is null && clip.Speed is not { Freeze: true };
-        TextStyle? style = clip.Generator is { Kind: GeneratorKinds.Text, Style: { } textStyle } ? textStyle.Clone() : null;
-        return new ClipAttributes(clipId, video, audio, hasSpeed ? clip.Speed?.Clone() : null, hasSpeed, style, style is null ? null : clip.Generator!.Box?.Clone());
+        Clip speedSource = group.Find(m => m.Track.Kind == TrackKind.Video).Clip ?? found.Clip;
+        bool hasSpeed = speedSource.Generator is null && speedSource.Speed is not { Freeze: true };
+        TextStyle? style = found.Clip.Generator is { Kind: GeneratorKinds.Text, Style: { } textStyle } ? textStyle.Clone() : null;
+        return new ClipAttributes(clipId, video, audio, hasSpeed ? speedSource.Speed?.Clone() : null, hasSpeed, style, style is null ? null : found.Clip.Generator!.Box?.Clone());
     }
 
     private static Side? SideOf(List<(Track Track, Clip Clip)> group, (Track Track, Clip Clip) chosen, TrackKind kind)
@@ -343,9 +343,10 @@ public static class ClipAttributeEdits
                 continue;
             }
 
+            Clip speedTarget = ctx.Sequence.GetLinkGroup(clip.Id).Find(m => m.Track.Kind == TrackKind.Video).Clip ?? clip;
             ClipSpeed? speed = attributes.Speed;
             changed = true;
-            if (SameSpeed(clip.Speed, speed))
+            if (SameSpeed(speedTarget.Speed, speed))
             {
                 // Ya la tiene: rehacer el mapeo podría mover el final del clip sin motivo.
                 continue;
@@ -364,18 +365,36 @@ public static class ClipAttributeEdits
 
             TimelineEdits.SetPreservePitch(ctx, clip.Id, speed?.PreservePitch ?? true);
             FrameSampling sampling = speed?.FrameSampling ?? default;
-            foreach ((_, Clip member) in ctx.Sequence.GetLinkGroup(clip.Id))
+            foreach ((Track track, Clip member) in ctx.Sequence.GetLinkGroup(clip.Id))
             {
-                if (sampling != FrameSampling.Nearest && member.Speed is null)
+                bool canSample = track.Kind == TrackKind.Video
+                    && !member.IsCompound
+                    && member.Generator is null
+                    && member.Speed is not { Freeze: true }
+                    && ctx.Project.FindMedia(member.MediaId)?.IsStillImage != true;
+
+                if (canSample)
                 {
-                    Time duration = member.Duration;
-                    member.Speed = new ClipSpeed { PreservePitch = speed?.PreservePitch ?? true };
-                    member.Duration = duration;
+                    if (sampling != FrameSampling.Nearest && member.Speed is null)
+                    {
+                        Time duration = member.Duration;
+                        member.Speed = new ClipSpeed { PreservePitch = speed?.PreservePitch ?? true };
+                        member.Duration = duration;
+                    }
+
+                    if (member.Speed is { } own)
+                    {
+                        own.FrameSampling = sampling;
+                    }
+                }
+                else if (member.Speed is { } nonVideoSpeed)
+                {
+                    nonVideoSpeed.FrameSampling = FrameSampling.Nearest;
                 }
 
-                if (member.Speed is { } own)
+                if (member.Speed is { } current && current.IsIdentity && current.FrameSampling == FrameSampling.Nearest)
                 {
-                    own.FrameSampling = sampling;
+                    member.Speed = null;
                 }
             }
         }
@@ -384,7 +403,7 @@ public static class ClipAttributeEdits
     }
 
     private static bool SameSpeed(ClipSpeed? a, ClipSpeed? b) =>
-        a is null || b is null ? (a ?? b) is not { } one || (one.IsIdentity && one.Offset == Time.Zero && one.PreservePitch && one.FrameSampling == default)
+        a is null || b is null ? (a ?? b) is not { } one || (one.IsIdentity && one.PreservePitch && one.FrameSampling == default)
             : a.ContentEquals(b);
 }
 

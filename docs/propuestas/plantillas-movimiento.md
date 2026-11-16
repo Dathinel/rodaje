@@ -116,6 +116,20 @@ Sin `rodaje.textstyle` v3 ni campos nuevos en los estilos: lo nuevo es solo el s
 | Miniatura animada (12 cuadros) | ≤ 150 ms | ≤ 1,5 s, en segundo plano | `TemplateThumbnailTests` |
 | Biblioteca con 50 plantillas, primer dibujo | ≤ 100 ms (miniaturas en caché) | igual | medición de la biblioteca que ya existe (`LibraryScrollMeasurement`) |
 
+**Medido (16-nov, a prioridad baja y con otras compilaciones a la vez; la app nunca a la vista).**
+
+| Medida | Resultado | Objetivo | Estado |
+|---|---|---|---|
+| Instanciar y validar 16 capas (mediana de 1000) | 0,71 ms | ≤ 2 ms | Cumple |
+| Guardar y reabrir un proyecto con 500 rótulos | 588 ms | < 1 s (riesgo «Proyecto más grande») | Cumple |
+| Cambiar un valor hasta el cuadro nuevo (autoprueba, 1080p, 2 capas) | 47,6, 91,8 y 356,9 ms en tres corridas, como cota superior: son dos cambios seguidos más bajar el cuadro de la GPU para compararlo, con el equipo cargado | ≤ 33 ms | Sin demostrar: falta medir un cambio solo con el equipo libre |
+| Cuadros perdidos reproduciendo el rótulo (autoprueba) | 0 en 2 s, 2 capas (tres corridas) | 0 en 10 s, 4 capas sobre 1080p60 | Parcial: escena más corta y ligera |
+| Miniatura animada de 12 cuadros | 450 ms con los shaders en caché (`MotionTemplateTests`); de 1964 a 5023 ms la primera, con abrir la GPU y compilar shaders (autoprueba, tres corridas) | ≤ 150 ms (RTX 3050), ≤ 1,5 s (WARP) | No cumple en la GPU; va en segundo plano y se guarda en disco |
+| Componer un cuadro con un rótulo de 4 capas | sin medir (`TemplateRenderTests` no se escribió) | ≤ 1,5 ms más | Pendiente |
+| Biblioteca con 50 plantillas, primer dibujo | sin medir | ≤ 100 ms | Pendiente |
+
+Autoprueba completa con el paso «plantilla»: 52,9 s, código 0 (sobre el #560). Tras el #563 el exe AOT se publica sin advertencias y el paso «plantilla» pasa; esa corrida se lanzó solo con `--autoprueba` y sin el módulo eco publicado, así que su paso de IA no cuenta y la autoprueba completa por `buildpp.ps1 -Autoprueba` queda por repetir.
+
 La textura de cada título ya se rasteriza una vez y se reutiliza (`TitleTexture`); cambiar un valor solo vuelve a rasterizar las capas cuyo texto o estilo cambió.
 
 ### 2.5 Pruebas sin WinUI

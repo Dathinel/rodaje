@@ -243,13 +243,11 @@ internal sealed partial class SpeedPanel : UserControl, IEditorView
         ResetButton.IsEnabled = multi ? clips.Any(c => editor.Read(c).CanReset) : state.CanReset;
         PitchBox.IsChecked = state.PreservePitch;
         PitchBox.IsEnabled = !multi && state.CanChangePitch;
-        bool canChangeSampling = multi ? clips.Any(c => editor.Read(c).CanChangeSampling) : state.CanChangeSampling;
+        List<SpeedState> states = multi ? clips.Select(editor.Read).ToList() : [state];
+        bool canChangeSampling = states.Any(s => s.CanChangeSampling);
         SamplingBox.IsEnabled = canChangeSampling;
-        int selectedSampling = multi
-            ? (clips.Count > 0 && clips.Select(c => editor.Read(c).Sampling).Distinct().Count() == 1 ? (int)editor.Read(clips[0]).Sampling : -1)
-            : (int)state.Sampling;
+        int samplingIndex = SpeedTabValues.SelectedSamplingIndex(states);
         ChoiceList<FrameSampling> samplingChoices = SpeedTabValues.SamplingChoices();
-        int samplingIndex = selectedSampling >= 0 ? samplingChoices.IndexOf((FrameSampling)selectedSampling) : -1;
         _samplingChoices = ComboBoxChoices.Show(SamplingBox, _samplingChoices, samplingChoices, samplingIndex, retry: _samplingRetry);
         ReverseBox.IsChecked = state.IsReversed;
         ReverseBox.IsEnabled = !multi && state.CanReverse;

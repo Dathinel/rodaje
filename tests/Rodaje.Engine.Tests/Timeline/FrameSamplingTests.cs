@@ -6,6 +6,8 @@ using Rodaje.Engine.Offline;
 using Rodaje.Engine.Tests.Offline;
 using Rodaje.Engine.Tests.Support;
 using Rodaje.Engine.Timeline;
+using Rodaje.Media.Probe;
+using Rodaje.Media.Proxies;
 using Rodaje.Playback;
 using Rodaje.Playback.Composition;
 using static Rodaje.Engine.Tests.Support.Seconds;
@@ -344,6 +346,226 @@ public sealed class FrameSamplingTests
 
         Assert.Equal(0, backend.Live.Value);
         Assert.All(seen, frame => Assert.True(frame.IsReleased));
+    }
+
+    [Fact]
+    public void Playing_prefetches_and_retains_B_when_FrameAt_skips_it_and_at_the_end_of_a_slow_clip()
+    {
+        var backend = new FakeTimelineBackend { ManualDecoding = true };
+        var b = new TimelineBuilder(1, 0);
+        b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
+        Clip fast = SpeedClips.WithRate(b.AddVideo(0, "m", Time.Zero, Time.Zero, S(2), "a"), new Rational(3, 2), Time.Zero, S(3));
+        fast.Speed!.FrameSampling = FrameSampling.Blend;
+        Clip slow = SpeedClips.WithRate(b.AddVideo(0, "m", S(2), S(10), S(1), "b"), new Rational(1, 2), S(10), S(11));
+        slow.Speed!.FrameSampling = FrameSampling.Blend;
+
+        TimelinePlan plan = b.Plan();
+        VideoClipPlan fastPlan = plan.Layers[0].Clips[0];
+        VideoClipPlan slowPlan = plan.Layers[0].Clips[1];
+        Assert.True(fastPlan.IsShown(2));
+        Assert.Equal(2, fastPlan.NextShown(2));
+        Assert.Equal(2, fastPlan.PreviousShown(2));
+        Assert.Equal(330, slowPlan.LastFrame);
+        Assert.True(slowPlan.IsShown(330));
+
+        var time = new ManualTimeProvider();
+        using TimelineSession session = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions
+        {
+            EnableAudio = false,
+            TimeProvider = time,
+            PrefetchFrames = 8,
+        });
+        Settle(session, backend).Dispose();
+        session.ResetStats();
+        session.Play();
+
+        int interpolated = 0;
+        for (int refresh = 0; refresh < 238; refresh++)
+        {
+            time.Advance(TimeSpan.FromTicks(166_667));
+            using (CompositionFrame frame = session.Tick())
+            {
+                LayerFrame layer = Assert.Single(frame.Layers);
+                VideoClipPlan active = frame.TimelineTime < S(2) ? fastPlan : slowPlan;
+                FrameSample sample = active.SampleAt(frame.TimelineTime);
+                Assert.Equal(sample.A, layer.Frame.Index);
+                if (sample.T > 0)
+                {
+                    Assert.NotNull(layer.Next);
+                    Assert.Equal(sample.B, layer.Next.Index);
+                    Assert.Equal(sample.T, layer.Fraction, 6);
+                    Assert.Equal(FrameSampling.Blend, layer.Sampling);
+                    interpolated++;
+                }
+            }
+
+            backend.RunDecoders();
+        }
+
+        Assert.True(interpolated >= 100, $"Solo {interpolated} refrescos interpolados.");
+        Assert.Equal(0, session.Stats.FramesDropped);
+        Assert.Equal(0, session.Stats.LateRefreshes);
+    }
+
+    [Fact]
+    public void Offline_reverse_with_blend_retains_B_in_the_gop_reader_without_extra_seeks()
+    {
+        foreach (Rational rate in new[] { new Rational(3, 2), new Rational(1, 2) })
+        {
+            var backend = new FakeTimelineBackend { KeyframeInterval = 15 };
+            var b = new TimelineBuilder(1, 0);
+            b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
+            Clip clip = SpeedClips.Reversed(b.AddVideo(0, "m", Time.Zero, S(10), S(1)), rate, S(10), S(10) + Time.FromSeconds(rate.ToDouble()));
+            clip.Speed!.FrameSampling = FrameSampling.Blend;
+
+            var seen = new HashSet<DecodedFrame>();
+            using (OfflineTimeline offline = OfflineProjects.Open(b, backend))
+            {
+                for (long f = 0; f < offline.FrameCount; f++)
+                {
+                    using CompositionFrame frame = offline.Render(f, CancellationToken.None);
+                    LayerFrame layer = Assert.Single(frame.Layers);
+                    if (f % 2 == 1)
+                    {
+                        CheckPair(layer, 0.5f, seen, reverse: true);
+                    }
+                }
+            }
+
+            FakeMediaVideo video = Assert.Single(backend.Videos);
+            int gops = rate == new Rational(3, 2) ? 3 : 1;
+            Assert.True(video.Seeks <= gops + 1, $"Rate {rate}: {video.Seeks} seeks (máximo esperado {gops + 1}).");
+            Assert.Equal(0, backend.Live.Value);
+        }
+    }
+
+    [Fact]
+    public void Switching_to_a_proxy_never_pairs_B_from_another_variant_with_Frame()
+    {
+        string dir = Path.Combine(Path.GetTempPath(), "rodaje-pruebas", "interp-proxy-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(dir);
+        try
+        {
+            string original = Path.Combine(dir, "original.mp4");
+            File.WriteAllBytes(original, [1, 2, 3, 4]);
+            var store = new ProxyStore(Path.Combine(dir, "almacen"));
+            var backend = new FakeTimelineBackend { ManualDecoding = true };
+            MediaInfo info = Samples.Info(Rational.Fps30, 3000, audio: false, 3840, 2160) with { Path = original };
+            backend.Register(original, info);
+
+            var b = new TimelineBuilder(1, 0);
+            b.Project.Media.Add(new MediaRef
+            {
+                Id = "m",
+                Path = original,
+                Name = "m",
+                Duration = info.Duration,
+                HasVideo = true,
+                FrameRate = Rational.Fps30,
+                Width = 3840,
+                Height = 2160,
+            });
+            Clip clip = SpeedClips.WithRate(b.AddVideo(0, "m", Time.Zero, S(1), S(4)), new Rational(1, 2), S(1), S(3));
+            clip.Speed!.FrameSampling = FrameSampling.Blend;
+
+            using var resolver = new MediaSourceResolver(store, generator: null);
+            using TimelineSession session = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions
+            {
+                EnableAudio = false,
+                TimeProvider = new ManualTimeProvider(),
+                ProxyResolver = resolver,
+                UseProxies = ProxyUsage.Auto,
+                PrefetchFrames = 1,
+            });
+            session.SeekToFrame(1);
+            using (CompositionFrame initial = Settle(session, backend))
+            {
+                LayerFrame layer = Assert.Single(initial.Layers);
+                Assert.Equal(original, ((FakeFramePayload)layer.Frame.Payload!).Path);
+                Assert.NotNull(layer.Next);
+                Assert.Equal(original, ((FakeFramePayload)layer.Next.Payload!).Path);
+            }
+
+            SourceFingerprint fp = SourceFingerprint.Compute(original);
+            string temp = store.CreateTemporaryPath(fp, ProxySettings.Default);
+            File.WriteAllBytes(temp, [5, 6, 7, 8]);
+            ProxyEntry proxy = store.Commit(temp, new ProxyMetadata
+            {
+                SourcePath = fp.Path,
+                SourceKey = fp.Key,
+                SourceSize = fp.Size,
+                SourceLastWriteUtc = fp.LastWriteUtc,
+                SettingsTag = ProxySettings.Default.Tag,
+                TargetHeight = 540,
+                GopLength = 15,
+                Encoder = "prueba",
+                Width = 960,
+                Height = 540,
+                FrameRateNum = 30,
+                FrameRateDen = 1,
+                FrameCount = 3000,
+                SourceFrameCount = 3000,
+                SourceStartTicks = 0,
+                ProxyStartTicks = 0,
+                SourceDurationTicks = info.Duration.Ticks,
+                ProxyDurationTicks = info.Duration.Ticks,
+                CreatedUtc = DateTime.UtcNow,
+            }, ProxySettings.Default);
+            backend.Register(proxy.ProxyPath, Samples.Info(Rational.Fps30, 3000, audio: false, 960, 540) with { Path = proxy.ProxyPath });
+
+            backend.FailFrames.Add((proxy.ProxyPath, 31));
+            resolver.Resolve(original, MediaPurpose.Preview);
+            bool sawProxyWithoutNext = false;
+            for (int i = 0; i < 4; i++)
+            {
+                backend.RunDecoders();
+                using CompositionFrame partial = session.Tick();
+                LayerFrame layer = Assert.Single(partial.Layers);
+                if (layer.IsProxy)
+                {
+                    Assert.Equal(proxy.ProxyPath, ((FakeFramePayload)layer.Frame.Payload!).Path);
+                    Assert.Null(layer.Next);
+                    sawProxyWithoutNext = true;
+                }
+            }
+
+            Assert.True(sawProxyWithoutNext);
+            backend.FailFrames.Clear();
+            session.SeekToFrame(1);
+            using CompositionFrame settled = Settle(session, backend);
+            LayerFrame finalLayer = Assert.Single(settled.Layers);
+            Assert.True(finalLayer.IsProxy);
+            Assert.Equal(proxy.ProxyPath, ((FakeFramePayload)finalLayer.Frame.Payload!).Path);
+            Assert.NotNull(finalLayer.Next);
+            Assert.Equal(proxy.ProxyPath, ((FakeFramePayload)finalLayer.Next.Payload!).Path);
+        }
+        finally
+        {
+            try
+            {
+                Directory.Delete(dir, recursive: true);
+            }
+            catch (IOException)
+            {
+            }
+        }
+    }
+
+    [Fact]
+    public void Offline_prefetch_does_not_enqueue_A_alone_when_only_one_slot_remains_for_a_new_pair()
+    {
+        var backend = new FakeTimelineBackend { ManualDecoding = true };
+        var b = new TimelineBuilder(1, 0);
+        b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
+        Clip clip = SpeedClips.WithRate(b.AddVideo(0, "m", Time.Zero, S(1), S(4)), new Rational(3, 2), S(1), S(7));
+        clip.Speed!.FrameSampling = FrameSampling.Blend;
+        VideoClipPlan plan = b.Plan().Layers[0].Clips[0];
+
+        using var readers = new OfflineReaders(backend, new Rodaje.Media.Video.VideoDecoderOptions(), maxPerSource: 1, lookahead: 2, vramBudget: 1L << 30);
+        Assert.NotNull(readers.RequestSample(plan, Time.Zero, mustHave: true));
+        Assert.Equal(1, readers.Slots);
+
+        Assert.False(readers.HasRoomForSample(plan, F(1, Rational.Fps30)));
     }
 
     private static TimelineBuilder SlowClip(FakeTimelineBackend backend, Rational rate, FrameSampling sampling)

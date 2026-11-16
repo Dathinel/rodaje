@@ -15,13 +15,33 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
     private ID3D11ComputeShader* _chroma;
     private ID3D11Buffer* _constants;
     private long _frame;
-    private bool _unsupported;
+    private FlowInterpolator? _flow;
 
-    public int TextureCount => _slots.Count;
+    public int TextureCount => _slots.Count + (_flow?.TextureCount ?? 0);
+    internal long FlowFrames => _flow?.Frames ?? 0;
+    internal nint FlowDecisionBuffer => _flow?.DecisionBuffer ?? 0;
 
-    public D3D11TexturePayload? Blend(D3D11TexturePayload a, D3D11TexturePayload b, float fraction)
+    public D3D11TexturePayload? Blend(D3D11TexturePayload a, D3D11TexturePayload b, float fraction) => Interpolate(a, b, fraction, false);
+
+    public D3D11TexturePayload? Flow(D3D11TexturePayload a, D3D11TexturePayload b, float fraction)
     {
-        if (_unsupported || a.IsReleased || b.IsReleased || a.DxgiFormat != b.DxgiFormat || a.Width != b.Width || a.Height != b.Height
+        if (a.Device != gpu || b.Device != gpu) return null;
+        try
+        {
+            return Interpolate(a, b, fraction, true);
+        }
+        catch (Exception error) when (error is RenderException or OutOfMemoryException or NotSupportedException)
+        {
+            _flow?.Trim();
+            try { return Blend(a, b, fraction); }
+            catch (Exception fallback) when (fallback is RenderException or OutOfMemoryException or NotSupportedException) { return null; }
+        }
+    }
+
+    private D3D11TexturePayload? Interpolate(D3D11TexturePayload a, D3D11TexturePayload b, float fraction, bool opticalFlow)
+    {
+        if (a.IsReleased || b.IsReleased || a.DxgiFormat != b.DxgiFormat || a.PixelFormat != b.PixelFormat
+            || a.Width != b.Width || a.Height != b.Height
             || a.DxgiFormat is not ((int)DXGI_FORMAT.DXGI_FORMAT_NV12 or (int)DXGI_FORMAT.DXGI_FORMAT_P010 or (int)DXGI_FORMAT.DXGI_FORMAT_P016)
             || !float.IsFinite(fraction))
         {
@@ -42,6 +62,12 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
             long bytes = (long)width * height * 3 / 2 * (format == DXGI_FORMAT.DXGI_FORMAT_NV12 ? 1 : 2);
             while (!budget.Reserve(bytes))
             {
+                if (opticalFlow && _flow is { TextureCount: > 0 })
+                {
+                    _flow.Trim();
+                    continue;
+                }
+
                 int free = _slots.FindIndex(s => !s.InUse);
                 if (free < 0)
                 {
@@ -60,7 +86,6 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
             {
                 // Un controlador sin vistas de escritura sobre planos de video: la capa sale con el cuadro A, no se cae el cuadro.
                 budget.ReleaseReservation(bytes);
-                _unsupported = true;
                 return null;
             }
             catch
@@ -78,8 +103,14 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
             PlaneViews second = views.Get(b, out bool ownSecond);
             try
             {
-                Dispatch(_luma, first.Luma, second.Luma, slot.Luma, width, height, fraction);
-                Dispatch(_chroma, first.Chroma, second.Chroma, slot.Chroma, width / 2, height / 2, fraction);
+                bool flowed = opticalFlow && (_flow ??= new FlowInterpolator(gpu, budget, shaders))
+                    .TryDispatch(first, second, slot.Luma, slot.Chroma, a.Width, a.Height,
+                        format == DXGI_FORMAT.DXGI_FORMAT_NV12, Math.Clamp(fraction, 0, 1));
+                if (!flowed)
+                {
+                    Dispatch(_luma, first.Luma, second.Luma, slot.Luma, width, height, fraction);
+                    Dispatch(_chroma, first.Chroma, second.Chroma, slot.Chroma, width / 2, height / 2, fraction);
+                }
             }
             finally
             {
@@ -92,7 +123,7 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
             if (ownFirst) first.Release();
         }
 
-        D3D11TexturePayload payload = D3D11TexturePayload.FromTexture(gpu, (nint)slot.Texture, 0, a.Width, a.Height, a.Color);
+        D3D11TexturePayload payload = D3D11TexturePayload.FromTexture(gpu, (nint)slot.Texture, 0, a.Width, a.Height, a.Color, a.PixelFormat);
         _payloads.Add(payload);
         return payload;
     }
@@ -116,6 +147,7 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
 
     public void Trim()
     {
+        _flow?.Trim();
         for (int i = _slots.Count - 1; i >= 0; i--)
         {
             if (!_slots[i].InUse) Remove(i);
@@ -126,6 +158,7 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
     {
         EndFrame();
         Trim();
+        _flow?.Dispose();
         Com.Release(ref _luma);
         Com.Release(ref _chroma);
         Com.Release(ref _constants);

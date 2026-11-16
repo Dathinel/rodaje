@@ -148,3 +148,32 @@ Con una toma real con cielo o ventanas que se quemen (o la carta sintética si n
 6. Preferencias › Rendimiento: cambia la carpeta (por ejemplo, a otro disco) y el tope a 5 GB; **Borrar el render en caché** dice «Liberados X GB» y la franja deja de estar en verde.
 7. Exporta el tramo verde con **«Usar el render en caché»** marcada y sin marcar: con la casilla debe tardar menos y verse igual a simple vista; sin ella, como siempre.
 8. Pruebas con hardware pendientes (para Claude, con el equipo libre): escenas B (1080p con desenfoque de movimiento de 16 muestras y transición), D (compuesto anidado de 3 niveles en 4K) y E (título por letra 4K al entrar) de F0, y las escenas A y C de F4 reproduciendo un tramo en caché (0 tarde en 60 s): `RODAJE_PRUEBAS_LARGAS=1`, `RenderCacheBaselineTests` y `TimelineCutPauseHardwareTests`.
+
+## Plantillas de movimiento (D-064)
+
+Hace falta al menos un paquete con plantillas instalado (el `.paquete` de `Complementosodaje-plantillas`, soltándolo en la biblioteca) o una plantilla propia del paso 7.
+
+1. Biblioteca › **Plantillas**: las miniaturas aparecen solas, se animan al pasar el ratón y vuelven al cuadro quieto al salir. ¿Se entiende el cuadro quieto (es el del medio)? ¿Sirve el ícono del carril?
+2. Doble clic pone la plantilla en el cursor; arrastrarla a una pista concreta la deja ahí. La etiqueta del clip es el nombre de la plantilla.
+3. Inspector con la plantilla seleccionada: escribe en un campo de texto (el cursor no debe saltar), cambia un color con el selector y con el código hexadecimal, mueve un deslizador y teclea el número, escribe una fuente a mano, prueba una casilla y un desplegable. **Ctrl+Z** deshace una tanda de tecleo o un arrastre entero, no letra a letra.
+4. Fluidez: ¿el visor sigue al deslizador y al tecleo sin retraso visible? (objetivo: un cuadro, 33 ms).
+5. Recorta el clip: se para en la duración mínima de la plantilla. Divídelo en plena entrada, copia, pega y duplica: las dos mitades se ven como antes y las copias no comparten valores.
+6. **Convertir en títulos** desde el inspector y desde el menú del clip: se ve igual y quedan seleccionados los títulos; **Ctrl+Z** vuelve a la plantilla. En un trozo donde no se ve ninguna capa, avisa y no borra nada.
+7. **Guardar como plantilla…** con un título y con tres en pistas distintas y con desfase: marca «Expuesto», cambia nombres y guarda. Aparece en la biblioteca sin reiniciar y al usarla cae en el mismo sitio, también en un proyecto 9:16 y en 4K.
+8. **Exportar…** una plantilla propia e instala ese `.paquete` soltándolo en la biblioteca y desde Complementos.
+9. **Actualizar a X**: instala la 1.0.0 de un paquete, usa una plantilla y cambia valores; instala la 1.1.0. Sale el botón, conserva los valores, el aviso nombra los que volvieron a su defecto y **Ctrl+Z** regresa.
+10. Una plantilla de transición sobre un corte y una de efecto sobre un clip: desde su menú se aplican con sus valores por defecto (sus parámetros aún no se editan en el inspector y arrastrar la de transición a un corte aún no hace nada).
+11. Selecciona a la vez un título y una plantilla: di qué panel sale y si confunde. Con una plantilla seleccionada, «Aplicar al texto seleccionado» de un estilo de texto no debe ofrecerse.
+12. Abre un proyecto con plantillas sin el paquete instalado: se ve igual y el panel sigue editando.
+
+## Cuadros intermedios: mezcla y flujo óptico (D-063)
+
+1. Pon un clip con movimiento (un paneo o alguien caminando) a **0,25×** en Inspector › Velocidad. Reproduce: va a saltos. Cambia **Cuadros intermedios** a «Mezcla de cuadros»: fundidos entre cuadros, con contornos dobles. Cambia a «Flujo óptico»: el movimiento debe verse continuo y nítido. El clip lleva **≈** delante de la velocidad (`≈ 0,25×`).
+2. Con «Flujo óptico», para y avanza cuadro a cuadro (flechas): mira los bordes de lo que se mueve delante del fondo. Di si ves bordes de goma o halos y en qué tipo de plano.
+3. Reproduce 10 s a 0,25× en una secuencia de 60 cuadros/s: la barra de estado no debe contar cuadros perdidos. Prueba lo mismo con un 4K.
+4. Un clip de 24 cuadros/s en una secuencia de 30, a 1×: con «Cuadro más cercano» se nota el tirón de cada cuarto cuadro; con «Flujo óptico» debe desaparecer. El clip a 1× conserva el modo y muestra solo `≈`.
+5. Un clip que por dentro tenga un cambio de plano, a 0,25× con flujo: en el corte no debe verse un fundido ni una deformación entre los dos planos, solo el salto.
+6. Selecciona varios clips y cambia el modo: **Ctrl+Z** una vez los devuelve todos. En un congelado, una foto, un título o un compuesto el desplegable sale apagado.
+7. Reversa a 0,5× con flujo y una rampa (curva «Bala»): igual de continuo que hacia adelante.
+8. Exporta el tramo a 0,25× con flujo: el archivo debe verse como la vista previa en pausa.
+9. Guarda, cierra y abre el proyecto: el modo sigue. Ábrelo con Rodaje 1.0.3: se ve como «Cuadro más cercano» (lo esperado).

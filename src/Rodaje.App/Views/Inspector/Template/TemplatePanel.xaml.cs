@@ -70,10 +70,15 @@ internal sealed partial class TemplatePanel : UserControl, IEditorView
             return;
         }
 
-        if (clip.Id != _clipId || template.Document != _documentText)
+        if (clip.Id != _clipId)
         {
             services.Session.BreakMerge();
             _clipId = clip.Id;
+        }
+
+        // Las filas dependen solo del documento: otro clip de la misma plantilla las reutiliza.
+        if (template.Document != _documentText)
+        {
             _documentText = template.Document;
             try
             {

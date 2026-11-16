@@ -107,6 +107,17 @@ public sealed class TemplateInstancesTests
         new(reference, "Rótulo inferior Barra", "", "Plantillas", PackageOrigin.Installed, ContentReaders.ReadTemplate(document), document);
 
     [Fact]
+    public void Una_plantilla_seleccionada_no_es_un_titulo_para_el_editor_de_texto() => UiThread.Run(async () =>
+    {
+        var session = new Rodaje.App.Services.EditorSession(new FakePlayback(), new FakeProber().Video("a.mp4", 10), new FakeDialogs(), new SequentialIdGenerator());
+        await session.OpenFilesAsync([Path.GetFullPath("a.mp4")]);
+        Assert.True(session.AddTemplate(Entry(TemplateSamples.Barra)));
+
+        Assert.NotNull(session.SelectedTemplate);
+        Assert.Null(new Rodaje.App.Services.Inspector.TitleEditor(session).Target());
+    });
+
+    [Fact]
     public void El_generador_nuevo_lleva_documento_origen_minimo_y_capas_por_defecto()
     {
         ClipGenerator generator = TemplateInstances.NewGenerator(Entry(TemplateSamples.Barra));

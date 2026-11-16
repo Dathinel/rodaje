@@ -12,6 +12,7 @@ Para editores, creadores de contenido y usuarios finales. Todos los manuales est
 - **[Instalación y requisitos](guia/instalar.md):** Instalador, versión portable y versión completa con modelos de IA; requisitos de Windows y GPU DirectX 11.
 - **[Tu primer proyecto paso a paso](guia/primer-proyecto.md):** Importar, cortar, música bajo voz, rotulación y exportación a video vertical para redes en 10 minutos.
 - **[Edición en la línea de tiempo](guia/edicion.md):** Operaciones al cuadro exacto, cortes (S), recorte ripple (Q/W), pista principal magnética, clips compuestos y edición de 3/4 puntos.
+- **[Cámara lenta y cuadros intermedios](guia/camara-lenta.md):** Modos de cuadros intermedios (cercano, mezcla, flujo óptico), conformar 24 en 30, límites y marca ≈.
 - **[Color, efectos e imagen](guia/imagen.md):** Corrección con ruedas de 3 vías, curvas, tablas LUT `.cube`, máscaras bezier, transformaciones animadas y modos de mezcla en GPU.
 - **[Seguimiento de movimiento (Tracking)](guia/seguimiento.md):** Rastreo de puntos, esquinas y áreas aplicable a títulos, máscaras o estabilización.
 - **[Audio y mezcla](guia/audio.md):** Volumen por clip, curvas de envolvente, ducking inteligente, ecualización, compresor y voz en off con sonoridad LUFS.

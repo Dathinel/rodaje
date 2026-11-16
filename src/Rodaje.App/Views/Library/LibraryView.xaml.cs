@@ -581,7 +581,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         else if (item.Element.Kind == ItemKind.TextStyle)
         {
             menu.Items.Add(MenuItem("A\u00F1adir texto en el cursor", "\uE8D2", (_, _) => UiTask.Run(AddTitleAsync(item.Element))));
-            if (_services?.Session.SelectedTitle is not null)
+            if (_services?.Session.SelectedTitle is { Generator.Template: null })
             {
                 menu.Items.Add(MenuItem("Aplicar al texto seleccionado", "\uE710", (_, _) => UiTask.Run(ApplyElementAsync(item.Element))));
             }

@@ -180,7 +180,8 @@ if ($Autoprueba) {
         if ($eco.Codigo -ne 0) { Nota 'No se pudo compilar el módulo eco: la autoprueba sigue sin el paso de IA.' }
     }
     Remove-Item Env:DOTNET_ROOT -ErrorAction SilentlyContinue
-    Titulo 'Autoprueba del exe publicado (la ventana se abre y se cierra sola)...'
+    Exigir-Fondo $Exe
+    Titulo 'Autoprueba del exe publicado (de fondo: la ventana no se ve)...'
     $reloj = [System.Diagnostics.Stopwatch]::StartNew()
     # La sonda exige el primer render y la cola de UI disponible; salir con 0 antes de crear la ventana no basta.
     $p = Start-Process -FilePath $Exe -ArgumentList @('--arranque', '--sin-audio', '--registro', ('"' + $registro + '"')) -PassThru
@@ -207,7 +208,8 @@ if ($Medir -gt 0) {
     $argumentos += @('--medir', $Medir.ToString([System.Globalization.CultureInfo]::InvariantCulture), '--registro', ('"' + $registro + '"'))
     if ($Escenario) { $argumentos += @('--escenario', $Escenario) }
     if ($SinProxies) { $argumentos += '--sin-proxies' }
-    Titulo "Midiendo $Medir s de reproducción (la ventana se abre y se cierra sola)..."
+    Exigir-Fondo $Exe
+    Titulo "Midiendo $Medir s de reproducción (de fondo: la ventana no se ve)..."
     $p = Start-Process -FilePath $Exe -ArgumentList $argumentos -PassThru
     if (-not $p.WaitForExit([int](($Medir + 90) * 1000))) { $p.Kill(); Mal 'Rodaje no terminó a tiempo.'; exit 1 }
     if (Test-Path -LiteralPath $registro) {
