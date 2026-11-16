@@ -308,6 +308,9 @@ public sealed record ExportRequest(Rodaje.Core.Model.Project Project, string Seq
     /// <summary>Carpeta del proyecto, para resolver rutas relativas de medios.</summary>
     public string? ProjectDirectory { get; init; }
 
+    /// <summary>Pausa cooperativa entre cuadros; nula en una exportación normal.</summary>
+    public Running.ExportPauseToken? Pause { get; init; }
+
     /// <summary>
     /// «Exportar sin él» tras un <see cref="ExportErrorCode.ContentMissing"/> o <see cref="ExportErrorCode.EffectFailed"/>:
     /// la LUT, la transición o el efecto que falla se omite, como en la vista previa.

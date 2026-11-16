@@ -35,6 +35,36 @@ internal sealed partial class TimelinePlan
         Lanes = [.. layers.SelectMany(l => l.Companion is { } companion ? new[] { l, companion } : [l])];
     }
 
+    /// <summary>El mismo plan con otros carriles visibles (el del render en caché encima y los demás recortados).</summary>
+    private TimelinePlan(TimelinePlan source, IReadOnlyList<VideoLayerPlan> layers)
+    {
+        SequenceId = source.SequenceId;
+        Expanded = source.Expanded;
+        for (int i = 0; i < layers.Count; i++)
+        {
+            layers[i].Ordinal = i;
+        }
+
+        Width = source.Width;
+        Height = source.Height;
+        FrameRate = source.FrameRate;
+        Duration = source.Duration;
+        Layers = layers;
+        HiddenLayers = source.HiddenLayers;
+        Audio = source.Audio;
+        MissingContent = source.MissingContent;
+        Lanes = [.. layers.SelectMany(l => l.Companion is { } companion ? new[] { l, companion } : [l])];
+        Coverage = layers.Count > 0 && layers[^1].TrackId == CacheTrackId ? layers[^1] : null;
+    }
+
+    internal TimelinePlan WithLayers(IReadOnlyList<VideoLayerPlan> layers) => new(this, layers);
+
+    /// <summary>Id del carril virtual del render en caché (D-060).</summary>
+    public const string CacheTrackId = "#cache";
+
+    /// <summary>El carril del render en caché si este plan lo lleva; nulo en un plan sin cobertura.</summary>
+    public VideoLayerPlan? Coverage { get; }
+
     public string SequenceId { get; }
 
     public int Width { get; }

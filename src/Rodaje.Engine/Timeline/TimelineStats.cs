@@ -102,6 +102,9 @@ public sealed record TimelineStats(
     /// <summary>Refrescos en una transición en los que el cuadro debido del clip que entra no estaba listo.</summary>
     public long TransitionLateRefreshes { get; init; }
 
+    /// <summary>Cuadros de la secuencia en que hubo un refresco tarde, los últimos 256 como mucho.</summary>
+    public IReadOnlyList<long> LateFrames { get; init; } = [];
+
     /// <summary>
     /// Refrescos (sumados por capa) que, reproduciendo de 16× a 100×, mostraron el keyframe anterior al cuadro debido en
     /// lugar de decodificarlo; en pausa y tras un seek el cuadro siempre es exacto.

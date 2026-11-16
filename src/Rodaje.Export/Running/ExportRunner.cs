@@ -44,6 +44,9 @@ public sealed record ExportRunnerOptions
 
     /// <summary>El dispositivo propio de la exportación; por omisión, uno nuevo en la GPU por defecto.</summary>
     public Func<GpuDevice>? CreateDevice { get; init; }
+
+    /// <summary>Tope de hilos del codificador de video; nulo deja que FFmpeg decida.</summary>
+    public int? VideoThreads { get; init; }
 }
 
 /// <summary>
@@ -57,6 +60,11 @@ public sealed class ExportRunner
     public ExportRunner(ExportRunnerOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        if (options.VideoThreads is { } threads)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threads);
+        }
+
         Options = options;
     }
 
