@@ -709,6 +709,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             }
 
             UpdateMissingFonts();
+            RaisePlanChanged(opened: false);
             if (_editMarkTaken != 0)
             {
                 _editAppliedAt = Stopwatch.GetTimestamp();
@@ -722,6 +723,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _dirty = true;
             _reloadSince = reloadAt;
         }
+
+        ApplyPendingCoverage();
     }
 
     private bool IsScrubbing => _shuttleRate is not (0 or 1);
@@ -761,13 +764,18 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             return;
         }
 
-        _session.DecodeFailed += (_, e) => _metrics.Note($"decodificación falló en {Path.GetFileName(e.Path)} cuadro {e.FrameIndex}: {e.Error.Message}");
+        _session.DecodeFailed += (_, e) =>
+        {
+            _metrics.Note($"decodificación falló en {Path.GetFileName(e.Path)} cuadro {e.FrameIndex}: {e.Error.Message}");
+            SourceFailed?.Invoke(e.Path);
+        };
         _session.FrameDelivered += (_, _) => Wake();
         _metrics.Milestone("sesion_abierta");
         _lastSignature = 0;
         UpdateMissingFonts();
         EnsureCompositor();
         _dirty = true;
+        RaisePlanChanged(opened: true);
     }
 
     private void ProcessCommands()

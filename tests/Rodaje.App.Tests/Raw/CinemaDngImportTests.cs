@@ -433,6 +433,62 @@ public sealed class CinemaDngImportTests(ITestOutputHelper output) : IDisposable
     }
 
     /// <summary>
+    /// Los grises no distinguen primarios ni el orden de los planos: los parches de color de la carta llegan al intermedio
+    /// HDR en BT.2020 (la escena sRGB por <see cref="RawDevelopParameters.Bt709ToBt2020"/>, en PQ con 1,0 = 203 nits) y
+    /// cada canal en su sitio, por la GPU y por LibRaw (medido: 9 códigos de 16 bits como mucho).
+    /// </summary>
+    [FfmpegLibraryFact]
+    public async Task Chart_colors_reach_the_hdr_intermediate_in_bt2020_on_both_paths()
+    {
+        if (await RawModuleAsync() is not { } raw)
+        {
+            return;
+        }
+
+        await using ModuleManager manager = raw.Manager;
+        const int Width = 384, Height = 64;
+        string dir = WriteFrames("Carta HDR", SyntheticDng.Chart(Width, Height) with { FrameRate = (25, 1) }, 1);
+        IReadOnlyList<float> m = RawDevelopParameters.Bt709ToBt2020;
+        foreach ((string name, Func<GpuDevice?> device) in ((string, Func<GpuDevice?>)[])[("GPU", GpuDevice.CreateWarp), ("LibRaw", () => null)])
+        {
+            CinemaDngResult result = await CinemaDngImport.RunAsync(manager, raw.Module, FfmpegExecutable.Locate(), CinemaDngImport.Scan(dir)!,
+                new CinemaDngOptions(Intermediate: CinemaDngIntermediate.HdrPq), Path.Combine(_folder.Path, "medios"), $"Carta {name}", createDevice: device);
+            float[] rgb = await RgbFrameAsync(result.Path, Width, Height);
+            for (int patch = 0; patch < SyntheticDng.ChartPatches.Count; patch++)
+            {
+                (double r, double g, double b) = SyntheticDng.ChartPatches[patch];
+                (int x, int y) = SyntheticDng.PatchCenter(patch, Width, Height);
+                for (int c = 0; c < 3; c++)
+                {
+                    int expected = PqCode(203 * ((m[c * 3] * r) + (m[(c * 3) + 1] * g) + (m[(c * 3) + 2] * b)));
+                    int actual = (int)Math.Round(rgb[(((c + 2) % 3 * Height * Width) + (y * Width) + x)] * 65535);
+                    output.WriteLine($"{name} parche {patch} canal {"RGB"[c]}: {actual} (esperado {expected}).");
+                    Assert.InRange(actual, expected - 32, expected + 32);
+                }
+            }
+        }
+    }
+
+    /// <summary>El primer cuadro en planos G, B, R de 32 bits sin convertir la curva (códigos PQ de 0 a 1).</summary>
+    private static async Task<float[]> RgbFrameAsync(string path, int width, int height)
+    {
+        var start = new System.Diagnostics.ProcessStartInfo(FfmpegExecutable.Locate().Path) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true };
+        foreach (string a in (string[])["-hide_banner", "-loglevel", "error", "-i", path, "-frames:v", "1",
+            "-vf", "zscale=min=2020_ncl:rin=full:m=gbr:r=full,format=gbrpf32le", "-f", "rawvideo", "pipe:1"])
+        {
+            start.ArgumentList.Add(a);
+        }
+
+        using var process = System.Diagnostics.Process.Start(start)!;
+        using var memory = new MemoryStream();
+        await process.StandardOutput.BaseStream.CopyToAsync(memory);
+        await process.WaitForExitAsync();
+        float[] data = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, float>(memory.ToArray()).ToArray();
+        Assert.Equal(width * height * 3, data.Length);
+        return data;
+    }
+
+    /// <summary>
     /// Lo que baja el código PQ un escalón de media precisión por debajo de <paramref name="nits"/> (2^-11 relativo, unos 3
     /// códigos): la GPU entrega rgba16f y su blanco puede quedar en 0,99951 en lugar de 1,0; LibRaw da el código exacto.
     /// </summary>

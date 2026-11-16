@@ -3,6 +3,7 @@ using Rodaje.Core.Timing;
 using Rodaje.Media.Export;
 using Rodaje.Media.RenderCache;
 using Rodaje.Playback.Composition;
+using Rodaje.Render;
 
 namespace Rodaje.Export.Running;
 
@@ -57,9 +58,25 @@ public sealed class RenderCacheJob
         {
             VideoThreads = Math.Min(options.VideoThreads ?? threads, threads),
             Verify = true,
+            VerifyMovPackets = true,
             TemporaryDirectory = options.TemporaryDirectory ?? store.Directory,
         });
     }
+
+    /// <summary>Lo que se codifica en cada fragmento: ProRes 422 HQ sin audio, a prioridad baja.</summary>
+    public static ExportSettings Settings { get; } = ExportPresets.ProResMaster.Settings with
+    {
+        Audio = null,
+        SmartRender = false,
+        Performance = ExportPerformance.Background,
+    };
+
+    /// <summary>
+    /// La huella de la cadena que produce un fragmento (<see cref="RecipeFormat.Chain"/>): shaders, preajuste del
+    /// codificador y versión de FFmpeg. Si cambia cualquiera, los fragmentos viejos dejan de acertar.
+    /// </summary>
+    public static string Chain(string ffmpegVersion) =>
+        string.Join('|', RenderChain.ShaderFingerprint, Settings.Video?.ToString() ?? "", Settings.Container, ffmpegVersion);
 
     public ExportPauseToken Pause { get; }
 
@@ -79,12 +96,7 @@ public sealed class RenderCacheJob
         string temporary = _store.CreateTemporaryPath();
         try
         {
-            ExportSettings settings = ExportPresets.ProResMaster.Settings with
-            {
-                Audio = null,
-                SmartRender = false,
-                Performance = ExportPerformance.Background,
-            };
+            ExportSettings settings = Settings;
             var range = new ExportRange(Time.FromFrames(_firstFrame, _sequence.FrameRate),
                 Time.FromFrames(_firstFrame + _frameCount, _sequence.FrameRate));
             var request = new ExportRequest(_project, _sequence.Id, temporary, settings, range)
@@ -107,7 +119,7 @@ public sealed class RenderCacheJob
                 throw failure;
             }
 
-            ExportReport report = export.Report ?? ExportVerifier.For(_runner.Options.Ffmpeg).Inspect(temporary, cancellationToken);
+            ExportReport report = export.Report ?? ExportVerifier.For(_runner.Options.Ffmpeg).InspectMovPackets(temporary, cancellationToken);
             if (report.Video is not { } video || video.FrameCount != _frameCount || video.Width != _sequence.Width
                 || video.Height != _sequence.Height || video.FrameRate != _sequence.FrameRate || report.Audio is not null)
             {
@@ -122,6 +134,7 @@ public sealed class RenderCacheJob
             }
 
             cancellationToken.ThrowIfCancellationRequested();
+            using var measurement = new ExportMeasurement(_runner.Options.Measure, "Commit");
             return _store.Commit(temporary, metadata);
         }
         finally

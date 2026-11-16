@@ -55,7 +55,8 @@ internal static partial class SelfTestRun
             await ShortcutsAsync(window);
             await ShowCurveAsync(window);
             await ToggleReverseAsync(window);
-            await InterpolationAsync(window, engine);
+            await InterpolationAsync(window);
+            await BlendAsync(window, engine);
             await TitleAsync(window, engine);
             await ImageAsync(window, engine);
             await MasksAsync(window, engine);
@@ -69,6 +70,7 @@ internal static partial class SelfTestRun
             await ModuleAsync(window);
             await FormatAsync(window, engine);
             await InterchangeAsync(window);
+            await RenderCacheAsync(window);
             window.InspectorPane.Show(InspectorView.Tab.Properties);
             await LayoutAsync(window);
             if (window.Session.Sequence.Duration.Ticks > 0)

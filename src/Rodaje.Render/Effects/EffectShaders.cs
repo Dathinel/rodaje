@@ -112,7 +112,7 @@ internal static class EffectShaders
     // key1 = derrame, recorte del borde (0–0,45), dirección unitaria de la clave en CbCr. lift, gain: por canal (ya sumado
     // el general); gammaExp: exponente 2^−gamma por canal; lift.w, gammaExp.w y gain.w: el desplazamiento (rojo, verde y
     // azul), que se suma antes que todo. Curvas: tabla de 1024 × 1 en t10 (canal y luego general).
-    private const string Source = RenderShaders.Prelude + """
+    internal const string Source = RenderShaders.Prelude + """
         cbuffer Effects : register(b1)
         {
             float4 grade;

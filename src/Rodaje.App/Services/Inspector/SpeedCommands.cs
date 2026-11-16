@@ -36,6 +36,9 @@ public interface ISpeedCommands
 
     /// <summary>La curva de un preajuste propio (<see cref="SpeedPresets"/>).</summary>
     ICommand ApplySpeedPreset(string sequenceId, string clipId, SpeedPreset preset, RippleScope scope);
+
+    /// <summary>Modo de interpolación de cuadros intermedios sobre varios clips.</summary>
+    ICommand SetFrameSampling(string sequenceId, IReadOnlyList<string> clipIds, FrameSampling sampling);
 }
 
 public static class SpeedCommands
@@ -75,5 +78,8 @@ public static class SpeedCommands
 
         public ICommand ApplySpeedPreset(string sequenceId, string clipId, SpeedPreset preset, RippleScope scope) =>
             Edits.ApplySpeedPreset(sequenceId, clipId, preset, scope);
+
+        public ICommand SetFrameSampling(string sequenceId, IReadOnlyList<string> clipIds, FrameSampling sampling) =>
+            Edits.SetFrameSampling(sequenceId, clipIds, sampling);
     }
 }

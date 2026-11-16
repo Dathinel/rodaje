@@ -120,6 +120,16 @@ Fallos: (1) tras **Alt+X** la barra de contexto desaparece pero la regla sigue s
 3. Repite con `RODAJE_FORZAR_WARP=1` (o en una máquina sin GPU): el diálogo dice «Se revela en la CPU con LibRaw», ofrece la calidad y la notificación dice «Revelado en la CPU (LibRaw)». Los dos ProRes deben verse iguales a simple vista (solo cambia el interpolado en los bordes finos).
 4. Con el módulo 1.0.0 instalado (sin `mosaico`) todo sigue por la CPU sin ningún aviso.
 
+## CinemaDNG en HDR sin recortar (D-065)
+
+Con una toma real con cielo o ventanas que se quemen (o la carta sintética si no hay ninguna):
+
+1. En una secuencia **HDR10 (PQ)** (Archivo › «Formato del proyecto…»), Archivo › **Importar CinemaDNG…**: «Intermedio» debe proponer «HDR sin recortar · FFV1 16 bits, PQ BT.2020». En una secuencia SDR debe proponer el ProRes.
+2. Importa en HDR con **+2 EV**. La notificación dice «N ms y M MB por fotograma»: apunta los dos en `docs/hdr.md` (fase D, segunda parte; hoy solo hay cifras sintéticas). Compara con la misma toma en SDR: el tiempo no debería pasar de 1,25 veces.
+3. Pon el clip en la secuencia HDR y baja «Exposición» en Color a −2 EV: las nubes y las ventanas deben recuperar detalle. Con el ProRes SDR importado a +2 EV, lo mismo solo las pone grises.
+4. Pon el clip HDR en una secuencia **SDR**: se ve un paso más brillante que el ProRes hasta poner 203 en «Brillo de referencia HDR» (Propiedades); con 203 debe verse como el ProRes, sin bandas.
+5. Mira que el clip HDR de 4K reproduce con su proxy con la misma fluidez que un ProRes 4K, y que el proxy se ve con los colores del original (sirve para cortar; en degradados puede tener bandas).
+
 ## Intercambio con otros editores (EDL, FCPXML, OpenTimelineIO)
 
 1. Con un montaje de varias pistas (cortes, un fundido **Ctrl+T**, un clip a 2× y un marcador), Archivo › **Exportar línea de tiempo…** y guarda como `.otio`. No debe pedir nada: OTIO lo lleva todo. Repite como `.fcpxml` y `.edl`: antes de escribir aparece «Exportar a …» con el resumen de lo que no llega igual (en EDL, por ejemplo, los efectos y las pistas de audio de la 3 en adelante). Al terminar, «Ver informe» lista cada aviso con su TC de la secuencia; prueba **Copiar** y **Guardar como .txt**. La EDL escribe un archivo por pista de video (`nombre.edl`, `nombre_V2.edl`…).
@@ -127,3 +137,14 @@ Fallos: (1) tras **Alt+X** la barra de contexto desaparece pero la regla sigue s
 3. Importa la `.edl`: los medios aparecen; si moviste o renombraste el material antes, se abre «Faltan medios» y «Buscar en carpeta» los encuentra por el nombre del carrete; los clips quedan en su sitio aunque la cámara grabara con TC (por ejemplo, empezando en `01:00:00:00`).
 4. Abre en DaVinci Resolve (gratis) la `.edl`, el `.fcpxml` y el `.otio` exportados: el corte, los fundidos y las velocidades deben coincidir. Si puedes, exporta desde Resolve una línea de tiempo corta a los tres formatos y guárdalos para las pruebas (pregunta 2 de D-062).
 5. Importa un `.fcpxml` de Final Cut o Resolve con títulos: los títulos quedan como huecos y el informe los nombra con su texto.
+
+## Render en caché (D-060)
+
+1. Arma un tramo pesado: tres pistas con el mismo video 4K (o 1080p si el equipo va justo) y en cada clip seis efectos (color, curvas, lente, resplandor, grano, viñeta). Sobre la regla aparece una franja de 4 px **roja** en ese tramo (y **amarilla** donde va justo); lo ligero no lleva franja. Pasa el ratón por encima: cada color dice qué significa.
+2. Suelta el ratón y espera 3 s sin tocar nada. En **Trabajos** aparece «Render en caché · Calculando desde … s (60 cuadros)» con su barra; la franja se vuelve **verde** trozo a trozo. Dale a reproducir mientras calcula: la fila dice «En pausa mientras se reproduce o se mueve el cursor» y la reproducción no debe notar nada. Al parar, sigue sola.
+3. Reproduce el tramo verde: debe ir fluido (sin cuadros perdidos en la barra de estado) y verse como lo vivo. Mira de cerca un título con borde fino y un rojo saturado: el caché es ProRes 422 HQ y puede perder algo en líneas de un píxel; di si se nota.
+4. Cambia un efecto de un clip del tramo verde: esa parte pasa a roja enseguida. **Ctrl+Z**: vuelve a verde al momento, sin recalcular. Mueve el tramo entero (todas sus pistas) a otro sitio: sigue verde.
+5. Preferencias › Rendimiento › «Calcular en segundo plano» = **Manual**. Marca I y O sobre un tramo rojo y usa Secuencia › **Calcular de entrada a salida** (**Ctrl+Mayús+R**): solo calcula ese tramo, aunque no esté en reposo «inteligente». Sin marcas, calcula la secuencia entera. Con **Apagado** no calcula nada y la franja sigue diciendo lo que va lento.
+6. Preferencias › Rendimiento: cambia la carpeta (por ejemplo, a otro disco) y el tope a 5 GB; **Borrar el render en caché** dice «Liberados X GB» y la franja deja de estar en verde.
+7. Exporta el tramo verde con **«Usar el render en caché»** marcada y sin marcar: con la casilla debe tardar menos y verse igual a simple vista; sin ella, como siempre.
+8. Pruebas con hardware pendientes (para Claude, con el equipo libre): escenas B (1080p con desenfoque de movimiento de 16 muestras y transición), D (compuesto anidado de 3 niveles en 4K) y E (título por letra 4K al entrar) de F0, y las escenas A y C de F4 reproduciendo un tramo en caché (0 tarde en 60 s): `RODAJE_PRUEBAS_LARGAS=1`, `RenderCacheBaselineTests` y `TimelineCutPauseHardwareTests`.

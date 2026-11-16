@@ -156,6 +156,79 @@ public static partial class TimelineEdits
     }
 
     /// <summary>
+    /// Modo de interpolación de cuadros intermedios sobre varios clips y sus enlazados de video en un solo paso.
+    /// Crea velocidad a 1× si no tiene; ignora audio, congelados, fotos, títulos y compuestos.
+    /// </summary>
+    public static void SetFrameSampling(EditContext ctx, IReadOnlyList<string> clipIds, FrameSampling sampling)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(clipIds);
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var toModify = new List<(Track Track, Clip Clip)>();
+
+        foreach (string id in clipIds)
+        {
+            if (ctx.Sequence.FindClip(id) is not { } found)
+            {
+                continue;
+            }
+
+            foreach ((Track track, Clip clip) in ctx.Sequence.GetLinkGroup(found.Clip.Id))
+            {
+                if (!seen.Add(clip.Id))
+                {
+                    continue;
+                }
+
+                if (track.Kind != TrackKind.Video)
+                {
+                    continue;
+                }
+
+                if (clip.IsCompound || clip.Generator is not null)
+                {
+                    continue;
+                }
+
+                if (clip.Speed is { Freeze: true })
+                {
+                    continue;
+                }
+
+                if (ctx.Project.FindMedia(clip.MediaId)?.IsStillImage == true)
+                {
+                    continue;
+                }
+
+                toModify.Add((track, clip));
+            }
+        }
+
+        foreach ((Track track, Clip clip) in toModify)
+        {
+            EditContext.EnsureUnlocked(track);
+
+            if (clip.Speed is null)
+            {
+                if (sampling != FrameSampling.Nearest)
+                {
+                    Time duration = clip.Duration;
+                    clip.Speed = Normalize(new ClipSpeed { FrameSampling = sampling });
+                    clip.Duration = duration;
+                }
+            }
+            else
+            {
+                clip.Speed.FrameSampling = sampling;
+                clip.Speed = Normalize(clip.Speed);
+            }
+        }
+
+        ctx.EnsureValid();
+    }
+
+    /// <summary>
     /// Alt + arrastrar un borde: el clip pasa a durar <c>D ∓ delta</c> con el mismo material, así que cambia su velocidad
     /// a <c>material / duración</c>, aproximada con un denominador de hasta <see cref="StretchMaxDenominator"/> y acotada
     /// a 0,1×–100×. El inicio queda, tire del borde que tire; lo que sigue se une o se empuja como en <see cref="SetSpeed(EditContext, string, Rational, RippleScope)"/>.
