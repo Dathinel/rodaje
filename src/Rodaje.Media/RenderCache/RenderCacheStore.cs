@@ -301,6 +301,22 @@ public sealed class RenderCacheStore : IRenderCacheStore
         }
     }
 
+    /// <summary>Saca del índice el fragmento de <paramref name="moviePath"/> (uno que no se pudo leer); <c>false</c> si no estaba.</summary>
+    public bool Forget(string moviePath)
+    {
+        ArgumentNullException.ThrowIfNull(moviePath);
+        lock (_lock)
+        {
+            if (!_fragments.TryGetValue(Path.GetFullPath(moviePath), out RenderCacheFragment? fragment))
+            {
+                return false;
+            }
+
+            ForgetCore(fragment);
+            return true;
+        }
+    }
+
     /// <summary>
     /// Suma de bytes de los archivos <c>.mov</c> y <c>.json</c> en la carpeta (0 si no existe).
     /// </summary>

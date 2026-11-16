@@ -11,7 +11,7 @@ internal static class ExportShaders
     // ensancha el núcleo en cada eje. options: núcleo (ScaleKernel), mezcla de dos composiciones, tamaño de salida.
     // window: origen y tamaño de la región que se exporta (recorte), en texels del nivel leído.
     // Las coordenadas s están en texels del nivel leído, con el centro del texel en el entero.
-    private const string Scale = """
+    internal const string Scale = """
         cbuffer Scale : register(b0)
         {
             float4 rect;
@@ -102,7 +102,7 @@ internal static class ExportShaders
     // secuencia HDR (D-055) o, con la bandera 64, SDR BT.709 en gamma. La variante TONEMAP lleva la composición lineal de una
     // secuencia HDR a SDR BT.709 recortando lo que pasa de 203 nits (como el visor sin pantalla HDR). Sin ninguna definida la
     // fuente es la de siempre, así el bytecode SDR no cambia (lo comprueba ExportHdrEncodeTests).
-    private const string Convert = """
+    internal const string Convert = """
         cbuffer Convert : register(b0)
         {
             uint4 plane;
@@ -325,7 +325,7 @@ internal static class ExportShaders
 
     // thumb: tamaño de la miniatura y del cuadro. Cada píxel promedia 4×4 muestras de su caja. La variante TONEMAP lee la
     // composición lineal de una secuencia HDR y la recorta a SDR BT.709 como PresentHdr (D-055); sin ella la miniatura es la de siempre.
-    private const string Thumbnail = """
+    internal const string Thumbnail = """
         cbuffer Thumb : register(b0)
         {
             uint4 thumb;
@@ -382,7 +382,7 @@ internal static class ExportShaders
 
     // light: ancho y alto de la composición y teselas por fila. Cada grupo reduce su tesela de 16×16 a dos floats (máximo y
     // suma de max(R, G, B) en luz lineal, 1,0 = 203 nits); la CPU junta las teselas (ContentLightMeter).
-    private const string Light = """
+    internal const string Light = """
         cbuffer Light : register(b0)
         {
             uint4 light;

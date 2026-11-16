@@ -3,6 +3,7 @@ using Rodaje.Core.Timing;
 using Rodaje.Media.Export;
 using Rodaje.Media.RenderCache;
 using Rodaje.Playback.Composition;
+using Rodaje.Render;
 
 namespace Rodaje.Export.Running;
 
@@ -61,6 +62,21 @@ public sealed class RenderCacheJob
         });
     }
 
+    /// <summary>Lo que se codifica en cada fragmento: ProRes 422 HQ sin audio, a prioridad baja.</summary>
+    public static ExportSettings Settings { get; } = ExportPresets.ProResMaster.Settings with
+    {
+        Audio = null,
+        SmartRender = false,
+        Performance = ExportPerformance.Background,
+    };
+
+    /// <summary>
+    /// La huella de la cadena que produce un fragmento (<see cref="RecipeFormat.Chain"/>): shaders, preajuste del
+    /// codificador y versión de FFmpeg. Si cambia cualquiera, los fragmentos viejos dejan de acertar.
+    /// </summary>
+    public static string Chain(string ffmpegVersion) =>
+        string.Join('|', RenderChain.ShaderFingerprint, Settings.Video?.ToString() ?? "", Settings.Container, ffmpegVersion);
+
     public ExportPauseToken Pause { get; }
 
     public string? ProjectDirectory { get; }
@@ -79,12 +95,7 @@ public sealed class RenderCacheJob
         string temporary = _store.CreateTemporaryPath();
         try
         {
-            ExportSettings settings = ExportPresets.ProResMaster.Settings with
-            {
-                Audio = null,
-                SmartRender = false,
-                Performance = ExportPerformance.Background,
-            };
+            ExportSettings settings = Settings;
             var range = new ExportRange(Time.FromFrames(_firstFrame, _sequence.FrameRate),
                 Time.FromFrames(_firstFrame + _frameCount, _sequence.FrameRate));
             var request = new ExportRequest(_project, _sequence.Id, temporary, settings, range)

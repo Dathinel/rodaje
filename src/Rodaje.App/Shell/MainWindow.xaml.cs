@@ -69,6 +69,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     private PluginsView? _pluginsView;
     private ExportView? _exportView;
     private readonly ExportJobList _exports;
+    private readonly Services.RenderCache.RenderCacheHost _renderCache;
     private readonly ModuleManager _modules;
     private readonly AutosaveService? _autosave;
     private IDisposable? _pageShortcuts;
@@ -122,7 +123,15 @@ internal sealed partial class MainWindow : Window, IShellHost
         IEffectContent? content = EffectContentFactory.CreateOrNull(packages);
         Program.Metrics.Milestone("paquetes");
         var preview = new PreviewYield(engine, engine.SetPreviewQuality, () => settings.Current);
-        _exports = new ExportJobList(new AppExportRunner(content, preview, () => TitleFontFiles.Find(packages.Installed)), SynchronizationContext.Current)
+        // En la autoprueba y las medidas no se calcula nada de fondo: la franja y la cobertura sí se ven.
+        _renderCache = new Services.RenderCache.RenderCacheHost(engine,
+            options.IsAutomated ? Services.RenderCache.RenderCacheMode.Off : settings.Current.RenderCacheMode,
+            settings.Current.RenderCacheFolder, settings.Current.RenderCacheCapGb, content,
+            () => TitleFontFiles.Find(packages.Installed), engine.IsFontMissing);
+        engine.PlanChanged += _renderCache.OnPlan;
+        engine.SourceFailed += _renderCache.OnSourceFailed;
+        _exports = new ExportJobList(new AppExportRunner(content, preview, () => TitleFontFiles.Find(packages.Installed),
+            configure: _renderCache.WithRenderCache), SynchronizationContext.Current)
         {
             Concurrency = new ExportConcurrency(Environment.ProcessorCount, () => engine.DedicatedVideoMemory)
             {
@@ -150,6 +159,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             Modules = _modules, Proposals = new ModuleProposals(session), LongActions = _longActions,
             AutoProxies = CreateAutoProxies(session),
             WatchedFolders = new WatchedFolderInbox(session, () => settings.Current),
+            RenderCache = _renderCache,
         };
         engine.SetContent(content);
         IReadOnlyList<string> fonts = TitleFontFiles.Find(packages.Installed);
@@ -1235,6 +1245,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         Player.CloseExternal();
         _autosave?.Complete();
         _exports.Dispose();
+        _renderCache.Dispose();
         // Pide shutdown a los módulos abiertos; si alguno no sale, lo mata (y el Job Object cubre el resto).
         // Un fallo al cerrarlos (Wait lo relanza como AggregateException) se informa y no salta el resto del cierre.
         try
