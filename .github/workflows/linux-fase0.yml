@@ -64,3 +64,21 @@ jobs:
             experimentos/linux-fase0/uno/salida/*.json
             experimentos/linux-fase0/uno/salida/*.txt
             experimentos/linux-fase0/uno/salida/*.log
+
+  mac-vt:
+    name: (c) VideoToolbox a VkImage con MoltenVK
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - name: Paquetes
+        run: brew install ffmpeg molten-vk vulkan-headers pkg-config
+      - name: Prueba
+        run: bash experimentos/linux-fase0/mac-vt/ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac-vt
+          path: |
+            experimentos/linux-fase0/mac-vt/salida/*.jsonl
+            experimentos/linux-fase0/mac-vt/salida/*.log
