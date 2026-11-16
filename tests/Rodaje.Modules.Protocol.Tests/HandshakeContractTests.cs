@@ -308,7 +308,7 @@ public sealed class HandshakeContractTests
     [Fact]
     public async Task Without_a_common_version_the_host_exits_with_two()
     {
-        string name = "Rodaje.Mod.prueba." + Guid.NewGuid().ToString("N");
+        string name = ModuleProcess.NewPipeName();
         using NamedPipeServerStream editor = new(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly,
             ModuleProcess.PipeBufferBytes, ModuleProcess.PipeBufferBytes);
         Task<int> host = Support.EchoHost().RunAsync([ModuleHost.PipeArgument, name]);

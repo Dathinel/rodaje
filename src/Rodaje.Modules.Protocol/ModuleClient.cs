@@ -1,6 +1,5 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
-using System.Runtime.Versioning;
 using System.Text.Json;
 
 namespace Rodaje.Modules.Protocol;
@@ -81,7 +80,6 @@ public sealed record ModuleResult(JsonElement? Value, IReadOnlyList<SharedBuffer
 /// fuera de las regiones del editor cortan la conexión y fallan todas las llamadas con <see cref="ModuleException"/>;
 /// el editor sigue. Las regiones de memoria compartida se crean aquí (<see cref="CreateRegion"/>).
 /// </summary>
-[SupportedOSPlatform("windows")]
 public sealed class ModuleClient : IAsyncDisposable
 {
     private readonly MessageChannel _channel;

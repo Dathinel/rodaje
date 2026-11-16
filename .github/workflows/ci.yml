@@ -1,5 +1,5 @@
 # Integración continua de Rodaje.
-# - linux: Core, Packages y Playback, que compilan para net10.0 sin Windows.
+# - linux y macos: los proyectos que compilan para net10.0 sin Windows (build/pruebas-linux.sh).
 # - windows: la solución entera con el entorno propio (.entorno, D-005). Bloquea; sin exclusiones por nombre.
 # Las pruebas largas y de hardware solo corren con RODAJE_PRUEBAS_LARGAS=1, que aquí no se pone: esas,
 # TiempoReal y Rendimiento las corre nocturna.yml.
@@ -25,7 +25,7 @@ env:
 
 jobs:
   linux:
-    name: Linux (Core, Packages, Playback)
+    name: Linux (proyectos sin Windows)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -60,6 +60,29 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pruebas-linux
+          path: TestResults/**/*.trx
+          if-no-files-found: ignore
+
+  macos:
+    name: macOS (proyectos sin Windows)
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/preparar-linux
+
+      - name: Pruebas
+        shell: bash
+        run: bash build/pruebas-linux.sh 'Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento'
+
+      - name: Resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pruebas-macos
           path: TestResults/**/*.trx
           if-no-files-found: ignore
 
