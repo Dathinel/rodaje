@@ -477,3 +477,27 @@ Al guardar, la lista `words` de cada transcripción va en una sola línea (inden
 - `reel` (medio): carrete o nombre de cinta (`reel_name`), de 1 a 256 caracteres sin caracteres de control.
 
 Un medio importado de una EDL cuyo archivo aún no se encontró se guarda **provisional**: ancho, alto, frecuencia de muestreo y canales a cero, y la duración que usan sus clips. Sus clips están en el TC del evento (como si el medio empezara en `00:00:00:00`); al reenlazarlo con el archivo de verdad se corren a `TC del clip − TC inicial del archivo`, en el mismo paso del historial.
+
+#### Plantillas de movimiento (D-064)
+
+Un título o rótulo hecho con una plantilla de movimiento (`motion-template`, ver [formato-paquete.md](formato-paquete.md#motion-template-rodajetemplate-v1)) es **un clip con generador de tipo `template`**: una sola pieza en la pista que se mueve, divide, copia y deshace como cualquier título.
+
+```json
+"generator": { "kind": "template", "text": "",
+  "template": { "source": "rodaje-plantillas@1.0.0/barra", "name": "Rótulo inferior Barra", "minSeconds": 1.5,
+                "document": "{\"format\":\"rodaje.template\",…}", "values": { "nombre": "Ana Ruiz", "acento": "#2A9D8F" },
+                "layers": [ { "id": "nombre", "text": "Ana Ruiz", "style": { …estilo completo… }, "box": { "widthFraction": 0.5 },
+                              "x": -560, "y": 380, "start": 0, "end": 0 } ] },
+  "edges": { "in": true, "out": true } }
+```
+
+| Campo | Qué es |
+|---|---|
+| `template.layers` | **El resultado instanciado**, lo que se dibuja: de 1 a 16 capas con `id` único y, cada una, las reglas de un título (`text`, `style` completo, `box`) más `x`, `y` (píxeles de la `reference` de su estilo, desde el centro, escalados con la misma razón que el estilo y sumados a la transformación del clip) y `start`, `end` (segundos de desfase desde el borde izquierdo y antes del derecho, ≥ 0). La capa de abajo va primera |
+| `template.document` | Copia del `rodaje.template` como texto, hasta 256 KB, para volver a instanciar con otros valores. El núcleo no lo interpreta: lo hace la app con el lector de paquetes y entrega las capas nuevas |
+| `template.values` | Los valores puestos, un objeto plano `id → valor` (texto, número, booleano u objeto `font`) |
+| `template.source`, `template.name` | De dónde salió (`paquete@versión/elemento`, vacío si es propia) y su nombre. Copia completa, como el estilo (D-029): el proyecto se ve igual sin el paquete |
+| `template.minSeconds` | La duración más corta a la que se puede recortar el clip (0 a 600 s) |
+| `text` | Vacío en un `template`: el texto está en cada capa |
+
+Cada capa ocupa del clip el tramo `[inicio + start, final − end]` (con `edges.before`/`after` si salió de dividir, como un título) y la entrada y salida de su estilo van pegadas a ese tramo; no hace falta recolocar nada al recortar. Los efectos del clip se aplican a todas las capas. «Convertir en títulos» cambia el clip por un título por capa en pistas libres. Edición de texto en la pista, subtítulos, «Convertir en keyframes» y la búsqueda siguen siendo solo de los títulos `text`. Se escribe 16 si algún clip lleva un generador `template`.
