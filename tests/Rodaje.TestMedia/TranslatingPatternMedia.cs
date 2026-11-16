@@ -48,7 +48,9 @@ public static class TranslatingPatternMedia
             for (int x = 0; x < width; x++)
             {
                 float sample = SampleLuma(x - totalShift, y);
-                luma[row + x] = (byte)Math.Clamp(MathF.Round(sample * 255f), 0f, 255f);
+                // El clip guarda el código en rango de video; al decodificar a gris, ffmpeg lo estira a rango completo.
+                float code = MathF.Round(sample * 255f);
+                luma[row + x] = (byte)Math.Clamp(MathF.Round((code - 16f) * 255f / 219f), 0f, 255f);
             }
         }
 

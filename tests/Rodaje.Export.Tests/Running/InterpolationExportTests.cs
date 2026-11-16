@@ -53,6 +53,10 @@ public sealed class InterpolationExportTests(ITestOutputHelper output) : IDispos
         byte[] truth25 = TranslatingPatternMedia.CreateTruthLuma(0.25f, width, height, shift);
         byte[] truth50 = TranslatingPatternMedia.CreateTruthLuma(0.50f, width, height, shift);
         byte[] truth75 = TranslatingPatternMedia.CreateTruthLuma(0.75f, width, height, shift);
+        Dictionary<int, byte[]> exact = DecodeFrames(pathNearest, width, height, [0, 4, 8]);
+        double floor = Math.Min(TranslatingPatternMedia.ComputePsnr(exact[4], TranslatingPatternMedia.CreateTruthLuma(1f, width, height, shift), width, height),
+            TranslatingPatternMedia.ComputePsnr(exact[8], TranslatingPatternMedia.CreateTruthLuma(2f, width, height, shift), width, height));
+        output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"[t = 0] Suelo (cuadro exacto del origen tras exportar): {floor:F2} dB; cuadro 0: {TranslatingPatternMedia.ComputePsnr(exact[0], TranslatingPatternMedia.CreateTruthLuma(0f, width, height, shift), width, height):F2} dB"));
 
         double psnrFlow25 = TranslatingPatternMedia.ComputePsnr(flowFrames[1], truth25, width, height);
         double psnrFlow50 = TranslatingPatternMedia.ComputePsnr(flowFrames[2], truth50, width, height);
@@ -147,6 +151,8 @@ public sealed class InterpolationExportTests(ITestOutputHelper output) : IDispos
 
             string folder = Path.Combine(Path.GetTempPath(), "rodaje-patron-interp");
             string path = Path.Combine(folder, "traslacion-320x180.mp4");
+            // El patrón sale del código: un archivo de otra ejecución puede ser de otra textura.
+            File.Delete(path);
             TranslatingPatternMedia.CreateVideo(path);
             CachedPatternVideo = path;
             return path;
