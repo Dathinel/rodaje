@@ -386,3 +386,36 @@ public sealed class ProxyJobTests(ITestOutputHelper output)
         Assert.True(condition());
     }
 }
+
+/// <summary>El proxy del intermedio HDR del CinemaDNG (FFV1 16 bits PQ BT.2020, D-065) conserva sus etiquetas de color.</summary>
+public sealed class HdrIntermediateProxyTests(ITestOutputHelper output)
+{
+    [ProxyTheory]
+    [InlineData("libopenh264")]
+    [InlineData("h264_nvenc")]
+    public async Task The_proxy_of_a_pq_ffv1_keeps_pq_and_bt2020(string encoder)
+    {
+        if (FfmpegTool.Default!.ProbeEncoder(encoder) is { } missing)
+        {
+            output.WriteLine($"Sin {encoder}: {missing}");
+            return;
+        }
+
+        using var temp = new TempDirectory();
+        string source = temp.Combine("intermedio.mkv");
+        FfmpegTool.Default.Run(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", "testsrc2=size=320x180:rate=24:duration=3",
+            "-vf", "format=yuv444p16le,setparams=color_trc=smpte2084:color_primaries=bt2020:colorspace=bt2020nc:range=pc",
+            "-c:v", "ffv1", "-level", "3", "-g", "1", "-pix_fmt", "yuv444p16le", source]);
+        Assert.Equal((HdrTransfer.Pq, true), (MediaProbe.Probe(source).Video!.Color.Transfer, MediaProbe.Probe(source).Video!.Color.Bt2020Primaries));
+        using var generator = new ProxyGenerator(new ProxyStore(temp.Combine("proxies")), ProxyTestEnvironment.Executable!, new ProxyGeneratorOptions
+        {
+            EncoderPreference = [encoder],
+            HardwareDecoding = false,
+        });
+
+        ProxyEntry proxy = await generator.GenerateAsync(source);
+        VideoColor color = MediaProbe.Probe(proxy.ProxyPath).Video!.Color;
+        output.WriteLine($"{encoder}: {color}");
+        Assert.Equal((HdrTransfer.Pq, true), (color.Transfer, color.Bt2020Primaries));
+    }
+}
