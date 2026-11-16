@@ -12,6 +12,34 @@ internal static class OtioFidelity
     public static TimelineDraft ProjectWithoutMetadata(Model.Project project, Sequence sequence, InterchangeOptions options, InterchangeReport report) =>
         Project(project, sequence, options, report, withMetadata: false);
 
+    /// <summary>Sin la marca de Rodaje cada pila de OTIO es un compuesto propio: uno usado dos veces vuelve como dos copias.</summary>
+    private static void Unshare(Model.Project project, Sequence main)
+    {
+        var used = new HashSet<string>(StringComparer.Ordinal);
+        int copies = 0;
+        void Visit(Sequence sequence)
+        {
+            foreach (Track track in sequence.VideoTracks.Concat(sequence.AudioTracks))
+            {
+                foreach (Clip clip in track.Clips.Where(c => c.SequenceId is not null).OrderBy(c => c.Start))
+                {
+                    Sequence inner = project.FindSequence(clip.SequenceId!)!;
+                    if (!used.Add(inner.Id))
+                    {
+                        inner = inner.Clone();
+                        inner.Id = FormattableString.Invariant($"{inner.Id}~{copies++}");
+                        project.Sequences.Insert(0, inner);
+                        clip.SequenceId = inner.Id;
+                    }
+
+                    Visit(inner);
+                }
+            }
+        }
+
+        Visit(main);
+    }
+
     public static TimelineDraft Project(Model.Project project, Sequence sequence, InterchangeOptions options, InterchangeReport report, bool withMetadata)
     {
         ArgumentNullException.ThrowIfNull(project);
@@ -50,6 +78,7 @@ internal static class OtioFidelity
             return new TimelineDraft(copy, mainCopy);
         }
 
+        Unshare(copy, mainCopy);
         foreach (Sequence seq in copy.Sequences)
         {
             ProjectSequenceStandard(seq, seq == mainCopy, options, report);

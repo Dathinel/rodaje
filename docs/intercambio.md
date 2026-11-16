@@ -108,3 +108,13 @@ El archivo importado no es de confianza. El lector de XML propio salta la DTD si
 Los arreglos largos de FCPXML de la revisión (TC del recurso, clips conectados y marcadores en el tiempo del padre, `timeMap`, curvas, keyframes, imágenes fijas, HDR, opciones y rutas relativas) están hechos (ChatGPT, `FcpxmlReviewTests`, 34 casos).
 
 Otros: la fusión no corre al TC real un medio del proyecto que se reutiliza (`RebaseShift` solo en provisionales); al reenlazar un provisional se corren todos sus clips, también uno añadido después a mano; un solape con transición en FCPXML se separa en otra pista y pierde la transición; la regla OTIO sin `metadata.rodaje` no acierta con proyectos con títulos o efectos (la huella ya no depende de ella); `EdlList` mezcla modelo y conversiones; `InterchangeOptions.MediaSearchFolder` no se usa; el corpus hostil grande (300 MB, 100 000 eventos) se puede reducir con límites pequeños.
+
+## Revisión independiente (16-nov)
+
+Claude, con una segunda lectura de ChatGPT. Arreglado, con su prueba que antes fallaba (`IndependentReviewTests`): un `metadata.rodaje` dañado con la huella buena ya no tumba la importación (se queda lo estándar, con aviso); en OTIO los rangos de los clips van en el tiempo del medio (`source_range` desde el `available_range`, el TC de cámara) al leer y al escribir; `enabled` se escribe y se lee, así un clip desactivado fuera no vuelve activo; dos pilas con el mismo nombre ya no son el mismo compuesto (solo la marca `metadata.rodaje.secuencia` los une); exportar solo unas pistas ya no lleva la secuencia entera en `metadata.rodaje`; FCPXML no aplica efectos desactivados.
+
+Queda como tarea:
+- Los presupuestos de OTIO no cuentan marcadores ni lo restaurado de `metadata.rodaje`, y el lector no mira `MaxTextLength`.
+- Exportar desde la app clona el proyecto y calcula el resumen de pérdidas en el hilo de la interfaz (con 10 000 clips se nota).
+- Pruebas flojas: `RandomTimelines` con `Effects` solo pone color, no efectos; las de ida y vuelta de EDL comparten `EdlList` en el esperado y en el leído; `Otio_invalid_timecode_throws_or_reports_warning` no mira el informe cuando lee bien; la autoprueba, tras deshacer, solo mira el número de pasos del historial.
+- `SmpteTimecode`: la ida y vuelta de las 24 h tardó 1,75 a 1,8 s a prioridad baja con el equipo cargado (objetivo < 1 s; en limpio dio 954 ms). Es de `nocturna.yml`: puede fallar si el ejecutor va cargado.

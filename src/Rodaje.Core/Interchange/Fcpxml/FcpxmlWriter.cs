@@ -491,9 +491,9 @@ public static class FcpxmlWriter
     {
         if (!includeAudio) writer.Attr("srcEnable", "video");
 
-        EffectInstance? transformEffect = clip.Effects.Find(e => e.Type == BuiltInEffects.Transform);
-        EffectInstance? audioEffect = clip.Effects.Find(e => e.Type == BuiltInEffects.Audio);
-        EffectInstance? cropEffect = clip.Effects.Find(e => e.Type == BuiltInEffects.Crop);
+        EffectInstance? transformEffect = clip.Effects.Find(e => e.Type == BuiltInEffects.Transform && e.Enabled);
+        EffectInstance? audioEffect = clip.Effects.Find(e => e.Type == BuiltInEffects.Audio && e.Enabled);
+        EffectInstance? cropEffect = clip.Effects.Find(e => e.Type == BuiltInEffects.Crop && e.Enabled);
 
         if (clip.Speed is not null)
         {

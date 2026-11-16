@@ -144,7 +144,16 @@ public static class OtioReader
 
                         if (!string.IsNullOrEmpty(metaHuella) && string.Equals(metaHuella, calcHuella, StringComparison.OrdinalIgnoreCase))
                         {
-                            return RestoreFullProject(rodajeElem);
+                            // La huella firma solo lo estándar: un bloque roto o incoherente no tumba la importación.
+                            try
+                            {
+                                return RestoreFullProject(rodajeElem);
+                            }
+                            catch (Exception ex) when (ex is ProjectFormatException or KeyNotFoundException or InvalidOperationException or ArgumentException or IndexOutOfRangeException)
+                            {
+                                report.Add(IssueSeverity.Lost, IssueKind.Unknown, "El bloque de Rodaje del archivo está dañado: se importa solo lo estándar de OTIO.");
+                                return standardDraft;
+                            }
                         }
 
                         RestoreUnchangedClips(standardDraft, clipElements, report);
@@ -210,8 +219,12 @@ public static class OtioReader
                 Time durTime = GetDuration(itemElem, rate, report);
                 string stackName = itemElem.TryGetProperty("name", out JsonElement sn) ? sn.GetString() ?? "Compuesto" : "Compuesto";
 
-                Sequence? existingInner = project.Sequences
-                    .FirstOrDefault(s => s.Id != currentSequence.Id && string.Equals(s.Name, stackName, StringComparison.Ordinal));
+                // Solo la marca de Rodaje dice que dos pilas son el mismo compuesto: el nombre no basta.
+                string? sharedId = itemElem.TryGetProperty("metadata", out JsonElement stackMeta) && stackMeta.ValueKind == JsonValueKind.Object
+                    && stackMeta.TryGetProperty("rodaje", out JsonElement stackRodaje) && stackRodaje.ValueKind == JsonValueKind.Object
+                    && stackRodaje.TryGetProperty("secuencia", out JsonElement sharedElem) && sharedElem.ValueKind == JsonValueKind.String
+                    ? "compuesto_r_" + sharedElem.GetString() : null;
+                Sequence? existingInner = sharedId is null ? null : project.FindSequence(sharedId);
 
                 Sequence innerSeq;
                 if (existingInner is not null)
@@ -222,7 +235,7 @@ public static class OtioReader
                 {
                     innerSeq = new Sequence
                     {
-                        Id = FormattableString.Invariant($"compuesto_{compoundCounter++}"),
+                        Id = sharedId ?? FormattableString.Invariant($"compuesto_{compoundCounter++}"),
                         Name = stackName,
                         FrameRate = rate,
                     };
@@ -272,6 +285,7 @@ public static class OtioReader
                     Duration = durTime,
                     SourceIn = inTime,
                     SourceOut = inTime + durTime,
+                    Enabled = IsEnabled(itemElem),
                 };
                 track.Clips.Add(compClip);
                 clipElements[compClip] = itemElem;
@@ -296,6 +310,7 @@ public static class OtioReader
                     Start = cursor,
                     Duration = durTime,
                     SourceIn = inTime,
+                    Enabled = IsEnabled(itemElem),
                 };
 
                 ParseMediaReference(itemElem, clip, project, mediaByPath, baseDirectory, track.Kind, rate, report);
@@ -411,6 +426,12 @@ public static class OtioReader
 
             JsonElement? availRange = refElem.TryGetProperty("available_range", out JsonElement ar) && ar.ValueKind == JsonValueKind.Object ? ar : null;
             clip.MediaId = GetOrCreateMedia(project, mediaByPath, normPath, refName, availRange, kind, rate);
+
+            // El rango del clip va en el tiempo del medio, que empieza en su TC; en Rodaje, desde el principio del archivo.
+            if (availRange is { } range)
+            {
+                clip.SourceIn -= GetRationalTime(range, "start_time", rate, report);
+            }
         }
         else
         {
@@ -666,7 +687,17 @@ public static class OtioReader
 
                         if (!string.IsNullOrEmpty(cMetaHuella) && string.Equals(cMetaHuella, cCalcHuella, StringComparison.OrdinalIgnoreCase))
                         {
-                            Clip restoredClip = DeserializeClip(cClipElem);
+                            Clip restoredClip;
+                            try
+                            {
+                                restoredClip = DeserializeClip(cClipElem);
+                            }
+                            catch (Exception ex) when (ex is ProjectFormatException or InvalidOperationException or ArgumentException or IndexOutOfRangeException)
+                            {
+                                report.Add(IssueSeverity.Lost, IssueKind.Effect, "Los ajustes de Rodaje de este clip están dañados: se descartan.", mRef?.Name ?? c.Id, c.Id, c.Start);
+                                continue;
+                            }
+
                             c.Effects = restoredClip.Effects;
                             c.Color = restoredClip.Color;
                             c.LinkId = restoredClip.LinkId;
@@ -826,6 +857,9 @@ public static class OtioReader
         double r = rt.TryGetProperty("rate", out JsonElement rElem) ? rElem.GetDouble() : rate.ToDouble();
         return OtioTime.RationalTimeToTime(val, r, report);
     }
+
+    private static bool IsEnabled(JsonElement item) =>
+        !item.TryGetProperty("enabled", out JsonElement enabled) || enabled.ValueKind != JsonValueKind.False;
 
     private static string GetSchema(JsonElement elem) =>
         elem.TryGetProperty("OTIO_SCHEMA", out JsonElement s) ? s.GetString() ?? "" : "";
