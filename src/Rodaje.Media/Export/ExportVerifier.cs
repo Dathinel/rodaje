@@ -129,6 +129,103 @@ public sealed class ExportVerifier
         return Read(json, full, index => Gop(full, index, cancellationToken));
     }
 
+    /// <summary>Comprueba un MOV de fondo con sus paquetes y cuadros clave en una sola ejecución de ffprobe.</summary>
+    public ExportReport InspectMovPackets(string path, CancellationToken cancellationToken = default)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        string full = Path.GetFullPath(path);
+        CheckMovBounds(full);
+        string json = Run(["-v", "error", "-count_packets", "-show_format", "-show_streams", "-show_chapters", "-show_packets",
+            "-show_entries", "packet=stream_index,flags,pos,size:stream:format:chapter", "-of", "json", full], cancellationToken);
+        return Read(json, full, index => PacketGop(json, full, index, cancellationToken));
+    }
+
+    private static (int MaxGop, int Keyframes) PacketGop(string json, string path, int streamIndex, CancellationToken token)
+    {
+        using JsonDocument document = JsonDocument.Parse(json);
+        long length = new FileInfo(path).Length;
+        int maxGop = 0;
+        int run = 0;
+        int keyframes = 0;
+        foreach (JsonElement packet in document.RootElement.GetProperty("packets").EnumerateArray())
+        {
+            token.ThrowIfCancellationRequested();
+            string flags = String(packet, "flags") ?? "";
+            if (!long.TryParse(String(packet, "pos"), CultureInfo.InvariantCulture, out long position) || position < 0
+                || !long.TryParse(String(packet, "size"), CultureInfo.InvariantCulture, out long size) || size <= 0
+                || position > length || size > length - position || flags.Contains('C', StringComparison.Ordinal))
+            {
+                throw new ExportException(ExportErrorCode.EncoderFailed, "El fragmento MOV tiene un paquete incompleto o dañado.");
+            }
+
+            if (Int(packet, "stream_index") != streamIndex)
+            {
+                continue;
+            }
+
+            if (flags.Contains('K', StringComparison.Ordinal))
+            {
+                keyframes++;
+                maxGop = Math.Max(maxGop, run);
+                run = 1;
+            }
+            else
+            {
+                run++;
+            }
+        }
+
+        return (Math.Max(maxGop, run), keyframes);
+    }
+
+    private static void CheckMovBounds(string path)
+    {
+        using var stream = File.OpenRead(path);
+        Span<byte> header = stackalloc byte[16];
+        bool moov = false;
+        bool mdat = false;
+        while (stream.Position < stream.Length)
+        {
+            long position = stream.Position;
+            if (stream.Length - position < 8)
+            {
+                throw IncompleteMov();
+            }
+
+            stream.ReadExactly(header[..8]);
+            long size = BinaryPrimitives.ReadUInt32BigEndian(header);
+            int headerSize = 8;
+            if (size == 1)
+            {
+                if (stream.Length - stream.Position < 8)
+                {
+                    throw IncompleteMov();
+                }
+
+                stream.ReadExactly(header[8..]);
+                ulong extended = BinaryPrimitives.ReadUInt64BigEndian(header[8..]);
+                size = extended <= long.MaxValue ? (long)extended : -1;
+                headerSize = 16;
+            }
+
+            if (size < headerSize || size > stream.Length - position)
+            {
+                throw IncompleteMov();
+            }
+
+            moov |= header.Slice(4, 4).SequenceEqual("moov"u8);
+            mdat |= header.Slice(4, 4).SequenceEqual("mdat"u8);
+            stream.Position = position + size;
+        }
+
+        if (!moov || !mdat)
+        {
+            throw IncompleteMov();
+        }
+
+        static ExportException IncompleteMov() => new(ExportErrorCode.EncoderFailed, "El fragmento MOV está truncado o le falta su índice.");
+    }
+
     /// <summary>El informe a partir de la salida JSON de ffprobe; <paramref name="gop"/> mide los cuadros clave de un flujo.</summary>
     /// <exception cref="ExportException"><see cref="ExportErrorCode.EncoderFailed"/> si el JSON no tiene la forma del de ffprobe.</exception>
     internal static ExportReport Read(string json, string full, Func<int, (int MaxGop, int Keyframes)> gop)

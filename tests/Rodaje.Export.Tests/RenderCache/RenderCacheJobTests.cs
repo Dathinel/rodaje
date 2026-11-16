@@ -39,20 +39,15 @@ public sealed class RenderCacheJobTests(ITestOutputHelper output) : IDisposable
         RenderCacheKey[] keys = Keys(project, first, count);
         var store = Store();
         bool checkedCurrent = false;
-        var job = new RenderCacheJob(project.Clone(), "sec", first, count, keys, store, Options(), current =>
+        using var devices = new ExportDevicePool(GpuDevice.CreateWarp);
+        var job = new RenderCacheJob(project.Clone(), "sec", first, count, keys, store, Options() with { DevicePool = devices }, current =>
         {
             checkedCurrent = true;
             Assert.Equal(keys, current);
             Assert.Equal(0, store.Count);
             return true;
         });
-        var clock = Stopwatch.StartNew();
-
         RenderCacheFragment fragment = Assert.IsType<RenderCacheFragment>(await job.RunAsync().WaitAsync(TimeSpan.FromMinutes(5)));
-
-        double fps = count / clock.Elapsed.TotalSeconds;
-        output.WriteLine(string.Create(CultureInfo.InvariantCulture,
-            $"Cálculo {width}×{height} WARP, {count} cuadros {num}/{den} {colorSpace}: {fps:0.00} cuadros/s ({clock.Elapsed.TotalSeconds:0.000} s, incluida preparación y verificación)."));
         Assert.True(checkedCurrent);
         Assert.Equal(keys, fragment.Metadata.Frames);
         Assert.Equal((width, height, project.Sequences[0].FrameRate, colorSpace, "prores_hq", false),
@@ -205,6 +200,161 @@ public sealed class RenderCacheJobTests(ITestOutputHelper output) : IDisposable
         Assert.Throws<ArgumentOutOfRangeException>(() => new RenderCacheJob(project, "sec", 119, 2, Keys(project, 0, 2), store, Options(), _ => true));
         Assert.Throws<ArgumentOutOfRangeException>(() => new ExportPauseToken(TimeSpan.Zero));
         Assert.False(Directory.Exists(store.Directory));
+    }
+
+    [FfmpegTheory]
+    [Trait("Categoria", "TiempoReal")]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Mide_tres_fragmentos_de_60_cuadros_1080p30_por_fase(bool warp)
+    {
+        Project project = Scene(Rational.Fps30);
+        RenderCacheKey[] keys = Keys(project, 0, 60);
+        using var devices = new ExportDevicePool(() =>
+        {
+            GpuDevice device = warp ? GpuDevice.CreateWarp() : GpuDevice.Create();
+            Assert.Equal(warp, device.IsSoftware);
+            output.WriteLine($"Dispositivo: {device.AdapterName}.");
+            return device;
+        });
+        for (int trial = 0; trial < 3; trial++)
+        {
+            var phases = new Dictionary<string, double>(StringComparer.Ordinal);
+            var options = Options(warp) with
+            {
+                DevicePool = devices,
+                Measure = (phase, elapsed) => phases[phase] = phases.GetValueOrDefault(phase) + elapsed.TotalMilliseconds,
+            };
+            var job = new RenderCacheJob(project.Clone(), "sec", 0, 60, keys, Store(), options, _ => true);
+            var clock = Stopwatch.StartNew();
+            Assert.NotNull(await job.RunAsync().WaitAsync(TimeSpan.FromMinutes(2)));
+            clock.Stop();
+            phases["Total"] = clock.Elapsed.TotalMilliseconds;
+            output.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                $"1080p30 {(warp ? "WARP" : "GPU")} intento {trial + 1}: {60 / clock.Elapsed.TotalSeconds:0.00} cuadros/s"));
+            foreach ((string phase, double ms) in phases)
+            {
+                output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{phase}: {ms:0.000} ms"));
+            }
+        }
+    }
+
+    [FfmpegTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Dos_trabajos_reutilizan_el_dispositivo_incluso_tras_cancelar(bool cancelFirst)
+    {
+        Project project = Scene();
+        int created = 0;
+        GpuDevice? shared = null;
+        using (var devices = new ExportDevicePool(() =>
+        {
+            created++;
+            return shared = GpuDevice.CreateWarp();
+        }))
+        {
+            ExportRunnerOptions options = Options() with { DevicePool = devices };
+            var first = new RenderCacheJob(project.Clone(), "sec", 0, 6, Keys(project, 0, 6), Store(), options, _ => true);
+            RenderCacheFragment? firstFragment = null;
+            if (cancelFirst)
+            {
+                first.Pause.Pause();
+                using var cancel = new CancellationTokenSource();
+                Task<RenderCacheFragment?> running = first.RunAsync(cancel.Token);
+                try
+                {
+                    await WaitUntilAsync(() => first.Pause.IsWaiting, running);
+                    await cancel.CancelAsync();
+                    await Assert.ThrowsAnyAsync<OperationCanceledException>(() => running);
+                }
+                finally
+                {
+                    await StopAsync(cancel, running);
+                }
+            }
+            else
+            {
+                firstFragment = Assert.IsType<RenderCacheFragment>(await first.RunAsync());
+            }
+
+            Assert.Equal(1, created);
+            Assert.False(shared!.IsDisposed);
+            var second = new RenderCacheJob(project.Clone(), "sec", 0, 6, Keys(project, 0, 6), Store(), options, _ => true);
+            RenderCacheFragment secondFragment = Assert.IsType<RenderCacheFragment>(await second.RunAsync());
+            Assert.Equal(1, created);
+            Assert.False(shared.IsDisposed);
+            if (firstFragment is not null)
+            {
+                await CompareFramesAsync(firstFragment.MoviePath, secondFragment.MoviePath, 6, 1920, 1080);
+            }
+        }
+
+        Assert.True(shared!.IsDisposed);
+    }
+
+    [Fact]
+    public void Cerrar_el_propietario_espera_al_ultimo_prestamo_y_rechaza_trabajos_nuevos()
+    {
+        using var devices = new ExportDevicePool(GpuDevice.CreateWarp);
+        using ExportDevicePool.Lease first = devices.Acquire();
+        using ExportDevicePool.Lease second = devices.Acquire();
+        Assert.Same(first.Device, second.Device);
+        devices.Dispose();
+        Assert.False(first.Device.IsDisposed);
+        Assert.Throws<ObjectDisposedException>(() => devices.Acquire());
+        first.Dispose();
+        Assert.False(second.Device.IsDisposed);
+        second.Dispose();
+        Assert.True(second.Device.IsDisposed);
+        second.Dispose();
+    }
+
+    [FfmpegTheory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task La_verificacion_rechaza_un_MOV_con_datos_o_una_caja_final_truncados(bool trailingBox)
+    {
+        Project project = Scene();
+        var job = new RenderCacheJob(project, "sec", 0, 3, Keys(project, 0, 3), Store(), Options(), _ => true);
+        RenderCacheFragment fragment = Assert.IsType<RenderCacheFragment>(await job.RunAsync());
+        string truncated = Path.Combine(_folder, "truncado.mov");
+        File.Copy(fragment.MoviePath, truncated);
+        using (var stream = new FileStream(truncated, FileMode.Open, FileAccess.Write))
+        {
+            if (trailingBox)
+            {
+                stream.Position = stream.Length;
+                stream.Write([0, 0, 0, 16, (byte)'f', (byte)'r', (byte)'e', (byte)'e', 0, 0, 0, 0, 0, 0, 0, 0]);
+            }
+
+            stream.SetLength(stream.Length - 1);
+        }
+
+        var verifier = ExportVerifier.For(Options().Ffmpeg);
+        if (trailingBox)
+        {
+            Assert.Empty(ExportVerifier.Check(verifier.Inspect(truncated), new ExportExpectation { FrameCount = 3, Width = 1920, Height = 1080 }));
+        }
+
+        ExportException error = Assert.Throws<ExportException>(() => verifier.InspectMovPackets(truncated));
+        Assert.Equal(ExportErrorCode.EncoderFailed, error.Code);
+    }
+
+    [FfmpegFact]
+    public async Task La_verificacion_de_paquetes_conserva_el_informe_y_detecta_menos_cuadros_u_otro_tamano()
+    {
+        Project project = Scene();
+        var job = new RenderCacheJob(project, "sec", 0, 3, Keys(project, 0, 3), Store(), Options(), _ => true);
+        RenderCacheFragment fragment = Assert.IsType<RenderCacheFragment>(await job.RunAsync());
+        ExportReport report = ExportVerifier.For(Options().Ffmpeg).InspectMovPackets(fragment.MoviePath);
+        ExportReport reference = ExportVerifier.For(Options().Ffmpeg).Inspect(fragment.MoviePath);
+        Assert.Equal(reference.Video, report.Video);
+        Assert.Equal(reference.MoovAtStart, report.MoovAtStart);
+        Assert.Equal(job.Export!.Report!.Video, report.Video);
+        Assert.Empty(ExportVerifier.Check(report, new ExportExpectation { FrameCount = 3, Width = 1920, Height = 1080 }));
+        Assert.NotEmpty(ExportVerifier.Check(report, new ExportExpectation { FrameCount = 4 }));
+        Assert.NotEmpty(ExportVerifier.Check(report, new ExportExpectation { Width = 1280 }));
+        Assert.NotEmpty(ExportVerifier.Check(report, new ExportExpectation { Height = 720 }));
     }
 
     private ExportRunnerOptions Options(bool warp = true) => new()

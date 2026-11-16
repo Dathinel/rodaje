@@ -46,6 +46,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
     private const long GiB = 1024L * 1024 * 1024;
 
     private readonly Lock _gate = new();
+    private readonly ExportDevicePool _devices = new();
     private readonly IRenderCachePlayer _player;
     private readonly IEffectContent? _content;
     private readonly Func<IReadOnlyList<string>>? _fontFiles;
@@ -301,7 +302,8 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
             }
 
             FfmpegExecutable ffmpeg = _ffmpeg.Value ?? throw new InvalidOperationException("No se encontró el ffmpeg.exe LGPL.");
-            var options = new ExportRunnerOptions { Ffmpeg = ffmpeg, Content = _content, FontFiles = _fontFiles };
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            var options = new ExportRunnerOptions { Ffmpeg = ffmpeg, Content = _content, FontFiles = _fontFiles, DevicePool = _devices };
             job = new RenderCacheJob(input.Plan.Project.Clone(), input.Plan.SequenceId, work.FirstFrame, work.Count, input.Keys, _store, options,
                 StillCurrent, pause, ProjectDirectory());
             _job = job;
@@ -352,6 +354,7 @@ public sealed partial class RenderCacheHost : IRenderCacheWorker, IDisposable
         }
 
         _timer.Dispose();
+        _devices.Dispose();
     }
 
     /// <summary>Recoge el trabajo, pausa al reproducir o mover el cursor, limpia cada 10 min y rehace la franja si hace falta.</summary>
