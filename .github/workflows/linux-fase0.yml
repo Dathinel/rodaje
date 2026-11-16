@@ -144,3 +144,24 @@ jobs:
             experimentos/linux-fase0/shaders/salida/*.json
             experimentos/linux-fase0/shaders/salida/*.txt
             experimentos/linux-fase0/shaders/salida/*.log
+
+  eco:
+    name: (e) Eco de módulos en ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Prueba
+        run: bash experimentos/linux-fase0/eco/ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eco-${{ matrix.os }}
+          path: experimentos/linux-fase0/eco/**/resultado.json
