@@ -38,6 +38,30 @@ Un Rodaje 1.0.3 o anterior ve `blend` y `opticalFlow` como `nearest`.
 | WARP 1080p al exportar | ≥ 3 cuadros/s |
 | Con `nearest` | los bytes de salida no cambian |
 
+## Cifras medidas (16-nov)
+
+| Medida | Resultado |
+|---|---|
+| Flujo 1080p / 4K, RTX 3050 Laptop (`FlowInterpolatorTests`, categoría Rendimiento) | 2,42 ms / 8,70 ms por cuadro |
+| VRAM extra 1080p / 4K | 13,9 MiB / 55,6 MiB |
+| Shader (WARP) frente a `FlowReference`, traslación de 8 px, t = 0,5 | 76,87 dB los dos (Y); 79,96 dB (UV) |
+| Ídem con oclusión | 43,69 dB los dos |
+| Exportar a 0,25× contra la verdad (`InterpolationExportTests`, t = 0,25 / 0,5 / 0,75) | flujo 40,65 / 40,89 / 40,93 dB; mezcla 29,39 / 27,12 / 29,36; cercano 25,55 / 19,84 / 16,68; un cuadro real, 40,33 |
+| Vista previa en pausa frente a exportación | 0 bytes distintos |
+
+Sin medir: reproducir 1080p a 0,25× en 60 cuadros/s (0 tarde en 10 s) y WARP 1080p al exportar (≥ 3 cuadros/s).
+
 ## Estado
 
-Fases en la tabla de [`propuestas/flujo-optico.md`](propuestas/flujo-optico.md#4-fases). La calidad «IA» con RIFE (F7) queda para cuando Daniel la pida.
+F0 a F6 en `main`; guía en [`guia/camara-lenta.md`](guia/camara-lenta.md). La calidad «IA» con RIFE (F7) queda para cuando Daniel la pida.
+
+## Pendiente
+
+De la revisión de bloque (Gemini, 16-nov):
+
+- Las texturas libres del interpolador retienen presupuesto del `RenderTargetPool` hasta 240 cuadros y `Rent` no puede expulsarlas.
+- Un mismo par pedido dos veces en un cuadro (comparación partida, dos capas del mismo clip) se interpola dos veces.
+- `FlowReference` falla con imágenes de menos de 32 px de lado (el nivel del flujo no llega al parche de 8); duplica `GrayImage.Half` y `Gradients` y arma las pirámides dos veces por par; `PatchSize` es parámetro pero el código fija 8.
+- La prueba de oclusión de `FlowReferenceTests` pasa también con la mezcla: falta una vara que la distinga.
+- `RenderCacheScan.Classify` no cuenta el coste de interpolar al decidir qué tramos son pesados.
+- La caída a mezcla mientras se reproduce si hay cuadros tarde (riesgo previsto en el diseño) no está hecha: hoy el flujo corre siempre.
