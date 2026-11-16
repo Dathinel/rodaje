@@ -40,6 +40,11 @@ public sealed class TranscriptPanelModel
     public IReadOnlyList<FillerChoice> Fillers { get; private set; } = [];
     public IReadOnlyList<PauseChoice> Pauses { get; private set; } = [];
     public IReadOnlyList<(int First, int Count)> Matches { get; private set; } = [];
+    public bool ShowRemoved { get; set; }
+    public IReadOnlyList<RemovedTranscriptSpan> RemovedWords { get; private set; } = [];
+    public MediaTranscript? CurrentTranscript => Document.Words.Count == 0 ? null
+        : _transcripts.FirstOrDefault(t => t.Id == Document.Words[SelectionFirst >= 0 ? SelectionFirst : Math.Max(0, ActiveWord)].TranscriptId);
+    public IReadOnlyList<TranscriptSpeaker> Speakers => CurrentTranscript?.Speakers ?? [];
     public int ActiveWord { get; private set; } = -1;
     public int SelectionFirst => _anchor < 0 ? -1 : Math.Min(_anchor, _caret);
     public int SelectionCount => _anchor < 0 ? 0 : Math.Abs(_caret - _anchor) + 1;
@@ -62,6 +67,7 @@ public sealed class TranscriptPanelModel
         _guideTrackId = guideTrackId;
         _transcripts = [.. project.Transcripts];
         Document = TranscriptDocument.Build(project, sequence, guideTrackId);
+        RemovedWords = TranscriptEdits.RemovedWords(project, sequence, Document);
         _anchor = _caret = -1;
         _cut = null;
         ActiveWord = -1;
@@ -138,6 +144,60 @@ public sealed class TranscriptPanelModel
     public ICommand? DeleteSelection(bool ripple) => _sequence is null || SelectionCount == 0 ? null
         : Edits.DeleteWords(_sequence.Id, Document.TrackId, SelectedWords, ripple, RippleScope.Track);
 
+    public TranscriptSpeaker? SpeakerOf(DocParagraph paragraph) => _transcripts.FirstOrDefault(t =>
+        t.Id == Document.Words[paragraph.FirstWord].TranscriptId)?.Speakers.Find(s => s.Id == paragraph.SpeakerId);
+
+    public ICommand? CorrectWord(string replacement)
+    {
+        if (SelectionCount != 1 || CurrentTranscript is not { } transcript) return null;
+        int index = Document.Words[SelectionFirst].WordIndex;
+        return new EditTranscriptCommand(transcript.MediaId, t => TranscriptEdits.CorrectWord(t, index, replacement), "Corregir palabra");
+    }
+
+    public ICommand? SplitParagraph()
+    {
+        if (SelectionCount == 0 || CurrentTranscript is not { } transcript) return null;
+        int index = Document.Words[SelectionFirst].WordIndex;
+        return new EditTranscriptCommand(transcript.MediaId, t => TranscriptEdits.SplitParagraph(t, index), "Partir párrafo");
+    }
+
+    public ICommand? AddSpeaker(string name, string? color)
+    {
+        if (CurrentTranscript is not { } transcript) return null;
+        var speaker = new TranscriptSpeaker { Id = Guid.NewGuid().ToString("N"), Name = name, Color = color };
+        return new EditTranscriptCommand(transcript.MediaId, t => TranscriptEdits.AddSpeaker(t, speaker), "Añadir hablante");
+    }
+
+    public ICommand? UpdateSpeaker(string speakerId, string name, string? color) => CurrentTranscript is not { } transcript ? null
+        : new EditTranscriptCommand(transcript.MediaId,
+            t => TranscriptEdits.UpdateSpeaker(t, speakerId, name, color), "Editar hablante");
+
+    /// <summary>Las palabras elegidas son de más de un medio: no hay un juego de hablantes común.</summary>
+    public bool SelectionCrossesMedia => SelectedWords.Select(i => Document.Words[i].TranscriptId).Distinct().Skip(1).Any();
+
+    public ICommand? AssignSpeaker(int number)
+    {
+        if (SelectionCount == 0 || CurrentTranscript is not { } transcript || number < 0
+            || number > transcript.Speakers.Count) return null;
+        DocWord[] selected = [.. SelectedWords.Select(i => Document.Words[i])];
+        if (selected.Any(w => w.TranscriptId != transcript.Id)) return null;
+        int[] indices = [.. selected.Select(w => w.WordIndex).Distinct()];
+        string? speakerId = number == 0 ? null : transcript.Speakers[number - 1].Id;
+        return new EditTranscriptCommand(transcript.MediaId, t =>
+        {
+            foreach (int index in indices) TranscriptEdits.AssignSpeaker(t, index, 1, speakerId);
+            return t;
+        }, number == 0 ? "Quitar hablante" : "Asignar hablante");
+    }
+
+    public ICommand? Recover(RemovedTranscriptSpan span)
+    {
+        if (_sequence is null || !RemovedWords.Contains(span)) return null;
+        string? trackId = Document.TrackId;
+        return new SequenceEditCommand("Recuperar", _sequence.Id, ctx => TranscriptEdits.RecoverWords(ctx,
+            TranscriptDocument.Build(ctx.Project, ctx.Sequence, trackId), span));
+    }
+
     public void Cut() => _cut = SelectionCount == 0 ? null : (SelectionFirst, SelectionCount);
 
     public ICommand? Paste(int before)
@@ -161,15 +221,6 @@ public sealed class TranscriptPanelModel
         if (chosen.Length == Pauses.Count)
             return Edits.RemovePauses(_sequence.Id, Document.TrackId, MinimumPause, KeepPause, ripple: true, RippleScope.Track);
 
-        // El núcleo ofrece todas las pausas; para una selección se reutiliza su edición de tramos, en un solo paso.
-        return new SequenceEditCommand("Quitar pausas", _sequence.Id, ctx =>
-        {
-            Time half = Time.FromTicks(KeepPause.Ticks / 2);
-            foreach (IGrouping<string, PauseChoice> group in chosen.GroupBy(p => p.ClipId)
-                         .OrderByDescending(g => ctx.Sequence.GetClip(g.Key).Clip.Start))
-            {
-                AnalysisEdits.RemoveSpans(ctx, group.Key, group.Select(p => (p.Start + half, p.End - (KeepPause - half))), true, RippleScope.Track);
-            }
-        });
+        return Edits.RemovePauses(_sequence.Id, [.. chosen.Select(p => (p.ClipId, p.Start, p.End))], KeepPause, ripple: true, RippleScope.Track);
     }
 }

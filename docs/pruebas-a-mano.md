@@ -13,7 +13,9 @@ Hace falta el módulo «Subtítulos automáticos» y un video con voz de unos mi
 5. **Retroceso** con otra frase: queda el hueco. **Ctrl+X** en una frase y **Ctrl+V** con el cursor del panel en otra palabra: la frase se mueve ahí con su video.
 6. **Ctrl+F**, escribe una palabra con tilde sin ella («camion»): la encuentra.
 7. **Quitar muletillas…**: las seguras vienen marcadas y las dudosas no; al quitar, el texto pierde justo esas.
-8. Guarda, cierra y abre el proyecto: la transcripción sigue. Quita la última transcripción (quitando el medio) y guarda: el archivo vuelve a la versión anterior del formato.
+8. **F2** en una palabra, escribe «dos palabras» e Intro: se parte en dos. **Alt+1** en un párrafo: aparece el hablante con su color; pon el mismo medio en otra pista guía o en otro clip y el hablante también sale ahí.
+9. Activa «Mostrar lo quitado»: la frase borrada en el paso 4 aparece tachada y en gris; «Recuperar» la devuelve con su video y la línea de tiempo vuelve a durar lo de antes.
+10. Guarda, cierra y abre el proyecto: la transcripción sigue. Quita la última transcripción (quitando el medio) y guarda: el archivo vuelve a la versión anterior del formato.
 
 ## Exportar entre la entrada y la salida
 

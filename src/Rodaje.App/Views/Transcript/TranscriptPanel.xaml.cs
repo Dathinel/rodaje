@@ -21,6 +21,8 @@ namespace Rodaje.App.Views.Transcript;
 internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTarget
 {
     private readonly Dictionary<TextBlock, DocParagraph> _realized = [];
+    private readonly Dictionary<Run, int> _wordIndices = [];
+    private readonly Dictionary<Run, RemovedTranscriptSpan> _removedRuns = [];
     private EditorServices? _services;
     private string? _guideTrackId;
     private bool _settingTracks;
@@ -36,7 +38,11 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
 
     public TranscriptPanelModel Model { get; } = new();
     internal bool HasVisibleWords => _realized.Keys.Any(t => t.Inlines.Count > 0 && t.ActualHeight > 0);
+    internal bool HasVisibleRemovedWords => _realized.Keys.Any(t => t.ActualHeight > 0 && t.Inlines.OfType<Run>().Any(_removedRuns.ContainsKey));
+    internal bool HasVisibleSpeakerNames => _realized.Keys.Any(t => t.ActualHeight > 0
+        && t.Inlines.OfType<Run>().Any(r => !_wordIndices.ContainsKey(r) && !_removedRuns.ContainsKey(r)));
     internal int RealizedWordCount => _realized.Values.Sum(p => p.Count);
+    internal void ShowRemovedWords(bool show) => ShowRemovedToggle.IsOn = show;
 
     public void ShowGuideTrack(string? trackId)
     {
@@ -56,7 +62,7 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
         services.Session.TransportChanged += (_, _) => FollowCursor();
         Theme.ThemeResources.ThemeChanged += (_, _) =>
         {
-            foreach ((TextBlock text, DocParagraph paragraph) in _realized) Highlight(text, paragraph);
+            foreach ((TextBlock text, DocParagraph paragraph) in _realized) RenderParagraph(text, paragraph);
         };
     }
 
@@ -84,6 +90,8 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
         GuideTrack.Visibility = GuideTrack.Items.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         _settingTracks = false;
         _realized.Clear();
+        _wordIndices.Clear();
+        _removedRuns.Clear();
         // Índices en un vector WinRT: DocParagraph es un struct del núcleo, no un tipo proyectado.
         ParagraphList.ItemsSource = new ObservableCollection<object>(Enumerable.Range(0, Model.Document.Paragraphs.Count).Select(i => (object)i));
         EmptyText.Visibility = Model.Document.Words.Count == 0 ? Visibility.Visible : Visibility.Collapsed;
@@ -97,10 +105,45 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
         if (TextOf(args.Element) is not { } text) return;
         DocParagraph paragraph = Model.Document.Paragraphs[args.Index];
         _realized[text] = paragraph;
+        RenderParagraph(text, paragraph);
+    }
+
+    private void RenderParagraph(TextBlock text, DocParagraph paragraph)
+    {
+        ForgetRuns(text);
         text.Inlines.Clear();
         for (int i = paragraph.FirstWord; i < paragraph.FirstWord + paragraph.Count; i++)
         {
-            text.Inlines.Add(new Run { Text = Model.Document.Words[i].Text + " " });
+            if (i == paragraph.FirstWord && Model.SpeakerOf(paragraph) is { } speaker)
+            {
+                text.Inlines.Add(new Run { Text = speaker.Name, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+                    Foreground = SpeakerBrush(speaker.Color) });
+                text.Inlines.Add(new LineBreak());
+            }
+
+            var run = new Run { Text = Model.Document.Words[i].Text + " " };
+            _wordIndices[run] = i;
+            text.Inlines.Add(run);
+            if (Model.ShowRemoved)
+            {
+                foreach (RemovedTranscriptSpan span in Model.RemovedWords.Where(s => s.BeforeWord == i + 1))
+                {
+                    MediaTranscript? transcript = _services?.Session.Project.Transcripts.Find(t => t.Id == span.TranscriptId);
+                    if (transcript is null) continue;
+                    IEnumerable<SpokenWord> words = transcript.Words.Skip(span.FirstWord).Take(span.Count);
+                    if (_services?.Session.Sequence.GetClip(Model.Document.Words[i].ClipId).Clip.TimeMap.Reverse == true)
+                        words = words.Reverse();
+                    var removed = new Run
+                    {
+                        Text = string.Join(' ', words.Select(w => w.Text)) + " ",
+                        Foreground = new SolidColorBrush(Colors.Gray),
+                        TextDecorations = Windows.UI.Text.TextDecorations.Strikethrough,
+                    };
+                    _removedRuns[removed] = span;
+                    text.Inlines.Add(removed);
+                }
+            }
+
         }
 
         Highlight(text, paragraph);
@@ -108,7 +151,20 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
 
     private void OnParagraphClearing(ItemsRepeater sender, ItemsRepeaterElementClearingEventArgs args)
     {
-        if (TextOf(args.Element) is { } text) _realized.Remove(text);
+        if (TextOf(args.Element) is { } text)
+        {
+            ForgetRuns(text);
+            _realized.Remove(text);
+        }
+    }
+
+    private void ForgetRuns(TextBlock text)
+    {
+        foreach (Run run in text.Inlines.OfType<Run>())
+        {
+            _wordIndices.Remove(run);
+            _removedRuns.Remove(run);
+        }
     }
 
     private static TextBlock? TextOf(UIElement element) => element is Grid { Children.Count: > 1 } grid ? grid.Children[1] as TextBlock : null;
@@ -140,9 +196,9 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
             pending = null;
         }
 
-        for (int i = paragraph.FirstWord; i < paragraph.FirstWord + paragraph.Count; i++)
+        foreach (Run run in text.Inlines.OfType<Run>())
         {
-            var run = (Run)text.Inlines[i - paragraph.FirstWord];
+            if (!_wordIndices.TryGetValue(run, out int i)) continue;
             bool active = Model.ActiveWord == i;
             bool selected = Model.IsSelected(i);
             if (active || selected) run.Foreground = active ? activeForeground : selectedForeground;
@@ -172,8 +228,11 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
 
     private int WordAt(TextBlock text, Point point)
     {
-        if (!_realized.TryGetValue(text, out DocParagraph paragraph)) return -1;
-        int i = paragraph.FirstWord;
+        return RunAt(text, point) is { } run && _wordIndices.TryGetValue(run, out int index) ? index : -1;
+    }
+
+    private static Run? RunAt(TextBlock text, Point point)
+    {
         foreach (Inline inline in text.Inlines)
         {
             if (inline is Run run)
@@ -181,13 +240,12 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
                 for (int offset = 0; offset < run.Text.Length; offset++)
                 {
                     TextPointer? pointer = run.ContentStart.GetPositionAtOffset(offset, LogicalDirection.Forward);
-                    if (pointer is not null && pointer.GetCharacterRect(LogicalDirection.Forward).Contains(point)) return i;
+                    if (pointer is not null && pointer.GetCharacterRect(LogicalDirection.Forward).Contains(point)) return run;
                 }
             }
-            i++;
         }
 
-        return -1;
+        return null;
     }
 
     private void OnWordTapped(object sender, TappedRoutedEventArgs args)
@@ -223,9 +281,29 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
 
     private void FollowCursor()
     {
+        int previous = Model.ActiveWord;
         if (_services is null || Visibility != Visibility.Visible || !Model.UpdateActiveWord(_services.Session.Position)) return;
-        foreach ((TextBlock text, DocParagraph paragraph) in _realized) Highlight(text, paragraph);
+        // Solo los párrafos de la palabra que deja de sonar y de la que empieza: esto corre en cada cuadro de la reproducción.
+        foreach ((TextBlock text, DocParagraph paragraph) in _realized)
+        {
+            if (Holds(paragraph, previous) || Holds(paragraph, Model.ActiveWord)) Highlight(text, paragraph);
+        }
+
         RevealWord(Model.ActiveWord);
+    }
+
+    private static bool Holds(DocParagraph paragraph, int word) => word >= paragraph.FirstWord && word < paragraph.FirstWord + paragraph.Count;
+
+    // Con el foco en un cuadro de texto (el buscador, el de corregir), las teclas son suyas: WinUI puede dar el foco a una
+    // parte interna de la plantilla, así que se sube hasta encontrar el cuadro.
+    private static bool IsInTextBox(DependencyObject? element)
+    {
+        for (; element is not null; element = VisualTreeHelper.GetParent(element))
+        {
+            if (element is TextBox) return true;
+        }
+
+        return false;
     }
 
     private void RevealWord(int word)
@@ -247,9 +325,9 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
         if (at.Y < 0 || at.Y + row.ActualHeight > Scroller.ViewportHeight)
         {
             Rect target = new(0, 0, row.ActualWidth, Math.Min(row.ActualHeight, Scroller.ViewportHeight));
-            if (TextOf(row) is { } text && word - paragraphs[index].FirstWord < text.Inlines.Count)
+            if (TextOf(row) is { } text && text.Inlines.OfType<Run>().FirstOrDefault(r => _wordIndices.GetValueOrDefault(r, -1) == word) is { } run)
             {
-                target = text.Inlines[word - paragraphs[index].FirstWord].ContentStart.GetCharacterRect(LogicalDirection.Forward);
+                target = run.ContentStart.GetCharacterRect(LogicalDirection.Forward);
                 Point wordAt = row.TransformToVisual(Scroller).TransformPoint(new Point(target.X, target.Y));
                 if (wordAt.Y >= 0 && wordAt.Y + target.Height <= Scroller.ViewportHeight) return;
             }
@@ -261,7 +339,7 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
     public bool TryHandleShortcut(KeyChord chord)
     {
         if (_services is null || Visibility != Visibility.Visible) return false;
-        bool textInput = XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox;
+        bool textInput = XamlRoot is { } root && IsInTextBox(FocusManager.GetFocusedElement(root) as DependencyObject);
         foreach ((string id, KeyChord keys) in TranscriptShortcuts.PanelKeys)
         {
             if (keys != chord) continue;
@@ -276,6 +354,13 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
                 case TranscriptShortcuts.SelectAll: Model.SelectAll(); SelectionChanged(); break;
                 case TranscriptShortcuts.ExtendLeft: Model.ExtendSelection(-1); SelectionChanged(); RevealWord(Model.SelectionFirst); break;
                 case TranscriptShortcuts.ExtendRight: Model.ExtendSelection(1); SelectionChanged(); RevealWord(Model.SelectionFirst + Model.SelectionCount - 1); break;
+                case TranscriptShortcuts.CorrectWord: ShowWordEditor(); break;
+                default:
+                    if (id.StartsWith(TranscriptShortcuts.AssignSpeaker, StringComparison.Ordinal) && Model.SelectionCrossesMedia)
+                        _services.Session.Notify(NotificationSeverity.Informational, "Transcripción", "Elige palabras de un solo medio para asignarles hablante.");
+                    else if (id.StartsWith(TranscriptShortcuts.AssignSpeaker, StringComparison.Ordinal))
+                        _services.Session.ExecuteTranscript(Model.AssignSpeaker(id[^1] - '0'));
+                    break;
             }
 
             return true;
