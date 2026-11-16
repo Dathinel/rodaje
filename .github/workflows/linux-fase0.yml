@@ -165,3 +165,39 @@ jobs:
         with:
           name: eco-${{ matrix.os }}
           path: experimentos/linux-fase0/eco/**/resultado.json
+
+  vulkan-video:
+    name: (b) hwaccel Vulkan de FFmpeg en lavapipe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      RODAJE_VK_GPU: llvmpipe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Paquetes
+        run: sudo apt-get update -q && sudo apt-get install -y -q mesa-vulkan-drivers libvulkan1 vulkan-tools
+      # El mismo FFmpeg LGPL que en Windows, de la misma receta (BtbN, rama n9.0).
+      - name: FFmpeg LGPL n9.0
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/ffmpeg.tar.xz" https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-linux64-lgpl-shared-9.0.tar.xz
+          mkdir -p "$RUNNER_TEMP/ffmpeg"
+          tar -xJf "$RUNNER_TEMP/ffmpeg.tar.xz" -C "$RUNNER_TEMP/ffmpeg" --strip-components=1
+          echo "RODAJE_FFMPEG=$RUNNER_TEMP/ffmpeg" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/ffmpeg/lib" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/ffmpeg/bin/ffmpeg" -hide_banner -version | head -n 1
+      - name: Vulkan del corredor
+        run: |
+          vulkaninfo --summary | grep -E "deviceName|driverInfo|apiVersion" || true
+          vulkaninfo 2>/dev/null | grep -E "VK_KHR_video" || echo "lavapipe no anuncia VK_KHR_video_*"
+      - name: Prueba
+        run: bash experimentos/linux-fase0/vulkan-video/ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vulkan-video
+          path: |
+            experimentos/linux-fase0/vulkan-video/**/resultado.json
+            experimentos/linux-fase0/vulkan-video/**/*.log
