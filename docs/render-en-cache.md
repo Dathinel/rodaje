@@ -96,3 +96,17 @@ Quedan como tareas:
 
 - **Composición retenida tras editar durante un seek.** Puede mostrar un instante el cuadro del caché de la revisión anterior, igual que hoy muestra lo vivo de antes de la edición. Hay que decidir si eso basta o si se retira.
 - **Cifras del diseño:** las recetas tardan 152,7 ms por 1800 cuadros con 8 capas, medido a prioridad baja con el equipo cargado. El objetivo es de 150 ms y el tope de la prueba, de 600 ms; la prueba es de `Categoria=TiempoReal` porque en la CI de Windows dio 645 ms. La exportación con la casilla se midió con `TwoTracks` en WARP, no en la escena A.
+
+## Revisión del bloque F5b (Claude, 16-nov)
+
+Arreglados, cada uno con su prueba que antes fallaba:
+
+- **Aceptar Preferencias vaciaba la cola.** Con el tope automático, `Configure` comparaba el tope calculado (que sale del disco libre y cambia con cualquier escritura) y reabría el almacén: cancelaba el trozo en curso y perdía lo encolado. Ahora compara el tope pedido. Además, pasar a Inteligente no encolaba nada hasta la siguiente edición; ahora `Configure` rehace la cola con las huellas ya calculadas.
+- **Dispositivo de fondo perdido.** `ExportDevicePool` guardaba el dispositivo para siempre: tras un TDR o un cambio de controlador, cada fragmento fallaba hasta reiniciar la app. Ahora cambia el dispositivo perdido (`GpuDevice.IsLost`) por otro al prestarlo.
+
+Quedan como tareas:
+
+- **Cuadros tarde por receta, no por número.** `LateFrames` son números de cuadro de un anillo que no se vacía en toda la sesión: tras un corte en ondulación, el rojo medido se queda en el mismo número aunque allí haya otro contenido, y el modo Inteligente lo calcula. El diseño dice «rojo hasta que su receta cambie»: hay que guardar las huellas de los cuadros tarde (con la revisión en que se midieron) y no los números.
+- **«Calcular de entrada a salida» no sobrevive a una edición.** En Inteligente, la cola se rehace con lo rojo y lo amarillo y se pierde lo pedido; en Manual, los trozos llevan la revisión vieja y `JobInput` los descarta sin contarlos (cada uno ocupa un tic). Lo pedido debería guardarse como tramo de cuadros y volver a encolarse con las huellas nuevas.
+- **La carpeta del proyecto se lee dos veces.** El recorrido y el trabajo llaman a `ProjectDirectory()` por separado: un «Guardar como» en otra carpeta entre los dos resuelve distinto un recurso `file:` relativo. Debería ir en `RenderCachePlan`.
+- **Borrar en el hilo de la interfaz.** «Borrar el render en caché» y la limpieza de cada 10 min borran archivos dentro del candado del host; con decenas de GB pueden congelar la interfaz un momento.

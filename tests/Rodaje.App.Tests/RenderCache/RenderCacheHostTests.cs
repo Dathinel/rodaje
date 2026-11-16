@@ -164,6 +164,43 @@ public sealed class RenderCacheHostTests : IDisposable
     }
 
     [Fact]
+    public async Task Pasar_a_inteligente_en_Preferencias_encola_lo_rojo_sin_esperar_a_otra_edicion()
+    {
+        Project project = Titles(seconds: 4);
+        var player = new FakePlayer { LateFrames = [.. Enumerable.Range(0, 60).Select(i => (long)i)] };
+        using var host = new RenderCacheHost(player, RenderCacheMode.Manual, _folder, 10, null, null, _ => false, () => null,
+            tick: Timeout.InfiniteTimeSpan);
+        host.OnPlan(new RenderCachePlan(project, "sec", 1, 0, 0));
+        await player.NextAsync();
+        Assert.Equal(0, host.Status.Pending);
+
+        host.Configure(RenderCacheMode.Smart, _folder, 10);
+
+        await player.NextAsync();
+        Assert.Equal(1, host.Status.Pending);
+    }
+
+    [Fact]
+    public async Task Aceptar_Preferencias_sin_cambios_con_el_tope_automatico_no_vacia_la_cola()
+    {
+        Project project = Titles(seconds: 4);
+        var player = new FakePlayer();
+        using var host = new RenderCacheHost(player, RenderCacheMode.Manual, _folder, null, null, null, _ => false, () => null,
+            tick: Timeout.InfiniteTimeSpan);
+        host.OnPlan(new RenderCachePlan(project, "sec", 1, 0, 0));
+        await player.NextAsync();
+        host.Request(Time.Zero, Time.FromSeconds(3));
+        Assert.Equal(2, host.Status.Pending);
+
+        // El tope automático sale del disco libre, que cambia con cualquier escritura.
+        File.WriteAllBytes(Path.Combine(_folder, "relleno.bin"), new byte[8 << 20]);
+        host.Configure(RenderCacheMode.Manual, _folder, null);
+
+        await player.NextAsync();
+        Assert.Equal(2, host.Status.Pending);
+    }
+
+    [Fact]
     public void Sin_saber_el_espacio_libre_no_se_frena()
     {
         Assert.True(RenderCacheHost.FreeBytes(@"\\servidor-que-no-existe\compartida\render") >= RenderCacheService.MinimumFreeBytes);
