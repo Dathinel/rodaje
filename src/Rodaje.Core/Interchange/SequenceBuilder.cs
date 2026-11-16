@@ -113,9 +113,10 @@ public static class SequenceBuilder
             path = uri.LocalPath;
 
             // Una ruta de Windows («file:///C:/…») leída en otro sistema sigue siendo de Windows: así vuelve igual que salió.
-            if (!OperatingSystem.IsWindows() && path.Length >= 4 && path[0] == '/' && char.IsAsciiLetter(path[1]) && path[2] == ':' && path[3] == '/')
+            string trimmed = path.TrimStart('/');
+            if (!OperatingSystem.IsWindows() && trimmed.Length >= 3 && char.IsAsciiLetter(trimmed[0]) && trimmed[1] == ':' && trimmed[2] is '/' or '\\')
             {
-                return path[1..].Replace('/', '\\');
+                return trimmed.Replace('/', '\\');
             }
         }
         else if (path.Contains("://", StringComparison.Ordinal))
