@@ -32,7 +32,7 @@ public sealed class SetTranscriptCommand : ICommand
     {
         ArgumentNullException.ThrowIfNull(project);
         int index = project.Transcripts.FindIndex(t => t.MediaId == _mediaId);
-        (int Index, MediaTranscript? Saved) before = (index, index >= 0 ? project.Transcripts[index] : null);
+        (int Index, MediaTranscript? Saved) before = (index, index >= 0 ? project.Transcripts[index].Clone() : null);
         ProjectGuard.ApplyValidated(project, "No se pudo guardar la transcripción", () => Put(project, before.Index, _transcript?.Clone()), () => Put(project, -1, null, before));
         _before = before;
     }

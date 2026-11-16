@@ -62,11 +62,14 @@ internal static class AutoSubtitlesDialog
             return;
         }
 
-        // Se transcribe el medio entero (D-061): la transcripción se guarda y sirve para todos sus clips.
-        (Time Start, Time End) window = MediaTranscriber.Window(media);
+        // Se transcribe el medio entero (D-061): la transcripción se guarda y sirve para todos sus clips. Un medio de más
+        // de tres horas no cabe: se transcribe solo el clip, como antes, sin guardarla.
+        (Time Start, Time End) whole = MediaTranscriber.Window(media);
+        bool wholeMedia = whole.End > whole.Start && whole.End - whole.Start <= ModuleMedia.MaxAudioSpan;
+        (Time Start, Time End) window = wholeMedia ? whole : AutoSubtitles.Window(clip);
         if (window.End <= window.Start || window.End - window.Start > ModuleMedia.MaxAudioSpan)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "El medio dura más de tres horas: no se puede transcribir entero.");
+            session.Notify(NotificationSeverity.Informational, Title, "El clip dura más de tres horas: córtalo y transcribe cada parte.");
             return;
         }
 
@@ -114,6 +117,7 @@ internal static class AutoSubtitlesDialog
         var draft = new TranscriptionDraft();
         // La transcripción nueva del medio, si esta vez se pidió al módulo: se guarda en el mismo paso que los subtítulos.
         MediaTranscript? fresh = null;
+        bool fromStored = false;
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         void ShowActivity()
@@ -153,24 +157,40 @@ internal static class AutoSubtitlesDialog
             try
             {
                 fresh = null;
-                MediaTranscript? stored = force ? null : MediaTranscriber.Reusable(session.Project, media.Id, wanted);
-                if (stored is null)
+                MediaTranscript? stored = force || !wholeMedia ? null : MediaTranscriber.Reusable(session.Project, media.Id, wanted);
+                fromStored = stored is not null;
+                IReadOnlyList<SpeechSegment> segments;
+                string? found;
+                if (stored is not null)
+                {
+                    segments = AutoSubtitles.ToSequence(clip, stored);
+                    found = stored.Language;
+                }
+                else
                 {
                     Transcript transcript = await AutoSubtitles.RunAsync(modules, module, media.Path, window, wanted,
                         $"Subtítulos de «{media.Name}»", cancel.Token, j => job = j);
-                    string model = AutoSubtitles.Plan(modules, module) is { } plan ? Path.GetFileNameWithoutExtension(AiParameters.WhisperFile(plan.Subtitles.Model)) : "whisper";
-                    stored = fresh = MediaTranscriber.FromTranscript(transcript, media, "transcript-" + Guid.NewGuid().ToString("N"), wanted, model, DateTime.UtcNow);
+                    found = transcript.Language;
+                    if (wholeMedia)
+                    {
+                        string model = AutoSubtitles.Plan(modules, module) is { } plan ? Path.GetFileNameWithoutExtension(AiParameters.WhisperFile(plan.Subtitles.Model)) : "whisper";
+                        fresh = MediaTranscriber.FromTranscript(transcript, media, "transcript-" + Guid.NewGuid().ToString("N"), wanted, model, DateTime.UtcNow);
+                        segments = AutoSubtitles.ToSequence(clip, fresh);
+                    }
+                    else
+                    {
+                        segments = AutoSubtitles.ToSequence(clip, transcript);
+                    }
                 }
 
-                IReadOnlyList<SpeechSegment> segments = AutoSubtitles.ToSequence(clip, stored);
                 IReadOnlyList<SubtitleCue> cues = AutoSubtitles.Cues(segments, frameRate);
                 draft.Complete(wanted, segments, cues);
                 _language = wanted;
                 Show(cues);
-                string origin = fresh is null ? " de la transcripción guardada" : "";
+                string origin = fromStored ? " de la transcripción guardada" : "";
                 status.Text = cues.Count == 0
                     ? "No se oyó voz en el clip."
-                    : string.Create(SpanishNumbers.Format, $"{cues.Count} subtítulos{origin}{(stored.Language is { Length: > 0 } found && wanted == "auto" ? $" (idioma: {found})" : "")}. Revísalos y aplica.");
+                    : string.Create(SpanishNumbers.Format, $"{cues.Count} subtítulos{origin}{(found is { Length: > 0 } && wanted == "auto" ? $" (idioma: {found})" : "")}. Revísalos y aplica.");
             }
             catch (OperationCanceledException)
             {
@@ -199,7 +219,8 @@ internal static class AutoSubtitlesDialog
                     draft.Fail();
                 }
 
-                again.IsEnabled = draft.CanTranscribe(Selected());
+                // Con la transcripción guardada siempre se puede pedir otra pasada de Whisper.
+                again.IsEnabled = draft.CanTranscribe(Selected()) || (fromStored && draft.CanApply);
                 // Activo mientras transcribe (aplica al terminar); después, solo si hay algo que aplicar.
                 dialog.IsPrimaryButtonEnabled = draft.CanApply;
             }

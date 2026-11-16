@@ -65,6 +65,21 @@ public sealed class SetTranscriptCommandTests
     }
 
     [Fact]
+    public void Undo_restores_the_old_transcript_even_if_someone_changed_that_instance()
+    {
+        Project project = TwoMedia();
+        new SetTranscriptCommand("m1", Of("m1", "uno")).Apply(project);
+        MediaTranscript old = project.Transcripts[0];
+        var replace = new SetTranscriptCommand("m1", Of("m1", "otra"));
+
+        replace.Apply(project);
+        old.Words[0].Text = "cambiada";
+        replace.Revert(project);
+
+        Assert.Equal("uno", project.Transcripts[0].Words[0].Text);
+    }
+
+    [Fact]
     public void The_command_keeps_its_own_copy()
     {
         Project project = TwoMedia();
