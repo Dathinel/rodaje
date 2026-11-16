@@ -82,7 +82,8 @@ public static unsafe class FfmpegInterop
 
         string? dir = explicitDirectory
             ?? Environment.GetEnvironmentVariable("RODAJE_FFMPEG")
-            ?? (OperatingSystem.IsWindows() ? @"D:\Programas de uso libre\Rodaje\.entorno\ffmpeg\bin" : "/usr/lib/x86_64-linux-gnu");
+            ?? (Environment.GetEnvironmentVariable("RODAJE_ENTORNO") is { Length: > 0 } entorno ? Path.Combine(entorno, "ffmpeg") : null)
+            ?? (OperatingSystem.IsWindows() ? AppContext.BaseDirectory : "/usr/lib/x86_64-linux-gnu");
 
         // Try candidates
         string[] candidates = new[]

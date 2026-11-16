@@ -16,7 +16,7 @@ Prueba si el HLSL de los efectos (`src/Rodaje.Render/Effects/EffectShaders.cs`, 
 Variables del ejecutor: `RODAJE_VK_GPU` (subcadena del nombre de la GPU; en el corredor, `llvmpipe`), `FASE0_SPIRV`, `FASE0_REF`, `FASE0_RESULTADO` y `FASE0_VOLCADO` (carpeta donde dejar lo que dibuja Vulkan, para diagnosticar).
 
 ```powershell
-$env:RODAJE_ENTORNO = 'D:\Programas de uso libre\Rodaje\.entorno'
+$env:RODAJE_ENTORNO = '<repositorio>\.entorno'
 powershell -File experimentos\linux-fase0\shaders\ci.ps1 -Vulkan -Control
 ```
 

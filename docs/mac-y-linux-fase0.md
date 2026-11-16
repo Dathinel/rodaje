@@ -57,22 +57,23 @@ Prototipo `vulkan-video/` (C#, `FFmpeg.AutoGen` 9.0.1.1 como en `Rodaje.Media`, 
 |---|---|---|
 | Camino | **`vulkan-video`**: `VK_KHR_video_queue`, `_decode_queue`, `_decode_h264`, `_decode_h265` | **`subida`**: lavapipe no anuncia ninguna `VK_KHR_video_*` |
 | Duración | 120 s | 60 s |
-| Cuadros 1080p: H.264 8 bits (NV12) / HEVC Main10 (P010) | 10 521 / 10 430 | 1 694 / 1 425 |
-| Cadencia (decodificar + muestrear + reciclar) | 174,6 por segundo; 2,74 ms p50, 5,72 ms p95 | 52,0 por segundo; 13,8 ms p50, 18,3 ms p95 |
+| Cuadros 1080p: H.264 8 bits (NV12) / HEVC Main10 (P010) | 11 026 / 10 999 | 1 694 / 1 425 |
+| Cadencia (decodificar + muestrear + reciclar) | 183,4 por segundo; 2,23 ms p50, 5,70 ms p95 | 52,0 por segundo; 13,8 ms p50, 18,3 ms p95 |
 | Transferencias a la CPU fuera de la verificación | 0 | 0 (la subida es CPU → GPU por definición) |
-| Cuadros comparados con software; error medio | 704; 1,44/255 (PSNR 33,4 dB) | 107; 1,46/255 (PSNR 32,4 dB) |
+| RGBA comparado con software (`swscale`); error medio | 740 cuadros; 1,44/255 (PSNR 33,4 dB) | 107; 1,46/255 (PSNR 32,4 dB) |
+| **Planos Y y CbCr descargados, byte a byte frente al software** | **370 de 370 NV12 y 370 de 370 P010 idénticos** | [[B-LAVA]] |
 | `VkImage` y `AVFrame` vivos al final | 0 y 0 | 0 y 0 |
-| Memoria del proceso: inicio → mitad → final | 91 → 317 → 283 MB | 104 → 288 → 237 MB |
+| Memoria del proceso: inicio → mitad → final | 91 → 392 → 373 MB | 104 → 288 → 237 MB |
 | Errores de las capas de validación | 0 (con las capas que hubiera instaladas) | 0 (sin capas en el corredor) |
 
-[[B-EXACTA]]
+Repetido por Claude en la RTX 3050 (30 s): 5 914 cuadros, 100 de 100 NV12 y 99 de 99 P010 idénticos, salida 0.
 
 Qué queda demostrado y qué no:
 
 - **Demostrado:** el hwaccel Vulkan de FFmpeg 9.0 acepta un `VkDevice` ajeno y entrega NV12 y P010 que se muestrean en ese mismo dispositivo sin pasar por la CPU, con la sincronización por cuadro (candado, semáforo, layout) hecha desde C# con AOT. En un driver real de NVIDIA, aunque en Windows.
 - **No demostrado:** lo mismo **en Linux con el driver propietario** (la corrida del USB, abajo). Es el mismo driver por dentro, pero la puerta pedía Linux.
-- **Débil:** el error de 1,4/255 frente a `swscale` es el mismo en los dos caminos, también cuando lo que se muestrea es el propio cuadro de software subido: mide la diferencia de conversión de color y de filtrado del croma, no la decodificación. No sustituye a una comparación exacta de los planos.
-- **Memoria:** sube en la primera mitad y baja en la segunda en los dos equipos; con 60 y 120 s no se distingue un pool que se llena de una fuga lenta. Los contadores dan 0 recursos vivos. La corrida de 10 minutos lo resuelve.
+- **Dos comprobaciones distintas:** la exacta dice que lo que decodifica el hardware en nuestro dispositivo es bit a bit lo que decodifica el software (descargando el `AVVkFrame`, solo para verificar). La de RGBA dice que nuestra pasada muestrea el cuadro correcto; su 1,4/255 es el mismo en los dos caminos (también cuando se muestrea el propio cuadro de software subido): es diferencia de conversión de color y de filtrado del croma frente a `swscale`, no de decodificación.
+- **Memoria:** llega a su techo en los primeros segundos y no sigue subiendo (en la RTX 3050: 425 → 411 MB a los 15 y 30 s; 392 → 373 MB a los 60 y 120 s); la mayor parte son las referencias de software que el propio prototipo guarda para comparar. Los contadores dan 0 recursos vivos. No es la prueba de 10 minutos que pedía la puerta: esa queda para la corrida en Linux.
 - **Presentar:** no se presentó en una ventana (sin pantalla en la CI y sin abrir ventanas en el equipo de Daniel); se leyó el resultado.
 - En la CI no hay `hevc_nvenc`: la muestra de 10 bits salió de `libkvazaar` (LGPL, viene en el build de BtbN) y la de 8 bits de `libopenh264`.
 

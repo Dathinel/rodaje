@@ -29,6 +29,13 @@ public sealed unsafe class DecoderRunner
     public bool ThresholdPassed { get; private set; } = true;
     public const double MaeThreshold = 2.0 / 255.0; // Fixed threshold: MAE <= 2/255
 
+    public FormatoExactoInfo Nv12ExactStats { get; } = new();
+    public FormatoExactoInfo P010ExactStats { get; } = new();
+    public bool ExactComparisonPassed =>
+        (Nv12ExactStats.CuadrosComparados == 0 || Nv12ExactStats.CuadrosIdenticos == Nv12ExactStats.CuadrosComparados) &&
+        (P010ExactStats.CuadrosComparados == 0 || P010ExactStats.CuadrosIdenticos == P010ExactStats.CuadrosComparados) &&
+        (Nv12ExactStats.CuadrosComparados > 0 || P010ExactStats.CuadrosComparados > 0);
+
     private static readonly AVCodecContext_get_format s_getFormatDelegate = GetFormatVulkan;
 
     public DecoderRunner(VulkanContext vk, bool forceUpload)
@@ -42,13 +49,13 @@ public sealed unsafe class DecoderRunner
     {
         StartMemoryMb = GetProcessMemoryMb();
 
-        Dictionary<long, byte[]>? h264Refs = null;
-        Dictionary<long, byte[]>? hevcRefs = null;
+        Dictionary<long, ReferenceFrame>? h264Refs = null;
+        Dictionary<long, ReferenceFrame>? hevcRefs = null;
         if (_camino == "vulkan-video")
         {
             Console.WriteLine("Extrayendo cuadros de referencia por software para verificación de calidad...");
-            h264Refs = ReferenceExtractor.ExtractReferences(h264Path, 30);
-            hevcRefs = ReferenceExtractor.ExtractReferences(hevcPath, 30);
+            h264Refs = ReferenceExtractor.ExtractReferences(h264Path, isHevc: false, interval: 30);
+            hevcRefs = ReferenceExtractor.ExtractReferences(hevcPath, isHevc: true, interval: 30);
             Console.WriteLine($"Referencias generadas: H.264 = {h264Refs.Count}, HEVC = {hevcRefs.Count}");
         }
 
@@ -110,7 +117,7 @@ public sealed unsafe class DecoderRunner
     private void RunSample(
         string path,
         bool isHevc,
-        Dictionary<long, byte[]>? refs,
+        Dictionary<long, ReferenceFrame>? refs,
         Stopwatch overallSw,
         double targetSecondsDbl,
         ref bool recordedMidMemory,
@@ -228,14 +235,24 @@ public sealed unsafe class DecoderRunner
                     {
                         long frameStartTicks = Stopwatch.GetTimestamp();
 
-                        byte[]? refRgba = null;
-                        bool doVerify = (refs != null && refs.TryGetValue(decFrame->pts, out refRgba));
+                        ReferenceFrame? refFrame = null;
+                        bool doVerify = (refs != null && refs.TryGetValue(decFrame->pts, out refFrame));
 
                         _vk.ProcessFrame(decFrame, doVerify, doVerify ? gpuRgba : null);
 
-                        if (doVerify && refRgba != null)
+                        if (doVerify && refFrame != null)
                         {
-                            CompareRgba(gpuRgba, refRgba, ref sumMae, ref sumPsnr, isHevc, decFrame->pts);
+                            // 1. RGBA quality comparison (MAE / PSNR)
+                            CompareRgba(gpuRgba, refFrame.Rgba, ref sumMae, ref sumPsnr, isHevc, decFrame->pts);
+
+                            // 2. Exact bit-for-bit plane comparison (NV12 / P010)
+                            AVFrame* swDownloaded = ffmpeg.av_frame_alloc();
+                            int tRet = ffmpeg.av_hwframe_transfer_data(swDownloaded, decFrame, 0);
+                            if (tRet >= 0)
+                            {
+                                CompareExactPlanes(swDownloaded, refFrame, isHevc ? P010ExactStats : Nv12ExactStats, isHevc);
+                            }
+                            ffmpeg.av_frame_free(&swDownloaded);
                         }
 
                         ffmpeg.av_frame_unref(decFrame);
@@ -283,18 +300,27 @@ public sealed unsafe class DecoderRunner
                         uploadFrame->height = frameToUpload->height;
                         ffmpeg.av_hwframe_transfer_data(uploadFrame, frameToUpload, 0);
 
-                        if (frameToUpload == swConvertedFrame)
-                        {
-                            ffmpeg.av_frame_unref(swConvertedFrame);
-                        }
-
                         bool doVerify = (frameIdx % 30 == 0);
                         _vk.ProcessFrame(uploadFrame, doVerify, doVerify ? gpuRgba : null);
 
                         if (doVerify)
                         {
+                            // Download back uploaded frame and compare with software frame
+                            AVFrame* dlFrame = ffmpeg.av_frame_alloc();
+                            int tRet = ffmpeg.av_hwframe_transfer_data(dlFrame, uploadFrame, 0);
+                            if (tRet >= 0)
+                            {
+                                CompareExactPlanesRaw(dlFrame, frameToUpload, isHevc ? P010ExactStats : Nv12ExactStats, isHevc);
+                            }
+                            ffmpeg.av_frame_free(&dlFrame);
+
                             ScaleSoftwareFrame(decFrame, ref sws, dstData, dstLinesize, swRgba);
                             CompareRgba(gpuRgba, swRgba, ref sumMae, ref sumPsnr);
+                        }
+
+                        if (frameToUpload == swConvertedFrame)
+                        {
+                            ffmpeg.av_frame_unref(swConvertedFrame);
                         }
 
                         ffmpeg.av_frame_unref(uploadFrame);
@@ -326,6 +352,132 @@ public sealed unsafe class DecoderRunner
         if (cctx != null) ffmpeg.avcodec_free_context(&cctx);
 
         ffmpeg.avformat_close_input(&fmtCtx);
+    }
+
+    private static void CompareExactPlanes(
+        AVFrame* hwDownloaded,
+        ReferenceFrame refFrame,
+        FormatoExactoInfo stats,
+        bool isHevc)
+    {
+        int width = hwDownloaded->width;
+        int height = hwDownloaded->height;
+        int bytesPerSample = isHevc ? 2 : 1;
+        int rowBytesY = width * bytesPerSample;
+        int rowBytesUV = width * bytesPerSample;
+        int chromaH = height / 2;
+
+        long frameDiffBytes = 0;
+        int frameMaxDiff = 0;
+
+        // Plane Y
+        fixed (byte* pRefY = refFrame.PlaneY)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                byte* pHw = hwDownloaded->data[0] + y * hwDownloaded->linesize[0];
+                byte* pRef = pRefY + y * rowBytesY;
+                for (int b = 0; b < rowBytesY; b++)
+                {
+                    int diff = Math.Abs(pHw[b] - pRef[b]);
+                    if (diff != 0)
+                    {
+                        frameDiffBytes++;
+                        if (diff > frameMaxDiff) frameMaxDiff = diff;
+                    }
+                }
+            }
+        }
+
+        // Plane UV (CbCr)
+        fixed (byte* pRefUV = refFrame.PlaneUV)
+        {
+            for (int y = 0; y < chromaH; y++)
+            {
+                byte* pHw = hwDownloaded->data[1] + y * hwDownloaded->linesize[1];
+                byte* pRef = pRefUV + y * rowBytesUV;
+                for (int b = 0; b < rowBytesUV; b++)
+                {
+                    int diff = Math.Abs(pHw[b] - pRef[b]);
+                    if (diff != 0)
+                    {
+                        frameDiffBytes++;
+                        if (diff > frameMaxDiff) frameMaxDiff = diff;
+                    }
+                }
+            }
+        }
+
+        stats.CuadrosComparados++;
+        if (frameDiffBytes == 0)
+        {
+            stats.CuadrosIdenticos++;
+        }
+        else
+        {
+            stats.BytesDistintos += frameDiffBytes;
+            if (frameMaxDiff > stats.DiferenciaMaxima) stats.DiferenciaMaxima = frameMaxDiff;
+        }
+    }
+
+    private static void CompareExactPlanesRaw(
+        AVFrame* hwDownloaded,
+        AVFrame* srcFrame,
+        FormatoExactoInfo stats,
+        bool isHevc)
+    {
+        int width = hwDownloaded->width;
+        int height = hwDownloaded->height;
+        int bytesPerSample = isHevc ? 2 : 1;
+        int rowBytesY = width * bytesPerSample;
+        int rowBytesUV = width * bytesPerSample;
+        int chromaH = height / 2;
+
+        long frameDiffBytes = 0;
+        int frameMaxDiff = 0;
+
+        // Plane Y
+        for (int y = 0; y < height; y++)
+        {
+            byte* pHw = hwDownloaded->data[0] + y * hwDownloaded->linesize[0];
+            byte* pSrc = srcFrame->data[0] + y * srcFrame->linesize[0];
+            for (int b = 0; b < rowBytesY; b++)
+            {
+                int diff = Math.Abs(pHw[b] - pSrc[b]);
+                if (diff != 0)
+                {
+                    frameDiffBytes++;
+                    if (diff > frameMaxDiff) frameMaxDiff = diff;
+                }
+            }
+        }
+
+        // Plane UV
+        for (int y = 0; y < chromaH; y++)
+        {
+            byte* pHw = hwDownloaded->data[1] + y * hwDownloaded->linesize[1];
+            byte* pSrc = srcFrame->data[1] + y * srcFrame->linesize[1];
+            for (int b = 0; b < rowBytesUV; b++)
+            {
+                int diff = Math.Abs(pHw[b] - pSrc[b]);
+                if (diff != 0)
+                {
+                    frameDiffBytes++;
+                    if (diff > frameMaxDiff) frameMaxDiff = diff;
+                }
+            }
+        }
+
+        stats.CuadrosComparados++;
+        if (frameDiffBytes == 0)
+        {
+            stats.CuadrosIdenticos++;
+        }
+        else
+        {
+            stats.BytesDistintos += frameDiffBytes;
+            if (frameMaxDiff > stats.DiferenciaMaxima) stats.DiferenciaMaxima = frameMaxDiff;
+        }
     }
 
     private AVPixelFormat _cachedSwFormat = AVPixelFormat.AV_PIX_FMT_NONE;

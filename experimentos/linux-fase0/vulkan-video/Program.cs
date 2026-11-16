@@ -139,9 +139,18 @@ public static class Program
         Console.WriteLine($"Verificación contra CPU:     {runner.VerifiedFramesCount} cuadros comparados");
         Console.WriteLine($"Error medio (MAE / 255):     {runner.AvgMae255:F5} (umbral <= {DecoderRunner.MaeThreshold:F5})");
         Console.WriteLine($"PSNR medio:                  {runner.AvgPsnrDb:F2} dB");
-        Console.WriteLine($"Estado de verificación:      {(runner.ThresholdPassed ? "SUPERADO" : "FALLIDO")}");
+        Console.WriteLine($"Estado de verificación MAE:  {(runner.ThresholdPassed ? "SUPERADO" : "FALLIDO")}");
+        Console.WriteLine($"Comparación exacta NV12:     comparados = {runner.Nv12ExactStats.CuadrosComparados}, idénticos = {runner.Nv12ExactStats.CuadrosIdenticos}, bytes distintos = {runner.Nv12ExactStats.BytesDistintos}, dif máx = {runner.Nv12ExactStats.DiferenciaMaxima}");
+        Console.WriteLine($"Comparación exacta P010:     comparados = {runner.P010ExactStats.CuadrosComparados}, idénticos = {runner.P010ExactStats.CuadrosIdenticos}, bytes distintos = {runner.P010ExactStats.BytesDistintos}, dif máx = {runner.P010ExactStats.DiferenciaMaxima}");
+        Console.WriteLine($"Estado comparación exacta:   {(runner.ExactComparisonPassed ? "SUPERADO" : "FALLIDO")}");
 
         // 7. Escribir resultado.json
+        var exactObj = new ComparacionExactaInfo
+        {
+            Nv12 = runner.Nv12ExactStats,
+            P010 = runner.P010ExactStats
+        };
+
         var resultadoObj = new ResultadoReporte
         {
             Gpu = vk.GpuName,
@@ -183,8 +192,10 @@ public static class Program
                 ErrorMedio255 = Math.Round(runner.AvgMae255, 5),
                 UmbralError255 = Math.Round(DecoderRunner.MaeThreshold, 5),
                 PsnrMedioDb = Math.Round(runner.AvgPsnrDb, 2),
-                SuperoUmbral = runner.ThresholdPassed
-            }
+                SuperoUmbral = runner.ThresholdPassed,
+                Exacta = exactObj
+            },
+            ComparacionExacta = exactObj
         };
 
         try
@@ -199,7 +210,7 @@ public static class Program
             return 1;
         }
 
-        bool exito = runner.ThresholdPassed && (liveVkImages == 0) && (liveAvFrames == 0) && (runner.TotalFrames > 0);
+        bool exito = runner.ThresholdPassed && runner.ExactComparisonPassed && (liveVkImages == 0) && (liveAvFrames == 0) && (runner.TotalFrames > 0);
         Console.WriteLine($"\nCódigo de salida: {(exito ? 0 : 1)}");
         return exito ? 0 : 1;
     }

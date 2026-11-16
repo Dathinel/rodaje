@@ -54,6 +54,30 @@ public class RecursosVivosInfo
     public int AvFrames { get; set; }
 }
 
+public class FormatoExactoInfo
+{
+    [JsonPropertyName("cuadros_comparados")]
+    public int CuadrosComparados { get; set; }
+
+    [JsonPropertyName("cuadros_identicos")]
+    public int CuadrosIdenticos { get; set; }
+
+    [JsonPropertyName("bytes_distintos")]
+    public long BytesDistintos { get; set; }
+
+    [JsonPropertyName("diferencia_maxima")]
+    public int DiferenciaMaxima { get; set; }
+}
+
+public class ComparacionExactaInfo
+{
+    [JsonPropertyName("nv12")]
+    public FormatoExactoInfo Nv12 { get; set; } = new();
+
+    [JsonPropertyName("p010")]
+    public FormatoExactoInfo P010 { get; set; } = new();
+}
+
 public class VerificacionInfo
 {
     [JsonPropertyName("cuadros_verificados")]
@@ -70,6 +94,9 @@ public class VerificacionInfo
 
     [JsonPropertyName("supero_umbral")]
     public bool SuperoUmbral { get; set; }
+
+    [JsonPropertyName("exacta")]
+    public ComparacionExactaInfo? Exacta { get; set; }
 }
 
 public class ResultadoReporte
@@ -109,10 +136,15 @@ public class ResultadoReporte
 
     [JsonPropertyName("verificacion")]
     public VerificacionInfo Verificacion { get; set; } = new();
+
+    [JsonPropertyName("comparacion_exacta")]
+    public ComparacionExactaInfo ComparacionExacta { get; set; } = new();
 }
 
 [JsonSourceGenerationOptions(WriteIndented = true)]
 [JsonSerializable(typeof(ResultadoReporte))]
+[JsonSerializable(typeof(ComparacionExactaInfo))]
+[JsonSerializable(typeof(FormatoExactoInfo))]
 internal partial class ResultadoJsonContext : JsonSerializerContext
 {
 }
