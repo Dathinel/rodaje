@@ -57,7 +57,7 @@ public sealed record FfmpegPipeSinkOptions
 /// </summary>
 /// <remarks>
 /// Sin reservas por cuadro: un solo búfer de <see cref="FfmpegPipeSinkOptions.WriteChunkBytes"/> se llena fila a fila y
-/// se vacía a la tubería en escrituras de 1–4 MB. El proceso va dentro del <c>ChildProcessJob</c> (muere si Rodaje
+/// se vacía a la tubería en escrituras de 1–4 MB. El proceso va bajo el <c>ChildProcessGuard</c> (muere si Rodaje
 /// muere). <see cref="Abort"/> lo mata y borra los temporales en menos de 1 s; si no sale, la limpieza queda pendiente.
 /// </remarks>
 public sealed class FfmpegPipeSink : IExportSink
@@ -633,7 +633,7 @@ public sealed class FfmpegPipeSink : IExportSink
         // El job es de Windows; fuera de Windows (solo las pruebas con el ffmpeg falso) no hay a qué asignarlo.
         if (OperatingSystem.IsWindows())
         {
-            ChildProcessJob.TryAssign(process);
+            ChildProcessGuard.TryAssign(process);
         }
 
         try

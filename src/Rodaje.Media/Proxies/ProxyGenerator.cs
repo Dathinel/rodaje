@@ -41,7 +41,8 @@ public sealed record ProxyGeneratorOptions
     public int MaxConcurrent { get; init; } = 2;
 
     /// <summary>Codificadores en orden de preferencia; se usa el primero que funcione en este equipo.</summary>
-    public IReadOnlyList<string> EncoderPreference { get; init; } = ProxyEncoders.PreferenceFor(GpuProfileReader.Current);
+    public IReadOnlyList<string> EncoderPreference { get; init; } = ProxyEncoders.PreferenceFor(
+        OperatingSystem.IsWindowsVersionAtLeast(7) ? GpuProfileReader.Current : GpuProfile.CpuOnly(Environment.ProcessorCount));
 
     /// <summary>Decodifica el original con D3D11VA dentro de ffmpeg; si falla, se repite por software.</summary>
     public bool HardwareDecoding { get; init; } = true;
@@ -313,7 +314,7 @@ public sealed class ProxyGenerator : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         var watch = Stopwatch.StartNew();
         process.Start();
-        ChildProcessJob.TryAssign(process);
+        ChildProcessGuard.TryAssign(process);
         try
         {
             process.PriorityClass = Options.Priority;

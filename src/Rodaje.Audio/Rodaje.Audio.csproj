@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- WASAPI y MMCSS solo existen en Windows: el destino -windows deja que el analizador de plataforma lo sepa -->
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Rodaje.Audio</RootNamespace>
     <IsAotCompatible>true</IsAotCompatible>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>

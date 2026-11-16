@@ -5,6 +5,7 @@ using System.Runtime.InteropServices.Marshalling;
 namespace Rodaje.Audio.Interop;
 
 /// <summary>Un dispositivo abierto e inicializado en modo compartido por eventos. Solo lo toca el hilo de audio.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 internal sealed unsafe class WasapiSession : IDisposable
 {
     private IMMDevice? _device;
@@ -257,6 +258,7 @@ internal sealed unsafe class WasapiSession : IDisposable
     }
 }
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 internal static class Com
 {
     /// <summary>Envuelve un puntero COM en un objeto propio (sin caché compartida) y suelta la referencia del llamador.</summary>

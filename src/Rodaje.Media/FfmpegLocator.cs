@@ -13,6 +13,79 @@ public static class FfmpegLocator
     public static IReadOnlyList<string> RequiredLibraries { get; } =
         ["avutil-61", "swresample-7", "swscale-10", "avcodec-63", "avformat-63"];
 
+    /// <summary>Subcarpeta de <c>.entorno/ffmpeg</c> con las bibliotecas: <c>bin</c> en Windows, <c>lib</c> en Linux y macOS.</summary>
+    public static string LibrarySubdirectory => OperatingSystem.IsWindows() ? "bin" : "lib";
+
+    /// <summary>Archivo de la biblioteca <c>&lt;nombre&gt;-&lt;mayor&gt;</c> en este sistema.</summary>
+    public static string LibraryFileName(string versioned) => LibraryFileName(versioned, HostOs);
+
+    internal static string LibraryFileName(string versioned, NativeOs os)
+    {
+        ArgumentNullException.ThrowIfNull(versioned);
+        string[] parts = versioned.Split('-', 2);
+        if (parts.Length != 2 || !int.TryParse(parts[1], out _))
+        {
+            return versioned;
+        }
+
+        return os switch
+        {
+            NativeOs.Windows => $"{parts[0]}-{parts[1]}.dll",
+            NativeOs.MacOs => $"lib{parts[0]}.{parts[1]}.dylib",
+            _ => $"lib{parts[0]}.so.{parts[1]}",
+        };
+    }
+
+    /// <summary>
+    /// El nombre <c>&lt;biblioteca&gt;-&lt;mayor&gt;</c> de un archivo de biblioteca de FFmpeg de cualquier sistema
+    /// (<c>avfilter-12.dll</c>, <c>libavfilter.so.12</c>, <c>libavfilter.12.dylib</c>), o <c>null</c> si no lo es.
+    /// </summary>
+    internal static string? VersionedName(string fileName)
+    {
+        ArgumentNullException.ThrowIfNull(fileName);
+        string[] parts;
+        if (fileName.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+        {
+            parts = fileName[..^4].Split('-');
+        }
+        else if (fileName.StartsWith("lib", StringComparison.Ordinal) && fileName.EndsWith(".dylib", StringComparison.Ordinal))
+        {
+            parts = fileName[3..^6].Split('.');
+        }
+        else if (fileName.StartsWith("lib", StringComparison.Ordinal) && fileName.Contains(".so.", StringComparison.Ordinal))
+        {
+            parts = fileName[3..].Split(".so.");
+        }
+        else
+        {
+            return null;
+        }
+
+        return parts.Length == 2 && parts[0].Length > 0 && int.TryParse(parts[1], out _) ? $"{parts[0]}-{parts[1]}" : null;
+    }
+
+    /// <summary>Nombre de un programa de FFmpeg (<c>ffmpeg</c>, <c>ffprobe</c>) en este sistema.</summary>
+    public static string ExecutableName(string tool) => OperatingSystem.IsWindows() ? tool + ".exe" : tool;
+
+    /// <summary>
+    /// Carpeta de <c>ffmpeg</c> y <c>ffprobe</c> para una carpeta de bibliotecas: la misma en Windows; en Linux y macOS,
+    /// <c>../bin</c> si ahí está <c>ffmpeg</c> (<c>.entorno</c>), si no la misma (distribución).
+    /// </summary>
+    public static string ExecutableDirectory(string libraryDirectory)
+    {
+        ArgumentNullException.ThrowIfNull(libraryDirectory);
+        if (OperatingSystem.IsWindows())
+        {
+            return libraryDirectory;
+        }
+
+        string bin = Path.GetFullPath(Path.Combine(libraryDirectory, "..", "bin"));
+        return File.Exists(Path.Combine(bin, ExecutableName("ffmpeg"))) ? bin : libraryDirectory;
+    }
+
+    internal static NativeOs HostOs =>
+        OperatingSystem.IsWindows() ? NativeOs.Windows : OperatingSystem.IsMacOS() ? NativeOs.MacOs : NativeOs.Linux;
+
     public static IReadOnlyList<string> Candidates(
         string? explicitDirectory,
         string baseDirectory,
@@ -119,4 +192,12 @@ public static class FfmpegLocator
 
         return dotGit.Parent?.FullName;
     }
+}
+
+/// <summary>Sistema para el que se nombra una biblioteca nativa.</summary>
+internal enum NativeOs
+{
+    Windows,
+    Linux,
+    MacOs,
 }

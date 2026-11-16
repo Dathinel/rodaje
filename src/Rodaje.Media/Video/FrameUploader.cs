@@ -11,6 +11,7 @@ namespace Rodaje.Media.Video;
 /// (requisito de NV12) repitiendo la última columna o fila. 4:2:0 y 4:2:2 planos de 8 y 10 bits se empaquetan
 /// directamente, en paralelo por bandas; los demás formatos pasan antes por swscale (lo de más de 10 bits, a P016).
 /// </remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class FrameUploader : IDisposable
 {
     private SwsContext* _scaler;

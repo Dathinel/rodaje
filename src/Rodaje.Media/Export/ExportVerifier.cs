@@ -111,7 +111,7 @@ public sealed class ExportVerifier
     public static ExportVerifier For(FfmpegExecutable ffmpeg)
     {
         ArgumentNullException.ThrowIfNull(ffmpeg);
-        return new ExportVerifier(Path.Combine(Path.GetDirectoryName(ffmpeg.Path)!, "ffprobe.exe"));
+        return new ExportVerifier(Path.Combine(Path.GetDirectoryName(ffmpeg.Path)!, FfmpegLocator.ExecutableName("ffprobe")));
     }
 
     /// <exception cref="ExportException"><see cref="ExportErrorCode.EncoderFailed"/> si ffprobe no puede leer el archivo.</exception>
@@ -532,7 +532,7 @@ public sealed class ExportVerifier
             throw new ExportException(ExportErrorCode.EncoderMissing, $"No se pudo ejecutar {FfprobePath}: {ex.Message}", ex);
         }
 
-        ChildProcessJob.TryAssign(process);
+        ChildProcessGuard.TryAssign(process);
         using CancellationTokenRegistration registration = cancellationToken.Register(() =>
         {
             try
