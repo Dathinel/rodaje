@@ -57,13 +57,13 @@ Prototipo `vulkan-video/` (C#, `FFmpeg.AutoGen` 9.0.1.1 como en `Rodaje.Media`, 
 |---|---|---|
 | Camino | **`vulkan-video`**: `VK_KHR_video_queue`, `_decode_queue`, `_decode_h264`, `_decode_h265` | **`subida`**: lavapipe no anuncia ninguna `VK_KHR_video_*` |
 | Duración | 120 s | 60 s |
-| Cuadros 1080p: H.264 8 bits (NV12) / HEVC Main10 (P010) | 11 026 / 10 999 | 1 694 / 1 425 |
-| Cadencia (decodificar + muestrear + reciclar) | 183,4 por segundo; 2,23 ms p50, 5,70 ms p95 | 52,0 por segundo; 13,8 ms p50, 18,3 ms p95 |
+| Cuadros 1080p: H.264 8 bits (NV12) / HEVC Main10 (P010) | 11 026 / 10 999 | 2 085 / 1 710 |
+| Cadencia (decodificar + muestrear + reciclar) | 183,4 por segundo; 2,23 ms p50, 5,70 ms p95 | 63,2 por segundo; 11,2 ms p50, 14,2 ms p95 |
 | Transferencias a la CPU fuera de la verificación | 0 | 0 (la subida es CPU → GPU por definición) |
-| RGBA comparado con software (`swscale`); error medio | 740 cuadros; 1,44/255 (PSNR 33,4 dB) | 107; 1,46/255 (PSNR 32,4 dB) |
-| **Planos Y y CbCr descargados, byte a byte frente al software** | **370 de 370 NV12 y 370 de 370 P010 idénticos** | [[B-LAVA]] |
+| RGBA comparado con software (`swscale`); error medio | 740 cuadros; 1,44/255 (PSNR 33,4 dB) | 130 cuadros; 1,46/255 (PSNR 32,4 dB) |
+| **Planos Y y CbCr descargados, byte a byte frente al software** | **370 de 370 NV12 y 370 de 370 P010 idénticos** | 70 de 70 NV12 y 60 de 60 P010 idénticos (lo subido, descargado, frente al cuadro de origen) |
 | `VkImage` y `AVFrame` vivos al final | 0 y 0 | 0 y 0 |
-| Memoria del proceso: inicio → mitad → final | 91 → 392 → 373 MB | 104 → 288 → 237 MB |
+| Memoria del proceso: inicio → mitad → final | 91 → 392 → 373 MB | 104 → 271 → 168 MB |
 | Errores de las capas de validación | 0 (con las capas que hubiera instaladas) | 0 (sin capas en el corredor) |
 
 Repetido por Claude en la RTX 3050 (30 s): 5 914 cuadros, 100 de 100 NV12 y 99 de 99 P010 idénticos, salida 0.
@@ -228,7 +228,7 @@ Ninguna entra en el producto todavía: `LICENCIAS.md` y `THIRD-PARTY-NOTICES.txt
 
 ## Cómo se hizo
 
-- **Sin tocar el equipo:** nada instalado en Windows; Linux y macOS, solo en corredores de GitHub (`ubuntu-24.04`, `macos-15`, `windows-latest`). Las ejecuciones: [Actions › Fase 0 Linux y macOS](https://github.com/Dathinel/rodaje/actions/workflows/linux-fase0.yml).
+- **Sin tocar el equipo:** nada instalado en Windows; Linux y macOS, solo en corredores de GitHub (`ubuntu-24.04`, `macos-15`, `windows-latest`). Ejecución de referencia, con los ocho trabajos en verde: [43901750096](https://github.com/Dathinel/rodaje/actions/runs/43901750096); todas, en [Actions › Fase 0 Linux y macOS](https://github.com/Dathinel/rodaje/actions/workflows/linux-fase0.yml). Los corredores de macOS arm64 tuvieron colas de 15 minutos o más y GitHub canceló dos veces trabajos sin llegar a asignarles máquina.
 - **Los prototipos se unen a `main`** en `experimentos/linux-fase0/` (fuera de `Rodaje.slnx`, con su propio `Directory.Build.props`): las fases 1, 3 y 4 parten de ellos y el workflow solo corre a mano o en ramas `linux/fase0*`.
 - **Reparto:** Claude hizo (a), (c), (f), el borrador de `IGpu`, el workflow y la revisión; Devin (`claude-opus-5-5-medium`, de pago) hizo (d); Devin (`swe-2-high`) hizo (e); Gemini (`gemini-3.8-flash-high`) hizo (b), con correcciones de Claude (nombres de las bibliotecas en Linux, codificadores de respaldo) y una segunda vuelta. ChatGPT no participó: sin cuota hasta las 13:02. El diseño le daba (b) y (c) a ChatGPT y (d) a Gemini.
 - **Incidente:** la primera base de cifras (f) se lanzó con `-SinPublicar` sobre el exe de `dist\` de la 1.0.3, anterior al modo de fondo, y la ventana le tapó la pantalla a Daniel. Arreglado en #565: los scripts ya no lanzan un exe sin modo de fondo y `build\probar-fondo.ps1` comprueba que una corrida no asoma.
