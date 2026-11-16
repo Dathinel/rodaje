@@ -2,7 +2,7 @@
 
 Diseño del bloque aprobado por Daniel el 15-nov, para después de la 1.0.3. Es un trabajo del tamaño de un programa nuevo (regla 1): reconocimiento, stack comparado y plan por fases. **No se escribe código hasta que Daniel lo apruebe.** Decisión propuesta: **D-066** (si otro bloque la toma antes, la siguiente libre). Revisado por ChatGPT (codex, solo lectura) el 15-nov: sus 15 observaciones están incorporadas (lista al final).
 
-**Fase 0 hecha el 16-nov:** resultado, veredicto (Uno y Vulkan confirmados; falta una corrida con NVIDIA en Linux) y semanas reajustadas en [../mac-y-linux-fase0.md](../mac-y-linux-fase0.md); borrador de `IGpu` en [../igpu-borrador.md](../igpu-borrador.md).
+**Fase 0 hecha el 16-nov:** resultado, veredicto (Uno y Vulkan confirmados; falta una corrida con NVIDIA en Linux) y semanas reajustadas en [../mac-y-linux-fase0.md](../mac-y-linux-fase0.md); borrador de `IGpu` en [../igpu-borrador.md](../igpu-borrador.md). **Fases 1 y 2 hechas el 16-nov:** [../mac-y-linux-fase1.md](../mac-y-linux-fase1.md).
 
 Lo que pide Daniel: **la misma idea de optimización, sin reescribir.** En Rodaje esa idea es: el cuadro nace en la GPU (D3D11VA), se compone en la GPU (RGBA16F, D-016), se ve sin copias (`SwapChainPanel`) y se codifica por hardware; Native AOT, sin instalador, arranque medido. (La exportación ya hoy lee el cuadro a la CPU y lo pasa a FFmpeg por tubería, `ExportFrameConverter` → `FfmpegPipeSink`; eso se conserva igual en los tres sistemas. «Sin copias» se exige en la reproducción.)
 
