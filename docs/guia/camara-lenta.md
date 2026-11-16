@@ -25,16 +25,16 @@ Si insertas un plano de cine (23,976 o 24 fps) en una secuencia de video para we
 ## Cortes de escena y transiciones automáticas
 
 - **Cortes de escena dentro del archivo:** Si un clip ralentizado contiene un cambio de plano, el flujo óptico analiza la diferencia de histogramas y el residuo de movimiento. Al detectar el corte de escena, conmuta automáticamente al **cuadro más cercano** en ese par de cuadros, evitando fundir o deformar dos imágenes no relacionadas.
-- **Caída a mezcla por encima de 4×:** Cuando la cámara lenta es muy pronunciada (velocidades menores a 0,25×, donde el desplazamiento entre cuadros supera el rango de búsqueda en la GPU), el flujo óptico cae de manera transparente a **Mezcla de cuadros** para impedir aberraciones visuales.
+- **Por encima de 4×:** en una cámara rápida de más de 4× el movimiento entre cuadros se sale de lo que el flujo puede seguir y el clip pasa solo a **Mezcla de cuadros**.
 
 ## Marca en el clip («≈»)
 
-En la línea de tiempo, cualquier clip que utilice un modo de interpolación (**Mezcla de cuadros** o **Flujo óptico**) muestra el símbolo **«≈»** junto a su etiqueta de velocidad (por ejemplo `25 % ≈`, o `50 % ◀ ≈` si además está invertido). Los clips que conservan el modo de fábrica (**Cuadro más cercano**) no muestran este distintivo.
+En la línea de tiempo, cualquier clip que utilice un modo de interpolación (**Mezcla de cuadros** o **Flujo óptico**) muestra el símbolo **«≈»** junto a su etiqueta de velocidad (por ejemplo `≈ 0,25×`, o `◀ ≈ 0,5×` si además va en reversa). Los clips que conservan el modo de fábrica (**Cuadro más cercano**) no muestran este distintivo.
 
 ## Límites conocidos
 
-El flujo óptico en GPU funciona en tiempo real directamente sobre los planos de video nativos (sin conversiones intermedias de color), pero tiene limitaciones propias del análisis de movimiento clásico:
-- **Bordes elásticos (*bordes de goma*) y halos:** En movimientos muy amplios (más de unos 40 píxeles por cuadro) o cuando un objeto en primer plano cruza delante de un fondo con patrones repetitivos, pueden apreciarse ligeras deformaciones elásticas en los contornos de la silueta.
+El flujo óptico trabaja directamente sobre los planos de video nativos (sin conversiones intermedias de color), pero tiene limitaciones propias del análisis de movimiento clásico:
+- **Bordes elásticos (*bordes de goma*) y halos:** En movimientos muy amplios o cuando un objeto en primer plano cruza delante de un fondo con patrones repetitivos, pueden apreciarse ligeras deformaciones elásticas en los contornos de la silueta.
 - **Oclusiones complejas y transparencias:** Objetos translúcidos, reflejos en cristales o elementos que aparecen súbitamente desde fuera del encuadre no tienen correspondencia directa en el cuadro anterior; el sistema combina la verificación de ida y vuelta para aislar el defecto, pero en tomas extremas la **Mezcla de cuadros** suele ser preferible.
 
 ## Enlaces relacionados
