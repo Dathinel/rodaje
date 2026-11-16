@@ -277,6 +277,13 @@ internal sealed class VideoClipPlan
         : sequenceFrame <= _firstGrid ? FirstFrame
         : FrameAt(Time.FromFrames(sequenceFrame, SequenceRate));
 
+    /// <summary>El mismo clip visible solo en <c>[start, end)</c> (la parte que no cubre el render en caché).</summary>
+    public VideoClipPlan Trim(Time start, Time end) =>
+        new(ClipId, Source, TimeMap, start, end, _materialEnd, FrameRate, SequenceRate, Effects, DisplayWidth, DisplayHeight, IsStillImage)
+        {
+            Outgoing = Outgoing,
+        };
+
     /// <summary>Mismo origen y mismos tiempos: los cuadros que muestra son los mismos.</summary>
     public bool SameMapping(VideoClipPlan other) =>
         ClipId == other.ClipId && Source == other.Source && Start == other.Start && End == other.End && FrameRate == other.FrameRate
@@ -409,6 +416,10 @@ internal sealed class GroupClipPlan(string clipId, Time clipStart, Time sourceIn
     /// <summary>Tiempo de la secuencia anidada, que es el de los keyframes del compuesto (no lleva velocidad).</summary>
     public Time EffectTimeAt(Time timeline) => sourceIn + (timeline - clipStart);
 
+    /// <summary>El mismo compuesto visible solo en <c>[start, end)</c>, con sus carriles ya recortados.</summary>
+    public GroupClipPlan Trim(Time start, Time end, IReadOnlyList<VideoLayerPlan> trimmedLanes) =>
+        new(ClipId, clipStart, sourceIn, start, end, Effects, trimmedLanes) { Outgoing = Outgoing };
+
     internal static GroupClipPlan? At(IReadOnlyList<GroupClipPlan> groups, Time time)
     {
         int lo = 0;
@@ -465,9 +476,17 @@ internal sealed class VideoLayerPlan(int trackIndex, string trackId, IReadOnlyLi
 
     public GroupClipPlan? IncomingGroupAt(Time time) => GroupClipPlan.At(IncomingGroups, time);
 
+    /// <summary>Tramos que muestra el render en caché: ahí el carril no muestra títulos (los clips ya van recortados).</summary>
+    public IReadOnlyList<(Time Start, Time End)> Covered { get; init; } = [];
+
     /// <summary>El título que se ve en <paramref name="time"/>, si hay.</summary>
     public GeneratedClipPlan? GeneratedAt(Time time)
     {
+        if (Covered.Count > 0 && IsCovered(Covered, time))
+        {
+            return null;
+        }
+
         int i = FirstGeneratedEndingAfter(time);
         return i < Generated.Count && Generated[i].Start <= time ? Generated[i] : null;
     }
@@ -492,6 +511,19 @@ internal sealed class VideoLayerPlan(int trackIndex, string trackId, IReadOnlyLi
         }
 
         return lo;
+    }
+
+    internal static bool IsCovered(IReadOnlyList<(Time Start, Time End)> spans, Time time)
+    {
+        foreach ((Time start, Time end) in spans)
+        {
+            if (time >= start && time < end)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     public VideoClipPlan? ClipAt(Time time)
