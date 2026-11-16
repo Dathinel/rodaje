@@ -8,6 +8,10 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ## [Sin publicar]
 
+### Añadido
+
+- **Editar por el texto (D-061):** la transcripción de un medio se guarda en el proyecto (formato 16, solo si hay alguna; sin ella el archivo sigue en 15, 14 o 13) y sirve para todos sus clips, con cualquier recorte, velocidad o reversa. «Subtítulos automáticos» transcribe el medio entero la primera vez y, en los demás clips del mismo medio, saca los subtítulos al instante sin otra pasada de Whisper. Panel **Transcripción** (Ver › Transcripción): el texto de la pista guía sigue al cursor; se seleccionan palabras y Supr las borra con ripple y con el video enlazado, Retroceso deja el hueco, Ctrl+X y Ctrl+V mueven una frase, Ctrl+F busca sin distinguir mayúsculas ni tildes. «Quitar muletillas…» (Herramientas › Texto y voz) propone las seguras marcadas («eh», «um») y las dudosas sin marcar («o sea», «bueno»), y quitar pausas largas deja un respiro de 0,15 s. Cada acción es un solo Ctrl+Z.
+
 ### Cambiado
 
 - La autoprueba y las medidas (`--autoprueba`, `--medir`, `--arranque`) corren de fondo: la ventana no aparece en pantalla ni toma el foco; `--visible` la muestra como antes.
