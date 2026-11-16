@@ -46,6 +46,12 @@ public class FrameRecipeTests
 
         public long Index { get; init; } = 10;
 
+        public long? NextIndex { get; init; }
+
+        public float Fraction { get; init; } = 0.5f;
+
+        public FrameSampling Sampling { get; init; } = FrameSampling.Nearest;
+
         public long Pts { get; init; } = 100;
 
         public LayerTransform Transform { get; init; } = BaseTransform;
@@ -125,6 +131,9 @@ public class FrameRecipeTests
         ["LayerFrame.Generated"] = s => (s, s with { Kind = "title" }),
         ["LayerFrame.TrackIndex"] = s => (s, s with { Track = 2 }),
         ["LayerFrame.Frame"] = s => (s, s with { Media = "medio-b" }),
+        ["LayerFrame.Next"] = s => (s with { NextIndex = 11, Sampling = FrameSampling.Blend }, s with { NextIndex = 12, Sampling = FrameSampling.Blend }),
+        ["LayerFrame.Fraction"] = s => (s with { NextIndex = 11, Sampling = FrameSampling.Blend }, s with { NextIndex = 11, Sampling = FrameSampling.Blend, Fraction = 0.25f }),
+        ["LayerFrame.Sampling"] = s => (s with { NextIndex = 11, Sampling = FrameSampling.Blend }, s with { NextIndex = 11, Sampling = FrameSampling.OpticalFlow }),
         ["LayerFrame.Transform"] = s => (s, s with { Transform = LayerTransform.Identity }),
         ["LayerFrame.SampleAspectRatio"] = s => (s, s with { Sar = new Rational(4, 3) }),
         ["LayerFrame.Rotation"] = s => (s, s with { Rotation = 90 }),
@@ -293,12 +302,13 @@ public class FrameRecipeTests
     [Theory]
     [InlineData(FrameSampling.Blend)]
     [InlineData(FrameSampling.OpticalFlow)]
-    public void F1_interpolation_metadata_does_not_change_the_recipe(FrameSampling sampling)
+    public void Interpolation_changes_the_recipe_but_nearest_keeps_the_original(FrameSampling sampling)
     {
         var sources = new Sources();
         var frame = new DecodedFrame(10, Time.Zero, Time.FromTicks(1), null, 0);
         var next = new DecodedFrame(11, Time.Zero, Time.FromTicks(1), null, 0);
         sources.Media[frame] = "medio";
+        sources.Media[next] = "medio";
         Assert.True(frame.TryRetain());
         using (var plain = new CompositionFrame(Time.Zero, 1920, 1080, [new LayerFrame(0, "c", frame, LayerTransform.Identity)]))
         using (var sampled = new CompositionFrame(Time.Zero, 1920, 1080,
@@ -306,11 +316,36 @@ public class FrameRecipeTests
         {
             RenderCacheKey? expected = FrameRecipe.Compute(plain, Format, sources);
             Assert.NotNull(expected);
-            Assert.Equal(expected, FrameRecipe.Compute(sampled, Format, sources));
+            RenderCacheKey? interpolated = FrameRecipe.Compute(sampled, Format, sources);
+            Assert.NotNull(interpolated);
+            Assert.NotEqual(expected, interpolated);
+            Assert.True(frame.TryRetain());
+            Assert.True(next.TryRetain());
+            using var nearest = new CompositionFrame(Time.Zero, 1920, 1080,
+                [new LayerFrame(0, "c", frame, LayerTransform.Identity) { Next = next, Fraction = 0.25f, Sampling = FrameSampling.Nearest }]);
+            Assert.Equal(expected, FrameRecipe.Compute(nearest, Format, sources));
         }
 
         Assert.True(frame.IsReleased);
         Assert.True(next.IsReleased);
+    }
+
+    [Fact]
+    public void Interpolation_includes_the_content_identity_of_B()
+    {
+        var sources = new Sources();
+        var frame = new DecodedFrame(10, Time.Zero, Time.FromTicks(1), null, 0);
+        var next = new DecodedFrame(11, Time.Zero, Time.FromTicks(1), null, 0);
+        sources.Media[frame] = "medio";
+        sources.Media[next] = "medio";
+        using var composition = new CompositionFrame(Time.Zero, 1920, 1080,
+            [new LayerFrame(0, "c", frame, LayerTransform.Identity) { Next = next, Fraction = 0.5f, Sampling = FrameSampling.Blend }]);
+        RenderCacheKey? expected = FrameRecipe.Compute(composition, Format, sources);
+        Assert.NotNull(expected);
+        sources.Media[next] = "otro-medio";
+        Assert.NotEqual(expected, FrameRecipe.Compute(composition, Format, sources));
+        sources.Media.Remove(next);
+        Assert.Null(FrameRecipe.Compute(composition, Format, sources));
     }
 
     [Fact]
@@ -420,7 +455,9 @@ public class FrameRecipeTests
         LayerTransform[]? motion = s.Motion ? [s.Transform, s.Transform with { X = s.Transform.X + s.MotionX }] : null;
         LayerFrame result = layer.Nested is { } nested ? new LayerFrame(s.Track, s.ClipId, nested, s.Transform) { Effects = effects, Blend = s.Blend, Transition = transition, MotionSamples = motion, TextMotion = s.Text, DisplayWidth = s.DisplayWidth, DisplayHeight = s.DisplayHeight, IsProxy = s.Proxy }
             : layer.Generated is { } title ? new LayerFrame(s.Track, s.ClipId, title, s.Transform) { Effects = effects, Blend = s.Blend, Transition = transition, MotionSamples = motion, TextMotion = s.Text, DisplayWidth = s.DisplayWidth, DisplayHeight = s.DisplayHeight, IsProxy = s.Proxy }
-            : new LayerFrame(s.Track, s.ClipId, layer.Frame, s.Transform, s.Sar, s.Rotation) { Effects = effects, Blend = s.Blend, Transition = transition, MotionSamples = motion, TextMotion = s.Text, DisplayWidth = s.DisplayWidth, DisplayHeight = s.DisplayHeight, IsProxy = s.Proxy };
+            : new LayerFrame(s.Track, s.ClipId, layer.Frame, s.Transform, s.Sar, s.Rotation) { Effects = effects, Blend = s.Blend, Transition = transition, MotionSamples = motion, TextMotion = s.Text, DisplayWidth = s.DisplayWidth, DisplayHeight = s.DisplayHeight, IsProxy = s.Proxy,
+                Next = s.NextIndex is { } next ? new DecodedFrame(next, Time.Zero, Time.FromTicks(1), null, 0) : null, Fraction = s.Fraction, Sampling = s.Sampling };
+        if (result.Next is { } following) sources.Media[following] = s.Media;
         return result;
     }
 }

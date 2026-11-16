@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Rodaje.Core.Timing;
+using Rodaje.Core.Model;
 using Rodaje.Playback.Composition;
 using Rodaje.Render;
 using Rodaje.Render.Text;
@@ -7,7 +8,14 @@ using Rodaje.Render.Text;
 namespace Rodaje.App.Views.Player;
 
 /// <summary>Un cuadro compuesto bajado a la CPU, RGBA de 8 bits fila tras fila.</summary>
-internal sealed record FrameCapture(byte[] Rgba, int Width, int Height);
+internal sealed record FrameCapture(byte[] Rgba, int Width, int Height)
+{
+    public CompositeResult Composition { get; init; }
+    public Time TimelineTime { get; init; }
+    public IReadOnlyList<CapturedSample> Samples { get; init; } = [];
+}
+
+internal readonly record struct CapturedSample(string ClipId, FrameSampling Sampling, float Fraction, bool HasNext);
 
 /// <summary>
 /// Títulos del reproductor: un <see cref="TitleRasterizer"/> sobre el dispositivo del hilo de render, conectado a la
@@ -66,11 +74,16 @@ internal sealed partial class PlayerEngine
         return capture.Task;
     }
 
-    private void CompleteCapture()
+    private void CompleteCapture(CompositionFrame frame, CompositeResult result)
     {
         if (_compositor is { } compositor && Interlocked.Exchange(ref _pendingCapture, null) is { } capture)
         {
-            capture.TrySetResult(new FrameCapture(compositor.ReadbackRgba(), compositor.Width, compositor.Height));
+            capture.TrySetResult(new FrameCapture(compositor.ReadbackRgba(), compositor.Width, compositor.Height)
+            {
+                Composition = result,
+                TimelineTime = frame.TimelineTime,
+                Samples = [.. frame.Layers.Select(l => new CapturedSample(l.ClipId, l.Sampling, l.Fraction, l.Next is not null))],
+            });
             if (Volatile.Read(ref _captureBypass) != 0)
             {
                 // El cuadro sin efectos no se queda en pantalla: se vuelve a componer enseguida.
