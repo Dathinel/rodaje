@@ -89,7 +89,12 @@ public static class EffectCommands
     /// posiciones se escalan del tamaño de referencia al de la secuencia. Los tiempos de la animación son de la línea de
     /// tiempo: a 2× una entrada de 1 s sigue durando 1 s en pantalla.
     /// </summary>
-    public static SequenceEditCommand ApplyEffect(string sequenceId, string clipId, EffectPreset preset, string reference)
+    /// <remarks>
+    /// Con <paramref name="templateValues"/> (efecto de plantilla, D-064) cada efecto copiado los guarda en
+    /// <see cref="BuiltInEffects.CommonOptions.TemplateValues"/>; volver a aplicarlo con otros valores reemplaza lo que puso
+    /// la aplicación anterior (por <c>source</c>), retoques incluidos.
+    /// </remarks>
+    public static SequenceEditCommand ApplyEffect(string sequenceId, string clipId, EffectPreset preset, string reference, string? templateValues = null)
     {
         ArgumentNullException.ThrowIfNull(preset);
         ArgumentException.ThrowIfNullOrEmpty(reference);
@@ -133,6 +138,11 @@ public static class EffectCommands
 
                 List<Keyframe> list = [.. keys.Values];
                 effect.Parameters[curve.Parameter] = new Parameter { Value = list[0].Value, Keyframes = list };
+            }
+
+            if (templateValues is not null)
+            {
+                added.ForEach(e => e.Options[BuiltInEffects.CommonOptions.TemplateValues] = templateValues);
             }
 
             return [.. added.Select(e => e.Id)];
