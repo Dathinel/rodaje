@@ -60,6 +60,7 @@ internal sealed partial class TimelineScheduler
         if (running && !exact && !missing && !_seekPending)
         {
             layer.Late++;
+            RecordLateFrame(time.ToFrames(_plan.FrameRate));
             if (layer.AwaitingCut)
             {
                 layer.LateAtCuts++;
