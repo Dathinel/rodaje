@@ -57,7 +57,8 @@ $SdkSha512 = $Sdk.Hash
 # dotnet-local.cmd, dotnet-local.sh, Probar.bat y probar.ps1 leen la versión de la línea siguiente: debe empezar por "$FfmpegVersion = '".
 $FfmpegVersion = 'n9.0.2-17-g2a571b6068-rodaje1'
 # Paquete de cada RID dentro de la release ffmpeg-<versión> (misma receta en los tres). Sha256 vacío = todavía no
-# publicado: se avisa y se omite. dotnet-local.sh lee esta tabla para saber si exigir la marca .ffmpeg-<versión>.
+# publicado: se avisa y se omite. Las de Linux y macOS son las de los artefactos de ffmpeg-lgpl.yml (16-nov), aún sin
+# subir a la release: mientras, la CI los trae con build/traer-ffmpeg-ci.sh. dotnet-local.sh lee esta tabla para saber si exigir la marca .ffmpeg-<versión>.
 $FfmpegPorRid = @{
     'win-x64' = @{
         Variante = 'win64';   Paquete = "ffmpeg-$FfmpegVersion-win64-lgpl-shared-9.0.zip"
@@ -67,13 +68,13 @@ $FfmpegPorRid = @{
     }
     'linux-x64' = @{
         Variante = 'linux64';  Paquete = "ffmpeg-$FfmpegVersion-linux64-lgpl-shared-9.0.tar.xz"
-        Sha256   = ''
+        Sha256   = '4610084100dcf301ddda208a95e65171aec6e696bc027c54fceed397ddc9405f'
         Archivos = @('bin/ffmpeg', 'bin/ffprobe', 'lib/libavcodec.so.63', 'lib/libavformat.so.63',
             'lib/libavutil.so.61', 'lib/libswresample.so.7', 'lib/libswscale.so.10')
     }
     'osx-arm64' = @{
         Variante = 'macarm64'; Paquete = "ffmpeg-$FfmpegVersion-macarm64-lgpl-shared-9.0.tar.xz"
-        Sha256   = ''
+        Sha256   = 'f041be2416542d7882b6db31d040ca97d2f999508722340aafb2a3c9d1f7050f'
         Archivos = @('bin/ffmpeg', 'bin/ffprobe', 'lib/libavcodec.63.dylib', 'lib/libavformat.63.dylib',
             'lib/libavutil.61.dylib', 'lib/libswresample.7.dylib', 'lib/libswscale.10.dylib')
     }
