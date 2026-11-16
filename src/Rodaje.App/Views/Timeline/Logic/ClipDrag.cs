@@ -454,7 +454,7 @@ public sealed class ClipDrag
             if (edge == TrimEdge.In)
             {
                 low = Time.Max(low, -Room(project, c, TrimEdge.In));
-                high = Time.Min(high, c.Duration - frame);
+                high = Time.Min(high, c.Duration - TemplateEdits.MinDuration(c, frame));
                 if (!ripple)
                 {
                     low = Time.Max(low, -c.Start);
@@ -466,7 +466,7 @@ public sealed class ClipDrag
             }
             else
             {
-                low = Time.Max(low, frame - c.Duration);
+                low = Time.Max(low, TemplateEdits.MinDuration(c, frame) - c.Duration);
                 high = Time.Min(high, Room(project, c, TrimEdge.Out));
                 if (!ripple && Next(t, c) is { } next)
                 {

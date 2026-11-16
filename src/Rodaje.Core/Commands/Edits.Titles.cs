@@ -40,6 +40,20 @@ public static partial class Edits
             ids);
     }
 
+    /// <summary>Cambia los valores de una plantilla de movimiento con sus capas ya instanciadas (D-064): un paso.</summary>
+    public static SequenceEditCommand SetTemplateValues(string sequenceId, string clipId, Dictionary<string, System.Text.Json.JsonElement> values,
+        List<TemplateLayer> layers, IIdGenerator? ids = null)
+    {
+        var valuesCopy = new Dictionary<string, System.Text.Json.JsonElement>(values);
+        List<TemplateLayer> layersCopy = layers.ConvertAll(l => l.Clone());
+        return new("Cambiar la plantilla", sequenceId, ctx => TemplateEdits.SetValues(ctx, clipId, valuesCopy, layersCopy), ids);
+    }
+
+    /// <summary>«Convertir en títulos»: un título por capa de la plantilla (D-064).</summary>
+    /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: los títulos de abajo arriba y las pistas creadas.</remarks>
+    public static SequenceEditCommand ConvertTemplateToTitles(string sequenceId, string clipId, IIdGenerator? ids = null) =>
+        new("Convertir en títulos", sequenceId, ctx => TemplateEdits.ConvertToTitles(ctx, clipId), ids);
+
     /// <summary>Cambia el texto. Se funde por clip: una tanda de tecleo es un paso hasta el siguiente <c>BreakMerge</c>.</summary>
     public static SequenceEditCommand SetTitleText(string sequenceId, string clipId, string text, IIdGenerator? ids = null) =>
         new("Escribir texto", sequenceId, ctx => TitleEdits.SetText(ctx, clipId, text), ids, $"title-text:{clipId}");
