@@ -43,7 +43,7 @@ public sealed class InterchangeService(IMediaProber prober, IIdGenerator? ids = 
     public async Task ProbeAsync(InterchangeResult result, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(result);
-        List<MediaRef> local = [.. result.Media.Where(m => Path.IsPathFullyQualified(m.Path) && !m.Path.StartsWith(@"\\", StringComparison.Ordinal))];
+        List<MediaRef> local = [.. result.Media.Where(m => IsLocal(m.Path))];
         var probes = new RelinkProbe?[local.Count];
         await Parallel.ForEachAsync(Enumerable.Range(0, local.Count), new ParallelOptions { MaxDegreeOfParallelism = ProbeParallelism, CancellationToken = cancellationToken },
             (i, _) =>
@@ -61,8 +61,15 @@ public sealed class InterchangeService(IMediaProber prober, IIdGenerator? ids = 
         var project = new Project { Media = [.. result.Media], Sequences = [.. result.Compounds, result.Sequence] };
         for (int i = 0; i < local.Count; i++)
         {
-            if (probes[i] is not { } probe || MediaRelinkEdits.CheckReplacement(project, local[i], probe) is not null)
+            if (probes[i] is not { } probe)
             {
+                result.Report.Add(IssueSeverity.Info, IssueKind.Media, "El archivo está pero no se pudo leer: se reenlaza a mano.", local[i].Name);
+                continue;
+            }
+
+            if (MediaRelinkEdits.CheckReplacement(project, local[i], probe) is { } problem)
+            {
+                result.Report.Add(IssueSeverity.Approximate, IssueKind.Media, $"El archivo no sirve tal cual: {problem}", local[i].Name);
                 continue;
             }
 
@@ -127,8 +134,12 @@ public sealed class InterchangeService(IMediaProber prober, IIdGenerator? ids = 
     {
         ArgumentNullException.ThrowIfNull(result);
         exists ??= File.Exists;
-        return [.. result.Media.Where(m => m.Path.Length == 0 || !Path.IsPathFullyQualified(m.Path) || !exists(m.Path))];
+        return [.. result.Media.Where(m => !IsLocal(m.Path) || !exists(m.Path) || RelinkProbe.Of(m).IsProvisional)];
     }
+
+    /// <summary>Una ruta local completa: las de red (UNC, <c>//</c>) no se tocan solas, podrían abrir una conexión.</summary>
+    private static bool IsLocal(string path) =>
+        Path.IsPathFullyQualified(path) && !path.StartsWith(@"\\", StringComparison.Ordinal) && !path.StartsWith("//", StringComparison.Ordinal);
 
     /// <summary>
     /// Escribe la secuencia fuera del hilo de la interfaz sobre una copia del proyecto; devuelve los archivos escritos (la

@@ -79,8 +79,32 @@ public sealed class InterchangeServiceTests
         EditorSession session = NewSession();
 
         Assert.Single(InterchangeService.Missing(Result(session)));
-        Assert.Empty(InterchangeService.Missing(Result(session), _ => true));
+        Assert.Single(InterchangeService.Missing(Result(session), _ => true)); // está, pero sigue provisional: se reenlaza
         Assert.Single(InterchangeService.Missing(Result(session, "TOMA01"), _ => true)); // solo el carrete: no es una ruta
+        Assert.Single(InterchangeService.Missing(Result(session, "//servidor/share/TOMA01.mov"), _ => true)); // de red: nunca se toca sola
+    }
+
+    [Fact]
+    public async Task A_file_that_is_too_short_is_reported_and_left_for_relink()
+    {
+        string path = Path.Combine(Path.GetTempPath(), $"rodaje-intercambio-{Guid.NewGuid():N}.mov");
+        await File.WriteAllBytesAsync(path, [0]);
+        try
+        {
+            EditorSession session = NewSession();
+            MediaInfo info = MediaSamples.Video(path, 5, 1920, 1080, Rate, true) with { Tags = new MediaTags(null, null) { Timecode = "01:00:00:00" } };
+            InterchangeResult result = Result(session, path);
+
+            await new InterchangeService(new FixedProber(info)).ProbeAsync(result);
+
+            Assert.Equal(0, result.Media.Single().Width);
+            Assert.Contains(result.Report.Issues, i => i.Kind == IssueKind.Media);
+            Assert.Single(InterchangeService.Missing(result, _ => true));
+        }
+        finally
+        {
+            File.Delete(path);
+        }
     }
 
     [Fact]

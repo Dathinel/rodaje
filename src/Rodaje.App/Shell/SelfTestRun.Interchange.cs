@@ -31,12 +31,20 @@ internal static partial class SelfTestRun
             {
                 string path = Path.Combine(folder, "prueba" + InterchangeFiles.Extension(format));
                 (IReadOnlyList<string> files, _) = await InterchangeService.ExportAsync(path, project, sequence.Id, options);
-                TimelineDraft expected = Fidelity.Project(project.Clone(), sequence.Clone(), format, options, new InterchangeReport());
-                string text = await File.ReadAllTextAsync(files[0]);
-                TimelineDraft read = InterchangeFiles.ReadDraft(text, format, folder, options, new InterchangeReport());
-                if (Fidelity.Difference(expected, read) is { } difference)
+
+                // La EDL escribe un archivo por pista de video: cada uno se compara con su pista.
+                for (int i = 0; i < files.Count; i++)
                 {
-                    throw new InvalidOperationException($"El {format} exportado no vuelve igual: {difference}");
+                    InterchangeOptions single = format == InterchangeFormat.Edl
+                        ? new InterchangeOptions { FrameRate = options.FrameRate, VideoTracks = [i], IncludeAudio = i == 0 }
+                        : options;
+                    TimelineDraft expected = Fidelity.Project(project.Clone(), sequence.Clone(), format, single, new InterchangeReport());
+                    string text = await File.ReadAllTextAsync(files[i]);
+                    TimelineDraft read = InterchangeFiles.ReadDraft(text, format, folder, single, new InterchangeReport());
+                    if (Fidelity.Difference(expected, read) is { } difference)
+                    {
+                        throw new InvalidOperationException($"El {format} exportado ({Path.GetFileName(files[i])}) no vuelve igual: {difference}");
+                    }
                 }
             }
 
