@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 using Rodaje.Core.Editing;
@@ -326,7 +327,7 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
         {
             foreach (FillerChoice choice in Model.Fillers)
             {
-                var box = new CheckBox { Content = $"{document.Words[choice.Word].Text} · {document.Words[choice.Word].SeqStart.ToSeconds():0.0} s{(choice.Safe ? "" : " · revisar")}", IsChecked = choice.IsChecked };
+                var box = new CheckBox { Content = string.Create(SpanishNumbers.Format, $"{document.Words[choice.Word].Text} · {document.Words[choice.Word].SeqStart.ToSeconds():0.0} s{(choice.Safe ? "" : " · revisar")}"), IsChecked = choice.IsChecked };
                 box.Checked += (_, _) => choice.IsChecked = true;
                 box.Unchecked += (_, _) => choice.IsChecked = false;
                 choices.Children.Add(box);
@@ -336,7 +337,7 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
         {
             foreach (PauseChoice choice in Model.Pauses)
             {
-                var box = new CheckBox { Content = $"{choice.Start.ToSeconds():0.0} s · pausa de {(choice.End - choice.Start).ToSeconds():0.0} s", IsChecked = choice.IsChecked };
+                var box = new CheckBox { Content = string.Create(SpanishNumbers.Format, $"{choice.Start.ToSeconds():0.0} s · pausa de {(choice.End - choice.Start).ToSeconds():0.0} s"), IsChecked = choice.IsChecked };
                 box.Checked += (_, _) => choice.IsChecked = true;
                 box.Unchecked += (_, _) => choice.IsChecked = false;
                 choices.Children.Add(box);

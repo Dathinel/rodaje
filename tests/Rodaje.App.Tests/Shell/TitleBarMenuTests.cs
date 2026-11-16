@@ -47,7 +47,7 @@ public sealed class TitleBarMenuTests
         [
             "analysis.silences", "analysis.beats", "analysis.ducking", "analysis.syncAudio", "analysis.noise",
             "analysis.stabilize", "analysis.autocolor", "analysis.whitebalance", "vision.removeBackground", "vision.reframe",
-            "tools.autoSubtitles", "tools.translateTrack", "voice.textToSpeech", "audio.voiceOver",
+            "tools.autoSubtitles", "tools.translateTrack", "transcript.removeFillers", "voice.textToSpeech", "audio.voiceOver",
         ];
         string[] quickToolIds = QuickTools.All.Select(tool => tool.ActionId).Where(id => id != QuickTools.AddText).ToArray();
         Assert.Equal(quickToolIds.Append("tools.translateTrack").Order(), actionIds.Order());
