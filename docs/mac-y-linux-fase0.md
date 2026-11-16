@@ -45,13 +45,13 @@ Los tiempos son desde que nace el proceso hasta `Loaded` de la página, en un co
 - **6 errores en total**, todos de CsWinRT (`WinRT.CastExtensions`, `WinRT.ComWrappersSupport`, `IWinRTObject`) en `Program.cs`, `LibraryView.xaml.cs`, `LibraryScrollMeasurement.cs` y `SwapChainPanelNative.cs`, más `BindableMetadataProvider` en el código generado de `App.xaml`.
 - Compilar no es correr. El analizador de Uno marca **91 usos de 18 miembros de WinUI sin implementar** en 26 archivos: `SwapChainPanel` (el visor, ya previsto: fase 8), `LineGeometry.StartPoint`/`EndPoint` (48 usos), `Win32Interop.GetWindowFromWindowId`, `AppWindow.MoveAndResize`, `DisplayArea.*`, `UIElement.IsDoubleTapEnabled`, `BitmapCache`/`CacheMode`, `Brush.Transform`, `UISettings.UIElementColor` y `DispatcherQueueSynchronizationContext`. Lista completa en `salida/vistas.json` al correr el script.
 - **147 archivos** (85 de `Views`, 49 de `Services`, 12 de `Shell`) llaman a algo marcado solo para Windows. Casi todo es porque Media, Engine, Render, Audio y Export son hoy `net10.0-windows` enteros; baja sola cuando la fase 1 les dé destino `net10.0`.
-- Hubo que quitar los `using` implícitos de Uno.Sdk (`System.Windows.Input`, `Windows.Storage`…): chocan con `Rodaje.Core.Commands.ICommand` y otros 70 nombres. Es una línea de proyecto, no un cambio de código.
+- Hubo que quitar los `using` implícitos de Uno.Sdk (`System.Windows.Input`, `Windows.Storage`…): con ellos salen 71 errores de nombre ambiguo (`ICommand` de `Rodaje.Core.Commands` frente al de `System.Windows.Input`, entre otros). Se quitan en el proyecto, sin cambiar código.
 
 Sin comprobar: que las vistas reales de Rodaje **se vean y respondan** bajo Uno (esto solo midió compilación), IME, arrastrar y soltar, selector de archivos y accesibilidad.
 
 ### (b) Vulkan en Linux: hwaccel de FFmpeg en un `VkDevice` propio
 
-Prototipo `vulkan-video/` (C#, `FFmpeg.AutoGen` 9.0.1.1 como en `Rodaje.Media`, `TerraFX.Interop.Vulkan`, AOT): crea la instancia y el `VkDevice`, rellena a mano el `AVVulkanDeviceContext` (FFmpeg no crea nada), decodifica con `get_format` → `AV_PIX_FMT_VULKAN`, y por cada cuadro bloquea el `AVVkFrame`, espera su semáforo de línea de tiempo, muestrea los dos planos en una pasada de cómputo propia (Y'CbCr BT.709 → RGBA 1080p), escribe de vuelta layout y valor del semáforo y lo recicla. Cada 30 cuadros lee el RGBA y lo compara con el mismo cuadro decodificado por software. Si el driver no tiene Vulkan Video, decodifica por software y **sube** a cuadros Vulkan del mismo dispositivo (`av_hwframe_transfer_data`), con el mismo muestreo y reciclado.
+Prototipo `vulkan-video/` (C#, `FFmpeg.AutoGen` 9.0.1.1 como en `Rodaje.Media`, `TerraFX.Interop.Vulkan`, AOT): crea la instancia y el `VkDevice`, rellena a mano el `AVVulkanDeviceContext` (FFmpeg no crea nada), decodifica con `get_format` → `AV_PIX_FMT_VULKAN`, y por cada cuadro bloquea el `AVVkFrame`, espera su semáforo de línea de tiempo, muestrea los dos planos en una pasada de cómputo propia (Y'CbCr BT.709 → RGBA 1080p), deja la imagen en su layout, escribe de vuelta el valor del semáforo, suelta el candado y lo recicla. Cada 30 cuadros lee el RGBA y lo compara con el mismo cuadro decodificado por software. Si el driver no tiene Vulkan Video, decodifica por software y **sube** a cuadros Vulkan del mismo dispositivo (`av_hwframe_transfer_data`), con el mismo muestreo y reciclado.
 
 | | RTX 3050 Laptop, driver 610.62 (**Windows**, equipo de Daniel) | lavapipe (Mesa 25.2.8, `ubuntu-24.04`, CI) |
 |---|---|---|
@@ -64,14 +64,14 @@ Prototipo `vulkan-video/` (C#, `FFmpeg.AutoGen` 9.0.1.1 como en `Rodaje.Media`, 
 | **Planos Y y CbCr descargados, byte a byte frente al software** | **370 de 370 NV12 y 370 de 370 P010 idénticos** | 70 de 70 NV12 y 60 de 60 P010 idénticos (lo subido, descargado, frente al cuadro de origen) |
 | `VkImage` y `AVFrame` vivos al final | 0 y 0 | 0 y 0 |
 | Memoria del proceso: inicio → mitad → final | 91 → 392 → 373 MB | 104 → 271 → 168 MB |
-| Errores de las capas de validación | 0 (con las capas que hubiera instaladas) | 0 (sin capas en el corredor) |
+| Capas de validación de Vulkan | no se activaron (`RODAJE_VK_VALIDAR=1` y tenerlas instaladas) | no hay en el corredor |
 
 Repetido por Claude en la RTX 3050 (30 s): 5 914 cuadros, 100 de 100 NV12 y 99 de 99 P010 idénticos, salida 0.
 
 Qué queda demostrado y qué no:
 
 - **Demostrado:** el hwaccel Vulkan de FFmpeg 9.0 acepta un `VkDevice` ajeno y entrega NV12 y P010 que se muestrean en ese mismo dispositivo sin pasar por la CPU, con la sincronización por cuadro (candado, semáforo, layout) hecha desde C# con AOT. En un driver real de NVIDIA, aunque en Windows.
-- **No demostrado:** lo mismo **en Linux con el driver propietario** (la corrida del USB, abajo). Es el mismo driver por dentro, pero la puerta pedía Linux.
+- **No demostrado:** lo mismo **en Linux con el driver propietario** (la corrida del USB, abajo): la puerta pedía Linux. Tampoco el candado de cola compartido con FFmpeg (`lock_queue`): el prototipo decodifica y envía en un solo hilo, así que no hubo dos hilos disputando la cola. Ni las capas de validación, que no se activaron.
 - **Dos comprobaciones distintas:** la exacta dice que lo que decodifica el hardware en nuestro dispositivo es bit a bit lo que decodifica el software (descargando el `AVVkFrame`, solo para verificar). La de RGBA dice que nuestra pasada muestrea el cuadro correcto; su 1,4/255 es el mismo en los dos caminos (también cuando se muestrea el propio cuadro de software subido): es diferencia de conversión de color y de filtrado del croma frente a `swscale`, no de decodificación.
 - **Memoria:** llega a su techo en los primeros segundos y no sigue subiendo (en la RTX 3050: 425 → 411 MB a los 15 y 30 s; 392 → 373 MB a los 60 y 120 s); la mayor parte son las referencias de software que el propio prototipo guarda para comparar. Los contadores dan 0 recursos vivos. No es la prueba de 10 minutos que pedía la puerta: esa queda para la corrida en Linux.
 - **Presentar:** no se presentó en una ventana (sin pantalla en la CI y sin abrir ventanas en el equipo de Daniel); se leyó el resultado.
@@ -165,7 +165,7 @@ Arranque en caliente, 10 vueltas (`build\medir-arranque.ps1`, ms; mediana, míni
 Qué vale y qué no de esta base:
 
 - Valen como referencia para «≤ 1,2 × D3D11»: la composición por cuadro (0,2 ms con efectos, 0,46 ms en 4K) y el arranque (interfaz usable en 0,9 s).
-- **No vale la cadencia de presentación**: de fondo la ventana no la compone el escritorio y el intervalo sale fijo en 5,00 ms (200 por segundo) en vez del refresco de la pantalla. La base de fluidez (intervalo entre cuadros, cuadros tarde) hay que tomarla con `--visible`, cuando Daniel no esté usando el equipo.
+- **No vale la cadencia de presentación**: de fondo la ventana no la compone el escritorio y el intervalo sale fijo en 5,00 ms (200 por segundo) en vez del refresco de la pantalla; «mostrados» cuenta esas presentaciones (por eso `efectos` da unas 1 900 en 10 s con un clip de 24 cuadros por segundo). La base de fluidez (intervalo entre cuadros, cuadros tarde) hay que tomarla con `--visible`, cuando Daniel no esté usando el equipo.
 - De fondo y sin audio, el escenario de un clip **no reproduce** (1 cuadro mostrado en las dos vueltas) y `capas` no deja muestras de composición. No se investigó: queda como defecto de `--medir` de fondo.
 - No se midió la exportación (NVENC) ni el contador de transferencias a la CPU, que no existe todavía (lo crea la fase 1).
 
