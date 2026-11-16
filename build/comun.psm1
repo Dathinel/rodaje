@@ -174,4 +174,16 @@ function Firmar-Codigo([string[]]$archivos) {
     return $true
 }
 
+# ¿El exe trae el modo de fondo (--visible, #505)? Uno anterior abre la ventana a la vista con --medir, --arranque y
+# --autoprueba y se la tapa a quien usa el equipo: los scripts no lo lanzan.
+function Exe-VaDeFondo([string]$exe) {
+    $texto = [System.Text.Encoding]::GetEncoding(28591).GetString([System.IO.File]::ReadAllBytes($exe))
+    return $texto.Contains((('--visible'.ToCharArray() | ForEach-Object { "$_`0" }) -join ''))
+}
+function Exigir-Fondo([string]$exe) {
+    if (Exe-VaDeFondo $exe) { return }
+    Mal "Este exe es anterior al modo de fondo y abriría la ventana a la vista: $exe"
+    Mal 'Publícalo de nuevo (sin -SinPublicar, o con -Publicar) antes de medir o de correr la autoprueba.'
+    exit 1
+}
 Export-ModuleMember -Function *
