@@ -64,3 +64,4 @@ Arreglados: el trozo cortado por una pausa larga vuelve a la cola (#522), los t�
 - **Fragmento ilegible.** Si un `.mov` del caché falla al decodificar, la app debe llamar a `Forget` y volver a aplicar la cobertura (en vivo) en lugar de dejar el tramo en negro.
 - **Trozo en curso al cambiar de plan.** Si sigue vigente, adoptarlo en vez de encolar un duplicado.
 - **`LateFrames` por capa.** Varias capas tarde en el mismo cuadro lo apuntan varias veces y acortan la ventana de 256.
+- **Exportar con la casilla.** La app tiene que pasar a la exportación el mismo almacén y el mismo `RecipeBuilder` con que calcula los fragmentos (`ExportRunnerOptions.RenderCache` y `RecipeBuilder`); sin ellos la casilla no hace nada.
