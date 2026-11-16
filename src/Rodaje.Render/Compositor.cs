@@ -493,7 +493,9 @@ public sealed unsafe partial class Compositor : IDisposable
         if (payload is not null && layer.Sampling is FrameSampling.Blend or FrameSampling.OpticalFlow
             && layer.Next?.Payload is D3D11TexturePayload next)
         {
-            return _interpolator.Blend(payload, next, layer.Fraction) ?? payload;
+            return (layer.Sampling == FrameSampling.OpticalFlow
+                ? _interpolator.Flow(payload, next, layer.Fraction)
+                : _interpolator.Blend(payload, next, layer.Fraction)) ?? payload;
         }
 
         return payload;

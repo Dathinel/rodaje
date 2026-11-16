@@ -57,6 +57,7 @@ internal static partial class SelfTestRun
             await ToggleReverseAsync(window);
             await InterpolationAsync(window);
             await BlendAsync(window, engine);
+            await OpticalFlowAsync(window, engine);
             await TitleAsync(window, engine);
             await ImageAsync(window, engine);
             await MasksAsync(window, engine);
