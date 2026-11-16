@@ -388,6 +388,30 @@ public sealed class RenderCacheStoreTests : IDisposable
         }
     }
 
+    [Fact]
+    public void Tras_reabrir_el_almacen_el_tope_sigue_el_ultimo_uso()
+    {
+        var k1 = MakeKey(41);
+        var k2 = MakeKey(42);
+        var k3 = MakeKey(43);
+        _clock.Now = Start;
+        RenderCacheFragment f1 = CommitFake(_store, [k1], bytes: 1000);
+        _clock.Now = Start.AddMinutes(1);
+        RenderCacheFragment f2 = CommitFake(_store, [k2], bytes: 1000);
+        _clock.Now = Start.AddMinutes(2);
+        RenderCacheFragment f3 = CommitFake(_store, [k3], bytes: 1000);
+        _clock.Now = Start.AddMinutes(10);
+        Assert.True(_store.TryGet(k1, null, out _));
+
+        var reopened = new RenderCacheStore(_store.Directory, _clock);
+        long oneFragmentBytes = new FileInfo(f1.MoviePath).Length + new FileInfo(f1.MetadataPath).Length;
+        reopened.Cleanup(new RenderCacheCleanupOptions { MaxTotalBytes = oneFragmentBytes + 50 });
+
+        Assert.True(File.Exists(f1.MoviePath));
+        Assert.False(File.Exists(f2.MoviePath));
+        Assert.False(File.Exists(f3.MoviePath));
+    }
+
     private static RenderCacheKey MakeKey(ulong value) => new(0x1234_5678_9ABC_DEF0, value);
 
     private static RenderCacheFragmentMetadata CreateMetadata(
