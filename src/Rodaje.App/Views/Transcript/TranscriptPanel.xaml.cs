@@ -46,7 +46,6 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
     public void Attach(EditorServices services)
     {
         _services = services;
-        services.ShortcutRegistry.RegisterRange(TranscriptShortcuts.Catalog);
         services.Session.ProjectEdited += (_, _) => Refresh();
         services.Session.ProjectOpened += (_, _) =>
         {
@@ -262,13 +261,12 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
     {
         if (_services is null || Visibility != Visibility.Visible) return false;
         bool textInput = XamlRoot is { } root && FocusManager.GetFocusedElement(root) is TextBox;
-        foreach (ShortcutAction action in TranscriptShortcuts.Catalog)
+        foreach ((string id, KeyChord keys) in TranscriptShortcuts.PanelKeys)
         {
-            if (!_services.ShortcutRegistry.GetKeys(action.Id).Contains(chord)) continue;
-            if (textInput && action.Id != TranscriptShortcuts.Find) return false;
-            switch (action.Id)
+            if (keys != chord) continue;
+            if (textInput && id != TranscriptShortcuts.Find) return false;
+            switch (id)
             {
-                case "transcript.removeFillers": UiTask.Run(ShowFillersAsync()); break;
                 case TranscriptShortcuts.Delete: _services.Session.ExecuteTranscript(Model.DeleteSelection(true)); break;
                 case TranscriptShortcuts.Lift: _services.Session.ExecuteTranscript(Model.DeleteSelection(false)); break;
                 case TranscriptShortcuts.Cut: Model.Cut(); break;

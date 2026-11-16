@@ -234,14 +234,13 @@ public sealed class TranscriptPanelModelTests
     }
 
     [Fact]
-    public void ShortcutCatalogHasThePanelKeys()
+    public void PanelKeysAreFixedAndOnlyTheMenuActionIsInTheCatalog()
     {
-        Assert.Contains(ShortcutCatalog.All, action => action.Id == TranscriptShortcuts.Find);
-        var registry = new ShortcutRegistry();
-        registry.RegisterRange(TranscriptShortcuts.Catalog);
-        Assert.Equal(TranscriptShortcuts.Delete, registry.FindAction(KeyChord.Parse("Supr")));
-        Assert.Equal(TranscriptShortcuts.Lift, registry.FindAction(KeyChord.Parse("Retroceso")));
-        Assert.Equal(TranscriptShortcuts.Find, registry.FindAction(KeyChord.Parse("Ctrl+F")));
-        Assert.Equal(TranscriptShortcuts.ExtendRight, registry.FindAction(KeyChord.Parse("Ctrl+Mayús+Derecha")));
+        Assert.Contains(ShortcutCatalog.All, action => action.Id == TranscriptShortcuts.RemoveFillers);
+        Assert.DoesNotContain(ShortcutCatalog.All, action => action.Id == TranscriptShortcuts.Delete);
+        Assert.Contains((TranscriptShortcuts.Delete, KeyChord.Parse("Supr")), TranscriptShortcuts.PanelKeys);
+        Assert.Contains((TranscriptShortcuts.Lift, KeyChord.Parse("Retroceso")), TranscriptShortcuts.PanelKeys);
+        Assert.Contains((TranscriptShortcuts.ExtendRight, KeyChord.Parse("Ctrl+Mayús+Derecha")), TranscriptShortcuts.PanelKeys);
+        Assert.Equal(TranscriptShortcuts.PanelKeys.Count, TranscriptShortcuts.PanelKeys.Select(k => k.Chord).Distinct().Count());
     }
 }

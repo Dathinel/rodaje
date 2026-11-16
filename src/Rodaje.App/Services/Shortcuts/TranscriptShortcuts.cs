@@ -1,7 +1,12 @@
 namespace Rodaje.App.Services.Shortcuts;
 
+/// <summary>
+/// Atajos del panel Transcripción. «Quitar muletillas…» es una acción más del catálogo; las teclas del panel son fijas y
+/// solo valen con el foco en él, así que no entran en el catálogo, donde chocarían con las mismas de la línea de tiempo.
+/// </summary>
 public static class TranscriptShortcuts
 {
+    public const string RemoveFillers = "transcript.removeFillers";
     public const string Delete = "transcript.delete";
     public const string Lift = "transcript.lift";
     public const string Cut = "transcript.cut";
@@ -13,14 +18,19 @@ public static class TranscriptShortcuts
 
     public static IReadOnlyList<ShortcutAction> Catalog { get; } =
     [
-        new("transcript.removeFillers", "Quitar muletillas…", "Transcripción", []),
-        new(Delete, "Borrar palabras con ripple", "Transcripción", ["Supr"]),
-        new(Lift, "Borrar palabras dejando hueco", "Transcripción", ["Retroceso"]),
-        new(Cut, "Cortar frase", "Transcripción", ["Ctrl+X"]),
-        new(Paste, "Mover frase aquí", "Transcripción", ["Ctrl+V"]),
-        new(Find, "Buscar en la transcripción", "Transcripción", ["Ctrl+F"]),
-        new(SelectAll, "Seleccionar todas las palabras", "Transcripción", ["Ctrl+A"]),
-        new(ExtendLeft, "Ampliar a la palabra anterior", "Transcripción", ["Ctrl+Mayús+Izquierda"]),
-        new(ExtendRight, "Ampliar a la palabra siguiente", "Transcripción", ["Ctrl+Mayús+Derecha"]),
+        new(RemoveFillers, "Quitar muletillas…", ShortcutGroups.Tools, []),
+    ];
+
+    /// <summary>Teclas del panel con el foco en él.</summary>
+    public static IReadOnlyList<(string Id, KeyChord Chord)> PanelKeys { get; } =
+    [
+        (Delete, KeyChord.Parse("Supr")),
+        (Lift, KeyChord.Parse("Retroceso")),
+        (Cut, KeyChord.Parse("Ctrl+X")),
+        (Paste, KeyChord.Parse("Ctrl+V")),
+        (Find, KeyChord.Parse("Ctrl+F")),
+        (SelectAll, KeyChord.Parse("Ctrl+A")),
+        (ExtendLeft, KeyChord.Parse("Ctrl+Mayús+Izquierda")),
+        (ExtendRight, KeyChord.Parse("Ctrl+Mayús+Derecha")),
     ];
 }
