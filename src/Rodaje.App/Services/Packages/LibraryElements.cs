@@ -17,6 +17,9 @@ public enum LibraryCategory
     Transitions,
     Filters,
     Ai,
+
+    /// <summary>Plantillas de movimiento (D-064).</summary>
+    MotionTemplates,
 }
 
 /// <summary>
@@ -48,6 +51,7 @@ public static class LibraryElements
         LibraryCategory.Effects => [ItemKind.Effect],
         LibraryCategory.Transitions => [ItemKind.Transition],
         LibraryCategory.Filters => [ItemKind.Filter, ItemKind.Lut],
+        LibraryCategory.MotionTemplates => [ItemKind.MotionTemplate],
         _ => [],
     };
 
@@ -87,6 +91,7 @@ public static class LibraryElements
         LibraryCategory.Effects => "Mis efectos",
         LibraryCategory.Filters => "Mis filtros",
         LibraryCategory.Audio => "Mis sonidos",
+        LibraryCategory.MotionTemplates => "Mis plantillas",
         _ => "Mis transiciones",
     };
 

@@ -34,6 +34,18 @@ public static class TemplateEdits
     }
 
     /// <summary>
+    /// «Actualizar a X»: cambia la plantilla entera del clip (documento, origen, valores y capas) por otra ya instanciada.
+    /// Un paso del historial; el clip no cambia de duración aunque el mínimo nuevo sea mayor.
+    /// </summary>
+    public static void Replace(EditContext ctx, string clipId, GeneratorTemplate template)
+    {
+        ArgumentNullException.ThrowIfNull(template);
+        (_, Clip clip, _) = Template(ctx, clipId);
+        clip.Generator!.Template = template.Clone();
+        ctx.EnsureValid();
+    }
+
+    /// <summary>
     /// Cambia el clip por un título por capa con lo mismo que se veía: la capa de abajo en la pista del clip y las demás en
     /// pistas de video libres por encima (o nuevas). Cada título lleva los efectos del clip, con la posición de la capa
     /// sumada a su transformación, y su ventana dentro del clip.

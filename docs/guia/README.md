@@ -12,6 +12,7 @@ Para quien descarga Rodaje y quiere editar. Cada página es corta y va con los m
 | [Seguimiento](seguimiento.md) | Seguir un punto, dos, cuatro esquinas o una región; corregir, suavizar y aplicar a otro clip, un anclaje de esquinas, una máscara, una zona o la estabilización |
 | [Audio](audio.md) | Volumen, sonoridad LUFS, ecualizador y compresor, ducking, voz en off, silencios, ritmo, ruido |
 | [Títulos y subtítulos](titulos-y-subtitulos.md) | Títulos sobre el visor, subtítulos automáticos, por palabra, karaoke, traducción |
+| [Plantillas de movimiento](plantillas-de-movimiento.md) | Rótulos y títulos de varias capas con campos para rellenar: usarlas, actualizarlas, guardar las tuyas y compartirlas |
 | [IA local](ia-local.md) | Qué módulo hace qué, cómo se instala, GPU y VRAM |
 | [Exportar](exportar.md) | Preajustes, Avanzado, varias versiones, la cola, rendimiento, verificación |
 | [Rendimiento](rendimiento.md) | Qué esperar con NVIDIA, AMD, Intel y sin GPU: decodificación, proxies, exportación y copia directa |
