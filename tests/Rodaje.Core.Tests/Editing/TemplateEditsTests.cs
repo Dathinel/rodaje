@@ -54,6 +54,29 @@ public sealed class TemplateEditsTests
     }
 
     [Fact]
+    public void Replacing_the_template_is_one_step_and_undo_gives_back_the_same_bytes()
+    {
+        (Project project, string id) = WithTemplate();
+        string before = ProjectSerializer.Serialize(project);
+        GeneratorTemplate newer = Find(project, id).Generator!.Template!.Clone();
+        newer.Source = "rodaje-plantillas@1.1.0/barra";
+        newer.MinSeconds = 2;
+        newer.Layers[0].Text = "Versión nueva";
+
+        SequenceEditCommand replace = Edits.ReplaceTemplate(Seq, id, newer);
+        newer.Layers[0].Text = "mutado después";
+        replace.Apply(project);
+
+        GeneratorTemplate applied = Find(project, id).Generator!.Template!;
+        Assert.Equal(("rodaje-plantillas@1.1.0/barra", 2.0, "Versión nueva"), (applied.Source, applied.MinSeconds, applied.Layers[0].Text));
+        Assert.Equal(Sec(5), Find(project, id).Duration);
+
+        replace.Revert(project);
+        Assert.Equal(before, ProjectSerializer.Serialize(project));
+        Assert.Throws<EditException>(() => Edits.ReplaceTemplate(Seq, "c2", newer).Apply(project));
+    }
+
+    [Fact]
     public void Trimming_stops_at_the_template_minimum()
     {
         (Project project, string id) = WithTemplate();

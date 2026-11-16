@@ -49,6 +49,13 @@ public static partial class Edits
         return new("Cambiar la plantilla", sequenceId, ctx => TemplateEdits.SetValues(ctx, clipId, valuesCopy, layersCopy), ids);
     }
 
+    /// <summary>«Actualizar a X»: cambia la plantilla del clip por una versión más nueva ya instanciada (D-064): un paso.</summary>
+    public static SequenceEditCommand ReplaceTemplate(string sequenceId, string clipId, GeneratorTemplate template, IIdGenerator? ids = null)
+    {
+        GeneratorTemplate copy = template.Clone();
+        return new("Actualizar la plantilla", sequenceId, ctx => TemplateEdits.Replace(ctx, clipId, copy), ids);
+    }
+
     /// <summary>«Convertir en títulos»: un título por capa de la plantilla (D-064).</summary>
     /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: los títulos de abajo arriba y las pistas creadas.</remarks>
     public static SequenceEditCommand ConvertTemplateToTitles(string sequenceId, string clipId, IIdGenerator? ids = null) =>
