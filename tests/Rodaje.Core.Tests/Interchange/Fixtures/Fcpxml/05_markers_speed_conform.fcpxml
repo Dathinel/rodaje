@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+  <resources>
+    <format id="r1" name="FFVideoFormat1080p2997" frameDuration="1001/30000s" width="1920" height="1080" colorSpace="1-1-1 (Rec. 709)"/>
+    <asset id="r2" name="TomaVeloz" uid="asset-toma-veloz" start="0s" duration="300300/30000s" format="r1" hasVideo="1">
+      <media-rep kind="original-media" src="file:///C:/Medios/TomaVeloz.mov"/>
+    </asset>
+  </resources>
+  <library>
+    <event name="Evento 1">
+      <project name="Proyecto 1">
+        <sequence format="r1" duration="60060/30000s" tcStart="3600s" tcFormat="DF">
+          <spine>
+            <asset-clip ref="r2" offset="3600s" name="TomaVeloz" start="0s" duration="60060/30000s" format="r1" tcFormat="DF">
+              <conform-rate srcFrameRate="23.98" scaleEnabled="1"/>
+              <timeMap>
+                <timept start="0s" value="0s" interp="linear"/>
+                <timept start="60060/30000s" value="120120/30000s" interp="linear"/>
+              </timeMap>
+              <marker start="10010/30000s" duration="1001/30000s" value="MarcaImportante" note="Nota de prueba"/>
+              <chapter-marker start="30030/30000s" duration="1001/30000s" value="CapituloUno" posterOffset="1001/30000s"/>
+            </asset-clip>
+          </spine>
+        </sequence>
+      </project>
+    </event>
+  </library>
+</fcpxml>

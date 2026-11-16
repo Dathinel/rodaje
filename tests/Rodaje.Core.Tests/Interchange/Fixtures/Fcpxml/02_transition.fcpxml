@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE fcpxml>
+<fcpxml version="1.10">
+  <resources>
+    <format id="r1" name="FFVideoFormat1080p25" frameDuration="1/25s" width="1920" height="1080"/>
+    <asset id="r2" name="PlanoA" uid="asset-plano-a" start="0s" duration="100/25s" format="r1" hasVideo="1">
+      <media-rep kind="original-media" src="file:///C:/Medios/PlanoA.mov"/>
+    </asset>
+    <asset id="r3" name="PlanoB" uid="asset-plano-b" start="0s" duration="100/25s" format="r1" hasVideo="1">
+      <media-rep kind="original-media" src="file:///C:/Medios/PlanoB.mov"/>
+    </asset>
+    <effect id="r-fade" name="Cross Dissolve" uid=".../Transitions.localized/Dissolves.localized/Cross Dissolve.localized/Cross Dissolve.motr"/>
+  </resources>
+  <library>
+    <event name="Evento 1">
+      <project name="Proyecto 1">
+        <sequence format="r1" duration="100/25s" tcStart="0s" tcFormat="NDF">
+          <spine>
+            <asset-clip ref="r2" offset="0s" name="PlanoA" start="0s" duration="50/25s" format="r1"/>
+            <transition name="Cross Dissolve" offset="40/25s" duration="20/25s">
+              <filter-video ref="r-fade" name="Cross Dissolve"/>
+            </transition>
+            <asset-clip ref="r3" offset="50/25s" name="PlanoB" start="10/25s" duration="50/25s" format="r1"/>
+          </spine>
+        </sequence>
+      </project>
+    </event>
+  </library>
+</fcpxml>
