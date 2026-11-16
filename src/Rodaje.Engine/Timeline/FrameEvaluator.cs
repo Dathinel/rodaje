@@ -178,33 +178,52 @@ internal sealed class FrameEvaluator
     private LayerFrame Layer(Lane lane, VideoClipPlan clip, IEvaluatorFrames frames, bool incoming, EffectListRing ring, Time time, long sequenceFrame,
         TransitionPlan? transition, float progress, LayerTransition? withTransition, CancellationToken cancellationToken)
     {
-        (DecodedFrame frame, Rational sampleAspectRatio, int rotation) = frames.Get(lane.Layer.Ordinal, clip, incoming, clip.FrameAt(time), sequenceFrame, cancellationToken);
-        Time source = clip.EffectTimeAt(time);
-        EffectPlan? plan = clip.Effects;
-        LayerTransform transform = EffectPlan.Stabilized(plan, EffectPlan.Transform(plan, source), frame.Index);
-        if (transition is not null)
+        FrameSample sample = clip.SampleAt(time);
+        (DecodedFrame frame, Rational sampleAspectRatio, int rotation) = frames.Get(lane.Layer.Ordinal, clip, incoming, sample.A, sequenceFrame, cancellationToken);
+        DecodedFrame? next = null;
+        try
         {
-            transform = transition.Apply(transform, incoming, progress);
-        }
+            if (sample.T > 0)
+            {
+                (next, _, _) = frames.Get(lane.Layer.Ordinal, clip, incoming, sample.B, sequenceFrame, cancellationToken);
+            }
 
-        IReadOnlyList<LayerEffect> effects = [];
-        EffectList? lists = null;
-        if (plan is { EffectCount: > 0 })
-        {
-            lists = ring.Next();
-            plan.Evaluate(source, lists.Reset(plan.EffectCount), lane.Content);
-            effects = lists;
-        }
+            Time source = clip.EffectTimeAt(time);
+            EffectPlan? plan = clip.Effects;
+            LayerTransform transform = EffectPlan.Stabilized(plan, EffectPlan.Transform(plan, source), frame.Index);
+            if (transition is not null)
+            {
+                transform = transition.Apply(transform, incoming, progress);
+            }
 
-        IReadOnlyList<LayerTransform>? motion = MotionSampler.Sample(plan?.Motion,
-            new ClipMotionSource(plan, clip, frame.Index, transition, incoming, progress), time, _frameDuration.Ticks, ring, ref lists);
-        return new LayerFrame(lane.Layer.TrackIndex, clip.ClipId, frame, transform, sampleAspectRatio, rotation)
+            IReadOnlyList<LayerEffect> effects = [];
+            EffectList? lists = null;
+            if (plan is { EffectCount: > 0 })
+            {
+                lists = ring.Next();
+                plan.Evaluate(source, lists.Reset(plan.EffectCount), lane.Content);
+                effects = lists;
+            }
+
+            IReadOnlyList<LayerTransform>? motion = MotionSampler.Sample(plan?.Motion,
+                new ClipMotionSource(plan, clip, frame.Index, transition, incoming, progress), time, _frameDuration.Ticks, ring, ref lists);
+            return new LayerFrame(lane.Layer.TrackIndex, clip.ClipId, frame, transform, sampleAspectRatio, rotation)
+            {
+                Next = next,
+                Fraction = next is null ? 0 : sample.T,
+                Sampling = sample.Mode,
+                Effects = effects,
+                Blend = plan?.Blend ?? BlendMode.Normal,
+                Transition = withTransition,
+                MotionSamples = motion,
+            };
+        }
+        catch
         {
-            Effects = effects,
-            Blend = plan?.Blend ?? BlendMode.Normal,
-            Transition = withTransition,
-            MotionSamples = motion,
-        };
+            frame.Dispose();
+            next?.Dispose();
+            throw;
+        }
     }
 
     /// <summary>Una pista visible: su carril principal y el compañero, y lo que muestra cada uno en el instante pedido.</summary>

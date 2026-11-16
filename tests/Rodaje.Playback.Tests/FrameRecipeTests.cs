@@ -290,6 +290,29 @@ public class FrameRecipeTests
         Assert.Equal(Key(new Spec()), Key(new Spec()));
     }
 
+    [Theory]
+    [InlineData(FrameSampling.Blend)]
+    [InlineData(FrameSampling.OpticalFlow)]
+    public void F1_interpolation_metadata_does_not_change_the_recipe(FrameSampling sampling)
+    {
+        var sources = new Sources();
+        var frame = new DecodedFrame(10, Time.Zero, Time.FromTicks(1), null, 0);
+        var next = new DecodedFrame(11, Time.Zero, Time.FromTicks(1), null, 0);
+        sources.Media[frame] = "medio";
+        Assert.True(frame.TryRetain());
+        using (var plain = new CompositionFrame(Time.Zero, 1920, 1080, [new LayerFrame(0, "c", frame, LayerTransform.Identity)]))
+        using (var sampled = new CompositionFrame(Time.Zero, 1920, 1080,
+            [new LayerFrame(0, "c", frame, LayerTransform.Identity) { Next = next, Fraction = 0.5f, Sampling = sampling }]))
+        {
+            RenderCacheKey? expected = FrameRecipe.Compute(plain, Format, sources);
+            Assert.NotNull(expected);
+            Assert.Equal(expected, FrameRecipe.Compute(sampled, Format, sources));
+        }
+
+        Assert.True(frame.IsReleased);
+        Assert.True(next.IsReleased);
+    }
+
     [Fact]
     public void Sin_receta_si_falta_algo_o_es_un_respaldo()
     {

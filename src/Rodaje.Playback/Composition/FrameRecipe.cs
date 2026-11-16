@@ -77,7 +77,8 @@ public static class FrameRecipe
         [typeof(CompositionFrame)] = ["TimelineTime"],
 
         // ClipId no cambia píxeles (solo la historia de la reducción temporal, que no se guarda). El resto sale de los demás campos.
-        [typeof(LayerFrame)] = ["ClipId", "IsPlain"],
+        // En F1 el renderizador aún ignora el par de interpolación.
+        [typeof(LayerFrame)] = ["ClipId", "IsPlain", "Next", "Fraction", "Sampling"],
         [typeof(LayerShape)] = ["IsNone"],
         [typeof(LayerCornerPin)] = ["IsNone"],
         [typeof(LayerStabilization)] = ["Scale", "RotationDegrees"],

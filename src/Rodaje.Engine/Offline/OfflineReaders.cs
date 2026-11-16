@@ -129,6 +129,24 @@ internal sealed class OfflineReaders : IDisposable
     /// <summary>Lectores cuyo pool no cabía en el presupuesto y se abrieron con la capacidad mínima.</summary>
     public int VramOverruns { get; private set; }
 
+    public Slot? RequestSample(VideoClipPlan clip, Time time, bool mustHave)
+    {
+        FrameSample sample = clip.SampleAt(time);
+        Slot? first = Request(clip.Source, sample.A, time, mustHave, clip);
+        if (first is null || (sample.T > 0 && Request(clip.Source, sample.B, time, mustHave, clip) is null))
+        {
+            return null;
+        }
+
+        return first;
+    }
+
+    public bool HasRoomForSample(VideoClipPlan clip, Time time)
+    {
+        FrameSample sample = clip.SampleAt(time);
+        return HasRoom(clip.Source, sample.A, clip) && (sample.T == 0 || HasRoom(clip.Source, sample.B, clip));
+    }
+
     /// <summary>
     /// Pide el cuadro <paramref name="index"/> de <paramref name="key"/>, que se usará hasta <paramref name="lastUse"/>.
     /// Con <paramref name="mustHave"/> falso (lectura por adelantado) no se pide si el lector elegido está lleno.

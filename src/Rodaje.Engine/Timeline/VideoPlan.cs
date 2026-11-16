@@ -4,6 +4,8 @@ using Rodaje.Playback.Composition;
 
 namespace Rodaje.Engine.Timeline;
 
+internal readonly record struct FrameSample(long A, long B, float T, FrameSampling Mode);
+
 /// <summary>
 /// Clip de video listo para programar: su mapeo (<see cref="ClipTimeMap"/>), el tramo que se ve y sus efectos. En una
 /// transición el clip se ve más allá de su duración: fuera de ella el origen sigue a la velocidad del borde
@@ -24,11 +26,13 @@ internal sealed class VideoClipPlan
     /// <param name="end">Hasta cuándo se ve (sin incluir), contando la mitad de una transición después.</param>
     /// <param name="materialEnd">Hasta dónde llega el material del medio; nunca menos que <c>map.SourceOut</c>.</param>
     public VideoClipPlan(string clipId, SourceKey source, ClipTimeMap map, Time start, Time end, Time materialEnd, Rational frameRate,
-        Rational sequenceRate, EffectPlan? effects, int displayWidth = 0, int displayHeight = 0, bool isStillImage = false)
+        Rational sequenceRate, EffectPlan? effects, int displayWidth = 0, int displayHeight = 0, bool isStillImage = false,
+        FrameSampling sampling = FrameSampling.Nearest)
     {
         ArgumentNullException.ThrowIfNull(map);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(end, start);
         IsStillImage = isStillImage;
+        Sampling = sampling;
         ClipId = clipId;
         Source = source;
         TimeMap = map;
@@ -54,6 +58,8 @@ internal sealed class VideoClipPlan
     }
 
     public bool IsStillImage { get; }
+
+    public FrameSampling Sampling { get; }
 
     public string ClipId { get; }
 
@@ -118,6 +124,30 @@ internal sealed class VideoClipPlan
 
     /// <summary>Cuadro del origen que contiene el instante: el último que empieza en o antes de él.</summary>
     public long FrameAt(Time timeline) => IsStillImage ? 0 : ToSource(timeline).ToFrames(FrameRate);
+
+    public FrameSample SampleAt(Time timeline)
+    {
+        long a = FrameAt(timeline);
+        var nearest = new FrameSample(a, a, 0, FrameSampling.Nearest);
+        if (IsStillImage || Sampling == FrameSampling.Nearest || TimeMap.Freeze)
+        {
+            return nearest;
+        }
+
+        Int128 denominator = (Int128)Time.TicksPerSecond * FrameRate.Den;
+        Int128 remainder = ((Int128)ToSource(timeline).Ticks * FrameRate.Num) - ((Int128)a * denominator);
+        double fraction = (double)remainder / (double)denominator;
+        double t = Forward ? fraction : 1 - fraction;
+        long b = Forward ? a + 1 : a - 1;
+        if (t < 0.002 || t > 0.998 || b < 0 || b > (_materialEnd - Time.FromTicks(1)).ToFrames(FrameRate))
+        {
+            return nearest;
+        }
+
+        FrameSampling mode = Sampling == FrameSampling.OpticalFlow && Math.Abs(RateAt(timeline)) > 4
+            ? FrameSampling.Blend : Sampling;
+        return new FrameSample(a, b, (float)t, mode);
+    }
 
     /// <summary>
     /// Instante en que se evalúan los keyframes de los efectos: el del origen (<see cref="ClipTimeMap.EffectTime"/> dentro
@@ -279,7 +309,7 @@ internal sealed class VideoClipPlan
 
     /// <summary>El mismo clip visible solo en <c>[start, end)</c> (la parte que no cubre el render en caché).</summary>
     public VideoClipPlan Trim(Time start, Time end) =>
-        new(ClipId, Source, TimeMap, start, end, _materialEnd, FrameRate, SequenceRate, Effects, DisplayWidth, DisplayHeight, IsStillImage)
+        new(ClipId, Source, TimeMap, start, end, _materialEnd, FrameRate, SequenceRate, Effects, DisplayWidth, DisplayHeight, IsStillImage, Sampling)
         {
             Outgoing = Outgoing,
         };
@@ -287,7 +317,7 @@ internal sealed class VideoClipPlan
     /// <summary>Mismo origen y mismos tiempos: los cuadros que muestra son los mismos.</summary>
     public bool SameMapping(VideoClipPlan other) =>
         ClipId == other.ClipId && Source == other.Source && Start == other.Start && End == other.End && FrameRate == other.FrameRate
-        && IsStillImage == other.IsStillImage && SequenceRate == other.SequenceRate && _materialEnd == other._materialEnd && TimeMap.Equals(other.TimeMap);
+        && IsStillImage == other.IsStillImage && Sampling == other.Sampling && SequenceRate == other.SequenceRate && _materialEnd == other._materialEnd && TimeMap.Equals(other.TimeMap);
 
     /// <summary>En reversa: primer instante en que se ve el cuadro <paramref name="index"/> o uno menor.</summary>
     private Time ShownAtReverse(long index)

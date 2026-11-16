@@ -75,12 +75,12 @@ internal sealed partial class TimelinePlan
                 ClipTimeMap map = clip.TimeMap;
                 Time material = Material(m);
                 clips.Add(new VideoClipPlan(clip.Id, key, map, clip.Start + head, clip.End + tail, material, rate, sequence.FrameRate,
-                    effects, m.Width, m.Height, m.IsStillImage) { Outgoing = transition });
+                    effects, m.Width, m.Height, m.IsStillImage, clip.Speed?.FrameSampling ?? FrameSampling.Nearest) { Outgoing = transition });
 
                 if (entering is { } e2)
                 {
                     incoming.Add(new VideoClipPlan(clip.Id, key, map, clip.Start - e2.Before, clip.Start + e2.After, material, rate,
-                        sequence.FrameRate, effects, m.Width, m.Height, m.IsStillImage));
+                        sequence.FrameRate, effects, m.Width, m.Height, m.IsStillImage, clip.Speed?.FrameSampling ?? FrameSampling.Nearest));
                 }
             }
 
