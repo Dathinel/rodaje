@@ -1,4 +1,6 @@
 using System.Globalization;
+using Rodaje.Core.Interchange.Xml;
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.Core.Interchange.Fcpxml;
@@ -6,6 +8,65 @@ namespace Rodaje.Core.Interchange.Fcpxml;
 /// <summary>Conversiones y formato de tiempo racional para FCPXML 1.10 (D-062).</summary>
 internal static class FcpxmlTime
 {
+    public static Time AssetStart(MediaRef? media, Rational fallbackRate) =>
+        media?.Timecode is { } text && SmpteTimecode.TryParse(text, media.FrameRate ?? fallbackRate, out var tc)
+            ? tc.ToTime(media.FrameRate ?? fallbackRate) : Time.Zero;
+
+    public static Time Scale(Time value, long numerator, long denominator)
+    {
+        if (denominator == 0) throw new InterchangeException("Tramo de tiempo de longitud cero en FCPXML.");
+        Int128 product = (Int128)value.Ticks * numerator;
+        Int128 result = product / denominator;
+        Int128 remainder = product % denominator;
+        if (Int128.Abs(remainder) * 2 >= Int128.Abs(denominator))
+            result += Int128.Sign(product) * Math.Sign(denominator);
+        try { return Time.FromTicks(checked((long)result)); }
+        catch (OverflowException) { throw new InterchangeException("Mapeo de tiempo fuera de rango en FCPXML."); }
+    }
+
+    public static Time LocalStart(Clip clip, Project project, Rational rate) =>
+        clip.SourceIn + (clip.IsCompound ? Time.Zero : AssetStart(project.FindMedia(clip.MediaId), rate));
+
+    // El mapa exportado es lineal: las curvas se declaran como velocidad media en Fidelity.
+    public static Time SourceAt(Clip clip, Time elapsed, Time assetStart)
+    {
+        if (clip.Speed?.Freeze == true) return assetStart + clip.SourceIn;
+        if (clip.Speed is null) return assetStart + clip.SourceIn + elapsed;
+        Time delta = Scale(elapsed, clip.SourceDuration.Ticks, clip.Duration.Ticks);
+        return assetStart + (clip.Speed.Reverse ? clip.SourceOut - delta : clip.SourceIn + delta);
+    }
+
+    public static Time MapSource(XmlNode node, Time adjusted) => Map(node, adjusted, inverse: false);
+
+    public static Time ParentElapsed(XmlNode parent, Time local, bool contained = false)
+    {
+        Time adjusted = contained ? local : Map(parent, local, inverse: true);
+        return adjusted - ParseTime(parent["start"]);
+    }
+
+    private static Time Map(XmlNode node, Time value, bool inverse)
+    {
+        var points = node.Element("timeMap")?.Elements("timept").ToList();
+        if (points is null || points.Count == 0) return value;
+        Time X(XmlNode point) => ParseTime(point[inverse ? "value" : "time"] ?? (inverse ? null : point["start"]));
+        Time Y(XmlNode point) => ParseTime(point[inverse ? "time" : "value"] ?? (inverse ? point["start"] : null));
+        if (points.Count == 1) return inverse ? ParseTime(node["start"]) : Y(points[0]);
+
+        for (int i = 1; i < points.Count; i++)
+        {
+            Time a = X(points[i - 1]);
+            Time b = X(points[i]);
+            if (a == b)
+            {
+                if (inverse && value == a) return ParseTime(node["start"]);
+                continue;
+            }
+            if ((value >= Time.Min(a, b) && value <= Time.Max(a, b)) || i == points.Count - 1 || (i == 1 && value < a && a < b))
+                return Y(points[i - 1]) + Scale(value - a, (Y(points[i]) - Y(points[i - 1])).Ticks, (b - a).Ticks);
+        }
+        return Y(points[0]);
+    }
+
     public static long Gcd(long a, long b)
     {
         while (b != 0)
@@ -212,6 +273,6 @@ internal static class FcpxmlTime
             den = -den;
         }
 
-        return new Rational((int)num, (int)den);
+        return new Rational(num, den);
     }
 }

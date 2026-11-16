@@ -30,7 +30,8 @@ public static class FcpxmlReader
         }
 
         var project = new Project { Id = "project", Name = "Proyecto" };
-        var formats = new Dictionary<string, (Rational Rate, int Width, int Height)>(StringComparer.Ordinal);
+        var formats = new Dictionary<string, (Rational? Rate, int Width, int Height, SequenceColorSpace Color)>(StringComparer.Ordinal);
+        var assetStarts = new Dictionary<string, Time>(StringComparer.Ordinal);
         var compoundNodes = new Dictionary<string, (string Name, XmlNode SequenceNode)>(StringComparer.Ordinal);
 
         XmlNode? resourcesNode = root.Element("resources");
@@ -41,10 +42,16 @@ public static class FcpxmlReader
                 string? id = fmtNode["id"];
                 if (id is null) continue;
 
-                Rational rate = FcpxmlTime.ParseFrameDuration(fmtNode["frameDuration"]);
+                Rational? rate = fmtNode["frameDuration"] is null ? null : FcpxmlTime.ParseFrameDuration(fmtNode["frameDuration"]);
                 int width = int.TryParse(fmtNode["width"], NumberStyles.Integer, CultureInfo.InvariantCulture, out int w) ? w : 1920;
                 int height = int.TryParse(fmtNode["height"], NumberStyles.Integer, CultureInfo.InvariantCulture, out int h) ? h : 1080;
-                formats[id] = (rate, width, height);
+                SequenceColorSpace color = fmtNode["colorSpace"] switch
+                {
+                    { } value when value.StartsWith("9-16-9", StringComparison.Ordinal) => SequenceColorSpace.HdrPq,
+                    { } value when value.StartsWith("9-18-9", StringComparison.Ordinal) => SequenceColorSpace.HdrHlg,
+                    _ => SequenceColorSpace.Sdr709,
+                };
+                formats[id] = (rate, width, height, color);
             }
 
             foreach (XmlNode assetNode in resourcesNode.Elements("asset"))
@@ -78,6 +85,8 @@ public static class FcpxmlReader
 
                 Time duration = FcpxmlTime.ParseDuration(assetNode["duration"]);
                 Time startTime = FcpxmlTime.ParseTime(assetNode["start"]);
+                assetStarts[id] = startTime;
+                bool still = hasVideo && !hasAudio && duration == Time.Zero && mediaRate is null;
                 int channels = int.TryParse(assetNode["audioChannels"], NumberStyles.Integer, CultureInfo.InvariantCulture, out int ch) ? ch : 2;
                 int sampleRate = int.TryParse(assetNode["audioRate"], NumberStyles.Integer, CultureInfo.InvariantCulture, out int sr) ? sr : 48000;
 
@@ -87,13 +96,14 @@ public static class FcpxmlReader
                     Name = name,
                     Path = path,
                     Duration = duration,
+                    IsStillImage = still,
                     HasVideo = hasVideo,
                     HasAudio = hasAudio,
-                    FrameRate = hasVideo ? mediaRate ?? new Rational(25, 1) : null,
+                    FrameRate = hasVideo && !still ? mediaRate ?? new Rational(25, 1) : null,
                     Width = width,
                     Height = height,
-                    AudioChannels = channels,
-                    SampleRate = sampleRate,
+                    AudioChannels = still ? 0 : channels,
+                    SampleRate = still ? 0 : sampleRate,
                 };
 
                 if (startTime > Time.Zero && media.FrameRate.HasValue)
@@ -126,13 +136,13 @@ public static class FcpxmlReader
         var compoundSequences = new Dictionary<string, Sequence>(StringComparer.Ordinal);
         foreach (var (compMediaId, (compName, compSeqNode)) in compoundNodes)
         {
-            Sequence compSeq = CreateSequence(compMediaId, compName, compSeqNode, formats, report, ref nextId, isCompound: true);
+            Sequence compSeq = CreateSequence(compMediaId, compName, compSeqNode, formats, assetStarts, report, ref nextId, isCompound: true);
             compoundSequences[compMediaId] = compSeq;
             project.Sequences.Add(compSeq);
         }
 
         string mainName = FindProjectName(root) ?? mainSequenceNode["name"] ?? "Secuencia";
-        Sequence mainSequence = CreateSequence("principal", mainName, mainSequenceNode, formats, report, ref nextId, isCompound: false);
+        Sequence mainSequence = CreateSequence("principal", mainName, mainSequenceNode, formats, assetStarts, report, ref nextId, isCompound: false);
         project.Sequences.Add(mainSequence);
 
         DraftCopy.CompoundsOf(project, mainSequence, options.Limits);
@@ -186,7 +196,8 @@ public static class FcpxmlReader
         string id,
         string name,
         XmlNode sequenceNode,
-        Dictionary<string, (Rational Rate, int Width, int Height)> formats,
+        Dictionary<string, (Rational? Rate, int Width, int Height, SequenceColorSpace Color)> formats,
+        Dictionary<string, Time> assetStarts,
         InterchangeReport report,
         ref int nextId,
         bool isCompound)
@@ -195,11 +206,13 @@ public static class FcpxmlReader
         Rational rate = new(25, 1);
         int width = 1920;
         int height = 1080;
+        SequenceColorSpace color = SequenceColorSpace.Sdr709;
         if (fmtId is not null && formats.TryGetValue(fmtId, out var fmt))
         {
-            rate = fmt.Rate;
+            rate = fmt.Rate ?? rate;
             width = fmt.Width;
             height = fmt.Height;
+            color = fmt.Color;
         }
 
         string? tcStartRaw = sequenceNode["tcStart"];
@@ -233,7 +246,7 @@ public static class FcpxmlReader
                     report.Add(IssueSeverity.Approximate, IssueKind.Rounding, $"tcStart no válido como código de tiempo: «{tcStartRaw}».");
                 }
             }
-            else if (tcStartTime > Time.Zero || isDropFrame)
+            else
             {
                 if (SmpteTimecode.CanDropFrame(rate) || !isDropFrame)
                 {
@@ -249,13 +262,14 @@ public static class FcpxmlReader
             FrameRate = rate,
             Width = width,
             Height = height,
+            ColorSpace = color,
             StartTimecode = isCompound ? null : startTimecode,
         };
 
         XmlNode? spineNode = sequenceNode.Element("spine");
         if (spineNode is not null)
         {
-            ParseSpine(spineNode, seq, tcStartTime, formats, report, ref nextId);
+            ParseSpine(spineNode, seq, tcStartTime, assetStarts, report, ref nextId);
         }
 
         return seq;
@@ -265,7 +279,7 @@ public static class FcpxmlReader
         XmlNode spineNode,
         Sequence sequence,
         Time seqTcStart,
-        Dictionary<string, (Rational Rate, int Width, int Height)> formats,
+        Dictionary<string, Time> assetStarts,
         InterchangeReport report,
         ref int nextId)
     {
@@ -296,7 +310,7 @@ public static class FcpxmlReader
                 cursor = gapOffset + gapDuration;
                 Time gapStart = gapOffset - seqTcStart;
 
-                ProcessChildren(node, sequence, gapStart, seqTcStart, videoTrackMap, audioTrackMap, formats, report, ref nextId);
+                ProcessChildren(node, sequence, gapStart, videoTrackMap, audioTrackMap, assetStarts, report, ref nextId);
                 lastSpineClip = null;
                 pendingTransition = null;
                 continue;
@@ -320,7 +334,7 @@ public static class FcpxmlReader
                 }
 
                 Track track = GetOrCreateTrack(lane, videoTrackMap, audioTrackMap);
-                Clip clip = ParseClip(node, clipStart, clipDuration, sequence, report, ref nextId);
+                Clip clip = ParseClip(node, clipStart, clipDuration, sequence, assetStarts, report, ref nextId);
                 track.Clips.Add(clip);
 
                 if (lane == 0)
@@ -361,7 +375,7 @@ public static class FcpxmlReader
                     lastSpineClip = clip;
                 }
 
-                ProcessChildren(node, sequence, clipStart, seqTcStart, videoTrackMap, audioTrackMap, formats, report, ref nextId);
+                ProcessChildren(node, sequence, clipStart, videoTrackMap, audioTrackMap, assetStarts, report, ref nextId);
             }
             else
             {
@@ -394,15 +408,20 @@ public static class FcpxmlReader
         XmlNode parentNode,
         Sequence sequence,
         Time parentStartOnTimeline,
-        Time seqTcStart,
         SortedDictionary<int, Track> videoTrackMap,
         SortedDictionary<int, Track> audioTrackMap,
-        Dictionary<string, (Rational Rate, int Width, int Height)> formats,
+        Dictionary<string, Time> assetStarts,
         InterchangeReport report,
         ref int nextId)
     {
+        XmlNode? primary = PrimaryClip(parentNode);
         foreach (XmlNode child in parentNode.Children)
         {
+            if (ReferenceEquals(child, primary))
+            {
+                ProcessChildren(child, sequence, parentStartOnTimeline, videoTrackMap, audioTrackMap, assetStarts, report, ref nextId);
+                continue;
+            }
             if (child.Name == "marker")
             {
                 Time start = FcpxmlTime.ParseTime(child["start"]);
@@ -410,7 +429,7 @@ public static class FcpxmlReader
                 {
                     Id = $"mk_{nextId++}",
                     Name = child["value"] ?? "",
-                    Time = parentStartOnTimeline + start,
+                    Time = parentStartOnTimeline + FcpxmlTime.ParentElapsed(parentNode, start),
                 });
                 continue;
             }
@@ -422,7 +441,7 @@ public static class FcpxmlReader
                 {
                     Id = $"mk_{nextId++}",
                     Name = child["value"] ?? "",
-                    Time = parentStartOnTimeline + start,
+                    Time = parentStartOnTimeline + FcpxmlTime.ParentElapsed(parentNode, start),
                 });
                 report.Add(IssueSeverity.Approximate, IssueKind.Marker, "Marcador de capítulo convertido en marcador.");
                 continue;
@@ -431,17 +450,17 @@ public static class FcpxmlReader
             if (child.Name == "gap")
             {
                 Time gapDuration = FcpxmlTime.ParseDuration(child["duration"]);
-                Time gapOffset = child["offset"] is not null ? FcpxmlTime.ParseTime(child["offset"]) : (seqTcStart + parentStartOnTimeline);
-                Time gapStart = gapOffset - seqTcStart;
-                ProcessChildren(child, sequence, gapStart, seqTcStart, videoTrackMap, audioTrackMap, formats, report, ref nextId);
+                Time gapOffset = FcpxmlTime.ParseTime(child["offset"] ?? parentNode["start"]);
+                Time gapStart = parentStartOnTimeline + FcpxmlTime.ParentElapsed(parentNode, gapOffset, child["lane"] is null or "0");
+                ProcessChildren(child, sequence, gapStart, videoTrackMap, audioTrackMap, assetStarts, report, ref nextId);
                 continue;
             }
 
             if (IsClipNode(child.Name))
             {
                 Time childDuration = FcpxmlTime.ParseDuration(child["duration"]);
-                Time childOffset = child["offset"] is not null ? FcpxmlTime.ParseTime(child["offset"]) : (seqTcStart + parentStartOnTimeline);
-                Time childStart = childOffset - seqTcStart;
+                Time childOffset = FcpxmlTime.ParseTime(child["offset"] ?? parentNode["start"]);
+                Time childStart = parentStartOnTimeline + FcpxmlTime.ParentElapsed(parentNode, childOffset, child["lane"] == "0");
 
                 int lane = 1;
                 if (child["lane"] is not null && int.TryParse(child["lane"], NumberStyles.Integer, CultureInfo.InvariantCulture, out int l))
@@ -454,10 +473,10 @@ public static class FcpxmlReader
                 }
 
                 Track track = GetOrCreateTrack(lane, videoTrackMap, audioTrackMap);
-                Clip childClip = ParseClip(child, childStart, childDuration, sequence, report, ref nextId);
+                Clip childClip = ParseClip(child, childStart, childDuration, sequence, assetStarts, report, ref nextId);
                 track.Clips.Add(childClip);
 
-                ProcessChildren(child, sequence, childStart, seqTcStart, videoTrackMap, audioTrackMap, formats, report, ref nextId);
+                ProcessChildren(child, sequence, childStart, videoTrackMap, audioTrackMap, assetStarts, report, ref nextId);
             }
         }
     }
@@ -497,9 +516,13 @@ public static class FcpxmlReader
         Time start,
         Time duration,
         Sequence sequence,
+        Dictionary<string, Time> assetStarts,
         InterchangeReport report,
         ref int nextId)
     {
+        if (PrimaryClip(node) is { } primary)
+            return ParseClip(primary, start, duration, sequence, assetStarts, report, ref nextId);
+
         Time sourceIn = node["start"] is not null ? FcpxmlTime.ParseTime(node["start"]) : Time.Zero;
         var clip = new Clip
         {
@@ -531,16 +554,19 @@ public static class FcpxmlReader
             clip.MediaId = refId ?? "";
         }
 
+        Time assetStart = assetStarts.GetValueOrDefault(clip.MediaId);
+        clip.SourceIn -= assetStart;
+        clip.SourceOut -= assetStart;
+
         XmlNode? timeMap = node.Element("timeMap");
         if (timeMap is not null)
         {
             var timepts = timeMap.Elements("timept").ToList();
-            if (timepts.Count >= 2)
+            if (timepts.Count > 0)
             {
-                Time t0 = FcpxmlTime.ParseTime(timepts[0]["start"] ?? timepts[0]["time"]);
-                Time v0 = FcpxmlTime.ParseTime(timepts[0]["value"]);
-                Time t1 = FcpxmlTime.ParseTime(timepts[^1]["start"] ?? timepts[^1]["time"]);
-                Time v1 = FcpxmlTime.ParseTime(timepts[^1]["value"]);
+                Time v0 = FcpxmlTime.MapSource(node, sourceIn) - assetStart;
+                Time v1 = FcpxmlTime.MapSource(node, sourceIn + duration) - assetStart;
+                clip.SourceIn = Time.Min(v0, v1);
 
                 if (v0 == v1)
                 {
@@ -550,7 +576,7 @@ public static class FcpxmlReader
                 else if (v0 < v1)
                 {
                     Time sourceSpan = v1 - v0;
-                    Time timeSpan = t1 - t0;
+                    Time timeSpan = duration;
                     Rational rate = FcpxmlTime.RationalFromTicks(sourceSpan.Ticks, timeSpan.Ticks);
                     clip.Speed = new ClipSpeed { Rate = rate };
                     clip.SourceOut = clip.SourceIn + sourceSpan;
@@ -558,7 +584,7 @@ public static class FcpxmlReader
                 else
                 {
                     Time sourceSpan = v0 - v1;
-                    Time timeSpan = t1 - t0;
+                    Time timeSpan = duration;
                     Rational rate = FcpxmlTime.RationalFromTicks(sourceSpan.Ticks, timeSpan.Ticks);
                     clip.Speed = new ClipSpeed { Rate = rate, Reverse = true };
                     clip.SourceOut = clip.SourceIn + sourceSpan;
@@ -566,9 +592,9 @@ public static class FcpxmlReader
 
                 clip.Duration = duration;
 
-                if (timepts.Count > 2)
+                if (timepts.Count > 2 || timepts.Any(p => p["interp"] != "linear"))
                 {
-                    report.Add(IssueSeverity.Approximate, IssueKind.Speed, "Curva de velocidad aproximada a lineal.", clipId: clip.Id);
+                    report.Add(IssueSeverity.Approximate, IssueKind.Speed, "En FCPXML la curva se cambia por su velocidad media.", node["name"] ?? clip.Id, clip.Id, start);
                 }
             }
         }
@@ -588,7 +614,7 @@ public static class FcpxmlReader
                         && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double posY))
                     {
                         x_px = posX * sequence.Height / 100.0;
-                        y_px = -posY * sequence.Height / 100.0;
+                        y_px = posY == 0 ? 0 : -posY * sequence.Height / 100.0;
                     }
                 }
 
@@ -615,7 +641,7 @@ public static class FcpxmlReader
 
                 if (adjustTransform["rotation"] is { } rotStr && double.TryParse(rotStr, NumberStyles.Float, CultureInfo.InvariantCulture, out double rot))
                 {
-                    rotation = -rot;
+                    rotation = rot == 0 ? 0 : -rot;
                 }
 
                 if (adjustTransform["anchor"] is { } ancStr)
@@ -625,7 +651,7 @@ public static class FcpxmlReader
                         && double.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out double ancY))
                     {
                         anchorX = ancX * sequence.Height / 100.0;
-                        anchorY = -ancY * sequence.Height / 100.0;
+                        anchorY = ancY == 0 ? 0 : -ancY * sequence.Height / 100.0;
                     }
                 }
             }
@@ -704,4 +730,13 @@ public static class FcpxmlReader
 
         return clip;
     }
+
+    private static XmlNode? PrimaryClip(XmlNode node) => node.Name == "clip"
+        && node.Element("timeMap") is null
+        && node["enabled"] != "0"
+        && !node.Children.Any(c => c.Name.StartsWith("adjust-", StringComparison.Ordinal))
+        && FcpxmlTime.ParseTime(node["start"]) == Time.Zero
+            ? node.Elements("asset-clip").FirstOrDefault(c => c["lane"] is null or "0"
+                && FcpxmlTime.ParseTime(c["offset"]) == Time.Zero && c["duration"] == node["duration"])
+            : null;
 }

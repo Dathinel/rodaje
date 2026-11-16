@@ -17,16 +17,26 @@ internal static class FcpxmlFidelity
         Sequence mainCopy = projectCopy.FindSequence(sequence.Id)
             ?? throw new ArgumentException("La secuencia principal no está en el proyecto.", nameof(sequence));
 
+        if (options.VideoTracks is { } selected)
+            mainCopy.VideoTracks = mainCopy.VideoTracks.Where((_, i) => selected.Contains(i)).ToList();
+        mainCopy.StartTimecode ??= options.DefaultStartTimecode;
+
         List<Sequence> compounds = DraftCopy.CompoundsOf(projectCopy, mainCopy, options.Limits);
         projectCopy.Sequences = [.. compounds, mainCopy];
 
         foreach (Sequence seq in projectCopy.Sequences)
         {
+            if (!options.IncludeAudio) seq.AudioTracks.Clear();
             ProjectSequence(seq, report);
         }
 
         foreach (MediaRef media in projectCopy.Media)
         {
+            if (media.Reel is not null)
+            {
+                report.Add(IssueSeverity.Lost, IssueKind.Media, "El carrete del medio se pierde en FCPXML.", media.Name);
+                media.Reel = null;
+            }
             if (media.Timecode is not null && !SmpteTimecode.TryParse(media.Timecode, media.FrameRate ?? mainCopy.FrameRate, out _))
             {
                 media.Timecode = null;
@@ -39,6 +49,12 @@ internal static class FcpxmlFidelity
 
     private static void ProjectSequence(Sequence sequence, InterchangeReport report)
     {
+        if (sequence.AudioBuses.Count > 0)
+            report.Add(IssueSeverity.Lost, IssueKind.Audio, "Los buses de audio se pierden en FCPXML.", sequence.Name);
+        if (sequence.MasterEffects.Count > 0)
+            report.Add(IssueSeverity.Lost, IssueKind.Audio, "Los efectos maestros se pierden en FCPXML.", sequence.Name);
+        if (sequence.MasterGainDb != 0)
+            report.Add(IssueSeverity.Lost, IssueKind.Audio, "La ganancia maestra se pierde en FCPXML.", sequence.Name);
         sequence.AudioBuses.Clear();
         sequence.MasterEffects.Clear();
         sequence.MasterGainDb = 0;
@@ -91,6 +107,9 @@ internal static class FcpxmlFidelity
 
         foreach (Marker marker in sequence.Markers)
         {
+            if (marker.Note is not null)
+                report.Add(IssueSeverity.Lost, IssueKind.Marker, "La nota del marcador se pierde en FCPXML.", marker.Name, time: marker.Time);
+            marker.Note = null;
             marker.Color = null;
         }
 
@@ -99,6 +118,8 @@ internal static class FcpxmlFidelity
 
     private static void ResetTrack(Track track, string name, InterchangeReport report)
     {
+        if (track.Name != name)
+            report.Add(IssueSeverity.Lost, IssueKind.Track, "El nombre de la pista se sustituye por su número de carril.", track.Name);
         if (track.Muted || track.Hidden || track.Solo || track.Locked || track.Effects.Count > 0 || track.Sends.Count > 0 || track.Output is not null)
         {
             report.Add(IssueSeverity.Lost, IssueKind.Track, "El FCPXML no lleva el estado (silencio, oculta, solo, bloqueo), los efectos ni los envíos de la pista.", track.Name);
@@ -198,14 +219,25 @@ internal static class FcpxmlFidelity
             clip.Speed.Offset = Time.Zero;
             if (clip.Speed.Curve is not null)
             {
+                clip.Speed.Rate = FcpxmlTime.RationalFromTicks(clip.SourceDuration.Ticks, clip.Duration.Ticks);
                 clip.Speed.Curve = null;
-                report.Add(IssueSeverity.Approximate, IssueKind.Speed, "Curva de velocidad aproximada.", clipId: clip.Id);
+                report.Add(IssueSeverity.Approximate, IssueKind.Speed, "En FCPXML la curva se cambia por su velocidad media.", clip.Id, clip.Id, clip.Start);
             }
         }
 
         var keptEffects = new List<EffectInstance>();
         foreach (EffectInstance effect in clip.Effects)
         {
+            if (effect.Type is BuiltInEffects.Transform or BuiltInEffects.Audio or BuiltInEffects.Crop)
+            {
+                foreach (var (name, parameter) in effect.Parameters)
+                {
+                    if (parameter.Keyframes.Count == 0) continue;
+                    parameter.Value = parameter.Keyframes[0].Value;
+                    parameter.Keyframes.Clear();
+                    report.Add(IssueSeverity.Lost, IssueKind.Effect, $"Los keyframes de «{name}» se sustituyen por el valor del primer keyframe.", clip.Id, clip.Id, clip.Start);
+                }
+            }
             if (effect.Type == BuiltInEffects.Transform)
             {
                 var copy = effect.Clone();
@@ -262,6 +294,8 @@ internal static class FcpxmlFidelity
             {
                 var copy = effect.Clone();
                 copy.Options.Clear();
+                copy.Parameters = new[] { BuiltInEffects.CropParameters.Left, BuiltInEffects.CropParameters.Top, BuiltInEffects.CropParameters.Right, BuiltInEffects.CropParameters.Bottom }
+                    .ToDictionary(name => name, name => new Parameter { Value = copy.Parameters.GetValueOrDefault(name)?.Value ?? 0 }, StringComparer.Ordinal);
                 keptEffects.Add(copy);
                 report.Add(IssueSeverity.Approximate, IssueKind.Transform, "Recorte aproximado en FCPXML.", clipId: clip.Id);
             }
