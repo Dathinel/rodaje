@@ -23,7 +23,7 @@ avisos_aot=$(grep -cE 'warning IL[0-9]+' salida/publish.log || true)
 if [ "$publicar" -ne 0 ]; then echo "La publicación AOT falló."; exit 1; fi
 exe=salida/app/fase0-uno
 bytes_exe=$(wc -c < "$exe" | tr -d ' ')
-bytes_carpeta=$(find salida/app -type f ! -name '*.dbg' ! -name '*.dSYM' -exec cat {} + | wc -c | tr -d ' ')
+bytes_carpeta=$(find salida/app -type f ! -name '*.dbg' ! -path '*.dSYM/*' -exec cat {} + | wc -c | tr -d ' ')
 
 esperar() { # esperar <patrón> <segundos>
   for _ in $(seq 1 $(( $2 * 10 ))); do
@@ -61,6 +61,20 @@ else
 fi
 
 cat salida/registro.txt 2>/dev/null
+cp salida/registro.txt salida/registro-prueba.txt 2>/dev/null
+
+# Arranque en caliente: tres vueltas más, se anota la mejor.
+caliente=
+for _ in 1 2 3; do
+  rm -f salida/registro.txt
+  LIBGL_ALWAYS_SOFTWARE=1 "$exe" --proyecto "$proyecto" --registro "$PWD/salida/registro.txt" > /dev/null 2>&1 &
+  pid=$!
+  esperar 'ventana_lista_ms' 60
+  kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null
+  ms=$(sed -n 's/^ventana_lista_ms: //p' salida/registro.txt 2>/dev/null | head -n 1)
+  if [ -n "$ms" ] && { [ -z "$caliente" ] || [ "$ms" -lt "$caliente" ]; }; then caliente=$ms; fi
+done
+cp salida/registro-prueba.txt salida/registro.txt 2>/dev/null
 [ "$estado" -eq 0 ] || tail -n 40 salida/app.log
 lista_ms=$(sed -n 's/^ventana_lista_ms: //p' salida/registro.txt 2>/dev/null | head -n 1)
 cargo=$(grep -c '^proyecto: Proyecto de prueba; esquema 16' salida/registro.txt 2>/dev/null || true)
@@ -74,6 +88,7 @@ cat > salida/resultado.json <<EOF
   "carpeta_bytes": $bytes_carpeta,
   "proyecto_cargado": $([ "$cargo" = 1 ] && echo true || echo false),
   "ventana_lista_ms": ${lista_ms:-null},
+  "ventana_lista_caliente_ms": ${caliente:-null},
   "clics_recibidos": $clics,
   "codigo_de_salida": $salida_app,
   "pasa": $([ "$estado" -eq 0 ] && echo true || echo false)
