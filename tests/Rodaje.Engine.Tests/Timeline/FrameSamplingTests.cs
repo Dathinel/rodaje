@@ -26,15 +26,17 @@ public sealed class FrameSamplingTests
         clip.Duration = S(2);
         VideoClipPlan plan = b.Plan().Layers[0].Clips[0];
 
+        long lastSource = (clip.SourceOut - Time.FromTicks(1)).ToFrames(Rational.Fps24);
         for (int f = 0; f < 60; f++)
         {
             Time time = F(f, Rational.Fps30);
             FrameSample sample = plan.SampleAt(time);
             Assert.Equal(plan.FrameAt(time), sample.A);
             float expected = (f * 4 % 5) / 5f;
-            Assert.Equal(expected, sample.T, 6);
-            Assert.Equal(expected == 0 ? sample.A : sample.A + 1, sample.B);
-            Assert.Equal(expected == 0 ? FrameSampling.Nearest : FrameSampling.Blend, sample.Mode);
+            bool paired = expected != 0 && sample.A + 1 <= lastSource;
+            Assert.Equal(paired ? expected : 0, sample.T, 6);
+            Assert.Equal(paired ? sample.A + 1 : sample.A, sample.B);
+            Assert.Equal(paired ? FrameSampling.Blend : FrameSampling.Nearest, sample.Mode);
         }
     }
 
@@ -365,8 +367,8 @@ public sealed class FrameSamplingTests
         Assert.True(fastPlan.IsShown(2));
         Assert.Equal(2, fastPlan.NextShown(2));
         Assert.Equal(2, fastPlan.PreviousShown(2));
-        Assert.Equal(330, slowPlan.LastFrame);
-        Assert.True(slowPlan.IsShown(330));
+        Assert.Equal(329, slowPlan.LastFrame);
+        Assert.False(slowPlan.IsShown(330));
 
         var time = new ManualTimeProvider();
         using TimelineSession session = TimelineSessionTests.Open(b, backend, new TimelineSessionOptions
@@ -417,6 +419,7 @@ public sealed class FrameSamplingTests
             b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
             Clip clip = SpeedClips.Reversed(b.AddVideo(0, "m", Time.Zero, S(10), S(1)), rate, S(10), S(10) + Time.FromSeconds(rate.ToDouble()));
             clip.Speed!.FrameSampling = FrameSampling.Blend;
+            VideoClipPlan clipPlan = b.Plan().Layers[0].Clips[0];
 
             var seen = new HashSet<DecodedFrame>();
             using (OfflineTimeline offline = OfflineProjects.Open(b, backend))
@@ -425,9 +428,14 @@ public sealed class FrameSamplingTests
                 {
                     using CompositionFrame frame = offline.Render(f, CancellationToken.None);
                     LayerFrame layer = Assert.Single(frame.Layers);
-                    if (f % 2 == 1)
+                    FrameSample sample = clipPlan.SampleAt(F(f, Rational.Fps30));
+                    if (sample.T > 0)
                     {
-                        CheckPair(layer, 0.5f, seen, reverse: true);
+                        CheckPair(layer, (float)sample.T, seen, reverse: true);
+                    }
+                    else
+                    {
+                        Assert.Null(layer.Next);
                     }
                 }
             }
@@ -549,6 +557,82 @@ public sealed class FrameSamplingTests
             {
             }
         }
+    }
+
+    [Theory]
+    [InlineData(1, 2, false)]
+    [InlineData(1, 2, true)]
+    [InlineData(1, 4, false)]
+    [InlineData(1, 4, true)]
+    public void The_pair_stays_within_the_trimmed_source_range(long num, long den, bool reverse)
+    {
+        var b = new TimelineBuilder(1, 0);
+        b.AddMedia("m", Rational.Fps30, 3000);
+        Clip clip = reverse
+            ? SpeedClips.Reversed(b.AddVideo(0, "m", Time.Zero, S(10), S(1)), new Rational(num, den), S(10), S(11))
+            : SpeedClips.WithRate(b.AddVideo(0, "m", Time.Zero, S(10), S(1)), new Rational(num, den), S(10), S(11));
+        clip.Speed!.FrameSampling = FrameSampling.Blend;
+        VideoClipPlan plan = b.Plan().Layers[0].Clips[0];
+
+        // El tramo recortado recorre los cuadros 300-329: B no puede salir de él fuera de las transiciones.
+        bool paired = false;
+        for (Time time = clip.Start; time < clip.End; time += F(1, Rational.Fps30))
+        {
+            FrameSample sample = plan.SampleAt(time);
+            Assert.Equal(plan.FrameAt(time), sample.A);
+            Assert.InRange(sample.B, 300, 329);
+            paired |= sample.T > 0;
+        }
+
+        Assert.True(paired);
+        Assert.Equal(reverse ? 300 : 329, plan.LastFrame);
+        Assert.False(plan.IsShown(reverse ? 299 : 330));
+    }
+
+    [Fact]
+    public void Two_lanes_on_one_reader_count_their_room_together_in_the_prefetch()
+    {
+        var backend = new FakeTimelineBackend();
+        var b = new TimelineBuilder(2, 0);
+        b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
+        Clip first = SpeedClips.WithRate(b.AddVideo(0, "m", Time.Zero, S(1), S(4), "a"), new Rational(3, 2), S(1), S(7));
+        first.Speed!.FrameSampling = FrameSampling.Blend;
+        Clip second = SpeedClips.WithRate(b.AddVideo(1, "m", Time.Zero, S(2), S(4), "b"), new Rational(3, 2), S(2), S(8));
+        second.Speed!.FrameSampling = FrameSampling.Blend;
+        using OfflineTimeline offline = OfflineProjects.Open(b, backend,
+            new OfflineTimelineOptions { LookaheadFrames = 4, MaxDecodersPerMedia = 1 });
+
+        using CompositionFrame frame = offline.Render(0, CancellationToken.None);
+
+        // Un solo lector con 4 huecos: dos los tienen los cuadros del instante. Por delante cada carril pediría 2
+        // y solo quedan 2, así que no se pide nada de la tanda (antes se pedía el par de un carril y el A del otro).
+        Assert.Single(backend.Videos);
+        Assert.Equal(2, offline.Readers.Slots);
+    }
+
+    [Fact]
+    public void Lanes_sharing_a_reader_count_their_room_together()
+    {
+        var backend = new FakeTimelineBackend();
+        var b = new TimelineBuilder(2, 0);
+        b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
+        Clip first = SpeedClips.WithRate(b.AddVideo(0, "m", Time.Zero, S(1), S(4), "a"), new Rational(3, 2), S(1), S(7));
+        first.Speed!.FrameSampling = FrameSampling.Blend;
+        Clip second = SpeedClips.WithRate(b.AddVideo(1, "m", Time.Zero, S(2), S(4), "b"), new Rational(3, 2), S(2), S(8));
+        second.Speed!.FrameSampling = FrameSampling.Blend;
+        TimelinePlan plan = b.Plan();
+        VideoClipPlan main = plan.Layers[0].Clips[0];
+        VideoClipPlan top = plan.Layers[1].Clips[0];
+        using var readers = new OfflineReaders(backend, new Rodaje.Media.Video.VideoDecoderOptions(), maxPerSource: 1, lookahead: 4, vramBudget: 1L << 30);
+        readers.RequestSample(main, Time.Zero, mustHave: true);
+        readers.RequestSample(top, Time.Zero, mustHave: true);
+
+        // Por separado cada carril ve 2 huecos libres; juntos piden 4 en el mismo lector: todo o nada.
+        Time ahead = F(1, Rational.Fps30);
+        Assert.True(readers.HasRoomForSample(main, ahead));
+        Assert.True(readers.HasRoomForSample(top, ahead));
+        Assert.False(readers.RequestSamples([(main, ahead), (top, ahead)]));
+        Assert.Equal(2, readers.Slots);
     }
 
     [Fact]

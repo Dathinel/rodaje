@@ -104,6 +104,7 @@ public sealed class OfflineTimeline : IDisposable, IEvaluatorFrames
     private readonly FrameEvaluator.Lane[] _lanes;
     private readonly OfflineReaders.Slot?[] _mainSlots;
     private readonly OfflineReaders.Slot?[] _incomingSlots;
+    private readonly List<(VideoClipPlan Clip, Time Time)> _ahead = [];
     private readonly Time _frameDuration;
     private List<MissingContentItem>? _missing;
     private Time? _last;
@@ -353,23 +354,25 @@ public sealed class OfflineTimeline : IDisposable, IEvaluatorFrames
                 continue;
             }
 
+            _ahead.Clear();
             foreach (FrameEvaluator.Lane lane in _lanes)
             {
                 lane.PickAhead(ahead);
-                if ((lane.AheadMain is { } m && !_readers.HasRoomForSample(m, ahead))
-                    || (lane.AheadIncoming is { } i && !_readers.HasRoomForSample(i, ahead)))
+                if (lane.AheadMain is { } m)
                 {
-                    return;
+                    _ahead.Add((m, ahead));
+                }
+
+                if (lane.AheadIncoming is { } i)
+                {
+                    _ahead.Add((i, ahead));
                 }
             }
 
-            foreach (FrameEvaluator.Lane lane in _lanes)
+            // La tanda entera tiene que caber: los carriles que comparten un lector cuentan sus huecos juntos.
+            if (!_readers.RequestSamples(_ahead))
             {
-                if ((lane.AheadMain is { } m && _readers.RequestSample(m, ahead, mustHave: false) is null)
-                    || (lane.AheadIncoming is { } i && _readers.RequestSample(i, ahead, mustHave: false) is null))
-                {
-                    return;
-                }
+                return;
             }
 
             _plannedUntil = ahead;
