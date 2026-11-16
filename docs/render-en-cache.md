@@ -51,20 +51,32 @@ Los tramos pesados de la secuencia se precalculan a fragmentos intermedios y se 
 | `CacheCoverage` | `Rodaje.Engine/RenderCache` | Tramos que se ven desde el caché; los aplica al plan con `TimelineSession.ApplyCoverage` |
 | `RenderCacheJob`, `ExportPauseToken` | `Rodaje.Export/Running` | Un tramo → un fragmento, con pausa cooperativa |
 | `RenderCacheService`, `RenderCostModel` | `Rodaje.App/Services/RenderCache` | Qué calcular y cuándo; qué tramo va lento |
+| `RenderCacheHost`, `RenderCacheScan`, `AppRecipeSources` | `Rodaje.App/Services/RenderCache` | La conexión en la app: huellas y previsión de cada plan del reproductor en otro hilo, cobertura, franja y trabajos sobre `Project.Clone` |
+| `RenderChain` | `Rodaje.Render` | Huella de los shaders del compositor, los efectos, la exportación y el revelado RAW (`RecipeFormat.Chain` con el preajuste y la versión de FFmpeg) |
+| Franja, menú, Preferencias, Trabajos | `TimelineRenderer.CacheStrip`, `CacheStripLayout`, `TitleBar`, `PreferencesView`, `JobsPanel.RenderCache`, casilla en `ExportView` | Lo que se ve; la autoprueba captura `regla-cache` con los cuatro estados |
 
 **Por qué la cobertura va en el plan.** Poner una capa encima no basta: el planificador seguiría pidiendo y recorriendo las capas tapadas. Recortar los clips vivos fuera de lo cubierto hace que la demanda, la presentación y el pre-roll vean el borde de un tramo en caché como un corte más, sin tocar `TimelineScheduler`.
 
-**Lo que falta medir.** Calcular va a 10,2 cuadros/s en 1080p contando preparar y verificar cada fragmento de 2 s (objetivo: 2× tiempo real); la prueba con hardware de la reproducción (escenas A y C) espera a que la app calcule fragmentos reales (F5b).
+**En la app (F5b, 16-nov).** Cada plan que abre o recarga el reproductor (`PlayerEngine.PlanChanged`, con su generación de sesión y su `PlanRevision`) se recorre 150 ms después en otro hilo: huella y previsión de cada cuadro, cobertura en el almacén, `ApplyCoverage` en el hilo de render (solo si la sesión y la revisión siguen siendo esas) y franja. Los tramos rojos y amarillos con huella van a `RenderCacheService`; cada trozo es un `RenderCacheJob` sobre una copia del proyecto **del plan recorrido**, nunca de uno más nuevo. El servicio se pausa al reproducir o mover el cursor (mirando la instantánea del reproductor), limpia cada 10 min con las huellas vigentes protegidas y respeta el tope (por omisión, el menor entre 50 GB y el 10 % libre, mínimo 5 GB). En la autoprueba y las medidas el modo es Apagado: la franja y la cobertura sí se calculan. La previsión estima decodificar por la resolución del medio (1,1 ms por megapíxel, de F0) más abrir el decodificador en el primer cuadro de cada clip; si se equivoca con medios reales, medir cada medio con `DecodeSpeedProbe`.
+
+**Calcular un fragmento, por fase (16-nov, ChatGPT).** Medianas de tres fragmentos de 60 cuadros 1080p30 en Release, a prioridad baja y con el equipo compartido (`ExportRunnerOptions.Measure` da los tiempos):
+
+| Fase, ms por fragmento | GPU antes | GPU ahora | WARP antes | WARP ahora |
+|---|---:|---:|---:|---:|
+| Crear el `GpuDevice` | 158,0 | 0,0 | 3,7 | 0,0 |
+| Abrir decodificadores y pedir cuadros | 67,4 | 48,6 | 66,1 | 61,1 |
+| Leer la GPU y copiar a la CPU | 55,4 | 70,5 | 1.304,9 | 1.157,4 |
+| Entregar a `ffmpeg.exe` (con la espera por codificar) | 1.554,6 | 1.721,6 | 3.442,2 | 2.155,9 |
+| Vaciar el codificador y cerrar | 937,6 | 1.010,6 | 1.471,4 | 1.118,7 |
+| Verificar con ffprobe | 138,6 | 82,1 | 189,8 | 78,1 |
+| **Total** | **3.110** | **3.113** | **6.666** | **4.626** |
+| **Cuadros/s** | **19,3** | **19,3** | **9,0** | **13,0** |
+
+El arranque ya no domina: `RenderCacheHost` presta un dispositivo de fondo a cada trabajo (`ExportDevicePool`) y la verificación lee informe, paquetes y cuadros clave con un solo ffprobe, comprobando además las cajas del MOV. Lo que queda es codificar ProRes 422 HQ en `ffmpeg.exe` con la mitad de los hilos: llegar a 60 cuadros/s (2× tiempo real) pide bajar entregar y cerrar unas 4,4 veces, con un codificador persistente que segmente o con más hilos cuando no se edita. La primera vez sin caché de shaders cuesta 20 s (16 s en la primera composición). La prueba con hardware de la reproducción (escenas A y C) y las escenas B, D y E de F0 quedan en `pruebas-a-mano.md`.
 
 ## Pendiente de la revisión del bloque (Gemini, 15-nov)
 
-Arreglados: el trozo cortado por una pausa larga vuelve a la cola (#522), los títulos bajo el caché no retienen el cuadro y el tope sigue el último uso tras reabrir el almacén (#524). Quedan como tareas, para cuando la app conecte el servicio (F5b):
-
-- **`RecipeFormat.Chain` sin calcular.** Hay que pasarle la huella de los shaders de render, efectos y exportación, el preajuste del codificador y la versión de FFmpeg; sin ella, una versión nueva del render daría por buenos fragmentos viejos.
-- **Fragmento ilegible.** Si un `.mov` del caché falla al decodificar, la app debe llamar a `Forget` y volver a aplicar la cobertura (en vivo) en lugar de dejar el tramo en negro.
-- **Trozo en curso al cambiar de plan.** Si sigue vigente, adoptarlo en vez de encolar un duplicado.
-- **`LateFrames` por capa.** Varias capas tarde en el mismo cuadro lo apuntan varias veces y acortan la ventana de 256.
-- **Exportar con la casilla.** La app tiene que pasar a la exportación el mismo almacén y el mismo `RecipeBuilder` con que calcula los fragmentos (`ExportRunnerOptions.RenderCache` y `RecipeBuilder`); sin ellos la casilla no hace nada.
+Arreglados: el trozo cortado por una pausa larga vuelve a la cola (#522), los títulos bajo el caché no retienen el cuadro y el tope sigue el último uso tras reabrir el almacén (#524). Y en F5b (16-nov), cada uno con su prueba: `RecipeFormat.Chain` lleva la huella de los shaders (`RenderChain`), el preajuste y la versión de FFmpeg; un fragmento que falla al decodificar sale del índice (`RenderCacheStore.Forget(ruta)`) y la cobertura se rehace sin él; el trozo en curso se adopta si sus huellas siguen en los mismos cuadros; `LateFrames` apunta una vez el cuadro aunque lleguen tarde varias capas; la exportación recibe el mismo almacén y las mismas huellas que los fragmentos.
 
 ## Revisión independiente (Claude y ChatGPT, 16-nov)
 
@@ -78,11 +90,9 @@ Arreglados, cada uno con su prueba que antes fallaba:
 - **Tasas con un periodo que no es entero en ticks** (27 o 33 fps, por ejemplo). El carril del caché podía leer el cuadro anterior del fragmento por el redondeo; el ancla lleva ahora un tick de más.
 - La prueba de mutaciones ahora cambia por separado cada uno de los 16 parámetros de un efecto y de una transición.
 
+Arreglados después (16-nov, cada uno con su prueba): `Cleanup` solo reconcilia lo que estaba en el índice antes de enumerar (un `Commit` de otro hilo ya no se olvida); sin acierto anterior, `TryGet` prefiere el fragmento que deja más cuadros por delante (uno viejo de pocos cuadros ya no tapa al continuo); `IsCovered` y los recortes de `Apply` buscan el tramo por búsqueda binaria; la prueba de entrelazado usa 60 fps exportados entrelazados a 30 y falla sin la condición.
+
 Quedan como tareas:
 
-- **Limpieza y publicación a la vez.** `Cleanup` olvida del índice los fragmentos que no vio al enumerar la carpeta, aunque un `Commit` en otro hilo los acabe de publicar. Hasta reabrir el almacén, esos fragmentos no aciertan. La app debe llamar a los dos desde el mismo hilo, o el almacén debe reconciliar solo lo que existía al enumerar.
-- **Aciertos viejos sueltos.** Si una huella está en un fragmento de pocos cuadros y en otro continuo, `TryGet` puede elegir el suelto, y `Find` acaba descartando el tramo entero. Habría que preferir el candidato que da el tramo más largo.
-- **Coste con secuencias largas.** `Apply` recorre todos los tramos por cada clip y `IsCovered` es lineal en cada refresco: con horas de secuencia y miles de tramos conviene una búsqueda binaria.
 - **Composición retenida tras editar durante un seek.** Puede mostrar un instante el cuadro del caché de la revisión anterior, igual que hoy muestra lo vivo de antes de la edición. Hay que decidir si eso basta o si se retira.
-- **Prueba de entrelazado.** `Cuadros_fuera_de_rejilla_entrelazados_y_con_alfa_se_componen_siempre` exporta 30 fps entrelazado a 25: la conversión de tasa ya excluye el caché, así que no prueba la condición de entrelazado. Debe usar una secuencia de 60 fps exportada entrelazada a 30.
-- **Cifras del diseño:** las recetas tardan 152,7 ms por 1800 cuadros con 8 capas, medido a prioridad baja con el equipo cargado. El objetivo es de 150 ms y el tope de la prueba, de 600 ms. La exportación con la casilla se midió con `TwoTracks` en WARP, no en la escena A.
+- **Cifras del diseño:** las recetas tardan 152,7 ms por 1800 cuadros con 8 capas, medido a prioridad baja con el equipo cargado. El objetivo es de 150 ms y el tope de la prueba, de 600 ms; la prueba es de `Categoria=TiempoReal` porque en la CI de Windows dio 645 ms. La exportación con la casilla se midió con `TwoTracks` en WARP, no en la escena A.
