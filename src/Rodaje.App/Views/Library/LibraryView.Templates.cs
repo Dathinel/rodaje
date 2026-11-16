@@ -22,11 +22,13 @@ namespace Rodaje.App.Views.Library;
 /// </summary>
 internal sealed partial class LibraryView
 {
+    private static readonly Lock TemplateRenderGate = new();
     private CancellationTokenSource? _templateThumbs;
 
     private void LoadTemplatePreviews()
     {
         _templateThumbs?.Cancel();
+        _templateThumbs?.Dispose();
         _templateThumbs = null;
         if (_services is not { } services || _category != LibraryCategory.MotionTemplates || Elements.Count + OwnElements.Count == 0)
         {
@@ -39,43 +41,63 @@ internal sealed partial class LibraryView
         PackageScan installed = services.Packages.Installed;
         DispatcherQueue dispatcher = DispatcherQueue;
         string folder = TemplateThumbnails.CacheFolder;
-        void Show(MotionTemplateEntry entry, TemplateStrip strip) => dispatcher.RunLater(() =>
+        CancellationToken token = cancel.Token;
+        void Show(MotionTemplateEntry entry, TemplateStrip strip)
         {
-            if (!cancel.IsCancellationRequested && items.TryGetValue(entry.Reference, out ElementItem? item))
+            // La conversión a BGRA (cerca de 1 MB por plantilla) se hace aquí, en el hilo de fondo.
+            var frames = new List<byte[]>(strip.Frames);
+            for (int i = 0; i < strip.Frames; i++)
             {
-                ShowTemplateStrip(item, entry, strip);
+                frames.Add(strip.FrameBgra(i));
             }
-        });
+
+            dispatcher.RunLater(() =>
+            {
+                if (!token.IsCancellationRequested && items.TryGetValue(entry.Reference, out ElementItem? item))
+                {
+                    ShowTemplateStrip(item, entry, strip, frames);
+                }
+            });
+        }
 
         var thread = new Thread(() =>
         {
             try
             {
-                var pending = new List<MotionTemplateEntry>();
-                foreach (MotionTemplateEntry entry in MotionTemplateCatalog.List(installed).Where(e => e.Kind == TemplateKind.Title))
+                // Una composición a la vez: la que espera encuentra en la caché lo que la anterior ya guardó.
+                lock (TemplateRenderGate)
                 {
-                    if (TemplateThumbnails.Load(folder, entry.DocumentText) is { } cached)
+                    var pending = new List<MotionTemplateEntry>();
+                    foreach (MotionTemplateEntry entry in MotionTemplateCatalog.List(installed).Where(e => e.Kind == TemplateKind.Title))
                     {
-                        Show(entry, cached);
-                    }
-                    else
-                    {
-                        pending.Add(entry);
-                    }
-                }
+                        if (token.IsCancellationRequested)
+                        {
+                            return;
+                        }
 
-                TemplateThumbnails.Render(pending, TitleFontFiles.Find(installed), (entry, strip) =>
-                {
-                    Show(entry, strip);
-                    try
-                    {
-                        TemplateThumbnails.Save(folder, entry.DocumentText, strip);
+                        if (TemplateThumbnails.Load(folder, entry.DocumentText) is { } cached)
+                        {
+                            Show(entry, cached);
+                        }
+                        else
+                        {
+                            pending.Add(entry);
+                        }
                     }
-                    catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+
+                    TemplateThumbnails.Render(pending, TitleFontFiles.Find(installed), (entry, strip) =>
                     {
-                        // Sin caché la miniatura se vuelve a componer la próxima vez.
-                    }
-                }, cancel.Token);
+                        Show(entry, strip);
+                        try
+                        {
+                            TemplateThumbnails.Save(folder, entry.DocumentText, strip);
+                        }
+                        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+                        {
+                            // Sin caché la miniatura se vuelve a componer la próxima vez.
+                        }
+                    }, token);
+                }
             }
 #pragma warning disable CA1031 // Sin GPU o sin shaders las plantillas se quedan con su ícono; nada más depende de la miniatura.
             catch (Exception)
@@ -91,14 +113,8 @@ internal sealed partial class LibraryView
         thread.Start();
     }
 
-    private void ShowTemplateStrip(ElementItem item, MotionTemplateEntry entry, TemplateStrip strip)
+    private void ShowTemplateStrip(ElementItem item, MotionTemplateEntry entry, TemplateStrip strip, List<byte[]> frames)
     {
-        var frames = new List<byte[]>(strip.Frames);
-        for (int i = 0; i < strip.Frames; i++)
-        {
-            frames.Add(strip.FrameBgra(i));
-        }
-
         var animation = new TransitionAnimation(strip.FrameWidth, strip.FrameHeight, frames, Math.Clamp(entry.Document.DurationSeconds, 1, 4));
         var bitmap = new WriteableBitmap(strip.FrameWidth, strip.FrameHeight);
         frames[frames.Count / 2].CopyTo(bitmap.PixelBuffer);
@@ -131,7 +147,7 @@ internal sealed partial class LibraryView
             return;
         }
 
-        string? path = FileDialogs.Save(services.Player.WindowHandle, "Exportar plantilla", AnimationPreset.Slug(entry.Name) + ".paquete", "paquete", null,
+        string? path = FileDialogs.Save(services.Player.WindowHandle, "Exportar plantilla", TemplateAuthoring.Identifier(entry.Name) + ".paquete", "paquete", null,
             ("Paquete de Rodaje", "*.paquete"));
         if (path is null)
         {

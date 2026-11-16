@@ -64,12 +64,13 @@ internal sealed partial class LibraryView
     {
         _transitionThumbs.Clear();
         StopThumbAnimation();
+        // Antes de salir: una carga de transiciones en vuelo no debe seguir escribiendo al cambiar de categoría.
+        int version = ++_thumbVersion;
         if (_services is null || _category != LibraryCategory.Transitions)
         {
             return;
         }
 
-        int version = ++_thumbVersion;
         TransitionPreviews previews = TransitionPreviewHost.For(_services);
         foreach (ElementItem item in Elements.Concat(OwnElements).ToList())
         {
