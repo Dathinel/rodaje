@@ -58,7 +58,14 @@ public static class TranscriptEdits
         Func<Time, Time, Time>? cutPoint = null)
     {
         ArgumentNullException.ThrowIfNull(ctx);
-        return RemoveByClip(ctx, SpansOf(document, ctx.Sequence, words, cutPoint), ripple, scope);
+        IReadOnlyList<(string ClipId, Time Start, Time End)> spans = SpansOf(document, ctx.Sequence, words, cutPoint);
+        List<(Time Start, Time End)> removed = RemoveByClip(ctx, spans, ripple, scope);
+        if (removed.Count == 0 && spans.Count > 0)
+        {
+            throw new EditException("Lo elegido dura menos de un cuadro: no hay nada que borrar.");
+        }
+
+        return removed;
     }
 
     /// <summary>
@@ -101,6 +108,16 @@ public static class TranscriptEdits
             throw new EditException("La frase dura menos de un cuadro: no hay nada que mover.");
         }
 
+        // Un hueco (o un clip sin texto) en medio se copiaría con la frase y quedaría también en su sitio.
+        moved.Sort();
+        for (int i = 1; i < moved.Count; i++)
+        {
+            if (moved[i].Start != moved[i - 1].End)
+            {
+                throw new EditException("La frase cruza un hueco entre clips: muévela por partes.");
+            }
+        }
+
         Time? destination = null;
         if (before < all.Count)
         {
@@ -130,7 +147,9 @@ public static class TranscriptEdits
         }
 
         TimelineEdits.RippleDelete(ctx, middle, scope);
-        Time target = anchor is null ? (destination is { } gap ? gap : guide.End) : sequence.GetClip(anchor).Clip.Start;
+        Time target = anchor is not null ? sequence.GetClip(anchor).Clip.Start
+            : destination is { } gap ? gap - moved.Where(m => m.End <= gap).Aggregate(Time.Zero, (sum, m) => sum + (m.End - m.Start))
+            : guide.End;
         TimelineEdits.Paste(ctx, copied, target, PlacementMode.Insert);
     }
 

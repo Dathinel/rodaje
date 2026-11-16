@@ -35,7 +35,7 @@ public sealed class TranscriptDocument
     private static readonly Time LongestWord = Time.FromSeconds(60);
 
     private readonly Time[] _starts;
-    private (string Text, int[] Offsets)? _folded;
+    private (string Text, int[] Offsets, int[] Words)? _folded;
 
     private TranscriptDocument(string? trackId, List<DocWord> words, List<DocParagraph> paragraphs)
     {
@@ -158,11 +158,11 @@ public sealed class TranscriptDocument
             return found;
         }
 
-        (string text, int[] offsets) = _folded ??= FoldWords(Words);
+        (string text, int[] offsets, int[] indices) = _folded ??= FoldWords(Words);
         for (int at = text.IndexOf(needle, StringComparison.Ordinal); at >= 0;
              at = text.IndexOf(needle, at + needle.Length, StringComparison.Ordinal))
         {
-            int first = WordAt(offsets, at), last = WordAt(offsets, at + needle.Length - 1);
+            int first = indices[WordAt(offsets, at)], last = indices[WordAt(offsets, at + needle.Length - 1)];
             found.Add((first, last - first + 1));
         }
 
@@ -225,23 +225,34 @@ public sealed class TranscriptDocument
     }
 
     // Texto de todo el documento, la primera vez que se busca: cada palabra plegada y separada por un espacio, con dónde
-    // empieza cada una.
-    private static (string Text, int[] Offsets) FoldWords(IReadOnlyList<DocWord> words)
+    // empieza cada una. Las que se quedan sin letras ni cifras («—», «[…]») no entran: «hola — amigos» se encuentra
+    // buscando «hola amigos».
+    private static (string Text, int[] Offsets, int[] Words) FoldWords(IReadOnlyList<DocWord> words)
     {
         var text = new StringBuilder();
-        int[] offsets = new int[words.Count];
+        var offsets = new List<int>(words.Count);
+        var indices = new List<int>(words.Count);
         for (int i = 0; i < words.Count; i++)
         {
-            if (i > 0)
+            int before = text.Length;
+            if (before > 0)
             {
                 text.Append(' ');
             }
 
-            offsets[i] = text.Length;
+            int start = text.Length;
             FoldInto(text, words[i].Text);
+            if (text.Length == start)
+            {
+                text.Length = before;
+                continue;
+            }
+
+            offsets.Add(start);
+            indices.Add(i);
         }
 
-        return (text.ToString(), offsets);
+        return (text.ToString(), [.. offsets], [.. indices]);
     }
 
     // Tabla propia: la app corre con InvariantGlobalization y no puede contar con la normalización Unicode.
