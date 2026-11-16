@@ -62,22 +62,14 @@ public sealed class MediaRef
     /// Una ruta que, resuelta, pasa de lo que admite Windows (32 767 caracteres) no apunta a ningún archivo: se deja
     /// como está y el medio queda sin archivo, en vez de no abrir el proyecto.
     /// </remarks>
-    public string ResolvePath(string projectDirectory)
-    {
-        if (System.IO.Path.IsPathFullyQualified(Path))
-        {
-            return Path;
-        }
+    public string ResolvePath(string projectDirectory) =>
+        ResolvePath(projectDirectory, mappings: null);
 
-        try
-        {
-            return System.IO.Path.GetFullPath(Path, System.IO.Path.GetFullPath(projectDirectory));
-        }
-        catch (System.IO.PathTooLongException)
-        {
-            return Path;
-        }
-    }
+    /// <summary>
+    /// Devuelve la ruta absoluta aplicando antes la tabla de mapeo de rutas y resolviendo las relativas contra la carpeta del proyecto.
+    /// </summary>
+    public string ResolvePath(string projectDirectory, IReadOnlyList<PathMapping>? mappings) =>
+        PortablePath.Resolve(Path, projectDirectory, mappings, OperatingSystem.IsWindows());
 
     public MediaRef Clone() => (MediaRef)MemberwiseClone();
 }
