@@ -70,13 +70,18 @@ public static partial class TranscriptEdits
         ClipClipboard copied = ClipClipboard.Capture(ctx.Sequence, ids, alone: true, ctx.Project)!;
         foreach (CopiedClip item in copied.Items)
         {
+            // El enlazado conserva su desfase de origen con el clip guía.
+            Time offset = item.Clip.SourceIn - anchor.SourceIn;
             item.Clip.LinkId = partner is null ? null : anchor.LinkId;
             item.Clip.Speed = left.Speed?.Clone();
             if (item.Clip.Speed is { } speed) speed.Offset += left.Duration;
-            ClipTimeMap.Fit(copied.Origin, span.SourceIn, span.SourceOut, item.Clip.Speed).ApplyTo(item.Clip);
+            ClipTimeMap.Fit(copied.Origin, span.SourceIn + offset, span.SourceOut + offset, item.Clip.Speed).ApplyTo(item.Clip);
         }
 
-        return TimelineEdits.Paste(ctx, copied, left.End, PlacementMode.Insert);
+        // Si se borró sin ripple, el hueco que quedó lo vuelve a llenar en vez de alargar la secuencia.
+        Time? next = guide.Clips.Where(c => c.Start >= left.End).Select(c => (Time?)c.Start).Min();
+        PlacementMode mode = next - left.End >= copied.Length ? PlacementMode.Strict : PlacementMode.Insert;
+        return TimelineEdits.Paste(ctx, copied, left.End, mode);
     }
 
     private static (Track Track, Clip Clip)? LinkedNeighbor(Sequence sequence, Track guide, Clip clip) => clip.LinkId is null ? null

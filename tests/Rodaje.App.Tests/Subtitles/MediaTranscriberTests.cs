@@ -86,4 +86,17 @@ public sealed class MediaTranscriberTests
         Assert.Null(MediaTranscriber.Reusable(project, "otro", "auto"));
         Assert.Equal((Time.Zero, S(60)), MediaTranscriber.Window(Media));
     }
+
+    [Fact]
+    public void A_stored_transcript_is_not_reused_after_relinking_to_a_media_of_another_length()
+    {
+        var project = new Project { Media = [Media.Clone()], Transcripts = [Stored()] };
+        project.Media[0].FrameRate = Rational.Fps25;
+        project.Media[0].Duration = S(60.02);
+        Assert.NotNull(MediaTranscriber.Reusable(project, "m", "es"));
+
+        project.Media[0].Duration = S(75);
+
+        Assert.Null(MediaTranscriber.Reusable(project, "m", "es"));
+    }
 }

@@ -31,9 +31,6 @@ public sealed class TranscriptDocument
     /// <summary>Palabras como mucho por párrafo (más, se parte): la vista no virtualiza dentro de un párrafo.</summary>
     public const int MaxParagraphWords = 400;
 
-    // Una palabra más larga que esto entraría tarde en la búsqueda binaria; Whisper no da palabras de más de 30 s.
-    private static readonly Time LongestWord = Time.FromSeconds(60);
-
     private readonly Time[] _starts;
     private (string Text, int[] Offsets, int[] Words)? _folded;
 
@@ -72,6 +69,7 @@ public sealed class TranscriptDocument
 
         var words = new List<DocWord>();
         var paragraphs = new List<DocParagraph>();
+        var longest = new Dictionary<string, Time>(StringComparer.Ordinal);
         foreach (Clip clip in track.Clips.OrderBy(c => c.Start))
         {
             if (TranscriptOf(project, clip) is not { } transcript)
@@ -82,7 +80,12 @@ public sealed class TranscriptDocument
             ClipTimeMap map = clip.TimeMap;
             int first = words.Count;
             List<SpokenWord> source = transcript.Words;
-            for (int i = FirstCandidate(source, clip.SourceIn); i < source.Count; i++)
+            if (!longest.TryGetValue(transcript.Id, out Time reach))
+            {
+                longest[transcript.Id] = reach = source.Count == 0 ? Time.Zero : source.Max(w => w.End - w.Start);
+            }
+
+            for (int i = FirstCandidate(source, clip.SourceIn - reach); i < source.Count; i++)
             {
                 SpokenWord word = source[i];
                 if (word.Start >= clip.SourceOut)
@@ -180,14 +183,15 @@ public sealed class TranscriptDocument
             ? transcript : null;
     }
 
-    // Las palabras van en orden de inicio y ninguna dura más que el medio: basta saltar las que terminan antes del clip.
-    private static int FirstCandidate(List<SpokenWord> words, Time sourceIn)
+    // Las palabras van en orden de inicio: las que empiezan antes de «from» (la entrada del clip menos la palabra más
+    // larga) terminan antes del clip.
+    private static int FirstCandidate(List<SpokenWord> words, Time from)
     {
         int lo = 0, hi = words.Count;
         while (lo < hi)
         {
             int mid = (lo + hi) >>> 1;
-            if (words[mid].Start < sourceIn - LongestWord)
+            if (words[mid].Start < from)
             {
                 lo = mid + 1;
             }
@@ -207,7 +211,8 @@ public sealed class TranscriptDocument
         {
             bool split = i == words.Count
                 || words[i].SpeakerId != words[i - 1].SpeakerId
-                || (!reverse && transcript.Words[words[i].WordIndex].ParagraphStart)
+                // En reversa la palabra que abre párrafo en el origen lo cierra en la secuencia.
+                || transcript.Words[words[reverse ? i - 1 : i].WordIndex].ParagraphStart
                 || words[i].SeqStart - words[i - 1].SeqEnd > ParagraphPause
                 || i - start >= MaxParagraphWords;
             if (split && i > start)

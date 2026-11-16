@@ -18,13 +18,21 @@ internal static class MediaTranscriber
     }
 
     /// <summary>
-    /// La transcripción ya guardada del medio, si sirve para <paramref name="language"/> («auto» acepta cualquiera); así
-    /// los subtítulos salen sin otra pasada de Whisper.
+    /// La transcripción ya guardada del medio, si sirve para <paramref name="language"/> («auto» acepta cualquiera) y el
+    /// medio dura lo mismo que al transcribirlo (a un cuadro: reenlazado a otro archivo, sus tiempos ya no valen); así los
+    /// subtítulos salen sin otra pasada de Whisper.
     /// </summary>
     public static MediaTranscript? Reusable(Project project, string mediaId, string language)
     {
         ArgumentNullException.ThrowIfNull(project);
-        return project.FindTranscript(mediaId) is { Words.Count: > 0 } stored && (language == "auto" || stored.Language == language) ? stored : null;
+        if (project.FindTranscript(mediaId) is not { Words.Count: > 0 } stored || project.FindMedia(mediaId) is not { } media
+            || (language != "auto" && stored.Language != language))
+        {
+            return null;
+        }
+
+        Time frame = Time.FromFrames(1, media.FrameRate is { } rate && Sequence.IsValidFrameRate(rate) ? rate : Rational.Fps25);
+        return Math.Abs((stored.MediaDuration - media.Duration).Ticks) <= frame.Ticks ? stored : null;
     }
 
     /// <summary>
