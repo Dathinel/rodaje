@@ -1,5 +1,6 @@
 using Rodaje.App.Services.RenderCache;
 using Rodaje.Core.Timing;
+using Rodaje.Engine.RenderCache;
 using Rodaje.Export.Running;
 using Xunit;
 
@@ -39,9 +40,78 @@ public sealed class RenderCacheServiceTests
     public void Parte_los_tramos_en_trozos_de_dos_segundos(long fps, int chunk)
     {
         (RenderCacheService service, _, _) = Create();
-        service.SetPlan(1, [new(10, 10 + (2 * chunk) + 5, RenderCostClass.Heavy)], 0, new Rational(fps, 1));
+        service.SetPlan(1, [new(10, 10 + (2 * chunk), RenderCostClass.Heavy)], 0, new Rational(fps, 1));
 
-        Assert.Equal([new(10, chunk, 1), new(10 + chunk, chunk, 1), new(10 + (2 * chunk), 5, 1)], service.Pending);
+        Assert.Equal([new(10, chunk, 1), new(10 + chunk, chunk, 1)], service.Pending);
+    }
+
+    [Theory]
+    [InlineData(24)]
+    [InlineData(30)]
+    [InlineData(60)]
+    public void Ningun_trozo_queda_mas_corto_de_lo_que_la_cobertura_usa(long fps)
+    {
+        var rate = new Rational(fps, 1);
+        long shortest = CacheCoverage.ShortestSpan(rate);
+        int chunk = (int)(2 * fps);
+        (RenderCacheService service, _, _) = Create();
+
+        // Un resto de 5 cuadros tras dos trozos llenos y un cuadro tarde suelto en medio de lo ligero.
+        service.SetPlan(1,
+        [
+            new(0, 10, RenderCostClass.Light), new(10, 10 + (2 * chunk) + 5, RenderCostClass.Heavy),
+            new(10 + (2 * chunk) + 5, 1000, RenderCostClass.Light), new(1000, 1001, RenderCostClass.Heavy),
+            new(1001, 1100, RenderCostClass.Light),
+        ], 0, rate);
+
+        Assert.All(service.Pending, w => Assert.InRange(w.Count, shortest, chunk));
+        Assert.Equal((2 * chunk) + 5, service.Pending.Where(w => w.FirstFrame < 1000 - shortest).Sum(w => w.Count));
+        RenderCacheWork single = service.Pending.Single(w => w.FirstFrame + w.Count > 1000 && w.FirstFrame <= 1000);
+        Assert.Equal(1000, single.FirstFrame);
+    }
+
+    [Fact]
+    public void Un_tramo_corto_al_final_se_ensancha_hacia_atras()
+    {
+        (RenderCacheService service, _, _) = Create();
+        service.SetPlan(1, [new(0, 299, RenderCostClass.Light), new(299, 300, RenderCostClass.Heavy)], 0, Rational.Fps30);
+
+        Assert.Equal([new(300 - CacheCoverage.ShortestSpan(Rational.Fps30), (int)CacheCoverage.ShortestSpan(Rational.Fps30), 1)], service.Pending);
+    }
+
+    [Fact]
+    public void Apagar_con_un_trozo_en_pausa_lo_corta_y_no_lo_reanuda()
+    {
+        (RenderCacheService service, Clock clock, Worker worker) = Create();
+        service.SetPlan(1, [new(0, 120, RenderCostClass.Heavy)], 0, Rational.Fps30);
+        Start(service, clock);
+        service.NotifyPlaying(true);
+
+        service.Mode = RenderCacheMode.Off;
+        service.NotifyPlaying(false);
+        clock.Advance(TimeSpan.FromSeconds(3));
+        service.Tick();
+
+        Assert.True(worker.Token.IsCancellationRequested);
+        Assert.True(worker.Pause!.IsPauseRequested);
+        Assert.Empty(service.Pending);
+    }
+
+    [Fact]
+    public void Un_trozo_que_falla_no_se_repite_sin_fin()
+    {
+        (RenderCacheService service, Clock clock, Worker worker) = Create();
+        service.SetPlan(1, [new(0, 120, RenderCostClass.Heavy)], 0, Rational.Fps30);
+        Start(service, clock);
+        RenderCacheWork failed = worker.Started[0];
+
+        worker.Fail();
+        service.Tick();
+
+        Assert.DoesNotContain(failed, service.Pending);
+        Assert.Equal(1, service.Failed);
+        Assert.Equal(2, worker.Started.Count);
+        Assert.NotEqual(failed, worker.Started[^1]);
     }
 
     [Fact]
@@ -226,6 +296,8 @@ public sealed class RenderCacheServiceTests
         public void Finish(bool published) => _done!.SetResult(published);
 
         public void Cancel() => _done!.SetCanceled();
+
+        public void Fail() => _done!.SetException(new InvalidOperationException("ffmpeg.exe no arranca"));
     }
 
     private sealed class Clock : TimeProvider

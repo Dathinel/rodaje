@@ -65,3 +65,24 @@ Arreglados: el trozo cortado por una pausa larga vuelve a la cola (#522), los t�
 - **Trozo en curso al cambiar de plan.** Si sigue vigente, adoptarlo en vez de encolar un duplicado.
 - **`LateFrames` por capa.** Varias capas tarde en el mismo cuadro lo apuntan varias veces y acortan la ventana de 256.
 - **Exportar con la casilla.** La app tiene que pasar a la exportación el mismo almacén y el mismo `RecipeBuilder` con que calcula los fragmentos (`ExportRunnerOptions.RenderCache` y `RecipeBuilder`); sin ellos la casilla no hace nada.
+
+## Revisión independiente (Claude y ChatGPT, 16-nov)
+
+Arreglados, cada uno con su prueba que antes fallaba:
+
+- **Trozos que nunca se veían.** El servicio partía cada tramo en trozos de 2 s y dejaba un resto corto, o un cuadro tarde suelto, que `CacheCoverage` descarta por durar menos de un cuarto de segundo. Ahora los trozos se reparten por igual y un tramo corto se ensancha dentro de la secuencia (`CacheCoverage.ShortestSpan`).
+- **Fallos sin fin.** Un trozo que fallaba volvía delante de la cola en cada reposo. Ahora solo vuelve el que corta una pausa larga; los fallos cuentan en `Failed`.
+- **Apagar con un trozo en pausa** lo reanudaba al volver el reposo. Ahora pasar a `Off` lo corta y vacía la cola.
+- **`Touch` en cada cuadro.** `TryGet` escribía la fecha de acceso del `.mov` cada vez, y `CacheCoverage.Find` lo llama por cada cuadro de la secuencia. Ahora la escribe como mucho una vez por minuto y fragmento.
+- **Subtítulos aparte al exportar con la casilla.** Las huellas se calculaban con el proyecto sin ocultar las pistas de subtítulos (`SubtitleExport.Embedded`), así que podían acertar cuadros con los subtítulos quemados. Ahora se calculan con `plan.Request`, como la composición.
+- **Tasas con un periodo que no es entero en ticks** (27 o 33 fps, por ejemplo). El carril del caché podía leer el cuadro anterior del fragmento por el redondeo; el ancla lleva ahora un tick de más.
+- La prueba de mutaciones ahora cambia por separado cada uno de los 16 parámetros de un efecto y de una transición.
+
+Quedan como tareas:
+
+- **Limpieza y publicación a la vez.** `Cleanup` olvida del índice los fragmentos que no vio al enumerar la carpeta, aunque un `Commit` en otro hilo los acabe de publicar. Hasta reabrir el almacén, esos fragmentos no aciertan. La app debe llamar a los dos desde el mismo hilo, o el almacén debe reconciliar solo lo que existía al enumerar.
+- **Aciertos viejos sueltos.** Si una huella está en un fragmento de pocos cuadros y en otro continuo, `TryGet` puede elegir el suelto, y `Find` acaba descartando el tramo entero. Habría que preferir el candidato que da el tramo más largo.
+- **Coste con secuencias largas.** `Apply` recorre todos los tramos por cada clip y `IsCovered` es lineal en cada refresco: con horas de secuencia y miles de tramos conviene una búsqueda binaria.
+- **Composición retenida tras editar durante un seek.** Puede mostrar un instante el cuadro del caché de la revisión anterior, igual que hoy muestra lo vivo de antes de la edición. Hay que decidir si eso basta o si se retira.
+- **Prueba de entrelazado.** `Cuadros_fuera_de_rejilla_entrelazados_y_con_alfa_se_componen_siempre` exporta 30 fps entrelazado a 25: la conversión de tasa ya excluye el caché, así que no prueba la condición de entrelazado. Debe usar una secuencia de 60 fps exportada entrelazada a 30.
+- **Cifras del diseño:** las recetas tardan 152,7 ms por 1800 cuadros con 8 capas, medido a prioridad baja con el equipo cargado. El objetivo es de 150 ms y el tope de la prueba, de 600 ms. La exportación con la casilla se midió con `TwoTracks` en WARP, no en la escena A.

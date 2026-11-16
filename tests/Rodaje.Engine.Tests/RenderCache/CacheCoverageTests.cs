@@ -52,6 +52,32 @@ public sealed class CacheCoverageTests(ITestOutputHelper output)
         Assert.Equal([new CachedSpan(10, 60, FragmentA, 0), new CachedSpan(120, 40, FragmentB, 20)], coverage.Spans);
     }
 
+    [Theory]
+    [InlineData(27, 1)]
+    [InlineData(30000, 1001)]
+    [InlineData(33, 1)]
+    [InlineData(30, 1)]
+    public void Cada_cuadro_cubierto_lee_su_cuadro_del_fragmento_con_cualquier_tasa(long num, long den)
+    {
+        var rate = new Rational(num, den);
+        var b = new TimelineBuilder(1, 0, rate);
+        b.AddMedia("m", rate, 3000);
+        b.AddVideo(0, "m", Time.Zero, S(0), S(10), "c");
+        CachedSpan[] spans = [new(1, 40, FragmentA, 0), new(100, 50, FragmentB, 7)];
+
+        TimelinePlan covered = new CacheCoverage(0, spans).Apply(b.Plan());
+
+        foreach (CachedSpan span in spans)
+        {
+            for (long f = span.FirstFrame; f < span.EndFrame; f++)
+            {
+                Time at = Time.FromFrames(f, rate);
+                VideoClipPlan clip = covered.Coverage!.ClipAt(at)!;
+                Assert.Equal(span.FirstFragmentFrame + (f - span.FirstFrame), clip.FrameAt(at));
+            }
+        }
+    }
+
     [Fact]
     public void Cada_cuadro_se_ve_entero_desde_el_cache_o_entero_en_vivo_tras_2000_seeks()
     {

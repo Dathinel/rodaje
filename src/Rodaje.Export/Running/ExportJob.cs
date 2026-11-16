@@ -558,7 +558,7 @@ public sealed class ExportJob : IDisposable
             {
                 // Las huellas tienen que ser las mismas con las que la app calculó los fragmentos: sin quien las dé, no hay caché.
                 _renderCache = job._options.RenderCache;
-                _recipes = _renderCache is null ? null : job._options.RecipeBuilder?.Invoke(job.Request);
+                _recipes = _renderCache is null ? null : job._options.RecipeBuilder?.Invoke(plan.Request);
             }
 
             _canUseCache = _plan.Settings.UseRenderCache
