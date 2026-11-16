@@ -278,6 +278,11 @@ public sealed record ExportSettings
     /// keyframes, el video se copia del original sin recodificar (<c>StreamCopyPlanner</c>).
     /// </summary>
     public bool SmartRender { get; init; } = true;
+
+    /// <summary>
+    /// Decodifica los fragmentos del render en caché para los cuadros equivalentes de la secuencia (D-060). Apagado por omisión.
+    /// </summary>
+    public bool UseRenderCache { get; init; }
 }
 
 /// <summary>Qué se hace con las pistas de subtítulos al exportar video.</summary>
