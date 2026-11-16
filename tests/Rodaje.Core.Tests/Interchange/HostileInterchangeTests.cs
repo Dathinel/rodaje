@@ -190,7 +190,7 @@ public sealed class HostileInterchangeTests
     // Código de tiempo inválido 99:99:99:99
     // =========================================================================
 
-    [Fact(Skip = "Pendiente del lector de EDL (F4a)")]
+    [Fact]
     public void Edl_invalid_timecode_99_99_99_99_throws_or_reports_warning()
     {
         string edl = """
@@ -372,7 +372,7 @@ public sealed class HostileInterchangeTests
         }
     }
 
-    [Fact(Skip = "Pendiente del lector de EDL (F4a)")]
+    [Fact]
     public void Edl_hostile_paths_are_rejected_or_reported()
     {
         string longName = new string('x', 40_000);
