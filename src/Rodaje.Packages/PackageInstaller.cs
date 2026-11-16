@@ -179,6 +179,11 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
                 throw new PackageInstallException($"«{manifest.Name}» funciona en {string.Join(", ", manifest.Apps)}, no en este programa.");
             }
 
+            if (!OperatingSystem.IsWindows() && manifest.Module is { } module)
+            {
+                MakeExecutable(staging, module.Entry);
+            }
+
             if (manifest.Id == PackageLibrary.OwnPackageId)
             {
                 throw new PackageInstallException($"El id «{PackageLibrary.OwnPackageId}» está reservado para los elementos propios.");
@@ -449,6 +454,30 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     }
 
     private static string NewTag() => Guid.NewGuid().ToString("N")[..TagLength];
+
+    /// <summary>
+    /// En Linux y macOS el zip no siempre trae el bit de ejecución (un paquete armado en Windows no lo lleva): el ejecutable
+    /// del módulo queda 0755. Nada más cambia de permisos.
+    /// </summary>
+    internal static void MakeExecutable(string packageDirectory, string entry)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        if (!SafePaths.TryNormalizeRelative(entry, out string? relative))
+        {
+            return;
+        }
+
+        string path = Path.GetFullPath(Path.Combine(packageDirectory, relative));
+        if (SafePaths.IsInside(path, packageDirectory) && File.Exists(path) && new FileInfo(path).LinkTarget is null)
+        {
+            File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute
+                | UnixFileMode.GroupRead | UnixFileMode.GroupExecute | UnixFileMode.OtherRead | UnixFileMode.OtherExecute);
+        }
+    }
 
     private void Extract(string archive, string destination, CancellationToken cancellationToken)
     {
