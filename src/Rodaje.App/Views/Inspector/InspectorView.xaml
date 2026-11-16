@@ -14,6 +14,7 @@
     xmlns:speed="using:Rodaje.App.Views.Inspector.Speed"
     xmlns:text="using:Rodaje.App.Views.Inspector.Text"
     xmlns:dynamics="using:Rodaje.App.Views.Inspector.Dynamics"
+    xmlns:template="using:Rodaje.App.Views.Inspector.Template"
     xmlns:transition="using:Rodaje.App.Views.Inspector.Transition">
 
     <UserControl.Resources>
@@ -105,6 +106,7 @@
             <properties:GraphPanel x:Name="GraphPanel" Visibility="Collapsed" />
             <transition:TransitionPanel x:Name="TransitionPanel" Visibility="Collapsed" />
             <text:TextPanel x:Name="TextPanel" Visibility="Collapsed" />
+            <template:TemplatePanel x:Name="TemplatePanel" Visibility="Collapsed" />
             <speed:SpeedPanel x:Name="SpeedPanel" Visibility="Collapsed" />
             <filters:FiltersPanel x:Name="FiltersPanel" Visibility="Collapsed" />
             <masks:MasksPanel x:Name="MasksPanel" Visibility="Collapsed" />

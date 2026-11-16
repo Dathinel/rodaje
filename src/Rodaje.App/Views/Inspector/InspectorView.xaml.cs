@@ -46,6 +46,9 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         TransitionPanel.ActiveChanged += (_, _) => OnTransitionActiveChanged();
         TransitionPanel.Attach(services);
         TextPanel.Attach(services);
+        // Con una plantilla de movimiento seleccionada, Texto muestra sus parámetros (D-064).
+        TemplatePanel.ActiveChanged += (_, _) => UpdateVisibility();
+        TemplatePanel.Attach(services);
         services.Session.TextPanelRequested += (_, _) => Show(Tab.Text);
         SpeedPanel.Attach(services);
         services.Session.SpeedPanelRequested += (_, _) => Show(Tab.Speed);
@@ -146,7 +149,11 @@ internal sealed partial class InspectorView : UserControl, IEditorView
             GraphPanel.Visibility = Visible(GraphTab.IsChecked == true);
         }
         TransitionPanel.Visibility = Visible(transition);
-        TextPanel.Visibility = Visible(TextTab.IsChecked == true);
+        TextPanel.Visibility = Visible(TextTab.IsChecked == true && TemplatePanel?.IsActive != true);
+        if (TemplatePanel is not null)
+        {
+            TemplatePanel.Visibility = Visible(TextTab.IsChecked == true && TemplatePanel.IsActive);
+        }
         SpeedPanel.Visibility = Visible(SpeedTab.IsChecked == true);
         FiltersPanel.Visibility = Visible(FiltersTab.IsChecked == true);
         MasksPanel.Visibility = Visible(MasksTab.IsChecked == true);

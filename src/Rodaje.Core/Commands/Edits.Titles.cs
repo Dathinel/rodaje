@@ -40,13 +40,16 @@ public static partial class Edits
             ids);
     }
 
-    /// <summary>Cambia los valores de una plantilla de movimiento con sus capas ya instanciadas (D-064): un paso.</summary>
+    /// <summary>
+    /// Cambia los valores de una plantilla de movimiento con sus capas ya instanciadas (D-064): un paso. Con
+    /// <paramref name="mergeKey"/> (teclear, un deslizador) los pasos seguidos se funden.
+    /// </summary>
     public static SequenceEditCommand SetTemplateValues(string sequenceId, string clipId, Dictionary<string, System.Text.Json.JsonElement> values,
-        List<TemplateLayer> layers, IIdGenerator? ids = null)
+        List<TemplateLayer> layers, IIdGenerator? ids = null, string? mergeKey = null)
     {
         var valuesCopy = new Dictionary<string, System.Text.Json.JsonElement>(values);
         List<TemplateLayer> layersCopy = layers.ConvertAll(l => l.Clone());
-        return new("Cambiar la plantilla", sequenceId, ctx => TemplateEdits.SetValues(ctx, clipId, valuesCopy, layersCopy), ids);
+        return new("Cambiar la plantilla", sequenceId, ctx => TemplateEdits.SetValues(ctx, clipId, valuesCopy, layersCopy), ids, mergeKey);
     }
 
     /// <summary>«Actualizar a X»: cambia la plantilla del clip por una versión más nueva ya instanciada (D-064): un paso.</summary>

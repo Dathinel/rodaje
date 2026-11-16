@@ -129,7 +129,7 @@ public static class TemplateAuthoring
             styleJson.Remove("id");
             styleJson.Remove("kind");
             layer["style"] = styleJson;
-            layers.Add(layer);
+            layers.Add((JsonNode)layer);
         }
 
         var parameters = new JsonArray();
@@ -168,7 +168,7 @@ public static class TemplateAuthoring
             }
 
             parameter["targets"] = new JsonArray($"layers/{LayerId(field.Layer)}/{path}");
-            parameters.Add(parameter);
+            parameters.Add((JsonNode)parameter);
         }
 
         TextStyle first = titles[0].Generator!.Style!;
