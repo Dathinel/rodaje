@@ -148,3 +148,15 @@ Con una toma real con cielo o ventanas que se quemen (o la carta sintética si n
 6. Preferencias › Rendimiento: cambia la carpeta (por ejemplo, a otro disco) y el tope a 5 GB; **Borrar el render en caché** dice «Liberados X GB» y la franja deja de estar en verde.
 7. Exporta el tramo verde con **«Usar el render en caché»** marcada y sin marcar: con la casilla debe tardar menos y verse igual a simple vista; sin ella, como siempre.
 8. Pruebas con hardware pendientes (para Claude, con el equipo libre): escenas B (1080p con desenfoque de movimiento de 16 muestras y transición), D (compuesto anidado de 3 niveles en 4K) y E (título por letra 4K al entrar) de F0, y las escenas A y C de F4 reproduciendo un tramo en caché (0 tarde en 60 s): `RODAJE_PRUEBAS_LARGAS=1`, `RenderCacheBaselineTests` y `TimelineCutPauseHardwareTests`.
+
+## Cuadros intermedios: mezcla y flujo óptico (D-063)
+
+1. Pon un clip con movimiento (un paneo o alguien caminando) a **0,25×** en Inspector › Velocidad. Reproduce: va a saltos. Cambia **Cuadros intermedios** a «Mezcla de cuadros»: fundidos entre cuadros, con contornos dobles. Cambia a «Flujo óptico»: el movimiento debe verse continuo y nítido. El clip lleva **≈** delante de la velocidad (`≈ 0,25×`).
+2. Con «Flujo óptico», para y avanza cuadro a cuadro (flechas): mira los bordes de lo que se mueve delante del fondo. Di si ves bordes de goma o halos y en qué tipo de plano.
+3. Reproduce 10 s a 0,25× en una secuencia de 60 cuadros/s: la barra de estado no debe contar cuadros perdidos. Prueba lo mismo con un 4K.
+4. Un clip de 24 cuadros/s en una secuencia de 30, a 1×: con «Cuadro más cercano» se nota el tirón de cada cuarto cuadro; con «Flujo óptico» debe desaparecer. El clip a 1× conserva el modo y muestra solo `≈`.
+5. Un clip que por dentro tenga un cambio de plano, a 0,25× con flujo: en el corte no debe verse un fundido ni una deformación entre los dos planos, solo el salto.
+6. Selecciona varios clips y cambia el modo: **Ctrl+Z** una vez los devuelve todos. En un congelado, una foto, un título o un compuesto el desplegable sale apagado.
+7. Reversa a 0,5× con flujo y una rampa (curva «Bala»): igual de continuo que hacia adelante.
+8. Exporta el tramo a 0,25× con flujo: el archivo debe verse como la vista previa en pausa.
+9. Guarda, cierra y abre el proyecto: el modo sigue. Ábrelo con Rodaje 1.0.3: se ve como «Cuadro más cercano» (lo esperado).
