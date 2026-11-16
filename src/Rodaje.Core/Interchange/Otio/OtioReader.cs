@@ -14,7 +14,11 @@ public static class OtioReader
 {
     private sealed record PendingTransition(JsonElement Element, string Type, Time InOffset, Time OutOffset);
 
-    public static TimelineDraft Read(string text, string? baseDirectory, InterchangeOptions options, InterchangeReport report)
+    public static TimelineDraft Read(string text, string? baseDirectory, InterchangeOptions options, InterchangeReport report) =>
+        Read(text, baseDirectory, options, report, standardOnly: false);
+
+    /// <summary>Con <paramref name="standardOnly"/>, lo estándar tal cual, sin mirar <c>metadata.rodaje</c>: lo que firma la huella.</summary>
+    internal static TimelineDraft Read(string text, string? baseDirectory, InterchangeOptions options, InterchangeReport report, bool standardOnly)
     {
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(options);
@@ -123,6 +127,10 @@ public static class OtioReader
             sequence.Regions.Sort((a, b) => a.Start.CompareTo(b.Start));
 
             var standardDraft = new TimelineDraft(project, sequence);
+            if (standardOnly)
+            {
+                return standardDraft;
+            }
 
             // Revisar metadata.rodaje en Timeline.1
             if (root.TryGetProperty("metadata", out JsonElement metaElem) && metaElem.ValueKind == JsonValueKind.Object)

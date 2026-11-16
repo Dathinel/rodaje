@@ -15,8 +15,15 @@ public static class OtioWriter
         ArgumentNullException.ThrowIfNull(sequence);
         ArgumentNullException.ThrowIfNull(options);
 
-        TimelineDraft standardDraft = OtioFidelity.ProjectWithoutMetadata(project, sequence, options, new InterchangeReport());
-        string timelineHuella = OtioFingerprint.TimelineFingerprint(standardDraft);
+        // La huella firma lo que el lector leerá de la parte estándar: se escribe una vez sin ella y se relee, así no depende
+        // de que la regla sin meta acierte con cada detalle del proyecto.
+        string unsigned = Write(project, sequence, projectDirectory, options, "")[0].Text;
+        TimelineDraft standardDraft = OtioReader.Read(unsigned, null, options, new InterchangeReport(), standardOnly: true);
+        return Write(project, sequence, projectDirectory, options, OtioFingerprint.TimelineFingerprint(standardDraft));
+    }
+
+    private static IReadOnlyList<InterchangeOutput> Write(Project project, Sequence sequence, string? projectDirectory, InterchangeOptions options, string timelineHuella)
+    {
 
         List<Sequence> compounds = DraftCopy.CompoundsOf(project, sequence, options.Limits);
         var usedMediaIds = sequence.AllTracks.SelectMany(t => t.Clips)
@@ -340,7 +347,7 @@ public static class OtioWriter
             MediaRef media = walkClip.Media;
             writer.WriteString("OTIO_SCHEMA", "ExternalReference.1");
             writer.WriteString("name", media.Name);
-            string resolved = media.ResolvePath(projectDirectory ?? "");
+            string resolved = projectDirectory is null || media.Path.Length == 0 ? media.Path : media.ResolvePath(projectDirectory);
             writer.WriteString("target_url", SequenceBuilder.ToFileUri(resolved));
 
             writer.WriteStartObject("available_range");
