@@ -91,15 +91,24 @@ public sealed partial class ShutdownBudgetTests
             return;
         }
 
-        Assert.True(OperatingSystem.IsLinux(), "Solo se congela en Windows y en Linux.");
-        Assert.Equal(0, SysKill(pid, SigStop));
-        // La señal llega de forma asíncrona: hasta que /proc diga «T» el módulo todavía podría leer el shutdown.
+        Assert.True(OperatingSystem.IsLinux() || OperatingSystem.IsMacOS(), "Solo se congela en Windows, Linux y macOS.");
+        // SIGSTOP es 19 en Linux y 17 en macOS (XNU sys/signal.h).
+        Assert.Equal(0, SysKill(pid, OperatingSystem.IsMacOS() ? 17 : SigStop));
+        // La señal llega de forma asíncrona: hasta que el sistema diga «T» el módulo todavía podría leer el shutdown.
         Stopwatch wait = Stopwatch.StartNew();
-        while (LinuxState(pid) != 'T')
+        while ((OperatingSystem.IsMacOS() ? MacState(pid) : LinuxState(pid)) != 'T')
         {
             Assert.True(wait.Elapsed < Support.CiBound, "el módulo no se detuvo");
             Thread.Sleep(10);
         }
+    }
+
+    private static char MacState(int pid)
+    {
+        using Process ps = Process.Start(new ProcessStartInfo("ps", $"-o state= -p {pid}") { RedirectStandardOutput = true, UseShellExecute = false })!;
+        string state = ps.StandardOutput.ReadToEnd().Trim();
+        ps.WaitForExit();
+        return state.Length > 0 ? state[0] : '?';
     }
 
     private static char LinuxState(int pid)
