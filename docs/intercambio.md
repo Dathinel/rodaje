@@ -92,7 +92,7 @@ El archivo importado no es de confianza. El lector de XML propio salta la DTD si
 | F4c | FCPXML (Gemini; reasignada de ChatGPT) | hecho |
 | F4b | OTIO con `metadata.rodaje` y huellas (Gemini) | hecho |
 | F5 | Servicio, diálogos, menú y autoprueba (Claude; el servicio, reasignado de ChatGPT) | hecho |
-| F6 | Revisión de bloque (ChatGPT) y arreglos cortos | hecho; los largos de FCPXML, pendientes (abajo) |
+| F6 | Revisión de bloque (ChatGPT) y sus arreglos | hecho; quedan los de abajo |
 | F7 | FCP 7 XML (xmeml) | sin empezar (opcional) |
 
 **Peso en el exe** (F5, `build\app.ps1 -Autoprueba` con los tres formatos): `dist\Rodaje\app\Rodaje.exe` pasa de 39 396 352 bytes (1.0.3) a 40 207 360, +0,81 MB (con lo que unieron a la vez los otros bloques), sin advertencias de recorte ni de AOT; objetivo ≤ 3 MB. La autoprueba con el paso nuevo (exporta a los tres formatos, relee cada archivo contra `Fidelity.Project`, importa el OTIO y deshace) pasa en 57,7 s; las dos primeras corridas fallaron en pasos de antes (título y transición) con el equipo cargado por los otros bloques.
@@ -105,6 +105,6 @@ El archivo importado no es de confianza. El lector de XML propio salta la DTD si
 
 ## Pendiente (de la revisión de bloque)
 
-Arreglos largos de FCPXML que quedan como tarea (encargo `mesa-agentes\datos\encargos\rodaje-intercambio-fcpxml-arreglos.md`): `asset-clip.start` relativo a `asset.start` (TC de cámara), clips conectados en el tiempo del padre, marcadores con `start` y `timeMap`, ancla del `timeMap`, curvas de velocidad muestreadas, keyframes de transformación y volumen, imágenes fijas, `DefaultStartTimecode`/`IncludeAudio`/`VideoTracks` y la carpeta del proyecto en el escritor, espacio de color HDR. Las pruebas de ida y vuelta no los ven porque escritor y lector comparten el supuesto; las muestras a mano solo cubren el caso con TC cero.
+Los arreglos largos de FCPXML de la revisión (TC del recurso, clips conectados y marcadores en el tiempo del padre, `timeMap`, curvas, keyframes, imágenes fijas, HDR, opciones y rutas relativas) están hechos (ChatGPT, `FcpxmlReviewTests`, 34 casos).
 
 Otros: la fusión no corre al TC real un medio del proyecto que se reutiliza (`RebaseShift` solo en provisionales); al reenlazar un provisional se corren todos sus clips, también uno añadido después a mano; un solape con transición en FCPXML se separa en otra pista y pierde la transición; la regla OTIO sin `metadata.rodaje` no acierta con proyectos con títulos o efectos (la huella ya no depende de ella); `EdlList` mezcla modelo y conversiones; `InterchangeOptions.MediaSearchFolder` no se usa; el corpus hostil grande (300 MB, 100 000 eventos) se puede reducir con límites pequeños.
