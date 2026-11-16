@@ -1,0 +1,10 @@
+<Project>
+  <!-- Prototipos de la fase 0 de Linux y macOS (D-066): fuera de Rodaje.slnx y sin heredar las propiedades de la raíz. -->
+  <PropertyGroup>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <InvariantGlobalization>true</InvariantGlobalization>
+  </PropertyGroup>
+</Project>
