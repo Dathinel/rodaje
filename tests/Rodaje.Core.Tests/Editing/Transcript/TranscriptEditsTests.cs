@@ -186,6 +186,33 @@ public sealed class TranscriptEditsTests
     }
 
     [Fact]
+    public void A_phrase_across_a_gap_between_clips_is_not_moved()
+    {
+        TrimFixture f = new TrimFixture()
+            .Add("a1", "a", "m2", 0, 100, 0)
+            .Add("a1", "b", "m2", 100, 200, 120)
+            .WithTranscript();
+        Project before = f.Project.Clone();
+
+        Assert.Throws<EditException>(() => Edits.MoveWords("seq", null, 9, 2, 15).Apply(f.Project));
+
+        Assert.Equal(ProjectSerializer.Serialize(before), ProjectSerializer.Serialize(f.Project));
+    }
+
+    [Fact]
+    public void A_word_shorter_than_a_frame_is_reported_instead_of_ignored()
+    {
+        TrimFixture f = Interview();
+        List<SpokenWord> words = f.Project.Transcripts[0].Words;
+        words[4].End = F(50);
+        words[5].Start = words[5].End = F(50);
+        words[6].Start = F(50);
+
+        Assert.Throws<EditException>(() => TranscriptEdits.DeleteWords(f.Ctx, f.Doc(), [5], ripple: true, RippleScope.Track));
+        Assert.Equal(F(200), f.Sequence.Duration);
+    }
+
+    [Fact]
     public void Move_is_one_undo_step()
     {
         TrimFixture f = Interview();
