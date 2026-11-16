@@ -192,6 +192,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(Views.Voice.VoiceCommands.Bind(_router, _services));
         _bindings.Add(Views.Subtitles.SubtitleCommands.Bind(_router, _services));
         _bindings.Add(Views.Subtitles.SubtitleFileCommands.Bind(_router, _services));
+        _bindings.Add(Views.Interchange.InterchangeCommands.Bind(_router, _services));
         _bindings.Add(Views.Translate.TranslateCommands.Bind(_router, _services));
         _bindings.Add(Views.Raw.RawCommands.Bind(_router, _services));
         _bindings.Add(Views.Vision.VisionCommands.Bind(_router, _services));

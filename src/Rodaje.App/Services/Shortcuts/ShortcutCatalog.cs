@@ -17,6 +17,7 @@ public static class ShortcutCatalog
         .. TimelineShortcuts.Catalog,
         .. PlayerShortcuts.Catalog,
         .. SubtitleShortcuts.Catalog,
+        .. InterchangeShortcuts.Catalog,
         .. TranscriptShortcuts.Catalog,
         .. ShellShortcuts.Catalog,
     ];

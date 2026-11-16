@@ -36,10 +36,12 @@
                 <MenuFlyoutItem Text="Importar medios..." Tag="file.import" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Importar CinemaDNG..." Tag="file.importCinemaDng" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Importar subtítulos..." Tag="file.importSubtitles" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Importar línea de tiempo..." Tag="file.importTimeline" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Carpetas vigiladas..." Tag="file.watchedFolders" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Exportar..." Tag="file.export" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Exportar fotograma..." Tag="file.exportFrame" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Exportar subtítulos..." Tag="file.exportSubtitles" Click="OnActionClick" />
+                <MenuFlyoutItem Text="Exportar línea de tiempo..." Tag="file.exportTimeline" Click="OnActionClick" />
                 <MenuFlyoutSeparator />
                 <MenuFlyoutItem Text="Atajos de teclado..." Tag="view.shortcuts" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Preferencias..." Tag="view.preferences" Click="OnActionClick" />
