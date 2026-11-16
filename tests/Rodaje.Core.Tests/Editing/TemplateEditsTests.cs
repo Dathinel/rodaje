@@ -125,6 +125,16 @@ public sealed class TemplateEditsTests
     }
 
     [Fact]
+    public void Converting_a_piece_where_no_layer_shows_fails_and_keeps_the_template()
+    {
+        (Project project, string id) = WithTemplate();
+        Find(project, id).Generator!.Template!.Layers.ForEach(l => l.Start = 10);
+
+        Assert.Throws<EditException>(() => Edits.ConvertTemplateToTitles(Seq, id, new SequentialIds("c")).Apply(project));
+        Assert.NotNull(project.Sequences[0].FindClip(id));
+    }
+
+    [Fact]
     public void Converting_to_titles_puts_one_title_per_layer_above_and_undo_restores_the_template()
     {
         (Project project, string id) = WithTemplate();

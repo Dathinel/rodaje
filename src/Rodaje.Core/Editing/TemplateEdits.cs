@@ -55,6 +55,12 @@ public static class TemplateEdits
     {
         (Track track, Clip clip, GeneratorTemplate template) = Template(ctx, clipId);
         GeneratorEdges edges = clip.Generator!.Edges;
+        if (template.Layers.TrueForAll(l => clip.Duration - Time.Max(Time.Zero, Time.FromSeconds(l.Start) - edges.Before)
+            - Time.Max(Time.Zero, Time.FromSeconds(l.End) - edges.After) <= Time.Zero))
+        {
+            throw new EditException("Ninguna capa de la plantilla se ve en este tramo del clip.");
+        }
+
         int trackIndex = ctx.Sequence.VideoTracks.IndexOf(track);
         track.Clips.Remove(clip);
         var created = new List<string>();

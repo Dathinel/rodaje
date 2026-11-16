@@ -237,7 +237,7 @@ internal sealed partial class TimelinePlan
     }
 
     /// <summary>Separa el id de la pista del número de capa en los carriles de plantilla.</summary>
-    internal const string TemplateLaneSeparator = "#capa";
+    private const string TemplateLaneSeparator = "#capa";
 
     private static TransitionPlan Transition(Cut cut, Sequence sequence, IEffectContent? content, ref int missing)
     {

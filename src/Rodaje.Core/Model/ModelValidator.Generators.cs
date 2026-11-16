@@ -175,10 +175,13 @@ public static partial class ModelValidator
         JsonValueKind.Number => double.IsFinite(value.GetDouble()),
         JsonValueKind.True or JsonValueKind.False => true,
         JsonValueKind.Object => value.EnumerateObject().Count() <= MaxStyleKeys
-            && value.EnumerateObject().All(p => p.Value.ValueKind is JsonValueKind.String or JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False
-                || (p.Value.ValueKind == JsonValueKind.Array && p.Value.EnumerateArray().All(e => e.ValueKind == JsonValueKind.String))),
+            && value.EnumerateObject().All(p => p.Value.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False
+                || IsShortText(p.Value)
+                || (p.Value.ValueKind == JsonValueKind.Array && p.Value.GetArrayLength() <= MaxStyleKeys && p.Value.EnumerateArray().All(IsShortText))),
         _ => false,
     };
+
+    private static bool IsShortText(JsonElement value) => value.ValueKind == JsonValueKind.String && value.GetString()!.Length <= MaxTextLength;
 
     private static void ValidateText(string? text, string where, List<string> errors)
     {
