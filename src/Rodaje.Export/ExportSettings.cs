@@ -278,6 +278,11 @@ public sealed record ExportSettings
     /// keyframes, el video se copia del original sin recodificar (<c>StreamCopyPlanner</c>).
     /// </summary>
     public bool SmartRender { get; init; } = true;
+
+    /// <summary>
+    /// Decodifica los fragmentos del render en caché para los cuadros equivalentes de la secuencia (D-060). Apagado por omisión.
+    /// </summary>
+    public bool UseRenderCache { get; init; }
 }
 
 /// <summary>Qué se hace con las pistas de subtítulos al exportar video.</summary>
@@ -307,6 +312,9 @@ public sealed record ExportRequest(Rodaje.Core.Model.Project Project, string Seq
 {
     /// <summary>Carpeta del proyecto, para resolver rutas relativas de medios.</summary>
     public string? ProjectDirectory { get; init; }
+
+    /// <summary>Pausa cooperativa entre cuadros; nula en una exportación normal.</summary>
+    public Running.ExportPauseToken? Pause { get; init; }
 
     /// <summary>
     /// «Exportar sin él» tras un <see cref="ExportErrorCode.ContentMissing"/> o <see cref="ExportErrorCode.EffectFailed"/>:

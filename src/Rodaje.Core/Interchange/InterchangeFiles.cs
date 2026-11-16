@@ -68,12 +68,33 @@ public static class InterchangeFiles
     }
 
     /// <summary>Lo leído antes de fusionarlo con un proyecto, con identificadores locales.</summary>
-    public static TimelineDraft ReadDraft(string text, InterchangeFormat format, string? baseDirectory, InterchangeOptions options, InterchangeReport report) => format switch
+    /// <remarks>
+    /// El archivo no es de confianza: un número que desborda o una fracción imposible que se escape de un lector sale como
+    /// <see cref="InterchangeException"/>, el único error que la app espera de aquí.
+    /// </remarks>
+    public static TimelineDraft ReadDraft(string text, InterchangeFormat format, string? baseDirectory, InterchangeOptions options, InterchangeReport report)
     {
-        InterchangeFormat.Edl => EdlReader.Read(text, baseDirectory, options, report),
-        InterchangeFormat.Fcpxml => FcpxmlReader.Read(text, baseDirectory, options, report),
-        _ => OtioReader.Read(text, baseDirectory, options, report),
-    };
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(options);
+        if (text.Length > options.Limits.MaxFileBytes)
+        {
+            throw new InterchangeException($"El archivo pasa de {options.Limits.MaxFileBytes >> 20} MB.");
+        }
+
+        try
+        {
+            return format switch
+            {
+                InterchangeFormat.Edl => EdlReader.Read(text, baseDirectory, options, report),
+                InterchangeFormat.Fcpxml => FcpxmlReader.Read(text, baseDirectory, options, report),
+                _ => OtioReader.Read(text, baseDirectory, options, report),
+            };
+        }
+        catch (Exception ex) when (ex is OverflowException or ArgumentException or FormatException or InvalidOperationException or KeyNotFoundException or IndexOutOfRangeException)
+        {
+            throw new InterchangeException($"El archivo tiene un valor que no se puede usar: {ex.Message}", ex);
+        }
+    }
 
     /// <summary>
     /// Los textos que escribiría <see cref="Write"/>, sin tocar el disco. El informe sale de <see cref="Fidelity.Project"/>,
