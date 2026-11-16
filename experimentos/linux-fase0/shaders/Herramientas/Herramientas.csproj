@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- compilar (DXC → SPIR-V) y referencia (D3D11 WARP). Enlaza el HLSL de Rodaje sin tocar src/. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AssemblyName>fase0-shaders</AssemblyName>
+    <RootNamespace>Fase0.Shaders</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\..\..\src\Rodaje.Render\Effects\EffectShaders.cs" Link="Rodaje\EffectShaders.cs" />
+    <Compile Include="..\..\..\..\src\Rodaje.Render\RenderShaders.cs" Link="Rodaje\RenderShaders.cs" />
+    <Compile Include="..\..\..\..\src\Rodaje.Render\ShaderCompiler.cs" Link="Rodaje\ShaderCompiler.cs" />
+    <Compile Include="..\..\..\..\src\Rodaje.Render\RenderException.cs" Link="Rodaje\RenderException.cs" />
+    <Compile Include="..\Comun\*.cs" Link="Comun\%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
+    <PackageReference Include="Microsoft.Direct3D.DXC" Version="1.9.2609.5" GeneratePathProperty="true" />
+  </ItemGroup>
+
+  <!-- El paquete solo trae binarios de Windows; se copian junto al ejecutable (dxc\). dxil.dll (firma de DXIL) no hace falta para SPIR-V. -->
+  <ItemGroup>
+    <None Include="$(PkgMicrosoft_Direct3D_DXC)\build\native\bin\x64\dxc.exe;$(PkgMicrosoft_Direct3D_DXC)\build\native\bin\x64\dxcompiler.dll"
+          Link="dxc\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(PkgMicrosoft_Direct3D_DXC)\LICENSE-LLVM.txt" Link="dxc\LICENSE-LLVM.txt" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
+</Project>

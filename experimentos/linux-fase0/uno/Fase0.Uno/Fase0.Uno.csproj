@@ -1,0 +1,24 @@
+<Project Sdk="Uno.Sdk/7.0.22">
+
+  <!-- Parte (a) de la fase 0: Uno (Skia) en net10.0-desktop, publicado con Native AOT para linux-x64. -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-desktop</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <UnoSingleProject>true</UnoSingleProject>
+    <RootNamespace>Fase0.Uno</RootNamespace>
+    <AssemblyName>fase0-uno</AssemblyName>
+    <ApplicationTitle>Rodaje fase 0</ApplicationTitle>
+    <ApplicationId>io.github.dathinel.rodaje.fase0</ApplicationId>
+    <ApplicationDisplayVersion>0.0</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationPublisher>Dathinel</ApplicationPublisher>
+    <UnoFeatures>Skia;</UnoFeatures>
+    <!-- NETSDK1201 y PRI257 vienen de la plantilla de Uno. -->
+    <NoWarn>$(NoWarn);NU1507;NETSDK1201;PRI257</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\..\src\Rodaje.Core\Rodaje.Core.csproj" />
+  </ItemGroup>
+
+</Project>
