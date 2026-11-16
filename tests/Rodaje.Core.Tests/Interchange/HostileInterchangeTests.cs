@@ -11,7 +11,7 @@ public sealed class HostileInterchangeTests
     // XML y FCPXML
     // =========================================================================
 
-    [Fact(Skip = "Pendiente del lector de FCPXML (F4c)")]
+    [Fact]
     public void Fcpxml_billion_laughs_entity_expansion_throws_interchange_exception()
     {
         string xml = """
@@ -32,7 +32,7 @@ public sealed class HostileInterchangeTests
             InterchangeFiles.ReadDraft(xml, InterchangeFormat.Fcpxml, null, new InterchangeOptions(), new InterchangeReport()));
     }
 
-    [Fact(Skip = "Pendiente del lector de FCPXML (F4c)")]
+    [Fact]
     public void Fcpxml_external_entity_system_xxe_throws_interchange_exception()
     {
         string xml = """
@@ -49,7 +49,7 @@ public sealed class HostileInterchangeTests
             InterchangeFiles.ReadDraft(xml, InterchangeFormat.Fcpxml, null, new InterchangeOptions(), new InterchangeReport()));
     }
 
-    [Fact(Skip = "Pendiente del lector de FCPXML (F4c)")]
+    [Fact]
     public void Fcpxml_ten_thousand_nesting_levels_throws_interchange_exception()
     {
         string open = string.Concat(Enumerable.Repeat("<clip>", 10_000));
@@ -60,7 +60,7 @@ public sealed class HostileInterchangeTests
             InterchangeFiles.ReadDraft(xml, InterchangeFormat.Fcpxml, null, new InterchangeOptions(), new InterchangeReport()));
     }
 
-    [Fact(Skip = "Pendiente del lector de FCPXML (F4c)")]
+    [Fact]
     public void Fcpxml_duration_division_by_zero_throws_interchange_exception()
     {
         string xml = """
@@ -211,7 +211,7 @@ public sealed class HostileInterchangeTests
         }
     }
 
-    [Fact(Skip = "Pendiente del lector de FCPXML (F4c)")]
+    [Fact]
     public void Fcpxml_invalid_timecode_99_99_99_99_throws_or_reports_warning()
     {
         string xml = """
@@ -295,7 +295,7 @@ public sealed class HostileInterchangeTests
         Assert.Equal(@"C:\base\clip.mov", SequenceBuilder.NormalizePath(dotDot, @"C:\base"));
     }
 
-    [Fact(Skip = "Pendiente del lector de FCPXML (F4c)")]
+    [Fact]
     public void Fcpxml_hostile_paths_are_rejected_or_reported()
     {
         string longName = new string('x', 40_000);
