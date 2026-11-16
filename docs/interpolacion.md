@@ -57,7 +57,7 @@ F0 a F6 en `main`; guía en [`guia/camara-lenta.md`](guia/camara-lenta.md). La c
 
 ## Pendiente
 
-De la revisión de bloque (Gemini, 16-nov):
+De la revisión de bloque (Gemini, 16-nov; ya arreglado: el cuadro B en la lectura por adelantado, en reversa al exportar y con proxies, el visor en pausa cuando B llega tarde, el modo a 1× tras recortar, pegar atributos, la selección mixta y el congelado):
 
 - Las texturas libres del interpolador retienen presupuesto del `RenderTargetPool` hasta 240 cuadros y `Rent` no puede expulsarlas.
 - Un mismo par pedido dos veces en un cuadro (comparación partida, dos capas del mismo clip) se interpola dos veces.
@@ -65,3 +65,13 @@ De la revisión de bloque (Gemini, 16-nov):
 - La prueba de oclusión de `FlowReferenceTests` pasa también con la mezcla: falta una vara que la distinga.
 - `RenderCacheScan.Classify` no cuenta el coste de interpolar al decidir qué tramos son pesados.
 - La caída a mezcla mientras se reproduce si hay cuadros tarde (riesgo previsto en el diseño) no está hecha: hoy el flujo corre siempre.
+
+De la revisión de F4 (Devin, 16-nov; el algoritmo de la GPU coincide con la referencia):
+
+- Los shaders del flujo se compilan dentro del cuadro la primera vez (siete pasadas con fxc en el hilo de render): la vista previa puede pararse un momento; hay que compilarlos de fondo como los efectos.
+- En GPU con poco presupuesto (tope de 96 MB), la reserva del flujo en un 4K puede dejar sin sitio a un efecto del mismo cuadro; al exportar daría `EffectFailed` en vez de bajar esa capa a mezcla.
+- Dos clips de tamaños distintos con flujo en el mismo cuadro recrean la pirámide dos veces por cuadro (solo se guarda un tamaño).
+- `Histogram` se despacha en una dimensión: por encima de 16,7 MP (6K, 8K) pasa de 65.535 grupos y el corte de escena no se detecta.
+- Un tamaño visible impar cae a mezcla sin aviso; la pérdida del dispositivo dentro del flujo queda tapada por la caída a mezcla; `TrimCachedViews` suelta los intermedios del flujo aunque se acaben de usar.
+- Pruebas: la de corte no exige que haya corte ni compara distancia y residuo; la paridad con la referencia se mide por PSNR y no código a código; faltan movimiento vertical, diagonal y subpíxel, t cerca de 0 y de 1, tamaños que no sean múltiplos de 8 y dos tamaños alternados.
+- Sin medir en una GPU integrada: `Search` usa grupos de 4×4 con arreglos de 64 por hilo.
