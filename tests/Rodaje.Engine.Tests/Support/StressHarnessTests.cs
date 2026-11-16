@@ -28,7 +28,7 @@ public sealed class StressHarnessTests
     /// corrida termina por <see cref="Stress.Deadline"/> (24 vueltas) con otro mensaje y la prueba falla. El mensaje trae
     /// además las pilas de los hilos, con el trabado en <see cref="StuckWorker"/>.
     /// </summary>
-    [Fact]
+    [StackSnapshotFact]
     public void Un_hilo_trabado_que_no_saca_numeros_se_da_por_interbloqueo()
     {
         using var unblock = new ManualResetEventSlim();
@@ -299,5 +299,14 @@ public sealed class StressHarnessTests
         Assert.Equal(3, Stress.MinimumSteps(Stress.Iterations(12)));
         Assert.Equal(1000, Stress.MinimumSteps(Stress.Iterations(4000)));
         Assert.Throws<InvalidOperationException>(() => Stress.Steps(10, CancellationToken.None).GetEnumerator().MoveNext());
+    }
+}
+
+/// <summary>Necesita leer las pilas de otro hilo (ClrMD): en macOS la instantánea no termina y se omite.</summary>
+file sealed class StackSnapshotFactAttribute : FactAttribute
+{
+    public StackSnapshotFactAttribute()
+    {
+        if (OperatingSystem.IsMacOS()) Skip = "En macOS ClrMD no saca la instantánea de pilas.";
     }
 }
