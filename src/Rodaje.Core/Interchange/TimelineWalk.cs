@@ -140,7 +140,8 @@ public static class TimelineWalk
         var pieces = new List<WalkClip>();
         foreach (Track track in tracks.Where(t => !t.Hidden || kind == TrackKind.Audio))
         {
-            foreach (Clip clip in track.Clips)
+            // Un clip desactivado no se ve: no tapa al de debajo.
+            foreach (Clip clip in track.Clips.Where(c => c.Enabled))
             {
                 Time start = Time.Max(clip.Start, from);
                 Time end = Time.Min(clip.End, to);

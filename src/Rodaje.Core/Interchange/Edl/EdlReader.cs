@@ -14,8 +14,7 @@ public static class EdlReader
         ArgumentNullException.ThrowIfNull(text);
         ArgumentNullException.ThrowIfNull(options);
         ArgumentNullException.ThrowIfNull(report);
-        EdlList list = Parse(text, options, report, out bool dropFrame);
-        Rational rate = options.FrameRate ?? (dropFrame ? Rational.Ntsc30 : Rational.Fps25);
+        EdlList list = Parse(text, options, report, out Rational rate);
         if (!Model.Sequence.IsSupportedFrameRate(rate))
         {
             throw new InterchangeException($"La tasa {rate} no vale para leer la EDL.");
@@ -24,10 +23,11 @@ public static class EdlReader
         return list.ToDraft(rate, baseDirectory, options.Limits, report);
     }
 
-    internal static EdlList Parse(string text, InterchangeOptions options, InterchangeReport report, out bool dropFrame)
+    internal static EdlList Parse(string text, InterchangeOptions options, InterchangeReport report, out Rational chosenRate)
     {
         var list = new EdlList();
-        dropFrame = false;
+        bool dropFrame = false;
+        int unknown = 0;
         Rational? rate = options.FrameRate;
         EdlEvent? last = null;
         (string Reel, long Source)? outgoing = null;
@@ -55,7 +55,18 @@ public static class EdlReader
             if (line.StartsWith("FCM:", StringComparison.OrdinalIgnoreCase))
             {
                 list.DropFrame = dropFrame = line.Contains("NON", StringComparison.OrdinalIgnoreCase) is false && line.Contains("DROP", StringComparison.OrdinalIgnoreCase);
-                rate ??= dropFrame ? Rational.Ntsc30 : Rational.Fps25;
+                // Una EDL en drop frame es de 29,97 (o 59,94): manda sobre la tasa de la secuencia activa si esta no lo admite.
+                if (dropFrame && (rate is not { } r || !SmpteTimecode.CanDropFrame(r)))
+                {
+                    if (rate is not null)
+                    {
+                        report.Add(IssueSeverity.Info, IssueKind.Rounding, "La EDL está en drop frame: se lee a 29,97 cuadros por segundo.");
+                    }
+
+                    rate = Rational.Ntsc30;
+                }
+
+                rate ??= Rational.Fps25;
                 continue;
             }
 
@@ -114,9 +125,19 @@ public static class EdlReader
                 continue;
             }
 
-            report.Add(IssueSeverity.Info, IssueKind.Unknown, $"Línea {lineNumber} de la EDL que no se entiende: se salta.", line.Length > 60 ? line[..60] : line);
+            // Un aviso por línea, pero no millones: un archivo basura no llena la memoria con el informe.
+            if (++unknown <= 100)
+            {
+                report.Add(IssueSeverity.Info, IssueKind.Unknown, $"Línea {lineNumber} de la EDL que no se entiende: se salta.", line.Length > 60 ? line[..60] : line);
+            }
         }
 
+        if (unknown > 100)
+        {
+            report.Add(IssueSeverity.Info, IssueKind.Unknown, $"Y {unknown - 100} líneas más que no se entienden.");
+        }
+
+        chosenRate = rate ?? Rational.Fps25;
         return list;
     }
 
@@ -158,8 +179,14 @@ public static class EdlReader
         for (int i = 0; i < 4; i++)
         {
             string value = parts[next + i];
-            if (!SmpteTimecode.TryParse(value, rate, out SmpteTimecode parsed)
-                && !(dropFrame && SmpteTimecode.TryParse(value.Replace(';', ':'), rate, out parsed)))
+
+            // Con «FCM: DROP FRAME» un TC escrito con «:» también es drop frame (muchos programas no ponen el «;»).
+            if (dropFrame && SmpteTimecode.CanDropFrame(rate) && value.Length == 11 && value[8] == ':')
+            {
+                value = value[..8] + ";" + value[9..];
+            }
+
+            if (!SmpteTimecode.TryParse(value, rate, out SmpteTimecode parsed))
             {
                 report.Add(IssueSeverity.Lost, IssueKind.Rounding, $"Línea {lineNumber}: código de tiempo «{value}» que no vale a {rate}.", parts[1]);
                 return null;
