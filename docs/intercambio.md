@@ -90,14 +90,21 @@ El archivo importado no es de confianza. El lector de XML propio salta la DTD si
 | F4t | Muestras escritas a mano y corpus hostil (Gemini) | hecho |
 | F4a | EDL (Claude; reasignada de ChatGPT, ocupado) | hecho |
 | F4c | FCPXML (Gemini; reasignada de ChatGPT) | hecho |
-| F4b | OTIO con `metadata.rodaje` y huellas (Gemini) | en curso |
-| F5 | Servicio, diálogos, menú y autoprueba | hecho, se une tras F4b |
+| F4b | OTIO con `metadata.rodaje` y huellas (Gemini) | hecho |
+| F5 | Servicio, diálogos, menú y autoprueba (Claude; el servicio, reasignado de ChatGPT) | hecho |
+| F6 | Revisión de bloque (ChatGPT) y arreglos cortos | hecho; los largos de FCPXML, pendientes (abajo) |
 | F7 | FCP 7 XML (xmeml) | sin empezar (opcional) |
 
-**Peso en el exe** (F5, `build\app.ps1 -SoloPublicar` con EDL y FCPXML): `dist\Rodaje\app\Rodaje.exe` pasa de 39,40 MB (1.0.3) a 39,97 MB, +0,57 MB, sin advertencias de recorte ni de AOT. Objetivo: ≤ 3 MB.
+**Peso en el exe** (F5, `build\app.ps1 -Autoprueba` con los tres formatos): `dist\Rodaje\app\Rodaje.exe` pasa de 39 396 352 bytes (1.0.3) a 40 207 360, +0,81 MB (con lo que unieron a la vez los otros bloques), sin advertencias de recorte ni de AOT; objetivo ≤ 3 MB. La autoprueba con el paso nuevo (exporta a los tres formatos, relee cada archivo contra `Fidelity.Project`, importa el OTIO y deshace) pasa en 57,7 s; las dos primeras corridas fallaron en pasos de antes (título y transición) con el equipo cargado por los otros bloques.
 
 **Importar en la app.** Rodaje tiene una sola secuencia principal: la línea de tiempo importada entra como secuencia nueva y, en el cursor, un clip compuesto que la muestra en una pista de video nueva y otro enlazado en una de audio nueva, todo en un paso del historial. Doble clic entra en ella; «Descomponer» deja sus clips en la secuencia. (Decisión provisional de Claude: el diseño decía «secuencia nueva», pero la app no tiene dónde elegir otra secuencia principal.)
 
 **Cifras de F3** (`InterchangeCommonTests`, categoría `Rendimiento`; corpus de la semilla 1: 10 000 clips en 8 pistas y 400 medios; Release, prioridad baja, con el equipo ocupado por otras compilaciones): recorrer la secuencia 63 a 265 ms, fusionarla con un proyecto (identificadores nuevos, medios y validación) 255 a 650 ms, de los que validar es 157 a 576 ms; 16 a 18 MB asignados. Los umbrales de la prueba son los objetivos del diseño con el margen ×3.
 
 **Reglas al fusionar** (`SequenceBuilder`): un clip que pisa a otro sin transición pasa a una pista nueva justo encima («V1 (solapes)»), sin perder nada; un medio provisional dura lo que usan sus clips; un clip que se sale de un medio conocido se recorta (o no se importa si empieza después de su final). Al aplanar compuestos (`TimelineWalk`), en el video manda la pista más alta del compuesto, en el audio solo entra su primera pista, un clip con velocidad tapado en parte se deja fuera y las transiciones de dentro se pierden; todo va al informe.
+
+## Pendiente (de la revisión de bloque)
+
+Arreglos largos de FCPXML que quedan como tarea (encargo `mesa-agentes\datos\encargosodaje-intercambio-fcpxml-arreglos.md`): `asset-clip.start` relativo a `asset.start` (TC de cámara), clips conectados en el tiempo del padre, marcadores con `start` y `timeMap`, ancla del `timeMap`, curvas de velocidad muestreadas, keyframes de transformación y volumen, imágenes fijas, `DefaultStartTimecode`/`IncludeAudio`/`VideoTracks` y la carpeta del proyecto en el escritor, espacio de color HDR. Las pruebas de ida y vuelta no los ven porque escritor y lector comparten el supuesto; las muestras a mano solo cubren el caso con TC cero.
+
+Otros: la fusión no corre al TC real un medio del proyecto que se reutiliza (`RebaseShift` solo en provisionales); al reenlazar un provisional se corren todos sus clips, también uno añadido después a mano; un solape con transición en FCPXML se separa en otra pista y pierde la transición; la regla OTIO sin `metadata.rodaje` no acierta con proyectos con títulos o efectos (la huella ya no depende de ella); `EdlList` mezcla modelo y conversiones; `InterchangeOptions.MediaSearchFolder` no se usa; el corpus hostil grande (300 MB, 100 000 eventos) se puede reducir con límites pequeños.
