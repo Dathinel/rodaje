@@ -1,4 +1,5 @@
 using Rodaje.Core.Timing;
+using Rodaje.Export.Running;
 
 namespace Rodaje.App.Services.RenderCache;
 
@@ -35,26 +36,10 @@ public enum RenderCacheState
 /// <summary>Un trozo a calcular: cuadros seguidos de la secuencia con las recetas de una revisión del plan.</summary>
 public sealed record RenderCacheWork(long FirstFrame, int Count, long Revision);
 
-/// <summary>Pausa cooperativa del trabajo en curso: quien calcula mira <see cref="WaitWhilePaused"/> entre cuadros.</summary>
-public sealed partial class RenderCachePause : IDisposable
-{
-    private readonly ManualResetEventSlim _running = new(initialState: true);
-
-    public bool IsPaused => !_running.IsSet;
-
-    public void Pause() => _running.Reset();
-
-    public void Resume() => _running.Set();
-
-    public void WaitWhilePaused(CancellationToken cancellationToken) => _running.Wait(cancellationToken);
-
-    public void Dispose() => _running.Dispose();
-}
-
 /// <summary>Quien calcula un trozo (en la app, un <c>RenderCacheJob</c>); devuelve si publicó el fragmento.</summary>
 public interface IRenderCacheWorker
 {
-    Task<bool> RunAsync(RenderCacheWork work, RenderCachePause pause, CancellationToken cancellationToken);
+    Task<bool> RunAsync(RenderCacheWork work, ExportPauseToken pause, CancellationToken cancellationToken);
 }
 
 /// <summary>
@@ -79,7 +64,7 @@ public sealed class RenderCacheService
     private bool _scrubbing;
     private long _revision;
     private Rational _rate = Rational.Fps30;
-    private (RenderCacheWork Work, RenderCachePause Pause, CancellationTokenSource Cancel, Task Task)? _current;
+    private (RenderCacheWork Work, ExportPauseToken Pause, CancellationTokenSource Cancel, Task Task)? _current;
 
     public RenderCacheService(IRenderCacheWorker worker, TimeProvider time, Func<long> freeBytes, Func<long> usedBytes, long capBytes)
     {
@@ -182,7 +167,7 @@ public sealed class RenderCacheService
         bool rested = !_playing && !_scrubbing && _time.GetElapsedTime(_lastActivity) >= Rest;
         if (_current is { } running)
         {
-            if (rested && running.Pause.IsPaused)
+            if (rested && running.Pause.IsPauseRequested)
             {
                 running.Pause.Resume();
             }
@@ -196,7 +181,7 @@ public sealed class RenderCacheService
             }
 
             RenderCacheWork work = _queue.Dequeue();
-            var pause = new RenderCachePause();
+            var pause = new ExportPauseToken();
             var cancel = new CancellationTokenSource();
             _current = (work, pause, cancel, _worker.RunAsync(work, pause, cancel.Token));
         }
@@ -204,7 +189,7 @@ public sealed class RenderCacheService
         UpdateState();
     }
 
-    private void Finish((RenderCacheWork Work, RenderCachePause Pause, CancellationTokenSource Cancel, Task Task) done)
+    private void Finish((RenderCacheWork Work, ExportPauseToken Pause, CancellationTokenSource Cancel, Task Task) done)
     {
         bool published = done.Task is Task<bool> { IsCompletedSuccessfully: true } result && result.Result;
         if (published && done.Work.Revision == _revision)
@@ -215,8 +200,18 @@ public sealed class RenderCacheService
         {
             Discarded++;
         }
+        else if (!done.Cancel.IsCancellationRequested && done.Work.Revision == _revision && !done.Task.IsCompletedSuccessfully)
+        {
+            // Una pausa larga (o un fallo) corta el trozo: vuelve delante para cuando haya reposo.
+            RenderCacheWork[] rest = [.. _queue];
+            _queue.Clear();
+            _queue.Enqueue(done.Work);
+            foreach (RenderCacheWork work in rest)
+            {
+                _queue.Enqueue(work);
+            }
+        }
 
-        done.Pause.Dispose();
         done.Cancel.Dispose();
     }
 
@@ -245,7 +240,7 @@ public sealed class RenderCacheService
         cursor < span.Start ? span.Start - cursor : cursor >= span.End ? cursor - span.End + 1 : 0;
 
     private void UpdateState() =>
-        State = _current is { } current ? current.Pause.IsPaused ? RenderCacheState.Paused : RenderCacheState.Working
+        State = _current is { } current ? current.Pause.IsPauseRequested ? RenderCacheState.Paused : RenderCacheState.Working
             : _queue.Count > 0 && Mode != RenderCacheMode.Off ? RenderCacheState.Waiting
             : RenderCacheState.Idle;
 }

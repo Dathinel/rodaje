@@ -1,5 +1,6 @@
 using Rodaje.App.Services.RenderCache;
 using Rodaje.Core.Timing;
+using Rodaje.Export.Running;
 using Xunit;
 
 namespace Rodaje.App.Tests.RenderCache;
@@ -64,26 +65,26 @@ public sealed class RenderCacheServiceTests
         Start(service, clock);
 
         service.NotifyPlaying(true);
-        Assert.True(worker.Pause!.IsPaused);
+        Assert.True(worker.Pause!.IsPauseRequested);
         Assert.Equal(RenderCacheState.Paused, service.State);
         clock.Advance(TimeSpan.FromSeconds(10));
         service.Tick();
-        Assert.True(worker.Pause.IsPaused);
+        Assert.True(worker.Pause.IsPauseRequested);
 
         service.NotifyPlaying(false);
         clock.Advance(TimeSpan.FromSeconds(2));
         service.Tick();
-        Assert.True(worker.Pause.IsPaused);
+        Assert.True(worker.Pause.IsPauseRequested);
         clock.Advance(TimeSpan.FromSeconds(1));
         service.Tick();
-        Assert.False(worker.Pause.IsPaused);
+        Assert.False(worker.Pause.IsPauseRequested);
 
         service.NotifyScrubbing(true);
-        Assert.True(worker.Pause.IsPaused);
+        Assert.True(worker.Pause.IsPauseRequested);
         service.NotifyScrubbing(false);
         clock.Advance(TimeSpan.FromSeconds(3));
         service.Tick();
-        Assert.False(worker.Pause.IsPaused);
+        Assert.False(worker.Pause.IsPauseRequested);
     }
 
     [Fact]
@@ -94,7 +95,7 @@ public sealed class RenderCacheServiceTests
         Start(service, clock);
 
         service.NotifyEdited();
-        Assert.False(worker.Pause!.IsPaused);
+        Assert.False(worker.Pause!.IsPauseRequested);
         worker.Finish(published: true);
         clock.Advance(TimeSpan.FromSeconds(1));
         service.Tick();
@@ -169,6 +170,27 @@ public sealed class RenderCacheServiceTests
         Assert.Equal(RenderCacheState.Idle, service.State);
     }
 
+    [Fact]
+    public void Un_trozo_cortado_por_una_pausa_larga_vuelve_delante()
+    {
+        (RenderCacheService service, Clock clock, Worker worker) = Create();
+        service.SetPlan(1, [new(0, 120, RenderCostClass.Heavy)], 0, Rational.Fps30);
+        Start(service, clock);
+        RenderCacheWork cut = worker.Started[0];
+        service.NotifyPlaying(true);
+
+        worker.Cancel();
+        service.Tick();
+
+        Assert.Equal(cut, service.Pending.First());
+        Assert.Equal(2, service.Pending.Count);
+        Assert.Equal(0, service.Discarded);
+        service.NotifyPlaying(false);
+        clock.Advance(TimeSpan.FromSeconds(3));
+        service.Tick();
+        Assert.Equal(cut, worker.Started[^1]);
+    }
+
     private static void Start(RenderCacheService service, Clock clock)
     {
         clock.Advance(TimeSpan.FromSeconds(3));
@@ -188,11 +210,11 @@ public sealed class RenderCacheServiceTests
 
         public List<RenderCacheWork> Started { get; } = [];
 
-        public RenderCachePause? Pause { get; private set; }
+        public ExportPauseToken? Pause { get; private set; }
 
         public CancellationToken Token { get; private set; }
 
-        public Task<bool> RunAsync(RenderCacheWork work, RenderCachePause pause, CancellationToken cancellationToken)
+        public Task<bool> RunAsync(RenderCacheWork work, ExportPauseToken pause, CancellationToken cancellationToken)
         {
             Started.Add(work);
             Pause = pause;
@@ -202,6 +224,8 @@ public sealed class RenderCacheServiceTests
         }
 
         public void Finish(bool published) => _done!.SetResult(published);
+
+        public void Cancel() => _done!.SetCanceled();
     }
 
     private sealed class Clock : TimeProvider
