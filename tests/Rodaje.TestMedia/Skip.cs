@@ -24,6 +24,8 @@ public static class Skip
     /// <summary>La prueba que hace sonar un tono de verdad.</summary>
     public const string AudioVariable = "RODAJE_PRUEBAS_AUDIO";
 
+    private const string NoDirect3D = "Omitida: Direct3D 11 solo existe en Windows.";
+
     private static readonly Lazy<string?> FfmpegLibrariesReason = new(() =>
     {
         if (!FfmpegLibrary.TryInitialize(out string? reason))
@@ -31,10 +33,11 @@ public static class Skip
             return "Omitida: sin FFmpeg: " + reason;
         }
 
-        string directory = FfmpegLibrary.Directory ?? string.Empty;
-        return File.Exists(Path.Combine(directory, "ffmpeg.exe")) && File.Exists(Path.Combine(directory, "ffprobe.exe"))
+        string directory = FfmpegLocator.ExecutableDirectory(FfmpegLibrary.Directory ?? string.Empty);
+        return File.Exists(Path.Combine(directory, FfmpegLocator.ExecutableName("ffmpeg")))
+            && File.Exists(Path.Combine(directory, FfmpegLocator.ExecutableName("ffprobe")))
             ? null
-            : $"Omitida: sin FFmpeg: faltan ffmpeg.exe o ffprobe.exe en {directory}; ejecuta Probar.bat preparar-entorno.";
+            : $"Omitida: sin FFmpeg: faltan ffmpeg o ffprobe en {directory}; ejecuta Probar.bat preparar-entorno.";
     });
 
     private static readonly Lazy<string?> HardwareDecodingReason = new(() =>
@@ -42,6 +45,11 @@ public static class Skip
         if (FfmpegLibrariesReason.Value is { } ffmpeg)
         {
             return ffmpeg;
+        }
+
+        if (!OperatingSystem.IsWindowsVersionAtLeast(7))
+        {
+            return NoDirect3D;
         }
 
         using GpuDevice? gpu = GpuDevice.TryCreate(out string? failure);
@@ -55,6 +63,11 @@ public static class Skip
 
     private static readonly Lazy<string?> GpuTexturesReason = new(() =>
     {
+        if (!OperatingSystem.IsWindowsVersionAtLeast(7))
+        {
+            return NoDirect3D;
+        }
+
         using GpuDevice? gpu = GpuDevice.TryCreate(out string? failure);
         if (gpu is null)
         {
@@ -92,9 +105,9 @@ public static class Skip
     private static readonly ConcurrentDictionary<VideoCodec, Lazy<string?>> BFramesReasons = new();
 
     private static readonly Lazy<string?> MissingAudioDevice = new(() =>
-        WasapiOutput.ProbeDefaultDevice(out string description)
-            ? null
-            : $"No hay un dispositivo de salida de audio usable en este equipo: {description}");
+        !OperatingSystem.IsWindows() ? "La salida de audio de este sistema todavía no existe (fase 6 de D-066)."
+        : WasapiOutput.ProbeDefaultDevice(out string description) ? null
+        : $"No hay un dispositivo de salida de audio usable en este equipo: {description}");
 
     /// <summary>Corrida de aceptación: las pruebas largas corren y las rápidas hacen la medida completa.</summary>
     public static bool LongRuns => IsOn(LongVariable);

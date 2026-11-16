@@ -78,13 +78,13 @@ public sealed class FfmpegProcessTests
     {
         FfmpegExecutable exe = FfmpegExecutable.Locate();
 
-        Assert.Equal(Path.Combine(FfmpegLibrary.Directory!, "ffmpeg.exe"), exe.Path, ignoreCase: true);
+        Assert.Equal(Path.Combine(FfmpegLocator.ExecutableDirectory(FfmpegLibrary.Directory!), FfmpegExecutable.FileName), exe.Path, ignoreCase: true);
         Assert.Contains("--enable-version3", exe.Configuration, StringComparison.Ordinal);
         Assert.DoesNotContain("--enable-gpl", exe.Configuration, StringComparison.Ordinal);
         Assert.DoesNotContain("--enable-nonfree", exe.Configuration, StringComparison.Ordinal);
         Assert.StartsWith("ffmpeg version n9.", exe.Version, StringComparison.Ordinal);
         Assert.Same(exe, FfmpegExecutable.Open(exe.Path));
-        Assert.All(FfmpegExecutable.ExtraLibraries, l => Assert.True(File.Exists(Path.Combine(FfmpegLibrary.Directory!, l + ".dll"))));
+        Assert.All(FfmpegExecutable.ExtraLibraries, l => Assert.True(File.Exists(Path.Combine(FfmpegLibrary.Directory!, FfmpegLocator.LibraryFileName(l)))));
     }
 
     [ProxyFact]
@@ -114,9 +114,11 @@ public sealed class FfmpegProcessTests
     [ProxyFact]
     public void The_bundled_companion_libraries_pass_the_same_build_check() =>
         Assert.All(FfmpegExecutable.ExtraLibraries, l =>
-            Assert.Null(FfmpegLibrary.CompanionLibraryProblem(Path.Combine(FfmpegLibrary.Directory!, l + ".dll"))));
+            Assert.Null(FfmpegLibrary.CompanionLibraryProblem(Path.Combine(FfmpegLibrary.Directory!, FfmpegLocator.LibraryFileName(l)))));
 
+    // Copia la carpeta de bin de Windows (exe y DLL juntos); en Unix van en bin/ y lib/ y la lógica es la misma.
     [ProxyFact]
+    [Trait("Categoria", "SoloWindows")]
     public void A_changed_executable_or_companion_library_is_verified_again()
     {
         using var temp = new TempDirectory();
@@ -149,7 +151,7 @@ public sealed class FfmpegProcessTests
     {
         using var temp = new TempDirectory();
 
-        var ex = Assert.Throws<FfmpegNotFoundException>(() => FfmpegExecutable.Open(temp.Combine("ffmpeg.exe")));
+        var ex = Assert.Throws<FfmpegNotFoundException>(() => FfmpegExecutable.Open(temp.Combine(FfmpegExecutable.FileName)));
 
         Assert.Contains("No existe", ex.Message, StringComparison.Ordinal);
     }
