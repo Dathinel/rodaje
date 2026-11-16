@@ -10,37 +10,46 @@ public static class VideoGenerator
     {
         string samplesDir = Path.Combine(AppContext.BaseDirectory, "muestras");
         Directory.CreateDirectory(samplesDir);
-
-        string h264Path = Path.Combine(samplesDir, "h264_nv12.mp4");
-        string hevcPath = Path.Combine(samplesDir, "hevc_p010.mp4");
-
         string ffmpegExe = FindFfmpegExecutable(ffmpegDir);
+        const string Source = "-y -f lavfi -i testsrc2=size=1920x1080:rate=30 -t 10 -colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv";
 
-        string encodersOutput = RunCommand(ffmpegExe, "-encoders");
-
-        string h264Encoder = encodersOutput.Contains("h264_nvenc") ? "h264_nvenc"
-                           : encodersOutput.Contains("libopenh264") ? "libopenh264"
-                           : "h264";
-
-        string hevcEncoder = encodersOutput.Contains("hevc_nvenc") ? "hevc_nvenc"
-                           : encodersOutput.Contains("libkvazaar") ? "libkvazaar"
-                           : "hevc";
-
-        if (!File.Exists(h264Path))
-        {
-            Console.WriteLine($"Generando muestra H.264 8-bit ({h264Encoder})...");
-            string args = $"-y -f lavfi -i testsrc2=size=1920x1080:rate=30 -t 10 -pix_fmt yuv420p -colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv -c:v {h264Encoder} \"{h264Path}\"";
-            RunProcess(ffmpegExe, args);
-        }
-
-        if (!File.Exists(hevcPath))
-        {
-            Console.WriteLine($"Generando muestra HEVC Main10 ({hevcEncoder})...");
-            string args = $"-y -f lavfi -i testsrc2=size=1920x1080:rate=30 -t 10 -pix_fmt p010le -profile:v main10 -colorspace bt709 -color_primaries bt709 -color_trc bt709 -color_range tv -c:v {hevcEncoder} \"{hevcPath}\"";
-            RunProcess(ffmpegExe, args);
-        }
-
+        // Un codificador puede estar en el build y no servir en este equipo (h264_nvenc sin GPU): se prueban en orden.
+        // Sin HEVC de 10 bits LGPL por software, el respaldo es VP9 de 10 bits: en el camino de subida solo importa que el cuadro sea P010.
+        string h264Path = Encode(ffmpegExe, samplesDir, "8 bits (NV12)", Source + " -pix_fmt yuv420p",
+            ("h264_nvenc", "h264_nv12.mp4"), ("libopenh264", "h264_nv12.mp4"));
+        string hevcPath = Encode(ffmpegExe, samplesDir, "10 bits (P010)", Source,
+            ("hevc_nvenc -pix_fmt p010le -profile:v main10", "hevc_p010.mp4"),
+            ("libkvazaar -pix_fmt yuv420p10le", "hevc_p010.mp4"),
+            ("libvpx-vp9 -pix_fmt yuv420p10le -profile:v 2 -b:v 6M -deadline realtime -cpu-used 8", "vp9_p010.mkv"));
         return (h264Path, hevcPath);
+    }
+
+    private static string Encode(string ffmpegExe, string dir, string what, string source, params (string Encoder, string File)[] candidates)
+    {
+        foreach ((string _, string file) in candidates)
+        {
+            if (File.Exists(Path.Combine(dir, file))) return Path.Combine(dir, file);
+        }
+
+        string errors = "";
+        foreach ((string encoder, string file) in candidates)
+        {
+            string path = Path.Combine(dir, file);
+            try
+            {
+                Console.WriteLine($"Generando muestra de {what} con {encoder.Split(' ')[0]}...");
+                RunProcess(ffmpegExe, $"{source} -c:v {encoder} \"{path}\"");
+                return path;
+            }
+            catch (InvalidOperationException ex)
+            {
+                if (File.Exists(path)) File.Delete(path);
+                string[] lines = ex.Message.TrimEnd().Split('\n');
+                errors += $"\n  {encoder.Split(' ')[0]}: {lines[^1].Trim()}";
+            }
+        }
+
+        throw new InvalidOperationException($"Ningún codificador pudo generar la muestra de {what}:{errors}");
     }
 
     private static string FindFfmpegExecutable(string ffmpegDir)
