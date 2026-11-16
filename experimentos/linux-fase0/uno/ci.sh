@@ -39,6 +39,7 @@ LIBGL_ALWAYS_SOFTWARE=1 "$exe" --proyecto "$proyecto" --registro "$PWD/salida/re
 pid=$!
 estado=0
 clics=0
+reintentos=0
 salida_app=-1
 if ! esperar 'ventana_lista_ms' 60; then echo "La ventana no llegó a estar lista."; estado=1; fi
 
@@ -46,9 +47,16 @@ if [ "$estado" -eq 0 ] && [ "$rid" = linux-x64 ]; then
   ventana=$(xdotool search --onlyvisible --pid "$pid" 2>/dev/null | head -n 1)
   [ -n "$ventana" ] || ventana=$(xdotool search --onlyvisible --name 'Rodaje fase 0' | head -n 1)
   read -r _ x y < <(grep '^boton_contar' salida/registro.txt)
+  # Loaded llega antes de que el servidor X entregue entrada a la ventana: un clic lanzado en ese instante se pierde
+  # (pasó en 1 de 4 ejecuciones). Se espera medio segundo y cada clic se reintenta; los reintentos se anotan.
+  sleep 0.5
   for n in 1 2 3; do
-    xdotool mousemove --window "$ventana" "$x" "$y" click 1
-    esperar "clic: $n" 5 || { echo "El clic $n no llegó."; estado=1; break; }
+    for intento in 1 2 3; do
+      xdotool mousemove --window "$ventana" "$x" "$y" click 1
+      esperar "clic: $n" 2 && break
+      reintentos=$((reintentos + 1))
+    done
+    grep -q "clic: $n" salida/registro.txt || { echo "El clic $n no llegó."; estado=1; break; }
     clics=$n
   done
   import -window root salida/captura.png 2>/dev/null || true
@@ -90,6 +98,7 @@ cat > salida/resultado.json <<EOF
   "ventana_lista_ms": ${lista_ms:-null},
   "ventana_lista_caliente_ms": ${caliente:-null},
   "clics_recibidos": $clics,
+  "clics_reintentados": $reintentos,
   "codigo_de_salida": $salida_app,
   "pasa": $([ "$estado" -eq 0 ] && echo true || echo false)
 }

@@ -161,6 +161,9 @@ public static unsafe class FfmpegInterop
             string stem = libraryName;
             if (stem.StartsWith("lib")) stem = stem[3..];
             if (stem.EndsWith(".so")) stem = stem[..^3];
+            // Los enlaces piden «avutil-61»: en Linux es libavutil.so.61.
+            int dash = stem.LastIndexOf('-');
+            if (dash > 0 && int.TryParse(stem[(dash + 1)..], out _)) stem = stem[..dash];
 
             string versioned = stem switch
             {
