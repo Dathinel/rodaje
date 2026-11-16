@@ -475,6 +475,12 @@ internal sealed partial class TimelineScheduler : IDisposable
 
     private void RecordLateFrame(long frame)
     {
+        // Varias capas tarde en el mismo cuadro (o el mismo cuadro en varios refrescos) cuentan una vez: si no, acortan la ventana.
+        if (_lateCount > 0 && _lateRing[(_lateHead - 1 + LateFramesCapacity) % LateFramesCapacity] == frame)
+        {
+            return;
+        }
+
         _lateRing[_lateHead] = frame;
         _lateHead = (_lateHead + 1) % LateFramesCapacity;
         if (_lateCount < LateFramesCapacity)
