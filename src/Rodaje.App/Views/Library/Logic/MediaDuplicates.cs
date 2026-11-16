@@ -1,4 +1,4 @@
-using System.Security.Cryptography;
+using Rodaje.Media.RenderCache;
 
 namespace Rodaje.App.Views.Library;
 
@@ -12,8 +12,6 @@ public readonly record struct MediaFile(string MediaId, string Path);
 /// </summary>
 public static class MediaDuplicates
 {
-    private const int SampleBytes = 64 * 1024;
-
     /// <summary>
     /// Los grupos de dos o más medios repetidos, cada uno en el orden dado. Los archivos que faltan o no se pueden leer se
     /// saltan.
@@ -58,7 +56,7 @@ public static class MediaDuplicates
         foreach (List<MediaFile> sized in bySize.Values.Where(v => v.Count > 1))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            foreach (IGrouping<string, MediaFile> same in sized.GroupBy(f => Fingerprint(f.Path) ?? "", StringComparer.Ordinal))
+            foreach (IGrouping<string, MediaFile> same in sized.GroupBy(f => ContentFingerprint.Of(f.Path) ?? "", StringComparer.Ordinal))
             {
                 if (same.Key.Length == 0 || same.Count() < 2)
                 {
@@ -112,30 +110,6 @@ public static class MediaDuplicates
             return info.Exists ? info.Length : null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
-        {
-            return null;
-        }
-    }
-
-    /// <summary>SHA-256 de tres trozos del archivo (principio, medio y final), o <c>null</c> si no se puede leer.</summary>
-    private static string? Fingerprint(string path)
-    {
-        try
-        {
-            using FileStream stream = new(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, SampleBytes);
-            long length = stream.Length;
-            using var hash = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-            byte[] buffer = new byte[SampleBytes];
-            foreach (long offset in new[] { 0L, Math.Max(0, (length / 2) - (SampleBytes / 2)), Math.Max(0, length - SampleBytes) })
-            {
-                stream.Position = offset;
-                int read = stream.ReadAtLeast(buffer, (int)Math.Min(SampleBytes, length - offset), throwOnEndOfStream: false);
-                hash.AppendData(buffer, 0, read);
-            }
-
-            return Convert.ToHexString(hash.GetHashAndReset());
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return null;
         }
