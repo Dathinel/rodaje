@@ -86,3 +86,13 @@ Cada archivo se verifica con `ffprobe` antes de darlo por bueno: que tiene video
 ## Exportar un fotograma
 
 **Archivo › Exportar fotograma...** (Ctrl+Mayús+E) guarda el cuadro del cursor como imagen PNG o JPEG; el aviso dice el cuadro y el tamaño.
+
+## Llevar el montaje a otro editor
+
+Archivo › **Exportar línea de tiempo…** guarda la secuencia, no un video, para seguir en otro programa con los medios originales:
+
+- **OpenTimelineIO (`.otio`)**: lo lleva todo; si vuelve a Rodaje sin que nadie lo toque, vuelve idéntico. Lo leen DaVinci Resolve, Kdenlive y otros. Para Avid o Pro Tools (AAF), pásalo por el adaptador AAF de OpenTimelineIO o por Resolve.
+- **FCPXML (`.fcpxml`)**: para Final Cut Pro y Resolve; lleva pistas, fundidos, velocidades, volumen y, aproximadas, posición, escala y giro.
+- **EDL CMX 3600 (`.edl`)**: para etalonaje y conformado; una pista de video por archivo, con carrete y TC de cámara.
+
+Antes de escribir, Rodaje dice qué no llega igual; después, «Ver informe» da la lista con el TC de cada aviso. **Importar línea de tiempo…** hace lo contrario: trae el montaje como clip compuesto en pistas nuevas (doble clic para entrar, «Descomponer» para sacar sus clips) y, si faltan medios, abre el reenlazado. Detalle técnico en [`intercambio.md`](../intercambio.md).
