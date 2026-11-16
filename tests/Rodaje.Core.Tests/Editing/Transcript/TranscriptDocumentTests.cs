@@ -177,7 +177,7 @@ public sealed class TranscriptDocumentTests
         TranscriptDocument doc = f.Doc();
 
         Assert.Equal([(4, 3)], doc.Find("hola amigos"));
-        Assert.Equal([(1, 1)], doc.Find("w1"));
+        Assert.Equal([(2, 1)], doc.Find("w2"));
     }
 
     [Fact]
