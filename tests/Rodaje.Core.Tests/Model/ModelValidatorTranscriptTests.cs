@@ -123,6 +123,12 @@ public class ModelValidatorTranscriptTests
             p => p.Transcripts[0].Speakers[0].Color = "rojo",
             "La transcripción «t1» tiene un hablante con un color que no es #RRGGBB: «rojo».");
         AssertSingleError(
+            p => p.Transcripts[0].Speakers[0].Name = null!,
+            "La transcripción «t1» tiene un hablante con un nombre nulo, de más de 128 caracteres o con caracteres de control.");
+        AssertSingleError(
+            p => p.Transcripts[0].Speakers[0].Name = "Ana\u0007",
+            "La transcripción «t1» tiene un hablante con un nombre nulo, de más de 128 caracteres o con caracteres de control.");
+        AssertSingleError(
             p => p.Transcripts[0].Speakers[0].Color = "#FFF",
             "La transcripción «t1» tiene un hablante con un color que no es #RRGGBB: «#FFF».");
     }
