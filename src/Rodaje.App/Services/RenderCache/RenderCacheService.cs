@@ -1,4 +1,5 @@
 using Rodaje.Core.Timing;
+using Rodaje.Engine.RenderCache;
 using Rodaje.Export.Running;
 
 namespace Rodaje.App.Services.RenderCache;
@@ -64,6 +65,7 @@ public sealed class RenderCacheService
     private bool _scrubbing;
     private long _revision;
     private Rational _rate = Rational.Fps30;
+    private long _frameCount;
     private (RenderCacheWork Work, ExportPauseToken Pause, CancellationTokenSource Cancel, Task Task)? _current;
 
     public RenderCacheService(IRenderCacheWorker worker, TimeProvider time, Func<long> freeBytes, Func<long> usedBytes, long capBytes)
@@ -88,6 +90,9 @@ public sealed class RenderCacheService
 
     public int Discarded { get; private set; }
 
+    /// <summary>Trozos que fallaron (no se vuelven a encolar).</summary>
+    public int Failed { get; private set; }
+
     /// <summary>Trozos que esperan, el siguiente primero.</summary>
     public IReadOnlyCollection<RenderCacheWork> Pending => _queue;
 
@@ -100,6 +105,7 @@ public sealed class RenderCacheService
         ArgumentNullException.ThrowIfNull(spans);
         _revision = revision;
         _rate = rate;
+        _frameCount = spans.Count == 0 ? 0 : spans.Max(s => s.End);
         if (Mode != RenderCacheMode.Smart)
         {
             if (Mode == RenderCacheMode.Off)
@@ -200,9 +206,9 @@ public sealed class RenderCacheService
         {
             Discarded++;
         }
-        else if (!done.Cancel.IsCancellationRequested && done.Work.Revision == _revision && !done.Task.IsCompletedSuccessfully)
+        else if (!done.Cancel.IsCancellationRequested && done.Work.Revision == _revision && done.Task.IsCanceled)
         {
-            // Una pausa larga (o un fallo) corta el trozo: vuelve delante para cuando haya reposo.
+            // Una pausa larga corta el trozo: vuelve delante para cuando haya reposo. Un fallo no, o se repetiría sin fin.
             RenderCacheWork[] rest = [.. _queue];
             _queue.Clear();
             _queue.Enqueue(done.Work);
@@ -210,6 +216,10 @@ public sealed class RenderCacheService
             {
                 _queue.Enqueue(work);
             }
+        }
+        else if (done.Task.IsFaulted)
+        {
+            Failed++;
         }
 
         done.Cancel.Dispose();
@@ -227,12 +237,29 @@ public sealed class RenderCacheService
         UpdateState();
     }
 
+    /// <summary>
+    /// Trozos de hasta 2 s, todos de al menos <see cref="CacheCoverage.ShortestSpan"/>: uno más corto se calcularía y no
+    /// se vería nunca. Un tramo corto se ensancha dentro de la secuencia y los trozos se reparten por igual.
+    /// </summary>
     private void Enqueue(long start, long end)
     {
-        int chunk = (int)Math.Ceiling(2 * _rate.ToDouble());
-        for (long first = start; first < end; first += chunk)
+        long shortest = CacheCoverage.ShortestSpan(_rate);
+        if (end - start < shortest)
         {
-            _queue.Enqueue(new RenderCacheWork(first, (int)Math.Min(chunk, end - first), _revision));
+            long limit = _frameCount > 0 ? _frameCount : start + shortest;
+            end = Math.Min(start + shortest, limit);
+            start = Math.Max(0, end - shortest);
+        }
+
+        int chunk = (int)Math.Ceiling(2 * _rate.ToDouble());
+        long length = end - start;
+        long pieces = (length + chunk - 1) / chunk;
+        long first = start;
+        for (long i = 0; i < pieces; i++)
+        {
+            int count = (int)((length / pieces) + (i < length % pieces ? 1 : 0));
+            _queue.Enqueue(new RenderCacheWork(first, count, _revision));
+            first += count;
         }
     }
 

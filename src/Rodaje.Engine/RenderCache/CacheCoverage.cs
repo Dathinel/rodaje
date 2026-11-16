@@ -69,7 +69,7 @@ public sealed class CacheCoverage
         }
 
         long second = Math.Max(1, Time.FromSeconds(1).ToFrames(frameRate));
-        long shortest = Math.Max(1, second / 4);
+        long shortest = ShortestSpan(frameRate);
         var spans = new List<CachedSpan>(found.Count);
         foreach (CachedSpan span in found)
         {
@@ -82,6 +82,9 @@ public sealed class CacheCoverage
 
         return new CacheCoverage(revision, spans);
     }
+
+    /// <summary>Cuadros que debe tener como mínimo un tramo para verse desde el caché (un cuarto de segundo).</summary>
+    public static long ShortestSpan(Rational frameRate) => Math.Max(1, Math.Max(1, Time.FromSeconds(1).ToFrames(frameRate)) / 4);
 
     /// <summary>
     /// El plan con el carril del caché encima de todo y los carriles vivos recortados fuera de lo cubierto. Sin tramos,
