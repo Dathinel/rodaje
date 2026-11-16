@@ -1007,6 +1007,156 @@
                                 }
                               }
                             }
+                          },
+                          "template": {
+                            "type": [
+                              "object",
+                              "null"
+                            ],
+                            "properties": {
+                              "source": {
+                                "type": [
+                                  "string",
+                                  "null"
+                                ]
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "minSeconds": {
+                                "type": "number"
+                              },
+                              "document": {
+                                "type": "string"
+                              },
+                              "values": {
+                                "type": "object"
+                              },
+                              "layers": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object",
+                                  "properties": {
+                                    "id": {
+                                      "type": "string"
+                                    },
+                                    "text": {
+                                      "type": "string"
+                                    },
+                                    "style": {
+                                      "type": "object",
+                                      "properties": {
+                                        "source": {
+                                          "type": [
+                                            "string",
+                                            "null"
+                                          ]
+                                        },
+                                        "name": {
+                                          "type": [
+                                            "string",
+                                            "null"
+                                          ]
+                                        },
+                                        "font": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/font"
+                                        },
+                                        "size": {
+                                          "type": "number"
+                                        },
+                                        "reference": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/reference"
+                                        },
+                                        "lineHeight": {
+                                          "type": "number"
+                                        },
+                                        "letterSpacing": {
+                                          "type": "number"
+                                        },
+                                        "align": {
+                                          "enum": [
+                                            "left",
+                                            "center",
+                                            "right"
+                                          ]
+                                        },
+                                        "fill": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/fill"
+                                        },
+                                        "stroke": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/stroke"
+                                        },
+                                        "shadow": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/shadow"
+                                        },
+                                        "background": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/background"
+                                        },
+                                        "extraStrokes": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/extraStrokes"
+                                        },
+                                        "extraShadows": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/extraShadows"
+                                        },
+                                        "typography": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/typography"
+                                        },
+                                        "path": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/path"
+                                        },
+                                        "highlight": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/highlight"
+                                        },
+                                        "in": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/in"
+                                        },
+                                        "out": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/out"
+                                        }
+                                      }
+                                    },
+                                    "box": {
+                                      "type": [
+                                        "object",
+                                        "null"
+                                      ],
+                                      "properties": {
+                                        "width": {
+                                          "type": [
+                                            "number",
+                                            "null"
+                                          ]
+                                        },
+                                        "widthFraction": {
+                                          "type": [
+                                            "number",
+                                            "null"
+                                          ]
+                                        },
+                                        "heightFraction": {
+                                          "type": [
+                                            "number",
+                                            "null"
+                                          ]
+                                        }
+                                      }
+                                    },
+                                    "x": {
+                                      "type": "number"
+                                    },
+                                    "y": {
+                                      "type": "number"
+                                    },
+                                    "start": {
+                                      "type": "number"
+                                    },
+                                    "end": {
+                                      "type": "number"
+                                    }
+                                  }
+                                }
+                              }
+                            }
                           }
                         }
                       },

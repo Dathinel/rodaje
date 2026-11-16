@@ -201,7 +201,8 @@ internal static class TrackOps
             GeneratorEdges rightEdges = right.Generator!.Edges;
             leftEdges.After += right.Duration;
             rightEdges.Before += clip.Duration;
-            if (tidy)
+            // Una plantilla conserva los desfases tal cual: las ventanas de sus capas se miden desde los bordes originales.
+            if (tidy && generator.Template is null)
             {
                 Tidy(leftEdges, generator.Style, clip.Duration);
                 Tidy(rightEdges, generator.Style, right.Duration);

@@ -34,6 +34,7 @@ public static class ProjectSerializer
     [
         project => project.Transcripts.Count > 0,
         project => project.Media.Any(m => m.Timecode is not null || m.Reel is not null) || project.Sequences.Any(s => s.StartTimecode is not null),
+        project => project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).Any(c => c.Generator?.Template is not null),
     ];
 
     /// <summary>
