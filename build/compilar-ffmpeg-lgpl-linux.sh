@@ -17,6 +17,7 @@ export RODAJE_FFMPEG_SALIDA="$trabajo/salida-btbn"
 mkdir -p "$RODAJE_FFMPEG_ENTRADA" "$RODAJE_FFMPEG_SALIDA"
 docker info >/dev/null
 if docker buildx inspect ffbuilder >/dev/null 2>&1; then fallar 'Ya existe ffbuilder: usar un anfitrion/runner dedicado'; fi
+# shellcheck disable=SC2154 # estado se asigna dentro de la propia trampa.
 trap 'estado=$?; docker buildx rm -f ffbuilder >/dev/null 2>&1 || true; exit "$estado"' EXIT
 docker buildx imagetools inspect "$IMAGEN_LINUX" > "$trabajo/imagen-base.txt"
 descargar_fuente FFmpeg-Builds "$RODAJE_FFMPEG_ENTRADA" >/dev/null

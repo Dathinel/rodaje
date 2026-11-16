@@ -9,6 +9,7 @@ sistema="$2"
 informe="$raiz/auditoria.txt"
 exec 3>&1
 exec > "$informe" 2>&1
+# shellcheck disable=SC2154 # estado se asigna dentro de la propia trampa.
 trap 'estado=$?; trap - EXIT; cat "$informe" >&3; exit "$estado"' EXIT
 fallar() { echo "ERROR: $*"; exit 1; }
 echo "Auditoria FFmpeg LGPL v3: $sistema"
@@ -65,7 +66,8 @@ while IFS= read -r -d '' archivo; do
         printf '%s\n' "$dinamica"
         deps="$(sed -n 's/.*(NEEDED).*\[\([^]]*\)\].*/\1/p' <<< "$dinamica")"
         [[ -n "$deps" ]] || fallar "Sin dependencias dinamicas: $archivo"
-        rutas="$(sed -n '/(RPATH)\|(RUNPATH)/s/.*\[\([^]]*\)\].*/\1/p' <<< "$dinamica")"
+        # -E: el sed de macOS no entiende «\|» en expresiones básicas (la prueba del auditor corre también allí).
+        rutas="$(sed -nE '/\((RPATH|RUNPATH)\)/s/.*\[([^]]*)\].*/\1/p' <<< "$dinamica")"
         while IFS= read -r ruta; do
             [[ -z "$ruta" ]] && continue
             IFS=: read -r -a partes <<< "$ruta"
