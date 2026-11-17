@@ -14,7 +14,6 @@
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifier>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</RuntimeIdentifier>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX'))">osx-arm64</RuntimeIdentifier>
-    <!-- RID fijo: el lockfile no depende del anfitrión que restaura (NU1004). -->
     <RootNamespace>Rodaje.Module.Translate</RootNamespace>
     <AssemblyName>Rodaje.Module.Translate</AssemblyName>
     <IsPackable>false</IsPackable>
