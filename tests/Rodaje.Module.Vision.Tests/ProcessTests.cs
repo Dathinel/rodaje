@@ -13,7 +13,7 @@ namespace Rodaje.Module.Vision.Tests;
 public class ProcessTests(ITestOutputHelper output)
 {
     private static string Exe =>
-        Environment.GetEnvironmentVariable("RODAJE_MODULO_VISION") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Vision.exe");
+        Environment.GetEnvironmentVariable("RODAJE_MODULO_VISION") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Vision" + (OperatingSystem.IsWindows() ? ".exe" : ""));
 
     private static async Task<ModuleProcess> StartAsync()
     {

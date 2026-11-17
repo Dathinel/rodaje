@@ -14,7 +14,7 @@ namespace Rodaje.Module.Raw.Tests;
 public class ProcessTests(ITestOutputHelper output)
 {
     private static string Exe =>
-        Environment.GetEnvironmentVariable("RODAJE_MODULO_RAW") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Raw.exe");
+        Environment.GetEnvironmentVariable("RODAJE_MODULO_RAW") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Raw" + (OperatingSystem.IsWindows() ? ".exe" : ""));
 
     private static bool Ready => File.Exists(Exe) && DevelopTests.HasLibRaw;
 
