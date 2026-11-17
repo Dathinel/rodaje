@@ -85,14 +85,17 @@ internal sealed class CpuFrameUploads(IGpu gpu) : IDisposable
             return null;
         }
 
-        int sample = deep ? 2 : 1;
+        // Siempre a 16 bits (como P010): lavapipe filtra las texturas UNORM8 con 8 bits de precisión y una capa NV12 se alejaba hasta 6
+        // códigos de 10 bits de la de D3D11. Los 8 bits van como el mismo código en 10 bits (×4) en la parte alta, que da el mismo color.
         // yuv420p10 guarda el código en los 10 bits bajos; P010, en los altos, que es lo que leen las vistas R16_UNORM.
-        int shift = deep && planar ? 6 : 0;
+        int sourceSample = deep ? 2 : 1;
+        int shift = deep ? (planar ? 6 : 0) : 8;
+        const int sample = 2;
         byte[] luma = new byte[width * height * sample];
         ReadOnlySpan<byte> source = payload.GetPlane(0, out int stride);
         for (int y = 0; y < height; y++)
         {
-            Widen(source.Slice(y * stride, width * sample), luma.AsSpan(y * width * sample, width * sample), deep, shift);
+            Widen(source.Slice(y * stride, width * sourceSample), luma.AsSpan(y * width * sample, width * sample), deep, shift);
         }
 
         byte[] chroma = new byte[chromaWidth * chromaHeight * 2 * sample];
@@ -102,7 +105,7 @@ internal sealed class CpuFrameUploads(IGpu gpu) : IDisposable
             ReadOnlySpan<byte> v = payload.GetPlane(2, out int vStride);
             for (int y = 0; y < chromaHeight; y++)
             {
-                Interleave(u.Slice(y * uStride, chromaWidth * sample), v.Slice(y * vStride, chromaWidth * sample),
+                Interleave(u.Slice(y * uStride, chromaWidth * sourceSample), v.Slice(y * vStride, chromaWidth * sourceSample),
                     chroma.AsSpan(y * chromaWidth * 2 * sample, chromaWidth * 2 * sample), deep, shift);
             }
         }
@@ -111,17 +114,18 @@ internal sealed class CpuFrameUploads(IGpu gpu) : IDisposable
             ReadOnlySpan<byte> uv = payload.GetPlane(1, out int uvStride);
             for (int y = 0; y < chromaHeight; y++)
             {
-                uv.Slice(y * uvStride, chromaWidth * 2 * sample).CopyTo(chroma.AsSpan(y * chromaWidth * 2 * sample));
+                Widen(uv.Slice(y * uvStride, chromaWidth * 2 * sourceSample), chroma.AsSpan(y * chromaWidth * 2 * sample, chromaWidth * 2 * sample),
+                    deep, shift);
             }
         }
 
-        GpuTexture lumaTexture = gpu.CreateTexture(new GpuTextureDesc(width, height, deep ? GpuFormat.R16Unorm : GpuFormat.R8Unorm,
+        GpuTexture lumaTexture = gpu.CreateTexture(new GpuTextureDesc(width, height, GpuFormat.R16Unorm,
             GpuTextureUsage.Sampled), luma);
         try
         {
-            GpuTexture chromaTexture = gpu.CreateTexture(new GpuTextureDesc(chromaWidth, chromaHeight, deep ? GpuFormat.Rg16Unorm : GpuFormat.Rg8Unorm,
+            GpuTexture chromaTexture = gpu.CreateTexture(new GpuTextureDesc(chromaWidth, chromaHeight, GpuFormat.Rg16Unorm,
                 GpuTextureUsage.Sampled), chroma);
-            return new GpuTextureSurface(lumaTexture, chromaTexture, deep ? FramePixelFormat.P010 : FramePixelFormat.Nv12, payload.Color);
+            return new GpuTextureSurface(lumaTexture, chromaTexture, FramePixelFormat.P010, payload.Color);
         }
         catch
         {
@@ -132,7 +136,18 @@ internal sealed class CpuFrameUploads(IGpu gpu) : IDisposable
 
     private static void Widen(ReadOnlySpan<byte> source, Span<byte> target, bool deep, int shift)
     {
-        if (!deep || shift == 0)
+        if (!deep)
+        {
+            Span<ushort> words = MemoryMarshal.Cast<byte, ushort>(target);
+            for (int i = 0; i < source.Length; i++)
+            {
+                words[i] = (ushort)(source[i] << shift);
+            }
+
+            return;
+        }
+
+        if (shift == 0)
         {
             source.CopyTo(target);
             return;
@@ -150,10 +165,11 @@ internal sealed class CpuFrameUploads(IGpu gpu) : IDisposable
     {
         if (!deep)
         {
+            Span<ushort> words = MemoryMarshal.Cast<byte, ushort>(target);
             for (int i = 0; i < u.Length; i++)
             {
-                target[2 * i] = u[i];
-                target[(2 * i) + 1] = v[i];
+                words[2 * i] = (ushort)(u[i] << shift);
+                words[(2 * i) + 1] = (ushort)(v[i] << shift);
             }
 
             return;
