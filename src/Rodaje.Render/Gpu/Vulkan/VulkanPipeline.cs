@@ -61,15 +61,28 @@ internal sealed unsafe class VulkanPipeline : GpuPipeline
             SetLayout = setLayout;
         }
 
-        VkDescriptorSetLayout layoutHandle = SetLayout;
-        var pipelineLayoutInfo = new VkPipelineLayoutCreateInfo { sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, setLayoutCount = 1, pSetLayouts = &layoutHandle };
-        VkPipelineLayout pipelineLayout;
-        gpu.Check(vkCreatePipelineLayout(gpu.Device, &pipelineLayoutInfo, null, &pipelineLayout), "vkCreatePipelineLayout");
-        Layout = pipelineLayout;
-
-        if (desc.Compute is not null)
+        try
         {
-            CreateCompute(shaders[0]);
+            VkDescriptorSetLayout layoutHandle = SetLayout;
+            var pipelineLayoutInfo = new VkPipelineLayoutCreateInfo { sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, setLayoutCount = 1, pSetLayouts = &layoutHandle };
+            VkPipelineLayout pipelineLayout;
+            gpu.Check(VulkanGpu.Injected("vkCreatePipelineLayout") ?? vkCreatePipelineLayout(gpu.Device, &pipelineLayoutInfo, null, &pipelineLayout), "vkCreatePipelineLayout");
+            Layout = pipelineLayout;
+
+            if (desc.Compute is not null)
+            {
+                CreateCompute(shaders[0]);
+            }
+        }
+        catch
+        {
+            if (Layout != default)
+            {
+                vkDestroyPipelineLayout(gpu.Device, Layout, null);
+            }
+
+            vkDestroyDescriptorSetLayout(gpu.Device, SetLayout, null);
+            throw;
         }
     }
 
@@ -148,7 +161,7 @@ internal sealed unsafe class VulkanPipeline : GpuPipeline
                 layout = Layout,
             };
             VkPipeline pipeline;
-            _gpu.Check(vkCreateComputePipelines(_gpu.Device, default, 1, &info, null, &pipeline), $"vkCreateComputePipelines({shader.Id})");
+            _gpu.Check(VulkanGpu.Injected("vkCreateComputePipelines") ?? vkCreateComputePipelines(_gpu.Device, default, 1, &info, null, &pipeline), $"vkCreateComputePipelines({shader.Id})");
             _compute = pipeline;
         }
     }

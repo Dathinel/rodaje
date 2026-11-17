@@ -23,7 +23,8 @@ internal enum SpirvDimension
     D3,
 }
 
-internal readonly record struct SpirvBinding(int Binding, SpirvDescriptor Kind, SpirvDimension Dimension);
+/// <param name="ImageFormat">El <c>Image Format</c> de SPIR-V de una imagen (0 = <c>Unknown</c>, el que se usa: lo decide la vista).</param>
+internal readonly record struct SpirvBinding(int Binding, SpirvDescriptor Kind, SpirvDimension Dimension, int ImageFormat = 0);
 
 /// <summary>
 /// Lo que el motor necesita de un módulo de DXC: el punto de entrada y los enlaces del conjunto 0 (registros con los desplazamientos del
@@ -31,14 +32,17 @@ internal readonly record struct SpirvBinding(int Binding, SpirvDescriptor Kind, 
 /// </summary>
 internal sealed class SpirvModule
 {
-    private const int OpEntryPoint = 15, OpTypeImage = 25, OpTypeSampler = 26, OpTypeSampledImage = 27, OpTypeArray = 28,
+    private const int OpCapability = 17, OpEntryPoint = 15, OpTypeImage = 25, OpTypeSampler = 26, OpTypeSampledImage = 27, OpTypeArray = 28,
         OpTypeRuntimeArray = 29, OpTypeStruct = 30, OpTypePointer = 32, OpVariable = 59, OpDecorate = 71;
+
+    public const int CapabilityExtendedFormats = 49, CapabilityReadWithoutFormat = 55, CapabilityWriteWithoutFormat = 56;
 
     private const int DecorationBlock = 2, DecorationBufferBlock = 3, DecorationBinding = 33;
     private const uint StorageUniformConstant = 0, StorageUniform = 2, StorageStorageBuffer = 12;
 
-    private SpirvModule(byte[] code, string entryPoint, int executionModel, SpirvBinding[] bindings)
+    private SpirvModule(byte[] code, string entryPoint, int executionModel, SpirvBinding[] bindings, HashSet<int> capabilities)
     {
+        Capabilities = capabilities;
         Code = code;
         EntryPoint = entryPoint;
         ExecutionModel = executionModel;
@@ -54,6 +58,9 @@ internal sealed class SpirvModule
 
     public SpirvBinding[] Bindings { get; }
 
+    /// <summary>Los <c>OpCapability</c> del módulo (49 <c>StorageImageExtendedFormats</c>, 55/56 lectura/escritura sin formato).</summary>
+    public IReadOnlySet<int> Capabilities { get; }
+
     public static SpirvModule Read(byte[] code)
     {
         if (code.Length < 20 || code.Length % 4 != 0 || BitConverter.ToUInt32(code, 0) != 0x07230203)
@@ -68,6 +75,7 @@ internal sealed class SpirvModule
         var bufferBlocks = new HashSet<uint>();
         var types = new Dictionary<uint, uint[]>();
         var variables = new List<(uint Id, uint Type, uint Storage)>();
+        var capabilities = new HashSet<int>();
         string? entry = null;
         int model = -1;
         for (int i = 5; i < w.Length;)
@@ -82,6 +90,9 @@ internal sealed class SpirvModule
             ReadOnlySpan<uint> o = w.AsSpan(i + 1, count - 1);
             switch (op)
             {
+                case OpCapability:
+                    capabilities.Add((int)o[0]);
+                    break;
                 case OpEntryPoint when entry is null:
                     model = (int)o[0];
                     entry = LiteralString(o[2..]);
@@ -134,7 +145,7 @@ internal sealed class SpirvModule
                 // OpTypeImage: tipo muestreado, Dim, Depth, Arrayed, MS, Sampled (1 lectura, 2 escritura).
                 OpTypeImage when t[2] == 5 => new(b, t[6] == 2 ? SpirvDescriptor.StorageTexelBuffer : SpirvDescriptor.UniformTexelBuffer, SpirvDimension.None),
                 OpTypeImage => new(b, t[6] == 2 ? SpirvDescriptor.StorageImage : SpirvDescriptor.SampledImage,
-                    t[2] == 2 ? SpirvDimension.D3 : t[4] == 1 ? SpirvDimension.D2Array : SpirvDimension.D2),
+                    t[2] == 2 ? SpirvDimension.D3 : t[4] == 1 ? SpirvDimension.D2Array : SpirvDimension.D2, (int)t[7]),
                 _ => throw new RenderException($"Enlace {b} de tipo SPIR-V {t[0]} sin equivalente."),
             };
             bindings.Add(found);
@@ -145,7 +156,7 @@ internal sealed class SpirvModule
             throw new RenderException("El módulo SPIR-V no tiene punto de entrada.");
         }
 
-        return new SpirvModule(code, entry, model, [.. bindings.OrderBy(x => x.Binding)]);
+        return new SpirvModule(code, entry, model, [.. bindings.OrderBy(x => x.Binding)], capabilities);
     }
 
     private static string LiteralString(ReadOnlySpan<uint> words)

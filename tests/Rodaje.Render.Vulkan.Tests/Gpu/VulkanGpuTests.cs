@@ -49,6 +49,9 @@ public sealed class VulkanGpuTests : IDisposable
     public void Compute_writes_a_storage_texture_and_a_raw_buffer() => Checks.Compute_writes_a_storage_texture_and_a_raw_buffer();
 
     [VulkanFact]
+    public void Acquired_surface_outlives_its_owner_until_the_frame_completes() => Checks.Acquired_surface_outlives_its_owner_until_the_frame_completes();
+
+    [VulkanFact]
     public void Id_target_is_cleared_and_read_back_one_pixel_at_a_time() => Checks.Id_target_is_cleared_and_read_back_one_pixel_at_a_time();
 
     [VulkanTheory]

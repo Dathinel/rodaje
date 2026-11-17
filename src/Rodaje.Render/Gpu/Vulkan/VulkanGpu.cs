@@ -1,6 +1,8 @@
 using System.Diagnostics.CodeAnalysis;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Text;
+using Rodaje.Media.Gpu;
 using Rodaje.Render.Shaders;
 using Rodaje.Render.Spirv;
 using TerraFX.Interop.Vulkan;
@@ -22,6 +24,9 @@ public sealed unsafe partial class VulkanGpu : IGpu
     /// <summary>Con 1, carga <c>VK_LAYER_KHRONOS_validation</c> si está instalada.</summary>
     public const string ValidationVariable = "RODAJE_VK_VALIDACION";
 
+    /// <summary>Archivo donde se añade cada error de validación (con <see cref="ValidationVariable"/>).</summary>
+    public const string ValidationReportVariable = "RODAJE_VK_VALIDACION_INFORME";
+
     private readonly VkInstance _instance;
     private readonly VkPhysicalDevice _physical;
     private readonly VkDevice _device;
@@ -36,14 +41,17 @@ public sealed unsafe partial class VulkanGpu : IGpu
     private readonly List<(long Serial, Action Destroy)> _garbage = [];
     private readonly ImmediateUploader _immediate;
     private VulkanFrame? _open;
+    private VkDebugUtilsMessengerEXT _messenger;
     private long _lastSerial;
     private long _completed;
     private bool _lost;
     private bool _disposed;
 
-    private VulkanGpu(VkInstance instance, VkPhysicalDevice physical, uint family, in VkPhysicalDeviceProperties properties, bool storageWithoutFormat,
-        bool depthBiasClamp)
+    private VulkanGpu(VkInstance instance, VkPhysicalDevice physical, uint family, in VkPhysicalDeviceProperties properties,
+        in VkPhysicalDeviceFeatures supported)
     {
+        bool storageWithoutFormat = supported.shaderStorageImageReadWithoutFormat != 0 && supported.shaderStorageImageWriteWithoutFormat != 0;
+        bool depthBiasClamp = supported.depthBiasClamp != 0;
         _instance = instance;
         _physical = physical;
         _family = family;
@@ -52,6 +60,8 @@ public sealed unsafe partial class VulkanGpu : IGpu
         vkGetPhysicalDeviceMemoryProperties(physical, &memory);
         _memory = memory;
         DepthBiasClampSupported = depthBiasClamp;
+        StorageWithoutFormat = storageWithoutFormat;
+        StorageExtendedFormats = supported.shaderStorageImageExtendedFormats != 0;
 
         float priority = 1;
         var queueInfo = new VkDeviceQueueCreateInfo
@@ -72,6 +82,11 @@ public sealed unsafe partial class VulkanGpu : IGpu
         if (depthBiasClamp)
         {
             features.features.depthBiasClamp = VK_TRUE;
+        }
+
+        if (StorageExtendedFormats)
+        {
+            features.features.shaderStorageImageExtendedFormats = VK_TRUE;
         }
 
         var deviceInfo = new VkDeviceCreateInfo
@@ -100,7 +115,17 @@ public sealed unsafe partial class VulkanGpu : IGpu
             CanBlend = CanBlendTo,
         };
         _immediate = new ImmediateUploader(this);
-        Defaults = new DefaultResources(this);
+        try
+        {
+            Defaults = new DefaultResources(this);
+        }
+        catch
+        {
+            // TryCreate solo se queda con la instancia: lo que cuelga del dispositivo se suelta aquí.
+            _immediate.Destroy();
+            vkDestroyDevice(device, null);
+            throw;
+        }
     }
 
     public GpuCaps Caps { get; }
@@ -120,6 +145,11 @@ public sealed unsafe partial class VulkanGpu : IGpu
 
     internal bool DepthBiasClampSupported { get; }
 
+    /// <summary>Imágenes de escritura sin formato declarado: el SPIR-V las declara <c>Unknown</c> y el formato lo pone la vista.</summary>
+    internal bool StorageWithoutFormat { get; }
+
+    internal bool StorageExtendedFormats { get; }
+
     internal DefaultResources Defaults { get; }
 
     /// <summary>Un dispositivo Vulkan 1.3; <paramref name="preferSoftware"/> elige el de la CPU (lavapipe) si lo hay.</summary>
@@ -131,20 +161,21 @@ public sealed unsafe partial class VulkanGpu : IGpu
     {
         gpu = null;
         VkInstance instance = default;
+        VkDebugUtilsMessengerEXT messenger = default;
         try
         {
-            instance = CreateInstance();
+            instance = CreateInstance(out bool validation);
+            messenger = validation ? CreateMessenger(instance) : default;
             string? filter = Environment.GetEnvironmentVariable(AdapterVariable);
             if (!Choose(instance, preferSoftware, filter, out VkPhysicalDevice physical, out uint family, out VkPhysicalDeviceProperties properties, out reason))
             {
-                vkDestroyInstance(instance, null);
+                DestroyInstance(instance, messenger);
                 return false;
             }
 
             VkPhysicalDeviceFeatures supported;
             vkGetPhysicalDeviceFeatures(physical, &supported);
-            bool storage = supported.shaderStorageImageReadWithoutFormat != 0 && supported.shaderStorageImageWriteWithoutFormat != 0;
-            gpu = new VulkanGpu(instance, physical, family, properties, storage, supported.depthBiasClamp != 0);
+            gpu = new VulkanGpu(instance, physical, family, properties, supported) { _messenger = messenger };
             reason = null;
             return true;
         }
@@ -160,12 +191,13 @@ public sealed unsafe partial class VulkanGpu : IGpu
         {
             reason = e.Message;
         }
-
-        if (instance != default)
+        catch
         {
-            vkDestroyInstance(instance, null);
+            DestroyInstance(instance, messenger);
+            throw;
         }
 
+        DestroyInstance(instance, messenger);
         return false;
     }
 
@@ -182,7 +214,14 @@ public sealed unsafe partial class VulkanGpu : IGpu
             vkDeviceWaitIdle(_device);
         }
 
-        Poll();
+        try
+        {
+            Poll();
+        }
+        catch (RenderException) when (_lost)
+        {
+            // Con la GPU perdida se destruye todo igual: Vulkan lo permite tras VK_ERROR_DEVICE_LOST.
+        }
         lock (_garbageLock)
         {
             foreach ((long _, Action destroy) in _garbage)
@@ -207,7 +246,7 @@ public sealed unsafe partial class VulkanGpu : IGpu
         }
 
         vkDestroyDevice(_device, null);
-        vkDestroyInstance(_instance, null);
+        DestroyInstance(_instance, _messenger);
     }
 
     public IGpuFrame BeginFrame()
@@ -320,7 +359,9 @@ public sealed unsafe partial class VulkanGpu : IGpu
                 {
                     if (context.Serial >= serial)
                     {
+                        // Con alguien esperando su valla, Poll no lo devuelve a _free: no se reinicia ni se reenvía bajo la espera.
                         waitOn = context;
+                        waitOn.Waiters++;
                         break;
                     }
                 }
@@ -329,11 +370,26 @@ public sealed unsafe partial class VulkanGpu : IGpu
             long left = deadline - Environment.TickCount64;
             if (waitOn is not null)
             {
-                VkFence fence = waitOn.Fence;
-                VkResult result = vkWaitForFences(_device, 1, &fence, VK_TRUE, (ulong)Math.Max(0, left) * 1_000_000);
-                if (result == VkResult.VK_ERROR_DEVICE_LOST)
+                try
                 {
-                    Check(result, "vkWaitForFences");
+                    WaitSelected?.Invoke(waitOn);
+                    VkFence fence = waitOn.Fence;
+                    VkResult result = vkWaitForFences(_device, 1, &fence, VK_TRUE, (ulong)Math.Max(0, left) * 1_000_000);
+                    if (result < 0)
+                    {
+                        Check(result, "vkWaitForFences");
+                    }
+                }
+                finally
+                {
+                    lock (_contextLock)
+                    {
+                        if (--waitOn.Waiters == 0 && waitOn.Retired)
+                        {
+                            waitOn.Retired = false;
+                            _free.Push(waitOn);
+                        }
+                    }
                 }
             }
             else if (left > 0)
@@ -353,6 +409,9 @@ public sealed unsafe partial class VulkanGpu : IGpu
             }
         }
     }
+
+    /// <summary>Para las pruebas: corre entre elegir la valla de un envío y esperarla.</summary>
+    internal Action<FrameContext>? WaitSelected { get; set; }
 
     /// <summary>Destruye <paramref name="destroy"/> cuando termine todo lo enviado o grabado hasta ahora (regla 4).</summary>
     internal void Defer(Action destroy)
@@ -389,6 +448,9 @@ public sealed unsafe partial class VulkanGpu : IGpu
         return context;
     }
 
+    /// <summary>Para las pruebas: lo que devuelve <c>vkGetFenceStatus</c> (por ejemplo, la GPU perdida tras un envío aceptado).</summary>
+    internal Func<VkResult>? FenceStatusForTests { get; set; }
+
     internal void Submit(FrameContext context)
     {
         Check(vkEndCommandBuffer(context.Commands), "vkEndCommandBuffer");
@@ -412,15 +474,34 @@ public sealed unsafe partial class VulkanGpu : IGpu
 
     private void Poll()
     {
+        List<IDecoderSurface>? retained = null;
         lock (_contextLock)
         {
-            while (_inFlight.TryPeek(out FrameContext? context) && vkGetFenceStatus(_device, context.Fence) == VkResult.VK_SUCCESS)
+            while (_inFlight.TryPeek(out FrameContext? context))
             {
+                VkResult status = FenceStatusForTests?.Invoke() ?? vkGetFenceStatus(_device, context.Fence);
+                if (status == VkResult.VK_NOT_READY)
+                {
+                    break;
+                }
+
+                // VK_ERROR_DEVICE_LOST (o cualquier error) no es «todavía no»: marca la pérdida y lanza.
+                Check(status, "vkGetFenceStatus");
                 _inFlight.Dequeue();
                 Volatile.Write(ref _completed, Math.Max(_completed, context.Serial));
-                _free.Push(context);
+                context.TakeRetained(ref retained);
+                if (context.Waiters > 0)
+                {
+                    context.Retired = true;
+                }
+                else
+                {
+                    _free.Push(context);
+                }
             }
         }
+
+        retained?.ForEach(static surface => surface.Release());
 
         List<Action>? ready = null;
         lock (_garbageLock)
@@ -505,11 +586,20 @@ public sealed unsafe partial class VulkanGpu : IGpu
             throw;
         }
 
-        Check(vkBindBufferMemory(_device, buffer, memory, 0), "vkBindBufferMemory");
         void* mapped = null;
-        if (hostVisible)
+        try
         {
-            Check(vkMapMemory(_device, memory, 0, VK_WHOLE_SIZE, 0, &mapped), "vkMapMemory");
+            Check(Injected("vkBindBufferMemory") ?? vkBindBufferMemory(_device, buffer, memory, 0), "vkBindBufferMemory");
+            if (hostVisible)
+            {
+                Check(Injected("vkMapMemory") ?? vkMapMemory(_device, memory, 0, VK_WHOLE_SIZE, 0, &mapped), "vkMapMemory");
+            }
+        }
+        catch
+        {
+            vkDestroyBuffer(_device, buffer, null);
+            vkFreeMemory(_device, memory, null);
+            throw;
         }
 
         return (buffer, memory, (nint)mapped);
@@ -524,6 +614,13 @@ public sealed unsafe partial class VulkanGpu : IGpu
 
         CheckStatic(result, operation);
     }
+
+    /// <summary>Para las pruebas: esta operación falla como sin memoria, sin llamarse (solo en el hilo que lo pone).</summary>
+    [ThreadStatic]
+    internal static string? FailForTests;
+
+    /// <summary>El fallo inyectado por <see cref="FailForTests"/> para <paramref name="operation"/>, o <c>null</c> para llamar de verdad.</summary>
+    internal static VkResult? Injected(string operation) => FailForTests == operation ? VkResult.VK_ERROR_OUT_OF_DEVICE_MEMORY : null;
 
     internal static void CheckStatic(VkResult result, string operation)
     {
@@ -540,11 +637,22 @@ public sealed unsafe partial class VulkanGpu : IGpu
 
     // Creación
 
-    private static VkInstance CreateInstance()
+    private static VkInstance CreateInstance(out bool validation)
     {
-        bool validation = Environment.GetEnvironmentVariable(ValidationVariable) == "1" && HasLayer("VK_LAYER_KHRONOS_validation");
+        validation = Environment.GetEnvironmentVariable(ValidationVariable) == "1" && HasLayer("VK_LAYER_KHRONOS_validation");
+        // Con la validación, también la de sincronización; el mensajero de la creación cubre vkCreateInstance y vkDestroyInstance.
+        VkValidationFeatureEnableEXT sync = VkValidationFeatureEnableEXT.VK_VALIDATION_FEATURE_ENABLE_SYNCHRONIZATION_VALIDATION_EXT;
+        var features = new VkValidationFeaturesEXT
+        {
+            sType = VK_STRUCTURE_TYPE_VALIDATION_FEATURES_EXT,
+            enabledValidationFeatureCount = 1,
+            pEnabledValidationFeatures = &sync,
+        };
+        VkDebugUtilsMessengerCreateInfoEXT messengerInfo = MessengerInfo();
+        messengerInfo.pNext = &features;
         fixed (byte* name = "Rodaje\0"u8)
         fixed (byte* layer = "VK_LAYER_KHRONOS_validation\0"u8)
+        fixed (byte* debugUtils = "VK_EXT_debug_utils\0"u8)
         {
             var app = new VkApplicationInfo
             {
@@ -554,16 +662,92 @@ public sealed unsafe partial class VulkanGpu : IGpu
                 apiVersion = VK_API_VERSION_1_3,
             };
             sbyte* layers = (sbyte*)layer;
+            sbyte* extensions = (sbyte*)debugUtils;
             var info = new VkInstanceCreateInfo
             {
                 sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO,
+                pNext = validation ? &messengerInfo : null,
                 pApplicationInfo = &app,
                 enabledLayerCount = validation ? 1u : 0u,
                 ppEnabledLayerNames = validation ? &layers : null,
+                enabledExtensionCount = validation ? 1u : 0u,
+                ppEnabledExtensionNames = validation ? &extensions : null,
             };
             VkInstance instance;
             CheckStatic(vkCreateInstance(&info, null, &instance), "vkCreateInstance");
             return instance;
+        }
+    }
+
+    /// <summary>Los errores de las capas de validación (con <see cref="ValidationVariable"/>); las pruebas fallan si crece.</summary>
+    public static IReadOnlyCollection<string> ValidationErrors => s_validationErrors;
+
+    private static readonly System.Collections.Concurrent.ConcurrentQueue<string> s_validationErrors = new();
+
+    private static VkDebugUtilsMessengerCreateInfoEXT MessengerInfo() => new()
+    {
+        sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT,
+        messageSeverity = VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT,
+        messageType = VkDebugUtilsMessageTypeFlagsEXT.VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT
+            | VkDebugUtilsMessageTypeFlagsEXT.VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT
+            | VkDebugUtilsMessageTypeFlagsEXT.VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT,
+        pfnUserCallback = &OnValidation,
+    };
+
+    [UnmanagedCallersOnly]
+    private static uint OnValidation(VkDebugUtilsMessageSeverityFlagsEXT severity, VkDebugUtilsMessageTypeFlagsEXT types,
+        VkDebugUtilsMessengerCallbackDataEXT* data, void* user)
+    {
+        if ((severity & VkDebugUtilsMessageSeverityFlagsEXT.VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT) != 0 && data != null)
+        {
+            string message = Utf8(data->pMessage);
+            s_validationErrors.Enqueue(message);
+            // La pasada de validación de la CI falla si este archivo tiene algo (los mensajes llegan también fuera de las pruebas).
+            if (Environment.GetEnvironmentVariable(ValidationReportVariable) is { Length: > 0 } report)
+            {
+                lock (s_validationErrors)
+                {
+                    File.AppendAllText(report, message + Environment.NewLine);
+                }
+            }
+        }
+
+        return VK_FALSE;
+    }
+
+    private static VkDebugUtilsMessengerEXT CreateMessenger(VkInstance instance)
+    {
+        var create = (delegate* unmanaged<VkInstance, VkDebugUtilsMessengerCreateInfoEXT*, VkAllocationCallbacks*, VkDebugUtilsMessengerEXT*, VkResult>)
+            InstanceFunction(instance, "vkCreateDebugUtilsMessengerEXT\0"u8);
+        VkDebugUtilsMessengerCreateInfoEXT info = MessengerInfo();
+        VkDebugUtilsMessengerEXT messenger;
+        CheckStatic(create(instance, &info, null, &messenger), "vkCreateDebugUtilsMessengerEXT");
+        return messenger;
+    }
+
+    private static void DestroyInstance(VkInstance instance, VkDebugUtilsMessengerEXT messenger)
+    {
+        if (instance == default)
+        {
+            return;
+        }
+
+        if (messenger != default)
+        {
+            var destroy = (delegate* unmanaged<VkInstance, VkDebugUtilsMessengerEXT, VkAllocationCallbacks*, void>)
+                InstanceFunction(instance, "vkDestroyDebugUtilsMessengerEXT\0"u8);
+            destroy(instance, messenger, null);
+        }
+
+        vkDestroyInstance(instance, null);
+    }
+
+    private static void* InstanceFunction(VkInstance instance, ReadOnlySpan<byte> name)
+    {
+        fixed (byte* p = name)
+        {
+            void* function = (void*)vkGetInstanceProcAddr(instance, (sbyte*)p);
+            return function != null ? function : throw new RenderException("La capa de validación no da " + Encoding.ASCII.GetString(name[..^1]) + ".");
         }
     }
 
@@ -721,6 +905,26 @@ public sealed unsafe partial class VulkanGpu : IGpu
         VkFormatProperties properties;
         vkGetPhysicalDeviceFormatProperties(_physical, VulkanFormats.Native(format), &properties);
         return (properties.optimalTilingFeatures & VkFormatFeatureFlags.VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT) != 0;
+    }
+
+    /// <summary>
+    /// Si un sombreador puede escribir (y leer) en <paramref name="format"/> con la imagen declarada sin formato, como la declara el
+    /// SPIR-V del manifiesto. Sin esas capacidades, la textura de escritura no se crea y quien la pide toma su camino alternativo.
+    /// </summary>
+    internal bool CanStoreWithoutFormat(VkFormat format)
+    {
+        if (!StorageWithoutFormat)
+        {
+            return false;
+        }
+
+        var properties3 = new VkFormatProperties3 { sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_3 };
+        var properties = new VkFormatProperties2 { sType = VK_STRUCTURE_TYPE_FORMAT_PROPERTIES_2, pNext = &properties3 };
+        vkGetPhysicalDeviceFormatProperties2(_physical, format, &properties);
+        const VkFormatFeatureFlags2 needed = VkFormatFeatureFlags2.VK_FORMAT_FEATURE_2_STORAGE_IMAGE_BIT
+            | VkFormatFeatureFlags2.VK_FORMAT_FEATURE_2_STORAGE_READ_WITHOUT_FORMAT_BIT
+            | VkFormatFeatureFlags2.VK_FORMAT_FEATURE_2_STORAGE_WRITE_WITHOUT_FORMAT_BIT;
+        return (properties3.optimalTilingFeatures & needed) == needed;
     }
 
     internal VkFormatFeatureFlags FormatFeatures(VkFormat format)

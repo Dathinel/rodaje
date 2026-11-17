@@ -16,6 +16,7 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
 {
     private readonly ID3D11DeviceContext* _context = gpu.Context;
     private List<PlaneViews>? _acquired;
+    private List<IDecoderSurface>? _retained;
     private bool _closed;
 
     public void Dispose()
@@ -42,6 +43,9 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
                     views.Release();
                 }
             }
+
+            // Lo grabado ya está en el contexto inmediato: lo que escriba después en estas superficies (D3D11VA) va detrás en la GPU.
+            _retained?.ForEach(static surface => surface.Release());
         }
         finally
         {
@@ -135,16 +139,25 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
 
     public GpuDecoderPlanes Acquire(GpuSurfaceCache cache, IDecoderSurface surface)
     {
+        if (surface is not (GpuTextureSurface { Luma: D3D11Texture, Chroma: D3D11Texture } or D3D11TexturePayload))
+        {
+            throw new ArgumentException("La superficie no es de D3D11.", nameof(surface));
+        }
+
+        // Retenida hasta cerrar el cuadro aunque su dueño la suelte antes: también la porción del pool de FFmpeg (contrato de docs/igpu.md).
+        if (!surface.AddRef())
+        {
+            throw new ArgumentException("La superficie ya se soltó.", nameof(surface));
+        }
+
+        (_retained ??= []).Add(surface);
         if (surface is GpuTextureSurface { Luma: D3D11Texture luma, Chroma: D3D11Texture chroma })
         {
             // Los sombreadores leen los planos como Texture2DArray, como los de D3D11VA.
             return new GpuDecoderPlanes(luma.ArrayView(gpu), chroma.ArrayView(gpu));
         }
 
-        if (surface is not D3D11TexturePayload payload)
-        {
-            throw new ArgumentException("La superficie no es de D3D11.", nameof(surface));
-        }
+        var payload = (D3D11TexturePayload)surface;
 
         PlaneViews views = ((D3D11SurfaceCache)cache).Views.Get(payload, out bool owned);
         if (owned)

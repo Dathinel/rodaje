@@ -14,6 +14,7 @@ namespace Rodaje.Render.Gpu.Vulkan;
 internal sealed unsafe class VulkanFrame(VulkanGpu gpu, FrameContext context) : IGpuFrame
 {
     private const int MaxBindings = 64;
+    private List<IDecoderSurface>? _retained;
     private bool _closed;
 
     public FrameContext Context { get; private set; } = context;
@@ -38,6 +39,9 @@ internal sealed unsafe class VulkanFrame(VulkanGpu gpu, FrameContext context) : 
         }
 
         _closed = true;
+        // Lo adquirido vive hasta que termina el último envío del cuadro (los anteriores terminan antes: una sola cola).
+        Context.Retained = _retained;
+        _retained = null;
         gpu.CloseFrame(this);
     }
 
@@ -252,12 +256,25 @@ internal sealed unsafe class VulkanFrame(VulkanGpu gpu, FrameContext context) : 
         vkCmdClearDepthStencilImage(Commands, native.Image, VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear, 1, &range);
     }
 
-    /// <remarks>Las superficies <c>AVVkFrame</c> del decodificador llegan con la fase 9 (D-066); hoy, las de texturas propias.</remarks>
-    public GpuDecoderPlanes Acquire(GpuSurfaceCache cache, IDecoderSurface surface) => surface switch
+    /// <remarks>
+    /// Las superficies <c>AVVkFrame</c> del decodificador llegan con la fase 9 (D-066); hoy, las de texturas propias. La superficie queda
+    /// retenida hasta que la GPU termina el cuadro, aunque su dueño la suelte antes (contrato de <c>docs/igpu.md</c>).
+    /// </remarks>
+    public GpuDecoderPlanes Acquire(GpuSurfaceCache cache, IDecoderSurface surface)
     {
-        GpuTextureSurface { Luma: VulkanTexture, Chroma: VulkanTexture } own => new GpuDecoderPlanes(own.Luma, own.Chroma),
-        _ => throw new ArgumentException("La superficie no es de este motor Vulkan.", nameof(surface)),
-    };
+        if (surface is not GpuTextureSurface { Luma: VulkanTexture, Chroma: VulkanTexture } own)
+        {
+            throw new ArgumentException("La superficie no es de este motor Vulkan.", nameof(surface));
+        }
+
+        if (!own.AddRef())
+        {
+            throw new ArgumentException("La superficie ya se soltó.", nameof(surface));
+        }
+
+        (_retained ??= []).Add(own);
+        return new GpuDecoderPlanes(own.Luma, own.Chroma);
+    }
 
     // Dibujo y cómputo
 
@@ -558,6 +575,13 @@ internal sealed unsafe class VulkanFrame(VulkanGpu gpu, FrameContext context) : 
                         break;
                     case SpirvDescriptor.StorageImage:
                         VulkanTexture written = resource as VulkanTexture is { Storage2D.Value: not 0 } w ? w : defaults.Texture2D;
+                        // Un formato declarado en el SPIR-V debe ser el de la vista; el manifiesto los declara Unknown (lo pone la vista).
+                        if (binding.ImageFormat != 0 && written != defaults.Texture2D && VulkanFormats.Spirv(written.Format) != binding.ImageFormat)
+                        {
+                            throw new RenderException(
+                                $"u{binding.Binding - 48}: el SPIR-V declara la imagen de escritura con el formato {binding.ImageFormat} y la textura es {written.Format}.");
+                        }
+
                         Use(written, VkImageLayout.VK_IMAGE_LAYOUT_GENERAL, write: true);
                         images[i] = new VkDescriptorImageInfo
                         {
