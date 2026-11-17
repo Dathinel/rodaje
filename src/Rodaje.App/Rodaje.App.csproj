@@ -50,6 +50,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Lo de Linux (Uno, src\Rodaje.App.Desktop) va en *.Desktop.cs; lo de Windows, en *.Windows.cs y en el resto. -->
+    <Compile Remove="**\*.Desktop.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <!-- La ventana y la barra de tareas (AppWindow.SetIcon) y los documentos .rodaje usan el .ico suelto. -->
     <Content Include="..\..\assets\marca\rodaje.ico;..\..\assets\marca\rodaje-proyecto.ico" Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
