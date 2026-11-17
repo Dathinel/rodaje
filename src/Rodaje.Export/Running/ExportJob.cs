@@ -383,11 +383,9 @@ public sealed class ExportJob : IDisposable
             source = new FrameSource(this, plan, timeline, gpu, engine, titles, alpha, blend);
         }
         using var frames = source;
-        // shortcut: el medidor de luz (MaxCLL/MaxFALL) es de D3D11; fuera de Windows el PQ sale sin esos metadatos. Portarlo a IGpu.
-        if (OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is not null && settings.MeasureLightLevels && format.Color.Transfer == ExportTransfer.Pq
-            && timeline.ColorSpace != Rodaje.Core.Model.SequenceColorSpace.Sdr709)
+        if (settings.MeasureLightLevels && format.Color.Transfer == ExportTransfer.Pq && timeline.ColorSpace != Rodaje.Core.Model.SequenceColorSpace.Sdr709)
         {
-            ContentLight measured = MeasureLight(plan, frames, gpu, timeline, token);
+            ContentLight measured = MeasureLight(plan, frames, engine, timeline, token);
             LightLevels = measured;
             format = new ExportVideoFormat(format.Width, format.Height, format.FrameRate, format.PixelFormat,
                 format.Color with { MaxCll = measured.MaxCll, MaxFall = measured.MaxFall });
@@ -481,8 +479,7 @@ public sealed class ExportJob : IDisposable
     }
 
     /// <summary>Compone cada cuadro de la salida y mide max(R, G, B) en la composición lineal entera (sin recorte ni escala).</summary>
-    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
-    private ContentLight MeasureLight(ExportPlan plan, FrameSource frames, GpuDevice gpu, OfflineTimeline timeline, CancellationToken token)
+    private ContentLight MeasureLight(ExportPlan plan, FrameSource frames, IGpu gpu, OfflineTimeline timeline, CancellationToken token)
     {
         Publish(ExportJobState.MeasuringLight, 0, force: true);
         using var meter = new ContentLightMeter(gpu, timeline.Width, timeline.Height);
@@ -810,14 +807,13 @@ public sealed class ExportJob : IDisposable
         };
 
         /// <summary>Compone el cuadro <c>index</c> y lo mide; con mezcla de dos cuadros se miden los dos (cota superior de la mezcla).</summary>
-        [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
         public void Measure(ContentLightMeter meter, long index, CancellationToken token)
         {
             (Compositor a, Compositor? b, _) = Compose(index, token);
-            meter.Measure(a.ShaderResourceView);
+            meter.Measure(a.Output!);
             if (b is not null)
             {
-                meter.Measure(b.ShaderResourceView);
+                meter.Measure(b.Output!);
             }
         }
 

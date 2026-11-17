@@ -301,6 +301,13 @@ internal sealed partial class PlayerView
 
     private void OnCompareClick(object sender, RoutedEventArgs e) => UpdateCompare();
 
+    /// <summary>Antes/después como el botón del visor: el motor sigue al botón cada vez que cambia el tamaño del visor.</summary>
+    internal void SetCompareForSelfTest(bool on)
+    {
+        CompareButton.IsChecked = on;
+        UpdateCompare();
+    }
+
     private void UpdateCompare()
     {
         bool on = CompareButton.IsChecked == true;

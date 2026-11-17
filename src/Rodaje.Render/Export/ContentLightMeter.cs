@@ -8,7 +8,6 @@ using TerraFX.Interop.DirectX;
 namespace Rodaje.Render.Export;
 
 /// <summary>MaxCLL y MaxFALL medidos, en nits (CTA-861.3), redondeados al entero.</summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public readonly record struct ContentLight(int MaxCll, int MaxFall);
 
 /// <summary>
@@ -16,12 +15,11 @@ public readonly record struct ContentLight(int MaxCll, int MaxFall);
 /// de max(R, G, B); MaxCLL es el mayor máximo y MaxFALL la mayor media de todos los cuadros medidos. Cada tesela de 16×16 se
 /// reduce en la GPU (<c>ExportShaders.LightVariant</c>) y la CPU junta las teselas: en 1080p son 8160 pares de floats por cuadro.
 /// </summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe class ContentLightMeter : IDisposable
 {
     private const int Tile = 16;
 
-    private readonly D3D11Gpu _engine;
+    private readonly IGpu _engine;
     private readonly int _width;
     private readonly int _height;
     private readonly int _tilesPerRow;
@@ -41,12 +39,19 @@ public sealed unsafe class ContentLightMeter : IDisposable
     /// <param name="gpu">El dispositivo del compositor que se mide.</param>
     /// <param name="width">Ancho de la composición.</param>
     /// <param name="height">Alto de la composición.</param>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public ContentLightMeter(GpuDevice gpu, int width, int height, ShaderCache? shaders = null)
+        : this(D3D11Gpu.For(gpu ?? throw new ArgumentNullException(nameof(gpu))), width, height, shaders)
+    {
+    }
+
+    /// <param name="gpu">El motor del compositor que se mide (cualquiera de <see cref="IGpu"/>).</param>
+    public ContentLightMeter(IGpu gpu, int width, int height, ShaderCache? shaders = null)
     {
         ArgumentNullException.ThrowIfNull(gpu);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-        _engine = D3D11Gpu.For(gpu);
+        _engine = gpu;
         _width = width;
         _height = height;
         _tilesPerRow = (width + Tile - 1) / Tile;
@@ -73,17 +78,26 @@ public sealed unsafe class ContentLightMeter : IDisposable
     internal static int Nits(double linear) => (int)Math.Clamp(Math.Round(linear * 203), 0, 100_000);
 
     /// <summary>Mide la composición de <paramref name="shaderResourceView"/> (<c>Compositor.ShaderResourceView</c>) y espera a la GPU.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public void Measure(nint shaderResourceView)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentOutOfRangeException.ThrowIfZero(shaderResourceView);
+        Measure(Source((ID3D11ShaderResourceView*)shaderResourceView));
+    }
+
+    /// <summary>Mide la composición <paramref name="composite"/> (<c>Compositor.Output</c>) y espera a la GPU.</summary>
+    public void Measure(GpuTexture composite)
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        ArgumentNullException.ThrowIfNull(composite);
         using (IGpuFrame frame = _engine.BeginFrame())
         {
             Span<uint> constants = stackalloc uint[] { (uint)_width, (uint)_height, (uint)_tilesPerRow, 0 };
             frame.Write(_constants!, constants);
             var bindings = default(GpuBindings);
             bindings.SetConstants(0, _constants);
-            bindings.SetResource(0, Source((ID3D11ShaderResourceView*)shaderResourceView));
+            bindings.SetResource(0, composite);
             bindings.SetStorage(0, _buffer);
             frame.Dispatch(_pipeline!, bindings, _tilesPerRow, _tileCount / _tilesPerRow);
             frame.Copy(_buffer!, 0, _tiles.Length * 4, _readback!);
@@ -126,6 +140,7 @@ public sealed unsafe class ContentLightMeter : IDisposable
     }
 
     /// <summary>La composición tras la vista de <paramref name="view"/>, envuelta una vez por puntero.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     private GpuTexture Source(ID3D11ShaderResourceView* view)
     {
         if (_source is not null && _sourceView == (nint)view)
@@ -143,7 +158,7 @@ public sealed unsafe class ContentLightMeter : IDisposable
             var texture = (ID3D11Texture2D*)resource;
             D3D11_TEXTURE2D_DESC desc;
             texture->GetDesc(&desc);
-            _source = _engine.Wrap(texture, new GpuTextureDesc((int)desc.Width, (int)desc.Height,
+            _source = ((D3D11Gpu)_engine).Wrap(texture, new GpuTextureDesc((int)desc.Width, (int)desc.Height,
                 D3D11Gpu.FromNative(desc.Format), GpuTextureUsage.Sampled), view);
             _sourceView = (nint)view;
             return _source;
