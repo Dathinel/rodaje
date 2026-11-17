@@ -183,7 +183,9 @@ public sealed class ImageEffectTests
     {
         AssertSpatial(Fx.Make(BuiltInEffects.Sharpen, null, (BuiltInEffects.SharpenParameters.Amount, amount),
             (BuiltInEffects.SharpenParameters.Radius, radius), (BuiltInEffects.SharpenParameters.Threshold, threshold)),
-            s => FxReference.SharpenWithThreshold(s, amount, radius, threshold), tolerance: TestGpu.Tolerance(2, 2 + amount, "la nitidez amplifica (1 + cantidad) veces la diferencia de un código del desenfoque en lavapipe"));
+            s => FxReference.SharpenWithThreshold(s, amount, radius, threshold),
+            outliers: TestGpu.Tolerance(0, 0.01, "el umbral es un escalón: en lavapipe unos pocos píxeles caen al otro lado (como sharpen-umbral en las variantes)"),
+            tolerance: TestGpu.Tolerance(2, 2 + amount, "la nitidez amplifica (1 + cantidad) veces la diferencia de un código del desenfoque en lavapipe"));
     }
 
     [EngineTheory]
