@@ -15,6 +15,8 @@ namespace Rodaje.Audio.Tests.MacAudio;
 /// captura por su entrada. Sin dispositivo se omiten. Las cifras salen en la salida de cada prueba.
 /// </remarks>
 [Collection(nameof(DispositivoDeAudioReal))]
+// Las que miden el reloj del dispositivo contra el de pared van también en TiempoReal: en los corredores de macOS de GitHub (sin
+// tarjeta, BlackHole y máquina compartida) salen fuera de rango sin motivo en el código, y la CI de los PR excluye esa categoría.
 [Trait("Categoria", "AudioMac")]
 public sealed class CoreAudioOutputTests(ITestOutputHelper output)
 {
@@ -32,6 +34,7 @@ public sealed class CoreAudioOutputTests(ITestOutputHelper output)
         Assert.False(string.IsNullOrWhiteSpace(audio.Device!.Name));
     }
 
+    [Trait("Categoria", "TiempoReal")]
     [CoreAudioFact]
     public void El_reloj_sigue_al_dispositivo_sin_deriva_ni_saltos()
     {
@@ -52,6 +55,7 @@ public sealed class CoreAudioOutputTests(ITestOutputHelper output)
         Assert.Equal(0, audio.Stats.DeviceRestarts);
     }
 
+    [Trait("Categoria", "TiempoReal")]
     [CoreAudioFact]
     public void Pausa_y_salto_con_el_dispositivo()
     {
@@ -94,6 +98,7 @@ public sealed class CoreAudioOutputTests(ITestOutputHelper output)
         Assert.Equal(0, audio.Stats.DeviceRestarts);
     }
 
+    [Trait("Categoria", "TiempoReal")]
     [CoreAudioFact(TwoDevices = true)]
     public void Al_cambiar_el_dispositivo_predeterminado_el_audio_lo_sigue_sin_saltos()
     {
@@ -129,6 +134,7 @@ public sealed class CoreAudioOutputTests(ITestOutputHelper output)
         }
     }
 
+    [Trait("Categoria", "TiempoReal")]
     [CoreAudioFact]
     public void Perder_la_salida_no_hace_retroceder_al_reloj_y_vuelve_sola()
     {
@@ -159,6 +165,7 @@ public sealed class CoreAudioOutputTests(ITestOutputHelper output)
         Assert.Contains(messages, m => m.Contains("volvió", StringComparison.Ordinal));
     }
 
+    [Trait("Categoria", "TiempoReal")]
     [CoreAudioFact(Loopback = true)]
     public void La_captura_del_bucle_cae_donde_dice_el_reloj_y_se_mide_la_latencia()
     {
