@@ -49,7 +49,7 @@ public sealed class PulseOutputTests(ITestOutputHelper output)
         output.WriteLine(Ms("Latencia de la salida (pa_stream_get_latency)", latency));
 
         Assert.Equal(0, m.Backwards);
-        Assert.InRange(m.StartupMs, 0, 300);
+        Assert.InRange(m.StartupMs, -5, 300); // el ajuste lineal puede cruzar un poco antes del Start
         Assert.InRange(Math.Abs(m.DriftPpm), 0, 1_000);
         Assert.InRange(m.MaxResidualMs, 0, 15);
         Assert.InRange(m.EndPositionSeconds, 9.6, 10.05);
@@ -171,7 +171,7 @@ public sealed class PulseOutputTests(ITestOutputHelper output)
     public void La_captura_del_monitor_cae_donde_dice_el_reloj_y_se_mide_la_latencia()
     {
         Pactl("set-default-sink", PulseFactAttribute.SinkA);
-        var click = new ClickSource(atFrame: Rate);
+        var click = new ClickSource(Rate, atFrame: Rate);
         using PulseOutput audio = PulseOutput.Open(click);
         using IAudioCapture capture = AudioCapture.Open(PulseFactAttribute.SinkA + ".monitor", Rate);
         var packets = new ConcurrentQueue<(float[] Samples, long Start100ns, long Received100ns)>();
@@ -181,7 +181,8 @@ public sealed class PulseOutputTests(ITestOutputHelper output)
         var wall = new List<long>();
         var position = new List<double>();
         audio.Clock.Start();
-        while (audio.Clock.Position.ToSeconds() < 1.6)
+        var limit = Stopwatch.StartNew();
+        while (audio.Clock.Position.ToSeconds() < 1.6 && limit.Elapsed < TimeSpan.FromSeconds(10))
         {
             wall.Add(Now100ns());
             position.Add(audio.Clock.Position.ToSeconds());
@@ -251,7 +252,7 @@ public sealed class PulseOutputTests(ITestOutputHelper output)
         Assert.True(process.ExitCode == 0, $"pactl {string.Join(' ', arguments)}: {process.StandardError.ReadToEnd()}");
     }
 
-    private static long Now100ns() => (long)((Int128)Stopwatch.GetTimestamp() * TimeSpan.TicksPerSecond / Stopwatch.Frequency);
+    internal static long Now100ns() => (long)((Int128)Stopwatch.GetTimestamp() * TimeSpan.TicksPerSecond / Stopwatch.Frequency);
 
     private static string Ms(string label, TimeSpan? value) =>
         string.Create(CultureInfo.InvariantCulture, $"{label}: {(value is { } v ? $"{v.TotalMilliseconds:0.0} ms" : "sin dato")}.");
@@ -263,52 +264,6 @@ public sealed class PulseOutputTests(ITestOutputHelper output)
     private static string Describe(AudioOutputStats s) => string.Create(
         CultureInfo.InvariantCulture,
         $"Cuadros producidos {s.FramesRendered}; faltas de la fuente {s.Underruns}; reaperturas {s.DeviceRestarts}; órdenes sin confirmar {s.ControlTimeouts}.");
-
-    private sealed class SilenceSource : IAudioSampleSource
-    {
-        private long _lastSeekTicks = -1;
-
-        public Time? LastSeek => Interlocked.Read(ref _lastSeekTicks) is var t && t >= 0 ? Time.FromTicks(t) : null;
-
-        public int Read(Span<float> interleaved)
-        {
-            interleaved.Clear();
-            return interleaved.Length / 2;
-        }
-
-        public void Seek(Time position) => Interlocked.Exchange(ref _lastSeekTicks, position.Ticks);
-    }
-
-    /// <summary>Silencio con un clic de 1 ms en el cuadro <paramref name="atFrame"/>; anota cuándo lo entregó.</summary>
-    private sealed class ClickSource(long atFrame) : IAudioSampleSource
-    {
-        private long _frame;
-
-        public long Produced100ns { get; private set; }
-
-        public int Read(Span<float> interleaved)
-        {
-            interleaved.Clear();
-            int frames = interleaved.Length / 2;
-            for (int f = 0; f < frames; f++)
-            {
-                long global = _frame + f;
-                if (global >= atFrame && global < atFrame + (Rate / 1_000))
-                {
-                    if (global == atFrame)
-                    {
-                        Produced100ns = Now100ns();
-                    }
-
-                    interleaved[f * 2] = 0.9f;
-                    interleaved[(f * 2) + 1] = 0.9f;
-                }
-            }
-
-            _frame += frames;
-            return frames;
-        }
-    }
 }
 
 /// <summary>Solo en Linux con un servidor de sonido; con <see cref="TwoSinks"/>, además los dos sumideros nulos de la CI.</summary>
