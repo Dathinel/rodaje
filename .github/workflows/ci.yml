@@ -305,6 +305,10 @@ jobs:
           sudo apt-get install -y -qq mesa-vulkan-drivers libvulkan1 vulkan-validationlayers
           test -n "$(ls /usr/share/vulkan/explicit_layer.d/*khronos_validation*.json)"
           mkdir -p TestResults
+      # Las subidas de cuadros de CPU (CpuUploadTests) decodifican con el FFmpeg LGPL del entorno.
+      - name: FFmpeg LGPL
+        shell: pwsh
+        run: build/preparar-entorno.ps1 -SoloFFmpeg
       - name: Motor Vulkan
         run: dotnet test tests/Rodaje.Render.Vulkan.Tests -m:2 --filter "FullyQualifiedName!~ExportHash" --logger 'console;verbosity=normal'
       - name: Compositor en Vulkan
