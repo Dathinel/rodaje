@@ -174,8 +174,8 @@ public sealed class PulseOutputTests(ITestOutputHelper output)
         var click = new ClickSource(atFrame: Rate);
         using PulseOutput audio = PulseOutput.Open(click);
         using IAudioCapture capture = AudioCapture.Open(PulseFactAttribute.SinkA + ".monitor", Rate);
-        var packets = new ConcurrentQueue<(float[] Samples, long Start100ns)>();
-        capture.StartCapture((mono, start, _) => packets.Enqueue((mono.ToArray(), start)));
+        var packets = new ConcurrentQueue<(float[] Samples, long Start100ns, long Received100ns)>();
+        capture.StartCapture((mono, start, _) => packets.Enqueue((mono.ToArray(), start, Now100ns())));
         Thread.Sleep(200);
 
         var wall = new List<long>();
@@ -194,15 +194,21 @@ public sealed class PulseOutputTests(ITestOutputHelper output)
         capture.StopCapture();
 
         long? heard = null;
-        foreach ((float[] samples, long start) in packets)
+        long origin = wall[0];
+        foreach ((float[] samples, long start, long received) in packets)
         {
             int index = Array.FindIndex(samples, s => Math.Abs(s) > 0.5f);
             if (index >= 0)
             {
                 heard = start + (index * TimeSpan.TicksPerSecond / Rate);
+                output.WriteLine(string.Create(CultureInfo.InvariantCulture,
+                    $"Paquete del clic: {samples.Length} muestras, índice {index}, empieza a {(start - origin) / 1e4:0.0} ms y llegó a {(received - origin) / 1e4:0.0} ms del arranque."));
                 break;
             }
         }
+
+        output.WriteLine(string.Create(CultureInfo.InvariantCulture,
+            $"Clic entregado al servidor a {(click.Produced100ns - origin) / 1e4:0.0} ms del arranque; {packets.Count} paquetes capturados."));
 
         Assert.True(heard.HasValue, "El clic no apareció en el monitor.");
         int crossing = position.FindIndex(p => p >= 1.0);

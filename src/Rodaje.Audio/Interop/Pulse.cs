@@ -140,6 +140,22 @@ internal static unsafe partial class Pulse
     public static partial int pa_stream_get_time(nint stream, ulong* microseconds);
 
     [LibraryImport(Library)]
+    public static partial nint pa_stream_update_timing_info(nint stream, nint callback, nint userdata);
+
+    /// <summary>
+    /// Pide al servidor la posición ya, sin esperar la respuesta. Hace falta tras arrancar: la actualización automática espacia
+    /// sus pedidos hasta 1,5 s mientras el flujo está en pausa y la interpolación no avanza hasta la primera respuesta.
+    /// </summary>
+    public static void RequestTiming(nint stream)
+    {
+        nint operation = pa_stream_update_timing_info(stream, 0, 0);
+        if (operation != 0)
+        {
+            pa_operation_unref(operation);
+        }
+    }
+
+    [LibraryImport(Library)]
     public static partial int pa_stream_get_latency(nint stream, ulong* microseconds, int* negative);
 
     [LibraryImport(Library)]

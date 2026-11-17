@@ -226,6 +226,7 @@ internal sealed unsafe class PulseCapture : IAudioCapture
     {
         bool corked = true;
         bool discontinuity = false;
+        long nextTiming = 0;
         while (!_stopping)
         {
             Pulse.Iterate(mainloop, corked ? 100 : 10);
@@ -248,7 +249,14 @@ internal sealed unsafe class PulseCapture : IAudioCapture
             if (corked)
             {
                 corked = !Pulse.Await(mainloop, Pulse.pa_stream_cork(stream, 0, 0, 0), OpenTimeout);
+                Pulse.RequestTiming(stream);
                 continue;
+            }
+
+            if (System.Diagnostics.Stopwatch.GetTimestamp() >= nextTiming)
+            {
+                Pulse.RequestTiming(stream);
+                nextTiming = System.Diagnostics.Stopwatch.GetTimestamp() + (System.Diagnostics.Stopwatch.Frequency / 10);
             }
 
             while (Pulse.pa_stream_readable_size(stream) is var readable && readable > 0 && readable != nuint.MaxValue)

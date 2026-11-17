@@ -23,6 +23,7 @@ public sealed unsafe class PulseOutput : IAudioOutput, IRenderTransport
     private const int FrameBytes = 2 * sizeof(float);
     private static readonly TimeSpan OpenTimeout = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan OperationTimeout = TimeSpan.FromSeconds(1);
+    private static readonly long TimingInterval = Stopwatch.Frequency / 10;
 
     // En un servidor compartido 20 ms dan cortes; 50 ms es lo que pide la mayoría de reproductores.
     private static readonly TimeSpan MinBuffer = TimeSpan.FromMilliseconds(50);
@@ -53,6 +54,7 @@ public sealed unsafe class PulseOutput : IAudioOutput, IRenderTransport
     private bool _running;
     private long _flushesDone;
     private long _nextRetry;
+    private long _nextTiming;
     private int _simulateLoss;
     private int _blockReopen;
 
@@ -466,6 +468,8 @@ public sealed unsafe class PulseOutput : IAudioOutput, IRenderTransport
             return;
         }
 
+        Pulse.RequestTiming(_stream);
+        _nextTiming = Now() + TimingInterval;
         _model.Start(Now());
     }
 
@@ -492,6 +496,13 @@ public sealed unsafe class PulseOutput : IAudioOutput, IRenderTransport
 
         if (Fill() && _running)
         {
+            if (Now() >= _nextTiming)
+            {
+                // Lecturas frescas del servidor: la interpolación de libpulse entre ellas es solo con el reloj del sistema.
+                Pulse.RequestTiming(_stream);
+                _nextTiming = Now() + TimingInterval;
+            }
+
             Observe();
         }
     }
