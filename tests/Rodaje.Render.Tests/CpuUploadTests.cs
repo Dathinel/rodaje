@@ -26,7 +26,8 @@ public sealed class CpuUploadTests : IDisposable
     public void Full_range_8_bit_samples_keep_their_normalization()
     {
         // setparams marca el rango sin convertir las muestras: la luma de cada columna es su código.
-        string path = Encode("rampa.mkv", "nullsrc=size=256x16:rate=25,format=yuv420p,geq=lum='X':cb=128:cr=128,setparams=range=pc", "yuv420p");
+        string path = Encode("rampa.mkv", "nullsrc=size=256x16:rate=25,format=yuv420p,geq=lum='X':cb=128:cr=128,setparams=range=pc", "yuv420p",
+            "-color_range", "pc");
         using var decoder = VideoDecoder.Open(path, new VideoDecoderOptions { AllowHardwareDecoding = false });
         using var frame = decoder.GetFrame(0)!;
         var payload = Assert.IsType<CpuFramePayload>(frame.Payload);
@@ -112,11 +113,11 @@ public sealed class CpuUploadTests : IDisposable
         return System.Runtime.InteropServices.MemoryMarshal.Cast<byte, ushort>(bytes).ToArray();
     }
 
-    private string Encode(string name, string source, string pixelFormat)
+    private string Encode(string name, string source, string pixelFormat, params string[] extra)
     {
         string path = Path.Combine(_folder, name);
         FfmpegTool.Default!.Run(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", source, "-frames:v", "1",
-            "-pix_fmt", pixelFormat, "-c:v", "ffv1", path]);
+            "-pix_fmt", pixelFormat, .. extra, "-c:v", "ffv1", path]);
         return path;
     }
 }
