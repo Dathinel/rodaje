@@ -132,13 +132,26 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
         // Primero los destinos: un recurso que pase de destino a entrada se desenlaza como salida antes de leerse.
         UnbindComputeStorage();
         var rtvs = stackalloc ID3D11RenderTargetView*[GpuTargets.MaxColors];
+        ID3D11DepthStencilView* dsv = targets.Depth is D3D11Texture depth ? depth.Dsv : null;
+        bool sameTargets = gpu.DrawTargetCount == targets.Count && gpu.DrawTargets[GpuTargets.MaxColors] == (nint)dsv;
         for (int i = 0; i < targets.Count; i++)
         {
             rtvs[i] = ((D3D11Texture)targets[i]!).Rtv;
+            sameTargets &= gpu.DrawTargets[i] == (nint)rtvs[i];
         }
 
-        ID3D11DepthStencilView* dsv = targets.Depth is D3D11Texture depth ? depth.Dsv : null;
-        _context->OMSetRenderTargets((uint)targets.Count, rtvs, dsv);
+        if (!sameTargets)
+        {
+            _context->OMSetRenderTargets((uint)targets.Count, rtvs, dsv);
+            for (int i = 0; i < targets.Count; i++)
+            {
+                gpu.DrawTargets[i] = (nint)rtvs[i];
+            }
+
+            gpu.DrawTargets[GpuTargets.MaxColors] = (nint)dsv;
+            gpu.DrawTargetCount = targets.Count;
+        }
+
         gpu.BoundTargets = targets.Count;
         var vp = new D3D11_VIEWPORT
         {
@@ -149,10 +162,20 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
             MinDepth = viewport.MinDepth,
             MaxDepth = viewport.MaxDepth,
         };
-        _context->RSSetViewports(1, &vp);
-        _context->RSSetState(native.Rasterizer);
-        _context->IASetPrimitiveTopology(native.Topology);
-        _context->IASetInputLayout(native.Layout);
+        if (!sameTargets || !Same(vp, gpu.DrawViewport))
+        {
+            _context->RSSetViewports(1, &vp);
+            gpu.DrawViewport = vp;
+        }
+
+        bool samePipeline = gpu.DrawPipeline == native;
+        if (!samePipeline)
+        {
+            _context->RSSetState(native.Rasterizer);
+            _context->IASetPrimitiveTopology(native.Topology);
+            _context->IASetInputLayout(native.Layout);
+        }
+
         if (draw.VertexBuffer is D3D11Buffer vertices)
         {
             ID3D11Buffer* buffer = vertices.Native;
@@ -167,13 +190,18 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
                 draw.IndexFormat == GpuIndexFormat.Bits32 ? DXGI_FORMAT.DXGI_FORMAT_R32_UINT : DXGI_FORMAT.DXGI_FORMAT_R16_UINT, 0);
         }
 
-        _context->VSSetShader((ID3D11VertexShader*)native.VertexShader!.Native, null, 0);
-        _context->PSSetShader((ID3D11PixelShader*)native.PixelShader!.Native, null, 0);
-        SetConstants(bindings, compute: false);
+        if (!samePipeline)
+        {
+            _context->VSSetShader((ID3D11VertexShader*)native.VertexShader!.Native, null, 0);
+            _context->PSSetShader((ID3D11PixelShader*)native.PixelShader!.Native, null, 0);
+            _context->OMSetBlendState(native.Blend, null, uint.MaxValue);
+            _context->OMSetDepthStencilState(native.DepthState, 0);
+            gpu.DrawPipeline = native;
+        }
+
+        SetDrawConstants(bindings);
         SetResources(bindings, compute: false);
-        SetSamplers(bindings, compute: false);
-        _context->OMSetBlendState(native.Blend, null, uint.MaxValue);
-        _context->OMSetDepthStencilState(native.DepthState, 0);
+        SetDrawSamplers(bindings);
         if (draw.IndexBuffer is not null)
         {
             if (draw.Instances == 1)
@@ -204,6 +232,7 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
         {
             _context->OMSetRenderTargets(0, null, null);
             gpu.BoundTargets = 0;
+            gpu.DrawTargetCount = -1;
         }
 
         var uavs = stackalloc ID3D11UnorderedAccessView*[GpuBindings.MaxStorage];
@@ -279,6 +308,7 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
 
     private void UnbindAll()
     {
+        gpu.ForgetDrawState();
         if (gpu.BoundTargets > 0)
         {
             _context->OMSetRenderTargets(0, null, null);
@@ -310,6 +340,56 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
         var none = stackalloc ID3D11UnorderedAccessView*[GpuBindings.MaxStorage];
         _context->CSSetUnorderedAccessViews(0, (uint)gpu.BoundStorage, none, null);
         gpu.BoundStorage = 0;
+    }
+
+    private static bool Same(in D3D11_VIEWPORT a, in D3D11_VIEWPORT b) =>
+        a.TopLeftX == b.TopLeftX && a.TopLeftY == b.TopLeftY && a.Width == b.Width && a.Height == b.Height
+        && a.MinDepth == b.MinDepth && a.MaxDepth == b.MaxDepth;
+
+    private void SetDrawConstants(in GpuBindings bindings)
+    {
+        int count = bindings.ConstantCount;
+        bool same = count == gpu.DrawConstantCount;
+        for (int i = 0; same && i < count; i++)
+        {
+            same = gpu.DrawConstants[i] == (bindings.ConstantBuffer(i) is D3D11Buffer buffer ? (nint)buffer.Native : 0);
+        }
+
+        if (same)
+        {
+            return;
+        }
+
+        SetConstants(bindings, compute: false);
+        for (int i = 0; i < count; i++)
+        {
+            gpu.DrawConstants[i] = bindings.ConstantBuffer(i) is D3D11Buffer buffer ? (nint)buffer.Native : 0;
+        }
+
+        gpu.DrawConstantCount = count;
+    }
+
+    private void SetDrawSamplers(in GpuBindings bindings)
+    {
+        int count = bindings.SamplerCount;
+        bool same = count == gpu.DrawSamplerCount;
+        for (int i = 0; same && i < count; i++)
+        {
+            same = gpu.DrawSamplers[i] == (bindings.Sampler(i) is D3D11Sampler sampler ? (nint)sampler.Native : 0);
+        }
+
+        if (same)
+        {
+            return;
+        }
+
+        SetSamplers(bindings, compute: false);
+        for (int i = 0; i < count; i++)
+        {
+            gpu.DrawSamplers[i] = bindings.Sampler(i) is D3D11Sampler sampler ? (nint)sampler.Native : 0;
+        }
+
+        gpu.DrawSamplerCount = count;
     }
 
     private void SetConstants(in GpuBindings bindings, bool compute)

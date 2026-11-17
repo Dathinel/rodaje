@@ -27,6 +27,24 @@ public sealed unsafe partial class D3D11Gpu : IGpu
     internal int BoundTargets;
     internal int OpenFrames;
 
+    // Lo último que un Draw dejó en el contexto, para no repetirlo (vale dentro de un cuadro: nadie más toca el contexto).
+    internal D3D11Pipeline? DrawPipeline;
+    internal readonly nint[] DrawTargets = new nint[GpuTargets.MaxColors + 1];
+    internal int DrawTargetCount = -1;
+    internal D3D11_VIEWPORT DrawViewport;
+    internal readonly nint[] DrawConstants = new nint[GpuBindings.MaxConstants];
+    internal int DrawConstantCount;
+    internal readonly nint[] DrawSamplers = new nint[GpuBindings.MaxSamplers];
+    internal int DrawSamplerCount;
+
+    internal void ForgetDrawState()
+    {
+        DrawPipeline = null;
+        DrawTargetCount = -1;
+        DrawConstantCount = 0;
+        DrawSamplerCount = 0;
+    }
+
     private D3D11Gpu(GpuDevice device, bool ownsDevice)
     {
         Device = device;
@@ -82,7 +100,12 @@ public sealed unsafe partial class D3D11Gpu : IGpu
     {
         ObjectDisposedException.ThrowIf(_disposed || Device.IsDisposed, this);
         Device.LockContext();
-        OpenFrames++;
+        if (OpenFrames++ == 0)
+        {
+            // Entre cuadros el contexto lo usa también el código de fuera (decodificador, títulos): no se da nada por puesto.
+            ForgetDrawState();
+        }
+
         return new D3D11Frame(this);
     }
 
