@@ -1,0 +1,146 @@
+{
+  "case": "respaldo-de-familia",
+  "engine": "DirectWrite",
+  "units": [
+    {
+      "start": 0,
+      "end": 1,
+      "line": 0,
+      "word": 0,
+      "left": -211.2,
+      "right": -184.8,
+      "top": -29.04,
+      "bottom": 29.04
+    },
+    {
+      "start": 1,
+      "end": 2,
+      "line": 0,
+      "word": 0,
+      "left": -184.8,
+      "right": -158.4,
+      "top": -29.04,
+      "bottom": 29.04
+    },
+    {
+      "start": 2,
+      "end": 3,
+      "line": 0,
+      "word": 0,
+      "left": -158.4,
+      "right": -132,
+      "top": -29.04,
+      "bottom": 29.04
+    },
+    {
+      "start": 3,
+      "end": 4,
+      "line": 0,
+      "word": 0,
+      "left": -132,
+      "right": -105.6,
+      "top": -29.04,
+      "bottom": 29.04
+    },
+    {
+      "start": 4,
+      "end": 5,
+      "line": 0,
+      "word": 0,
+      "left": -105.6,
+      "right": -79.2,
+      "top": -29.04,
+      "bottom": 29.04
+    },
+    {
+      "start": 5,
+      "end": 6,
+      "line": 0,
+      "word": 0,
+      "left": -79.2,
+      "right": -52.8,
+      "top": -29.04,
+      "bottom": 29.04
+    },
+    {
+      "start": 7,
+      "end": 8,
+      "line": 0,
+      "word": 1,
+      "left": -26.4,
+      "right": 0,
+      "top": -29.04,
+      "bottom": 29.04
+    },
+    {
+      "start": 8,
+      "end": 9,
+      "line": 0,
+      "word": 1,
+      "left": 0,
+      "right": 26.4,
+      "top": -29.04,
+      "bottom": 29.04
+    },
+    {
+      "start": 9,
+      "end": 10,
+      "line": 0,
+      "word": 1,
+      "left": 26.4,
+      "right": 52.8,
+      "top": -29.04,
+      "bottom": 29.04
+    },
+    {
+      "start": 11,
+      "end": 12,
+      "line": 0,
+      "word": 2,
+      "left": 79.2,
+      "right": 105.6,
+      "top": -29.04,
+      "bottom": 29.04
+    },
+    {
+      "start": 12,
+      "end": 13,
+      "line": 0,
+      "word": 2,
+      "left": 105.6,
+      "right": 132,
+      "top": -29.04,
+      "bottom": 29.04
+    },
+    {
+      "start": 13,
+      "end": 14,
+      "line": 0,
+      "word": 2,
+      "left": 132,
+      "right": 158.4,
+      "top": -29.04,
+      "bottom": 29.04
+    },
+    {
+      "start": 14,
+      "end": 15,
+      "line": 0,
+      "word": 2,
+      "left": 158.4,
+      "right": 184.8,
+      "top": -29.04,
+      "bottom": 29.04
+    },
+    {
+      "start": 15,
+      "end": 16,
+      "line": 0,
+      "word": 2,
+      "left": 184.8,
+      "right": 211.2,
+      "top": -29.04,
+      "bottom": 29.04
+    }
+  ]
+}

@@ -11,15 +11,17 @@ public sealed class ShapingFont : IDisposable
     private readonly Blob _blob;
     private readonly Face _face;
 
-    private ShapingFont(string path, int index, Blob blob, Face face, string family, int weight, bool italic)
+    private ShapingFont(string path, int index, Blob blob, Face face, FaceInfo info)
     {
         Path = path;
         Index = index;
         _blob = blob;
         _face = face;
-        Family = family;
-        Weight = weight;
-        Italic = italic;
+        Family = info.Family;
+        Weight = info.Weight;
+        Italic = info.Italic;
+        Ascent = info.Ascent;
+        Descent = info.Descent;
         UnitsPerEm = Math.Max(1, face.UnitsPerEm);
         Font = new HarfBuzzSharp.Font(face);
         Font.SetFunctionsOpenType();
@@ -37,6 +39,12 @@ public sealed class ShapingFont : IDisposable
     public bool Italic { get; }
 
     public int UnitsPerEm { get; }
+
+    /// <summary>Lo que sube sobre la línea base, en unidades de diseño: lo que DirectWrite da como alto de cada letra.</summary>
+    public int Ascent { get; }
+
+    /// <summary>Lo que baja bajo la línea base, en unidades de diseño (positivo).</summary>
+    public int Descent { get; }
 
     internal HarfBuzzSharp.Font Font { get; }
 
@@ -60,9 +68,9 @@ public sealed class ShapingFont : IDisposable
         for (int i = 0; i < faces; i++)
         {
             var face = new Face(blob, i);
-            if (face.GlyphCount > 0 && FontNames.Read(face) is { } names)
+            if (face.GlyphCount > 0 && FontNames.Read(face) is { } info)
             {
-                fonts.Add(new ShapingFont(path, i, blob, face, names.Family, names.Weight, names.Italic));
+                fonts.Add(new ShapingFont(path, i, blob, face, info));
             }
             else
             {
@@ -282,10 +290,13 @@ public sealed class TitleFontSet : IDisposable
     }
 }
 
-/// <summary>Familia, peso y cursiva de una cara, leídos de sus tablas <c>name</c> y <c>OS/2</c>.</summary>
+/// <summary>Familia, peso, cursiva y alto sobre y bajo la línea base de una cara.</summary>
+internal readonly record struct FaceInfo(string Family, int Weight, bool Italic, int Ascent, int Descent);
+
+/// <summary>Lo que hace falta de una cara, leído de sus tablas <c>name</c>, <c>OS/2</c> y <c>hhea</c>.</summary>
 internal static class FontNames
 {
-    public static (string Family, int Weight, bool Italic)? Read(Face face)
+    public static FaceInfo? Read(Face face)
     {
         string? family;
         using (Blob name = face.ReferenceTable(new Tag('n', 'a', 'm', 'e')))
@@ -302,17 +313,38 @@ internal static class FontNames
 
         int weight = 400;
         bool italic = false;
+        int ascent = 0;
+        int descent = 0;
+        bool typo = false;
         using (Blob os2 = face.ReferenceTable(new Tag('O', 'S', '/', '2')))
         {
             ReadOnlySpan<byte> table = os2.AsSpan();
-            if (table.Length >= 64)
+            if (table.Length >= 72)
             {
                 weight = BinaryPrimitives.ReadUInt16BigEndian(table[4..]);
-                italic = (BinaryPrimitives.ReadUInt16BigEndian(table[62..]) & 1) != 0;
+                int selection = BinaryPrimitives.ReadUInt16BigEndian(table[62..]);
+                italic = (selection & 1) != 0;
+                // USE_TYPO_METRICS: la fuente pide sus métricas tipográficas, como hace DirectWrite.
+                typo = (selection & 0x80) != 0;
+                ascent = BinaryPrimitives.ReadInt16BigEndian(table[68..]);
+                descent = -BinaryPrimitives.ReadInt16BigEndian(table[70..]);
             }
         }
 
-        return (family, weight, italic);
+        if (!typo)
+        {
+            // Shortcut: sin USE_TYPO_METRICS se toma hhea; los dos casos de prueba lo llevan. Si un título con otra fuente no
+            // coincide en alto con Windows, comparar con winAscent/winDescent de OS/2.
+            using Blob hhea = face.ReferenceTable(new Tag('h', 'h', 'e', 'a'));
+            ReadOnlySpan<byte> table = hhea.AsSpan();
+            if (table.Length >= 10)
+            {
+                ascent = BinaryPrimitives.ReadInt16BigEndian(table[4..]);
+                descent = -BinaryPrimitives.ReadInt16BigEndian(table[6..]);
+            }
+        }
+
+        return new FaceInfo(family, weight, italic, ascent, descent);
     }
 
     /// <summary>El registro <paramref name="nameId"/> en Unicode (Windows o Unicode, UTF-16 big endian), en inglés si hay varios.</summary>

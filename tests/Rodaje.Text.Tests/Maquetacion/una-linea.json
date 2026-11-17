@@ -1,0 +1,96 @@
+{
+  "case": "una-linea",
+  "engine": "DirectWrite",
+  "units": [
+    {
+      "start": 0,
+      "end": 1,
+      "line": 0,
+      "word": 0,
+      "left": -150.78,
+      "right": -118.84,
+      "top": -52.24,
+      "bottom": 44.1
+    },
+    {
+      "start": 1,
+      "end": 2,
+      "line": 0,
+      "word": 0,
+      "left": -118.84,
+      "right": -87.06,
+      "top": -52.24,
+      "bottom": 44.1
+    },
+    {
+      "start": 2,
+      "end": 3,
+      "line": 0,
+      "word": 0,
+      "left": -87.06,
+      "right": -71.19,
+      "top": -52.24,
+      "bottom": 44.1
+    },
+    {
+      "start": 3,
+      "end": 4,
+      "line": 0,
+      "word": 0,
+      "left": -71.19,
+      "right": -40.25,
+      "top": -52.24,
+      "bottom": 44.1
+    },
+    {
+      "start": 5,
+      "end": 6,
+      "line": 0,
+      "word": 1,
+      "left": -25.25,
+      "right": 23.28,
+      "top": -52.24,
+      "bottom": 44.1
+    },
+    {
+      "start": 6,
+      "end": 7,
+      "line": 0,
+      "word": 1,
+      "left": 23.28,
+      "right": 55.22,
+      "top": -52.24,
+      "bottom": 44.1
+    },
+    {
+      "start": 7,
+      "end": 8,
+      "line": 0,
+      "word": 1,
+      "left": 55.22,
+      "right": 87.12,
+      "top": -52.24,
+      "bottom": 44.1
+    },
+    {
+      "start": 8,
+      "end": 9,
+      "line": 0,
+      "word": 1,
+      "left": 87.12,
+      "right": 119,
+      "top": -52.24,
+      "bottom": 44.1
+    },
+    {
+      "start": 9,
+      "end": 10,
+      "line": 0,
+      "word": 1,
+      "left": 119,
+      "right": 150.78,
+      "top": -52.24,
+      "bottom": 44.1
+    }
+  ]
+}

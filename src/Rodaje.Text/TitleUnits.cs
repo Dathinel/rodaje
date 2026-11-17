@@ -30,8 +30,11 @@ public static class TitleUnits
                 TitleLine line = layout.Lines[cluster.Line];
                 float left = cluster.X - offsetX;
                 float right = cluster.X + cluster.Advance - offsetX;
-                float top = line.Top - offsetY;
-                float bottom = line.Top + line.Height - offsetY;
+                // Como HitTestTextPosition: el alto de la letra alrededor de la línea base, con las métricas de su fuente.
+                float scale = layout.Size / cluster.Font.UnitsPerEm;
+                float baseline = line.Top + line.Baseline - offsetY;
+                float top = baseline - (cluster.Font.Ascent * scale);
+                float bottom = baseline + (cluster.Font.Descent * scale);
                 bool joins = units.Count > 0 && granularity switch
                 {
                     TextUnit.Letter => false,
