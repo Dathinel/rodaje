@@ -55,6 +55,7 @@ Detalle de ingeniería de cada subsistema en `src/` (diseño sin dependencias ci
 - **[Intercambio con otros editores](intercambio.md):** EDL CMX 3600, FCPXML y OpenTimelineIO: qué se conserva en cada uno, código de tiempo y reenlazado al importar (D-062).
 - **[Linux y macOS: resultado de la fase 0](mac-y-linux-fase0.md):** Pruebas de concepto de D-066 medidas en la CI (Uno con AOT, Vulkan Video, VideoToolbox → Vulkan, HLSL por DXC, módulos en Unix), veredicto y semanas; diseño en [propuestas/mac-y-linux.md](propuestas/mac-y-linux.md).
 - **[Linux y macOS: fases 1 y 2](mac-y-linux-fase1.md):** Núcleo portátil (destinos, protocolo de módulos por socket Unix, rutas, catálogo por sistema), pruebas en Linux y macOS en la CI, `.entorno` en los tres sistemas y FFmpeg LGPL para Linux y macOS.
+- **[Linux y macOS: fase 3](mac-y-linux-fase3.md):** Render y Export sobre `IGpu` en Windows, huellas de píxeles, rendimiento y arranque frente a `main`, revisión de bloque.
 - **[`IGpu`: la capa de GPU](igpu.md):** El contrato vigente para D3D11 y Vulkan, su sincronización y el nivel *Raster* de Unicomp ([borrador de la fase 0](igpu-borrador.md)).
 - **[Formato modular `.paquete`](formato-paquete.md):** Empaquetado zip para plantillas, filtros, transiciones, tablas LUT y módulos ejecutables.
 - **[Protocolo de módulos de IA](protocolo-modulos.md):** Comunicación interproceso mediante tuberías nombradas y memoria compartida para integrar modelos en cualquier lenguaje.

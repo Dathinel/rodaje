@@ -1,4 +1,4 @@
-﻿namespace Rodaje.Render.Gpu;
+namespace Rodaje.Render.Gpu;
 
 /// <summary>Un recurso de un <see cref="IGpu"/>. Lo libera quien lo crea; no se usa con otro <see cref="IGpu"/>.</summary>
 public abstract class GpuResource : IDisposable
@@ -17,7 +17,7 @@ public abstract class GpuResource : IDisposable
         GC.SuppressFinalize(this);
     }
 
-    /// <summary>Suelta lo nativo. El motor no destruye nada que una valla pendiente aÃºn use (regla 4 de <c>docs/igpu.md</c>).</summary>
+    /// <summary>Suelta lo nativo. El motor no destruye nada que una valla pendiente aún use (regla 4 de <c>docs/igpu.md</c>).</summary>
     protected abstract void Release();
 }
 
@@ -55,22 +55,22 @@ public abstract class GpuPipeline(GpuPipelineDesc desc) : GpuResource
     public bool IsCompute => Desc.Compute is not null;
 }
 
-/// <summary>Marca de fin de un envÃ­o.</summary>
+/// <summary>Marca de fin de un envío.</summary>
 public abstract class GpuFence
 {
     public abstract bool IsComplete { get; }
 
-    /// <summary>Espera a que termine; falso si se agotÃ³ el tiempo.</summary>
+    /// <summary>Espera a que termine; falso si se agotó el tiempo.</summary>
     public abstract bool Wait(TimeSpan timeout);
 }
 
 /// <summary>Tiempo de GPU entre <see cref="IGpuFrame.BeginTimer"/> y <see cref="IGpuFrame.EndTimer"/>.</summary>
 public abstract class GpuTimerQuery : GpuResource
 {
-    /// <summary>Falso si todavÃ­a no terminÃ³. <paramref name="milliseconds"/> es <c>null</c> si el intervalo no dio medida (reloj disjunto).</summary>
+    /// <summary>Falso si todavía no terminó. <paramref name="milliseconds"/> es <c>null</c> si el intervalo no dio medida (reloj disjunto).</summary>
     public abstract bool TryGetMilliseconds(out double? milliseconds);
 
-    /// <summary>Espera el resultado; <c>null</c> si no dio medida o no llegÃ³ a tiempo.</summary>
+    /// <summary>Espera el resultado; <c>null</c> si no dio medida o no llegó a tiempo.</summary>
     public double? WaitMilliseconds(TimeSpan timeout)
     {
         long deadline = Environment.TickCount64 + (long)timeout.TotalMilliseconds;
@@ -92,8 +92,8 @@ public abstract class GpuTimerQuery : GpuResource
 }
 
 /// <summary>
-/// Memoria visible desde la CPU para leer una textura o un bÃºfer, reutilizable de un cuadro a otro. Los bytes valen cuando el
-/// cuadro que grabÃ³ la copia terminÃ³: <see cref="TryMap"/> no espera, <see cref="Map"/> sÃ­.
+/// Memoria visible desde la CPU para leer una textura o un búfer, reutilizable de un cuadro a otro. Los bytes valen cuando el
+/// cuadro que grabó la copia terminó: <see cref="TryMap"/> no espera, <see cref="Map"/> sí.
 /// </summary>
 public abstract class GpuReadback : GpuResource
 {
@@ -105,22 +105,22 @@ public abstract class GpuReadback : GpuResource
         Bytes = bytes;
     }
 
-    /// <summary>En pÃ­xeles; un bÃºfer tiene <see cref="Height"/> 1 y <see cref="Format"/> <see cref="GpuFormat.Unknown"/>.</summary>
+    /// <summary>En píxeles; un búfer tiene <see cref="Height"/> 1 y <see cref="Format"/> <see cref="GpuFormat.Unknown"/>.</summary>
     public int Width { get; }
 
     public int Height { get; }
 
     public GpuFormat Format { get; }
 
-    /// <summary>Bytes Ãºtiles de una fila (o del bÃºfer).</summary>
+    /// <summary>Bytes útiles de una fila (o del búfer).</summary>
     public int Bytes { get; }
 
-    /// <summary>Falso si la copia no terminÃ³ todavÃ­a.</summary>
+    /// <summary>Falso si la copia no terminó todavía.</summary>
     public abstract bool TryMap(out GpuMappedRows rows);
 
     public abstract GpuMappedRows Map();
 
-    /// <summary>Copia las filas, sin relleno, a <paramref name="destination"/> (<see cref="Bytes"/> Ã— <see cref="Height"/>).</summary>
+    /// <summary>Copia las filas, sin relleno, a <paramref name="destination"/> (<see cref="Bytes"/> × <see cref="Height"/>).</summary>
     public void Read(Span<byte> destination)
     {
         using GpuMappedRows rows = Map();
@@ -130,7 +130,7 @@ public abstract class GpuReadback : GpuResource
     protected internal abstract void Unmap();
 }
 
-/// <summary>Filas leÃ­das, de arriba abajo; valen hasta <see cref="Dispose"/>.</summary>
+/// <summary>Filas leídas, de arriba abajo; valen hasta <see cref="Dispose"/>.</summary>
 public readonly unsafe ref struct GpuMappedRows
 {
     private readonly GpuReadback _owner;

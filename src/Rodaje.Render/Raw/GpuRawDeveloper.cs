@@ -1,10 +1,10 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Rodaje.Core.Raw;
 using Rodaje.Media.Gpu;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using Rodaje.Render.Shaders;
-using TerraFX.Interop.DirectX;
-using static Rodaje.Render.RenderException;
-using static TerraFX.Interop.DirectX.D3D11;
 
 namespace Rodaje.Render.Raw;
 
@@ -18,16 +18,13 @@ public sealed unsafe class GpuRawDeveloper : IDisposable
 {
     private const int Group = 16;
 
-    private readonly GpuDevice _gpu;
-    private readonly ID3D11Device* _device;
-    private readonly ID3D11DeviceContext* _context;
-    private ID3D11ComputeShader* _shader;
-    private ID3D11Buffer* _constants;
-    private ID3D11Texture2D* _mosaic;
-    private ID3D11ShaderResourceView* _mosaicView;
-    private ID3D11Texture2D* _developed;
-    private ID3D11UnorderedAccessView* _developedView;
-    private ID3D11Texture2D* _staging;
+    private readonly D3D11Gpu _engine;
+    private GpuShader? _shader;
+    private GpuPipeline? _pipeline;
+    private GpuBuffer? _constants;
+    private GpuTexture? _mosaic;
+    private GpuTexture? _developed;
+    private GpuReadback? _readback;
     private long _gpuTicks;
     private bool _disposed;
 
@@ -40,16 +37,14 @@ public sealed unsafe class GpuRawDeveloper : IDisposable
         ArgumentNullException.ThrowIfNull(gpu);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(width, D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(height, D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION);
-        _gpu = gpu;
-        _device = (ID3D11Device*)gpu.NativeDevice;
-        _context = (ID3D11DeviceContext*)gpu.NativeContext;
+        _engine = D3D11Gpu.For(gpu);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(width, _engine.Caps.MaxTextureSize);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(height, _engine.Caps.MaxTextureSize);
         Width = width;
         Height = height;
         try
         {
-            Create((shaders ?? ShaderCache.Default).GetOrCompile(RawShaders.DevelopVariant));
+            Create(shaders);
         }
         catch
         {
@@ -92,71 +87,47 @@ public sealed unsafe class GpuRawDeveloper : IDisposable
         long start = Stopwatch.GetTimestamp();
         float[] multipliers = parameters.NormalizedMultipliers();
         IReadOnlyList<float> m = parameters.Matrix;
-        _gpu.LockContext();
-        try
+        using (IGpuFrame frame = _engine.BeginFrame())
         {
-            fixed (ushort* data = mosaic)
-            {
-                _context->UpdateSubresource((ID3D11Resource*)_mosaic, 0, null, data, (uint)(Width * 2), 0);
-            }
+            frame.Write(_mosaic!, MemoryMarshal.AsBytes(mosaic), Width * 2);
 
-            D3D11_MAPPED_SUBRESOURCE mapped;
-            Check(_context->Map((ID3D11Resource*)_constants, 0, D3D11_MAP.D3D11_MAP_WRITE_DISCARD, 0, &mapped), "Map(constantes de revelado)");
-            var constants = (Constants*)mapped.pData;
-            constants->Width = (uint)Width;
-            constants->Height = (uint)Height;
-            constants->Curve = (uint)parameters.Curve;
-            constants->Reserved = 0;
-            constants->TopLeft = (uint)parameters.Pattern.TopLeft;
-            constants->TopRight = (uint)parameters.Pattern.TopRight;
-            constants->BottomLeft = (uint)parameters.Pattern.BottomLeft;
-            constants->BottomRight = (uint)parameters.Pattern.BottomRight;
-            constants->ScaleR = multipliers[0] / parameters.White;
-            constants->ScaleG = multipliers[1] / parameters.White;
-            constants->ScaleB = multipliers[2] / parameters.White;
-            constants->Gain = (float)parameters.Gain;
-            float* rows = constants->Rows;
+            Constants constants = default;
+            constants.Width = (uint)Width;
+            constants.Height = (uint)Height;
+            constants.Curve = (uint)parameters.Curve;
+            constants.TopLeft = (uint)parameters.Pattern.TopLeft;
+            constants.TopRight = (uint)parameters.Pattern.TopRight;
+            constants.BottomLeft = (uint)parameters.Pattern.BottomLeft;
+            constants.BottomRight = (uint)parameters.Pattern.BottomRight;
+            constants.ScaleR = multipliers[0] / parameters.White;
+            constants.ScaleG = multipliers[1] / parameters.White;
+            constants.ScaleB = multipliers[2] / parameters.White;
+            constants.Gain = (float)parameters.Gain;
             for (int row = 0; row < 3; row++)
             {
-                rows[row * 4] = m[row * 3];
-                rows[(row * 4) + 1] = m[(row * 3) + 1];
-                rows[(row * 4) + 2] = m[(row * 3) + 2];
-                rows[(row * 4) + 3] = 0;
+                constants.Rows[row * 4] = m[row * 3];
+                constants.Rows[(row * 4) + 1] = m[(row * 3) + 1];
+                constants.Rows[(row * 4) + 2] = m[(row * 3) + 2];
+                constants.Rows[(row * 4) + 3] = 0;
             }
 
-            _context->Unmap((ID3D11Resource*)_constants, 0);
+            frame.Write(_constants!, new ReadOnlySpan<byte>(&constants, sizeof(Constants)));
 
-            ID3D11Buffer* buffer = _constants;
-            ID3D11ShaderResourceView* source = _mosaicView;
-            ID3D11UnorderedAccessView* target = _developedView;
-            _context->CSSetShader(_shader, null, 0);
-            _context->CSSetConstantBuffers(0, 1, &buffer);
-            _context->CSSetShaderResources(0, 1, &source);
-            _context->CSSetUnorderedAccessViews(0, 1, &target, null);
-            _context->Dispatch((uint)((Width + Group - 1) / Group), (uint)((Height + Group - 1) / Group), 1);
-            ID3D11ShaderResourceView* noSource = null;
-            ID3D11UnorderedAccessView* noTarget = null;
-            _context->CSSetShaderResources(0, 1, &noSource);
-            _context->CSSetUnorderedAccessViews(0, 1, &noTarget, null);
-            _context->CSSetShader(null, null, 0);
-            _context->CopyResource((ID3D11Resource*)_staging, (ID3D11Resource*)_developed);
-            Check(_context->Map((ID3D11Resource*)_staging, 0, D3D11_MAP.D3D11_MAP_READ, 0, &mapped), "Map(cuadro revelado)");
-            try
-            {
-                int rowBytes = Width * 8;
-                for (int y = 0; y < Height; y++)
-                {
-                    new ReadOnlySpan<byte>((byte*)mapped.pData + ((nuint)y * mapped.RowPitch), rowBytes).CopyTo(output.Slice(y * stride, rowBytes));
-                }
-            }
-            finally
-            {
-                _context->Unmap((ID3D11Resource*)_staging, 0);
-            }
+            var bindings = default(GpuBindings);
+            bindings.SetConstants(0, _constants);
+            bindings.SetResource(0, _mosaic);
+            bindings.SetStorage(0, _developed);
+            frame.Dispatch(_pipeline!, bindings, (Width + Group - 1) / Group, (Height + Group - 1) / Group);
+            frame.Copy(_developed!, new GpuBox(0, 0, Width, Height), _readback!);
         }
-        finally
+
+        using (GpuMappedRows rows = _readback!.Map())
         {
-            _gpu.UnlockContext();
+            int rowBytes = Width * 8;
+            for (int y = 0; y < Height; y++)
+            {
+                rows.Row(y).CopyTo(output.Slice(y * stride, rowBytes));
+            }
         }
 
         _gpuTicks += Stopwatch.GetTimestamp() - start;
@@ -171,80 +142,22 @@ public sealed unsafe class GpuRawDeveloper : IDisposable
         }
 
         _disposed = true;
-        _gpu.LockContext();
-        try
-        {
-            Com.Release(ref _shader);
-            Com.Release(ref _constants);
-            Com.Release(ref _mosaicView);
-            Com.Release(ref _mosaic);
-            Com.Release(ref _developedView);
-            Com.Release(ref _developed);
-            Com.Release(ref _staging);
-        }
-        finally
-        {
-            _gpu.UnlockContext();
-        }
+        _pipeline?.Dispose();
+        _shader?.Dispose();
+        _constants?.Dispose();
+        _mosaic?.Dispose();
+        _developed?.Dispose();
+        _readback?.Dispose();
     }
 
-    private void Create(byte[] code)
+    private void Create(ShaderCache? shaders)
     {
-        ID3D11ComputeShader* shader;
-        fixed (byte* bytes = code)
-        {
-            Check(_device->CreateComputeShader(bytes, (nuint)code.Length, null, &shader), "CreateComputeShader(revelado)");
-        }
-
-        _shader = shader;
-        var constants = new D3D11_BUFFER_DESC
-        {
-            ByteWidth = (uint)sizeof(Constants),
-            Usage = D3D11_USAGE.D3D11_USAGE_DYNAMIC,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_CONSTANT_BUFFER,
-            CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_WRITE,
-        };
-        ID3D11Buffer* buffer;
-        Check(_device->CreateBuffer(&constants, null, &buffer), "CreateBuffer(constantes de revelado)");
-        _constants = buffer;
-
-        var mosaic = new D3D11_TEXTURE2D_DESC
-        {
-            Width = (uint)Width,
-            Height = (uint)Height,
-            MipLevels = 1,
-            ArraySize = 1,
-            Format = DXGI_FORMAT.DXGI_FORMAT_R16_UINT,
-            SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
-            Usage = D3D11_USAGE.D3D11_USAGE_DEFAULT,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_SHADER_RESOURCE,
-        };
-        ID3D11Texture2D* texture;
-        Check(_device->CreateTexture2D(&mosaic, null, &texture), "CreateTexture2D(mosaico)");
-        _mosaic = texture;
-        ID3D11ShaderResourceView* view;
-        Check(_device->CreateShaderResourceView((ID3D11Resource*)texture, null, &view), "CreateShaderResourceView(mosaico)");
-        _mosaicView = view;
-
-        var developed = mosaic with
-        {
-            Format = DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_UNORDERED_ACCESS,
-        };
-        Check(_device->CreateTexture2D(&developed, null, &texture), "CreateTexture2D(cuadro revelado)");
-        _developed = texture;
-        ID3D11UnorderedAccessView* uav;
-        Check(_device->CreateUnorderedAccessView((ID3D11Resource*)texture, null, &uav), "CreateUnorderedAccessView(cuadro revelado)");
-        _developedView = uav;
-
-        var staging = developed with
-        {
-            Usage = D3D11_USAGE.D3D11_USAGE_STAGING,
-            BindFlags = 0,
-            CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_READ,
-        };
-        Check(_device->CreateTexture2D(&staging, null, &texture), "CreateTexture2D(lectura del revelado)");
-        _staging = texture;
+        _shader = _engine.CreateShader(RawShaders.DevelopVariant, shaders);
+        _pipeline = _engine.CreatePipeline(new GpuPipelineDesc { Compute = _shader });
+        _constants = _engine.CreateBuffer(new GpuBufferDesc(sizeof(Constants), GpuBufferKind.Constant));
+        _mosaic = _engine.CreateTexture(new GpuTextureDesc(Width, Height, GpuFormat.R16Uint, GpuTextureUsage.Sampled));
+        _developed = _engine.CreateTexture(new GpuTextureDesc(Width, Height, GpuFormat.Rgba16Float, GpuTextureUsage.Storage));
+        _readback = _engine.CreateReadback(Width, Height, GpuFormat.Rgba16Float);
     }
 
     private struct Constants

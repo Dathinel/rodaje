@@ -1,5 +1,7 @@
 using Rodaje.Media.Gpu;
 using Rodaje.Media.Video;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using TerraFX.Interop.DirectX;
 using static Rodaje.Render.RenderException;
 
@@ -12,8 +14,15 @@ internal readonly unsafe struct PlaneViews(ID3D11ShaderResourceView* luma, ID3D1
 
     public ID3D11ShaderResourceView* Chroma { get; } = chroma;
 
+    /// <summary>Las mismas vistas para <see cref="IGpu"/> (t0 y t1); retienen su propia referencia.</summary>
+    public GpuTexture LumaTexture { get; } = D3D11Texture.View(default, luma);
+
+    public GpuTexture ChromaTexture { get; } = D3D11Texture.View(default, chroma);
+
     public void Release()
     {
+        LumaTexture.Dispose();
+        ChromaTexture.Dispose();
         Luma->Release();
         Chroma->Release();
     }

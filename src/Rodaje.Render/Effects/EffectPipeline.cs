@@ -1,8 +1,9 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Rodaje.Playback.Composition;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using Rodaje.Render.Shaders;
-using TerraFX.Interop.DirectX;
-using static Rodaje.Render.RenderException;
 
 namespace Rodaje.Render.Effects;
 
@@ -39,51 +40,50 @@ internal struct EffectConstants
 }
 
 /// <summary>
-/// Shaders, constantes y estados de mezcla de los efectos. Los shaders se crean en segundo plano (de la caché en disco o
-/// compilándolos); mientras uno no está, <see cref="TryGetShader"/> devuelve <c>null</c> y el cuadro sigue sin él.
+/// Shaders, constantes y mezclas de los efectos. Los shaders se crean en segundo plano (de la caché en disco o compilándolos);
+/// mientras uno no está, <see cref="TryGetShader"/> devuelve <c>null</c> y el cuadro sigue sin él.
 /// </summary>
-internal sealed unsafe class EffectPipeline : IDisposable
+internal sealed class EffectPipeline : IDisposable
 {
-    private readonly ID3D11DeviceContext* _context;
-    private readonly nint[] _shaders = new nint[EffectShaders.All.Length];
+    // Con fuente premultiplicada S = Cs·a y fondo opaco Cb (fórmulas W3C con alfa):
+    // normal  Cb·(1 − a) + S;  suma  Cb + S;  multiplicar  Cb·(1 − a) + S·Cb;  trama  Cb + S·(1 − Cb).
+    private static readonly GpuBlend s_over = Blend(GpuBlendFactor.One, GpuBlendFactor.InverseSourceAlpha);
+    private static readonly GpuBlend s_add = Blend(GpuBlendFactor.One, GpuBlendFactor.One);
+    private static readonly GpuBlend s_accumulate = Blend(GpuBlendFactor.One, GpuBlendFactor.One, GpuBlendFactor.One, GpuBlendFactor.One);
+    private static readonly GpuBlend s_multiply = Blend(GpuBlendFactor.DestinationColor, GpuBlendFactor.InverseSourceAlpha);
+    private static readonly GpuBlend s_screen = Blend(GpuBlendFactor.InverseDestinationColor, GpuBlendFactor.One);
+    private static readonly GpuBlend s_maskAdd = Blend(GpuBlendFactor.InverseDestinationColor, GpuBlendFactor.One,
+        GpuBlendFactor.InverseDestinationAlpha, GpuBlendFactor.One);
+    private static readonly GpuBlend s_maskSubtract = Blend(GpuBlendFactor.Zero, GpuBlendFactor.InverseSourceColor,
+        GpuBlendFactor.Zero, GpuBlendFactor.InverseSourceAlpha);
+    private static readonly GpuBlend s_maskMultiply = Blend(GpuBlendFactor.Zero, GpuBlendFactor.SourceColor,
+        GpuBlendFactor.Zero, GpuBlendFactor.SourceAlpha);
+    private static readonly GpuBlend s_maskDifference = Blend(GpuBlendFactor.InverseDestinationColor, GpuBlendFactor.InverseSourceColor,
+        GpuBlendFactor.InverseDestinationAlpha, GpuBlendFactor.InverseSourceAlpha);
+
+    private readonly QuadPipeline _quad;
+    private readonly GpuShader?[] _shaders = new GpuShader?[EffectShaders.All.Length];
     private readonly Lock _gate = new();
-    private ID3D11Buffer* _constants;
-    private ID3D11BlendState* _over;
-    private ID3D11BlendState* _add;
-    private ID3D11BlendState* _accumulate;
-    private ID3D11BlendState* _multiply;
-    private ID3D11BlendState* _screen;
-    private ID3D11BlendState* _maskAdd;
-    private ID3D11BlendState* _maskSubtract;
-    private ID3D11BlendState* _maskMultiply;
-    private ID3D11BlendState* _maskDifference;
+    private readonly GpuBuffer _constants;
     private bool _disposed;
 
-    public EffectPipeline(ID3D11Device* device, ID3D11DeviceContext* context, ShaderCache cache)
+    public unsafe EffectPipeline(QuadPipeline quad, ShaderCache cache)
     {
-        _context = context;
-        try
-        {
-            Create(device);
-        }
-        catch
-        {
-            Dispose();
-            throw;
-        }
+        _quad = quad;
+        D3D11Gpu engine = quad.Engine;
+        _constants = engine.CreateBuffer(new GpuBufferDesc(sizeof(EffectConstants), GpuBufferKind.Constant));
 
         // El hilo de fondo retiene el dispositivo hasta terminar, aunque el compositor se cierre antes.
-        device->AddRef();
-        nint retained = (nint)device;
+        engine.NativeDevice->AddRef();
         Ready = Task.Run(() =>
         {
             try
             {
-                CreateShaders((ID3D11Device*)retained, cache);
+                CreateShaders(engine, cache);
             }
             finally
             {
-                ((ID3D11Device*)retained)->Release();
+                engine.NativeDevice->Release();
             }
         });
     }
@@ -95,47 +95,36 @@ internal sealed unsafe class EffectPipeline : IDisposable
     public static bool IsShaderBlend(BlendMode mode) =>
         mode is not (BlendMode.Normal or BlendMode.Add or BlendMode.Multiply or BlendMode.Screen);
 
-    public ID3D11PixelShader* TryGetShader(EffectShader shader, int flags) =>
-        (ID3D11PixelShader*)Volatile.Read(ref _shaders[EffectShaders.IndexOf(shader, flags)]);
+    public GpuShader? TryGetShader(EffectShader shader, int flags) => Volatile.Read(ref _shaders[EffectShaders.IndexOf(shader, flags)]);
 
-    /// <summary>Estado de mezcla para un valor premultiplicado; los modos por shader usan "over".</summary>
-    public ID3D11BlendState* BlendState(BlendMode mode) => mode switch
+    /// <summary>Mezcla para un valor premultiplicado; los modos por shader usan "over".</summary>
+    public static GpuBlend BlendState(BlendMode mode) => mode switch
     {
-        BlendMode.Add => _add,
-        BlendMode.Multiply => _multiply,
-        BlendMode.Screen => _screen,
-        _ => _over,
+        BlendMode.Add => s_add,
+        BlendMode.Multiply => s_multiply,
+        BlendMode.Screen => s_screen,
+        _ => s_over,
     };
 
     /// <summary>Suma en los cuatro canales: acumula las muestras premultiplicadas del desenfoque de movimiento.</summary>
-    public ID3D11BlendState* Accumulate => _accumulate;
-
+    public static GpuBlend Accumulate => s_accumulate;
 
     /// <summary>
     /// Cómo combina una máscara su cobertura <c>m</c> con la textura de máscaras <c>a</c>, en los cuatro canales: suma
     /// <c>m·(1 − a) + a</c>, resta <c>a·(1 − m)</c>, intersección <c>a·m</c> y diferencia <c>m·(1 − a) + a·(1 − m)</c>.
     /// </summary>
-    public ID3D11BlendState* MaskBlend(Rodaje.Core.Effects.MaskMode mode) => mode switch
+    public static GpuBlend MaskBlend(Rodaje.Core.Effects.MaskMode mode) => mode switch
     {
-        Rodaje.Core.Effects.MaskMode.Add => _maskAdd,
-        Rodaje.Core.Effects.MaskMode.Subtract => _maskSubtract,
-        Rodaje.Core.Effects.MaskMode.Difference => _maskDifference,
-        _ => _maskMultiply,
+        Rodaje.Core.Effects.MaskMode.Add => s_maskAdd,
+        Rodaje.Core.Effects.MaskMode.Subtract => s_maskSubtract,
+        Rodaje.Core.Effects.MaskMode.Difference => s_maskDifference,
+        _ => s_maskMultiply,
     };
 
-    public void BindConstants()
-    {
-        ID3D11Buffer* constants = _constants;
-        _context->PSSetConstantBuffers(1, 1, &constants);
-    }
+    public void BindConstants() => _quad.SetConstants(1, _constants);
 
-    public void Set(in EffectConstants constants)
-    {
-        D3D11_MAPPED_SUBRESOURCE mapped;
-        Check(_context->Map((ID3D11Resource*)_constants, 0, D3D11_MAP.D3D11_MAP_WRITE_DISCARD, 0, &mapped), "Map(efectos)");
-        *(EffectConstants*)mapped.pData = constants;
-        _context->Unmap((ID3D11Resource*)_constants, 0);
-    }
+    public void Set(in EffectConstants constants) =>
+        _quad.CurrentFrame.Write(_constants, MemoryMarshal.CreateReadOnlySpan(ref Unsafe.AsRef(in constants), 1));
 
     public void Dispose()
     {
@@ -144,25 +133,15 @@ internal sealed unsafe class EffectPipeline : IDisposable
             _disposed = true;
             for (int i = 0; i < _shaders.Length; i++)
             {
-                var shader = (ID3D11PixelShader*)_shaders[i];
-                Com.Release(ref shader);
-                _shaders[i] = 0;
+                _shaders[i]?.Dispose();
+                _shaders[i] = null;
             }
         }
 
-        Com.Release(ref _constants);
-        Com.Release(ref _over);
-        Com.Release(ref _add);
-        Com.Release(ref _accumulate);
-        Com.Release(ref _multiply);
-        Com.Release(ref _screen);
-        Com.Release(ref _maskAdd);
-        Com.Release(ref _maskSubtract);
-        Com.Release(ref _maskMultiply);
-        Com.Release(ref _maskDifference);
+        _constants.Dispose();
     }
 
-    private void CreateShaders(ID3D11Device* device, ShaderCache cache)
+    private void CreateShaders(D3D11Gpu engine, ShaderCache cache)
     {
         for (int i = 0; i < EffectShaders.All.Length; i++)
         {
@@ -171,74 +150,21 @@ internal sealed unsafe class EffectPipeline : IDisposable
                 return;
             }
 
-            byte[] code = cache.GetOrCompile(EffectShaders.All[i]);
-            ID3D11PixelShader* shader;
-            fixed (byte* bytes = code)
-            {
-                Check(device->CreatePixelShader(bytes, (nuint)code.Length, null, &shader), "CreatePixelShader(efecto)");
-            }
-
+            GpuShader shader = engine.CreateShader(EffectShaders.All[i], cache);
             lock (_gate)
             {
                 if (_disposed)
                 {
-                    shader->Release();
+                    shader.Dispose();
                     return;
                 }
 
-                Volatile.Write(ref _shaders[i], (nint)shader);
+                Volatile.Write(ref _shaders[i], shader);
             }
         }
     }
 
-    private void Create(ID3D11Device* device)
-    {
-        var bufferDesc = new D3D11_BUFFER_DESC
-        {
-            ByteWidth = (uint)sizeof(EffectConstants),
-            Usage = D3D11_USAGE.D3D11_USAGE_DYNAMIC,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_CONSTANT_BUFFER,
-            CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_WRITE,
-        };
-        ID3D11Buffer* constants;
-        Check(device->CreateBuffer(&bufferDesc, null, &constants), "CreateBuffer(efectos)");
-        _constants = constants;
-
-        // Con fuente premultiplicada S = Cs·a y fondo opaco Cb (fórmulas W3C con alfa):
-        // normal  Cb·(1 − a) + S;  suma  Cb + S;  multiplicar  Cb·(1 − a) + S·Cb;  trama  Cb + S·(1 − Cb).
-        _over = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_ONE, D3D11_BLEND.D3D11_BLEND_INV_SRC_ALPHA);
-        _add = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_ONE, D3D11_BLEND.D3D11_BLEND_ONE);
-        _accumulate = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_ONE, D3D11_BLEND.D3D11_BLEND_ONE, D3D11_BLEND.D3D11_BLEND_ONE,
-            D3D11_BLEND.D3D11_BLEND_ONE);
-        _multiply = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_DEST_COLOR, D3D11_BLEND.D3D11_BLEND_INV_SRC_ALPHA);
-        _screen = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_INV_DEST_COLOR, D3D11_BLEND.D3D11_BLEND_ONE);
-        _maskAdd = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_INV_DEST_COLOR, D3D11_BLEND.D3D11_BLEND_ONE,
-            D3D11_BLEND.D3D11_BLEND_INV_DEST_ALPHA, D3D11_BLEND.D3D11_BLEND_ONE);
-        _maskSubtract = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_ZERO, D3D11_BLEND.D3D11_BLEND_INV_SRC_COLOR,
-            D3D11_BLEND.D3D11_BLEND_ZERO, D3D11_BLEND.D3D11_BLEND_INV_SRC_ALPHA);
-        _maskMultiply = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_ZERO, D3D11_BLEND.D3D11_BLEND_SRC_COLOR,
-            D3D11_BLEND.D3D11_BLEND_ZERO, D3D11_BLEND.D3D11_BLEND_SRC_ALPHA);
-        _maskDifference = CreateBlend(device, D3D11_BLEND.D3D11_BLEND_INV_DEST_COLOR, D3D11_BLEND.D3D11_BLEND_INV_SRC_COLOR,
-            D3D11_BLEND.D3D11_BLEND_INV_DEST_ALPHA, D3D11_BLEND.D3D11_BLEND_INV_SRC_ALPHA);
-    }
-
-    private static ID3D11BlendState* CreateBlend(ID3D11Device* device, D3D11_BLEND source, D3D11_BLEND destination,
-        D3D11_BLEND sourceAlpha = D3D11_BLEND.D3D11_BLEND_ONE, D3D11_BLEND destinationAlpha = D3D11_BLEND.D3D11_BLEND_INV_SRC_ALPHA)
-    {
-        var desc = new D3D11_BLEND_DESC();
-        desc.RenderTarget[0] = new D3D11_RENDER_TARGET_BLEND_DESC
-        {
-            BlendEnable = true,
-            SrcBlend = source,
-            DestBlend = destination,
-            BlendOp = D3D11_BLEND_OP.D3D11_BLEND_OP_ADD,
-            SrcBlendAlpha = sourceAlpha,
-            DestBlendAlpha = destinationAlpha,
-            BlendOpAlpha = D3D11_BLEND_OP.D3D11_BLEND_OP_ADD,
-            RenderTargetWriteMask = (byte)D3D11_COLOR_WRITE_ENABLE.D3D11_COLOR_WRITE_ENABLE_ALL,
-        };
-        ID3D11BlendState* state;
-        Check(device->CreateBlendState(&desc, &state), "CreateBlendState(efecto)");
-        return state;
-    }
+    private static GpuBlend Blend(GpuBlendFactor source, GpuBlendFactor destination,
+        GpuBlendFactor sourceAlpha = GpuBlendFactor.One, GpuBlendFactor destinationAlpha = GpuBlendFactor.InverseSourceAlpha) =>
+        new(source, destination, sourceAlpha, destinationAlpha);
 }

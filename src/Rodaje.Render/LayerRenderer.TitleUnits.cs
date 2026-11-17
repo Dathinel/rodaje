@@ -5,6 +5,7 @@ using Rodaje.Playback.Composition;
 using Rodaje.Render.Effects;
 using Rodaje.Render.Text;
 using TerraFX.Interop.DirectX;
+using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render;
 
@@ -47,7 +48,7 @@ internal sealed unsafe partial class LayerRenderer
     /// </summary>
     private TitleImage? ComposeUnits(LayerFrame layer, TitleTexture title, TitleUnitSet set, in Destination destination)
     {
-        ID3D11PixelShader* shader = _effects.TryGetShader(EffectShader.Fx, 0);
+        GpuShader? shader = _effects.TryGetShader(EffectShader.Fx, 0);
         if (shader == null)
         {
             return null;
@@ -93,9 +94,8 @@ internal sealed unsafe partial class LayerRenderer
             return null;
         }
 
-        float* clear = stackalloc float[4];
-        _context->ClearRenderTargetView(target.Rtv, clear);
-        _quad.Bind(target.Rtv, width, height, shader, _effects.BlendState(BlendMode.Normal));
+        _quad.CurrentFrame.Clear(target.Gpu, GpuColor.TransparentBlack);
+        _quad.Bind(target.Gpu, width, height, shader, EffectPipeline.BlendState(BlendMode.Normal));
         BindInputs(null, null, title.Target, null);
         Matrix3x2 toTarget = Matrix3x2.CreateTranslation(width / (2 * k), height / (2 * k)) * Matrix3x2.CreateScale(k);
         float texelsPerPixel = (float)title.Scale;

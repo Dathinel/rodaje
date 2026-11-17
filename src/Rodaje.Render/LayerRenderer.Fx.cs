@@ -3,6 +3,7 @@ using Rodaje.Core.Model;
 using Rodaje.Playback.Composition;
 using Rodaje.Render.Effects;
 using TerraFX.Interop.DirectX;
+using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render;
 
@@ -452,8 +453,7 @@ internal sealed unsafe partial class LayerRenderer
             return;
         }
 
-        var box = new D3D11_BOX { left = 0, top = 0, right = (uint)result.Width, bottom = (uint)result.Height, front = 0, back = 1 };
-        _context->CopySubresourceRegion((ID3D11Resource*)history.Target.Texture, 0, 0, 0, 0, (ID3D11Resource*)result.Target.Texture, 0, &box);
+        _quad.CurrentFrame.Copy(result.Target.Gpu, new GpuBox(0, 0, result.Width, result.Height), history.Target.Gpu, 0, 0);
     }
 
     /// <summary>
@@ -462,7 +462,7 @@ internal sealed unsafe partial class LayerRenderer
     /// </summary>
     private ImageView? Reduce(ImageView source, ref float radius, float limit, bool keepSource = false)
     {
-        ID3D11PixelShader* down = _effects.TryGetShader(EffectShader.Downsample, 0);
+        GpuShader? down = _effects.TryGetShader(EffectShader.Downsample, 0);
         if (down == null)
         {
             if (!keepSource)
@@ -522,7 +522,7 @@ internal sealed unsafe partial class LayerRenderer
     /// <summary>Una pasada de <c>PsFx</c> a un intermedio nuevo del pool, con la máscara de efectos en t7.</summary>
     private ImageView? FxPass(ImageView a, ImageView? b, in EffectConstants constants, int width, int height)
     {
-        ID3D11PixelShader* shader = _effects.TryGetShader(EffectShader.Fx, 0);
+        GpuShader? shader = _effects.TryGetShader(EffectShader.Fx, 0);
         RenderTarget? output = shader == null ? null : _pool.Rent(width, height, IntermediateFormat);
         if (output is null)
         {
@@ -537,7 +537,7 @@ internal sealed unsafe partial class LayerRenderer
         }
 
         var view = new ImageView(output, width, height);
-        _quad.Bind(output.Rtv, width, height, shader, null);
+        _quad.Bind(output.Gpu, width, height, shader, GpuBlend.Opaque);
         BindInputs(null, null, a.Target, b?.Target, _regionMask);
         _effects.Set(fx);
         _quad.Draw(QuadConstants.FullTarget());

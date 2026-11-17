@@ -8,6 +8,8 @@ using Rodaje.Playback.Composition;
 using TerraFX.Interop.DirectX;
 using static TerraFX.Interop.DirectX.D3D11;
 using Rodaje.Render.Effects;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using Rodaje.Render.Interpolation;
 using Rodaje.Render.Shaders;
 using Rodaje.Render.Text;
@@ -62,8 +64,7 @@ public readonly record struct CompositeResult(int LayersDrawn, int LayersSkipped
 public sealed unsafe partial class Compositor : IDisposable
 {
     private readonly GpuDevice _gpu;
-    private readonly ID3D11Device* _device;
-    private readonly ID3D11DeviceContext* _context;
+    private readonly D3D11Gpu _engine;
     private readonly QuadPipeline _pipeline;
     private readonly PlaneViewCache _views;
     private readonly EffectPipeline _effects;
@@ -72,7 +73,7 @@ public sealed unsafe partial class Compositor : IDisposable
     private readonly LayerRenderer _layers;
     private readonly FrameInterpolator _interpolator;
     private RenderTarget? _output;
-    private ID3D11Texture2D* _staging;
+    private GpuReadback? _readback;
     private TitleRasterizer? _titles;
 
     public Compositor(GpuDevice gpu, int width, int height, CompositeFormat format = CompositeFormat.Rgba16Float)
@@ -96,19 +97,18 @@ public sealed unsafe partial class Compositor : IDisposable
         ArgumentOutOfRangeException.ThrowIfGreaterThan(width, D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(height, D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION);
         _gpu = gpu;
-        _device = (ID3D11Device*)gpu.NativeDevice;
-        _context = (ID3D11DeviceContext*)gpu.NativeContext;
+        _engine = D3D11Gpu.For(gpu);
         Width = width;
         Height = height;
         Format = format;
         MipLevels = 1 + (int)Math.Log2(Math.Max(width, height));
-        _views = new PlaneViewCache(_device, time);
-        _pool = new RenderTargetPool(_device, _context, poolCapBytes ?? PoolCapFor(gpu.DedicatedVideoMemory));
-        _luts = new LutTextures(_device);
-        _pipeline = new QuadPipeline(_device, _context);
+        _views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice, time);
+        _pool = new RenderTargetPool(_engine, poolCapBytes ?? PoolCapFor(gpu.DedicatedVideoMemory));
+        _luts = new LutTextures(_engine);
+        _pipeline = new QuadPipeline(_engine);
         try
         {
-            _effects = new EffectPipeline(_device, _context, shaders ?? ShaderCache.Default);
+            _effects = new EffectPipeline(_pipeline, shaders ?? ShaderCache.Default);
             _layers = new LayerRenderer(gpu, _pipeline, _effects, _views, _pool, _luts);
             _interpolator = new FrameInterpolator(gpu, _views, _pool, shaders ?? ShaderCache.Default);
             CreateTarget();
@@ -136,6 +136,9 @@ public sealed unsafe partial class Compositor : IDisposable
     /// <see cref="TransparentBackground"/>). Vale hasta <see cref="Dispose"/>.
     /// </summary>
     public nint Texture => _output is null ? 0 : (nint)_output.Texture;
+
+    /// <summary>El último cuadro compuesto para <see cref="IGpu"/> (la misma textura que <see cref="Texture"/>).</summary>
+    internal GpuTexture? Output => _output?.Gpu;
 
     /// <summary><c>ID3D11ShaderResourceView*</c> de <see cref="Texture"/>, con todos sus mipmaps.</summary>
     public nint ShaderResourceView => _output is null ? 0 : (nint)_output.Srv;
@@ -219,7 +222,8 @@ public sealed unsafe partial class Compositor : IDisposable
             }
         }
 
-        _gpu.LockContext();
+        IGpuFrame gpuFrame = _engine.BeginFrame();
+        _pipeline.Frame = gpuFrame;
         try
         {
             _pipeline.HdrMode = ColorSpace != SequenceColorSpace.Sdr709 ? 1 : 0;
@@ -243,7 +247,8 @@ public sealed unsafe partial class Compositor : IDisposable
             _interpolator.EndFrame();
             _views.EndFrame();
             _pool.EndFrame();
-            _gpu.UnlockContext();
+            _pipeline.Frame = null;
+            gpuFrame.Dispose();
         }
 
         return new CompositeResult(drawn, stats.LayersSkipped, stats.EffectsApplied, stats.EffectsSkipped, stats.MissingContent, _pool.Bytes,
@@ -276,9 +281,8 @@ public sealed unsafe partial class Compositor : IDisposable
         float pixelScale = destination.PixelScale;
         int sequenceWidth = destination.SequenceWidth;
         int sequenceHeight = destination.SequenceHeight;
-        _pipeline.Bind(target.Rtv, destination.Width, destination.Height, QuadPipeline.Shader.Layer);
-        float* black = stackalloc float[] { 0f, 0f, 0f, transparent ? 0f : 1f };
-        _context->ClearRenderTargetView(target.Rtv, black);
+        _pipeline.Bind(target.Gpu, destination.Width, destination.Height, QuadPipeline.Shader.Layer);
+        _pipeline.CurrentFrame.Clear(target.Gpu, new GpuColor(0f, 0f, 0f, transparent ? 0f : 1f));
         bool bound = true;
         for (int i = 0; i < layers.Count; i++)
         {
@@ -326,7 +330,7 @@ public sealed unsafe partial class Compositor : IDisposable
             {
                 if (!bound)
                 {
-                    _pipeline.Bind(target.Rtv, destination.Width, destination.Height, QuadPipeline.Shader.Layer);
+                    _pipeline.Bind(target.Gpu, destination.Width, destination.Height, QuadPipeline.Shader.Layer);
                     bound = true;
                 }
 
@@ -381,8 +385,7 @@ public sealed unsafe partial class Compositor : IDisposable
                 source = drawable;
             }
 
-            float* clear = stackalloc float[] { 0f, 0f, 0f, 0f };
-            _context->ClearRenderTargetView(accumulation.Rtv, clear);
+            _pipeline.CurrentFrame.Clear(accumulation.Gpu, GpuColor.TransparentBlack);
             var inner = new Destination(accumulation, destination.Width, destination.Height, destination.SequenceWidth, destination.SequenceHeight);
             float weight = 1f / samples.Count;
             bool any = false;
@@ -539,8 +542,7 @@ public sealed unsafe partial class Compositor : IDisposable
             _layers.Bypass = bypass | PreviewBypass.Grading;
             DrawLayers(frame, geometry, new Destination(before, Width, Height, frame.Width, frame.Height), titles, ref stats);
             _pipeline.Unbind();
-            var box = new D3D11_BOX { left = 0, top = 0, right = (uint)width, bottom = (uint)Height, front = 0, back = 1 };
-            _context->CopySubresourceRegion((ID3D11Resource*)_output!.Texture, 0, 0, 0, 0, (ID3D11Resource*)before.Texture, 0, &box);
+            _pipeline.CurrentFrame.Copy(before.Gpu, new GpuBox(0, 0, width, Height), _output!.Gpu, 0, 0);
         }
         finally
         {
@@ -618,44 +620,28 @@ public sealed unsafe partial class Compositor : IDisposable
     {
         ObjectDisposedException.ThrowIf(_output is null, this);
         var pixels = new float[Width * Height * 4];
-        _gpu.LockContext();
-        try
+        using (GpuMappedRows rows = ReadOutput())
         {
-            ID3D11Texture2D* staging = Staging();
-            _context->CopySubresourceRegion((ID3D11Resource*)staging, 0, 0, 0, 0, (ID3D11Resource*)_output.Texture, 0, null);
-            D3D11_MAPPED_SUBRESOURCE mapped;
-            Check(_context->Map((ID3D11Resource*)staging, 0, D3D11_MAP.D3D11_MAP_READ, 0, &mapped), "Map(lectura)");
-            try
+            for (int y = 0; y < Height; y++)
             {
-                for (int y = 0; y < Height; y++)
+                ReadOnlySpan<byte> row = rows.Row(y);
+                Span<float> target = pixels.AsSpan(y * Width * 4, Width * 4);
+                if (Format == CompositeFormat.Rgba8Unorm)
                 {
-                    byte* row = (byte*)mapped.pData + ((nuint)y * mapped.RowPitch);
-                    Span<float> target = pixels.AsSpan(y * Width * 4, Width * 4);
-                    if (Format == CompositeFormat.Rgba8Unorm)
-                    {
-                        for (int i = 0; i < target.Length; i++)
-                        {
-                            target[i] = row[i] / 255f;
-                        }
-
-                        continue;
-                    }
-
-                    var halves = new ReadOnlySpan<Half>(row, Width * 4);
                     for (int i = 0; i < target.Length; i++)
                     {
-                        target[i] = (float)halves[i];
+                        target[i] = row[i] / 255f;
                     }
+
+                    continue;
+                }
+
+                ReadOnlySpan<Half> halves = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Half>(row);
+                for (int i = 0; i < target.Length; i++)
+                {
+                    target[i] = (float)halves[i];
                 }
             }
-            finally
-            {
-                _context->Unmap((ID3D11Resource*)staging, 0);
-            }
-        }
-        finally
-        {
-            _gpu.UnlockContext();
         }
 
         PixelFingerprint.Record("composicion-float", pixels.AsSpan());
@@ -667,46 +653,30 @@ public sealed unsafe partial class Compositor : IDisposable
     {
         ObjectDisposedException.ThrowIf(_output is null, this);
         var pixels = new byte[Width * Height * 4];
-        _gpu.LockContext();
-        try
+        using (GpuMappedRows rows = ReadOutput())
         {
-            ID3D11Texture2D* staging = Staging();
-            _context->CopySubresourceRegion((ID3D11Resource*)staging, 0, 0, 0, 0, (ID3D11Resource*)_output.Texture, 0, null);
-            D3D11_MAPPED_SUBRESOURCE mapped;
-            Check(_context->Map((ID3D11Resource*)staging, 0, D3D11_MAP.D3D11_MAP_READ, 0, &mapped), "Map(lectura)");
-            try
+            for (int y = 0; y < Height; y++)
             {
-                for (int y = 0; y < Height; y++)
+                ReadOnlySpan<byte> row = rows.Row(y);
+                Span<byte> target = pixels.AsSpan(y * Width * 4, Width * 4);
+                if (Format == CompositeFormat.Rgba8Unorm)
                 {
-                    byte* row = (byte*)mapped.pData + ((nuint)y * mapped.RowPitch);
-                    Span<byte> target = pixels.AsSpan(y * Width * 4, Width * 4);
-                    if (Format == CompositeFormat.Rgba8Unorm)
-                    {
-                        new ReadOnlySpan<byte>(row, Width * 4).CopyTo(target);
-                        continue;
-                    }
+                    row.CopyTo(target);
+                    continue;
+                }
 
-                    var halves = new ReadOnlySpan<Half>(row, Width * 4);
-                    if (ColorSpace != SequenceColorSpace.Sdr709)
-                    {
-                        LinearToSdr(halves, target);
-                        continue;
-                    }
+                ReadOnlySpan<Half> halves = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, Half>(row);
+                if (ColorSpace != SequenceColorSpace.Sdr709)
+                {
+                    LinearToSdr(halves, target);
+                    continue;
+                }
 
-                    for (int i = 0; i < target.Length; i++)
-                    {
-                        target[i] = (byte)Math.Round(Math.Clamp((float)halves[i], 0f, 1f) * 255f);
-                    }
+                for (int i = 0; i < target.Length; i++)
+                {
+                    target[i] = (byte)Math.Round(Math.Clamp((float)halves[i], 0f, 1f) * 255f);
                 }
             }
-            finally
-            {
-                _context->Unmap((ID3D11Resource*)staging, 0);
-            }
-        }
-        finally
-        {
-            _gpu.UnlockContext();
         }
 
         PixelFingerprint.Record("composicion", pixels.AsSpan());
@@ -755,7 +725,7 @@ public sealed unsafe partial class Compositor : IDisposable
         _layers?.Dispose();
         _effects?.Dispose();
         _pipeline?.Dispose();
-        Com.Release(ref _staging);
+        _readback?.Dispose();
         _output?.Dispose();
         _output = null;
     }
@@ -781,40 +751,10 @@ public sealed unsafe partial class Compositor : IDisposable
 
     private void CreateTarget()
     {
-        DXGI_FORMAT format = Format == CompositeFormat.Rgba8Unorm
-            ? DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM
-            : DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT;
-        var desc = new D3D11_TEXTURE2D_DESC
-        {
-            Width = (uint)Width,
-            Height = (uint)Height,
-            MipLevels = (uint)MipLevels,
-            ArraySize = 1,
-            Format = format,
-            SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
-            Usage = D3D11_USAGE.D3D11_USAGE_DEFAULT,
-            BindFlags = (uint)(D3D11_BIND_FLAG.D3D11_BIND_RENDER_TARGET | D3D11_BIND_FLAG.D3D11_BIND_SHADER_RESOURCE),
-            MiscFlags = (uint)D3D11_RESOURCE_MISC_FLAG.D3D11_RESOURCE_MISC_GENERATE_MIPS,
-        };
-        ID3D11Texture2D* target;
-        Check(_device->CreateTexture2D(&desc, null, &target), "CreateTexture2D(composición)");
-        ID3D11RenderTargetView* rtv = null;
-        ID3D11ShaderResourceView* srv = null;
-        try
-        {
-            var rtvDesc = new D3D11_RENDER_TARGET_VIEW_DESC { Format = format, ViewDimension = D3D11_RTV_DIMENSION.D3D11_RTV_DIMENSION_TEXTURE2D };
-            rtvDesc.Texture2D.MipSlice = 0;
-            Check(_device->CreateRenderTargetView((ID3D11Resource*)target, &rtvDesc, &rtv), "CreateRenderTargetView(composición)");
-            Check(_device->CreateShaderResourceView((ID3D11Resource*)target, null, &srv), "CreateShaderResourceView(composición)");
-        }
-        catch
-        {
-            Com.Release(ref rtv);
-            Com.Release(ref target);
-            throw;
-        }
-
-        _output = new RenderTarget(target, rtv, srv, Width, Height, format, RenderTarget.BytesFor(Width, Height, format));
+        GpuFormat format = Format == CompositeFormat.Rgba8Unorm ? GpuFormat.Rgba8Unorm : GpuFormat.Rgba16Float;
+        GpuTexture target = _engine.CreateTexture(new GpuTextureDesc(Width, Height, format,
+            GpuTextureUsage.RenderTarget | GpuTextureUsage.Sampled | GpuTextureUsage.GenerateMips, MipLevels));
+        _output = new RenderTarget(target, RenderTarget.BytesFor(Width, Height, format));
     }
 
     /// <summary>Una fila de la composición HDR (lineal BT.2020, 1,0 = 203 nits) a SDR BT.709 de 8 bits, como <c>PresentHdr</c> y la variante TONEMAP de la exportación.</summary>
@@ -838,23 +778,15 @@ public sealed unsafe partial class Compositor : IDisposable
         return (byte)Math.Round((x < 0.018 ? 4.5 * x : (1.099 * Math.Pow(x, 0.45)) - 0.099) * 255);
     }
 
-    private ID3D11Texture2D* Staging()
+    /// <summary>Copia la salida (mip 0) a la CPU y espera; las filas retienen el candado del contexto hasta soltarlas.</summary>
+    private GpuMappedRows ReadOutput()
     {
-        if (_staging != null)
+        _readback ??= _engine.CreateReadback(Width, Height, _output!.Format);
+        using (IGpuFrame frame = _engine.BeginFrame())
         {
-            return _staging;
+            frame.Copy(_output!.Gpu, new GpuBox(0, 0, Width, Height), _readback);
         }
 
-        D3D11_TEXTURE2D_DESC desc;
-        _output!.Texture->GetDesc(&desc);
-        desc.MipLevels = 1;
-        desc.Usage = D3D11_USAGE.D3D11_USAGE_STAGING;
-        desc.BindFlags = 0;
-        desc.MiscFlags = 0;
-        desc.CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_READ;
-        ID3D11Texture2D* staging;
-        Check(_device->CreateTexture2D(&desc, null, &staging), "CreateTexture2D(lectura)");
-        _staging = staging;
-        return staging;
+        return _readback.Map();
     }
 }
