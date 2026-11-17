@@ -65,7 +65,7 @@ internal sealed unsafe class VulkanPipeline : GpuPipeline
         {
             VkDescriptorSetLayout layoutHandle = SetLayout;
             var pipelineLayoutInfo = new VkPipelineLayoutCreateInfo { sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO, setLayoutCount = 1, pSetLayouts = &layoutHandle };
-            VkPipelineLayout pipelineLayout;
+            VkPipelineLayout pipelineLayout = default;
             gpu.Check(VulkanGpu.Injected("vkCreatePipelineLayout") ?? vkCreatePipelineLayout(gpu.Device, &pipelineLayoutInfo, null, &pipelineLayout), "vkCreatePipelineLayout");
             Layout = pipelineLayout;
 
@@ -160,7 +160,7 @@ internal sealed unsafe class VulkanPipeline : GpuPipeline
                 },
                 layout = Layout,
             };
-            VkPipeline pipeline;
+            VkPipeline pipeline = default;
             _gpu.Check(VulkanGpu.Injected("vkCreateComputePipelines") ?? vkCreateComputePipelines(_gpu.Device, default, 1, &info, null, &pipeline), $"vkCreateComputePipelines({shader.Id})");
             _compute = pipeline;
         }
@@ -317,7 +317,7 @@ internal sealed unsafe class VulkanPipeline : GpuPipeline
                 pDynamicState = &dynamicState,
                 layout = Layout,
             };
-            VkPipeline pipeline;
+            VkPipeline pipeline = default;
             _gpu.Check(vkCreateGraphicsPipelines(_gpu.Device, default, 1, &info, null, &pipeline), $"vkCreateGraphicsPipelines({vertex.Id}, {pixel.Id})");
             return pipeline;
         }

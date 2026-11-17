@@ -187,7 +187,7 @@ internal sealed unsafe class VulkanTexture : GpuTexture
             format = NativeFormat,
             subresourceRange = Range(firstMip, mips),
         };
-        VkImageView view;
+        VkImageView view = default;
         _gpu.Check(VulkanGpu.Injected("vkCreateImageView") ?? vkCreateImageView(_gpu.Device, &info, null, &view), "vkCreateImageView");
         return view;
     }
@@ -336,7 +336,7 @@ internal sealed unsafe class VulkanSampler : GpuSampler
             maxLod = VK_LOD_CLAMP_NONE,
             borderColor = VkBorderColor.VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
         };
-        VkSampler sampler;
+        VkSampler sampler = default;
         gpu.Check(VulkanGpu.Injected("vkCreateSampler") ?? vkCreateSampler(gpu.Device, &info, null, &sampler), "vkCreateSampler");
         Handle = sampler;
     }
