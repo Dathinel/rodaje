@@ -45,6 +45,7 @@
     <Project Path="tests/Rodaje.Packages.Tests/Rodaje.Packages.Tests.csproj" />
     <Project Path="tests/Rodaje.Playback.Tests/Rodaje.Playback.Tests.csproj" />
     <Project Path="tests/Rodaje.Render.Tests/Rodaje.Render.Tests.csproj" />
+    <Project Path="tests/Rodaje.Render.Vulkan.Tests/Rodaje.Render.Vulkan.Tests.csproj" />
     <Project Path="tests/Rodaje.Text.Tests/Rodaje.Text.Tests.csproj" />
     <Project Path="tests/Rodaje.TestMedia/Rodaje.TestMedia.csproj" />
     <Project Path="tests/Rodaje.TestMedia.Tests/Rodaje.TestMedia.Tests.csproj" />

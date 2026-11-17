@@ -9,6 +9,7 @@ namespace Rodaje.Render;
 /// Mide lo que la GPU ejecuta entre las dos marcas, incluido el trabajo que otros hilos (el decodificador) metan
 /// en la cola del mismo contexto entre medias. Un intervalo "disjunto" (cambio de reloj de la GPU) no da medida.
 /// </remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class GpuTimer : IDisposable
 {
     private readonly D3D11Gpu _engine;

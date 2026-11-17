@@ -181,11 +181,6 @@ public static class Program
                     "-E", variant.EntryPoint,
                 };
 
-                if (profile == "vs_6_0")
-                {
-                    args.Add("-fvk-invert-y");
-                }
-
                 foreach (string define in variant.Defines)
                 {
                     args.Add("-D");

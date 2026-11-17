@@ -17,6 +17,7 @@ public delegate void ExportFrameHandler(in ExportVideoFrame frame);
 
 /// <summary>Miniatura BGRA (alfa 255) de un cuadro de la salida, para el progreso de la exportación.</summary>
 /// <param name="Index">Cuadro de la salida del que salió.</param>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed record ExportThumbnail(long Index, int Width, int Height, byte[] Bgra);
 
 /// <summary>
@@ -24,6 +25,7 @@ public sealed record ExportThumbnail(long Index, int Width, int Height, byte[] B
 /// Y'CbCr con la matriz y el rango de <see cref="ExportVideoFormat.Color"/>, croma «left», tramado al bajar a 8 bits, y un
 /// anillo de búferes de lectura para que la copia a la CPU no detenga a la GPU.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe class ExportFrameConverter : IDisposable
 {
     public const int DefaultRingSize = 3;

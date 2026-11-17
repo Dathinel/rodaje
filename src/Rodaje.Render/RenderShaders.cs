@@ -311,6 +311,7 @@ internal static class RenderShaders
 
     public static byte[] Present => s_present.Value;
 
-    private static byte[] Compile(ShaderVariant variant) =>
-        ShaderCompiler.Compile(variant.FullSource(), variant.EntryPoint, variant.Profile, variant.SourceName);
+    private static byte[] Compile(ShaderVariant variant) => OperatingSystem.IsWindowsVersionAtLeast(7)
+        ? ShaderCompiler.Compile(variant.FullSource(), variant.EntryPoint, variant.Profile, variant.SourceName)
+        : throw new PlatformNotSupportedException("D3DCompile solo existe en Windows; Vulkan usa el SPIR-V incrustado.");
 }

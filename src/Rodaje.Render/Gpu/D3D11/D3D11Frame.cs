@@ -11,6 +11,7 @@ namespace Rodaje.Render.Gpu.D3D11;
 /// Un cuadro de D3D11: el candado del contexto inmediato, tomado desde <see cref="D3D11Gpu.BeginFrame"/> hasta <see cref="Dispose"/>.
 /// Cada orden va directa al contexto; no hay nada que «enviar» aparte, así que <see cref="Submit"/> solo deja una valla.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
 {
     private readonly ID3D11DeviceContext* _context = gpu.Context;

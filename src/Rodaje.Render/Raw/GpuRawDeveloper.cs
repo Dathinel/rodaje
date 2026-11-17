@@ -14,6 +14,7 @@ namespace Rodaje.Render.Raw;
 /// exposición y la curva, igual que <see cref="MosaicDeveloper"/> en la CPU, y el cuadro rgba16f vuelve por una textura
 /// <c>Staging</c>. Un revelador sirve para todos los cuadros del mismo tamaño; cada llamada espera a la GPU.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe class GpuRawDeveloper : IDisposable
 {
     private const int Group = 16;

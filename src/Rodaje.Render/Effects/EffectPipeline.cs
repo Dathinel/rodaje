@@ -9,6 +9,7 @@ namespace Rodaje.Render.Effects;
 
 /// <summary>Constantes de los efectos, en el orden del <c>cbuffer Effects</c> de <see cref="EffectShaders"/>.</summary>
 [StructLayout(LayoutKind.Sequential)]
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal struct EffectConstants
 {
     public Float4 Grade;
@@ -43,6 +44,7 @@ internal struct EffectConstants
 /// Shaders, constantes y mezclas de los efectos. Los shaders se crean en segundo plano (de la caché en disco o compilándolos);
 /// mientras uno no está, <see cref="TryGetShader"/> devuelve <c>null</c> y el cuadro sigue sin él.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed class EffectPipeline : IDisposable
 {
     // Con fuente premultiplicada S = Cs·a y fondo opaco Cb (fórmulas W3C con alfa):

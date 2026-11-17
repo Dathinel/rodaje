@@ -12,6 +12,7 @@ namespace Rodaje.Render.Text;
 /// entrega los glifos por un <c>IDWriteTextRenderer</c> propio; aquí es una tabla COM escrita a mano con
 /// <see cref="UnmanagedCallersOnlyAttribute"/> (apta para Native AOT, sin reflexión) que vive mientras dura <see cref="Collect"/>.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal static unsafe class GlyphOutlines
 {
     private static readonly void** Vtable = CreateVtable();
