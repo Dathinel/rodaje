@@ -209,10 +209,9 @@ public sealed unsafe partial class Compositor : IDisposable
     public TitleRasterizer? Titles
     {
         get => _titles;
-        [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
         set
         {
-            if (value is not null && value.Device != _gpu)
+            if (value is not null && (!OperatingSystem.IsWindowsVersionAtLeast(7) || value.Device != _gpu))
             {
                 throw new ArgumentException("El rasterizador de títulos es de otro dispositivo.", nameof(value));
             }

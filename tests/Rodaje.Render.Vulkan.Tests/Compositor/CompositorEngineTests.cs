@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
+using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Video;
@@ -55,6 +56,12 @@ public sealed class CompositorEngineTests(ITestOutputHelper output)
         ],
         ["desenfoque"] = gpu => [Layer(gpu, Pattern(Width, Height, 7), LayerTransform.Identity, effects: [Fx.Blur(6)])],
         ["nitidez"] = gpu => [Layer(gpu, Pattern(Width, Height, 8), LayerTransform.Identity, effects: [Fx.Sharpen(1, 2)])],
+        ["fundido-cruzado"] = gpu =>
+        [
+            Layer(gpu, Pattern(Width, Height, 9), LayerTransform.Identity, transition: new LayerTransition(
+                EffectRegistry.Find(BuiltInTransitions.Crossfade)!.Code, 0.4f, Fx.Transition(BuiltInTransitions.Crossfade),
+                Layer(gpu, Pattern(Width, Height, 10), LayerTransform.Identity, track: 1))),
+        ],
     };
 
     [VulkanTheory]
@@ -78,7 +85,7 @@ public sealed class CompositorEngineTests(ITestOutputHelper output)
 
     /// <summary>Con <c>RODAJE_REFERENCIAS_WARP</c> en Windows, deja la composición de WARP de cada caso para el trabajo de Linux.</summary>
     [Fact]
-    public void Writes_warp_references_when_asked()
+    public void Generate_warp_references()
     {
         string? folder = Environment.GetEnvironmentVariable(ReferenceVariable);
         if (folder is null || !OperatingSystem.IsWindowsVersionAtLeast(7))
@@ -137,14 +144,14 @@ public sealed class CompositorEngineTests(ITestOutputHelper output)
     }
 
     private static LayerFrame Layer(IGpu gpu, (byte[] Luma, byte[] Chroma, int Width, int Height) image, LayerTransform transform, int track = 0,
-        BlendMode blend = BlendMode.Normal, IReadOnlyList<LayerEffect>? effects = null)
+        BlendMode blend = BlendMode.Normal, IReadOnlyList<LayerEffect>? effects = null, LayerTransition? transition = null)
     {
         GpuTexture luma = gpu.CreateTexture(new GpuTextureDesc(image.Width, image.Height, GpuFormat.R8Unorm, GpuTextureUsage.Sampled), image.Luma);
         GpuTexture chroma = gpu.CreateTexture(new GpuTextureDesc(image.Width / 2, image.Height / 2, GpuFormat.Rg8Unorm, GpuTextureUsage.Sampled),
             image.Chroma);
         var surface = new GpuTextureSurface(luma, chroma, FramePixelFormat.Nv12, Bt709);
         var frame = new DecodedFrame(0, Time.Zero, Time.FromTicks(1), surface, 0);
-        return new LayerFrame(track, $"clip-{track}", frame, transform) { Effects = effects ?? [], Blend = blend };
+        return new LayerFrame(track, $"clip-{track}", frame, transform) { Effects = effects ?? [], Blend = blend, Transition = transition };
     }
 
     /// <summary>NV12 de rango limitado por fórmula (sin aleatorios): degradados y bandas que cambian con <paramref name="seed"/>.</summary>

@@ -89,7 +89,10 @@ internal sealed class EffectPipeline : IDisposable
             }
             finally
             {
-                d3d.NativeDevice->Release();
+                if (OperatingSystem.IsWindowsVersionAtLeast(7))
+                {
+                    d3d.NativeDevice->Release();
+                }
             }
         });
     }
