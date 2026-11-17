@@ -13,6 +13,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Los casos de aceptación de títulos: DirectWrite escribe aquí la referencia que HarfBuzz compara en Linux y macOS (D-066). -->
+    <Compile Include="..\Rodaje.Text.Tests\TitleLayoutCases.cs" Link="Text\TitleLayoutCases.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Render\Rodaje.Render.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Analysis\Rodaje.Analysis.csproj" />
     <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
