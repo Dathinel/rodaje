@@ -146,12 +146,26 @@ public sealed class CompositorEngineTests(ITestOutputHelper output)
     private static LayerFrame Layer(IGpu gpu, (byte[] Luma, byte[] Chroma, int Width, int Height) image, LayerTransform transform, int track = 0,
         BlendMode blend = BlendMode.Normal, IReadOnlyList<LayerEffect>? effects = null, LayerTransition? transition = null)
     {
-        GpuTexture luma = gpu.CreateTexture(new GpuTextureDesc(image.Width, image.Height, GpuFormat.R8Unorm, GpuTextureUsage.Sampled), image.Luma);
-        GpuTexture chroma = gpu.CreateTexture(new GpuTextureDesc(image.Width / 2, image.Height / 2, GpuFormat.Rg8Unorm, GpuTextureUsage.Sampled),
-            image.Chroma);
-        var surface = new GpuTextureSurface(luma, chroma, FramePixelFormat.Nv12, Bt709);
+        // P010 (10 bits en la parte alta de 16): lavapipe filtra UNORM8 con 8 bits de precisión y NV12 daría ~7e-4 de media frente a WARP
+        // solo por eso; con 16 bits se compara el compositor, no el filtro del rasterizador.
+        GpuTexture luma = gpu.CreateTexture(new GpuTextureDesc(image.Width, image.Height, GpuFormat.R16Unorm, GpuTextureUsage.Sampled), Widen(image.Luma));
+        GpuTexture chroma = gpu.CreateTexture(new GpuTextureDesc(image.Width / 2, image.Height / 2, GpuFormat.Rg16Unorm, GpuTextureUsage.Sampled),
+            Widen(image.Chroma));
+        var surface = new GpuTextureSurface(luma, chroma, FramePixelFormat.P010, Bt709);
         var frame = new DecodedFrame(0, Time.Zero, Time.FromTicks(1), surface, 0);
         return new LayerFrame(track, $"clip-{track}", frame, transform) { Effects = effects ?? [], Blend = blend, Transition = transition };
+    }
+
+    /// <summary>Códigos de 8 bits como P010: el mismo código en 10 bits (×4) en la parte alta de la palabra.</summary>
+    private static byte[] Widen(byte[] codes)
+    {
+        var words = new ushort[codes.Length];
+        for (int i = 0; i < codes.Length; i++)
+        {
+            words[i] = (ushort)(codes[i] << 8);
+        }
+
+        return MemoryMarshal.AsBytes(words.AsSpan()).ToArray();
     }
 
     /// <summary>NV12 de rango limitado por fórmula (sin aleatorios): degradados y bandas que cambian con <paramref name="seed"/>.</summary>
