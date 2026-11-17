@@ -28,7 +28,7 @@ internal static partial class SelfTestRun
             await WaitForAsync(() => ClipCount(session) > 0, 30, "el clip de prueba no llegó a la línea de tiempo");
             Directory.CreateDirectory(folder);
             await ReopenAsync(session, Path.Combine(folder, "aceptacion.rodaje"), metrics);
-            Edit(session, metrics);
+            await EditAsync(session, metrics);
             await ClipboardAsync(metrics);
             await PlayAsync(session, engine, metrics);
             await ExportAsync(window, Path.Combine(folder, "aceptacion.mov"), metrics);
@@ -82,10 +82,13 @@ internal static partial class SelfTestRun
     }
 
     /// <summary>Editar: divide el primer clip por la mitad, deshace y rehace.</summary>
-    private static void Edit(EditorSession session, Metrics metrics)
+    private static async Task EditAsync(EditorSession session, Metrics metrics)
     {
         int clips = ClipCount(session);
-        session.Seek(Time.FromSeconds(session.Sequence.Duration.ToSeconds() / 2));
+        Time middle = Time.FromSeconds(session.Sequence.Duration.ToSeconds() / 2);
+        session.Seek(middle);
+        // El cursor de la sesión lo trae el hilo de render en su siguiente instantánea.
+        await WaitForAsync(() => Math.Abs((session.Position - middle).ToSeconds()) < 0.1, 10, "el cursor no llegó a la mitad");
         if (!session.SplitAtPlayhead() || ClipCount(session) != clips + 1)
         {
             throw new InvalidOperationException("Editar: dividir no dejó un clip más.");
