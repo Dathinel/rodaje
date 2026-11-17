@@ -1,15 +1,12 @@
 using System.Runtime.InteropServices;
-using Rodaje.Media.Gpu;
 using Rodaje.Render.Gpu;
-using Rodaje.Render.Gpu.D3D11;
 using Rodaje.Render.Shaders;
 
 namespace Rodaje.Render.Interpolation;
 
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
-internal sealed unsafe class FlowInterpolator(GpuDevice gpu, RenderTargetPool budget, ShaderCache shaders) : IDisposable
+internal sealed unsafe class FlowInterpolator(IGpu engine, RenderTargetPool budget, ShaderCache shaders) : IDisposable
 {
-    private readonly D3D11Gpu _engine = D3D11Gpu.For(gpu);
+    private readonly IGpu _engine = engine;
     private readonly List<IDisposable> _resources = [];
     private readonly List<Level> _levels = [];
     private readonly Dictionary<string, GpuPipeline> _pipelines = [];
@@ -25,10 +22,10 @@ internal sealed unsafe class FlowInterpolator(GpuDevice gpu, RenderTargetPool bu
 
     public int TextureCount => _resources.Count(r => r is GpuTexture);
     public long Frames { get; private set; }
-    internal nint DecisionBuffer => _decision is D3D11Buffer d ? (nint)d.Native : 0;
+    internal GpuBuffer? Decision => _decision;
 
-    public bool TryDispatch(PlaneViews a, PlaneViews b, GpuTexture luma, GpuTexture chroma,
-        int width, int height, bool eightBit, float fraction)
+    public bool TryDispatch(GpuTexture lumaA, GpuTexture chromaA, GpuTexture lumaB, GpuTexture chromaB,
+        GpuTexture luma, GpuTexture chroma, int width, int height, bool eightBit, float fraction)
     {
         if (width < 32 || height < 32 || (width & 1) != 0 || (height & 1) != 0) return false;
         try
@@ -51,7 +48,7 @@ internal sealed unsafe class FlowInterpolator(GpuDevice gpu, RenderTargetPool bu
                 {
                     var bindings = default(GpuBindings);
                     bindings.SetConstants(0, _constants);
-                    bindings.SetResource(0, direction == 0 ? a.LumaTexture : b.LumaTexture);
+                    bindings.SetResource(0, direction == 0 ? lumaA : lumaB);
                     bindings.SetResource(2, i == 0 ? null : _levels[i - 1].Images[direction]);
                     bindings.SetStorage(0, level.Images[direction]);
                     frame.Write(_constants!, MemoryMarshal.CreateReadOnlySpan(ref c, 1));
@@ -93,8 +90,8 @@ internal sealed unsafe class FlowInterpolator(GpuDevice gpu, RenderTargetPool bu
 
             var bHist = default(GpuBindings);
             bHist.SetConstants(0, _constants);
-            bHist.SetResource(0, a.LumaTexture);
-            bHist.SetResource(1, b.LumaTexture);
+            bHist.SetResource(0, lumaA);
+            bHist.SetResource(1, lumaB);
             bHist.SetStorage(4, _histogram);
             frame.Write(_constants!, MemoryMarshal.CreateReadOnlySpan(ref c, 1));
             frame.Dispatch(GetPipeline("Histogram"), bHist, (width * height + 255) / 256, 1);
@@ -121,14 +118,14 @@ internal sealed unsafe class FlowInterpolator(GpuDevice gpu, RenderTargetPool bu
 
             var bWarp = default(GpuBindings);
             bWarp.SetConstants(0, _constants);
-            bWarp.SetResource(0, a.LumaTexture);
-            bWarp.SetResource(1, b.LumaTexture);
+            bWarp.SetResource(0, lumaA);
+            bWarp.SetResource(1, lumaB);
             bWarp.SetResource(2, finest.Images[0]);
             bWarp.SetResource(3, finest.Images[1]);
             bWarp.SetResource(4, finest.Flows[0]);
             bWarp.SetResource(5, finest.Flows[1]);
-            bWarp.SetResource(7, a.ChromaTexture);
-            bWarp.SetResource(8, b.ChromaTexture);
+            bWarp.SetResource(7, chromaA);
+            bWarp.SetResource(8, chromaB);
             bWarp.SetResource(11, _decision);
             bWarp.SetStorage(2, luma);
             bWarp.SetStorage(3, chroma);

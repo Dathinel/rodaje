@@ -62,6 +62,9 @@ internal sealed class YuvImage
         return this;
     }
 
+    /// <summary>Los códigos de luma y luego los de croma entrelazada, como los sube <c>InterpolationRig.Upload</c>.</summary>
+    public ushort[] Codes() => [.. _luma, .. _chroma];
+
     /// <summary>Crea un arreglo de texturas con una capa por imagen. Devuelve una referencia que hay que liberar.</summary>
     [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public static unsafe nint CreateTexture(GpuDevice gpu, IReadOnlyList<YuvImage> slices)

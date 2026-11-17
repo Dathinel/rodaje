@@ -123,9 +123,8 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     /// <exception cref="ArgumentException">La textura es de otro dispositivo.</exception>
     public IDecoderSurface? Usable(LayerFrame layer)
     {
-        object? content = layer.Frame.Payload is CpuFramePayload cpu && Uploads is { } uploads ? uploads.Get(cpu) : layer.Frame.Payload;
-        if (content is not IDecoderSurface payload || payload.IsReleased
-            || payload.PixelFormat is not (FramePixelFormat.Nv12 or FramePixelFormat.P010 or FramePixelFormat.P016 or FramePixelFormat.Bgra8 or FramePixelFormat.Rgba16))
+        IDecoderSurface? payload = Surface(layer.Frame.Payload);
+        if (payload is null)
         {
             return null;
         }
@@ -136,6 +135,26 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         }
 
         return payload;
+    }
+
+    /// <summary>La superficie del cuadro que sigue a la capa (para interpolar), por el mismo camino que <see cref="Usable"/> pero sin lanzar: <c>null</c> si no hay, no vale o es de otro dispositivo.</summary>
+    public IDecoderSurface? UsableNext(LayerFrame layer)
+    {
+        IDecoderSurface? payload = Surface(layer.Next?.Payload);
+        return payload is null || OtherDevice(payload, _gpu) ? null : payload;
+    }
+
+    /// <summary>El contenido de un cuadro como superficie dibujable (subida de CPU si hay <see cref="Uploads"/>); <c>null</c> si no es utilizable.</summary>
+    private IDecoderSurface? Surface(object? payload)
+    {
+        object? content = payload is CpuFramePayload cpu && Uploads is { } uploads ? uploads.Get(cpu) : payload;
+        if (content is not IDecoderSurface surface || surface.IsReleased
+            || surface.PixelFormat is not (FramePixelFormat.Nv12 or FramePixelFormat.P010 or FramePixelFormat.P016 or FramePixelFormat.Bgra8 or FramePixelFormat.Rgba16))
+        {
+            return null;
+        }
+
+        return surface;
     }
 
     // Una textura de D3D11VA de otro dispositivo (o en un motor que no es ese D3D11) no se puede leer.

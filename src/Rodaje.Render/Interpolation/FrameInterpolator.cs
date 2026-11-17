@@ -24,7 +24,7 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
 
     public int TextureCount => _slots.Count + (_flow?.TextureCount ?? 0);
     internal long FlowFrames => _flow?.Frames ?? 0;
-    internal nint FlowDecisionBuffer => _flow?.DecisionBuffer ?? 0;
+    internal nint FlowDecisionBuffer => _flow?.Decision is D3D11Buffer d ? (nint)d.Native : 0;
 
     public D3D11TexturePayload? Blend(D3D11TexturePayload a, D3D11TexturePayload b, float fraction) => Interpolate(a, b, fraction, false);
 
@@ -108,8 +108,9 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
             PlaneViews second = views.Get(b, out bool ownSecond);
             try
             {
-                bool flowed = opticalFlow && (_flow ??= new FlowInterpolator(gpu, budget, shaders))
-                    .TryDispatch(first, second, slot.Luma, slot.Chroma, a.Width, a.Height,
+                bool flowed = opticalFlow && (_flow ??= new FlowInterpolator(_engine, budget, shaders))
+                    .TryDispatch(first.LumaTexture, first.ChromaTexture, second.LumaTexture, second.ChromaTexture,
+                        slot.Luma, slot.Chroma, a.Width, a.Height,
                         format == DXGI_FORMAT.DXGI_FORMAT_NV12, Math.Clamp(fraction, 0, 1));
                 if (!flowed)
                 {
