@@ -9,6 +9,7 @@ namespace Rodaje.Render;
 /// Los cuadriláteros del compositor y del presentador sobre <see cref="IGpu"/>: sombreador de vértices, constantes (b0), muestreador
 /// (s0) y una canalización por sombreador de píxeles y mezcla. Guarda las entradas enlazadas entre dibujos, como el contexto de D3D11.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class QuadPipeline : IDisposable
 {
     private readonly IGpu _engine;
@@ -149,6 +150,7 @@ internal sealed unsafe class QuadPipeline : IDisposable
 }
 
 [StructLayout(LayoutKind.Sequential)]
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal struct Float4(float x, float y, float z, float w)
 {
     public float X = x;
@@ -159,6 +161,7 @@ internal struct Float4(float x, float y, float z, float w)
 
 /// <summary>Constantes de <c>RenderShaders</c>, en el orden del <c>cbuffer Quad</c>.</summary>
 [StructLayout(LayoutKind.Sequential)]
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal struct QuadConstants
 {
     public Float4 TopLeft;
