@@ -13,7 +13,6 @@
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifier>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</RuntimeIdentifier>
     <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX'))">osx-arm64</RuntimeIdentifier>
-    <!-- RID fijo: con PublishAot y sin RID el SDK toma el del anfitrión (linux-x64 en la CI) y el lockfile cambia -->
     <RootNamespace>Rodaje.Module.Voice</RootNamespace>
     <AssemblyName>Rodaje.Module.Voice</AssemblyName>
     <IsPackable>false</IsPackable>
