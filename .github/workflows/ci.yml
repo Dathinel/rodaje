@@ -61,6 +61,18 @@ jobs:
         shell: bash
         run: bash build/pruebas-linux.sh 'Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento'
 
+      # El .paquete de modulo-audio-ia para este sistema (formato 2 con «platform»), instalado como lo hace el editor y
+      # arrancado por el protocolo (D-066, fase 7).
+      - name: Paquete de módulo de este sistema
+        shell: pwsh
+        run: |
+          ./build/empaquetar-modulo.ps1 -Modulo modulo-audio-ia -Salida dist/modulos
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:RODAJE_PAQUETE_MODULO = (Get-ChildItem dist/modulos -Filter '*.paquete' | Select-Object -First 1).FullName
+          dotnet test tests/Rodaje.Module.AudioAi.Tests/Rodaje.Module.AudioAi.Tests.csproj --filter 'FullyQualifiedName~PackagedModuleTests' `
+            --logger 'console;verbosity=detailed' --logger 'trx;LogFilePrefix=paquete' --results-directory TestResults
+          exit $LASTEXITCODE
+
       - name: Resultados
         if: always()
         uses: actions/upload-artifact@v4
@@ -87,6 +99,18 @@ jobs:
       - name: Pruebas
         shell: bash
         run: bash build/pruebas-linux.sh 'Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento'
+
+      # El .paquete de modulo-audio-ia para este sistema (formato 2 con «platform»), instalado como lo hace el editor y
+      # arrancado por el protocolo (D-066, fase 7).
+      - name: Paquete de módulo de este sistema
+        shell: pwsh
+        run: |
+          ./build/empaquetar-modulo.ps1 -Modulo modulo-audio-ia -Salida dist/modulos
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:RODAJE_PAQUETE_MODULO = (Get-ChildItem dist/modulos -Filter '*.paquete' | Select-Object -First 1).FullName
+          dotnet test tests/Rodaje.Module.AudioAi.Tests/Rodaje.Module.AudioAi.Tests.csproj --filter 'FullyQualifiedName~PackagedModuleTests' `
+            --logger 'console;verbosity=detailed' --logger 'trx;LogFilePrefix=paquete' --results-directory TestResults
+          exit $LASTEXITCODE
 
       - name: Resultados
         if: always()
