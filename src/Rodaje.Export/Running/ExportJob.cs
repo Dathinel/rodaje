@@ -427,7 +427,7 @@ public sealed class ExportJob : IDisposable
                 {
                     using (Measure("ReadbackAndPipe"))
                     {
-                        converter.TryRead(write);
+                        converter.TryRead(write, token);
                     }
                 }
 
@@ -441,7 +441,7 @@ public sealed class ExportJob : IDisposable
             bool Read()
             {
                 using var measurement = Measure("ReadbackAndPipe");
-                return converter.TryRead(write);
+                return converter.TryRead(write, token);
             }
             while (Read())
             {

@@ -55,6 +55,9 @@ public sealed class D3D11GpuTests : IDisposable
     public void Compute_writes_a_storage_texture_and_a_raw_buffer() => _checks.Compute_writes_a_storage_texture_and_a_raw_buffer();
 
     [D3D11Fact("motor D3D11 en WARP")]
+    public void Acquired_surface_outlives_its_owner_until_the_frame_completes() => _checks.Acquired_surface_outlives_its_owner_until_the_frame_completes();
+
+    [D3D11Fact("motor D3D11 en WARP")]
     public void Id_target_is_cleared_and_read_back_one_pixel_at_a_time() => _checks.Id_target_is_cleared_and_read_back_one_pixel_at_a_time();
 
     [D3D11Theory("motor D3D11 en WARP")]

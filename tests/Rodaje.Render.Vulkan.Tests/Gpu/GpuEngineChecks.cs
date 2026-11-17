@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Rodaje.Media.Video;
 using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render.Tests.Gpu;
@@ -114,6 +115,34 @@ internal sealed class GpuEngineChecks : IDisposable
         byte[] raw = new byte[Size * 4];
         bytesRead.Read(raw);
         Assert.Equal(Enumerable.Range(0, Size).Select(x => (uint)((x * 3) + 100)), MemoryMarshal.Cast<byte, uint>(raw).ToArray());
+    }
+
+    /// <summary>Contrato de <c>Acquire</c>: la superficie vive hasta que termina el cuadro aunque su dueño la suelte justo después.</summary>
+    public void Acquired_surface_outlives_its_owner_until_the_frame_completes()
+    {
+        byte[] color = [10, 20, 30, 255];
+        GpuTexture texture = _gpu.CreateTexture(new GpuTextureDesc(Size, Size, GpuFormat.Rgba8Unorm, GpuTextureUsage.Sampled),
+            [.. Enumerable.Range(0, Size * Size).SelectMany(_ => color)]);
+        var surface = new GpuTextureSurface(texture, null, FramePixelFormat.Bgra8, VideoColor.Bt709Limited);
+        using GpuSurfaceCache cache = _gpu.CreateSurfaceCache();
+        using GpuReadback read = _gpu.CreateReadback(Size, Size, GpuFormat.Rgba8Unorm);
+        using (IGpuFrame frame = _gpu.BeginFrame())
+        {
+            frame.Acquire(cache, surface);
+            surface.Release();
+            Assert.False(surface.IsReleased);
+            frame.Copy(texture, new GpuBox(0, 0, Size, Size), read);
+        }
+
+        byte[] pixels = new byte[Size * Size * 4];
+        read.Read(pixels);
+        Assert.Equal(color, pixels.AsSpan(0, 4).ToArray());
+        Assert.True(surface.IsReleased);
+        Assert.Throws<ArgumentException>(() =>
+        {
+            using IGpuFrame frame = _gpu.BeginFrame();
+            frame.Acquire(cache, surface);
+        });
     }
 
     public void Id_target_is_cleared_and_read_back_one_pixel_at_a_time()

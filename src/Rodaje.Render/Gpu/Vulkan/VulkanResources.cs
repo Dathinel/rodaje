@@ -56,8 +56,7 @@ internal sealed unsafe class VulkanTexture : GpuTexture
         if ((desc.Usage & GpuTextureUsage.RenderTarget) != 0) usage |= VkImageUsageFlags.VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
         if ((desc.Usage & GpuTextureUsage.Storage) != 0) usage |= VkImageUsageFlags.VK_IMAGE_USAGE_STORAGE_BIT;
         if ((desc.Usage & GpuTextureUsage.DepthStencil) != 0) usage |= VkImageUsageFlags.VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-        if ((desc.Usage & GpuTextureUsage.Storage) != 0
-            && (gpu.FormatFeatures(format) & VkFormatFeatureFlags.VK_FORMAT_FEATURE_STORAGE_IMAGE_BIT) == 0)
+        if ((desc.Usage & GpuTextureUsage.Storage) != 0 && !gpu.CanStoreWithoutFormat(format))
         {
             throw new RenderException($"La GPU no admite escritura desde un shader en {desc.Format}.");
         }
@@ -188,8 +187,8 @@ internal sealed unsafe class VulkanTexture : GpuTexture
             format = NativeFormat,
             subresourceRange = Range(firstMip, mips),
         };
-        VkImageView view;
-        _gpu.Check(vkCreateImageView(_gpu.Device, &info, null, &view), "vkCreateImageView");
+        VkImageView view = default;
+        _gpu.Check(VulkanGpu.Injected("vkCreateImageView") ?? vkCreateImageView(_gpu.Device, &info, null, &view), "vkCreateImageView");
         return view;
     }
 
@@ -264,28 +263,36 @@ internal sealed unsafe class VulkanBuffer : GpuBuffer
         buffer.Memory = created.Memory;
         VkBuffer handle = created.Buffer;
         ulong size = (ulong)desc.Size;
-        // Sin contenido inicial, a cero (D3D11 crea los búferes a cero en la práctica y los shaders de cómputo acumulan sobre ellos).
-        if (initialData.IsEmpty)
+        try
         {
-            gpu.Immediate(commands =>
+            // Sin contenido inicial, a cero (D3D11 crea los búferes a cero en la práctica y los shaders de cómputo acumulan sobre ellos).
+            if (initialData.IsEmpty)
             {
-                vkCmdFillBuffer(commands, handle, 0, VK_WHOLE_SIZE, 0);
-            });
-        }
-        else
-        {
-            int length = initialData.Length;
-            gpu.UploadImmediate(initialData, (commands, source, offset) =>
-            {
-                var region = new VkBufferCopy { srcOffset = offset, size = (ulong)length };
-                if (length < (int)size)
+                gpu.Immediate(commands =>
                 {
                     vkCmdFillBuffer(commands, handle, 0, VK_WHOLE_SIZE, 0);
-                    VulkanBarriers.Memory(commands);
-                }
+                });
+            }
+            else
+            {
+                int length = initialData.Length;
+                gpu.UploadImmediate(initialData, (commands, source, offset) =>
+                {
+                    var region = new VkBufferCopy { srcOffset = offset, size = (ulong)length };
+                    if (length < (int)size)
+                    {
+                        vkCmdFillBuffer(commands, handle, 0, VK_WHOLE_SIZE, 0);
+                        VulkanBarriers.Memory(commands);
+                    }
 
-                vkCmdCopyBuffer(commands, source, handle, 1, &region);
-            });
+                    vkCmdCopyBuffer(commands, source, handle, 1, &region);
+                });
+            }
+        }
+        catch
+        {
+            buffer.DestroyNow();
+            throw;
         }
 
         return buffer;
@@ -329,8 +336,8 @@ internal sealed unsafe class VulkanSampler : GpuSampler
             maxLod = VK_LOD_CLAMP_NONE,
             borderColor = VkBorderColor.VK_BORDER_COLOR_FLOAT_TRANSPARENT_BLACK,
         };
-        VkSampler sampler;
-        gpu.Check(vkCreateSampler(gpu.Device, &info, null, &sampler), "vkCreateSampler");
+        VkSampler sampler = default;
+        gpu.Check(VulkanGpu.Injected("vkCreateSampler") ?? vkCreateSampler(gpu.Device, &info, null, &sampler), "vkCreateSampler");
         Handle = sampler;
     }
 
@@ -353,6 +360,18 @@ internal sealed unsafe class VulkanShader : GpuShader
     {
         _gpu = gpu;
         Module = module;
+        // El SPIR-V declara las imágenes de escritura sin formato (-fspv-use-unknown-image-format): el dispositivo debe admitirlo.
+        if ((module.Capabilities.Contains(SpirvModule.CapabilityReadWithoutFormat) || module.Capabilities.Contains(SpirvModule.CapabilityWriteWithoutFormat))
+            && !gpu.StorageWithoutFormat)
+        {
+            throw new RenderException("La GPU no admite imágenes de escritura sin formato declarado (shaderStorageImageRead/WriteWithoutFormat).");
+        }
+
+        if (module.Capabilities.Contains(SpirvModule.CapabilityExtendedFormats) && !gpu.StorageExtendedFormats)
+        {
+            throw new RenderException("El sombreador pide StorageImageExtendedFormats y la GPU no lo tiene.");
+        }
+
         fixed (byte* code = module.Code)
         {
             var info = new VkShaderModuleCreateInfo { sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO, codeSize = (nuint)module.Code.Length, pCode = (uint*)code };

@@ -118,7 +118,7 @@ public sealed class StillExporter
             converter.Submit(compositor.Output!, 0);
             long bytes = 0;
             void Write(in ExportVideoFrame image) => bytes = encoder.Write(in image, cancellationToken);
-            if (!converter.TryRead(Write))
+            if (!converter.TryRead(Write, cancellationToken))
             {
                 throw new ExportException(ExportErrorCode.GpuFailed, "La GPU no devolvió el cuadro convertido.");
             }

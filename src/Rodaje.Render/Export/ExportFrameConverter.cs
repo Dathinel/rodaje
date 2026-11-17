@@ -270,7 +270,8 @@ public sealed unsafe class ExportFrameConverter : IDisposable
 
     /// <summary>Si hay un cuadro encolado, espera a que la GPU lo termine, se lo presta a <paramref name="handler"/> y lo suelta.</summary>
     /// <returns><c>false</c> si no había ninguno.</returns>
-    public bool TryRead(ExportFrameHandler handler)
+    /// <exception cref="RenderException">La GPU se perdió o la lectura no terminó en <see cref="ReadTimeout"/>.</exception>
+    public bool TryRead(ExportFrameHandler handler, CancellationToken cancellation = default)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentNullException.ThrowIfNull(handler);
@@ -281,7 +282,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
 
         ref Slot slot = ref _slots[_head];
         // TryMap sin espera y el candado suelto entre intentos: mientras la GPU termina, el decodificador sigue usando el contexto.
-        using (GpuMappedRows rows = MapWhenReady(slot.Staging))
+        using (GpuMappedRows rows = MapWhenReady(slot.Staging, cancellation))
         {
             rows.Row(0).CopyTo(_cpu);
         }
@@ -292,7 +293,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         {
             (int width, int height) = ThumbnailSize;
             byte[] bgra = GC.AllocateUninitializedArray<byte>(width * height * 4);
-            using (GpuMappedRows thumbRows = MapWhenReady(slot.ThumbnailStaging))
+            using (GpuMappedRows thumbRows = MapWhenReady(slot.ThumbnailStaging, cancellation))
             {
                 thumbRows.Row(0).CopyTo(bgra);
             }
@@ -583,18 +584,27 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         frame.Dispatch(_thumbnailPipeline!, bindings, (width + 7) / 8, (height + 7) / 8);
     }
 
-    private GpuMappedRows MapWhenReady(GpuReadback staging)
+    /// <summary>Lo más que se espera una lectura (como <see cref="GpuReadback.Map"/>): una GPU colgada no deja la exportación esperando siempre.</summary>
+    public TimeSpan ReadTimeout { get; init; } = TimeSpan.FromMinutes(1);
+
+    private GpuMappedRows MapWhenReady(GpuReadback staging, CancellationToken cancellation)
     {
         long start = 0;
         var spin = default(SpinWait);
         GpuMappedRows rows;
+        // TryMap lanza si la GPU se perdió (VK_ERROR_DEVICE_LOST en la valla, DXGI_ERROR_DEVICE_REMOVED).
         while (!staging.TryMap(out rows))
         {
             if (start == 0)
             {
                 start = Stopwatch.GetTimestamp();
             }
+            else if (Stopwatch.GetElapsedTime(start) > ReadTimeout)
+            {
+                throw new RenderException($"La lectura de la GPU no terminó en {ReadTimeout.TotalSeconds:0} s.");
+            }
 
+            cancellation.ThrowIfCancellationRequested();
             spin.SpinOnce(sleep1Threshold: -1);
         }
 

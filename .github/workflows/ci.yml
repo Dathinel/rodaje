@@ -325,6 +325,50 @@ jobs:
           path: TestResults/referencias-warp
           if-no-files-found: error
 
+  # Las capas de validación de Khronos (también la de sincronización) sobre lavapipe: el motor Vulkan y el compositor en Vulkan.
+  # Falla si una prueba falla o si las capas dan algún error (VulkanGpu los añade a RODAJE_VK_VALIDACION_INFORME).
+  vulkan-validacion:
+    name: Vulkan con validación (lavapipe)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+      DOTNET_PROCESSOR_COUNT: '2'
+      RODAJE_VK_EXIGIR: '1'
+      RODAJE_VK_VALIDACION: '1'
+      RODAJE_VK_VALIDACION_INFORME: ${{ github.workspace }}/TestResults/validacion-vulkan.txt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/preparar-linux
+      - name: Instalar lavapipe y las capas de validación
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mesa-vulkan-drivers libvulkan1 vulkan-validationlayers
+          test -n "$(ls /usr/share/vulkan/explicit_layer.d/*khronos_validation*.json)"
+          mkdir -p TestResults
+      - name: Motor Vulkan
+        run: dotnet test tests/Rodaje.Render.Vulkan.Tests -m:2 --filter "FullyQualifiedName!~ExportHash" --logger 'console;verbosity=normal'
+      - name: Compositor en Vulkan
+        env:
+          RODAJE_MOTOR: vulkan
+        run: dotnet test tests/Rodaje.Render.Tests -m:2 --logger 'console;verbosity=normal'
+      - name: Sin errores de validación
+        if: always()
+        run: |
+          informe="$RODAJE_VK_VALIDACION_INFORME"
+          if [ -s "$informe" ]; then
+            echo "Errores de validación de Vulkan: $(wc -l < "$informe")"
+            cut -c1-400 "$informe" | sort | uniq -c | sort -rn | head -60
+            exit 1
+          fi
+          echo "Sin errores de validación."
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validacion-vulkan
+          path: TestResults/validacion-vulkan.txt
+          if-no-files-found: ignore
+
   vulkan-warp:
     name: Vulkan frente a WARP (lavapipe)
     runs-on: ubuntu-24.04
