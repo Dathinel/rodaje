@@ -222,5 +222,6 @@ jobs:
             TestResults/app-*.log
             TestResults/app-arranque.txt
             TestResults/autoprueba-ci/**
+            TestResults/maquetacion/**
             dist/Rodaje/app/rodaje-error.txt
           if-no-files-found: ignore

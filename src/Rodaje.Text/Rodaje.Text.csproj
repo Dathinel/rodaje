@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <!-- Maquetación de títulos con HarfBuzz para Linux y macOS (D-066, fase 5); en Windows la hace DirectWrite en Rodaje.Render -->
+    <RootNamespace>Rodaje.Text</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Rodaje.Text.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rodaje.Playback\Rodaje.Playback.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- La misma versión que trae Uno (fase 0). HarfBuzzSharp es MIT y su biblioteca nativa, HarfBuzz «Old MIT» (LICENCIAS.md). -->
+    <PackageReference Include="HarfBuzzSharp" Version="14.4.0.100" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" Version="14.4.0.100" />
+  </ItemGroup>
+
+</Project>
