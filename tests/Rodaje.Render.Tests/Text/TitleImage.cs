@@ -74,6 +74,7 @@ internal sealed unsafe class TitleImage
             staging->Release();
         }
 
+        PixelFingerprint.Record("titulo", pixels.AsSpan());
         return new TitleImage(pixels, title.Width, title.Height);
     }
 

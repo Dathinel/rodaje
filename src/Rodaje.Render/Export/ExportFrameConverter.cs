@@ -251,6 +251,8 @@ public sealed unsafe class ExportFrameConverter : IDisposable
             Unmap(slot.Staging);
         }
 
+        PixelFingerprint.Record("exportacion", _cpu.AsSpan());
+
         if (slot.HasThumbnail)
         {
             (int width, int height) = ThumbnailSize;
@@ -265,6 +267,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
                 Unmap(slot.ThumbnailStaging);
             }
 
+            PixelFingerprint.Record("miniatura", bgra.AsSpan());
             _latestThumbnail = new ExportThumbnail(slot.Index, width, height, bgra);
         }
 
