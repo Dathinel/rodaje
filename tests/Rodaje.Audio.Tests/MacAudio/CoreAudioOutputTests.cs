@@ -17,6 +17,8 @@ namespace Rodaje.Audio.Tests.MacAudio;
 [Collection(nameof(DispositivoDeAudioReal))]
 // Las que miden el reloj del dispositivo contra el de pared van también en TiempoReal: en los corredores de macOS de GitHub (sin
 // tarjeta, BlackHole y máquina compartida) salen fuera de rango sin motivo en el código, y la CI de los PR excluye esa categoría.
+// Ninguna pasada programada las recupera (la nocturna solo tiene Linux y Windows; Mac está aparcado, Daniel, 17-nov): son manuales,
+// en un Mac con BlackHole: dotnet test tests/Rodaje.Audio.Tests --filter "FullyQualifiedName~CoreAudioOutputTests".
 [Trait("Categoria", "AudioMac")]
 public sealed class CoreAudioOutputTests(ITestOutputHelper output)
 {
