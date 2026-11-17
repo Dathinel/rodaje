@@ -11,7 +11,7 @@ namespace Rodaje.Module.Voice.Tests;
 public sealed class ModuleProcessTests(ITestOutputHelper output)
 {
     private static string Exe =>
-        Environment.GetEnvironmentVariable("RODAJE_MODULO_VOZ") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Voice.exe");
+        Environment.GetEnvironmentVariable("RODAJE_MODULO_VOZ") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Voice" + (OperatingSystem.IsWindows() ? ".exe" : ""));
 
     private static JsonElement Json(string s)
     {

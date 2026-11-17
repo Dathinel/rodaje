@@ -65,7 +65,7 @@ public sealed class IntelligibilityTests(ITestOutputHelper output)
     [Trait("Categoria", "TiempoReal")]
     public async Task Whisper_understands_the_generated_voice()
     {
-        string exe = Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Subtitles.exe");
+        string exe = Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Subtitles" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         Environment.SetEnvironmentVariable("RODAJE_MODELOS", Path.GetDirectoryName(Intelligibility.WhisperModel));
         await using ModuleProcess whisper = await ModuleProcess.StartAsync(exe);
         double worst = 0;
