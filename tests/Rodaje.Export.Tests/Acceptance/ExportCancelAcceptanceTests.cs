@@ -108,7 +108,7 @@ public sealed class ExportCancelAcceptanceTests(ITestOutputHelper output)
     public async Task After_killing_the_exporting_process_the_next_start_cleans_up()
     {
         string folder = Folder("matar");
-        string dotnet = Path.Combine(Environment.GetEnvironmentVariable("DOTNET_ROOT") ?? Path.GetDirectoryName(Environment.ProcessPath)!, "dotnet.exe");
+        string dotnet = Path.Combine(Environment.GetEnvironmentVariable("DOTNET_ROOT") ?? Path.GetDirectoryName(Environment.ProcessPath)!, OperatingSystem.IsWindows() ? "dotnet.exe" : "dotnet");
         var info = new ProcessStartInfo(dotnet) { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true, RedirectStandardError = true };
         foreach (string a in (string[])["test", typeof(ExportCancelAcceptanceTests).Assembly.Location, "--filter", "FullyQualifiedName~Child_exports_until_killed"])
         {

@@ -61,7 +61,7 @@ internal static class CpuExportEnvironment
     public static FfmpegExecutable Ffmpeg => State.Value.Executable
         ?? throw new InvalidOperationException(Reason ?? "Sin ffmpeg.exe.");
 
-    public static string FfprobePath => Path.Combine(Path.GetDirectoryName(Ffmpeg.Path)!, "ffprobe.exe");
+    public static string FfprobePath => Path.Combine(Path.GetDirectoryName(Ffmpeg.Path)!, Rodaje.Media.FfmpegLocator.ExecutableName("ffprobe"));
 
     /// <summary>
     /// <see cref="Reason"/> y además que este <c>ffmpeg.exe</c> traiga compilados los codificadores. Solo omite si falta
@@ -103,7 +103,7 @@ internal static class CpuExportEnvironment
 
         using var process = Process.Start(info) ?? throw new InvalidOperationException($"No arrancó {executable}.");
         // En el trabajo de Windows de Rodaje.Media: si el proceso de pruebas muere, Windows cierra también este ffmpeg.exe.
-        ChildProcessJob.TryAssign(process);
+        ChildProcessGuard.TryAssign(process);
         process.StandardInput.Close();
         Task<string> error = process.StandardError.ReadToEndAsync();
         using var output = new MemoryStream();

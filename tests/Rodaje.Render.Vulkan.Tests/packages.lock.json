@@ -116,8 +116,30 @@
           "xunit.extensibility.core": "[2.9.3]"
         }
       },
+      "rodaje.audio": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Playback": "[1.0.3, )"
+        }
+      },
       "rodaje.core": {
         "type": "Project"
+      },
+      "rodaje.engine": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Audio": "[1.0.3, )",
+          "Rodaje.Media": "[1.0.3, )",
+          "Rodaje.Playback": "[1.0.3, )"
+        }
+      },
+      "rodaje.export": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Engine": "[1.0.3, )",
+          "Rodaje.Media": "[1.0.3, )",
+          "Rodaje.Render": "[1.0.3, )"
+        }
       },
       "rodaje.media": {
         "type": "Project",
@@ -150,6 +172,15 @@
       },
       "rodaje.render.spirv": {
         "type": "Project"
+      },
+      "rodaje.testmedia": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Audio": "[1.0.3, )",
+          "Rodaje.Core": "[1.0.3, )",
+          "Rodaje.Media": "[1.0.3, )",
+          "xunit.extensibility.core": "[2.9.3, )"
+        }
       }
     }
   }
