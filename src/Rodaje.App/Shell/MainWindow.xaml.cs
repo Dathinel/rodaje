@@ -86,6 +86,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _options = options;
         _engine = engine;
         _settings = settings;
+        ProjectPaths.Mappings = settings.Current.PathMappings;
         Program.Metrics.Milestone("ventana_inicio");
         InitializeComponent();
         Program.Metrics.Milestone("ventana_xaml");
@@ -438,6 +439,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         _services.Session.NewProjectTracks = _settings.Current.NewProjectTracks;
+        ProjectPaths.Mappings = _settings.Current.PathMappings;
         _services.Session.NewProjectFormat = _settings.Current.NewProjectFormat;
         _services.Session.LinkedAudioTracks = _settings.Current.LinkedAudioTracks;
         _services.Player.SetProxyUsage(_settings.Current.ProxyUsage);

@@ -20,6 +20,9 @@
                 <TextBox x:Name="GeneratedFolderBox" PlaceholderText="Junto al proyecto" />
                 <TextBlock Text="Carpeta de capturas de fotogramas" FontWeight="SemiBold" />
                 <TextBox x:Name="StillCaptureFolderBox" PlaceholderText="Carpeta «Capturas» junto al proyecto" />
+                <TextBlock Text="Mapeo de rutas" FontWeight="SemiBold" />
+                <TextBox x:Name="PathMappingsBox" AcceptsReturn="True" TextWrapping="Wrap" MinHeight="64" PlaceholderText="D:\Material | /media/yo/Material" />
+                <TextBlock Text="Una fila por línea, «origen | destino». Al abrir un proyecto hecho en otro equipo o sistema, los medios guardados bajo el origen se buscan bajo el destino." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
             </StackPanel></ScrollViewer>
         </TabViewItem>
         <TabViewItem Header="Rendimiento" IsClosable="False"><StackPanel Spacing="16" Padding="12">
