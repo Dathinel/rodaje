@@ -21,6 +21,7 @@ public sealed class ExportCommandLineTests
         ExportPlan.Create(new ExportRequest(ExportPlanTests.Project(Time.FromSeconds(2)), "sec", output, settings), Encoders);
 
     [Fact]
+    [Trait("Categoria", "SoloWindows")] // Rutas con unidad (C:\salidas) que solo se combinan así en Windows.
     public void The_line_carries_the_pipe_input_the_encoder_its_arguments_and_the_output()
     {
         ExportPlan plan = Plan(H264);

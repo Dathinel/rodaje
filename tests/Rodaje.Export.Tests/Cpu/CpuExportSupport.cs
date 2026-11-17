@@ -103,7 +103,7 @@ internal static class CpuExportEnvironment
 
         using var process = Process.Start(info) ?? throw new InvalidOperationException($"No arrancó {executable}.");
         // En el trabajo de Windows de Rodaje.Media: si el proceso de pruebas muere, Windows cierra también este ffmpeg.exe.
-        ChildProcessJob.TryAssign(process);
+        ChildProcessGuard.TryAssign(process);
         process.StandardInput.Close();
         Task<string> error = process.StandardError.ReadToEndAsync();
         using var output = new MemoryStream();

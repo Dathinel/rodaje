@@ -20,7 +20,6 @@
 
   <ItemGroup>
     <Compile Include="..\Rodaje.Render.Tests\Support\Fx.cs" Link="Support\Fx.cs" />
-    <Compile Include="..\Rodaje.Export.Tests\Running\ExportProjects.cs" Link="Export\ExportProjects.cs" />
   </ItemGroup>
 
   <ItemGroup>
