@@ -16,7 +16,8 @@ public sealed class EffectComparisonTests(ITestOutputHelper output)
     // Fuente en centros o fracciones exactas en ocho bits; LUT y curvas de tono arbitrarias figuran como excepciones.
     private static readonly HashSet<string> s_exact = new(StringComparer.Ordinal)
     {
-        "graded-ADVANCED-solo-croma-centros", "graded-ADVANCED-solo-ruedas-centros",
+        // solo-croma-centros va con (ii): en lavapipe el croma 4:2:0 se sigue leyendo en fracciones (3,4e-3; 4,9e-4 en la RTX 3050).
+        "graded-ADVANCED-solo-ruedas-centros",
         "graded-ADVANCED-solo-calificador-centros", "graded-ADVANCED-solo-curvas-centros", "graded-ADVANCED-solo-croma-444",
         "muestreo-escala0.5", "downsample", "blur-h", "blur-v-medio-texel",
     };
@@ -39,6 +40,7 @@ public sealed class EffectComparisonTests(ITestOutputHelper output)
         ["transition-0-rebote"] = "el bilineal de WARP amplificado supera la media propuesta (fase 0: 3,2e-4)",
         ["graded-COLOR+LUT+VIGNETTE+ADVANCED-girado"] = "bilineal arbitrario amplificado por ADVANCED en la capa girada (fase 0: 2,5e-2)",
         ["graded-COLOR+LUT+VIGNETTE+ADVANCED-interpolado"] = "bilineal arbitrario amplificado por ADVANCED en la capa girada (fase 0: 8,2e-2)",
+        ["sharpen-umbral"] = "el umbral de la nitidez es un escalón: en lavapipe unos pocos píxeles del borde pasan p99,9 (4,9e-3)",
         ["graded-ADVANCED-centros"] = "la fuente está centrada, pero curvas y LUT usan fracciones arbitrarias",
         ["graded-ADVANCED-solo-curvas-tono-centros"] = "la tabla de curvas usa fracciones arbitrarias aunque la fuente esté centrada",
     };
