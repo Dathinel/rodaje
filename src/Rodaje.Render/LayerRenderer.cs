@@ -9,6 +9,7 @@ using Rodaje.Render.Gpu;
 namespace Rodaje.Render;
 
 /// <summary>Dónde se dibuja: la composición o un lienzo de transición, con su relación con la secuencia.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal readonly unsafe struct Destination(RenderTarget target, int width, int height, int sequenceWidth, int sequenceHeight)
 {
     public RenderTarget Target { get; } = target;
@@ -29,6 +30,7 @@ internal readonly unsafe struct Destination(RenderTarget target, int width, int 
 /// Lo que dibuja una capa: los planos Y'CbCr de un cuadro decodificado o el intermedio RGBA premultiplicado de una capa
 /// compuesta, que ocupa el cuadro de la secuencia.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal readonly record struct LayerSource(D3D11TexturePayload? Planes, ImageView Image)
 {
     public static LayerSource Of(D3D11TexturePayload payload) => new(payload, default);
@@ -40,6 +42,7 @@ internal readonly record struct LayerSource(D3D11TexturePayload? Planes, ImageVi
 
 /// <summary>Efectos que la vista previa puede dejar fuera: para comparar antes y después y para el cuentagotas del croma.</summary>
 [Flags]
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public enum PreviewBypass
 {
     None = 0,
@@ -58,6 +61,7 @@ public enum PreviewBypass
 }
 
 /// <summary>Contadores de un cuadro para <see cref="CompositeResult"/>.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal struct FrameStats
 {
     public int LayersSkipped;
@@ -74,6 +78,7 @@ internal struct FrameStats
 /// shader con una copia del fondo; y una transición, en dos lienzos que mezcla un shader.
 /// </summary>
 /// <remarks>Lo que no se puede aplicar en este cuadro (shader sin compilar, pool lleno) se salta y se cuenta; nunca se espera.</remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe partial class LayerRenderer : IDisposable
 {
     internal const GpuFormat IntermediateFormat = GpuFormat.Rgba16Float;

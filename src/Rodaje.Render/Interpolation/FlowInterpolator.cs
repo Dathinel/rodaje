@@ -6,6 +6,7 @@ using Rodaje.Render.Shaders;
 
 namespace Rodaje.Render.Interpolation;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class FlowInterpolator(GpuDevice gpu, RenderTargetPool budget, ShaderCache shaders) : IDisposable
 {
     private readonly D3D11Gpu _engine = D3D11Gpu.For(gpu);

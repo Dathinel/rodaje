@@ -83,6 +83,16 @@ jobs:
           pactl info | grep -E 'Server Name|Server Version|Default Sink'
           pactl list short sinks
 
+      # Vulkan por software (lavapipe de Mesa): el motor Vulkan de IGpu y su comparación con D3D11 (D-066, fase 4). Sin él,
+      # las pruebas de Rodaje.Render.Vulkan.Tests se omiten; aquí se exige que corran.
+      - name: Vulkan por software (lavapipe)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq mesa-vulkan-drivers libvulkan1 vulkan-tools
+          vulkaninfo --summary | grep -E 'deviceName|apiVersion|driverName'
+          echo "RODAJE_VK_EXIGIR=1" >> "$GITHUB_ENV"
+
       - name: Pruebas
         shell: bash
         run: bash build/pruebas-linux.sh 'Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento'

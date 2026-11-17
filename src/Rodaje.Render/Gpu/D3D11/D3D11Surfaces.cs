@@ -8,6 +8,7 @@ using static Rodaje.Render.RenderException;
 namespace Rodaje.Render.Gpu.D3D11;
 
 /// <summary>Las vistas por plano y porción del arreglo de D3D11VA (<see cref="PlaneViewCache"/>).</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class D3D11SurfaceCache(D3D11Gpu gpu, TimeProvider? time) : GpuSurfaceCache
 {
     public PlaneViewCache Views { get; } = new(gpu.NativeDevice, time);
@@ -24,6 +25,7 @@ internal sealed unsafe class D3D11SurfaceCache(D3D11Gpu gpu, TimeProvider? time)
 }
 
 /// <summary>Cadena de intercambio para composición (<c>SwapChainPanel</c>), de dos búferes con <c>FLIP_DISCARD</c>.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class D3D11Swapchain : IGpuSwapchain
 {
     private readonly D3D11Gpu _gpu;

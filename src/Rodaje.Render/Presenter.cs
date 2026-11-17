@@ -11,6 +11,7 @@ namespace Rodaje.Render;
 /// Si el destino es más pequeño que la composición genera sus mipmaps y muestrea trilinealmente, para que una vista
 /// previa reducida no tenga aliasing; a tamaño igual o mayor muestrea bilinealmente el nivel 0.
 /// </remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe class Presenter : IDisposable
 {
     private readonly GpuDevice _gpu;

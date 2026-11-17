@@ -9,6 +9,7 @@ using TerraFX.Interop.DirectX;
 namespace Rodaje.Render.Scopes;
 
 /// <summary>Qué monitor de imagen se dibuja.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public enum ScopeKind
 {
     /// <summary>Forma de onda de la luma (BT.709), por columna de la imagen.</summary>
@@ -28,9 +29,11 @@ public enum ScopeKind
 }
 
 /// <summary>Una imagen de monitor lista para mostrar: BGRA de 8 bits, fila tras fila.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed record ScopeImage(byte[] Bgra, int Width, int Height, ScopeKind Kind, long Sequence);
 
 /// <summary>Las cuentas crudas de un cuadro, para las pruebas (y para quien quiera dibujar sus propios monitores).</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class ScopeCounts(uint[] raw, int width, int height, int step)
 {
     /// <summary>Ancho y alto de la imagen medida y cada cuántos píxeles se tomó uno.</summary>
@@ -58,6 +61,7 @@ public sealed class ScopeCounts(uint[] raw, int width, int height, int step)
 /// celda de croma y por nivel, y dibuja el monitor elegido en una imagen de 512 × 256 que baja por un anillo de
 /// lecturas sin esperar a la GPU. Se usa desde el hilo que compone, después de <see cref="Compositor.Render"/>.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe class ScopeRenderer : IDisposable
 {
     /// <summary>Columnas de la forma de onda y del desfile.</summary>

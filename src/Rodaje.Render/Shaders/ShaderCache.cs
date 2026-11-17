@@ -96,7 +96,9 @@ public sealed class ShaderCache
             return _memory.GetOrAdd(key, code!);
         }
 
-        code = Compile?.Invoke(variant) ?? ShaderCompiler.Compile(variant.FullSource(), variant.EntryPoint, variant.Profile, variant.SourceName);
+        code = Compile?.Invoke(variant) ?? (OperatingSystem.IsWindowsVersionAtLeast(7)
+            ? ShaderCompiler.Compile(variant.FullSource(), variant.EntryPoint, variant.Profile, variant.SourceName)
+            : throw new PlatformNotSupportedException("D3DCompile solo existe en Windows; Vulkan usa el SPIR-V incrustado."));
         Interlocked.Increment(ref _compiled);
         if (path is not null)
         {

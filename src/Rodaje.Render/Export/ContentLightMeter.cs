@@ -8,6 +8,7 @@ using TerraFX.Interop.DirectX;
 namespace Rodaje.Render.Export;
 
 /// <summary>MaxCLL y MaxFALL medidos, en nits (CTA-861.3), redondeados al entero.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public readonly record struct ContentLight(int MaxCll, int MaxFall);
 
 /// <summary>
@@ -15,6 +16,7 @@ public readonly record struct ContentLight(int MaxCll, int MaxFall);
 /// de max(R, G, B); MaxCLL es el mayor máximo y MaxFALL la mayor media de todos los cuadros medidos. Cada tesela de 16×16 se
 /// reduce en la GPU (<c>ExportShaders.LightVariant</c>) y la CPU junta las teselas: en 1080p son 8160 pares de floats por cuadro.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe class ContentLightMeter : IDisposable
 {
     private const int Tile = 16;

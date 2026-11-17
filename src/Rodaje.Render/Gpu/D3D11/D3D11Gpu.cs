@@ -12,6 +12,7 @@ namespace Rodaje.Render.Gpu.D3D11;
 /// candado. Un cuadro toma ese candado y lo suelta al cerrarse; cada orden va directa al contexto, así que el resultado es el de
 /// llamar a D3D11 a mano.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe partial class D3D11Gpu : IGpu
 {
     private static readonly ConditionalWeakTable<GpuDevice, D3D11Gpu> s_byDevice = [];

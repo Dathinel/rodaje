@@ -8,6 +8,7 @@ using static Rodaje.Render.RenderException;
 namespace Rodaje.Render.Gpu.D3D11;
 
 /// <summary>Una textura con las vistas que pide su uso. Las vistas por defecto abarcan todos los mips (lectura) o el 0 (escritura).</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class D3D11Texture : GpuTexture
 {
     private ID3D11Resource* _resource;
@@ -193,6 +194,7 @@ internal sealed unsafe class D3D11Texture : GpuTexture
     }
 }
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class D3D11Buffer : GpuBuffer
 {
     private ID3D11Buffer* _buffer;
@@ -320,6 +322,7 @@ internal sealed unsafe class D3D11Buffer : GpuBuffer
     }
 }
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class D3D11Sampler(ID3D11SamplerState* state) : GpuSampler
 {
     private ID3D11SamplerState* _state = state;
@@ -329,6 +332,7 @@ internal sealed unsafe class D3D11Sampler(ID3D11SamplerState* state) : GpuSample
     protected override void Release() => Com.Release(ref _state);
 }
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class D3D11Shader(ID3D11DeviceChild* shader, string stage, byte[]? vertexCode) : GpuShader
 {
     private ID3D11DeviceChild* _shader = shader;
@@ -344,6 +348,7 @@ internal sealed unsafe class D3D11Shader(ID3D11DeviceChild* shader, string stage
     protected override void Release() => Com.Release(ref _shader);
 }
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class D3D11Pipeline : GpuPipeline
 {
     private ID3D11BlendState* _blend;
@@ -563,6 +568,7 @@ internal sealed unsafe class D3D11Pipeline : GpuPipeline
 }
 
 /// <summary>Consultas <c>TIMESTAMP</c> y <c>TIMESTAMP_DISJOINT</c>, como el <c>GpuTimer</c> de siempre.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class D3D11TimerQuery : GpuTimerQuery
 {
     private readonly D3D11Gpu _gpu;
@@ -651,6 +657,7 @@ internal sealed unsafe class D3D11TimerQuery : GpuTimerQuery
 }
 
 /// <summary>Una consulta de evento detrás de lo enviado.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class D3D11Fence : GpuFence
 {
     private readonly D3D11Gpu _gpu;
@@ -720,6 +727,7 @@ internal sealed unsafe class D3D11Fence : GpuFence
 }
 
 /// <summary>Textura o búfer de <c>STAGING</c> con lectura desde la CPU.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class D3D11Readback : GpuReadback
 {
     private readonly D3D11Gpu _gpu;

@@ -15,6 +15,7 @@ using static TerraFX.Interop.Windows.Windows;
 namespace Rodaje.Render.Text;
 
 /// <summary>El texto armado con DirectWrite (tramos, mayúsculas, tipografía y ajuste a la caja) y el dibujo del bloque entero.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe partial class TitleRasterizer
 {
     /// <summary>Rasteriza con el candado <see cref="_raster"/> tomado. Nula si no hay nada que dibujar.</summary>

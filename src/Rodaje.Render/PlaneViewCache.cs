@@ -8,6 +8,7 @@ using static Rodaje.Render.RenderException;
 namespace Rodaje.Render;
 
 /// <summary>Vistas de una capa NV12/P010/P016 o RGBA; en RGBA solo se muestrea la primera.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal readonly unsafe struct PlaneViews(ID3D11ShaderResourceView* luma, ID3D11ShaderResourceView* chroma)
 {
     public ID3D11ShaderResourceView* Luma { get; } = luma;
@@ -34,6 +35,7 @@ internal readonly unsafe struct PlaneViews(ID3D11ShaderResourceView* luma, ID3D1
 /// sueltan en el siguiente cuadro (o en <see cref="Trim"/>), y las que llevan <see cref="MaxIdle"/> sin usarse, también.
 /// </summary>
 /// <remarks>Solo se usa desde el hilo que compone, con el candado del contexto tomado.</remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class PlaneViewCache(ID3D11Device* device, TimeProvider? time = null) : IDisposable
 {
     public static readonly TimeSpan MaxIdle = TimeSpan.FromSeconds(2);

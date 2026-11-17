@@ -4,7 +4,7 @@ using static TerraFX.Interop.DirectX.DXGI;
 
 namespace Rodaje.Render;
 
-/// <summary>Error de Direct3D al componer o presentar.</summary>
+/// <summary>Error de la GPU (Direct3D o Vulkan) al componer o presentar.</summary>
 public sealed class RenderException : Exception
 {
     public RenderException()
@@ -24,6 +24,7 @@ public sealed class RenderException : Exception
     public RenderException(string message, int hresult)
         : base(message) => HResult = hresult;
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     internal static void Check(HRESULT hr, string operation)
     {
         if (hr.SUCCEEDED)

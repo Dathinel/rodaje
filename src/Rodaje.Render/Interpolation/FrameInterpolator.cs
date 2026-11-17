@@ -10,6 +10,7 @@ using static Rodaje.Render.RenderException;
 namespace Rodaje.Render.Interpolation;
 
 /// <summary>Mezcla los códigos de los planos del origen; las salidas se devuelven al terminar el cuadro.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache views, RenderTargetPool budget, ShaderCache shaders) : IDisposable
 {
     private readonly D3D11Gpu _engine = D3D11Gpu.For(gpu);

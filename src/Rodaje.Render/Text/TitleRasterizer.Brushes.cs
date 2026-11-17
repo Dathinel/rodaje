@@ -7,6 +7,7 @@ using static Rodaje.Render.RenderException;
 
 namespace Rodaje.Render.Text;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe partial class TitleRasterizer
 {
     /// <summary>

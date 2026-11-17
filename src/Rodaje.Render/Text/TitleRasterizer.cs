@@ -12,6 +12,7 @@ using static TerraFX.Interop.Windows.Windows;
 namespace Rodaje.Render.Text;
 
 /// <summary>Opciones de <see cref="TitleRasterizer"/>.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed record TitleRasterizerOptions
 {
     /// <summary>Memoria de todas las texturas de títulos; por omisión la misma que el pool de intermedios (7,5 % de la VRAM).</summary>
@@ -36,6 +37,7 @@ public sealed record TitleRasterizerOptions
 }
 
 /// <summary>Una fuente pedida por un título que no está en el equipo: se dibuja con <see cref="UsedFamily"/>.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed record MissingFont(string Family, string? Source, string ClipId, string UsedFamily);
 
 /// <summary>
@@ -57,6 +59,7 @@ public sealed record MissingFont(string Family, string? Source, string ClipId, s
 /// de Direct2D (sigma = desenfoque / 2). Antialias en escala de grises, sin ajuste a píxel.
 /// </para>
 /// </remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe partial class TitleRasterizer : IGeneratedContentCache, IDisposable
 {
     /// <summary>Un título no pasa de esto por lado aunque quepa en bytes (el límite de Direct3D 11).</summary>
@@ -570,6 +573,7 @@ public sealed unsafe partial class TitleRasterizer : IGeneratedContentCache, IDi
 }
 
 /// <summary>Colores del estilo: <c>#RRGGBB</c> o <c>#RRGGBBAA</c>, en valores con gamma (sin premultiplicar).</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal static class TitleColor
 {
     public static DXGI_RGBA Parse(string? color)

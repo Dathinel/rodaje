@@ -1,11 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <!-- net10.0 para que las pruebas de Engine (también net10.0, D-066) puedan referenciarlo; sigue siendo solo de Windows
-         por el atributo de abajo, hasta que la fase 3 lo pase a IGpu. -->
+    <!-- net10.0 en todos los sistemas (D-066): el contrato IGpu y el motor Vulkan son portátiles; lo que aún llama a D3D11 lleva
+         [SupportedOSPlatform("windows7.0")] por tipo. -->
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Rodaje.Render</RootNamespace>
-    <!-- Composición de capas en Direct3D 11 y presentación en una cadena de intercambio -->
+    <!-- Composición de capas y presentación sobre IGpu (D3D11 en Windows, Vulkan en Linux y macOS) -->
     <IsAotCompatible>true</IsAotCompatible>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -14,17 +14,16 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Rodaje.Render.Tests" />
-    <AssemblyAttribute Include="System.Runtime.Versioning.SupportedOSPlatformAttribute">
-      <_Parameter1>windows7.0</_Parameter1>
-    </AssemblyAttribute>
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Rodaje.Media\Rodaje.Media.csproj" />
     <ProjectReference Include="..\Rodaje.Playback\Rodaje.Playback.csproj" />
+    <ProjectReference Include="..\Rodaje.Render.Spirv\Rodaje.Render.Spirv.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <PackageReference Include="TerraFX.Interop.Vulkan" Version="1.4.328.1" />
     <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
   </ItemGroup>
 
