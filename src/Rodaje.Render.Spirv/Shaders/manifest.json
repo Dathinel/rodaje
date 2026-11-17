@@ -1,0 +1,6543 @@
+{
+  "compiler": "dxcompiler.dll: 1.9(5512-01b62ad4)(1.9.2609.5) - 1.9.2609.5 (01b62ad47)",
+  "arguments": [
+    "-spirv",
+    "-fspv-target-env=vulkan1.1",
+    "-O3",
+    "-fvk-b-shift",
+    "0",
+    "0",
+    "-fvk-t-shift",
+    "16",
+    "0",
+    "-fvk-s-shift",
+    "32",
+    "0",
+    "-fvk-u-shift",
+    "48",
+    "0"
+  ],
+  "variants": [
+    {
+      "id": "rodaje-render.hlsl:VsQuad",
+      "file": "rodaje-render.hlsl-VsQuad.spv",
+      "entryPoint": "VsQuad",
+      "profile": "vs_6_0",
+      "defines": [],
+      "sha256": "0572e392e7982d3f524e921fc93e60affa3ff8913d38763effbe8cf345afb7a3",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        }
+      ]
+    },
+    {
+      "id": "rodaje-render.hlsl:PsLayer",
+      "file": "rodaje-render.hlsl-PsLayer.spv",
+      "entryPoint": "PsLayer",
+      "profile": "ps_6_0",
+      "defines": [],
+      "sha256": "41bf1733a290517301ddce0159c538aec1d70394947109f78e17ac96e0656b9f",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-render.hlsl:PsPresent",
+      "file": "rodaje-render.hlsl-PsPresent.spv",
+      "entryPoint": "PsPresent",
+      "profile": "ps_6_0",
+      "defines": [],
+      "sha256": "b150b5e28218fd6c7d89a18e3e749049a143decdaf2e10983330c19a4c15724d",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "t2",
+          "name": "composite",
+          "set": 0,
+          "binding": 18,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded",
+      "file": "rodaje-efectos.hlsl-PsGraded.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [],
+      "sha256": "10740f9d8a8c3b1561d6e7e2b4f97b15b84a88c688dc24382d2b3eb5e5dc39aa",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR"
+      ],
+      "sha256": "752651db41b771c664235c6f7de8335bf987fde36debc68b856c7f7c0cbb210f",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT"
+      ],
+      "sha256": "3e39b3c9f9ed5115b472fb0d26adf408c36bba597214c4683ca75cc3ab9dbc21",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT"
+      ],
+      "sha256": "818fbe804acceb3efc4f4bd73a28171f2fa42394ceb084841840c07580b6ba4d",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BVIGNETTE",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BVIGNETTE.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "VIGNETTE"
+      ],
+      "sha256": "cf05a704ac03607107ef1e9609d87327eebb4109429f6fa588c703f8258dd33e",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BVIGNETTE",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BVIGNETTE.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "VIGNETTE"
+      ],
+      "sha256": "123b4ea0e006be7981b16544ebc10f28740abbeb0e837bb406ef18a4893480ff",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BVIGNETTE",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BVIGNETTE.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "VIGNETTE"
+      ],
+      "sha256": "53214a302aac9314e8509cd5f9233e48bfde172de87cf442bfd5d0d9892646b8",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "VIGNETTE"
+      ],
+      "sha256": "1d4772282aa3dee0f5ee4fdf319945a1aa5b679cd8d2ef59a0079a80c63589aa",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BBLEND",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BBLEND.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "BLEND"
+      ],
+      "sha256": "34c2ee05322d6ff220aa349e9573c7f1c8542ac436c52537e20b7eb384ccb55a",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BBLEND",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BBLEND.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "BLEND"
+      ],
+      "sha256": "c89d630b3ca913af0b794d0cae59c7b78e5b9474af61a35c098611311c64ed44",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BBLEND",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BBLEND.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "BLEND"
+      ],
+      "sha256": "4e71909438f2d7f5f469ed0a5d1fedb7040164ad234dd0f1d8da2fb34d8fa283",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BBLEND",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BBLEND.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "BLEND"
+      ],
+      "sha256": "048d79b0a9b6acf62813ca93e6ea8a7d6b3027077a7bdc31495b7ba36f9e44a5",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BVIGNETTE\u002BBLEND",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BVIGNETTE\u002BBLEND.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "VIGNETTE",
+        "BLEND"
+      ],
+      "sha256": "038648654224e3014327c4f2f6978c522cb6443b347d88bad810569d5309c46e",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BVIGNETTE\u002BBLEND",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BVIGNETTE\u002BBLEND.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "VIGNETTE",
+        "BLEND"
+      ],
+      "sha256": "91e278852988e78658d077984f46810b3e56d109cfcab7880286a009f269b070",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BVIGNETTE\u002BBLEND",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BVIGNETTE\u002BBLEND.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "VIGNETTE",
+        "BLEND"
+      ],
+      "sha256": "39fe59a188816ef414d826ae5966e90e045b070887869ad3e65aabc8c568aea6",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BBLEND",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BBLEND.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "VIGNETTE",
+        "BLEND"
+      ],
+      "sha256": "2459bb1242b5a1d9510dd8a9c1199578196aba3e9fa2d5cf689eb758e672c7c0",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "MASK"
+      ],
+      "sha256": "97eb48b1727c8908e5dd8c763d95845fe3af7f24f8dcdeceb030815c7ca1090a",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "MASK"
+      ],
+      "sha256": "558f610bee114121d928a45575ce9bc7f0df7924929604c1830a9cf16a6cd17b",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "MASK"
+      ],
+      "sha256": "692df1e7b255dd12787809c4b74d48da794ece77a227658cc9835d0bfcd3632a",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "MASK"
+      ],
+      "sha256": "26b1ef173fcc2812fed3d3120dc3936325b92cb45f1395113a569b6cc0623f89",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BVIGNETTE\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BVIGNETTE\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "VIGNETTE",
+        "MASK"
+      ],
+      "sha256": "a019544967607e958a353b948dc40dd7b499b33f12535038c78e69aa33b804ee",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BVIGNETTE\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BVIGNETTE\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "VIGNETTE",
+        "MASK"
+      ],
+      "sha256": "3faca0e6f655e1a4fa031679a1c1b8aeac20a29388500969e19815b35d74423a",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BVIGNETTE\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BVIGNETTE\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "VIGNETTE",
+        "MASK"
+      ],
+      "sha256": "1ea7855a75010b773dbf55f5936ff1c665eed70b3ca0e7624bff6aacd053dce7",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "VIGNETTE",
+        "MASK"
+      ],
+      "sha256": "ebb47c4c1f7b4ec3a86325bda575217533492db89bd01ffe27fef0805cde58a2",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BBLEND\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BBLEND\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "BLEND",
+        "MASK"
+      ],
+      "sha256": "ac44e8f1035806a3833b5f2eb501a00a775e0a96b31b37eb697e5fe7ced445f0",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BBLEND\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BBLEND\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "BLEND",
+        "MASK"
+      ],
+      "sha256": "487afe7f9533c4f29af41e8fbda7fe71c7613bbe51b6b4e5544ab3624672765a",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BBLEND\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BBLEND\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "BLEND",
+        "MASK"
+      ],
+      "sha256": "c0b74626ede2c17f272a3213051528bcc2f02840900f9671cd8a5d7cd7bbee4c",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BBLEND\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BBLEND\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "BLEND",
+        "MASK"
+      ],
+      "sha256": "4ba1392ea5db7bc1800c598bb7f263e2a088041441ea03a3e1d06aff74c6c8ca",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BVIGNETTE\u002BBLEND\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BVIGNETTE\u002BBLEND\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "VIGNETTE",
+        "BLEND",
+        "MASK"
+      ],
+      "sha256": "bdfeab774769dfd135d9c41d09ebc5db2a1b3d24230a6bb7a5cdc833abe50f16",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BVIGNETTE\u002BBLEND\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BVIGNETTE\u002BBLEND\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "VIGNETTE",
+        "BLEND",
+        "MASK"
+      ],
+      "sha256": "55d87b57667c51f75b3fa926989b8011b2709d753c2119a1c746063dd1ae7c16",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BVIGNETTE\u002BBLEND\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BVIGNETTE\u002BBLEND\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "VIGNETTE",
+        "BLEND",
+        "MASK"
+      ],
+      "sha256": "fe0b3e36444280b0f61399fa9197a6b78c6d492404f8ca6c0b10e9114c10a381",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BBLEND\u002BMASK",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BBLEND\u002BMASK.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "VIGNETTE",
+        "BLEND",
+        "MASK"
+      ],
+      "sha256": "185b39be398ac66499431a8eb706c186a29555b8f020da04d20da1b5504fda07",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "ADVANCED"
+      ],
+      "sha256": "8a414a377bb0d8f35af001033a824c59e6815556d40b1f379c0b31ab5400da56",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "ADVANCED"
+      ],
+      "sha256": "4f7b8596e093a30ef90aabc2c820468e702e602fa8e2ab332fb60cc79336fe9b",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "ADVANCED"
+      ],
+      "sha256": "dc71535b6dbb3ab190a9810fa2d0dcae3f15f2587895f49593192a6264b153da",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "ADVANCED"
+      ],
+      "sha256": "133b62685a741a2d939d6092748d36e6c66416ccd1a2db8d3b3cdcfe0331fdeb",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BVIGNETTE\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BVIGNETTE\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "VIGNETTE",
+        "ADVANCED"
+      ],
+      "sha256": "e17e04ba209068a9572bfc2693ddab0fe8411966bf47b35e3d6d4476f2aa6656",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BVIGNETTE\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BVIGNETTE\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "VIGNETTE",
+        "ADVANCED"
+      ],
+      "sha256": "c48276e7230eb057605a04cfa96f6e7617163678a6dbc041ad6000a794c354d6",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BVIGNETTE\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BVIGNETTE\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "VIGNETTE",
+        "ADVANCED"
+      ],
+      "sha256": "bcc9f0e1ef86af7e58baa605bf93f6b0f9f99839e2f05d58b0b17d8167fcf598",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "VIGNETTE",
+        "ADVANCED"
+      ],
+      "sha256": "9f31da032113960f7aee77c9ffaeb3e4b3fb16dd4be7cbe56c393a95a886824c",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BBLEND\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BBLEND\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "BLEND",
+        "ADVANCED"
+      ],
+      "sha256": "319cf48b0b8a1e8d6879ed3833e94d329fd124652559a8540f56391829e70f95",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BBLEND\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BBLEND\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "BLEND",
+        "ADVANCED"
+      ],
+      "sha256": "9bfaacc38bcbfd7661b61233d76e20dc0252cea4addf386ca529be03577b8fc3",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BBLEND\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BBLEND\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "BLEND",
+        "ADVANCED"
+      ],
+      "sha256": "f43e3370bcec186a17ca0c47afa1c12d6b93c87bdc71e7749e1655095a26a70b",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BBLEND\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BBLEND\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "BLEND",
+        "ADVANCED"
+      ],
+      "sha256": "f02488f06a2e1ff99da7601737940d271f667a3848043129bdd8d5ae9286b03b",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BVIGNETTE\u002BBLEND\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BVIGNETTE\u002BBLEND\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "VIGNETTE",
+        "BLEND",
+        "ADVANCED"
+      ],
+      "sha256": "725a8e7c0ac3a5962d60d5f936ec2a6acfbf1a55e99a1011ca16b3f987317f1a",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BVIGNETTE\u002BBLEND\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BVIGNETTE\u002BBLEND\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "VIGNETTE",
+        "BLEND",
+        "ADVANCED"
+      ],
+      "sha256": "a8593c602afbafeb376fa5823eccd6c45bf46bc31809e826610df17b72ceda2f",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BVIGNETTE\u002BBLEND\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BVIGNETTE\u002BBLEND\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "VIGNETTE",
+        "BLEND",
+        "ADVANCED"
+      ],
+      "sha256": "e8e8b975e61cfa60bf2afe1fec39bc457b02bd9e262a40367442c91fa2cc4f92",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BBLEND\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BBLEND\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "VIGNETTE",
+        "BLEND",
+        "ADVANCED"
+      ],
+      "sha256": "8ede837edb07b340147086ba3298ac75372ab9bdbbfe849077df0b5e9f6b4852",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "7e44388f9cc8813de84aaa1f8fc912d2ad636457488efd8fed2d4bc39ab5e3f9",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "6043af6fa73ab3cad264a52884f7cea05596b669a1edd014c05a726a6a4da357",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "dd4a6ae868c4a3d3a2936ed727c71ec400869256bef16ce98ace572d49ab490f",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "4abb3812f7f6f660d148dc0c15e9072e650a3a29dfa373bd06baea14c73b51a9",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BVIGNETTE\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BVIGNETTE\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "VIGNETTE",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "3aac7901bf875c8960f89fe2721b844105658bd2c774854f08da14e6794fa07a",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BVIGNETTE\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BVIGNETTE\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "VIGNETTE",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "993b50019d7bf2a7bffc8214130d0f0c29fca21487655b21fba0314d8455e9ca",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BVIGNETTE\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BVIGNETTE\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "VIGNETTE",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "2ef910ae6bdca7fa26304763bffe19bdc396fce30cce620189ab1377fcc11ebc",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "VIGNETTE",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "6e7b5acdd1ca7745c229e0594365a086ba6471ad21522f461d78c3e1c1c09da6",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BBLEND\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BBLEND\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "BLEND",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "5f4a1b0421a21ccbb30b6cae6c0c92017d6fdff59191d0938b1e839a241dce7c",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BBLEND\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BBLEND\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "BLEND",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "5ca5d7a827e8459337a2247b05220eb4d5f35cb37bdc11b146da2f2ed4cd2087",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BBLEND\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BBLEND\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "BLEND",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "628a02561ed1691f13acce25eccbe6fc2e092a2397af147878dfbd051d55c603",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BBLEND\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BBLEND\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "BLEND",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "110676fd6ec7ceb5c2678b391c0e68db3043fdabfb8778ca3f1162b9dc82a2d8",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BVIGNETTE\u002BBLEND\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BVIGNETTE\u002BBLEND\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "VIGNETTE",
+        "BLEND",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "477657c5b37c2c819907e10ef3cea5f01054f46c65fff6f54b62f8dd135eae51",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BVIGNETTE\u002BBLEND\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BVIGNETTE\u002BBLEND\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "VIGNETTE",
+        "BLEND",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "1ebc798efd4f8c1a0b5401f2052e55d1ad13bbd87e93558f97594a0b2db46598",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BLUT\u002BVIGNETTE\u002BBLEND\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BLUT\u002BVIGNETTE\u002BBLEND\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "LUT",
+        "VIGNETTE",
+        "BLEND",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "af4cc617a740bdec8198e5d42031053164fde6b4a4c5a1ba503564601d2c8952",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BBLEND\u002BMASK\u002BADVANCED",
+      "file": "rodaje-efectos.hlsl-PsGraded\u002BCOLOR\u002BLUT\u002BVIGNETTE\u002BBLEND\u002BMASK\u002BADVANCED.spv",
+      "entryPoint": "PsGraded",
+      "profile": "ps_6_0",
+      "defines": [
+        "COLOR",
+        "LUT",
+        "VIGNETTE",
+        "BLEND",
+        "MASK",
+        "ADVANCED"
+      ],
+      "sha256": "f16eb07cb1d2e8a059a1e01b51dddc0c1636321df3e245c158bcba6ad822e959",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t0",
+          "name": "lumaPlane",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "chromaPlane",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "lut",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "3d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t10",
+          "name": "curveTable",
+          "set": 0,
+          "binding": 26,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsImage",
+      "file": "rodaje-efectos.hlsl-PsImage.spv",
+      "entryPoint": "PsImage",
+      "profile": "ps_6_0",
+      "defines": [],
+      "sha256": "ed0cb12f1afc1558d4b6d8d5af85017eacb559937b2cbb44cb32ad7af099a232",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsImage\u002BBLEND",
+      "file": "rodaje-efectos.hlsl-PsImage\u002BBLEND.spv",
+      "entryPoint": "PsImage",
+      "profile": "ps_6_0",
+      "defines": [
+        "BLEND"
+      ],
+      "sha256": "4c05574ac0638887f68b1707033eebe385859d9ba09cab9b16715738180c3ba9",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsTransition",
+      "file": "rodaje-efectos.hlsl-PsTransition.spv",
+      "entryPoint": "PsTransition",
+      "profile": "ps_6_0",
+      "defines": [],
+      "sha256": "4ac4c717d88efed6f4a26272d4b83b44780688d59b5f7b7cef13a5cb8456c9ca",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t6",
+          "name": "imageB",
+          "set": 0,
+          "binding": 22,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t9",
+          "name": "matteImage",
+          "set": 0,
+          "binding": 25,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsTransition\u002BBLEND",
+      "file": "rodaje-efectos.hlsl-PsTransition\u002BBLEND.spv",
+      "entryPoint": "PsTransition",
+      "profile": "ps_6_0",
+      "defines": [
+        "BLEND"
+      ],
+      "sha256": "9f3fb424d06ec576c3bac87eddb66150d630eebecfbaef351f35274ad6b19033",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t6",
+          "name": "imageB",
+          "set": 0,
+          "binding": 22,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t9",
+          "name": "matteImage",
+          "set": 0,
+          "binding": 25,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsDownsample",
+      "file": "rodaje-efectos.hlsl-PsDownsample.spv",
+      "entryPoint": "PsDownsample",
+      "profile": "ps_6_0",
+      "defines": [],
+      "sha256": "5bcf00c7db31733dc4325fed7089e5eeaf1328f4768b506408cbb4dd26775db5",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsBlur",
+      "file": "rodaje-efectos.hlsl-PsBlur.spv",
+      "entryPoint": "PsBlur",
+      "profile": "ps_6_0",
+      "defines": [],
+      "sha256": "20c7800f945e9b4a8760c921355fcd8b596214ed78309093b52bccce597885cb",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsSharpen",
+      "file": "rodaje-efectos.hlsl-PsSharpen.spv",
+      "entryPoint": "PsSharpen",
+      "profile": "ps_6_0",
+      "defines": [],
+      "sha256": "b85c08b31f1963bdc83aafd3b7e42cef7d335948d1d0f0056c9b8856afaa396e",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t6",
+          "name": "imageB",
+          "set": 0,
+          "binding": 22,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsMask",
+      "file": "rodaje-efectos.hlsl-PsMask.spv",
+      "entryPoint": "PsMask",
+      "profile": "ps_6_0",
+      "defines": [],
+      "sha256": "392bae6a0ae1dd10cb2f9a075b1bbd24e6260b2bf26de6ad3a1750ebf10083e8",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t8",
+          "name": "pathPoints",
+          "set": 0,
+          "binding": 24,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t9",
+          "name": "matteImage",
+          "set": 0,
+          "binding": 25,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t11",
+          "name": "coarseDistance",
+          "set": 0,
+          "binding": 27,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsMaskMix",
+      "file": "rodaje-efectos.hlsl-PsMaskMix.spv",
+      "entryPoint": "PsMaskMix",
+      "profile": "ps_6_0",
+      "defines": [],
+      "sha256": "525eb512222dd8d01b8fdb3583d71c6bd2f4bb668ba1e0e5a94fd2dff0974ae8",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t6",
+          "name": "imageB",
+          "set": 0,
+          "binding": 22,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsPixelate",
+      "file": "rodaje-efectos.hlsl-PsPixelate.spv",
+      "entryPoint": "PsPixelate",
+      "profile": "ps_6_0",
+      "defines": [],
+      "sha256": "ef713a44fef1caffbbd5974c5700f25e37af50b9c071161a86167c2b6a59fd52",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsFx",
+      "file": "rodaje-efectos.hlsl-PsFx.spv",
+      "entryPoint": "PsFx",
+      "profile": "ps_6_0",
+      "defines": [],
+      "sha256": "db3e7c6cd6319ce02ee5ae2da2ba30ec19ab894fe35b261bdaa82ab09485e475",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t6",
+          "name": "imageB",
+          "set": 0,
+          "binding": 22,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "maskImage",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsTransition\u002BMOTION",
+      "file": "rodaje-efectos.hlsl-PsTransition\u002BMOTION.spv",
+      "entryPoint": "PsTransition",
+      "profile": "ps_6_0",
+      "defines": [
+        "MOTION"
+      ],
+      "sha256": "1d2c9dd7f424cfad2763580324d917eb9550d6bcf1da3693582e9ccc45538503",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t6",
+          "name": "imageB",
+          "set": 0,
+          "binding": 22,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t9",
+          "name": "matteImage",
+          "set": 0,
+          "binding": 25,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-efectos.hlsl:PsTransition\u002BBLEND\u002BMOTION",
+      "file": "rodaje-efectos.hlsl-PsTransition\u002BBLEND\u002BMOTION.spv",
+      "entryPoint": "PsTransition",
+      "profile": "ps_6_0",
+      "defines": [
+        "BLEND",
+        "MOTION"
+      ],
+      "sha256": "b7c40f3f4018d65e97ee465b9955ac80a7d3eda0496fb6b852457fa5c2827b52",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Quad",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 272
+        },
+        {
+          "register": "b1",
+          "name": "Effects",
+          "set": 0,
+          "binding": 1,
+          "kind": "uniform-buffer",
+          "size": 416
+        },
+        {
+          "register": "t3",
+          "name": "background",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "imageA",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t6",
+          "name": "imageB",
+          "set": 0,
+          "binding": 22,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t9",
+          "name": "matteImage",
+          "set": 0,
+          "binding": 25,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-export.hlsl:CsScale",
+      "file": "rodaje-export.hlsl-CsScale.spv",
+      "entryPoint": "CsScale",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "a882abb6731889cbcc1b4c13ad68e538c87996f0aef73e9c55c94a0bcc1f83ff",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Scale",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 96
+        },
+        {
+          "register": "t0",
+          "name": "first",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t1",
+          "name": "second",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "s0",
+          "name": "linearClamp",
+          "set": 0,
+          "binding": 32,
+          "kind": "sampler"
+        },
+        {
+          "register": "u0",
+          "name": "scaled",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-image",
+          "dimension": "2d"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-export.hlsl:CsConvert",
+      "file": "rodaje-export.hlsl-CsConvert.spv",
+      "entryPoint": "CsConvert",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "0ce35c9763b38c73a18a559c48e6904a019ac6d8374d0c68df12a5e447af51fa",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Convert",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 80
+        },
+        {
+          "register": "t0",
+          "name": "picture",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "u0",
+          "name": "frame",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-buffer"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-export.hlsl:CsConvert\u002BHDR",
+      "file": "rodaje-export.hlsl-CsConvert\u002BHDR.spv",
+      "entryPoint": "CsConvert",
+      "profile": "cs_6_0",
+      "defines": [
+        "HDR"
+      ],
+      "sha256": "5c7dd48cb300cd1dbb99052bd72e71663a9894efba6c560bc2f1e247f0569ed6",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Convert",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 80
+        },
+        {
+          "register": "t0",
+          "name": "picture",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "u0",
+          "name": "frame",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-buffer"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-export.hlsl:CsConvert\u002BTONEMAP",
+      "file": "rodaje-export.hlsl-CsConvert\u002BTONEMAP.spv",
+      "entryPoint": "CsConvert",
+      "profile": "cs_6_0",
+      "defines": [
+        "TONEMAP"
+      ],
+      "sha256": "b1fe77478f385ef9c2f9dd727bf86468447d5c003ff90172e836b1e2f68aa9b1",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Convert",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 80
+        },
+        {
+          "register": "t0",
+          "name": "picture",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "u0",
+          "name": "frame",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-buffer"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-export.hlsl:CsThumbnail",
+      "file": "rodaje-export.hlsl-CsThumbnail.spv",
+      "entryPoint": "CsThumbnail",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "0e016bebf2dba26c0e642f938e76368ae907d77b331f88cb3205efba795eedd9",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Thumb",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 16
+        },
+        {
+          "register": "t0",
+          "name": "picture",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "u0",
+          "name": "pixels",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-buffer"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-export.hlsl:CsThumbnail\u002BTONEMAP",
+      "file": "rodaje-export.hlsl-CsThumbnail\u002BTONEMAP.spv",
+      "entryPoint": "CsThumbnail",
+      "profile": "cs_6_0",
+      "defines": [
+        "TONEMAP"
+      ],
+      "sha256": "02ebc53bd81a5b8387348d95f033bc3be8c9bdd44e8fa14ccd1bbbc1ccbdf9b7",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Thumb",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 16
+        },
+        {
+          "register": "t0",
+          "name": "picture",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "u0",
+          "name": "pixels",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-buffer"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-export.hlsl:CsLight",
+      "file": "rodaje-export.hlsl-CsLight.spv",
+      "entryPoint": "CsLight",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "3ddc47cfd24eec84dd8462051dad8aa4428c9983d30a091d0cc331bbab9ba3c0",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Light",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 16
+        },
+        {
+          "register": "t0",
+          "name": "picture",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "u0",
+          "name": "tiles",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-buffer"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-flow.hlsl:CsBlend",
+      "file": "rodaje-flow.hlsl-CsBlend.spv",
+      "entryPoint": "CsBlend",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "52b2274936be75d92e1dfcbb279ca05df2ba9559900d7d8d003640b58cdbce33",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Constants",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 16
+        },
+        {
+          "register": "t0",
+          "name": "first",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "second",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "u0",
+          "name": "output",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-image",
+          "dimension": "2d"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-flow.hlsl:CsBlend\u002BCHROMA",
+      "file": "rodaje-flow.hlsl-CsBlend\u002BCHROMA.spv",
+      "entryPoint": "CsBlend",
+      "profile": "cs_6_0",
+      "defines": [
+        "CHROMA"
+      ],
+      "sha256": "791154255e0b6d589df68a9a530bf97126ffdb5c904e5e781a576fa0ee73c953",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Constants",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 16
+        },
+        {
+          "register": "t0",
+          "name": "first",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "second",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "u0",
+          "name": "output",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-image",
+          "dimension": "2d"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-optical-flow.hlsl:Downsample",
+      "file": "rodaje-optical-flow.hlsl-Downsample.spv",
+      "entryPoint": "Downsample",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "5197f2b4c8033e20beaf8b856cba09ff655f8d5837caf72e89291ae5937c1492",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Constants",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 80
+        },
+        {
+          "register": "t0",
+          "name": "planeA",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t2",
+          "name": "imageA",
+          "set": 0,
+          "binding": 18,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "u0",
+          "name": "imageOut",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-image",
+          "dimension": "2d"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-optical-flow.hlsl:Search",
+      "file": "rodaje-optical-flow.hlsl-Search.spv",
+      "entryPoint": "Search",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "53b28ab416084f34899521e2fd82365af5b3ff5350d93a716b980a7cfc282872",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Constants",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 80
+        },
+        {
+          "register": "t2",
+          "name": "imageA",
+          "set": 0,
+          "binding": 18,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t3",
+          "name": "imageB",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "forwardFlow",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "u1",
+          "name": "flowOut",
+          "set": 0,
+          "binding": 49,
+          "kind": "storage-image",
+          "dimension": "2d"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-optical-flow.hlsl:Densify",
+      "file": "rodaje-optical-flow.hlsl-Densify.spv",
+      "entryPoint": "Densify",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "119e386af069b58b1afefc0c549d00ce3a2d9c85a89c6e3dce48918685d8bb12",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Constants",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 80
+        },
+        {
+          "register": "t2",
+          "name": "imageA",
+          "set": 0,
+          "binding": 18,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t3",
+          "name": "imageB",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t6",
+          "name": "patches",
+          "set": 0,
+          "binding": 22,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "u1",
+          "name": "flowOut",
+          "set": 0,
+          "binding": 49,
+          "kind": "storage-image",
+          "dimension": "2d"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-optical-flow.hlsl:Histogram",
+      "file": "rodaje-optical-flow.hlsl-Histogram.spv",
+      "entryPoint": "Histogram",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "d8ce56607b5fe601ba8b2f5a55020667cf44455f791dc47bdeeafae080ff2ea5",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Constants",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 80
+        },
+        {
+          "register": "t0",
+          "name": "planeA",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "planeB",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "u4",
+          "name": "histogramOut",
+          "set": 0,
+          "binding": 52,
+          "kind": "storage-buffer"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-optical-flow.hlsl:Residual",
+      "file": "rodaje-optical-flow.hlsl-Residual.spv",
+      "entryPoint": "Residual",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "3ceafeceabfb08dda766cce22468c12508351d09d9369ef00247df21d5853bb5",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Constants",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 80
+        },
+        {
+          "register": "t2",
+          "name": "imageA",
+          "set": 0,
+          "binding": 18,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t3",
+          "name": "imageB",
+          "set": 0,
+          "binding": 19,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t4",
+          "name": "forwardFlow",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "u5",
+          "name": "residualOut",
+          "set": 0,
+          "binding": 53,
+          "kind": "storage-buffer"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-optical-flow.hlsl:Decide",
+      "file": "rodaje-optical-flow.hlsl-Decide.spv",
+      "entryPoint": "Decide",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "deb02f0d962fd341c6bf911040f2c80fbab1dfab6c7afab5da6cdbd04468c2f6",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Constants",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 80
+        },
+        {
+          "register": "t9",
+          "name": "histogram",
+          "set": 0,
+          "binding": 25,
+          "kind": "storage-buffer"
+        },
+        {
+          "register": "t10",
+          "name": "residuals",
+          "set": 0,
+          "binding": 26,
+          "kind": "storage-buffer"
+        },
+        {
+          "register": "u6",
+          "name": "decisionOut",
+          "set": 0,
+          "binding": 54,
+          "kind": "storage-buffer"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-optical-flow.hlsl:Warp",
+      "file": "rodaje-optical-flow.hlsl-Warp.spv",
+      "entryPoint": "Warp",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "cec9501023dc478c768af3d55da02e21e46b431fabd1590e78b18be1c852d8f3",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Constants",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 80
+        },
+        {
+          "register": "t0",
+          "name": "planeA",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t1",
+          "name": "planeB",
+          "set": 0,
+          "binding": 17,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t4",
+          "name": "forwardFlow",
+          "set": 0,
+          "binding": 20,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t5",
+          "name": "backwardFlow",
+          "set": 0,
+          "binding": 21,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "t7",
+          "name": "chromaA",
+          "set": 0,
+          "binding": 23,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t8",
+          "name": "chromaB",
+          "set": 0,
+          "binding": 24,
+          "kind": "sampled-image",
+          "dimension": "2d-array"
+        },
+        {
+          "register": "t11",
+          "name": "decision",
+          "set": 0,
+          "binding": 27,
+          "kind": "storage-buffer"
+        },
+        {
+          "register": "u2",
+          "name": "lumaOut",
+          "set": 0,
+          "binding": 50,
+          "kind": "storage-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "u3",
+          "name": "chromaOut",
+          "set": 0,
+          "binding": 51,
+          "kind": "storage-image",
+          "dimension": "2d"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-monitores.hlsl:CsAccumulate",
+      "file": "rodaje-monitores.hlsl-CsAccumulate.spv",
+      "entryPoint": "CsAccumulate",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "f5f0573e71cf5b7121a55ac243f4bf4fe14619d0b9a9df9e79d1f91739b6fb6b",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Scope",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 48
+        },
+        {
+          "register": "t0",
+          "name": "image",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "u0",
+          "name": "counts",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-buffer"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-monitores.hlsl:CsMaximum",
+      "file": "rodaje-monitores.hlsl-CsMaximum.spv",
+      "entryPoint": "CsMaximum",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "e86b6f7691a63cfd3d669355ab63a0a73fc95d0613a78efa03ad554ad9e7fc32",
+      "resources": [
+        {
+          "register": "u0",
+          "name": "counts",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-buffer"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-monitores.hlsl:CsDraw",
+      "file": "rodaje-monitores.hlsl-CsDraw.spv",
+      "entryPoint": "CsDraw",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "e7a9e472b7cd2fa699c53aba8609a9c472cbf329646e5270895ea48a51d5efb2",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Scope",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 48
+        },
+        {
+          "register": "u0",
+          "name": "counts",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-buffer"
+        },
+        {
+          "register": "u1",
+          "name": "output",
+          "set": 0,
+          "binding": 49,
+          "kind": "storage-image",
+          "dimension": "2d"
+        }
+      ]
+    },
+    {
+      "id": "rodaje-raw.hlsl:CsDevelop",
+      "file": "rodaje-raw.hlsl-CsDevelop.spv",
+      "entryPoint": "CsDevelop",
+      "profile": "cs_6_0",
+      "defines": [],
+      "sha256": "6ce28478cd1b2122ac552780d0286a00ea1c06a72e045d31943c97e035ef7195",
+      "resources": [
+        {
+          "register": "b0",
+          "name": "Develop",
+          "set": 0,
+          "binding": 0,
+          "kind": "uniform-buffer",
+          "size": 96
+        },
+        {
+          "register": "t0",
+          "name": "mosaic",
+          "set": 0,
+          "binding": 16,
+          "kind": "sampled-image",
+          "dimension": "2d"
+        },
+        {
+          "register": "u0",
+          "name": "developed",
+          "set": 0,
+          "binding": 48,
+          "kind": "storage-image",
+          "dimension": "2d"
+        }
+      ]
+    }
+  ]
+}

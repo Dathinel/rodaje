@@ -1,3 +1,5 @@
+using Rodaje.Render.Shaders;
+
 namespace Rodaje.Render;
 
 /// <summary>HLSL del compositor y del presentador, compilado una vez por proceso.</summary>
@@ -293,9 +295,15 @@ internal static class RenderShaders
         }
         """;
 
-    private static readonly Lazy<byte[]> s_vertex = new(() => Compile("VsQuad", "vs_5_0"));
-    private static readonly Lazy<byte[]> s_layer = new(() => Compile("PsLayer", "ps_5_0"));
-    private static readonly Lazy<byte[]> s_present = new(() => Compile("PsPresent", "ps_5_0"));
+    public static ShaderVariant VertexVariant { get; } = new(Source, "VsQuad", "vs_5_0", "rodaje-render.hlsl");
+
+    public static ShaderVariant LayerVariant { get; } = new(Source, "PsLayer", "ps_5_0", "rodaje-render.hlsl");
+
+    public static ShaderVariant PresentVariant { get; } = new(Source, "PsPresent", "ps_5_0", "rodaje-render.hlsl");
+
+    private static readonly Lazy<byte[]> s_vertex = new(() => Compile(VertexVariant));
+    private static readonly Lazy<byte[]> s_layer = new(() => Compile(LayerVariant));
+    private static readonly Lazy<byte[]> s_present = new(() => Compile(PresentVariant));
 
     public static byte[] Vertex => s_vertex.Value;
 
@@ -303,6 +311,6 @@ internal static class RenderShaders
 
     public static byte[] Present => s_present.Value;
 
-    private static byte[] Compile(string entryPoint, string target) =>
-        ShaderCompiler.Compile(Source, entryPoint, target, "rodaje-render.hlsl");
+    private static byte[] Compile(ShaderVariant variant) =>
+        ShaderCompiler.Compile(variant.FullSource(), variant.EntryPoint, variant.Profile, variant.SourceName);
 }

@@ -204,7 +204,7 @@ Rodaje no envía telemetría ni datos de uso. La red solo se usa para descargar 
 
 ## Avisos de terceros
 
-`THIRD-PARTY-NOTICES.txt` contiene los avisos de los componentes que viajan con el programa; `build\app.ps1` lo copia junto a `Rodaje.exe` y debe acompañar siempre al ejecutable. Hoy está incompleto (ver pendientes). `LICENCIAS.md` es la vista para desarrolladores e incluye también lo que solo se usa para compilar o probar.
+`THIRD-PARTY-NOTICES.txt` contiene los avisos de los componentes que viajan con el programa; `build\app.ps1` lo copia junto a `Rodaje.exe` y debe acompañar siempre al ejecutable. Hoy está incompleto (ver pendientes). `LICENCIAS.md` es la vista para desarrolladores e incluye también lo que solo se usa para compilar o probar. Las herramientas usadas exclusivamente al compilar (como `Microsoft.Direct3D.DXC` 1.9.2609.5 bajo licencia LLVM/NCSA, usado por la herramienta de shaders para emitir SPIR-V) no se distribuyen con el programa.
 
 ## Lista de comprobación antes de distribuir
 
