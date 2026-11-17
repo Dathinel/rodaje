@@ -12,7 +12,7 @@ rm -rf "$salida"
 mkdir -p "$salida"
 
 t0=$(date +%s)
-dotnet publish src/Rodaje.App.Desktop/Rodaje.App.Desktop.csproj -c Release -m:2 \
+dotnet publish src/Rodaje.App.Desktop/Rodaje.App.Desktop.csproj -c Release -p:RestoreLockedMode=true -m:2 \
   -o "$salida/app" > "$salida/publish.log" 2>&1
 estado=$?
 echo "publicar: $(( $(date +%s) - t0 )) s, código $estado"
