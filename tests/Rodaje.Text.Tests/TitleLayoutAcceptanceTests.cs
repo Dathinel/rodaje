@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
+using Rodaje.Core.Model;
 using Rodaje.Playback.Composition;
 using Xunit.Abstractions;
 
