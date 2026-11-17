@@ -230,7 +230,11 @@ public sealed class TitleLayout
         int i = start;
         while (i < end)
         {
-            Rune rune = Rune.GetRuneAt(text, i);
+            // Un sustituto suelto no rompe la maquetación: cuenta como U+FFFD.
+            if (!Rune.TryGetRuneAt(text, i, out Rune rune))
+            {
+                rune = Rune.ReplacementChar;
+            }
             UnicodeCategory category = Rune.GetUnicodeCategory(rune);
             ShapingFont font;
             if (runFont is not null && category is UnicodeCategory.NonSpacingMark or UnicodeCategory.EnclosingMark or UnicodeCategory.Format
@@ -254,7 +258,7 @@ public sealed class TitleLayout
             }
 
             runFont = font;
-            i += rune.Utf16SequenceLength;
+            i += Rune.TryGetRuneAt(text, i, out _) ? rune.Utf16SequenceLength : 1;
         }
 
         if (runFont is not null)

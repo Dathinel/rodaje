@@ -87,7 +87,10 @@ public sealed record PackageManifest
 
     /// <summary>El RID de este sistema, en la misma forma que <see cref="Platform"/>.</summary>
     public static string ThisPlatform { get; } =
-        OperatingSystem.IsWindows() ? "win-x64" : System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier;
+        OperatingSystem.IsWindows() ? "win-x64"
+        : OperatingSystem.IsLinux() ? "linux-x64"
+        : OperatingSystem.IsMacOS() ? "osx-arm64"
+        : System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier;
 
     public const string FileName = "paquete.json";
 

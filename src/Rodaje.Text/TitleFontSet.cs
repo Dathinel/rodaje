@@ -254,7 +254,11 @@ public sealed class TitleFontSet : IDisposable
 
             foreach (string file in files.Where(f => Path.GetExtension(f).ToUpperInvariant() is ".TTF" or ".OTF" or ".TTC" or ".OTC"))
             {
-                found.AddRange(ShapingFont.Load(file));
+                // El mismo tope que las de los paquetes: las CJK o de emoji enormes no entran en el respaldo.
+                if (new FileInfo(file).Length <= MaxFileBytes)
+                {
+                    found.AddRange(ShapingFont.Load(file));
+                }
             }
         }
 
