@@ -16,15 +16,15 @@ Resultado de la fase 4 de D-066 ([propuestas/mac-y-linux.md](propuestas/mac-y-li
 |---|---|---|
 | `VulkanGpu` con todas las variantes | **Hecho** | 100 de 100 variantes crean sombreador y canalización (RTX 3050 y lavapipe) |
 | Lectura y consultas de tiempo | **Hecho** | Pruebas comunes a los dos motores: 20 de 20 en Vulkan, 22 de 22 en D3D11 (WARP). `Rodaje.Render.Vulkan.Tests` entero: 131 + 2 omitidas en la RTX 3050 |
-| Píxeles, criterio (i) centros y fracciones exactas ≤ 1e-3 | **Cumple** | 9 de 9 casos |
-| Píxeles, criterio (ii) media ≤ 2e-4 y p99,9 ≤ 4e-3 frente a WARP | **Cumple con excepciones nombradas** | 142 de 142; 17 casos en la lista de excepciones (media ≤ 5e-3), todos los que la fase 0 ya explicaba |
+| Píxeles, criterio (i) centros y fracciones exactas ≤ 1e-3 | **Cumple** | 8 de 8 casos (RTX 3050 y lavapipe) |
+| Píxeles, criterio (ii) media ≤ 2e-4 y p99,9 ≤ 4e-3 frente a WARP | **Cumple con excepciones nombradas** | 142 de 142 (RTX 3050 y lavapipe en la CI); 18 casos en la lista de excepciones (media ≤ 5e-3), los que la fase 0 ya explicaba más `sharpen-umbral` en lavapipe |
 | Píxeles, criterio (iii) frente a D3D11 de la misma GPU ≤ 1e-3 | **Cumple** | 164 de 164 + las 4 excepciones del control de la fase 0 |
 | Compositor entero en Vulkan frente a D3D11 WARP | **Cumple (ii)** | 9 casos (una capa, escala y posición, giro, multiplicar, superponer, color y viñeta, desenfoque, nitidez, fundido cruzado): media ≤ 2,6e-5, p99,9 ≤ 2,0e-3, máximo 6,8e-3 (la capa girada, en el borde) |
-| Pruebas de Render en Vulkan (lavapipe en la CI) | **Parcial** | Pasan en lavapipe las del motor, las variantes y las del compositor (ver CI). Las 849 de `Rodaje.Render.Tests` siguen atadas a D3D11 (crean texturas NV12 de D3D11VA, títulos de Direct2D): falta pasarlas a `GpuTextureSurface` |
+| Pruebas de Render en Vulkan (lavapipe en la CI) | **Parcial** | Pasan en lavapipe las del motor, las variantes y las del compositor (ver CI). Las 852 de `Rodaje.Render.Tests` siguen atadas a D3D11 (crean texturas NV12 de D3D11VA, títulos de Direct2D): falta pasarlas a `GpuTextureSurface` |
 | Exportación ProRes/FFV1 por CPU con los mismos cuadros (hash) que en Windows | **No** | Falta el conversor de exportación (`ExportFrameConverter`) sobre `IGpu` sin vistas de D3D11, `FrameUploader` en Unix y `Rodaje.Export` en la CI de Linux |
 | `IDecoderSurface`/`Acquire` e `IGpuSwapchain` con D3D11 sin cambiar píxeles | **Hecho** | Huellas de Render, Export y App con el contrato y otra vez con el compositor sobre `IGpu`: composición 697/697 y 1 791/1 791, presentación 31/31, títulos 29/29 y monitores 1/1 iguales; ningún cuadro exportado que la base no haya producido (como en la fase 3). Pruebas: Render 852, Export 472 + 20 omitidas, App 2 688 + 17 omitidas, en verde |
 
-Las 17 excepciones frente a WARP son el filtro bilineal amplificado (ADVANCED, curvas, calificador, capas giradas), las transiciones con desplazamiento a fracciones arbitrarias (media 2,1e-4 a 2,4e-4, apenas por encima de 2e-4), los dos HDR con PQ y `degradado2` (discontinuidad de `atan2` en un centro de píxel, 0,83 también entre D3D11 y Vulkan en la misma GPU). La prueba las nombra con su motivo y comprueba igualmente que su media no pase de 5e-3.
+Las 18 excepciones frente a WARP son el filtro bilineal amplificado (ADVANCED, curvas, calificador, capas giradas), las transiciones con desplazamiento a fracciones arbitrarias (media 2,1e-4 a 2,4e-4, apenas por encima de 2e-4), los dos HDR con PQ, `sharpen-umbral` (el umbral es un escalón: en lavapipe unos pocos píxeles del borde pasan el p99,9) y `degradado2` (discontinuidad de `atan2` en un centro de píxel, 0,83 también entre D3D11 y Vulkan en la misma GPU). La prueba las nombra con su motivo y comprueba igualmente que su media no pase de 5e-3.
 
 ## Lo que salió al comparar
 
