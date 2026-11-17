@@ -3,12 +3,12 @@ using System.Runtime.InteropServices;
 using Rodaje.Core.Model;
 using Rodaje.Media.Export;
 using Rodaje.Media.Gpu;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using Rodaje.Render.Shaders;
 using TerraFX.Interop.DirectX;
 using TerraFX.Interop.Windows;
 using static Rodaje.Render.RenderException;
-using static TerraFX.Interop.DirectX.D3D11;
-using static TerraFX.Interop.DirectX.DXGI;
 
 namespace Rodaje.Render.Export;
 
@@ -22,25 +22,8 @@ public sealed record ExportThumbnail(long Index, int Width, int Height, byte[] B
 /// <summary>
 /// De la composición R'G'B' a los cuadros de la salida, en la GPU (D-028): escala, forma (barras, recorte, estirado),
 /// Y'CbCr con la matriz y el rango de <see cref="ExportVideoFormat.Color"/>, croma «left», tramado al bajar a 8 bits, y un
-/// anillo de búferes <c>Staging</c> para que la copia a la CPU no detenga a la GPU.
+/// anillo de búferes de lectura para que la copia a la CPU no detenga a la GPU.
 /// </summary>
-/// <remarks>
-/// <para>
-/// Uso, desde el hilo de la exportación: <see cref="Submit"/> encola la conversión y la copia de un cuadro (no espera);
-/// <see cref="TryRead"/> mapea el más antiguo, lo copia a un búfer propio (reservado una vez), suelta el mapeo y se lo
-/// presta al manejador (normalmente <c>IExportSink.WriteVideo</c>). Con el anillo lleno, <see cref="Submit"/> lanza:
-/// primero se lee. El patrón es encolar el cuadro n y leer el n − 2 (con 3 en vuelo), así la GPU ya terminó cuando se lee.
-/// </para>
-/// <para>
-/// Escala: con <see cref="ExportScaleFilter.Auto"/>, una reducción a la mitad exacta (o a un cuarto…) lee el nivel de
-/// mip, que es el promedio 2×2; lo demás va con Catmull-Rom, ensanchado 1/escala al reducir. Los otros filtros leen
-/// siempre el nivel 0. Una composición sin mips (sin <c>GENERATE_MIPS</c>) también va por el nivel 0.
-/// </para>
-/// <para>
-/// Con un formato con alfa la composición debe venir con fondo transparente (<see cref="Compositor.TransparentBackground"/>);
-/// el alfa sale recto, no premultiplicado, y las barras son transparentes. Sin alfa, las barras son negras.
-/// </para>
-/// </remarks>
 public sealed unsafe class ExportFrameConverter : IDisposable
 {
     public const int DefaultRingSize = 3;
@@ -49,11 +32,8 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     public const int ThumbnailWidth = 320;
 
     private const int MaxCachedSources = 4;
-    private const uint DoNotWait = 0x100000;
 
-    private readonly GpuDevice? _gpu;
-    private readonly ID3D11Device* _device;
-    private readonly ID3D11DeviceContext* _context;
+    private readonly D3D11Gpu _engine;
     private readonly TimeProvider _time;
     private readonly ExportLayout _layout;
     private readonly ScalePlan _plan;
@@ -62,20 +42,19 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     private readonly Slot[] _slots;
     private readonly List<SourceViews> _sources = [];
     private readonly ShaderCache _shaders;
-    private ID3D11ComputeShader* _scale;
-    private ID3D11ComputeShader* _convert;
-    private ID3D11ComputeShader* _thumbnail;
-    private ID3D11Buffer* _scaleConstants;
-    private ID3D11Buffer* _convertConstants;
-    private ID3D11Buffer* _thumbnailConstants;
-    private ID3D11SamplerState* _sampler;
-    private ID3D11Buffer* _frameBuffer;
-    private ID3D11UnorderedAccessView* _frameUav;
-    private ID3D11Buffer* _thumbnailBuffer;
-    private ID3D11UnorderedAccessView* _thumbnailUav;
-    private ID3D11Texture2D* _scaled;
-    private ID3D11UnorderedAccessView* _scaledUav;
-    private ID3D11ShaderResourceView* _scaledSrv;
+    private GpuPipeline? _scalePipeline;
+    private GpuShader? _scaleShader;
+    private GpuPipeline? _convertPipeline;
+    private GpuShader? _convertShader;
+    private GpuPipeline? _thumbnailPipeline;
+    private GpuShader? _thumbnailShader;
+    private GpuBuffer? _scaleConstants;
+    private GpuBuffer? _convertConstants;
+    private GpuBuffer? _thumbnailConstants;
+    private GpuSampler? _sampler;
+    private GpuBuffer? _frameBuffer;
+    private GpuBuffer? _thumbnailBuffer;
+    private GpuTexture? _scaled;
     private int _head;
     private long _lastThumbnail;
     private bool _anyThumbnail;
@@ -89,7 +68,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     /// <param name="output">Tamaño, formato de píxel y color de la salida.</param>
     /// <param name="fit">Cómo cabe la composición si la forma no coincide.</param>
     /// <param name="filter">Filtro de escala.</param>
-    /// <param name="ringSize">Búferes <c>Staging</c> en vuelo (2 a 8).</param>
+    /// <param name="ringSize">Búferes de lectura en vuelo (2 a 8).</param>
     /// <param name="region">Recorte de la composición antes de escalar; <c>null</c> la exporta entera.</param>
     /// <param name="source">
     /// Espacio de color de la composición (<see cref="Compositor.ColorSpace"/>): en HDR es luz lineal BT.2020 con 1,0 = 203 nits y se
@@ -98,24 +77,31 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     public ExportFrameConverter(GpuDevice gpu, int sourceWidth, int sourceHeight, ExportVideoFormat output,
         ExportFit fit = ExportFit.Bars, ExportScaleFilter filter = ExportScaleFilter.Auto, int ringSize = DefaultRingSize,
         ExportSourceRegion? region = null, SequenceColorSpace source = SequenceColorSpace.Sdr709)
-        : this(gpu ?? throw new ArgumentNullException(nameof(gpu)), gpu.NativeDevice, gpu.NativeContext, sourceWidth, sourceHeight,
+        : this(gpu ?? throw new ArgumentNullException(nameof(gpu)), sourceWidth, sourceHeight,
             output, fit, filter, ringSize, ShaderCache.Default, TimeProvider.System, region, source)
     {
     }
 
-    /// <summary>Con un dispositivo propio (WARP en las pruebas): sin <paramref name="gpu"/> no se toma ningún candado.</summary>
+    /// <summary>Con un dispositivo propio (WARP en las pruebas).</summary>
     internal ExportFrameConverter(GpuDevice? gpu, nint device, nint context, int sourceWidth, int sourceHeight, ExportVideoFormat output,
+        ExportFit fit, ExportScaleFilter filter, int ringSize, ShaderCache shaders, TimeProvider time, ExportSourceRegion? region = null,
+        SequenceColorSpace source = SequenceColorSpace.Sdr709)
+        : this(gpu ?? throw new ArgumentNullException(nameof(gpu)), sourceWidth, sourceHeight, output, fit, filter, ringSize, shaders, time, region, source)
+    {
+    }
+
+    internal ExportFrameConverter(GpuDevice gpu, int sourceWidth, int sourceHeight, ExportVideoFormat output,
         ExportFit fit, ExportScaleFilter filter, int ringSize, ShaderCache shaders, TimeProvider time, ExportSourceRegion? region = null,
         SequenceColorSpace source = SequenceColorSpace.Sdr709)
     {
         Source = source;
+        ArgumentNullException.ThrowIfNull(gpu);
         ArgumentNullException.ThrowIfNull(output);
-        ArgumentOutOfRangeException.ThrowIfZero(device);
-        ArgumentOutOfRangeException.ThrowIfZero(context);
+        _engine = D3D11Gpu.For(gpu);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceWidth);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceHeight);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(sourceWidth, D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(sourceHeight, D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(sourceWidth, _engine.Caps.MaxTextureSize);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(sourceHeight, _engine.Caps.MaxTextureSize);
         ArgumentOutOfRangeException.ThrowIfLessThan(ringSize, 2);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(ringSize, 8);
         ExportSourceRegion window = region ?? new ExportSourceRegion(0, 0, sourceWidth, sourceHeight);
@@ -125,9 +111,6 @@ public sealed unsafe class ExportFrameConverter : IDisposable
             throw new ArgumentOutOfRangeException(nameof(region), window, $"El recorte se sale de la composición de {sourceWidth}×{sourceHeight}.");
         }
 
-        _gpu = gpu;
-        _device = (ID3D11Device*)device;
-        _context = (ID3D11DeviceContext*)context;
         _shaders = shaders;
         _time = time;
         SourceWidth = sourceWidth;
@@ -161,8 +144,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     }
 
     /// <summary>El dispositivo de la exportación.</summary>
-    /// <exception cref="InvalidOperationException">El conversor se creó sobre un dispositivo propio (pruebas).</exception>
-    public GpuDevice Device => _gpu ?? throw new InvalidOperationException("Este conversor usa un dispositivo propio, no un GpuDevice.");
+    public GpuDevice Device => _engine.Device;
 
     public int SourceWidth { get; }
 
@@ -215,8 +197,15 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         Enqueue(compositeTexture, 0, 0, index);
     }
 
+    /// <summary>Convierte la composición <paramref name="compositeTexture"/> (<see cref="Compositor.Output"/>) y encola su copia.</summary>
+    public void Submit(GpuTexture compositeTexture, long index)
+    {
+        ArgumentNullException.ThrowIfNull(compositeTexture);
+        Submit((nint)((D3D11Texture)compositeTexture).Texture2D, index);
+    }
+
     /// <summary>
-    /// Como <see cref="Submit"/>, pero mezcla dos composiciones (conversión de tasa con mezcla):
+    /// Como <see cref="Submit(nint, long)"/>, pero mezcla dos composiciones (conversión de tasa con mezcla):
     /// <c>(1 − weight)·first + weight·second</c> en R'G'B' antes de convertir.
     /// </summary>
     public void SubmitBlend(nint first, nint second, float weight, long index)
@@ -226,6 +215,14 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         ArgumentOutOfRangeException.ThrowIfLessThan(weight, 0f);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(weight, 1f);
         Enqueue(first, second, weight, index);
+    }
+
+    /// <summary>Como <see cref="Submit(GpuTexture, long)"/>, pero mezcla dos composiciones.</summary>
+    public void SubmitBlend(GpuTexture first, GpuTexture second, float weight, long index)
+    {
+        ArgumentNullException.ThrowIfNull(first);
+        ArgumentNullException.ThrowIfNull(second);
+        SubmitBlend((nint)((D3D11Texture)first).Texture2D, (nint)((D3D11Texture)second).Texture2D, weight, index);
     }
 
     /// <summary>Si hay un cuadro encolado, espera a que la GPU lo termine, se lo presta a <paramref name="handler"/> y lo suelta.</summary>
@@ -240,15 +237,10 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         }
 
         ref Slot slot = ref _slots[_head];
-        // Map con DO_NOT_WAIT y el candado suelto entre intentos: mientras la GPU termina, el decodificador sigue usando el contexto.
-        byte* data = MapWhenReady(slot.Staging);
-        try
+        // TryMap sin espera y el candado suelto entre intentos: mientras la GPU termina, el decodificador sigue usando el contexto.
+        using (GpuMappedRows rows = MapWhenReady(slot.Staging))
         {
-            new ReadOnlySpan<byte>(data, _cpu.Length).CopyTo(_cpu);
-        }
-        finally
-        {
-            Unmap(slot.Staging);
+            rows.Row(0).CopyTo(_cpu);
         }
 
         PixelFingerprint.Record("exportacion", _cpu.AsSpan());
@@ -257,14 +249,9 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         {
             (int width, int height) = ThumbnailSize;
             byte[] bgra = GC.AllocateUninitializedArray<byte>(width * height * 4);
-            byte* thumb = MapWhenReady(slot.ThumbnailStaging);
-            try
+            using (GpuMappedRows thumbRows = MapWhenReady(slot.ThumbnailStaging))
             {
-                new ReadOnlySpan<byte>(thumb, bgra.Length).CopyTo(bgra);
-            }
-            finally
-            {
-                Unmap(slot.ThumbnailStaging);
+                thumbRows.Row(0).CopyTo(bgra);
             }
 
             PixelFingerprint.Record("miniatura", bgra.AsSpan());
@@ -287,11 +274,10 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         }
 
         _disposed = true;
-        // Si el GpuDevice ya se cerró no hay candado que tomar; las referencias propias siguen siendo válidas.
-        bool locked = _gpu is { IsDisposed: false };
+        bool locked = !_engine.Device.IsDisposed;
         if (locked)
         {
-            Lock();
+            _engine.Device.LockContext();
         }
 
         try
@@ -304,30 +290,29 @@ public sealed unsafe class ExportFrameConverter : IDisposable
             _sources.Clear();
             for (int i = 0; i < _slots.Length; i++)
             {
-                Com.Release(ref _slots[i].Staging);
-                Com.Release(ref _slots[i].ThumbnailStaging);
+                _slots[i].Staging?.Dispose();
+                _slots[i].ThumbnailStaging?.Dispose();
             }
 
-            Com.Release(ref _scale);
-            Com.Release(ref _convert);
-            Com.Release(ref _thumbnail);
-            Com.Release(ref _scaleConstants);
-            Com.Release(ref _convertConstants);
-            Com.Release(ref _thumbnailConstants);
-            Com.Release(ref _sampler);
-            Com.Release(ref _frameUav);
-            Com.Release(ref _frameBuffer);
-            Com.Release(ref _thumbnailUav);
-            Com.Release(ref _thumbnailBuffer);
-            Com.Release(ref _scaledUav);
-            Com.Release(ref _scaledSrv);
-            Com.Release(ref _scaled);
+            _scalePipeline?.Dispose();
+            _scaleShader?.Dispose();
+            _convertPipeline?.Dispose();
+            _convertShader?.Dispose();
+            _thumbnailPipeline?.Dispose();
+            _thumbnailShader?.Dispose();
+            _scaleConstants?.Dispose();
+            _convertConstants?.Dispose();
+            _thumbnailConstants?.Dispose();
+            _sampler?.Dispose();
+            _frameBuffer?.Dispose();
+            _thumbnailBuffer?.Dispose();
+            _scaled?.Dispose();
         }
         finally
         {
             if (locked)
             {
-                Unlock();
+                _engine.Device.UnlockContext();
             }
         }
     }
@@ -349,43 +334,38 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         ref Slot slot = ref _slots[slotIndex];
         long now = _time.GetTimestamp();
         bool thumbnail = ThumbnailInterval >= TimeSpan.Zero && (!_anyThumbnail || _time.GetElapsedTime(_lastThumbnail, now) >= ThumbnailInterval);
-        Lock();
-        try
+        using (IGpuFrame frame = _engine.BeginFrame())
         {
             SourceViews a = Views(first);
             SourceViews? b = second == 0 ? null : Views(second);
             ScalePlan plan = a.CanMip && (b is null || b.CanMip) ? _plan : _flatPlan;
-            ID3D11ShaderResourceView* firstView = a.Prepare(_context, plan.Level);
-            ID3D11ShaderResourceView* secondView = b is null ? null : b.Prepare(_context, plan.Level);
-            ID3D11ShaderResourceView* picture = firstView;
+            GpuTexture firstView = a.Prepare(frame, plan.Level);
+            GpuTexture? secondView = b?.Prepare(frame, plan.Level);
+            GpuTexture picture = firstView;
             if (!plan.PassThrough || b is not null)
             {
-                RunScale(plan, firstView, secondView, weight);
-                picture = _scaledSrv;
+                RunScale(frame, plan, firstView, secondView, weight);
+                picture = _scaled!;
             }
 
             foreach (ExportPlane plane in _layout.Planes)
             {
-                RunConvert(picture, plane);
+                RunConvert(frame, picture, plane);
             }
 
             if (thumbnail)
             {
-                RunThumbnail(picture);
+                RunThumbnail(frame, picture);
             }
 
-            UnbindCompute();
-            _context->CopyResource((ID3D11Resource*)slot.Staging, (ID3D11Resource*)_frameBuffer);
+            frame.Copy(_frameBuffer!, 0, _layout.TotalBytes, slot.Staging);
             if (thumbnail)
             {
-                _context->CopyResource((ID3D11Resource*)slot.ThumbnailStaging, (ID3D11Resource*)_thumbnailBuffer);
+                (int width, int height) = ThumbnailSize;
+                frame.Copy(_thumbnailBuffer!, 0, width * height * 4, slot.ThumbnailStaging);
             }
 
-            _context->Flush();
-        }
-        finally
-        {
-            Unlock();
+            frame.Submit();
         }
 
         if (thumbnail)
@@ -422,12 +402,12 @@ public sealed unsafe class ExportFrameConverter : IDisposable
             _sources.RemoveAt(0);
         }
 
-        var views = SourceViews.Create(_device, (ID3D11Texture2D*)texture, desc, _plan.Level);
+        var views = SourceViews.Create(_engine.NativeDevice, (ID3D11Texture2D*)texture, desc, _plan.Level);
         _sources.Add(views);
         return views;
     }
 
-    private void RunScale(in ScalePlan plan, ID3D11ShaderResourceView* first, ID3D11ShaderResourceView* second, float weight)
+    private void RunScale(IGpuFrame frame, in ScalePlan plan, GpuTexture first, GpuTexture? second, float weight)
     {
         EnsureScaled();
         int levelWidth = SourceWidth >> plan.Level;
@@ -446,12 +426,17 @@ public sealed unsafe class ExportFrameConverter : IDisposable
             Weight = new(weight, 0, 0, 0),
             Window = new(Region.X * unit, Region.Y * unit, Region.Width * unit, Region.Height * unit),
         };
-        Upload(_scaleConstants, constants);
-        ID3D11ShaderResourceView** inputs = stackalloc ID3D11ShaderResourceView*[2] { first, second != null ? second : first };
-        Dispatch(_scale, _scaleConstants, inputs, 2, _scaledUav, Output.Width, Output.Height);
+        frame.Write(_scaleConstants!, MemoryMarshal.CreateReadOnlySpan(ref constants, 1));
+        var bindings = default(GpuBindings);
+        bindings.SetConstants(0, _scaleConstants);
+        bindings.SetSampler(0, _sampler);
+        bindings.SetResource(0, first);
+        bindings.SetResource(1, second ?? first);
+        bindings.SetStorage(0, _scaled);
+        frame.Dispatch(_scalePipeline!, bindings, (Output.Width + 7) / 8, (Output.Height + 7) / 8);
     }
 
-    private void RunConvert(ID3D11ShaderResourceView* picture, in ExportPlane plane)
+    private void RunConvert(IGpuFrame frame, GpuTexture picture, in ExportPlane plane)
     {
         ExportVideoFormat format = Output;
         ExportPixelFormat pixels = format.PixelFormat;
@@ -507,80 +492,41 @@ public sealed unsafe class ExportFrameConverter : IDisposable
             Width = (uint)format.Width,
             Height = (uint)format.Height,
         };
-        Upload(_convertConstants, constants);
-        Dispatch(_convert, _convertConstants, &picture, 1, _frameUav, plane.Units, plane.Rows);
+        frame.Write(_convertConstants!, MemoryMarshal.CreateReadOnlySpan(ref constants, 1));
+        var bindings = default(GpuBindings);
+        bindings.SetConstants(0, _convertConstants);
+        bindings.SetSampler(0, _sampler);
+        bindings.SetResource(0, picture);
+        bindings.SetStorage(0, _frameBuffer);
+        frame.Dispatch(_convertPipeline!, bindings, (plane.Units + 7) / 8, (plane.Rows + 7) / 8);
     }
 
-    private void RunThumbnail(ID3D11ShaderResourceView* picture)
+    private void RunThumbnail(IGpuFrame frame, GpuTexture picture)
     {
         (int width, int height) = ThumbnailSize;
-        var constants = new ThumbnailConstants { Width = (uint)width, Height = (uint)height, PictureWidth = (uint)Output.Width, PictureHeight = (uint)Output.Height };
-        Upload(_thumbnailConstants, constants);
-        Dispatch(_thumbnail, _thumbnailConstants, &picture, 1, _thumbnailUav, width, height);
+        var constants = new ThumbnailConstants
+        {
+            Width = (uint)width,
+            Height = (uint)height,
+            PictureWidth = (uint)Output.Width,
+            PictureHeight = (uint)Output.Height,
+        };
+        frame.Write(_thumbnailConstants!, MemoryMarshal.CreateReadOnlySpan(ref constants, 1));
+        var bindings = default(GpuBindings);
+        bindings.SetConstants(0, _thumbnailConstants);
+        bindings.SetSampler(0, _sampler);
+        bindings.SetResource(0, picture);
+        bindings.SetStorage(0, _thumbnailBuffer);
+        frame.Dispatch(_thumbnailPipeline!, bindings, (width + 7) / 8, (height + 7) / 8);
     }
 
-    private void Dispatch(ID3D11ComputeShader* shader, ID3D11Buffer* constants, ID3D11ShaderResourceView** inputs, uint inputCount,
-        ID3D11UnorderedAccessView* output, int width, int height)
-    {
-        // Primero se suelta la salida anterior: la textura escalada pasa de UAV a SRV entre la escala y la conversión.
-        ID3D11UnorderedAccessView* none = null;
-        _context->CSSetUnorderedAccessViews(0, 1, &none, null);
-        _context->CSSetShader(shader, null, 0);
-        _context->CSSetConstantBuffers(0, 1, &constants);
-        ID3D11SamplerState* sampler = _sampler;
-        _context->CSSetSamplers(0, 1, &sampler);
-        _context->CSSetShaderResources(0, inputCount, inputs);
-        _context->CSSetUnorderedAccessViews(0, 1, &output, null);
-        _context->Dispatch((uint)((width + 7) / 8), (uint)((height + 7) / 8), 1);
-    }
-
-    private void UnbindCompute()
-    {
-        ID3D11ShaderResourceView** views = stackalloc ID3D11ShaderResourceView*[2];
-        _context->CSSetShaderResources(0, 2, views);
-        ID3D11UnorderedAccessView* none = null;
-        _context->CSSetUnorderedAccessViews(0, 1, &none, null);
-        _context->CSSetShader(null, null, 0);
-    }
-
-    private void Upload<T>(ID3D11Buffer* buffer, in T constants)
-        where T : unmanaged
-    {
-        D3D11_MAPPED_SUBRESOURCE mapped;
-        Check(_context->Map((ID3D11Resource*)buffer, 0, D3D11_MAP.D3D11_MAP_WRITE_DISCARD, 0, &mapped), "Map(constantes de exportación)");
-        *(T*)mapped.pData = constants;
-        _context->Unmap((ID3D11Resource*)buffer, 0);
-    }
-
-    private byte* MapWhenReady(ID3D11Buffer* staging)
+    private GpuMappedRows MapWhenReady(GpuReadback staging)
     {
         long start = 0;
         var spin = default(SpinWait);
-        while (true)
+        GpuMappedRows rows;
+        while (!staging.TryMap(out rows))
         {
-            D3D11_MAPPED_SUBRESOURCE mapped;
-            HRESULT hr;
-            Lock();
-            try
-            {
-                hr = _context->Map((ID3D11Resource*)staging, 0, D3D11_MAP.D3D11_MAP_READ, DoNotWait, &mapped);
-            }
-            finally
-            {
-                Unlock();
-            }
-
-            if (hr != DXGI_ERROR_WAS_STILL_DRAWING)
-            {
-                Check(hr, "Map(cuadro de exportación)");
-                if (start != 0)
-                {
-                    _readWaitTicks += Stopwatch.GetTimestamp() - start;
-                }
-
-                return (byte*)mapped.pData;
-            }
-
             if (start == 0)
             {
                 start = Stopwatch.GetTimestamp();
@@ -588,124 +534,42 @@ public sealed unsafe class ExportFrameConverter : IDisposable
 
             spin.SpinOnce(sleep1Threshold: -1);
         }
-    }
 
-    private void Unmap(ID3D11Buffer* staging)
-    {
-        Lock();
-        try
+        if (start != 0)
         {
-            _context->Unmap((ID3D11Resource*)staging, 0);
+            _readWaitTicks += Stopwatch.GetTimestamp() - start;
         }
-        finally
-        {
-            Unlock();
-        }
+
+        return rows;
     }
-
-    private void Lock() => _gpu?.LockContext();
-
-    private void Unlock() => _gpu?.UnlockContext();
 
     private void CreateResources()
     {
-        _scale = CreateShader(ExportShaders.ScaleVariant);
-        _convert = CreateShader(Output.Color.IsHdr ? ExportShaders.ConvertHdrVariant
+        _scaleShader = _engine.CreateShader(ExportShaders.ScaleVariant, _shaders);
+        _scalePipeline = _engine.CreatePipeline(new GpuPipelineDesc { Compute = _scaleShader });
+        _convertShader = _engine.CreateShader(Output.Color.IsHdr ? ExportShaders.ConvertHdrVariant
             : Source != SequenceColorSpace.Sdr709 ? ExportShaders.ConvertToneMapVariant
-            : ExportShaders.ConvertVariant);
-        _thumbnail = CreateShader(Source != SequenceColorSpace.Sdr709 ? ExportShaders.ThumbnailToneMapVariant : ExportShaders.ThumbnailVariant);
-        _scaleConstants = CreateConstants(sizeof(ScaleConstants));
-        _convertConstants = CreateConstants(sizeof(ConvertConstants));
-        _thumbnailConstants = CreateConstants(sizeof(ThumbnailConstants));
-        var samplerDesc = new D3D11_SAMPLER_DESC
-        {
-            Filter = D3D11_FILTER.D3D11_FILTER_MIN_MAG_MIP_LINEAR,
-            AddressU = D3D11_TEXTURE_ADDRESS_MODE.D3D11_TEXTURE_ADDRESS_CLAMP,
-            AddressV = D3D11_TEXTURE_ADDRESS_MODE.D3D11_TEXTURE_ADDRESS_CLAMP,
-            AddressW = D3D11_TEXTURE_ADDRESS_MODE.D3D11_TEXTURE_ADDRESS_CLAMP,
-            MaxLOD = D3D11_FLOAT32_MAX,
-        };
-        ID3D11SamplerState* sampler;
-        Check(_device->CreateSamplerState(&samplerDesc, &sampler), "CreateSamplerState(exportación)");
-        _sampler = sampler;
-        CreateRawBuffer(_layout.TotalBytes, out _frameBuffer, out _frameUav);
+            : ExportShaders.ConvertVariant, _shaders);
+        _convertPipeline = _engine.CreatePipeline(new GpuPipelineDesc { Compute = _convertShader });
+        _thumbnailShader = _engine.CreateShader(Source != SequenceColorSpace.Sdr709 ? ExportShaders.ThumbnailToneMapVariant : ExportShaders.ThumbnailVariant, _shaders);
+        _thumbnailPipeline = _engine.CreatePipeline(new GpuPipelineDesc { Compute = _thumbnailShader });
+        _scaleConstants = _engine.CreateBuffer(new GpuBufferDesc(sizeof(ScaleConstants), GpuBufferKind.Constant));
+        _convertConstants = _engine.CreateBuffer(new GpuBufferDesc(sizeof(ConvertConstants), GpuBufferKind.Constant));
+        _thumbnailConstants = _engine.CreateBuffer(new GpuBufferDesc(sizeof(ThumbnailConstants), GpuBufferKind.Constant));
+        _sampler = _engine.CreateSampler(new GpuSamplerDesc(GpuFilter.Linear, GpuAddressMode.Clamp));
+        _frameBuffer = _engine.CreateBuffer(new GpuBufferDesc(_layout.TotalBytes, GpuBufferKind.Raw, Storage: true));
         (int width, int height) = ThumbnailSize;
-        CreateRawBuffer(width * height * 4, out _thumbnailBuffer, out _thumbnailUav);
+        _thumbnailBuffer = _engine.CreateBuffer(new GpuBufferDesc(width * height * 4, GpuBufferKind.Raw, Storage: true));
         for (int i = 0; i < _slots.Length; i++)
         {
-            _slots[i].Staging = CreateStaging(_layout.TotalBytes);
-            _slots[i].ThumbnailStaging = CreateStaging(width * height * 4);
+            _slots[i].Staging = _engine.CreateReadback(_layout.TotalBytes);
+            _slots[i].ThumbnailStaging = _engine.CreateReadback(width * height * 4);
         }
 
         if (!_plan.PassThrough)
         {
             EnsureScaled();
         }
-    }
-
-    private ID3D11ComputeShader* CreateShader(ShaderVariant variant)
-    {
-        byte[] code = _shaders.GetOrCompile(variant);
-        ID3D11ComputeShader* shader;
-        fixed (byte* bytes = code)
-        {
-            Check(_device->CreateComputeShader(bytes, (nuint)code.Length, null, &shader), $"CreateComputeShader({variant.EntryPoint})");
-        }
-
-        return shader;
-    }
-
-    private ID3D11Buffer* CreateConstants(int bytes)
-    {
-        var desc = new D3D11_BUFFER_DESC
-        {
-            ByteWidth = (uint)bytes,
-            Usage = D3D11_USAGE.D3D11_USAGE_DYNAMIC,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_CONSTANT_BUFFER,
-            CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_WRITE,
-        };
-        ID3D11Buffer* buffer;
-        Check(_device->CreateBuffer(&desc, null, &buffer), "CreateBuffer(constantes de exportación)");
-        return buffer;
-    }
-
-    private void CreateRawBuffer(int bytes, out ID3D11Buffer* buffer, out ID3D11UnorderedAccessView* view)
-    {
-        var desc = new D3D11_BUFFER_DESC
-        {
-            ByteWidth = (uint)bytes,
-            Usage = D3D11_USAGE.D3D11_USAGE_DEFAULT,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_UNORDERED_ACCESS,
-            MiscFlags = (uint)D3D11_RESOURCE_MISC_FLAG.D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS,
-        };
-        ID3D11Buffer* created;
-        Check(_device->CreateBuffer(&desc, null, &created), "CreateBuffer(cuadro de exportación)");
-        buffer = created;
-        view = null;
-        var viewDesc = new D3D11_UNORDERED_ACCESS_VIEW_DESC
-        {
-            Format = DXGI_FORMAT.DXGI_FORMAT_R32_TYPELESS,
-            ViewDimension = D3D11_UAV_DIMENSION.D3D11_UAV_DIMENSION_BUFFER,
-        };
-        viewDesc.Buffer.FirstElement = 0;
-        viewDesc.Buffer.NumElements = (uint)(bytes / 4);
-        viewDesc.Buffer.Flags = (uint)D3D11_BUFFER_UAV_FLAG.D3D11_BUFFER_UAV_FLAG_RAW;
-        ID3D11UnorderedAccessView* uav;
-        Check(_device->CreateUnorderedAccessView((ID3D11Resource*)created, &viewDesc, &uav), "CreateUnorderedAccessView(cuadro de exportación)");
-        view = uav;
-    }
-
-    private ID3D11Buffer* CreateStaging(int bytes)
-    {
-        var desc = new D3D11_BUFFER_DESC
-        {
-            ByteWidth = (uint)bytes,
-            Usage = D3D11_USAGE.D3D11_USAGE_STAGING,
-            CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_READ,
-        };
-        ID3D11Buffer* buffer;
-        Check(_device->CreateBuffer(&desc, null, &buffer), "CreateBuffer(lectura de exportación)");
-        return buffer;
     }
 
     private void EnsureScaled()
@@ -715,32 +579,13 @@ public sealed unsafe class ExportFrameConverter : IDisposable
             return;
         }
 
-        var desc = new D3D11_TEXTURE2D_DESC
-        {
-            Width = (uint)Output.Width,
-            Height = (uint)Output.Height,
-            MipLevels = 1,
-            ArraySize = 1,
-            Format = DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT,
-            SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
-            Usage = D3D11_USAGE.D3D11_USAGE_DEFAULT,
-            BindFlags = (uint)(D3D11_BIND_FLAG.D3D11_BIND_UNORDERED_ACCESS | D3D11_BIND_FLAG.D3D11_BIND_SHADER_RESOURCE),
-        };
-        ID3D11Texture2D* texture;
-        Check(_device->CreateTexture2D(&desc, null, &texture), "CreateTexture2D(escala de exportación)");
-        _scaled = texture;
-        ID3D11UnorderedAccessView* uav;
-        Check(_device->CreateUnorderedAccessView((ID3D11Resource*)texture, null, &uav), "CreateUnorderedAccessView(escala de exportación)");
-        _scaledUav = uav;
-        ID3D11ShaderResourceView* srv;
-        Check(_device->CreateShaderResourceView((ID3D11Resource*)texture, null, &srv), "CreateShaderResourceView(escala de exportación)");
-        _scaledSrv = srv;
+        _scaled = _engine.CreateTexture(new GpuTextureDesc(Output.Width, Output.Height, GpuFormat.Rgba16Float, GpuTextureUsage.Sampled | GpuTextureUsage.Storage));
     }
 
     private struct Slot
     {
-        public ID3D11Buffer* Staging;
-        public ID3D11Buffer* ThumbnailStaging;
+        public GpuReadback Staging;
+        public GpuReadback ThumbnailStaging;
         public long Index;
         public bool HasThumbnail;
     }
@@ -751,9 +596,9 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     /// </summary>
     private sealed class SourceViews : IDisposable
     {
-        private ID3D11ShaderResourceView* _chain;
-        private ID3D11ShaderResourceView* _level;
-        private ID3D11ShaderResourceView* _base;
+        private D3D11Texture? _chain;
+        private D3D11Texture? _level;
+        private D3D11Texture? _base;
 
         private SourceViews(nint texture) => Texture = texture;
 
@@ -768,11 +613,20 @@ public sealed unsafe class ExportFrameConverter : IDisposable
             try
             {
                 bool generate = (desc.MiscFlags & (uint)D3D11_RESOURCE_MISC_FLAG.D3D11_RESOURCE_MISC_GENERATE_MIPS) != 0;
-                views._base = View(device, texture, desc.Format, 0, 1);
+                GpuFormat format = D3D11Gpu.FromNative(desc.Format);
+                ID3D11ShaderResourceView* baseSrv = CreateView(device, texture, desc.Format, 0, 1);
+                views._base = D3D11Texture.View(new GpuTextureDesc((int)desc.Width, (int)desc.Height, format, GpuTextureUsage.Sampled), baseSrv);
+                baseSrv->Release();
                 if (level > 0 && generate && desc.MipLevels > level)
                 {
-                    views._chain = View(device, texture, desc.Format, 0, level + 1);
-                    views._level = View(device, texture, desc.Format, level, 1);
+                    ID3D11ShaderResourceView* chainSrv = CreateView(device, texture, desc.Format, 0, level + 1);
+                    views._chain = D3D11Texture.View(new GpuTextureDesc((int)desc.Width, (int)desc.Height, format, GpuTextureUsage.Sampled | GpuTextureUsage.GenerateMips, level + 1), chainSrv);
+                    chainSrv->Release();
+
+                    ID3D11ShaderResourceView* levelSrv = CreateView(device, texture, desc.Format, level, 1);
+                    views._level = D3D11Texture.View(new GpuTextureDesc((int)desc.Width >> level, (int)desc.Height >> level, format, GpuTextureUsage.Sampled), levelSrv);
+                    levelSrv->Release();
+
                     views.CanMip = true;
                 }
                 else
@@ -790,25 +644,28 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         }
 
         /// <summary>Deja listo el nivel <paramref name="level"/> (genera los mips si hace falta) y devuelve su vista.</summary>
-        public ID3D11ShaderResourceView* Prepare(ID3D11DeviceContext* context, int level)
+        public D3D11Texture Prepare(IGpuFrame frame, int level)
         {
             if (level == 0)
             {
-                return _base;
+                return _base!;
             }
 
-            context->GenerateMips(_chain);
-            return _level;
+            frame.GenerateMips(_chain!);
+            return _level!;
         }
 
         public void Dispose()
         {
-            Com.Release(ref _chain);
-            Com.Release(ref _level);
-            Com.Release(ref _base);
+            _chain?.Dispose();
+            _chain = null;
+            _level?.Dispose();
+            _level = null;
+            _base?.Dispose();
+            _base = null;
         }
 
-        private static ID3D11ShaderResourceView* View(ID3D11Device* device, ID3D11Texture2D* texture, DXGI_FORMAT format, int mostDetailed, int levels)
+        private static ID3D11ShaderResourceView* CreateView(ID3D11Device* device, ID3D11Texture2D* texture, DXGI_FORMAT format, int mostDetailed, int levels)
         {
             var desc = new D3D11_SHADER_RESOURCE_VIEW_DESC { Format = format, ViewDimension = D3D_SRV_DIMENSION.D3D_SRV_DIMENSION_TEXTURE2D };
             desc.Texture2D.MostDetailedMip = (uint)mostDetailed;
