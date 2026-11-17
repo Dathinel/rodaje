@@ -140,7 +140,17 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     /// <summary>La superficie del cuadro que sigue a la capa (para interpolar), por el mismo camino que <see cref="Usable"/> pero sin lanzar: <c>null</c> si no hay, no vale o es de otro dispositivo.</summary>
     public IDecoderSurface? UsableNext(LayerFrame layer)
     {
-        IDecoderSurface? payload = Surface(layer.Next?.Payload);
+        IDecoderSurface? payload;
+        try
+        {
+            payload = Surface(layer.Next?.Payload);
+        }
+        catch (Rodaje.Media.MediaException)
+        {
+            // Un cuadro de CPU que no se sabe convertir: falla cuando le toque ser la capa (Usable), no al interpolar hacia él.
+            return null;
+        }
+
         return payload is null || OtherDevice(payload, _gpu) ? null : payload;
     }
 
