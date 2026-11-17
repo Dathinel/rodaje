@@ -33,7 +33,8 @@ public static class AudioCapture
 {
     /// <summary>Los dispositivos de entrada activos, el predeterminado primero. Vacío si no hay o el servicio de audio no responde.</summary>
     public static IReadOnlyList<AudioCaptureDevice> ListDevices() =>
-        OperatingSystem.IsWindows() ? ListWasapiDevices() : OperatingSystem.IsLinux() ? PulseCapture.ListDevices() : [];
+        OperatingSystem.IsWindows() ? ListWasapiDevices() : OperatingSystem.IsLinux() ? PulseCapture.ListDevices()
+        : OperatingSystem.IsMacOS() ? CoreAudioCapture.ListDevices() : [];
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private static IReadOnlyList<AudioCaptureDevice> ListWasapiDevices()
@@ -97,7 +98,9 @@ public static class AudioCapture
         ? new WasapiCapture(deviceId, sampleRate)
         : OperatingSystem.IsLinux()
             ? new PulseCapture(deviceId, sampleRate)
-            : throw new AudioDeviceUnavailableException("La captura de audio en este sistema todavía no está disponible.");
+            : OperatingSystem.IsMacOS()
+                ? new CoreAudioCapture(deviceId, sampleRate)
+                : throw new AudioDeviceUnavailableException("La captura de audio en este sistema todavía no está disponible.");
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     internal static IMMDeviceEnumerator CreateEnumerator(ComWrappers wrappers)

@@ -122,6 +122,18 @@ jobs:
         shell: pwsh
         run: build/preparar-entorno.ps1 -SoloFFmpeg
 
+      # El corredor no tiene tarjeta de sonido: dos dispositivos virtuales de bucle (BlackHole, GPL-3.0, solo en el
+      # corredor; no se enlaza ni se distribuye) para las pruebas de CoreAudio (Categoria=AudioMac): reloj, cambio de
+      # salida y captura de lo que sale. Sin dispositivo se omiten.
+      - name: Dispositivos de audio virtuales
+        shell: bash
+        run: |
+          set -uo pipefail
+          brew install --cask blackhole-2ch blackhole-16ch || echo "No se pudo instalar BlackHole: las pruebas de CoreAudio se omitirán."
+          sudo killall -9 coreaudiod || true
+          sleep 5
+          system_profiler SPAudioDataType | grep -E '^ {8}[^ ]|Output Channels|Input Channels|Default' || true
+
       - name: Pruebas
         shell: bash
         run: bash build/pruebas-linux.sh 'Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento'
