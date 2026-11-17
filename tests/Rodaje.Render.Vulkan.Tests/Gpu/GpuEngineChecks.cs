@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Rodaje.Media.Video;
 using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render.Tests.Gpu;
@@ -114,6 +115,34 @@ internal sealed class GpuEngineChecks : IDisposable
         byte[] raw = new byte[Size * 4];
         bytesRead.Read(raw);
         Assert.Equal(Enumerable.Range(0, Size).Select(x => (uint)((x * 3) + 100)), MemoryMarshal.Cast<byte, uint>(raw).ToArray());
+    }
+
+    /// <summary>Contrato de <c>Acquire</c>: la superficie vive hasta que termina el cuadro aunque su dueño la suelte justo después.</summary>
+    public void Acquired_surface_outlives_its_owner_until_the_frame_completes()
+    {
+        byte[] color = [10, 20, 30, 255];
+        GpuTexture texture = _gpu.CreateTexture(new GpuTextureDesc(Size, Size, GpuFormat.Rgba8Unorm, GpuTextureUsage.Sampled),
+            [.. Enumerable.Range(0, Size * Size).SelectMany(_ => color)]);
+        var surface = new GpuTextureSurface(texture, null, FramePixelFormat.Bgra8, VideoColor.Bt709Limited);
+        using GpuSurfaceCache cache = _gpu.CreateSurfaceCache();
+        using GpuReadback read = _gpu.CreateReadback(Size, Size, GpuFormat.Rgba8Unorm);
+        using (IGpuFrame frame = _gpu.BeginFrame())
+        {
+            frame.Acquire(cache, surface);
+            surface.Release();
+            Assert.False(surface.IsReleased);
+            frame.Copy(texture, new GpuBox(0, 0, Size, Size), read);
+        }
+
+        byte[] pixels = new byte[Size * Size * 4];
+        read.Read(pixels);
+        Assert.Equal(color, pixels.AsSpan(0, 4).ToArray());
+        Assert.True(surface.IsReleased);
+        Assert.Throws<ArgumentException>(() =>
+        {
+            using IGpuFrame frame = _gpu.BeginFrame();
+            frame.Acquire(cache, surface);
+        });
     }
 
     public void Id_target_is_cleared_and_read_back_one_pixel_at_a_time()
@@ -295,15 +324,64 @@ internal sealed class GpuEngineChecks : IDisposable
 
     public void Generated_mips_average_the_level_above()
     {
+        using GpuPipeline pipeline = Pipeline("VsFull", "PsMip");
         using GpuTexture texture = _gpu.CreateTexture(new GpuTextureDesc(Size, Size, GpuFormat.Rgba8Unorm,
             GpuTextureUsage.Sampled | GpuTextureUsage.RenderTarget | GpuTextureUsage.GenerateMips, MipLevels: 0));
-        using (IGpuFrame frame = _gpu.BeginFrame())
+        int mips = 1 + (int)Math.Log2(Size);
+
+        // Un cuadrante por color en el nivel 0: con un GenerateMips vacío los demás niveles quedan a cero.
+        byte[] level0 = new byte[Size * Size * 4];
+        byte[][] colors = [[255, 0, 0, 255], [0, 255, 0, 255], [0, 0, 255, 255], [255, 255, 255, 255]];
+        for (int y = 0; y < Size; y++)
         {
-            frame.Clear(texture, new GpuColor(0.5f, 0.5f, 0.5f, 1));
-            frame.GenerateMips(texture);
+            for (int x = 0; x < Size; x++)
+            {
+                colors[(y >= Size / 2 ? 2 : 0) + (x >= Size / 2 ? 1 : 0)].CopyTo(level0.AsSpan(((y * Size) + x) * 4, 4));
+            }
         }
 
-        Assert.Equal(Size, texture.Width);
+        // No hay copia de un mip a una lectura: cada nivel se dibuja texel a texel con PsMip (el nivel va en id.z).
+        var levels = new byte[mips][];
+        using (IGpuFrame frame = _gpu.BeginFrame())
+        {
+            frame.Write(texture, level0, Size * 4);
+            frame.GenerateMips(texture);
+            for (int mip = 0; mip < mips; mip++)
+            {
+                int width = Size >> mip, height = Size >> mip;
+                using GpuTexture target = _gpu.CreateTexture(new GpuTextureDesc(width, height, GpuFormat.Rgba8Unorm, GpuTextureUsage.RenderTarget));
+                using GpuReadback readback = _gpu.CreateReadback(width, height, GpuFormat.Rgba8Unorm);
+                frame.Write<uint>(_constants, [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, (uint)mip, 0]);
+                var bindings = Bindings();
+                bindings.SetResource(2, texture);
+                frame.Draw(pipeline, new GpuTargets(target), bindings, GpuViewport.Of(width, height), new GpuDrawCall(4));
+                frame.Copy(target, new GpuBox(0, 0, width, height), readback);
+                byte[] pixels = new byte[width * height * 4];
+                readback.Read(pixels);
+                levels[mip] = pixels;
+            }
+        }
+
+        // El nivel 0 leído por la misma vía sale intacto: lo que se comprueba después es el nivel, no la lectura.
+        Assert.Equal(level0, levels[0]);
+        double[] global = Means(level0), mean = global;
+        for (int mip = 1; mip < mips; mip++)
+        {
+            byte[] expected = BoxAverage(levels[mip - 1], Size >> mip);
+            for (int i = 0; i < expected.Length; i++)
+            {
+                Assert.True(Math.Abs(levels[mip][i] - expected[i]) <= 2, $"mip {mip}, muestra {i}: {levels[mip][i]} frente a {expected[i]}");
+            }
+
+            double[] level = Means(levels[mip]);
+            Assert.All(Enumerable.Range(0, 4), c => Assert.True(Math.Abs(level[c] - mean[c]) <= 2,
+                $"mip {mip}, canal {c}: media {level[c]:0.#} frente a {mean[c]:0.#}"));
+            mean = level;
+        }
+
+        // El último nivel (1×1) es la media global del nivel 0.
+        Assert.All(Enumerable.Range(0, 4), c => Assert.True(Math.Abs(levels[^1][c] - global[c]) <= 2,
+            $"nivel 1×1, canal {c}: {levels[^1][c]} frente a la media global {global[c]:0.#}"));
     }
 
 
@@ -312,6 +390,45 @@ internal sealed class GpuEngineChecks : IDisposable
         new GpuVertexElement("COLOR", 0, GpuVertexFormat.Float4, 12));
 
     private static int Red(byte[] pixels, int x, int y) => pixels[((y * Size) + x) * 4];
+
+    /// <summary>La media de cada canal del nivel anterior, caja de 2×2 como <see cref="IGpuFrame.GenerateMips"/>.</summary>
+    private static byte[] BoxAverage(byte[] above, int width)
+    {
+        int up = width * 2, height = above.Length / (up * 8);
+        var result = new byte[width * height * 4];
+        for (int y = 0; y < height; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                int i = (((y * 2) * up) + (x * 2)) * 4, o = ((y * width) + x) * 4;
+                for (int c = 0; c < 4; c++)
+                {
+                    result[o + c] = (byte)((above[i + c] + above[i + 4 + c] + above[i + (up * 4) + c] + above[i + (up * 4) + 4 + c] + 2) / 4);
+                }
+            }
+        }
+
+        return result;
+    }
+
+    private static double[] Means(byte[] pixels)
+    {
+        var means = new double[4];
+        for (int i = 0; i < pixels.Length; i += 4)
+        {
+            for (int c = 0; c < 4; c++)
+            {
+                means[c] += pixels[i + c];
+            }
+        }
+
+        for (int c = 0; c < 4; c++)
+        {
+            means[c] /= pixels.Length / 4;
+        }
+
+        return means;
+    }
 
     public GpuPipeline Pipeline(string vertex, string pixel, GpuTopology topology = GpuTopology.TriangleStrip, GpuBlend blend = default,
         GpuDepthState depth = default, GpuRasterState? raster = null, GpuVertexLayout? layout = null, int samples = 1)

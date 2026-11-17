@@ -22,35 +22,38 @@ public sealed class EffectComparisonTests(ITestOutputHelper output)
         "muestreo-escala0.5", "downsample", "blur-h", "blur-v-medio-texel",
     };
 
-    // El informe de fase 0 identifica filtrado amplificado, PQ y discontinuidades; también se acota su error.
-    private static readonly Dictionary<string, string> s_warpExceptions = new(StringComparer.Ordinal)
+    // El informe de fase 0 identifica filtrado amplificado, PQ y discontinuidades; también se acota su error. Cada excepción
+    // lleva sus límites (media, p99,9 y máximo): lo medido frente a WARP en lavapipe (informe de la CI) y en la RTX 3050
+    // en proceso, con un margen de ≈1,5.
+    private static readonly Dictionary<string, (string Reason, double Mean, double P999, double Max)> s_warpExceptions = new(StringComparer.Ordinal)
     {
-        ["transition-0-degradado2"] = "atan2/frac cambia de lado en la diagonal de centros de píxel",
-        ["graded-COLOR+LUT+VIGNETTE+ADVANCED-hdr"] = "PQ y ADVANCED amplifican el filtrado y las trascendentes",
-        ["graded-ADVANCED-vista-calificador"] = "el filtrado amplificado por la rampa del calificador supera p99,9 (README fase 0)",
-        ["graded-COLOR+LUT+VIGNETTE-hdr"] = "PQ y filtrado arbitrario (README fase 0: máximo 4,9e-3)",
-        ["transition-0-empuje"] = "desplazamiento a fracciones arbitrarias: truncamiento bilineal de WARP",
-        ["transition-0-deslizar"] = "desplazamiento a fracciones arbitrarias: truncamiento bilineal de WARP",
-        ["transition-0-glitch"] = "desplazamiento a fracciones arbitrarias: truncamiento bilineal de WARP",
-        ["transition-BLEND-empuje-modo9"] = "fracciones arbitrarias amplificadas por la mezcla diferencia",
-        ["muestreo-escala0.9"] = "sonda de fracciones arbitrarias: truncamiento bilineal de WARP (README fase 0)",
-        ["fx-distorsion"] = "coordenadas arbitrarias: truncamiento bilineal de WARP (README fase 0)",
-        ["fx-reencuadre360"] = "coordenadas arbitrarias y asin (README fase 0)",
-        ["fx-reencuadre360-estereo"] = "coordenadas arbitrarias y asin (README fase 0)",
-        ["transition-0-rebote"] = "el bilineal de WARP amplificado supera la media propuesta (fase 0: 3,2e-4)",
-        ["graded-COLOR+LUT+VIGNETTE+ADVANCED-girado"] = "bilineal arbitrario amplificado por ADVANCED en la capa girada (fase 0: 2,5e-2)",
-        ["graded-COLOR+LUT+VIGNETTE+ADVANCED-interpolado"] = "bilineal arbitrario amplificado por ADVANCED en la capa girada (fase 0: 8,2e-2)",
-        ["sharpen-umbral"] = "el umbral de la nitidez es un escalón: en lavapipe unos pocos píxeles del borde pasan p99,9 (4,9e-3)",
-        ["graded-ADVANCED-centros"] = "la fuente está centrada, pero curvas y LUT usan fracciones arbitrarias",
-        ["graded-ADVANCED-solo-curvas-tono-centros"] = "la tabla de curvas usa fracciones arbitrarias aunque la fuente esté centrada",
+        ["transition-0-degradado2"] = ("atan2/frac cambia de lado en la diagonal de centros de píxel", 3.9e-3, 9.5e-1, 1.3),
+        ["graded-COLOR+LUT+VIGNETTE+ADVANCED-hdr"] = ("PQ y ADVANCED amplifican el filtrado y las trascendentes", 7.2e-3, 9.5e-1, 1.45),
+        ["graded-ADVANCED-vista-calificador"] = ("el filtrado amplificado por la rampa del calificador supera p99,9 (README fase 0)", 2.1e-4, 2e-2, 3.3e-2),
+        ["graded-COLOR+LUT+VIGNETTE-hdr"] = ("PQ y filtrado arbitrario (README fase 0: máximo 4,9e-3)", 3.9e-4, 5.9e-3, 1.1e-2),
+        ["transition-0-empuje"] = ("desplazamiento a fracciones arbitrarias: truncamiento bilineal de WARP", 3.6e-4, 1.5e-3, 1.5e-3),
+        ["transition-0-deslizar"] = ("desplazamiento a fracciones arbitrarias: truncamiento bilineal de WARP", 3.4e-4, 1.5e-3, 1.5e-3),
+        ["transition-0-glitch"] = ("desplazamiento a fracciones arbitrarias: truncamiento bilineal de WARP", 3.3e-4, 1.5e-3, 1.5e-3),
+        ["transition-BLEND-empuje-modo9"] = ("fracciones arbitrarias amplificadas por la mezcla diferencia", 3.5e-4, 1.5e-3, 1.5e-3),
+        ["muestreo-escala0.9"] = ("sonda de fracciones arbitrarias: truncamiento bilineal de WARP (README fase 0)", 3.6e-4, 2.2e-3, 2.2e-3),
+        ["fx-distorsion"] = ("coordenadas arbitrarias: truncamiento bilineal de WARP (README fase 0)", 3.8e-4, 2.2e-3, 2.2e-3),
+        ["fx-reencuadre360"] = ("coordenadas arbitrarias y asin (README fase 0)", 4e-4, 2.2e-3, 3e-3),
+        ["fx-reencuadre360-estereo"] = ("coordenadas arbitrarias y asin (README fase 0)", 3.9e-4, 2.2e-3, 2.6e-3),
+        ["transition-0-rebote"] = ("el bilineal de WARP amplificado supera la media propuesta (fase 0: 3,2e-4)", 5.9e-4, 2.2e-3, 2.2e-3),
+        ["graded-COLOR+LUT+VIGNETTE+ADVANCED-girado"] = ("bilineal arbitrario amplificado por ADVANCED en la capa girada (fase 0: 2,5e-2)", 2.5e-4, 1.8e-2, 1.2e-1),
+        ["graded-COLOR+LUT+VIGNETTE+ADVANCED-interpolado"] = ("bilineal arbitrario amplificado por ADVANCED en la capa girada (fase 0: 8,2e-2)", 2.6e-4, 1.8e-2, 1.3e-1),
+        ["sharpen-umbral"] = ("el umbral de la nitidez es un escalón: en lavapipe unos pocos píxeles del borde pasan p99,9 (4,9e-3)", 2.1e-4, 7.4e-3, 1.4e-2),
+        ["graded-ADVANCED-centros"] = ("la fuente está centrada, pero curvas y LUT usan fracciones arbitrarias", 2e-4, 3.7e-3, 5.2e-3),
+        ["graded-ADVANCED-solo-curvas-tono-centros"] = ("la tabla de curvas usa fracciones arbitrarias aunque la fuente esté centrada", 1.1e-4, 1.5e-3, 1.9e-3),
     };
 
-    private static readonly Dictionary<string, string> s_hardwareExceptions = new(StringComparer.Ordinal)
+    // Solo corre en Windows con GPU de verdad: los límites salen de la RTX 3050 con el mismo margen de ≈1,5.
+    private static readonly Dictionary<string, (string Reason, double Mean, double P999, double Max)> s_hardwareExceptions = new(StringComparer.Ordinal)
     {
-        ["transition-0-degradado2"] = "discontinuidad de atan2/frac en centros (control del README)",
-        ["graded-COLOR+LUT+VIGNETTE-hdr"] = "pow en PQ (control del README: 1,465e-3)",
-        ["graded-COLOR+LUT+VIGNETTE+ADVANCED-hdr"] = "pow en PQ y ADVANCED (control del README: 5,9e-3)",
-        ["fx-reencuadre360-estereo"] = "asin del controlador frente a fxc (control del README: 1,2e-3)",
+        ["transition-0-degradado2"] = ("discontinuidad de atan2/frac en centros (control del README)", 3.7e-3, 9.5e-1, 1.3),
+        ["graded-COLOR+LUT+VIGNETTE-hdr"] = ("pow en PQ (control del README: 1,465e-3)", 5e-7, 7.5e-7, 2.2e-3),
+        ["graded-COLOR+LUT+VIGNETTE+ADVANCED-hdr"] = ("pow en PQ y ADVANCED (control del README: 5,9e-3)", 1.3e-6, 1e-6, 8.8e-3),
+        ["fx-reencuadre360-estereo"] = ("asin del controlador frente a fxc (control del README: 1,2e-3)", 4.2e-5, 7.4e-4, 1.9e-3),
     };
 
     [WarpGenerationFact]
@@ -183,11 +186,13 @@ public sealed class EffectComparisonTests(ITestOutputHelper output)
 
             Array.Sort(errors);
             double max = errors[^1], mean = errors.Average(), p999 = errors[(int)Math.Ceiling(errors.Length * 0.999) - 1];
-            Dictionary<string, string> exceptions = hardware ? s_hardwareExceptions : s_warpExceptions;
-            bool exception = exceptions.TryGetValue(spec.Name, out string? reason);
+            Dictionary<string, (string Reason, double Mean, double P999, double Max)> exceptions = hardware ? s_hardwareExceptions : s_warpExceptions;
+            bool exception = exceptions.TryGetValue(spec.Name, out (string Reason, double Mean, double P999, double Max) limits);
             string criterion = exception ? "excepción" : hardware ? "iii" : s_exact.Contains(spec.Name) ? "i" : "ii";
-            bool passed = exception ? mean <= 5e-3 : criterion is "i" or "iii" ? max <= 1e-3 : mean <= 2e-4 && p999 <= 4e-3;
-            results.Add(new ComparisonResult(comparison, spec.Name, criterion, max, mean, p999, passed, reason));
+            bool passed = exception
+                ? mean <= limits.Mean && p999 <= limits.P999 && max <= limits.Max
+                : criterion is "i" or "iii" ? max <= 1e-3 : mean <= 2e-4 && p999 <= 4e-3;
+            results.Add(new ComparisonResult(comparison, spec.Name, criterion, max, mean, p999, passed, exception ? limits.Reason : null));
         }
 
         return results;
@@ -227,6 +232,30 @@ public sealed class EffectComparisonTests(ITestOutputHelper output)
     private sealed record ReferenceManifest(int Width, int Height, string Encoding, ReferenceCase[] Cases);
     private sealed record ComparisonResult(string Comparison, string Name, string Criterion,
         double MaxError, double MeanError, double P999, bool Passed, string? Reason);
+}
+
+/// <summary>La carpeta con las salidas de WARP que deja el trabajo «Referencias de efectos (WARP)» de la CI.</summary>
+public static class WarpReferences
+{
+    public const string Variable = "RODAJE_REFERENCIAS_WARP";
+
+    /// <summary>La carpeta de la variable, o <c>null</c> fuera del trabajo dedicado.</summary>
+    public static string? Folder => Environment.GetEnvironmentVariable(Variable) is { Length: > 0 } folder ? folder : null;
+
+    /// <summary>Motivo de omisión cuando el sistema no tiene WARP en el proceso ni la carpeta de la CI.</summary>
+    public static string? Missing => OperatingSystem.IsWindowsVersionAtLeast(7) || Folder is not null
+        ? null
+        : "Omitida: sin RODAJE_REFERENCIAS_WARP no hay referencia de WARP en este sistema.";
+}
+
+/// <summary>
+/// La comparación con la salida de WARP: en Windows va en el propio proceso; en otro sistema hace falta la carpeta del
+/// trabajo dedicado de la CI. Con la variable puesta no se omite: lo que falte lo falla el cuerpo de la prueba.
+/// </summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class WarpComparisonTheoryAttribute : TheoryAttribute
+{
+    public WarpComparisonTheoryAttribute() => Skip = VulkanTestGpu.SkipReason ?? WarpReferences.Missing;
 }
 
 [AttributeUsage(AttributeTargets.Method)]

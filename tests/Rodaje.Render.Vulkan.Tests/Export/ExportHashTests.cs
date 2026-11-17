@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Probe;
@@ -13,6 +14,7 @@ using Rodaje.Media.Proxies;
 using Rodaje.Render.Gpu;
 using Rodaje.Render.Gpu.Vulkan;
 using Rodaje.Render.Tests.Gpu;
+using Rodaje.Render.Tests.Variants;
 using Xunit.Abstractions;
 
 namespace Rodaje.Render.Tests.Export;
@@ -31,15 +33,17 @@ namespace Rodaje.Render.Tests.Export;
 /// </remarks>
 public sealed class ExportHashTests(ITestOutputHelper output)
 {
-    private const string ReferenceVariable = "RODAJE_REFERENCIAS_WARP";
+    internal const string ReferenceVariable = WarpReferences.Variable;
 
-    [VulkanFact]
+    /// <summary>Motivo de omisión sin FFmpeg; con <see cref="WarpReferences.Folder"/> puesta, en cambio, es un fallo.</summary>
+    internal static string? Unavailable() => s_ffmpeg.Value.Reason;
+
+    [ExportFact]
     public async Task Vulkan_exports_animated_titles_and_checks_missing_fonts()
     {
         if (Unavailable() is { } reason)
         {
-            output.WriteLine(reason);
-            return;
+            Assert.Fail($"El trabajo dedicado exige FFmpeg ({ReferenceVariable}): {reason}");
         }
         string root = AppContext.BaseDirectory;
         while (!File.Exists(Path.Combine(root, "Rodaje.slnx")))
@@ -126,23 +130,23 @@ public sealed class ExportHashTests(ITestOutputHelper output)
 
     public static TheoryData<string> Codecs => ["ffv1", "prores_ks"];
 
-    [VulkanTheory]
+    [ExportComparisonTheory]
     [MemberData(nameof(Codecs))]
     public async Task Vulkan_exports_the_same_frames_as_d3d11_warp(string encoder)
     {
         if (Unavailable() is { } reason)
         {
-            output.WriteLine(reason);
-            return;
+            Assert.Fail($"El trabajo dedicado exige FFmpeg ({ReferenceVariable}): {reason}");
         }
 
         using var scratch = new Scratch();
         string vulkan = await ExportAsync(encoder, () => VulkanGpu.Create(preferSoftware: true), null, scratch.Combine("vulkan"));
+        // Sin RODAJE_REFERENCIAS_WARP fuera de Windows la teoría se omite en el descubrimiento: solo se llega aquí sin
+        // referencia cuando la variable está puesta (el trabajo dedicado), y entonces es un fallo.
         string? reference = await ReferenceAsync(encoder, scratch);
         if (reference is null)
         {
-            output.WriteLine($"Sin la exportación de WARP para {encoder} ({ReferenceVariable}): solo se comprobó que exporta.");
-            return;
+            Assert.Fail($"Falta la exportación de WARP para {encoder} en {WarpReferences.Folder}: la genera el trabajo «Referencias de efectos (WARP)» de la CI.");
         }
 
         string format = PixelFormat(encoder);
@@ -191,14 +195,13 @@ public sealed class ExportHashTests(ITestOutputHelper output)
     }
 
     /// <summary>Con <c>RODAJE_REFERENCIAS_WARP</c> en Windows, deja la exportación con WARP para el trabajo de Linux.</summary>
-    [Fact]
+    [WarpGenerationFact]
+    [SupportedOSPlatform("windows7.0")]
     public async Task Generate_warp_references()
     {
-        string? folder = Environment.GetEnvironmentVariable(ReferenceVariable);
-        if (folder is null || !OperatingSystem.IsWindowsVersionAtLeast(7) || Unavailable() is not null)
-        {
-            return;
-        }
+        string? unavailable = Unavailable();
+        Assert.True(unavailable is null, unavailable);
+        string folder = Environment.GetEnvironmentVariable(ReferenceVariable)!;
 
         Directory.CreateDirectory(folder);
         foreach (MediaRef media in s_project.Value.Media)
@@ -215,8 +218,6 @@ public sealed class ExportHashTests(ITestOutputHelper output)
     private static readonly Lazy<(FfmpegExecutable? Ffmpeg, string? Reason)> s_ffmpeg = new(() =>
         Rodaje.TestMedia.Skip.FfmpegLibraries is { } libraries ? (null, libraries)
         : FfmpegExecutable.TryLocate(out string? failure) is { } ffmpeg ? (ffmpeg, null) : (null, "Omitida: " + failure));
-
-    private static string? Unavailable() => s_ffmpeg.Value.Reason;
 
     private static FfmpegExecutable Ffmpeg => s_ffmpeg.Value.Ffmpeg!;
 
@@ -358,4 +359,22 @@ public sealed class ExportHashTests(ITestOutputHelper output)
 
         public void Dispose() => Directory.Delete(_folder, recursive: true);
     }
+}
+
+/// <summary>Una prueba de exportación: necesita Vulkan y FFmpeg. Sin <c>RODAJE_REFERENCIAS_WARP</c> no se omite FFmpeg
+/// para que en el trabajo dedicado de la CI su ausencia sea un fallo, no una omisión.</summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class ExportFactAttribute : FactAttribute
+{
+    public ExportFactAttribute() =>
+        Skip = VulkanTestGpu.SkipReason ?? (WarpReferences.Folder is null ? ExportHashTests.Unavailable() : null);
+}
+
+/// <summary>Como <see cref="WarpComparisonTheoryAttribute"/>, y además FFmpeg cuando el trabajo dedicado no lo exige.</summary>
+[AttributeUsage(AttributeTargets.Method)]
+public sealed class ExportComparisonTheoryAttribute : TheoryAttribute
+{
+    public ExportComparisonTheoryAttribute() =>
+        Skip = VulkanTestGpu.SkipReason ?? WarpReferences.Missing
+            ?? (WarpReferences.Folder is null ? ExportHashTests.Unavailable() : null);
 }

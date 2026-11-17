@@ -1,3 +1,4 @@
+using Rodaje.Media.Gpu;
 using TerraFX.Interop.Vulkan;
 using static TerraFX.Interop.Vulkan.Vulkan;
 using static TerraFX.Interop.Vulkan.VkStructureType;
@@ -31,20 +32,28 @@ internal sealed unsafe class FrameContext
         VkCommandPool pool;
         gpu.Check(vkCreateCommandPool(device, &poolInfo, null, &pool), "vkCreateCommandPool");
         _pool = pool;
-        var allocate = new VkCommandBufferAllocateInfo
+        try
         {
-            sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            commandPool = pool,
-            level = VkCommandBufferLevel.VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            commandBufferCount = 1,
-        };
-        VkCommandBuffer commands;
-        gpu.Check(vkAllocateCommandBuffers(device, &allocate, &commands), "vkAllocateCommandBuffers");
-        Commands = commands;
-        var fenceInfo = new VkFenceCreateInfo { sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
-        VkFence fence;
-        gpu.Check(vkCreateFence(device, &fenceInfo, null, &fence), "vkCreateFence");
-        Fence = fence;
+            var allocate = new VkCommandBufferAllocateInfo
+            {
+                sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
+                commandPool = pool,
+                level = VkCommandBufferLevel.VK_COMMAND_BUFFER_LEVEL_PRIMARY,
+                commandBufferCount = 1,
+            };
+            VkCommandBuffer commands;
+            gpu.Check(vkAllocateCommandBuffers(device, &allocate, &commands), "vkAllocateCommandBuffers");
+            Commands = commands;
+            var fenceInfo = new VkFenceCreateInfo { sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO };
+            VkFence fence;
+            gpu.Check(vkCreateFence(device, &fenceInfo, null, &fence), "vkCreateFence");
+            Fence = fence;
+        }
+        catch
+        {
+            vkDestroyCommandPool(device, pool, null);
+            throw;
+        }
     }
 
     public VkCommandBuffer Commands { get; }
@@ -52,6 +61,24 @@ internal sealed unsafe class FrameContext
     public VkFence Fence { get; }
 
     public long Serial { get; private set; }
+
+    /// <summary>Hilos esperando su valla (bajo el candado de contextos de <see cref="VulkanGpu"/>).</summary>
+    public int Waiters { get; set; }
+
+    /// <summary>Terminó con esperas pendientes: vuelve a la reserva cuando acaba la última.</summary>
+    public bool Retired { get; set; }
+
+    /// <summary>Superficies adquiridas por el cuadro que cerró en este envío; se sueltan cuando termina.</summary>
+    public List<IDecoderSurface>? Retained { get; set; }
+
+    public void TakeRetained(ref List<IDecoderSurface>? into)
+    {
+        if (Retained is { } retained)
+        {
+            (into ??= []).AddRange(retained);
+            Retained = null;
+        }
+    }
 
     public void Begin(VulkanGpu gpu, long serial)
     {
@@ -229,11 +256,19 @@ internal sealed unsafe class DefaultResources
     public DefaultResources(VulkanGpu gpu)
     {
         _gpu = gpu;
-        var usage = GpuTextureUsage.Sampled | GpuTextureUsage.Storage;
-        Texture2D = VulkanTexture.Create(gpu, new GpuTextureDesc(1, 1, GpuFormat.Rgba16Float, usage), new byte[8]);
-        Texture3D = VulkanTexture.Create(gpu, new GpuTextureDesc(1, 1, GpuFormat.Rgba16Float, GpuTextureUsage.Sampled, Depth: 1), new byte[8], forceThreeD: true);
-        Buffer = VulkanBuffer.Create(gpu, new GpuBufferDesc(65536, GpuBufferKind.Raw, Storage: true), new byte[65536]);
-        Sampler = new VulkanSampler(gpu, default);
+        var usage = GpuTextureUsage.Sampled | (gpu.CanStoreWithoutFormat(VkFormat.VK_FORMAT_R16G16B16A16_SFLOAT) ? GpuTextureUsage.Storage : 0);
+        try
+        {
+            Texture2D = VulkanTexture.Create(gpu, new GpuTextureDesc(1, 1, GpuFormat.Rgba16Float, usage), new byte[8]);
+            Texture3D = VulkanTexture.Create(gpu, new GpuTextureDesc(1, 1, GpuFormat.Rgba16Float, GpuTextureUsage.Sampled, Depth: 1), new byte[8], forceThreeD: true);
+            Buffer = VulkanBuffer.Create(gpu, new GpuBufferDesc(65536, GpuBufferKind.Raw, Storage: true), new byte[65536]);
+            Sampler = new VulkanSampler(gpu, default);
+        }
+        catch
+        {
+            Destroy();
+            throw;
+        }
     }
 
     public VulkanTexture Texture2D { get; }
@@ -246,10 +281,10 @@ internal sealed unsafe class DefaultResources
 
     public void Destroy()
     {
-        Texture2D.DestroyNow();
-        Texture3D.DestroyNow();
-        Buffer.DestroyNow();
-        Sampler.DestroyNow();
+        Texture2D?.DestroyNow();
+        Texture3D?.DestroyNow();
+        Buffer?.DestroyNow();
+        Sampler?.DestroyNow();
     }
 }
 
@@ -278,4 +313,23 @@ internal static class VulkanFormats
     };
 
     public static bool IsInteger(GpuFormat format) => format is GpuFormat.R16Uint or GpuFormat.R32Uint;
+
+    /// <summary>El <c>Image Format</c> de SPIR-V que corresponde a <paramref name="format"/>; -1 si no tiene.</summary>
+    public static int Spirv(GpuFormat format) => format switch
+    {
+        GpuFormat.Rgba32Float => 1,
+        GpuFormat.Rgba16Float => 2,
+        GpuFormat.R32Float => 3,
+        GpuFormat.Rgba8Unorm => 4,
+        GpuFormat.Rg32Float => 6,
+        GpuFormat.Rgba16Unorm => 10,
+        GpuFormat.Rgb10A2Unorm => 11,
+        GpuFormat.Rg16Unorm => 12,
+        GpuFormat.Rg8Unorm => 13,
+        GpuFormat.R16Unorm => 14,
+        GpuFormat.R8Unorm => 15,
+        GpuFormat.R32Uint => 33,
+        GpuFormat.R16Uint => 38,
+        _ => -1,
+    };
 }

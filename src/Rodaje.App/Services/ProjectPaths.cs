@@ -12,9 +12,12 @@ internal static class ProjectPaths
     public static bool IsProjectFile(string path) =>
         string.Equals(Path.GetExtension(path), ProjectSerializer.FileExtension, StringComparison.OrdinalIgnoreCase);
 
-    /// <summary>Resuelve las rutas relativas del proyecto recién leído contra la carpeta de su archivo.</summary>
+    /// <summary>El mapeo de rutas de Preferencias, que se aplica a las rutas de los medios al abrir un proyecto.</summary>
+    public static IReadOnlyList<PathMapping> Mappings { get; set; } = [];
+
+    /// <summary>Resuelve las rutas relativas del proyecto recién leído contra la carpeta de su archivo, con <see cref="Mappings"/>.</summary>
     public static void MakeAbsolute(Project project, string projectDirectory) =>
-        ProjectFilePaths.MakeAbsolute(project, projectDirectory);
+        ProjectFilePaths.MakeAbsolute(project, projectDirectory, Mappings);
 
     /// <summary>
     /// Copia para guardar en <paramref name="projectDirectory"/>, con las rutas relativas a esa carpeta cuando se puede: las

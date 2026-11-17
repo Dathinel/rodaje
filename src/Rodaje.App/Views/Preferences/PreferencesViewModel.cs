@@ -17,6 +17,7 @@ public sealed class PreferencesViewModel(AppSettings settings)
     public int AutosaveMinutes { get => Settings.AutosaveMinutes; set => Settings.AutosaveMinutes = Rodaje.Core.Serialization.AutosaveSchedule.ClampMinutes(value); }
     public bool CheckForUpdates { get => Settings.CheckForUpdates; set => Settings.CheckForUpdates = value; }
     public string GeneratedMediaFolder { get => Settings.GeneratedMediaFolder ?? ""; set => Settings.GeneratedMediaFolder = string.IsNullOrWhiteSpace(value) ? null : value; }
+    public string PathMappings { get => PathMappingText.Format(Settings.PathMappings); set => Settings.PathMappings = PathMappingText.Parse(value); }
     public string StillCaptureFolder { get => Settings.StillCaptureFolder ?? ""; set => Settings.StillCaptureFolder = string.IsNullOrWhiteSpace(value) ? null : value; }
     public IReadOnlyList<int> LinkedAudioVideoTracks => Settings.LinkedAudioTracks.IsAll
         ? Enumerable.Range(1, NewProjectTracks.Max).ToArray()
