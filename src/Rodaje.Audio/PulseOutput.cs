@@ -20,6 +20,7 @@ namespace Rodaje.Audio;
 public sealed unsafe class PulseOutput : IAudioOutput, IRenderTransport
 {
     private const int ControlTimeoutMilliseconds = 2000;
+    private const int MaxReopenDepth = 3;
     private const int FrameBytes = 2 * sizeof(float);
     private static readonly TimeSpan OpenTimeout = TimeSpan.FromSeconds(3);
     private static readonly TimeSpan OperationTimeout = TimeSpan.FromSeconds(1);
@@ -60,6 +61,7 @@ public sealed unsafe class PulseOutput : IAudioOutput, IRenderTransport
 
     private AudioDeviceInfo? _device;
     private int _restarts;
+    private int _reopenDepth;
     private int _controlTimeouts;
     private int _disposed;
 
@@ -174,6 +176,9 @@ public sealed unsafe class PulseOutput : IAudioOutput, IRenderTransport
         {
             _thread.Join();
         }
+
+        // Cerrada, el reloj se congela como en WasapiOutput (si corría libre seguiría avanzando).
+        _model.Stop(Now());
 
         _ready.Dispose();
     }
@@ -598,9 +603,21 @@ public sealed unsafe class PulseOutput : IAudioOutput, IRenderTransport
         Pulse.Close(ref _stream);
         Interlocked.Increment(ref _restarts);
         EnterFreeRun(Now());
-        if (TryOpenStream(out string? error))
+        // Abrir bien y arrancar mal vuelve a entrar aquí (Resume → Start → Reopen): con tope, como WASAPI; si no, corre
+        // libre y el bucle reintenta cada segundo.
+        string? error = "se intentó reabrir demasiadas veces seguidas";
+        if (_reopenDepth < MaxReopenDepth && TryOpenStream(out error))
         {
-            Resume();
+            _reopenDepth++;
+            try
+            {
+                Resume();
+            }
+            finally
+            {
+                _reopenDepth--;
+            }
+
             if (Device is { } info)
             {
                 RaiseDeviceChanged(info, lost ? $"Se perdió {previous} ({why}). El audio sigue por {info.Name}." : $"El audio ahora suena por {info.Name}.");

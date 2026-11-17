@@ -282,8 +282,18 @@ internal sealed unsafe class PulseCapture : IAudioCapture
                 long now = Pulse.Now100ns();
                 long age = Pulse.pa_stream_get_latency(stream, &latency, &negative) >= 0 && negative == 0 ? (long)latency * 10 : 0;
                 LastReportedLatency = TimeSpan.FromTicks(age);
-                handler(new ReadOnlySpan<float>(data, (int)(bytes / sizeof(float))), now - age, discontinuity);
-                discontinuity = false;
+                try
+                {
+                    handler(new ReadOnlySpan<float>(data, (int)(bytes / sizeof(float))), now - age, discontinuity);
+                    discontinuity = false;
+                }
+#pragma warning disable CA1031 // Una excepción del receptor no puede tumbar el hilo de captura: el paquete cuenta como perdido.
+                catch (Exception)
+#pragma warning restore CA1031
+                {
+                    discontinuity = true;
+                }
+
                 _ = Pulse.pa_stream_drop(stream);
             }
         }
