@@ -170,7 +170,8 @@ public sealed class CoreAudioOutputTests(ITestOutputHelper output)
             var wall = new List<long>();
             var position = new List<double>();
             audio.Clock.Start();
-            while (audio.Clock.Position.ToSeconds() < 1.6)
+            var limit = System.Diagnostics.Stopwatch.StartNew();
+            while (audio.Clock.Position.ToSeconds() < 1.6 && limit.Elapsed < TimeSpan.FromSeconds(10))
             {
                 wall.Add(ClickSource.Now100ns());
                 position.Add(audio.Clock.Position.ToSeconds());
@@ -194,6 +195,7 @@ public sealed class CoreAudioOutputTests(ITestOutputHelper output)
 
             Assert.True(heard.HasValue, $"El clic no apareció en la entrada del bucle ({packets.Count} paquetes).");
             int crossing = position.FindIndex(p => p >= 1.0);
+            Assert.True(crossing > 0, "El reloj no llegó a 1 s.");
             double fraction = (1.0 - position[crossing - 1]) / (position[crossing] - position[crossing - 1]);
             double clockAt = wall[crossing - 1] + (fraction * (wall[crossing] - wall[crossing - 1]));
             double offsetMs = (heard.Value - clockAt) / TimeSpan.TicksPerMillisecond;

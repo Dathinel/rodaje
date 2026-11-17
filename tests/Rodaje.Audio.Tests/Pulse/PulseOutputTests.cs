@@ -181,7 +181,8 @@ public sealed class PulseOutputTests(ITestOutputHelper output)
         var wall = new List<long>();
         var position = new List<double>();
         audio.Clock.Start();
-        while (audio.Clock.Position.ToSeconds() < 1.6)
+        var limit = Stopwatch.StartNew();
+        while (audio.Clock.Position.ToSeconds() < 1.6 && limit.Elapsed < TimeSpan.FromSeconds(10))
         {
             wall.Add(Now100ns());
             position.Add(audio.Clock.Position.ToSeconds());

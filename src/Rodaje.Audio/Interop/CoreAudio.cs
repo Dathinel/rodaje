@@ -57,6 +57,9 @@ internal struct AudioTimeStampHead
 internal unsafe struct AudioBufferListOne
 {
     public uint NumberBuffers;
+
+    // AudioBuffer lleva un puntero y va alineado a 8: hay 4 bytes de relleno tras mNumberBuffers.
+    public uint Padding;
     public uint NumberChannels;
     public uint DataByteSize;
     public void* Data;
