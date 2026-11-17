@@ -18,6 +18,8 @@ public static class Program
         "-spirv",
         "-fspv-target-env=vulkan1.1",
         "-O3",
+        // Imágenes de escritura sin formato declarado: el de la vista manda (Rgba16Float, Rg8/Rg16Unorm…), ver VulkanFrame.Bind.
+        "-fspv-use-unknown-image-format",
         "-fvk-b-shift", $"{BShift}", "0",
         "-fvk-t-shift", $"{TShift}", "0",
         "-fvk-s-shift", $"{SShift}", "0",

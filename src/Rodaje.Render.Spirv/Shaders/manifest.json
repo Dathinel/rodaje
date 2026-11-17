@@ -4,6 +4,7 @@
     "-spirv",
     "-fspv-target-env=vulkan1.1",
     "-O3",
+    "-fspv-use-unknown-image-format",
     "-fvk-b-shift",
     "0",
     "0",
@@ -5729,7 +5730,7 @@
       "entryPoint": "CsScale",
       "profile": "cs_6_0",
       "defines": [],
-      "sha256": "a882abb6731889cbcc1b4c13ad68e538c87996f0aef73e9c55c94a0bcc1f83ff",
+      "sha256": "677d5090208cdff6f84de7d9013e6acd9bcf6e421f270a96e515646a8fc8b5ee",
       "resources": [
         {
           "register": "b0",
@@ -5982,7 +5983,7 @@
       "entryPoint": "CsBlend",
       "profile": "cs_6_0",
       "defines": [],
-      "sha256": "52b2274936be75d92e1dfcbb279ca05df2ba9559900d7d8d003640b58cdbce33",
+      "sha256": "4b325e0e935bd266e4944482a3fbaa32e2d40b14018260e2d5f01520d21b6131",
       "resources": [
         {
           "register": "b0",
@@ -6026,7 +6027,7 @@
       "defines": [
         "CHROMA"
       ],
-      "sha256": "791154255e0b6d589df68a9a530bf97126ffdb5c904e5e781a576fa0ee73c953",
+      "sha256": "6635aa6f191af6c40ba0712b12311ba32bf1d877f7fa62e83055737ec2d59f9c",
       "resources": [
         {
           "register": "b0",
@@ -6068,7 +6069,7 @@
       "entryPoint": "Downsample",
       "profile": "cs_6_0",
       "defines": [],
-      "sha256": "5197f2b4c8033e20beaf8b856cba09ff655f8d5837caf72e89291ae5937c1492",
+      "sha256": "2c2190edcfc72112f8a5b326c1d21371c80eeebdbcd8185f65d7378d34dcf63b",
       "resources": [
         {
           "register": "b0",
@@ -6110,7 +6111,7 @@
       "entryPoint": "Search",
       "profile": "cs_6_0",
       "defines": [],
-      "sha256": "53b28ab416084f34899521e2fd82365af5b3ff5350d93a716b980a7cfc282872",
+      "sha256": "c655fef3e141e50ec72f7e7d96e4521c712ca7d5c0116953926b2af0f5ad1d88",
       "resources": [
         {
           "register": "b0",
@@ -6160,7 +6161,7 @@
       "entryPoint": "Densify",
       "profile": "cs_6_0",
       "defines": [],
-      "sha256": "119e386af069b58b1afefc0c549d00ce3a2d9c85a89c6e3dce48918685d8bb12",
+      "sha256": "8efefe34bd32e86d6e6b520650420e1175aec309ad3d5e9cedc33726d8d701fc",
       "resources": [
         {
           "register": "b0",
@@ -6210,7 +6211,7 @@
       "entryPoint": "Histogram",
       "profile": "cs_6_0",
       "defines": [],
-      "sha256": "d8ce56607b5fe601ba8b2f5a55020667cf44455f791dc47bdeeafae080ff2ea5",
+      "sha256": "89d9da692b1009cf2c053015238fd194e341dda54f0b0dfc7066033f6089a35a",
       "resources": [
         {
           "register": "b0",
@@ -6251,7 +6252,7 @@
       "entryPoint": "Residual",
       "profile": "cs_6_0",
       "defines": [],
-      "sha256": "3ceafeceabfb08dda766cce22468c12508351d09d9369ef00247df21d5853bb5",
+      "sha256": "a789e05c90c6d89d1e7d60ed21cebe9dfa953082db822b0d548d57c160a2da02",
       "resources": [
         {
           "register": "b0",
@@ -6300,7 +6301,7 @@
       "entryPoint": "Decide",
       "profile": "cs_6_0",
       "defines": [],
-      "sha256": "deb02f0d962fd341c6bf911040f2c80fbab1dfab6c7afab5da6cdbd04468c2f6",
+      "sha256": "792ee745f526118f686fc91970723674b0fb3f55f1aa7998919b459258f85bfd",
       "resources": [
         {
           "register": "b0",
@@ -6339,7 +6340,7 @@
       "entryPoint": "Warp",
       "profile": "cs_6_0",
       "defines": [],
-      "sha256": "cec9501023dc478c768af3d55da02e21e46b431fabd1590e78b18be1c852d8f3",
+      "sha256": "f0ea8facc1b87b666ed4a28e57715ece448c96f39d1a2ac015676d9592a2980d",
       "resources": [
         {
           "register": "b0",
@@ -6478,7 +6479,7 @@
       "entryPoint": "CsDraw",
       "profile": "cs_6_0",
       "defines": [],
-      "sha256": "e7a9e472b7cd2fa699c53aba8609a9c472cbf329646e5270895ea48a51d5efb2",
+      "sha256": "e736b837637c062218f49d767a2ace6c6b4238e8da68d5191197529978c52810",
       "resources": [
         {
           "register": "b0",
@@ -6511,7 +6512,7 @@
       "entryPoint": "CsDevelop",
       "profile": "cs_6_0",
       "defines": [],
-      "sha256": "6ce28478cd1b2122ac552780d0286a00ea1c06a72e045d31943c97e035ef7195",
+      "sha256": "08fb246e9f91b56ba01a0a889704e8e25ec73ca7ff8e6d4bbd5fbfacd77e4c7c",
       "resources": [
         {
           "register": "b0",
