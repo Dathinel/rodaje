@@ -18,7 +18,6 @@ using static Rodaje.Render.RenderException;
 namespace Rodaje.Render;
 
 /// <summary>Formato del destino de la composición.</summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public enum CompositeFormat
 {
     /// <summary>
@@ -43,7 +42,6 @@ public enum CompositeFormat
 /// <param name="TitlesPending">
 /// Títulos que todavía no estaban rasterizados: el cuadro sale sin ellos (también cuentan en <paramref name="LayersSkipped"/>).
 /// </param>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public readonly record struct CompositeResult(int LayersDrawn, int LayersSkipped, int EffectsApplied = 0, int EffectsSkipped = 0,
     int MissingContent = 0, long PoolBytes = 0, int TitlesPending = 0);
 
@@ -63,7 +61,6 @@ public readonly record struct CompositeResult(int LayersDrawn, int LayersSkipped
 /// de <see cref="LayerTransform"/> siguen en píxeles de la secuencia y se escalan al destino.
 /// </para>
 /// </remarks>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe partial class Compositor : IDisposable
 {
     private readonly GpuDevice? _gpu;

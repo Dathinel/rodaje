@@ -5,7 +5,6 @@ using TerraFX.Interop.DirectX;
 namespace Rodaje.Render;
 
 /// <summary>Una textura de destino y de lectura. <see cref="Width"/> y <see cref="Height"/> son los de la textura.</summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class RenderTarget(GpuTexture texture, long bytes) : IDisposable
 {
     public GpuTexture Gpu { get; } = texture;
@@ -50,7 +49,6 @@ internal sealed unsafe class RenderTarget(GpuTexture texture, long bytes) : IDis
 /// Los tamaños se redondean a 64 px para que una capa que cambia de escala no cree una textura por cuadro; quien la usa
 /// dibuja en la parte que pidió. Solo se usa desde el hilo que compone, con el candado del contexto tomado.
 /// </remarks>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed class RenderTargetPool : IDisposable
 {
     public const long MaxCapBytes = 300L * 1024 * 1024;
