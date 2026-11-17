@@ -105,7 +105,7 @@ public sealed class ManifestReaderTests
     [Fact]
     public void A_newer_format_asks_to_update_the_program()
     {
-        ManifestResult result = ManifestReader.Read(Samples.Manifest().Replace("\"formatVersion\": 1", "\"formatVersion\": 2", StringComparison.Ordinal));
+        ManifestResult result = ManifestReader.Read(Samples.Manifest().Replace("\"formatVersion\": 1", "\"formatVersion\": 3", StringComparison.Ordinal));
 
         Assert.False(result.IsValid);
         Assert.Contains("actualiza el programa", Assert.Single(result.Errors), StringComparison.Ordinal);
