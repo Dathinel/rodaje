@@ -72,6 +72,10 @@ Antes de afinar era +31 a +37 %: el motor ponía todo el estado en cada dibujo. 
 
 Una ronda de cada versión salió el doble de lenta por la carga de la máquina; con la mediana, el arranque no empeora. **Con esta dispersión el 2 % no se puede demostrar de fondo** (la diferencia entre rondas de la misma versión supera el 2 %); lo que sí se ve es que no hay una regresión mayor.
 
+### Tras unir
+
+Exe publicado desde `main` (19947402) con `app.ps1 -Publicar -Autoprueba`, de fondo: **2 de 3** en verde (61,2 y 60,5 s); la primera cerró con 0xC000027B (excepción guardada de WinUI) antes de terminar. El mismo cierre salió 2 de 5 veces con el exe de `main` **anterior** a la fase 3 en la tanda del arranque, así que no lo trae `IGpu`; queda como fallo intermitente para investigar aparte (no deja `rodaje-error.txt`).
+
 ## Revisión de bloque (Gemini, gemini-3.8-flash-high, solo lectura)
 
 Diez hallazgos; se arreglaron los reales y se descartaron los que no lo eran, con el porqué:
