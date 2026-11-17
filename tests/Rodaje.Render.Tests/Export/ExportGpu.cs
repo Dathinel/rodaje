@@ -35,13 +35,8 @@ internal sealed unsafe class ExportGpu : IDisposable
 
     public static ExportGpu Warp()
     {
-        ID3D11Device* device;
-        ID3D11DeviceContext* context;
-        D3D_FEATURE_LEVEL level;
-        D3D_FEATURE_LEVEL wanted = D3D_FEATURE_LEVEL.D3D_FEATURE_LEVEL_11_0;
-        Check(D3D11CreateDevice(null, D3D_DRIVER_TYPE.D3D_DRIVER_TYPE_WARP, HMODULE.NULL, 0, &wanted, 1, D3D11_SDK_VERSION,
-            &device, &level, &context));
-        return new ExportGpu(device, context, null, owned: true);
+        GpuDevice gpu = GpuDevice.CreateWarp();
+        return new ExportGpu((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, gpu, owned: true);
     }
 
     public static ExportGpu Hardware(GpuDevice gpu) =>
@@ -124,6 +119,14 @@ internal sealed unsafe class ExportGpu : IDisposable
     {
         if (!_owned)
         {
+            return;
+        }
+
+        if (Gpu != null)
+        {
+            Gpu.Dispose();
+            _context = null;
+            _device = null;
             return;
         }
 

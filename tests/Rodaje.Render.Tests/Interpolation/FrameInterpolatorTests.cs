@@ -11,6 +11,8 @@ using Rodaje.Render.Shaders;
 using Rodaje.Render.Tests.Support;
 using TerraFX.Interop.DirectX;
 using static Rodaje.Render.RenderException;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 
 namespace Rodaje.Render.Tests.Interpolation;
 
@@ -26,7 +28,7 @@ public sealed class FrameInterpolatorTests
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
         using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, 1024 * 1024);
+        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 1024 * 1024);
         using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
         using D3D11TexturePayload a = Create(false);
         using D3D11TexturePayload b = Create(true);
@@ -77,7 +79,7 @@ public sealed class FrameInterpolatorTests
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
         using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, 1024 * 1024);
+        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 1024 * 1024);
         using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
         using LayerFrame first = Pattern(gpu, tenBit, false, 32, 24);
         using LayerFrame second = Pattern(gpu, tenBit, true, 32, 24);
@@ -241,14 +243,14 @@ public sealed class FrameInterpolatorTests
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
         using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, 1024 * 1024);
+        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 1024 * 1024);
         using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
         using LayerFrame a = Pattern(gpu, false, false, 32, 24);
         using LayerFrame b = Pattern(gpu, true, false, 32, 24);
         using LayerFrame c = Pattern(gpu, false, false, 16, 24);
         Assert.Null(interpolator.Blend((D3D11TexturePayload)a.Frame.Payload!, (D3D11TexturePayload)b.Frame.Payload!, 0.5f));
         Assert.Null(interpolator.Blend((D3D11TexturePayload)a.Frame.Payload!, (D3D11TexturePayload)c.Frame.Payload!, 0.5f));
-        using RenderTarget rgb = RenderTarget.Create((ID3D11Device*)gpu.NativeDevice, 32, 24, DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM);
+        using RenderTarget rgb = RenderTarget.Create(D3D11Gpu.For(gpu), 32, 24, GpuFormat.Bgra8Unorm);
         using D3D11TexturePayload rgba = D3D11TexturePayload.FromTexture(gpu, (nint)rgb.Texture, 0, 32, 24, VideoColor.Bt709Limited);
         Assert.Null(interpolator.Blend(rgba, rgba, 0.5f));
         Assert.Equal(0, interpolator.TextureCount);
@@ -260,7 +262,7 @@ public sealed class FrameInterpolatorTests
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
         using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, 4608);
+        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 4608);
         using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
         using LayerFrame first = Pattern(gpu, false, false, 32, 24);
         using LayerFrame second = Pattern(gpu, false, true, 32, 24);
@@ -272,12 +274,12 @@ public sealed class FrameInterpolatorTests
         Assert.NotEqual(one.Texture, two.Texture);
         Assert.Equal(expected, ReadPlanes(gpu, one));
         Assert.Null(interpolator.Blend(a, b, 0.75f));
-        Assert.Null(pool.Rent(16, 16, DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM, exact: true));
+        Assert.Null(pool.Rent(16, 16, GpuFormat.Rgba8Unorm, exact: true));
         Assert.Equal(pool.CapBytes, pool.Bytes);
         interpolator.EndFrame();
         interpolator.Trim();
         Assert.Equal(0, pool.Bytes);
-        Assert.NotNull(pool.Rent(16, 16, DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM, exact: true));
+        Assert.NotNull(pool.Rent(16, 16, GpuFormat.Rgba8Unorm, exact: true));
     }
 
     [GpuArrayFact]
@@ -285,7 +287,7 @@ public sealed class FrameInterpolatorTests
     {
         using GpuDevice gpu = GpuDevice.Create();
         using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, 1024 * 1024);
+        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 1024 * 1024);
         using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
         var first = YuvImage.Solid(48, 32, false, new YuvCode(20, 60, 100));
         var second = YuvImage.Solid(48, 32, false, new YuvCode(200, 160, 120));

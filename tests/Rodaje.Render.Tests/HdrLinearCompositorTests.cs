@@ -10,6 +10,8 @@ using Rodaje.Render.Tests.Export;
 using Rodaje.Render.Tests.Support;
 using Rodaje.TestMedia;
 using TerraFX.Interop.DirectX;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 
 namespace Rodaje.Render.Tests;
 
@@ -128,28 +130,23 @@ public sealed class HdrLinearCompositorTests
 
         var device = (ID3D11Device*)gpu.NativeDevice;
         var context = (ID3D11DeviceContext*)gpu.NativeContext;
-        using var pipeline = new QuadPipeline(device, context);
-        ID3D11PixelShader* shader;
-        fixed (byte* bytes = legacyShader)
-        {
-            RenderException.Check(device->CreatePixelShader(bytes, (nuint)legacyShader.Length, null, &shader), "CreatePixelShader(presentador SDR)");
-        }
-
-        gpu.LockContext();
+        D3D11Gpu engine = D3D11Gpu.For(gpu);
+        using var pipeline = new QuadPipeline(engine);
+        using GpuShader shader = engine.CreateShader(legacyShader, "ps_5_0", "presentador SDR");
+        using GpuTexture targetTexture = D3D11Texture.View(default, rtv: (ID3D11RenderTargetView*)target.RenderTargetView);
+        pipeline.Frame = engine.BeginFrame();
         try
         {
-            float* black = stackalloc float[] { 0f, 0f, 0f, 1f };
-            context->ClearRenderTargetView((ID3D11RenderTargetView*)target.RenderTargetView, black);
-            pipeline.Bind((ID3D11RenderTargetView*)target.RenderTargetView, compositor.Width, compositor.Height, shader, null);
-            var view = (ID3D11ShaderResourceView*)compositor.ShaderResourceView;
-            context->PSSetShaderResources(2, 1, &view);
+            pipeline.Frame.Clear(targetTexture, GpuColor.OpaqueBlack);
+            pipeline.Bind(targetTexture, compositor.Width, compositor.Height, shader, GpuBlend.Opaque);
+            pipeline.SetInput(2, compositor.Output);
             pipeline.Draw(Presenter.Constants(new PixelRect(0, 0, compositor.Width, compositor.Height), compositor.Width, compositor.Height, false));
         }
         finally
         {
             pipeline.Unbind();
-            shader->Release();
-            gpu.UnlockContext();
+            pipeline.Frame.Dispose();
+            pipeline.Frame = null;
         }
 
         return target.Read().Pixels;

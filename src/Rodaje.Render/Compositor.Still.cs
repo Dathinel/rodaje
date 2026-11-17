@@ -1,5 +1,6 @@
+using System.Runtime.InteropServices;
 using Rodaje.Playback.Composition;
-using TerraFX.Interop.DirectX;
+using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render;
 
@@ -17,7 +18,7 @@ public sealed unsafe partial class Compositor
         var stats = default(FrameStats);
         int drawn = 0;
         using var layer = new LayerFrame(0, "still", [], LayerTransform.Identity) { Effects = effects };
-        _gpu.LockContext();
+        BeginStill();
         RenderTarget? source = null;
         try
         {
@@ -58,7 +59,7 @@ public sealed unsafe partial class Compositor
         int drawn = 0;
         var entering = new LayerFrame(1, "b", [], incomingTransform);
         using var layer = new LayerFrame(0, "a", [], outgoingTransform) { Transition = mix with { Incoming = entering } };
-        _gpu.LockContext();
+        BeginStill();
         RenderTarget? a = null;
         RenderTarget? b = null;
         try
@@ -111,25 +112,31 @@ public sealed unsafe partial class Compositor
             half[i] = (Half)(rgba[i] / 255f);
         }
 
-        fixed (Half* data = half)
-        {
-            _context->UpdateSubresource((ID3D11Resource*)target.Texture, 0, null, data, (uint)(Width * 8), 0);
-        }
+        _pipeline.CurrentFrame.Write(target.Gpu, MemoryMarshal.AsBytes(half.AsSpan()), Width * 8);
 
         return target;
     }
 
     private void ClearOutput()
     {
-        float* black = stackalloc float[] { 0f, 0f, 0f, 1f };
-        _context->ClearRenderTargetView(_output!.Rtv, black);
+        _pipeline.CurrentFrame.Clear(_output!.Gpu, GpuColor.OpaqueBlack);
     }
+
+    private void BeginStill() => _pipeline.Frame = _engine.BeginFrame();
 
     private void EndStill()
     {
-        _layers.EndFrame();
-        _pipeline.Unbind();
-        _pool.EndFrame();
-        _gpu.UnlockContext();
+        IGpuFrame frame = _pipeline.CurrentFrame;
+        try
+        {
+            _layers.EndFrame();
+            _pipeline.Unbind();
+            _pool.EndFrame();
+        }
+        finally
+        {
+            _pipeline.Frame = null;
+            frame.Dispose();
+        }
     }
 }

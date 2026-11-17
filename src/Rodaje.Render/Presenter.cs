@@ -1,5 +1,7 @@
 using Rodaje.Core.Model;
 using Rodaje.Media.Gpu;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using TerraFX.Interop.DirectX;
 
 namespace Rodaje.Render;
@@ -12,15 +14,13 @@ namespace Rodaje.Render;
 public sealed unsafe class Presenter : IDisposable
 {
     private readonly GpuDevice _gpu;
-    private readonly ID3D11DeviceContext* _context;
     private readonly QuadPipeline _pipeline;
 
     public Presenter(GpuDevice gpu)
     {
         ArgumentNullException.ThrowIfNull(gpu);
         _gpu = gpu;
-        _context = (ID3D11DeviceContext*)gpu.NativeContext;
-        _pipeline = new QuadPipeline((ID3D11Device*)gpu.NativeDevice, _context);
+        _pipeline = new QuadPipeline(D3D11Gpu.For(gpu));
     }
 
     /// <summary>
@@ -66,34 +66,37 @@ public sealed unsafe class Presenter : IDisposable
             throw new ArgumentException("La composición es de otro dispositivo.", nameof(source));
         }
 
-        var target = (ID3D11RenderTargetView*)renderTargetView;
         PixelRect rect = placement ?? VideoLayout.Fit(targetWidth, targetHeight, source.Width, source.Height);
-        _gpu.LockContext();
+        // Sin guardar la envoltura: una referencia retenida al búfer de la cadena impediría redimensionarla.
+        using GpuTexture target = D3D11Texture.View(new GpuTextureDesc(targetWidth, targetHeight, GpuFormat.Unknown, GpuTextureUsage.RenderTarget),
+            rtv: (ID3D11RenderTargetView*)renderTargetView);
+        IGpuFrame frame = _pipeline.Engine.BeginFrame();
+        _pipeline.Frame = frame;
         try
         {
             (float r, float g, float b) = SurroundFor(Surround, ScRgb);
-            float* surround = stackalloc float[] { r, g, b, 1f };
-            _context->ClearRenderTargetView(target, surround);
+            frame.Clear(target, new GpuColor(r, g, b, 1f));
             if (rect.IsEmpty)
             {
                 return rect;
             }
 
-            var shaderView = (ID3D11ShaderResourceView*)source.ShaderResourceView;
+            GpuTexture composition = source.Output!;
             bool reduce = rect.Width < source.Width || rect.Height < source.Height;
             if (reduce)
             {
-                _context->GenerateMips(shaderView);
+                frame.GenerateMips(composition);
             }
 
             _pipeline.Bind(target, targetWidth, targetHeight, QuadPipeline.Shader.Present);
-            _context->PSSetShaderResources(2, 1, &shaderView);
+            _pipeline.SetInput(2, composition);
             _pipeline.Draw(Constants(rect, targetWidth, targetHeight, reduce, ModeFor(source.ColorSpace != SequenceColorSpace.Sdr709, ScRgb)));
         }
         finally
         {
             _pipeline.Unbind();
-            _gpu.UnlockContext();
+            _pipeline.Frame = null;
+            frame.Dispose();
         }
 
         return rect;

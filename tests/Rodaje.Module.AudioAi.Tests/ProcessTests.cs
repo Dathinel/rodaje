@@ -13,7 +13,7 @@ namespace Rodaje.Module.AudioAi.Tests;
 public class ProcessTests(ITestOutputHelper output)
 {
     private static string Exe =>
-        Environment.GetEnvironmentVariable("RODAJE_MODULO_AUDIO_IA") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.AudioAi.exe");
+        Environment.GetEnvironmentVariable("RODAJE_MODULO_AUDIO_IA") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.AudioAi" + (OperatingSystem.IsWindows() ? ".exe" : ""));
 
     private static async Task<ModuleProcess> StartAsync()
     {

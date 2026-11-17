@@ -179,6 +179,11 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
                 throw new PackageInstallException($"«{manifest.Name}» funciona en {string.Join(", ", manifest.Apps)}, no en este programa.");
             }
 
+            if (!manifest.RunsOn(PackageManifest.ThisPlatform))
+            {
+                throw new PackageInstallException($"«{manifest.Name}» es para {manifest.Platform} y este equipo es {PackageManifest.ThisPlatform}: baja el de tu sistema.");
+            }
+
             if (!OperatingSystem.IsWindows() && manifest.Module is { } module)
             {
                 MakeExecutable(staging, module.Entry);

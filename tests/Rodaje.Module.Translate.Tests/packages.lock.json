@@ -1,7 +1,7 @@
 {
   "version": 1,
   "dependencies": {
-    "net10.0-windows7.0": {
+    "net10.0": {
       "coverlet.collector": {
         "type": "Direct",
         "requested": "[10.1.0, )",
@@ -180,7 +180,7 @@
           "LLamaSharp": "[0.27.0, )",
           "LLamaSharp.Backend.Cpu": "[0.27.0, )",
           "LLamaSharp.Backend.Vulkan.Windows": "[0.27.0, )",
-          "Rodaje.Modules.Protocol": "[1.0.0, )"
+          "Rodaje.Modules.Protocol": "[1.0.3, )"
         }
       },
       "rodaje.modules.protocol": {
