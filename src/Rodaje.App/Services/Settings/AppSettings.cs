@@ -50,6 +50,9 @@ public sealed partial class AppSettings
 
     public List<string> RecentProjects { get; set; } = [];
 
+    /// <summary>Mapeo de rutas: los medios guardados bajo <c>From</c> se buscan bajo <c>To</c> al abrir (proyectos de otro equipo o sistema).</summary>
+    public List<Rodaje.Core.Model.PathMapping> PathMappings { get; set; } = [];
+
     /// <summary>Cada cuántos minutos, como mucho, el autoguardado hace una copia mientras se edita (1 a 30).</summary>
     public int AutosaveMinutes { get; set; } = Rodaje.Core.Serialization.AutosaveSchedule.DefaultIntervalMinutes;
 
