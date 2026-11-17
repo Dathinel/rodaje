@@ -38,7 +38,7 @@ Revisión independiente de Devin (Fusión) sobre `7aa4ddbb~1..75f7d5f5`: ocho ha
 
 **Excepción abierta: reducción sin mips.** Fuera de D3D11 el conversor escala sin vistas de mips y ensancha el núcleo como mucho 8 veces. `ExportDownscaleTests` reduce 12 veces una composición 4K de ruido gris frente a la media exacta de cada bloque: Vulkan (RTX 3050) da un error medio de 2,50 códigos de 8 bits y un máximo de 13,0; D3D11 WARP con mips, 2,48 y 15,1. Con este núcleo (Catmull-Rom) la diferencia no se ve en la media; queda como excepción con límite (3,5 y 18) hasta que el contrato tenga vistas de mips.
 
-**Huellas de D3D11.** HUELLAS
+**Huellas de D3D11.** `build\huellas-pixeles.ps1` con Render (878 pruebas) y Export (485) en `main` con #612, #613 y #615 frente a `75f7d5f5`: composición 700, composición en coma flotante 1 791, presentación 31, títulos 32 y monitores 1, **iguales**; las 6 lecturas de composición de más son las de `CpuUploadTests` en Vulkan. Exportación: ningún cuadro que la base no haya producido (solo cambia cuántas veces se repite alguno, por el reloj); las miniaturas no son deterministas, como en la fase 3. App no se repitió: en D3D11 solo cambian la retención de `Acquire` y el plazo de la lectura, sin tocar sombreadores ni órdenes de dibujo. El filtro del script (`Categoria!=…&…`) lo rompe `cmd` al pasar por `dotnet-local.cmd`, igual en las dos corridas.
 
 **Tareas que quedan.** Compartir lo puro duplicado entre `FrameInterpolator` y `SurfaceInterpolator` (selección de salidas, presupuesto, reciclado) y entre los rasterizadores de títulos (atlas, geometría de unidades, arco, márgenes), sin unificar los motores: no es corto y no cambia el comportamiento.
 
