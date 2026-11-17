@@ -389,7 +389,7 @@ internal sealed partial class MetersView : UserControl, IEditorView
         var custom = new MenuFlyoutItem { Text = "Otro objetivo…" };
         custom.Click += (_, _) => UiTask.Run(async () =>
         {
-            if (await Inspector.Properties.PropertiesPanel.AskTargetAsync(XamlRoot, "Normalizar la mezcla") is { } lufs)
+            if (await Inspector.Properties.PropertiesPanel.AskTargetAsync(XamlRoot!, "Normalizar la mezcla") is { } lufs)
             {
                 await NormalizeMixAsync(lufs);
             }

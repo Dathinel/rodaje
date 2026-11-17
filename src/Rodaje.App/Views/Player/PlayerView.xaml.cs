@@ -62,12 +62,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
         _shortcuts = services.Shortcuts;
         _engine = services.Player;
         DispatcherQueue dispatcher = DispatcherQueue;
-        _engine.SwapChainCreated += swapChain => dispatcher.RunLater(() =>
-        {
-            SwapChainPanelNative.SetSwapChain(VideoPanel, swapChain);
-            Program.Metrics.Milestone("cadena_en_panel");
-            UpdateHdrBadge();
-        });
+        AttachViewer(_engine, dispatcher);
         _engine.Failed += message => dispatcher.RunLater(() => ShowError(message));
         _engine.Warning += message => dispatcher.RunLater(() =>
             Session.Notify(NotificationSeverity.Warning, "Reproductor", message));
@@ -158,8 +153,7 @@ internal sealed partial class PlayerView : UserControl, IEditorView
 
     private void PushPanelSize()
     {
-        float sx = VideoPanel.CompositionScaleX;
-        float sy = VideoPanel.CompositionScaleY;
+        (float sx, float sy) = PanelScale();
         int width = (int)Math.Round(VideoPanel.ActualWidth * sx);
         int height = (int)Math.Round(VideoPanel.ActualHeight * sy);
         if (width > 0 && height > 0)

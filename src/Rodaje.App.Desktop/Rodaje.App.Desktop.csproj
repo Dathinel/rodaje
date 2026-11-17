@@ -28,9 +28,10 @@
     <!--
       NETSDK1201, PRI257 y NU1507 vienen de la plantilla de Uno. CA1416 (solo Windows) se ve como aviso: el código común
       todavía llama a D3D11 en ramas que fuera de Windows no se ejecutan (el motor elige Vulkan); la lista es el trabajo
-      que queda. Uno0001 marca miembros de WinUI que Uno no implementa (no hacen nada en Linux).
+      que queda. Uno0001 marca miembros de WinUI que Uno no implementa (no hacen nada en Linux). CA1001: en Uno son
+      IDisposable tipos de WinUI que en Windows no lo son (geometrías, WriteableBitmap), y la app no los suelta en ninguno.
     -->
-    <NoWarn>$(NoWarn);NU1507;NETSDK1201;PRI257</NoWarn>
+    <NoWarn>$(NoWarn);NU1507;NETSDK1201;PRI257;CA1001</NoWarn>
     <WarningsNotAsErrors>$(WarningsNotAsErrors);CA1416;Uno0001</WarningsNotAsErrors>
     <App>..\Rodaje.App</App>
   </PropertyGroup>

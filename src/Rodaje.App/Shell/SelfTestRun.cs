@@ -568,7 +568,7 @@ internal static partial class SelfTestRun
         await Task.Delay(200);
         if (player.PlacementInWindow() is { } hinted)
         {
-            double scale = window.Content.XamlRoot.RasterizationScale;
+            double scale = window.Content!.XamlRoot!.RasterizationScale;
             PanelRectCheck(hinted.Status, r, scale, name);
         }
 
@@ -935,7 +935,7 @@ internal static partial class SelfTestRun
         bool maximized = presenter?.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized;
         presenter?.Restore();
         Windows.Graphics.SizeInt32 before = window.AppWindow.Size;
-        double scale = window.Content.XamlRoot.RasterizationScale;
+        double scale = window.Content!.XamlRoot!.RasterizationScale;
         window.AppWindow.Resize(new Windows.Graphics.SizeInt32((int)(1280 * scale), (int)(720 * scale)));
         await Task.Delay(500);
         await CaptureAsync(window, "ventana-1280x720");
@@ -966,7 +966,7 @@ internal static partial class SelfTestRun
             throw new InvalidOperationException("La vista previa del tema Claro no se aplicó.");
         }
 
-        if (((FrameworkElement)window.Content).ActualTheme != ElementTheme.Light || dialog.ActualTheme != ElementTheme.Light)
+        if (((FrameworkElement)window.Content!).ActualTheme != ElementTheme.Light || dialog.ActualTheme != ElementTheme.Light)
         {
             throw new InvalidOperationException("Con el tema Claro, la ventana o el diálogo siguen con los controles de WinUI en oscuro.");
         }
@@ -984,7 +984,7 @@ internal static partial class SelfTestRun
             throw new InvalidOperationException("Cancelar Preferencias no devolvió el tema de los ajustes.");
         }
 
-        if (((FrameworkElement)window.Content).ActualTheme != Theme.ThemeResources.RequestedTheme)
+        if (((FrameworkElement)window.Content!).ActualTheme != Theme.ThemeResources.RequestedTheme)
         {
             throw new InvalidOperationException("Cancelar Preferencias no devolvió el tema de WinUI de los ajustes.");
         }

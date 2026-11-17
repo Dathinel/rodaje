@@ -24,7 +24,7 @@ internal readonly record struct CapturedSample(string ClipId, FrameSampling Samp
 /// </summary>
 internal sealed partial class PlayerEngine
 {
-    private TitleRasterizer? _titles;
+    private ITitleRasterizer? _titles;
     private int _titleReady;
     private IReadOnlyList<string>? _pendingFonts;
     private IReadOnlyList<MissingFont> _missingFonts = [];
@@ -129,7 +129,7 @@ internal sealed partial class PlayerEngine
 
     private void CreateTitles()
     {
-        _titles = new TitleRasterizer(_gpu!);
+        _titles = CreateTitleRasterizer();
         _titles.Changed += (_, _) =>
         {
             Interlocked.Exchange(ref _titleReady, 1);
