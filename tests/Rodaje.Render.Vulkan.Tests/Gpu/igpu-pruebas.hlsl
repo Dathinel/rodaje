@@ -37,6 +37,11 @@ Texture2DArray<float2> chroma : register(t1);
 
 float4 PsPlanes(VsOut i) : SV_Target { return float4(luma.Load(int4(0, 0, 0, 0)), chroma.Load(int4(0, 0, 0, 0)), 1); }
 
+// Texel a texel del mip id.z: los niveles generados no se copian a una lectura.
+Texture2D<float4> tex : register(t2);
+
+float4 PsMip(VsOut i) : SV_Target { return tex.Load(int3(int2(i.position.xy), int(id.z))); }
+
 RWTexture2D<float4> image : register(u0);
 RWByteAddressBuffer bytes : register(u1);
 
