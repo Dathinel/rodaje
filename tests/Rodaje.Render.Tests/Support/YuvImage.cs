@@ -156,9 +156,9 @@ internal sealed class YuvImage
 
     /// <summary>
     /// Los planos de <paramref name="image"/> como una superficie de un <see cref="IGpu"/> (el camino de Vulkan):
-    /// luma entera y croma a la mitad en cada eje en la parte alta de <c>R16Unorm</c>/<c>Rg16Unorm</c> (P010), con los mismos
-    /// códigos que <see cref="Pack"/>. Los de 8 bits van como el mismo código en 10 bits (×4), que da el mismo color: lavapipe filtra
-    /// las texturas UNORM8 con 8 bits de precisión y una capa NV12 se alejaba un código de la de D3D11.
+    /// luma entera y croma a la mitad en cada eje en <c>R16Unorm</c>/<c>Rg16Unorm</c>, con los mismos códigos que <see cref="Pack"/>:
+    /// 10 bits en la parte alta (P010) y 8 bits ×257 (NV12, como <c>CpuFrameUploads</c>): lavapipe filtra las texturas UNORM8 con 8 bits
+    /// de precisión y una capa NV12 se alejaba un código de la de D3D11.
     /// </summary>
     public static GpuTextureSurface CreateSurface(IGpu gpu, YuvImage image, VideoColor color, int? visibleWidth = null, int? visibleHeight = null)
     {
@@ -171,7 +171,8 @@ internal sealed class YuvImage
             GpuTexture chroma = gpu.CreateTexture(
                 new GpuTextureDesc(image.Width / 2, image.Height / 2, GpuFormat.Rg16Unorm, GpuTextureUsage.Sampled),
                 image.PackPlane(samples, image._chroma.Length));
-            return new GpuTextureSurface(luma, chroma, FramePixelFormat.P010, color,
+            // 8 bits ×257 sigue siendo NV12 (misma normalización, también en rango completo); 10 bits en los altos, P010.
+            return new GpuTextureSurface(luma, chroma, TenBit ? FramePixelFormat.P010 : FramePixelFormat.Nv12, color,
                 visibleWidth, visibleHeight);
         }
         catch
@@ -185,13 +186,12 @@ internal sealed class YuvImage
     private unsafe byte[] PackPlane(int offset, int count)
     {
         byte[] packed = new byte[count * 2];
-        int shift = TenBit ? 6 : 8;
         fixed (byte* destination = packed)
         {
             var words = (ushort*)destination;
             for (int i = 0; i < count; i++)
             {
-                words[i] = (ushort)(Code(offset + i) << shift);
+                words[i] = (ushort)(TenBit ? Code(offset + i) << 6 : Code(offset + i) * 257);
             }
         }
 

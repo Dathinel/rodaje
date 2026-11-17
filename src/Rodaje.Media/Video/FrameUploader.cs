@@ -292,22 +292,8 @@ internal sealed unsafe class FrameUploader : IDisposable
         }
     }
 
-    /// <summary>
-    /// swscale sin rangos explícitos lleva los <c>yuvj</c> a rango limitado, deja igual el resto de Y'CbCr y pasa
-    /// RGB a BT.601 limitado.
-    /// </summary>
-    internal static VideoColor ConvertedColor(AVPixelFormat source, VideoColor color)
-    {
-        AVPixFmtDescriptor* desc = ffmpeg.av_pix_fmt_desc_get(source);
-        if (desc != null && (desc->flags & (ulong)ffmpeg.AV_PIX_FMT_FLAG_RGB) != 0)
-        {
-            return color with { Matrix = YuvMatrix.Bt601, FullRange = false };
-        }
-
-        bool jpeg = source is AVPixelFormat.AV_PIX_FMT_YUVJ420P or AVPixelFormat.AV_PIX_FMT_YUVJ422P
-            or AVPixelFormat.AV_PIX_FMT_YUVJ444P or AVPixelFormat.AV_PIX_FMT_YUVJ440P or AVPixelFormat.AV_PIX_FMT_YUVJ411P;
-        return jpeg ? color with { FullRange = false } : color;
-    }
+    /// <inheritdoc cref="CpuFramePayload.ConvertedColor"/>
+    internal static VideoColor ConvertedColor(AVPixelFormat source, VideoColor color) => CpuFramePayload.ConvertedColor(source, color);
 
     private AVFrame* Convert(AVFrame* frame, AVPixelFormat target, int width = 0, int height = 0)
     {
