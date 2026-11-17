@@ -143,6 +143,8 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
         if (!sameTargets)
         {
             _context->OMSetRenderTargets((uint)targets.Count, rtvs, dsv);
+            // D3D11 quita en silencio de las entradas lo que pasa a ser destino: lo enlazado ya no se conoce.
+            gpu.DrawResourcesKnown = false;
             for (int i = 0; i < targets.Count; i++)
             {
                 gpu.DrawTargets[i] = (nint)rtvs[i];
@@ -248,6 +250,7 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
         }
 
         _context->CSSetUnorderedAccessViews(0, (uint)count, uavs, null);
+        gpu.DrawResourcesKnown = false;
         gpu.BoundStorage = bindings.StorageCount;
         _context->CSSetShader((ID3D11ComputeShader*)native.ComputeShader!.Native, null, 0);
         SetConstants(bindings, compute: true);
@@ -442,7 +445,25 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
         }
         else
         {
-            _context->PSSetShaderResources(0, (uint)count, views);
+            // Solo el tramo que cambió desde el dibujo anterior del mismo cuadro.
+            int first = 0, last = count - 1;
+            if (gpu.DrawResourcesKnown)
+            {
+                while (first < count && gpu.DrawResources[first] == (nint)views[first]) first++;
+                while (last >= first && gpu.DrawResources[last] == (nint)views[last]) last--;
+            }
+
+            if (first <= last)
+            {
+                _context->PSSetShaderResources((uint)first, (uint)(last - first + 1), views + first);
+            }
+
+            for (int i = 0; i < GpuBindings.MaxResources; i++)
+            {
+                gpu.DrawResources[i] = i < count ? (nint)views[i] : 0;
+            }
+
+            gpu.DrawResourcesKnown = true;
         }
 
         bound = bindings.ResourceCount;

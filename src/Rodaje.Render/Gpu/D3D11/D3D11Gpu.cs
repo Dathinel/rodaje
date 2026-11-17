@@ -36,6 +36,8 @@ public sealed unsafe partial class D3D11Gpu : IGpu
     internal int DrawConstantCount;
     internal readonly nint[] DrawSamplers = new nint[GpuBindings.MaxSamplers];
     internal int DrawSamplerCount;
+    internal readonly nint[] DrawResources = new nint[GpuBindings.MaxResources];
+    internal bool DrawResourcesKnown;
 
     internal void ForgetDrawState()
     {
@@ -43,6 +45,7 @@ public sealed unsafe partial class D3D11Gpu : IGpu
         DrawTargetCount = -1;
         DrawConstantCount = 0;
         DrawSamplerCount = 0;
+        DrawResourcesKnown = false;
     }
 
     private D3D11Gpu(GpuDevice device, bool ownsDevice)
