@@ -1,11 +1,13 @@
 # `IGpu`: la capa de GPU
 
-Contrato vigente de la capa fina de GPU de D-066 ([propuestas/mac-y-linux.md](propuestas/mac-y-linux.md)), que comparten Rodaje y Unicomp. Sale del [borrador de la fase 0](igpu-borrador.md) con la revisión de Unicomp. Código en `src/Rodaje.Render/Gpu/` (contrato) y `src/Rodaje.Render/Gpu/D3D11/` (motor de Windows); pruebas en `tests/Rodaje.Render.Tests/Gpu/`.
+Contrato vigente de la capa fina de GPU de D-066 ([propuestas/mac-y-linux.md](propuestas/mac-y-linux.md)), que comparten Rodaje y Unicomp. Sale del [borrador de la fase 0](igpu-borrador.md) con la revisión de Unicomp. Código en `src/Rodaje.Render/Gpu/` (contrato), `Gpu/D3D11/` (Windows) y `Gpu/Vulkan/` (Linux y macOS; fase 4, [mac-y-linux-fase4.md](mac-y-linux-fase4.md)); las comprobaciones comunes a los dos motores en `tests/Rodaje.Render.Vulkan.Tests/Gpu/GpuEngineChecks.cs`.
 
 ## Forma
 
-- **`IGpu`**: crea recursos (desde cualquier hilo) y abre cuadros. `Caps`, `IsLost`, `CreateTexture`, `CreateBuffer`, `CreateSampler`, `CreateShader(ShaderVariant)`, `CreatePipeline`, `CreateTimer`, `CreateReadback`, `BeginFrame`.
-- **`IGpuFrame`**: donde se graba todo el trabajo. `Write`, `Copy`, `GenerateMips`, `Clear`, `ClearUint`, `ClearDepth`, `Draw`, `Dispatch`, `Resolve`, copia a un `GpuReadback`, `BeginTimer`/`EndTimer`, `Submit` (con valla) y `Flush` (sin ella).
+- **`IGpu`**: crea recursos (desde cualquier hilo) y abre cuadros. `Caps`, `IsLost`, `CreateTexture`, `CreateBuffer`, `CreateSampler`, `CreateShader(ShaderVariant)`, `CreatePipeline`, `CreateTimer`, `CreateReadback`, `CreateSurfaceCache`, `BeginFrame`.
+- **`IGpuFrame`**: donde se graba todo el trabajo. `Write`, `Copy`, `GenerateMips`, `Clear`, `ClearUint`, `ClearDepth`, `Acquire`, `Draw`, `Dispatch`, `Resolve`, copia a un `GpuReadback`, `BeginTimer`/`EndTimer`, `Submit` (con valla) y `Flush` (sin ella).
+- **Superficies** (fase 4): `IDecoderSurface` (Rodaje.Media) es lo que entrega un decodificador sin tipo de API; `IGpuFrame.Acquire(cache, superficie)` da sus planos (`GpuDecoderPlanes`) válidos hasta cerrar el cuadro, con las vistas guardadas en una `GpuSurfaceCache` por dueño. `GpuTextureSurface` hace una superficie con texturas propias (lo que sube la CPU), en cualquier motor. D3D11 acepta las dos (D3D11VA y propias); Vulkan, de momento, las propias (las `AVVkFrame` llegan en la fase 9).
+- **`IGpuSwapchain`**: búfer trasero como destino, `Present`, `Resize`. La crea cada motor para su ventana (`D3D11Gpu.CreateSwapchain` para `SwapChainPanel`; la de Vulkan, con la ventana X11 de la fase 8/9).
 - **Recursos**: clases opacas (`GpuTexture`, `GpuBuffer`, `GpuSampler`, `GpuShader`, `GpuPipeline`, `GpuTimerQuery`, `GpuReadback`) que libera quien las crea. Sin COM ni punteros en la firma, sin reflexión (AOT).
 - **Enlaces por registro HLSL** (`GpuBindings`): hasta 16 `t#` (texturas o búferes de lectura), 4 `s#`, 4 `b#` y 8 `u#`. El motor Vulkan los traduce con los desplazamientos fijos del manifiesto (`b` +0, `t` +16, `s` +32, `u` +48).
 - **Destinos** (`GpuTargets`): hasta 4 de color y uno de profundidad.
@@ -26,14 +28,14 @@ La plantilla `D32FloatS8` (cortes con tapa) no entra todavía: Unicomp la pidió
 
 Es la parte que D3D11 regala y Vulkan cobra. El contrato es el mismo para los dos motores; cambia quién hace el trabajo.
 
-| Regla | D3D11 (hecho) | Vulkan (fase 4) |
+| Regla | D3D11 (hecho) | Vulkan (fase 4, hecho salvo lo marcado) |
 |---|---|---|
 | **1. Un cuadro, un dueño.** `BeginFrame` da el único sitio donde se graba; lo usa un hilo. Dos cuadros a la vez (visor y exportación) se serializan. | `BeginFrame` toma el candado del contexto inmediato (el de `GpuDevice`, compartido con D3D11VA) y `Dispose` lo suelta. Es recursivo: un cuadro dentro de otro en el mismo hilo vale. | Un búfer de órdenes por cuadro; el envío entra a la cola bajo el candado de la cola, el mismo que usa FFmpeg (`lock_queue`/`unlock_queue`). |
-| **2. Superficies del decodificador.** Se retienen (`AddRef`) hasta que el cuadro que las lee termina; nunca se copian. | Vistas por plano sobre la porción del arreglo (`PlaneViewCache`); COM retiene lo enlazado. | `lock_frame`; esperar el semáforo de `AVVkFrame`, pasar a `SHADER_READ_ONLY`, señalar el valor siguiente y escribir de vuelta layout, valor y familia; `unlock_frame`. |
-| **3. Saber cuándo terminó.** `Submit` devuelve una `GpuFence` (`IsComplete`, `Wait`); se puede seguir grabando después. `Dispose` sin `Submit` también envía lo grabado, sin valla. | Consulta de evento; la primera espera vacía la cola, las siguientes no. | Valla o semáforo de línea de tiempo propio. |
+| **2. Superficies del decodificador.** Se retienen (`AddRef`) hasta que el cuadro que las lee termina; nunca se copian. | Vistas por plano sobre la porción del arreglo (`PlaneViewCache`); COM retiene lo enlazado. | `lock_frame`; esperar el semáforo de `AVVkFrame`, pasar a `SHADER_READ_ONLY`, señalar el valor siguiente y escribir de vuelta layout, valor y familia; `unlock_frame`. **Fase 9.** |
+| **3. Saber cuándo terminó.** `Submit` devuelve una `GpuFence` (`IsComplete`, `Wait`); se puede seguir grabando después. `Dispose` sin `Submit` también envía lo grabado, sin valla. | Consulta de evento; la primera espera vacía la cola, las siguientes no. | Una valla por envío; cada cuadro tiene su número de envío. |
 | **4. Reciclar.** `Dispose` de un recurso no lo destruye mientras una valla pendiente lo use. | Inmediato: COM cuenta las referencias que el contexto retiene. | Cola de destrucción diferida por valla. |
 | **5. Lectura.** `GpuReadback` es memoria visible desde la CPU, reutilizable: el cuadro graba la copia, `TryMap` no espera (falso si la GPU no terminó), `Map` sí. Filas de arriba abajo, `RowPitch` declarado, siempre en el formato del origen. | Textura o búfer `STAGING`; `Map` con `DO_NOT_WAIT` en `TryMap`. Las filas abiertas retienen el candado del contexto. | Búfer visible desde la CPU y la valla del cuadro. |
-| **6. Presentar.** La cadena presenta tras la valla del cuadro que dibujó el búfer trasero. | `IDXGISwapChain::Present` en la app; el búfer trasero entra con `D3D11Gpu.Wrap`. | Semáforos de adquisición y de presentación. |
+| **6. Presentar.** La cadena presenta tras la valla del cuadro que dibujó el búfer trasero. | `IDXGISwapChain::Present` en la app; el búfer trasero entra con `D3D11Gpu.Wrap`. | Semáforos de adquisición y de presentación. **Fase 8/9**, con la ventana. |
 | **7. Pérdida del dispositivo.** Un fallo es una `RenderException`; si `IsLost` es verdadero, el dueño destruye todo y crea otro `IGpu`. | `GetDeviceRemovedReason`. | `VK_ERROR_DEVICE_LOST`. |
 | **8. Tiempos.** `BeginTimer`/`EndTimer` dentro de un cuadro; `TryGetMilliseconds` o `WaitMilliseconds` después. | `TIMESTAMP` + `TIMESTAMP_DISJOINT`, como el `GpuTimer` de siempre. | Pool de marcas de tiempo y `timestampPeriod`. |
 
@@ -45,7 +47,8 @@ D3D11 anula en silencio una entrada que sigue enlazada como salida. El motor pon
 
 ## Convenciones que el motor Vulkan iguala a D3D11
 
-- Origen arriba a la izquierda en texturas y destinos (viewport con alto negativo), profundidad de recorte de 0 a 1, caras delanteras en el sentido de las agujas del reloj.
+- Origen arriba a la izquierda en texturas y destinos (viewport con alto negativo; el SPIR-V **no** se compila con `-fvk-invert-y`), profundidad de recorte de 0 a 1, caras delanteras en el sentido de las agujas del reloj (lo fija una prueba común a los dos motores).
+- Lo que un registro deja vacío se lee como cero (recursos negros de 1×1); una entrada que en la misma pasada es salida se lee vacía; una textura nueva empieza a cero.
 - `cbuffer` con el empaquetado de HLSL tal como lo emite DXC; tamaño del manifiesto.
 - Sin formatos sRGB (D-016); lectura con filas de arriba abajo y canales en el orden del formato.
 

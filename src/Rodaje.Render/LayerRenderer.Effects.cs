@@ -9,7 +9,6 @@ using Rodaje.Render.Gpu;
 namespace Rodaje.Render;
 
 /// <summary>Parte visible de un intermedio del pool, que puede ser más grande.</summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal readonly record struct ImageView(RenderTarget Target, int Width, int Height)
 {
     /// <summary>De uv de la imagen a uv de la textura y tope a medio texel del borde (<c>mapA</c>/<c>mapB</c>).</summary>
@@ -26,11 +25,9 @@ internal readonly record struct ImageView(RenderTarget Target, int Width, int He
 /// máscaras de efectos (0 en toda la imagen, 1 dentro, 2 fuera). Los efectos por píxel limitados por máscaras propias también
 /// van aquí, con <c>Region</c> 1.
 /// </summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal readonly record struct SpatialStep(GpuEffectKind Kind, EffectValues Values, EffectDefinition Definition, int Index, int Region);
 
 /// <summary>Efectos por píxel de una capa: banderas de la variante, LUT y cuántos se aplican.</summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal readonly struct LayerPlan(int flags, GpuTexture? lut, int perPixelCount, GpuTexture? curves = null)
 {
     public GpuTexture? Curves { get; } = curves;
@@ -42,7 +39,6 @@ internal readonly struct LayerPlan(int flags, GpuTexture? lut, int perPixelCount
     public int PerPixelCount { get; } = perPixelCount;
 }
 
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe partial class LayerRenderer
 {
     /// <summary>Sigma máxima por nivel: por encima se reduce a la mitad (pirámide ½, ¼…) antes del gaussiano.</summary>

@@ -302,7 +302,7 @@ jobs:
           name: referencias-warp
           path: TestResults/referencias-warp
       - name: Comparar variantes
-        run: dotnet test tests/Rodaje.Render.Vulkan.Tests -m:2 --filter FullyQualifiedName~Variants --logger 'console;verbosity=detailed'
+        run: dotnet test tests/Rodaje.Render.Vulkan.Tests -m:2 --filter "FullyQualifiedName~Variants|FullyQualifiedName~Composition" --logger 'console;verbosity=detailed'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

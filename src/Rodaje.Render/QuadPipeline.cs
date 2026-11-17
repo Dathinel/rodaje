@@ -9,10 +9,9 @@ namespace Rodaje.Render;
 /// Los cuadriláteros del compositor y del presentador sobre <see cref="IGpu"/>: sombreador de vértices, constantes (b0), muestreador
 /// (s0) y una canalización por sombreador de píxeles y mezcla. Guarda las entradas enlazadas entre dibujos, como el contexto de D3D11.
 /// </summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class QuadPipeline : IDisposable
 {
-    private readonly D3D11Gpu _engine;
+    private readonly IGpu _engine;
     private readonly Dictionary<(GpuShader Pixel, GpuBlend Blend), GpuPipeline> _pipelines = [];
     private GpuShader? _vertex;
     private GpuShader? _layer;
@@ -25,7 +24,7 @@ internal sealed unsafe class QuadPipeline : IDisposable
     private int _width;
     private int _height;
 
-    public QuadPipeline(D3D11Gpu engine)
+    public QuadPipeline(IGpu engine)
     {
         _engine = engine;
         try
@@ -48,7 +47,7 @@ internal sealed unsafe class QuadPipeline : IDisposable
         Present,
     }
 
-    public D3D11Gpu Engine => _engine;
+    public IGpu Engine => _engine;
 
     /// <summary>El cuadro donde se graba; lo abre y lo cierra quien compone o presenta.</summary>
     public IGpuFrame? Frame { get; set; }
@@ -128,9 +127,20 @@ internal sealed unsafe class QuadPipeline : IDisposable
 
     private void Create()
     {
-        _vertex = _engine.CreateShader(RenderShaders.Vertex, "vs_5_0", "rodaje-render.hlsl:VsQuad");
-        _layer = _engine.CreateShader(RenderShaders.Layer, "ps_5_0", "rodaje-render.hlsl:PsLayer");
-        _present = _engine.CreateShader(RenderShaders.Present, "ps_5_0", "rodaje-render.hlsl:PsPresent");
+        if (OperatingSystem.IsWindowsVersionAtLeast(7) && _engine is D3D11Gpu d3d)
+        {
+            // El bytecode de siempre, sin pasar por la caché de disco.
+            _vertex = d3d.CreateShader(RenderShaders.Vertex, "vs_5_0", "rodaje-render.hlsl:VsQuad");
+            _layer = d3d.CreateShader(RenderShaders.Layer, "ps_5_0", "rodaje-render.hlsl:PsLayer");
+            _present = d3d.CreateShader(RenderShaders.Present, "ps_5_0", "rodaje-render.hlsl:PsPresent");
+        }
+        else
+        {
+            _vertex = _engine.CreateShader(RenderShaders.VertexVariant);
+            _layer = _engine.CreateShader(RenderShaders.LayerVariant);
+            _present = _engine.CreateShader(RenderShaders.PresentVariant);
+        }
+
         _constants = _engine.CreateBuffer(new GpuBufferDesc(sizeof(QuadConstants), GpuBufferKind.Constant));
         _sampler = _engine.CreateSampler(new GpuSamplerDesc(GpuFilter.Linear, GpuAddressMode.Clamp));
         _bindings.SetConstants(0, _constants);
@@ -139,7 +149,6 @@ internal sealed unsafe class QuadPipeline : IDisposable
 }
 
 [StructLayout(LayoutKind.Sequential)]
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal struct Float4(float x, float y, float z, float w)
 {
     public float X = x;
@@ -150,7 +159,6 @@ internal struct Float4(float x, float y, float z, float w)
 
 /// <summary>Constantes de <c>RenderShaders</c>, en el orden del <c>cbuffer Quad</c>.</summary>
 [StructLayout(LayoutKind.Sequential)]
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal struct QuadConstants
 {
     public Float4 TopLeft;

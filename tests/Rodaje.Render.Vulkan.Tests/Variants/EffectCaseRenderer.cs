@@ -1,9 +1,6 @@
-﻿using System.Reflection;
 using System.Runtime.InteropServices;
-using System.Runtime.Versioning;
+using Rodaje.Media.Video;
 using Rodaje.Render.Gpu;
-using Rodaje.Render.Gpu.D3D11;
-using TerraFX.Interop.DirectX;
 
 namespace Rodaje.Render.Tests.Variants;
 
@@ -17,6 +14,8 @@ internal sealed class EffectCaseRenderer : IDisposable
     private readonly GpuBuffer _quad;
     private readonly GpuBuffer _effects;
     private readonly GpuSampler _sampler;
+    private readonly Dictionary<string, GpuTextureSurface> _arrays = [];
+    private readonly GpuSurfaceCache _surfaces;
     private readonly GpuTexture _target;
     private readonly GpuReadback _readback;
 
@@ -25,6 +24,7 @@ internal sealed class EffectCaseRenderer : IDisposable
         _gpu = gpu;
         try
         {
+            _surfaces = Own(gpu.CreateSurfaceCache());
             _vertex = Own(gpu.CreateShader(CaseVariants.Vertex));
             _quad = Own(gpu.CreateBuffer(new GpuBufferDesc(272, GpuBufferKind.Constant)));
             _effects = Own(gpu.CreateBuffer(new GpuBufferDesc(416, GpuBufferKind.Constant)));
@@ -58,9 +58,10 @@ internal sealed class EffectCaseRenderer : IDisposable
 
                 GpuTexture texture = Own(gpu.CreateTexture(new GpuTextureDesc(spec.Width, spec.Height, format,
                     GpuTextureUsage.Sampled, Depth: spec.Depth), data));
-                if (spec.Dimension == "2d-array" && OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is D3D11Gpu)
+                if (spec.Dimension == "2d-array")
                 {
-                    UseArrayView(texture);
+                    // Los planos se leen como Texture2DArray: la superficie da la vista que pide cada motor.
+                    _arrays.Add(spec.Name, new GpuTextureSurface(texture, null, FramePixelFormat.Rgba16, default, ownsTextures: false));
                 }
 
                 _textures.Add(spec.Name, texture);
@@ -88,17 +89,18 @@ internal sealed class EffectCaseRenderer : IDisposable
             _pipelines.Add(spec.Variant, pipeline);
         }
 
-        var bindings = new GpuBindings();
-        bindings.SetConstants(0, _quad);
-        bindings.SetConstants(1, _effects);
-        bindings.SetSampler(0, _sampler);
-        foreach ((string register, string name) in spec.Textures)
-        {
-            bindings.SetResource(int.Parse(register.AsSpan(1), System.Globalization.CultureInfo.InvariantCulture), _textures[name]);
-        }
-
         using (IGpuFrame frame = _gpu.BeginFrame())
         {
+            var bindings = new GpuBindings();
+            bindings.SetConstants(0, _quad);
+            bindings.SetConstants(1, _effects);
+            bindings.SetSampler(0, _sampler);
+            foreach ((string register, string name) in spec.Textures)
+            {
+                GpuTexture texture = _arrays.TryGetValue(name, out GpuTextureSurface? surface) ? frame.Acquire(_surfaces, surface).Luma : _textures[name];
+                bindings.SetResource(int.Parse(register.AsSpan(1), System.Globalization.CultureInfo.InvariantCulture), texture);
+            }
+
             frame.Write<float>(_quad, spec.Quad);
             frame.Write<float>(_effects, spec.Effects);
             frame.Clear(_target, GpuColor.TransparentBlack);
@@ -109,47 +111,6 @@ internal sealed class EffectCaseRenderer : IDisposable
         var halves = new Half[Cases.Size * Cases.Size * 4];
         _readback.Read(MemoryMarshal.AsBytes(halves.AsSpan()));
         return Array.ConvertAll(halves, static h => (float)h);
-    }
-
-    [SupportedOSPlatform("windows7.0")]
-    private static unsafe void UseArrayView(GpuTexture texture)
-    {
-        // D3D11 crea una vista 2D; el acceso queda en pruebas porque el contrato no expone vistas de arreglo.
-        FieldInfo field = texture.GetType().GetField("_srv", BindingFlags.Instance | BindingFlags.NonPublic)
-            ?? throw new MissingFieldException(texture.GetType().FullName, "_srv");
-        var original = (ID3D11ShaderResourceView*)Pointer.Unbox(field.GetValue(texture)!);
-        ID3D11Resource* resource;
-        ID3D11Device* device;
-        original->GetResource(&resource);
-        original->GetDevice(&device);
-        try
-        {
-            D3D11_SHADER_RESOURCE_VIEW_DESC desc;
-            original->GetDesc(&desc);
-            desc.ViewDimension = D3D_SRV_DIMENSION.D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
-            desc.Texture2DArray.MostDetailedMip = 0;
-            desc.Texture2DArray.MipLevels = 1;
-            desc.Texture2DArray.FirstArraySlice = 0;
-            desc.Texture2DArray.ArraySize = 1;
-            ID3D11ShaderResourceView* view;
-            Marshal.ThrowExceptionForHR(device->CreateShaderResourceView(resource, &desc, &view).Value);
-            try
-            {
-                field.SetValue(texture, Pointer.Box(view, field.FieldType));
-            }
-            catch
-            {
-                view->Release();
-                throw;
-            }
-
-            original->Release();
-        }
-        finally
-        {
-            device->Release();
-            resource->Release();
-        }
     }
 
     public void Dispose()

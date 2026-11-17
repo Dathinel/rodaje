@@ -1,7 +1,84 @@
+using Rodaje.Media.Gpu;
+using Rodaje.Media.Video;
+
 namespace Rodaje.Render.Gpu;
 
 /// <summary>Los planos de una superficie del decodificador, listos para muestrear (t0 luma, t1 croma; en RGBA, los dos son la imagen).</summary>
 public readonly record struct GpuDecoderPlanes(GpuTexture Luma, GpuTexture Chroma);
+
+/// <summary>
+/// Una superficie hecha de texturas de un <see cref="IGpu"/>: los planos que sube la CPU (decodificación sin GPU, imágenes) o que
+/// genera la GPU, en cualquier motor. NV12/P010 son dos texturas (<see cref="GpuFormat.R8Unorm"/>/<see cref="GpuFormat.Rg8Unorm"/> o
+/// las de 16 bits); RGBA es una. Empieza con una referencia; con el último <see cref="Release"/> suelta las texturas si son suyas.
+/// </summary>
+public sealed class GpuTextureSurface : IDecoderSurface, IDisposable
+{
+    private readonly bool _ownsTextures;
+    private int _references = 1;
+
+    /// <param name="width">Ancho visible; por omisión, el de <paramref name="luma"/>.</param>
+    public GpuTextureSurface(GpuTexture luma, GpuTexture? chroma, FramePixelFormat format, VideoColor color, int? width = null, int? height = null,
+        bool ownsTextures = true)
+    {
+        ArgumentNullException.ThrowIfNull(luma);
+        Luma = luma;
+        Chroma = chroma ?? luma;
+        PixelFormat = format;
+        Color = color;
+        Width = width ?? luma.Width;
+        Height = height ?? luma.Height;
+        _ownsTextures = ownsTextures;
+    }
+
+    public GpuTexture Luma { get; }
+
+    /// <summary>El plano de croma; en RGBA, la misma textura que <see cref="Luma"/>.</summary>
+    public GpuTexture Chroma { get; }
+
+    public FramePixelFormat PixelFormat { get; }
+
+    public int Width { get; }
+
+    public int Height { get; }
+
+    public int CodedWidth => Luma.Width;
+
+    public int CodedHeight => Luma.Height;
+
+    public VideoColor Color { get; }
+
+    public bool IsReleased => Volatile.Read(ref _references) == 0;
+
+    public bool AddRef()
+    {
+        int current;
+        do
+        {
+            current = Volatile.Read(ref _references);
+            if (current == 0)
+            {
+                return false;
+            }
+        }
+        while (Interlocked.CompareExchange(ref _references, current + 1, current) != current);
+
+        return true;
+    }
+
+    public void Release()
+    {
+        if (Interlocked.Decrement(ref _references) == 0 && _ownsTextures)
+        {
+            Luma.Dispose();
+            if (!ReferenceEquals(Chroma, Luma))
+            {
+                Chroma.Dispose();
+            }
+        }
+    }
+
+    public void Dispose() => Release();
+}
 
 /// <summary>
 /// Las vistas de las superficies del decodificador que un dueño (un compositor) reutiliza cuadro tras cuadro. Retienen el pool de su
