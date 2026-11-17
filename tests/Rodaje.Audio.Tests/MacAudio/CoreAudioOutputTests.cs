@@ -59,11 +59,14 @@ public sealed class CoreAudioOutputTests(ITestOutputHelper output)
         using CoreAudioOutput audio = CoreAudioOutput.Open(source);
         IAudioClock clock = audio.Clock;
 
+        // En el corredor de macOS Thread.Sleep se pasa a veces más de 100 ms: se compara con lo que pasó de verdad.
+        var first = System.Diagnostics.Stopwatch.StartNew();
         clock.Start();
         Thread.Sleep(300);
         clock.Pause();
+        double firstElapsed = first.Elapsed.TotalSeconds;
         Time paused = clock.Position;
-        Assert.InRange(paused.ToSeconds(), 0.1, 0.35);
+        Assert.InRange(paused.ToSeconds(), firstElapsed - 0.15, firstElapsed + 0.02);
         Thread.Sleep(200);
         Assert.Equal(paused, clock.Position);
 
@@ -71,7 +74,6 @@ public sealed class CoreAudioOutputTests(ITestOutputHelper output)
         Assert.Equal(Time.FromSeconds(10), clock.Position);
         Assert.Equal(Time.FromSeconds(10), source.LastSeek);
 
-        // En el corredor de macOS Thread.Sleep se pasa a veces más de 100 ms: se compara con lo que pasó de verdad.
         var wall = System.Diagnostics.Stopwatch.StartNew();
         clock.Start();
         Thread.Sleep(400);

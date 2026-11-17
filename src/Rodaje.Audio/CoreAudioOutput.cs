@@ -464,6 +464,8 @@ public sealed unsafe class CoreAudioOutput : IAudioOutput, IRenderTransport
     private void Reopen(bool lost, string? why)
     {
         string previous = _device?.Name ?? "el dispositivo de audio";
+        // Primero el reloj de pared: cerrar la unidad mientras macOS cambia de dispositivo tarda unos 300 ms.
+        _model.EnterFreeRun(Now());
         CloseUnit();
         Interlocked.Increment(ref _restarts);
         EnterFreeRun(Now());
