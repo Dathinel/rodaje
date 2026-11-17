@@ -166,6 +166,7 @@ public sealed unsafe partial class VulkanGpu : IGpu
         {
             instance = CreateInstance(out bool validation);
             messenger = validation ? CreateMessenger(instance) : default;
+            ValidationActive |= validation;
             string? filter = Environment.GetEnvironmentVariable(AdapterVariable);
             if (!Choose(instance, preferSoftware, filter, out VkPhysicalDevice physical, out uint family, out VkPhysicalDeviceProperties properties, out reason))
             {
@@ -681,6 +682,9 @@ public sealed unsafe partial class VulkanGpu : IGpu
 
     /// <summary>Los errores de las capas de validación (con <see cref="ValidationVariable"/>); las pruebas fallan si crece.</summary>
     public static IReadOnlyCollection<string> ValidationErrors => s_validationErrors;
+
+    /// <summary>Algún dispositivo de este proceso se creó con las capas de validación y su mensajero.</summary>
+    public static bool ValidationActive { get; private set; }
 
     private static readonly System.Collections.Concurrent.ConcurrentQueue<string> s_validationErrors = new();
 

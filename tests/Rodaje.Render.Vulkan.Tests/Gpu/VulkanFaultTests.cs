@@ -38,6 +38,14 @@ public sealed unsafe class VulkanFaultTests
         Assert.True(checkedImages >= 10, $"Solo {checkedImages} imÃ¡genes de escritura en el manifiesto.");
     }
 
+    /// <summary>La pasada de validación de la CI solo vale si las capas cargan de verdad.</summary>
+    [VulkanFact]
+    public void Validation_layers_are_active_when_requested()
+    {
+        using VulkanGpu gpu = VulkanGpu.Create(preferSoftware: true);
+        Assert.Equal(Environment.GetEnvironmentVariable(VulkanGpu.ValidationVariable) == "1", VulkanGpu.ValidationActive);
+    }
+
     [VulkanFact]
     public void Storage_image_with_another_declared_format_is_rejected_when_bound()
     {
