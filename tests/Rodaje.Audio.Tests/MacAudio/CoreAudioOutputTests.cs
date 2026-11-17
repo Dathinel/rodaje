@@ -45,7 +45,7 @@ public sealed class CoreAudioOutputTests(ITestOutputHelper output)
         output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Latencia del dispositivo: {audio.OutputLatency.TotalMilliseconds:0.0} ms."));
 
         Assert.Equal(0, m.Backwards);
-        Assert.InRange(m.StartupMs, 0, 300);
+        Assert.InRange(m.StartupMs, -5, 300); // el ajuste lineal puede cruzar un poco antes del Start
         Assert.InRange(Math.Abs(m.DriftPpm), 0, 1_000);
         Assert.InRange(m.MaxResidualMs, 0, 15);
         Assert.InRange(m.EndPositionSeconds, 9.6, 10.05);

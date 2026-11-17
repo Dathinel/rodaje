@@ -49,7 +49,7 @@ public sealed class PulseOutputTests(ITestOutputHelper output)
         output.WriteLine(Ms("Latencia de la salida (pa_stream_get_latency)", latency));
 
         Assert.Equal(0, m.Backwards);
-        Assert.InRange(m.StartupMs, 0, 300);
+        Assert.InRange(m.StartupMs, -5, 300); // el ajuste lineal puede cruzar un poco antes del Start
         Assert.InRange(Math.Abs(m.DriftPpm), 0, 1_000);
         Assert.InRange(m.MaxResidualMs, 0, 15);
         Assert.InRange(m.EndPositionSeconds, 9.6, 10.05);
