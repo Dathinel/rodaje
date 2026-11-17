@@ -11,7 +11,9 @@ public static class AudioOutput
             ? WasapiOutput.Open
             : OperatingSystem.IsLinux()
                 ? PulseOutput.Open
-                : (_, _) => throw new AudioDeviceUnavailableException("La salida de audio en este sistema todavía no está disponible."));
+                : OperatingSystem.IsMacOS()
+                    ? CoreAudioOutput.Open
+                    : (_, _) => throw new AudioDeviceUnavailableException("La salida de audio en este sistema todavía no está disponible."));
 
     internal static IAudioOutput Open(
         IAudioSampleSource source,
