@@ -1,4 +1,5 @@
 using Microsoft.UI.Dispatching;
+using Rodaje.App.Views.Inspector;
 
 namespace Rodaje.App.Views.Player;
 

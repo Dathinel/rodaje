@@ -69,6 +69,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private Project? _pendingReload;
     private long _pendingReloadAt;
 
+    // D3D11: en Linux (PlayerEngine.Desktop.cs) quedan en null y lo que depende de ellos no se hace.
+#pragma warning disable CS0649
     private GpuDevice? _gpu;
     private TimelineSession? _session;
     private Compositor? _compositor;
@@ -90,6 +92,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private TenBitViewer _tenBitViewer;
     private HdrViewer _hdrViewer;
     private GpuTimer? _gpuTimer;
+#pragma warning restore CS0649
     private PreviewProxies? _proxies;
     private ProxyUsage _proxyUsage = ProxyUsage.Auto;
     private IEffectContent? _content;

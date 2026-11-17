@@ -35,7 +35,7 @@ internal sealed partial class TranscriptPanel
         TextBlock? text = _realized.Keys.FirstOrDefault(t => t.Inlines.OfType<Run>().Any(r => _wordIndices.GetValueOrDefault(r, -1) == index));
         if (text is null) return;
         Run run = text.Inlines.OfType<Run>().First(r => _wordIndices.GetValueOrDefault(r, -1) == index);
-        Rect rect = run.ContentStart.GetCharacterRect(LogicalDirection.Forward);
+        Rect rect = run.ContentStart!.GetCharacterRect(LogicalDirection.Forward);
         TranscriptDocument document = Model.Document;
         var box = new TextBox { Text = document.Words[index].Text, Width = 220, PlaceholderText = "Corregir palabra · Intro para guardar" };
         AutomationProperties.SetName(box, "Corregir palabra");

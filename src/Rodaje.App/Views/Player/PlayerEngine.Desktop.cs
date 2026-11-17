@@ -68,7 +68,7 @@ internal sealed partial class PlayerEngine
 
     private Compositor CreateCompositor(int width, int height) => new(_vulkan!, width, height);
 
-    private SkiaTitleRasterizer CreateTitleRasterizer() => new(_vulkan!);
+    private ITitleRasterizer CreateTitleRasterizer() => new SkiaTitleRasterizer(_vulkan!);
 
     // shortcut: una lectura a la CPU y una copia por cuadro; el visor nativo con la cadena de Vulkan es la fase 9.
     private void PresentViewer()

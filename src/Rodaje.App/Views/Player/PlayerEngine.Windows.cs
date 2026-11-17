@@ -52,7 +52,7 @@ internal sealed partial class PlayerEngine
 
     private Compositor CreateCompositor(int width, int height) => new(_gpu!, width, height);
 
-    private Rodaje.Render.Text.TitleRasterizer CreateTitleRasterizer() => new(_gpu!);
+    private Rodaje.Render.Text.ITitleRasterizer CreateTitleRasterizer() => new Rodaje.Render.Text.TitleRasterizer(_gpu!);
 
     private void PresentViewer()
     {

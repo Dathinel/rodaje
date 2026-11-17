@@ -50,7 +50,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\Rodaje.App\Services\**\*.cs" Link="Services\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\..\src\Rodaje.App\Services\**\*.cs" Exclude="..\..\src\Rodaje.App\**\*.Desktop.cs" Link="Services\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\..\src\Rodaje.App\Views\Preferences\PreferencesViewModel.cs" Link="Preferences\PreferencesViewModel.cs" />
     <!-- Completa un método parcial de Shell (EditorServices.cs), que las pruebas no compilan. -->
     <Compile Remove="..\..\src\Rodaje.App\Services\Effects\EffectContentFactory.cs" />

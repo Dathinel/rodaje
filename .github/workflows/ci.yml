@@ -135,7 +135,7 @@ jobs:
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq xvfb xdotool imagemagick libfontconfig1 libgl1 libegl1 libx11-6 libxrandr2 libxi6 libxcursor1 \
-            fonts-dejavu-core mesa-vulkan-drivers libvulkan1 pulseaudio pulseaudio-utils
+            fonts-dejavu-core mesa-vulkan-drivers libvulkan1 ffmpeg
 
       - name: FFmpeg LGPL
         shell: pwsh
