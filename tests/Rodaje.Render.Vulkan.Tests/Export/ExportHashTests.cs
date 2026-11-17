@@ -107,6 +107,18 @@ public sealed class ExportHashTests(ITestOutputHelper output)
         }
 
         Assert.Equal(ExportJobState.Completed, await Export("title", false));
+
+        // La imagen fija sale por el mismo motor: el cuadro 25 con el título entero.
+        string png = scratch.Combine("cuadro.png");
+        var still = new Rodaje.Export.Still.StillExporter(new ExportRunnerOptions
+        {
+            Ffmpeg = Ffmpeg, CreateGpu = () => VulkanGpu.Create(preferSoftware: true), FontFiles = () => [font],
+        });
+        await still.ExportAsync(new Rodaje.Export.Still.StillRequest(project, "sec", Time.FromFrames(25, Rational.Fps30), png,
+            new Rodaje.Export.Still.StillSettings())).WaitAsync(TimeSpan.FromMinutes(2));
+        byte[] image = Run("-i", png, "-f", "rawvideo", "-pix_fmt", "rgb24", "-");
+        int yellow = Enumerable.Range(0, 320 * 180).Count(p => image[p * 3] > 170 && image[p * 3 + 1] > 140 && image[p * 3 + 2] < 90);
+        Assert.True(yellow > 500, $"El título debe verse en la imagen fija ({yellow} px).");
         style.Font.Family = "Fuente Que No Existe";
         Assert.Equal(ExportJobState.Failed, await Export("missing", false));
         Assert.Equal(ExportJobState.Completed, await Export("fallback", true));
