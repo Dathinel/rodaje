@@ -13,8 +13,6 @@ on:
 
 permissions:
   contents: read
-  # traer-ffmpeg-ci.sh lee los artefactos de ffmpeg-lgpl.yml mientras el FFmpeg de Unix no esté publicado.
-  actions: read
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -55,10 +53,8 @@ jobs:
       # SoloWindows: pruebas que dependen de códigos de error de Windows. TiempoReal y Rendimiento miden contra el
       # reloj de pared y en un runner compartido dan falsos fallos.
       - name: FFmpeg LGPL
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash build/traer-ffmpeg-ci.sh
+        shell: pwsh
+        run: build/preparar-entorno.ps1 -SoloFFmpeg
 
       - name: Pruebas
         shell: bash
@@ -84,10 +80,8 @@ jobs:
       - uses: ./.github/actions/preparar-linux
 
       - name: FFmpeg LGPL
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: bash build/traer-ffmpeg-ci.sh
+        shell: pwsh
+        run: build/preparar-entorno.ps1 -SoloFFmpeg
 
       - name: Pruebas
         shell: bash
@@ -115,6 +109,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - uses: ./.github/actions/preparar-windows
+
+      - name: Shaders SPIR-V al día
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build\shaders.ps1 comprobar
 
       - name: Publicar AOT para la autoprueba
         shell: pwsh

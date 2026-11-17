@@ -1,7 +1,7 @@
 # FFmpeg LGPL v3: Linux x64 y macOS arm64 (D-066, fase 2)
 
 La compilación se pide a mano en `.github/workflows/ffmpeg-lgpl.yml`, con `destino=linux64`,
-`macarm64` o `los-dos`. Solo produce artefactos durante 90 días; no publica releases.
+`macarm64` o `los-dos`. Solo produce artefactos durante 90 días; no publica releases. Los paquetes de las corridas 43943855884 (Linux) y 43968642464 (macOS) se subieron a mano a la release `ffmpeg-n9.0.2-17-g2a571b6068-rodaje1` el 16-nov.
 La compilación real y la instalación deben pasar en CI antes de considerar los binarios aptos.
 
 FFmpeg: `2a571b606854520cf89804d8030c8b328e621689` (release/9.0),

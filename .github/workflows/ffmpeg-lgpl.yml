@@ -25,9 +25,16 @@ on:
 permissions:
   contents: read
 
+# Una compilación por rama a la vez: una nueva corta la anterior (en Linux tarda hora y media).
+concurrency:
+  group: ffmpeg-lgpl-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   compilar:
     name: FFmpeg LGPL / ${{ matrix.destino }}
+    # El borrador #461 compara main con la v1.0.1: cada push a main lo dispararía sin haber tocado la receta.
+    if: github.event_name != 'pull_request' || github.head_ref != 'main'
     strategy:
       fail-fast: false
       matrix:

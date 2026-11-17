@@ -36,6 +36,17 @@ internal static class FlowShaders
     public static ShaderVariant Luma { get; } = new(Blend, "CsBlend", "cs_5_0", "rodaje-flow.hlsl");
     public static ShaderVariant Chroma { get; } = new(Blend, "CsBlend", "cs_5_0", "rodaje-flow.hlsl", "CHROMA");
 
+    public static readonly string[] OpticalEntries =
+    [
+        "Downsample",
+        "Search",
+        "Densify",
+        "Histogram",
+        "Residual",
+        "Decide",
+        "Warp",
+    ];
+
     public static ShaderVariant Optical(string entry) => new(OpticalSource, entry, "cs_5_0", "rodaje-optical-flow.hlsl");
 
     private const string OpticalSource = """

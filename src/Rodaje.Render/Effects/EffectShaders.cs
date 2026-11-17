@@ -112,7 +112,13 @@ internal static class EffectShaders
     // key1 = derrame, recorte del borde (0–0,45), dirección unitaria de la clave en CbCr. lift, gain: por canal (ya sumado
     // el general); gammaExp: exponente 2^−gamma por canal; lift.w, gammaExp.w y gain.w: el desplazamiento (rojo, verde y
     // azul), que se suma antes que todo. Curvas: tabla de 1024 × 1 en t10 (canal y luego general).
-    internal const string Source = RenderShaders.Prelude + """
+    internal const string Source = """
+        #if !defined(__HLSL_VERSION) || __HLSL_VERSION < 2021
+        #define select(c, a, b) ((c) ? (a) : (b))
+        #define and(a, b) ((a) && (b))
+        #endif
+
+        """ + RenderShaders.Prelude + """
         cbuffer Effects : register(b1)
         {
             float4 grade;
@@ -348,12 +354,12 @@ internal static class EffectShaders
 
         float3 SoftLightD(float3 cb)
         {
-            return cb <= 0.25 ? ((16.0 * cb - 12.0) * cb + 4.0) * cb : sqrt(cb);
+            return select(cb <= 0.25, ((16.0 * cb - 12.0) * cb + 4.0) * cb, sqrt(cb));
         }
 
         float3 HardLight(float3 cb, float3 cs)
         {
-            return cs <= 0.5 ? cb * 2.0 * cs : 1.0 - (1.0 - cb) * (1.0 - (2.0 * cs - 1.0));
+            return select(cs <= 0.5, cb * 2.0 * cs, 1.0 - (1.0 - cb) * (1.0 - (2.0 * cs - 1.0)));
         }
 
         float3 BlendColor(float3 cb, float3 cs)
@@ -361,14 +367,14 @@ internal static class EffectShaders
             switch ((int)blendInfo.x)
             {
                 case 4: return HardLight(cs, cb);
-                case 5: return cs <= 0.5 ? cb - (1.0 - 2.0 * cs) * cb * (1.0 - cb) : cb + (2.0 * cs - 1.0) * (SoftLightD(cb) - cb);
+                case 5: return select(cs <= 0.5, cb - (1.0 - 2.0 * cs) * cb * (1.0 - cb), cb + (2.0 * cs - 1.0) * (SoftLightD(cb) - cb));
                 case 6: return HardLight(cb, cs);
                 case 7: return min(cb, cs);
                 case 8: return max(cb, cs);
                 case 9: return abs(cb - cs);
                 case 10: return cb + cs - 2.0 * cb * cs;
-                case 11: return cb <= 0.0 ? 0.0 : (cs >= 1.0 ? 1.0 : min(1.0, cb / (1.0 - cs)));
-                case 12: return cb >= 1.0 ? 1.0 : (cs <= 0.0 ? 0.0 : 1.0 - min(1.0, (1.0 - cb) / cs));
+                case 11: return select(cb <= 0.0, (float3)0.0, select(cs >= 1.0, (float3)1.0, min(1.0, cb / (1.0 - cs))));
+                case 12: return select(cb >= 1.0, (float3)1.0, select(cs <= 0.0, (float3)0.0, 1.0 - min(1.0, (1.0 - cb) / cs)));
                 default: return cs;
             }
         }
@@ -523,7 +529,7 @@ internal static class EffectShaders
                 float2 h = max(mix1.zw, 1e-6);
                 bool vertices = kind == 2 || kind >= 4;
                 float shifted = 1e4;
-                [branch] if (!vertices || all(l >= key1.xy - key0.w && l <= key1.zw + key0.w))
+                [branch] if (!vertices || all(and(l >= key1.xy - key0.w, l <= key1.zw + key0.w)))
                 {
                     float coarse = 0.0;
                     if (canvas.z > 1.5)
@@ -911,7 +917,7 @@ internal static class EffectShaders
         {
             float2 m = abs(uv);
             m = m - 2.0 * floor(m * 0.5);
-            m = m > 1.0 ? 2.0 - m : m;
+            m = select(m > 1.0, 2.0 - m, m);
             return b ? SampleB(m) : SampleA(m);
         }
 
