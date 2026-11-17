@@ -43,11 +43,11 @@ jobs:
         run: |
           set -euo pipefail
           dotnet restore Rodaje.slnx --locked-mode -p:EnableWindowsTargeting=true
-          # Los módulos que solo son de Windows (RID fijo win-x64), también con -r win-x64: su lockfile y el de lo que
+          # Los módulos que solo son de Windows (RID fijo win-x64; hoy, RAW), también con -r win-x64: su lockfile y el de lo que
           # referencian no pueden depender de que se pase el RID. La app, el lanzador, AotSmoke, el eco y los módulos con los
           # tres RID (D-066) se publican sin -r (lo llevan en el .csproj), porque como propiedad global llegaría a
           # Rodaje.Core y demás bibliotecas y cambiaría sus lockfiles.
-          for m in Vision Raw; do
+          for m in Raw; do
             dotnet restore "modules/Rodaje.Module.$m/Rodaje.Module.$m.csproj" -r win-x64 --locked-mode -p:EnableWindowsTargeting=true
           done
 

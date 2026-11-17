@@ -28,7 +28,7 @@ internal sealed class LoadedModel(InferenceSession session, string device) : IDi
             : OrtValue.CreateTensorValueFromMemory(data, shape);
         using RunOptions options = new();
         using CancellationTokenRegistration registration = cancellationToken.Register(static o => ((RunOptions)o!).Terminate = true, options);
-        bool exclusive = Device == "directml";
+        bool exclusive = SessionFactory.IsExclusive(Device);
         if (exclusive)
         {
             _gate.EnterWriteLock();
@@ -123,7 +123,7 @@ internal sealed class VisionModels(ModelFiles files) : IDisposable
             catch (ObjectDisposedException) when (attempt == 0)
             {
             }
-            catch (OnnxRuntimeException) when (loaded.Device == "directml")
+            catch (OnnxRuntimeException) when (SessionFactory.IsExclusive(loaded.Device))
             {
                 lock (_gate)
                 {
