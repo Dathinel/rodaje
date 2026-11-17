@@ -1,7 +1,10 @@
 using System.Runtime.InteropServices;
+using Rodaje.Media.Gpu;
+using Rodaje.Media.Video;
 using Rodaje.Render.Gpu;
 using Rodaje.Render.Gpu.D3D11;
 using Rodaje.Render.Shaders;
+using Rodaje.Render.Tests.Support;
 
 namespace Rodaje.Render.Tests.Gpu;
 
@@ -47,6 +50,11 @@ public sealed class D3D11GpuTests : IDisposable
         float4 PsColor(VsOut i) : SV_Target { return i.color; }
 
         uint PsId(VsOut i) : SV_Target { return id.x; }
+
+        Texture2DArray<float> luma : register(t0);
+        Texture2DArray<float2> chroma : register(t1);
+
+        float4 PsPlanes(VsOut i) : SV_Target { return float4(luma.Load(int4(0, 0, 0, 0)), chroma.Load(int4(0, 0, 0, 0)), 1); }
 
         RWTexture2D<float4> image : register(u0);
         RWByteAddressBuffer bytes : register(u1);
@@ -364,6 +372,59 @@ public sealed class D3D11GpuTests : IDisposable
         }
 
         Assert.Equal(Size, texture.Width);
+    }
+
+    [Fact]
+    public void Acquired_decoder_surface_samples_its_planes_without_a_copy()
+    {
+        GpuDevice device = _gpu.Device;
+        nint texture = YuvImage.CreateTexture(device, [YuvImage.Solid(Size, Size, tenBit: false, new YuvCode(200, 64, 160))]);
+        using GpuSurfaceCache cache = _gpu.CreateSurfaceCache();
+        using GpuPipeline pipeline = Pipeline("VsFull", "PsPlanes");
+        using GpuTexture target = Target(GpuFormat.Rgba8Unorm);
+        try
+        {
+            using D3D11TexturePayload surface = D3D11TexturePayload.FromTexture(device, texture, 0, Size, Size, VideoColor.Bt709Limited);
+            using (IGpuFrame frame = _gpu.BeginFrame())
+            {
+                GpuDecoderPlanes planes = frame.Acquire(cache, surface);
+                GpuBindings bindings = Bindings();
+                bindings.SetResource(0, planes.Luma);
+                bindings.SetResource(1, planes.Chroma);
+                SetConstants(frame, default);
+                frame.Draw(pipeline, new GpuTargets(target), bindings, GpuViewport.Of(Size, Size), new GpuDrawCall(4));
+            }
+
+            Assert.Equal(new byte[] { 200, 64, 160, 255 }, ReadBytes(target)[..4]);
+        }
+        finally
+        {
+            Marshal.Release(texture);
+        }
+    }
+
+    [Fact]
+    public void Swapchain_back_buffer_is_a_target_that_presents_and_resizes()
+    {
+        using IGpuSwapchain swapchain = _gpu.CreateSwapchain(Size, Size, GpuFormat.Bgra8Unorm);
+        using GpuReadback readback = _gpu.CreateReadback(1, 1, GpuFormat.Bgra8Unorm);
+        using (IGpuFrame frame = _gpu.BeginFrame())
+        {
+            GpuTexture back = swapchain.AcquireBackBuffer(frame);
+            Assert.Same(back, swapchain.AcquireBackBuffer(frame));
+            frame.Clear(back, new GpuColor(0, 0, 1, 1));
+            frame.Copy(back, new GpuBox(3, 3, 1, 1), readback);
+            Assert.True(frame.Submit().Wait(TimeSpan.FromSeconds(5)));
+        }
+
+        byte[] pixel = new byte[4];
+        readback.Read(pixel);
+        Assert.Equal(new byte[] { 255, 0, 0, 255 }, pixel);
+        Assert.True(swapchain.Present(vsync: false));
+        swapchain.Resize(2 * Size, Size);
+        Assert.Equal((2 * Size, Size), (swapchain.Width, swapchain.Height));
+        using IGpuFrame again = _gpu.BeginFrame();
+        Assert.Equal(2 * Size, swapchain.AcquireBackBuffer(again).Width);
     }
 
     private static GpuVertexLayout MeshLayout { get; } = new(28,

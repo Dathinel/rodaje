@@ -1,3 +1,4 @@
+using Rodaje.Media.Gpu;
 using Rodaje.Render.Shaders;
 
 namespace Rodaje.Render.Gpu;
@@ -42,6 +43,10 @@ public interface IGpu : IDisposable
     /// <summary>Destino de lectura reutilizable de <paramref name="bytes"/> bytes para un búfer.</summary>
     GpuReadback CreateReadback(int bytes);
 
+    /// <summary>Vistas de superficies del decodificador para <see cref="IGpuFrame.Acquire"/>.</summary>
+    /// <param name="time">Reloj de las vistas sin uso; <c>null</c>, el del sistema.</param>
+    GpuSurfaceCache CreateSurfaceCache(TimeProvider? time = null);
+
     /// <summary>Empieza a grabar. Ver «Sincronización» en <c>docs/igpu.md</c>.</summary>
     IGpuFrame BeginFrame();
 }
@@ -72,6 +77,13 @@ public interface IGpuFrame : IDisposable
     void ClearUint(GpuResource target, uint value);
 
     void ClearDepth(GpuTexture depth, float value = 1);
+
+    /// <summary>
+    /// Los planos de una superficie del decodificador, sin copiarla, válidos hasta que el cuadro se cierra (regla 2 de
+    /// <c>docs/igpu.md</c>). Las vistas se guardan en <paramref name="cache"/>.
+    /// </summary>
+    /// <exception cref="ArgumentException">La superficie no es de este motor.</exception>
+    GpuDecoderPlanes Acquire(GpuSurfaceCache cache, IDecoderSurface surface);
 
     // Dibujo y cómputo
     void Draw(GpuPipeline pipeline, in GpuTargets targets, in GpuBindings bindings, in GpuViewport viewport, in GpuDrawCall draw);

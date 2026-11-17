@@ -66,7 +66,7 @@ public sealed unsafe partial class Compositor : IDisposable
     private readonly GpuDevice _gpu;
     private readonly D3D11Gpu _engine;
     private readonly QuadPipeline _pipeline;
-    private readonly PlaneViewCache _views;
+    private readonly GpuSurfaceCache _views;
     private readonly EffectPipeline _effects;
     private readonly RenderTargetPool _pool;
     private readonly LutTextures _luts;
@@ -102,7 +102,7 @@ public sealed unsafe partial class Compositor : IDisposable
         Height = height;
         Format = format;
         MipLevels = 1 + (int)Math.Log2(Math.Max(width, height));
-        _views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice, time);
+        _views = _engine.CreateSurfaceCache(time);
         _pool = new RenderTargetPool(_engine, poolCapBytes ?? PoolCapFor(gpu.DedicatedVideoMemory));
         _luts = new LutTextures(_engine);
         _pipeline = new QuadPipeline(_engine);
@@ -110,7 +110,7 @@ public sealed unsafe partial class Compositor : IDisposable
         {
             _effects = new EffectPipeline(_pipeline, shaders ?? ShaderCache.Default);
             _layers = new LayerRenderer(gpu, _pipeline, _effects, _views, _pool, _luts);
-            _interpolator = new FrameInterpolator(gpu, _views, _pool, shaders ?? ShaderCache.Default);
+            _interpolator = new FrameInterpolator(gpu, ((D3D11SurfaceCache)_views).Views, _pool, shaders ?? ShaderCache.Default);
             CreateTarget();
         }
         catch

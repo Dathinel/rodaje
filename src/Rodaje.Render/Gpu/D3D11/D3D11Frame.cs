@@ -1,4 +1,5 @@
 using System.Runtime.InteropServices;
+using Rodaje.Media.Gpu;
 using TerraFX.Interop.DirectX;
 using static TerraFX.Interop.DirectX.D3D11;
 using static TerraFX.Interop.DirectX.DirectX;
@@ -13,6 +14,7 @@ namespace Rodaje.Render.Gpu.D3D11;
 internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
 {
     private readonly ID3D11DeviceContext* _context = gpu.Context;
+    private List<PlaneViews>? _acquired;
     private bool _closed;
 
     public void Dispose()
@@ -29,6 +31,15 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
             if (--gpu.OpenFrames == 0)
             {
                 UnbindAll();
+            }
+
+            // Vistas de un solo uso (caché llena o superficie que no es del decodificador): el contexto ya no las tiene.
+            if (_acquired is not null)
+            {
+                foreach (PlaneViews views in _acquired)
+                {
+                    views.Release();
+                }
             }
         }
         finally
@@ -120,6 +131,22 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
 
     public void ClearDepth(GpuTexture depth, float value = 1) =>
         _context->ClearDepthStencilView(((D3D11Texture)depth).Dsv, (uint)D3D11_CLEAR_FLAG.D3D11_CLEAR_DEPTH, value, 0);
+
+    public GpuDecoderPlanes Acquire(GpuSurfaceCache cache, IDecoderSurface surface)
+    {
+        if (surface is not D3D11TexturePayload payload)
+        {
+            throw new ArgumentException("La superficie no es de D3D11.", nameof(surface));
+        }
+
+        PlaneViews views = ((D3D11SurfaceCache)cache).Views.Get(payload, out bool owned);
+        if (owned)
+        {
+            (_acquired ??= []).Add(views);
+        }
+
+        return new GpuDecoderPlanes(views.LumaTexture, views.ChromaTexture);
+    }
 
     public void Draw(GpuPipeline pipeline, in GpuTargets targets, in GpuBindings bindings, in GpuViewport viewport, in GpuDrawCall draw)
     {
