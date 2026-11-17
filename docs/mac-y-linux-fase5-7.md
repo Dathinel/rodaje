@@ -1,6 +1,6 @@
 # Linux y macOS, fases 5, 6 y 7: títulos, audio y módulos
 
-**Actualización del 17-nov:** el dibujo de títulos con Skia y la decisión de licencias están en [Títulos con SkiaSharp](mac-y-linux-titulos-skia.md).
+**Actualización del 17-nov:** los títulos ya se dibujan con SkiaSharp sobre esta maquetación en el motor Vulkan ([fase 4](mac-y-linux-fase4.md)); la decisión de licencias está en `docs/legal.md`.
 
 Resultado de las fases 5 (títulos), 6 (audio) y 7 (módulos e IA) de D-066 ([propuestas/mac-y-linux.md](propuestas/mac-y-linux.md) §5), 16 y 17 de noviembre de 2026. En el equipo de Daniel no se instaló nada ni se corrieron pruebas en local (Daniel pidió no cargar el PC): todo se probó en GitHub Actions (Ubuntu 24.04 x64, macOS 15 arm64 y Windows).
 

@@ -92,7 +92,7 @@ public sealed unsafe partial class Compositor : IDisposable
     }
 
     /// <summary>
-    /// Sobre cualquier motor de <see cref="IGpu"/>. En uno que no es D3D11 no hay títulos (llegan con el dibujo de títulos en Unix):
+    /// Sobre cualquier motor de <see cref="IGpu"/>. En uno que no es D3D11 los títulos se dibujan con Skia (<see cref="TitleRasterizers"/>);
     /// esas capas se saltan. La interpolación de cuadros sí existe (<see cref="SurfaceInterpolator"/>, sobre las superficies del motor).
     /// </summary>
     public Compositor(IGpu gpu, int width, int height, CompositeFormat format = CompositeFormat.Rgba16Float, ShaderCache? shaders = null,
