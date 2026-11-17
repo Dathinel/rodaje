@@ -1,4 +1,4 @@
-﻿using System.Numerics;
+using System.Numerics;
 using Rodaje.Media.Gpu;
 using Rodaje.Media.Video;
 using Rodaje.Playback.Composition;
@@ -8,7 +8,7 @@ using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render;
 
-/// <summary>DÃ³nde se dibuja: la composiciÃ³n o un lienzo de transiciÃ³n, con su relaciÃ³n con la secuencia.</summary>
+/// <summary>Dónde se dibuja: la composición o un lienzo de transición, con su relación con la secuencia.</summary>
 internal readonly unsafe struct Destination(RenderTarget target, int width, int height, int sequenceWidth, int sequenceHeight)
 {
     public RenderTarget Target { get; } = target;
@@ -21,7 +21,7 @@ internal readonly unsafe struct Destination(RenderTarget target, int width, int 
 
     public int SequenceHeight { get; } = sequenceHeight;
 
-    /// <summary>PÃ­xeles del destino por pÃ­xel de la secuencia.</summary>
+    /// <summary>Píxeles del destino por píxel de la secuencia.</summary>
     public float PixelScale => Math.Min((float)Width / SequenceWidth, (float)Height / SequenceHeight);
 }
 
@@ -38,13 +38,13 @@ internal readonly record struct LayerSource(D3D11TexturePayload? Planes, ImageVi
     public bool IsImage => Planes is null;
 }
 
-/// <summary>Efectos que la vista previa puede dejar fuera: para comparar antes y despuÃ©s y para el cuentagotas del croma.</summary>
+/// <summary>Efectos que la vista previa puede dejar fuera: para comparar antes y después y para el cuentagotas del croma.</summary>
 [Flags]
 public enum PreviewBypass
 {
     None = 0,
 
-    /// <summary>Color y LUT, viÃ±eta, ruedas y curvas.</summary>
+    /// <summary>Color y LUT, viñeta, ruedas y curvas.</summary>
     Grading = 1,
 
     /// <summary>El croma.</summary>
@@ -53,7 +53,7 @@ public enum PreviewBypass
     /// <summary>El recorte: se ve la imagen entera mientras se ajusta en el visor.</summary>
     Crop = 4,
 
-    /// <summary>El calificador HSL (su cuentagotas mira el color que Ã©l recibe).</summary>
+    /// <summary>El calificador HSL (su cuentagotas mira el color que él recibe).</summary>
     Qualifier = 8,
 }
 
@@ -68,10 +68,10 @@ internal struct FrameStats
 }
 
 /// <summary>
-/// Dibuja una capa. Sin efectos (<see cref="LayerFrame.IsPlain"/>) es el camino rÃ¡pido de la fase 3: un cuadrilÃ¡tero con
-/// <c>PsLayer</c> sobre el destino ya enlazado. Con efectos, color, LUT y viÃ±eta van fusionados en el mismo shader que
-/// convierte el color; desenfoque y nitidez, en intermedios del tamaÃ±o en pantalla; la mezcla, por estado fijo o por
-/// shader con una copia del fondo; y una transiciÃ³n, en dos lienzos que mezcla un shader.
+/// Dibuja una capa. Sin efectos (<see cref="LayerFrame.IsPlain"/>) es el camino rápido de la fase 3: un cuadrilátero con
+/// <c>PsLayer</c> sobre el destino ya enlazado. Con efectos, color, LUT y viñeta van fusionados en el mismo shader que
+/// convierte el color; desenfoque y nitidez, en intermedios del tamaño en pantalla; la mezcla, por estado fijo o por
+/// shader con una copia del fondo; y una transición, en dos lienzos que mezcla un shader.
 /// </summary>
 /// <remarks>Lo que no se puede aplicar en este cuadro (shader sin compilar, pool lleno) se salta y se cuenta; nunca se espera.</remarks>
 internal sealed unsafe partial class LayerRenderer : IDisposable
@@ -109,7 +109,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         _curves.Dispose();
     }
 
-    /// <summary>Solo vista previa: quÃ© efectos se dejan fuera al componer.</summary>
+    /// <summary>Solo vista previa: qué efectos se dejan fuera al componer.</summary>
     public PreviewBypass Bypass { get; set; }
 
     public IEffectResources? Resources { get; set; }
@@ -132,7 +132,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         return payload;
     }
 
-    /// <summary>El camino rÃ¡pido: dibuja con el pipeline ya enlazado (<c>PsLayer</c> y "over").</summary>
+    /// <summary>El camino rápido: dibuja con el pipeline ya enlazado (<c>PsLayer</c> y "over").</summary>
     public bool DrawPlain(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight, float pixelScale)
     {
         geometry = geometry with { Crop = CropOf(layer) };
@@ -167,10 +167,10 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     }
 
     /// <summary>
-    /// Dibuja una capa con efectos, mezcla o transiciÃ³n, o una capa compuesta. Deja el pipeline enlazado a otra cosa: quien
+    /// Dibuja una capa con efectos, mezcla o transición, o una capa compuesta. Deja el pipeline enlazado a otra cosa: quien
     /// llama lo vuelve a enlazar.
     /// </summary>
-    /// <param name="incoming">El origen del clip que entra si la capa estÃ¡ en una transiciÃ³n; nulo si no se puede dibujar.</param>
+    /// <param name="incoming">El origen del clip que entra si la capa está en una transición; nulo si no se puede dibujar.</param>
     public bool Draw(LayerFrame layer, LayerSource source, LayerSource? incoming, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination,
         ref FrameStats stats)
     {
@@ -180,7 +180,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
             : DrawSingle(layer, source, GeometryOf(layer, source, geometry), destination, BlendOf(layer), ref stats);
     }
 
-    /// <summary>Una capa compuesta ya tiene la forma de la secuencia: no lleva relaciÃ³n de aspecto ni giro del origen.</summary>
+    /// <summary>Una capa compuesta ya tiene la forma de la secuencia: no lleva relación de aspecto ni giro del origen.</summary>
     private static SourceGeometry GeometryOf(LayerFrame layer, LayerSource source, Func<LayerFrame, SourceGeometry>? geometry) =>
         source.IsImage ? SourceGeometry.Square : geometry?.Invoke(layer) ?? SourceGeometry.Square;
 
@@ -274,7 +274,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         GpuShader? shader = _effects.TryGetShader(EffectShader.Graded, plan.Flags | (shaderBlend ? EffectShaders.Blend : 0));
         if (shader == null)
         {
-            // Variante todavÃ­a sin compilar: la capa sale sin efectos y con mezcla normal.
+            // Variante todavía sin compilar: la capa sale sin efectos y con mezcla normal.
             _quad.Bind(destination.Target.Gpu, destination.Width, destination.Height, QuadPipeline.Shader.Layer);
             stats.EffectsSkipped += plan.PerPixelCount + blendCount;
             if (payload.Planes is not { } planes)
@@ -331,14 +331,14 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
             return false;
         }
 
-        // Del tamaÃ±o en pantalla, sin pasar del lado mayor del destino (una capa muy ampliada pierde algo de detalle).
+        // Del tamaño en pantalla, sin pasar del lado mayor del destino (una capa muy ampliada pierde algo de detalle).
         float onScreen = placement.MaxAxisScale * destination.PixelScale;
         float wanted = Math.Max(placement.LocalWidth, placement.LocalHeight) * onScreen;
         float fit = Math.Min(1f, Math.Max(destination.Width, destination.Height) / wanted);
         int width = Math.Max(1, (int)MathF.Ceiling(placement.LocalWidth * onScreen * fit));
         int height = Math.Max(1, (int)MathF.Ceiling(placement.LocalHeight * onScreen * fit));
 
-        // El reencuadre 360 lee el equirectangular entero: el primer intermedio va al tamaÃ±o del origen, no al de la salida.
+        // El reencuadre 360 lee el equirectangular entero: el primer intermedio va al tamaño del origen, no al de la salida.
         int reframe = _spatial.FindIndex(s => s.Kind == GpuEffectKind.Reframe360);
         (int firstWidth, int firstHeight) = reframe >= 0 ? EquirectangularSize(payload) : (width, height);
         RenderTarget? first = _pool.Rent(firstWidth, firstHeight, IntermediateFormat);
@@ -361,7 +361,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         DrawPlanes(payload, toIntermediate);
         UnbindInputs();
 
-        // PÃ­xeles del intermedio por pÃ­xel de la secuencia: los radios se escalan igual en la vista previa reducida.
+        // Píxeles del intermedio por píxel de la secuencia: los radios se escalan igual en la vista previa reducida.
         float perSequencePixel = scaleX / placement.Scale;
         var view = new ImageView(first, firstWidth, firstHeight);
         if (reframe >= 0)
@@ -378,7 +378,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
             }
         }
 
-        // En la vista de las mÃ¡scaras de la capa en gris, lo que viene despuÃ©s taparÃ­a la mÃ¡scara.
+        // En la vista de las máscaras de la capa en gris, lo que viene después taparía la máscara.
         bool steps = _maskView is not { Group: -1, Mode: MaskViewMode.Matte };
         _maskPlacement = placement;
         foreach (SpatialStep step in _spatial)
@@ -442,7 +442,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     }
 
     /// <summary>
-    /// Dibuja un intermedio premultiplicado del tamaÃ±o del destino (el promedio de las muestras del desenfoque de
+    /// Dibuja un intermedio premultiplicado del tamaño del destino (el promedio de las muestras del desenfoque de
     /// movimiento) sobre el destino, con la mezcla de la capa.
     /// </summary>
     public bool DrawImage(ImageView view, BlendMode blend, in Destination destination, ref FrameStats stats)
@@ -524,7 +524,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         }
     }
 
-    /// <summary>Enlaza t3 (fondo), t4 (LUT), t5 y t6 (intermedios), t7 (mÃ¡scaras) y t10 (curvas). Va despuÃ©s de enlazar el destino.</summary>
+    /// <summary>Enlaza t3 (fondo), t4 (LUT), t5 y t6 (intermedios), t7 (máscaras) y t10 (curvas). Va después de enlazar el destino.</summary>
     private void BindInputs(RenderTarget? background, GpuTexture? lut, RenderTarget? imageA, RenderTarget? imageB,
         RenderTarget? mask = null, GpuTexture? curves = null)
     {
@@ -566,7 +566,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         return copy;
     }
 
-    /// <summary>RectÃ¡ngulo en pÃ­xeles del destino que cubre el cuadrilÃ¡tero (con su margen de suavizado).</summary>
+    /// <summary>Rectángulo en píxeles del destino que cubre el cuadrilátero (con su margen de suavizado).</summary>
     private static PixelRect Bounds(in QuadConstants quad, in Destination destination)
     {
         float minX = Math.Min(Math.Min(quad.TopLeft.X, quad.TopRight.X), Math.Min(quad.BottomLeft.X, quad.BottomRight.X));
@@ -586,7 +586,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
             ? LayerQuad(payload, placement, geometry, opacity, sequenceWidth, sequenceHeight, pixelScale)
             : PlacedQuad(placement, VideoLayout.Crop(VideoLayout.Corners(0, 1, 1), geometry.Crop), opacity, sequenceWidth, sequenceHeight, pixelScale);
 
-    /// <summary>Constantes de una capa YUV: colocaciÃ³n, rango, matriz y recorte del relleno del decodificador.</summary>
+    /// <summary>Constantes de una capa YUV: colocación, rango, matriz y recorte del relleno del decodificador.</summary>
     internal static QuadConstants LayerQuad(D3D11TexturePayload payload, in LayerPlacement placement, SourceGeometry geometry,
         float opacity, float sequenceWidth, float sequenceHeight, float pixelScale)
     {
@@ -611,7 +611,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         return constants;
     }
 
-    // Una capa SDR solo lleva hdr.y con Â«Expandir a HDRÂ» (el pico, 203â€“1000 nits): en una secuencia SDR ningÃºn shader lo lee.
+    // Una capa SDR solo lleva hdr.y con «Expandir a HDR» (el pico, 203–1000 nits): en una secuencia SDR ningún shader lo lee.
     private static void SetHdr(ref QuadConstants constants, D3D11TexturePayload? payload, in LayerTransform transform)
     {
         if (payload is null)
@@ -636,7 +636,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         constants.Hdr = new((float)payload.Color.Transfer, white, payload.Color.Bt2020Primaries ? 1 : 0, 0);
     }
 
-    /// <summary>Esquinas, coordenadas locales y forma de un rectÃ¡ngulo colocado, con un pÃ­xel de margen para suavizar el borde.</summary>
+    /// <summary>Esquinas, coordenadas locales y forma de un rectángulo colocado, con un píxel de margen para suavizar el borde.</summary>
     internal static QuadConstants PlacedQuad(in LayerPlacement placement, in QuadTexCoords uv, float opacity,
         float sequenceWidth, float sequenceHeight, float pixelScale)
     {
@@ -647,7 +647,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         float screenX = uniform ? screenScale : edgeX * pixelScale;
         float screenY = uniform ? screenScale : edgeY * pixelScale;
 
-        // Un pÃ­xel de destino mÃ¡s allÃ¡ del borde, para que la cobertura lo suavice tambiÃ©n hacia afuera.
+        // Un píxel de destino más allá del borde, para que la cobertura lo suavice también hacia afuera.
         float marginX = 1f / screenX;
         float marginY = 1f / screenY;
         float w = placement.LocalWidth;
@@ -667,7 +667,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     private static Float4 Corner(in LayerPlacement placement, in QuadTexCoords uv, float x, float y, float sequenceWidth, float sequenceHeight,
         out Float4 local)
     {
-        // Con perspectiva, w va a la cuarta coordenada del vÃ©rtice y la GPU interpola uv y local corregidos (VsQuad).
+        // Con perspectiva, w va a la cuarta coordenada del vértice y la GPU interpola uv y local corregidos (VsQuad).
         Vector2 ndc = LayerLayout.ToNdc(placement.Map(x, y, out float w), sequenceWidth, sequenceHeight);
         TexCoord t = LayerLayout.TexCoordAt(uv, x, y, placement.LocalWidth, placement.LocalHeight);
         local = new Float4(x, y, placement.Projective is null ? 0 : Math.Max(w, 1e-6f), 0);

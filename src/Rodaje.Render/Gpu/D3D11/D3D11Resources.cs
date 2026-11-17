@@ -507,19 +507,17 @@ internal sealed unsafe class D3D11Pipeline : GpuPipeline
         Check(device->CreateRasterizerState(&rasterizerDesc, &rasterizer), "CreateRasterizerState");
         _rasterizer = rasterizer;
 
-        // Sin estado propio vale el de D3D11 por defecto, que sin destino de profundidad no prueba nada.
-        if (desc.Depth.Test || desc.Depth.Write)
+        // Siempre un estado propio: el de D3D11 por defecto (null) prueba y escribe si hay un destino de profundidad enlazado.
+        bool depthOn = desc.Depth.Test || desc.Depth.Write;
+        var depthDesc = new D3D11_DEPTH_STENCIL_DESC
         {
-            var depthDesc = new D3D11_DEPTH_STENCIL_DESC
-            {
-                DepthEnable = true,
-                DepthWriteMask = desc.Depth.Write ? D3D11_DEPTH_WRITE_MASK.D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK.D3D11_DEPTH_WRITE_MASK_ZERO,
-                DepthFunc = desc.Depth.Test ? Compare(desc.Depth.Compare) : D3D11_COMPARISON_FUNC.D3D11_COMPARISON_ALWAYS,
-            };
-            ID3D11DepthStencilState* depth;
-            Check(device->CreateDepthStencilState(&depthDesc, &depth), "CreateDepthStencilState");
-            _depth = depth;
-        }
+            DepthEnable = depthOn,
+            DepthWriteMask = desc.Depth.Write ? D3D11_DEPTH_WRITE_MASK.D3D11_DEPTH_WRITE_MASK_ALL : D3D11_DEPTH_WRITE_MASK.D3D11_DEPTH_WRITE_MASK_ZERO,
+            DepthFunc = desc.Depth.Test ? Compare(desc.Depth.Compare) : D3D11_COMPARISON_FUNC.D3D11_COMPARISON_ALWAYS,
+        };
+        ID3D11DepthStencilState* depth;
+        Check(device->CreateDepthStencilState(&depthDesc, &depth), "CreateDepthStencilState");
+        _depth = depth;
 
         if (desc.VertexLayout is { } layout)
         {

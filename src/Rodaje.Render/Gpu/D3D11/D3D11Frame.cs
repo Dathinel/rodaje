@@ -265,6 +265,8 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
         return new D3D11Fence(gpu, query);
     }
 
+    public void Flush() => _context->Flush();
+
     private static D3D11_BOX Box(in GpuBox region) => new()
     {
         left = (uint)region.X,

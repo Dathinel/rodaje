@@ -365,7 +365,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
                 frame.Copy(_thumbnailBuffer!, 0, width * height * 4, slot.ThumbnailStaging);
             }
 
-            frame.Submit();
+            frame.Flush();
         }
 
         if (thumbnail)

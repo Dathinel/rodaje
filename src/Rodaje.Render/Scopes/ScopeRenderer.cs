@@ -155,7 +155,7 @@ public sealed unsafe class ScopeRenderer : IDisposable
 
             Measure(frame, compositor, kind);
             frame.Copy(_image!, new GpuBox(0, 0, ImageWidth, ImageHeight), _staging[slot]!);
-            frame.Submit();
+            frame.Flush();
             _pending[slot] = (++_submitted, kind);
         }
 

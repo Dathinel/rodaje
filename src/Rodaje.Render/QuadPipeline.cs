@@ -13,7 +13,6 @@ internal sealed unsafe class QuadPipeline : IDisposable
 {
     private readonly D3D11Gpu _engine;
     private readonly Dictionary<(GpuShader Pixel, GpuBlend Blend), GpuPipeline> _pipelines = [];
-    private readonly Dictionary<nint, GpuTexture> _views = [];
     private GpuShader? _vertex;
     private GpuShader? _layer;
     private GpuShader? _present;
@@ -81,27 +80,6 @@ internal sealed unsafe class QuadPipeline : IDisposable
     /// <summary>Enlaza <paramref name="resource"/> en <c>t#</c> hasta que se cambie o se quite (<c>null</c>).</summary>
     public void SetInput(int register, GpuResource? resource) => _bindings.SetResource(register, resource);
 
-    /// <summary>
-    /// Para lo que aún no pasó a <see cref="IGpu"/>: enlaza una vista nativa (la envuelve una vez; las envolturas se sueltan en
-    /// <see cref="Unbind"/>).
-    /// </summary>
-    public void SetInputView(int register, ID3D11ShaderResourceView* view)
-    {
-        if (view == null)
-        {
-            _bindings.SetResource(register, null);
-            return;
-        }
-
-        if (!_views.TryGetValue((nint)view, out GpuTexture? wrapped))
-        {
-            wrapped = D3D11Texture.View(default, view);
-            _views.Add((nint)view, wrapped);
-        }
-
-        _bindings.SetResource(register, wrapped);
-    }
-
     /// <summary>Enlaza un búfer de constantes en <c>b#</c> (los efectos usan b1).</summary>
     public void SetConstants(int register, GpuBuffer buffer) => _bindings.SetConstants(register, buffer);
 
@@ -129,13 +107,6 @@ internal sealed unsafe class QuadPipeline : IDisposable
         {
             _bindings.SetResource(i, null);
         }
-
-        foreach (GpuTexture view in _views.Values)
-        {
-            view.Dispose();
-        }
-
-        _views.Clear();
     }
 
     public void Dispose()
