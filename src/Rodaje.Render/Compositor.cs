@@ -72,6 +72,7 @@ public sealed unsafe partial class Compositor : IDisposable
     private readonly LutTextures _luts;
     private readonly LayerRenderer _layers;
     private readonly FrameInterpolator? _interpolator;
+    private readonly SurfaceInterpolator? _surfaceInterpolator;
     private RenderTarget? _output;
     private GpuReadback? _readback;
     private TitleRasterizer? _titles;
@@ -91,8 +92,8 @@ public sealed unsafe partial class Compositor : IDisposable
     }
 
     /// <summary>
-    /// Sobre cualquier motor de <see cref="IGpu"/>. En uno que no es D3D11 no hay interpolación de cuadros ni títulos (llegan con las
-    /// superficies Vulkan y el dibujo de títulos en Unix): esas capas salen sin interpolar o se saltan.
+    /// Sobre cualquier motor de <see cref="IGpu"/>. En uno que no es D3D11 no hay títulos (llegan con el dibujo de títulos en Unix):
+    /// esas capas se saltan. La interpolación de cuadros sí existe (<see cref="SurfaceInterpolator"/>, sobre las superficies del motor).
     /// </summary>
     public Compositor(IGpu gpu, int width, int height, CompositeFormat format = CompositeFormat.Rgba16Float, ShaderCache? shaders = null,
         long? poolCapBytes = null)
@@ -133,6 +134,10 @@ public sealed unsafe partial class Compositor : IDisposable
             if (OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is not null)
             {
                 _interpolator = new FrameInterpolator(gpu, ((D3D11SurfaceCache)_views).Views, _pool, shaders ?? ShaderCache.Default);
+            }
+            else
+            {
+                _surfaceInterpolator = new SurfaceInterpolator(engine, _views, _pool, shaders ?? ShaderCache.Default);
             }
 
             CreateTarget();
@@ -192,7 +197,8 @@ public sealed unsafe partial class Compositor : IDisposable
     /// <summary>Vistas de superficies del decodificador guardadas, para diagnóstico.</summary>
     public int CachedViewCount => _views.Count;
 
-    internal int InterpolationTextureCount => OperatingSystem.IsWindowsVersionAtLeast(7) ? _interpolator?.TextureCount ?? 0 : 0;
+    internal int InterpolationTextureCount =>
+        (OperatingSystem.IsWindowsVersionAtLeast(7) ? _interpolator?.TextureCount ?? 0 : 0) + (_surfaceInterpolator?.TextureCount ?? 0);
 
     /// <summary>De dónde salen las LUT. Sin proveedor, una capa con LUT sale sin ella y se cuenta en <see cref="CompositeResult.MissingContent"/>.</summary>
     public IEffectResources? Resources
@@ -283,6 +289,7 @@ public sealed unsafe partial class Compositor : IDisposable
                 _interpolator?.EndFrame();
             }
 
+            _surfaceInterpolator?.EndFrame();
             _views.EndFrame();
             _pool.EndFrame();
             _pipeline.Frame = null;
@@ -539,6 +546,14 @@ public sealed unsafe partial class Compositor : IDisposable
                 : interpolator.Blend(current, next, layer.Fraction)) ?? payload;
         }
 
+        if (_surfaceInterpolator is { } portable && payload is not null
+            && layer.Sampling is FrameSampling.Blend or FrameSampling.OpticalFlow && _layers.UsableNext(layer) is { } nextSurface)
+        {
+            return (layer.Sampling == FrameSampling.OpticalFlow
+                ? portable.Flow(payload, nextSurface, layer.Fraction)
+                : portable.Blend(payload, nextSurface, layer.Fraction)) ?? payload;
+        }
+
         return payload;
     }
 
@@ -637,6 +652,7 @@ public sealed unsafe partial class Compositor : IDisposable
                 _interpolator?.Trim();
             }
 
+            _surfaceInterpolator?.Trim();
             _pool.Trim();
         }
 
@@ -735,6 +751,7 @@ public sealed unsafe partial class Compositor : IDisposable
                 _interpolator?.Trim();
             }
 
+            _surfaceInterpolator?.Trim();
             _pool.Trim();
         }
     }
@@ -755,6 +772,8 @@ public sealed unsafe partial class Compositor : IDisposable
         {
             _interpolator?.Dispose();
         }
+
+        _surfaceInterpolator?.Dispose();
 
         _pool.Dispose();
         _luts.Dispose();

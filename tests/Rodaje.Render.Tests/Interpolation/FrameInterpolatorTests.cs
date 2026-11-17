@@ -1,4 +1,5 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.Versioning;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -6,112 +7,87 @@ using Rodaje.Media.Gpu;
 using Rodaje.Media.Video;
 using Rodaje.Playback;
 using Rodaje.Playback.Composition;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using Rodaje.Render.Interpolation;
 using Rodaje.Render.Shaders;
 using Rodaje.Render.Tests.Support;
 using TerraFX.Interop.DirectX;
 using static Rodaje.Render.RenderException;
-using Rodaje.Render.Gpu;
-using Rodaje.Render.Gpu.D3D11;
 
 namespace Rodaje.Render.Tests.Interpolation;
 
+/// <summary>La interpolación (mezcla y flujo óptico) en el motor de <see cref="TestGpu.Engine"/>: D3D11 o Vulkan.</summary>
 [Collection("Interpolation payload lifetime")]
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class FrameInterpolatorTests
 {
     private static readonly ShaderCache TestShaders = new(null);
 
-    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
+    [EngineTheory]
     [InlineData(0.5f)]
     [InlineData(0.25f)]
-    public unsafe void P016_preserves_sixteen_bit_plane_codes(float fraction)
+    public void P016_preserves_sixteen_bit_plane_codes(float fraction)
     {
-        using GpuDevice gpu = GpuDevice.CreateWarp();
-        using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 1024 * 1024);
-        using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
-        using D3D11TexturePayload a = Create(false);
-        using D3D11TexturePayload b = Create(true);
-        D3D11TexturePayload output = Assert.IsType<D3D11TexturePayload>(interpolator.Blend(a, b, fraction));
-        Assert.Equal(a.DxgiFormat, output.DxgiFormat);
-        ushort[] first = ReadPlanes(gpu, a);
-        ushort[] second = ReadPlanes(gpu, b);
-        ushort[] actual = ReadPlanes(gpu, output);
+        using InterpolationRig rig = InterpolationRig.Create();
+        IDecoderSurface a = rig.Upload(Codes(false), 16, 16, 16, 16, PlaneDepth.P016, VideoColor.Bt709Limited);
+        IDecoderSurface b = rig.Upload(Codes(true), 16, 16, 16, 16, PlaneDepth.P016, VideoColor.Bt709Limited);
+        IDecoderSurface output = Assert.IsAssignableFrom<IDecoderSurface>(rig.Blend(a, b, fraction));
+        Assert.Equal(a.PixelFormat, output.PixelFormat);
+        ushort[] first = rig.ReadPlanes(a);
+        ushort[] second = rig.ReadPlanes(b);
+        ushort[] actual = rig.ReadPlanes(output);
         for (int i = 0; i < actual.Length; i++)
         {
             Assert.InRange(Math.Abs(actual[i] - (((1 - fraction) * first[i]) + (fraction * second[i]))), 0, 1);
         }
 
-        D3D11TexturePayload Create(bool reverse)
+        static ushort[] Codes(bool reverse)
         {
             var data = new ushort[16 * 16 * 3 / 2];
             for (int i = 0; i < data.Length; i++) data[i] = (ushort)(reverse ? 65535 - (i * 137) : i * 113);
-            var desc = new D3D11_TEXTURE2D_DESC
-            {
-                Width = 16, Height = 16, MipLevels = 1, ArraySize = 1, Format = DXGI_FORMAT.DXGI_FORMAT_P016,
-                SampleDesc = new DXGI_SAMPLE_DESC(1, 0), Usage = D3D11_USAGE.D3D11_USAGE_DEFAULT,
-                BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_SHADER_RESOURCE,
-            };
-            ID3D11Texture2D* texture;
-            fixed (ushort* codes = data)
-            {
-                var initial = new D3D11_SUBRESOURCE_DATA { pSysMem = codes, SysMemPitch = 32 };
-                Check(((ID3D11Device*)gpu.NativeDevice)->CreateTexture2D(&desc, &initial, &texture), "CreateTexture2D(P016)");
-            }
-
-            try
-            {
-                return D3D11TexturePayload.FromTexture(gpu, (nint)texture, 0, 16, 16, VideoColor.Bt709Limited);
-            }
-            finally
-            {
-                texture->Release();
-            }
+            return data;
         }
     }
 
-    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
+    [EngineTheory]
     [InlineData(false, 0.5f)]
     [InlineData(false, 0.25f)]
     [InlineData(true, 0.5f)]
     [InlineData(true, 0.25f)]
-    public unsafe void Blend_matches_weighted_codes_in_both_planes(bool tenBit, float fraction)
+    public void Blend_matches_weighted_codes_in_both_planes(bool tenBit, float fraction)
     {
-        using GpuDevice gpu = GpuDevice.CreateWarp();
-        using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 1024 * 1024);
-        using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
-        using LayerFrame first = Pattern(gpu, tenBit, false, 32, 24);
-        using LayerFrame second = Pattern(gpu, tenBit, true, 32, 24);
-        var a = (D3D11TexturePayload)first.Frame.Payload!;
-        var b = (D3D11TexturePayload)second.Frame.Payload!;
-        D3D11TexturePayload output = Assert.IsType<D3D11TexturePayload>(interpolator.Blend(a, b, fraction));
-        Assert.Equal(a.DxgiFormat, output.DxgiFormat);
+        using InterpolationRig rig = InterpolationRig.Create();
+        YuvImage imageA = Pattern(tenBit, false, 32, 24);
+        YuvImage imageB = Pattern(tenBit, true, 32, 24);
+        var color = new VideoColor(YuvMatrix.Bt601, true);
+        IDecoderSurface a = rig.Upload(imageA.Codes(), imageA.Width, imageA.Height, 32, 24, Depth(tenBit), color);
+        IDecoderSurface b = rig.Upload(imageB.Codes(), imageB.Width, imageB.Height, 32, 24, Depth(tenBit), color);
+        IDecoderSurface output = Assert.IsAssignableFrom<IDecoderSurface>(rig.Blend(a, b, fraction));
+        Assert.Equal(a.PixelFormat, output.PixelFormat);
         Assert.Equal(a.Color, output.Color);
         Assert.Equal(a.Width, output.Width);
         Assert.Equal(a.Height, output.Height);
-        ushort[] ca = ReadPlanes(gpu, a);
-        ushort[] cb = ReadPlanes(gpu, b);
-        ushort[] actual = ReadPlanes(gpu, output);
+        ushort[] ca = rig.ReadPlanes(a);
+        ushort[] cb = rig.ReadPlanes(b);
+        ushort[] actual = rig.ReadPlanes(output);
         for (int i = 0; i < actual.Length; i++)
         {
             double expected = ((1 - fraction) * ca[i]) + (fraction * cb[i]);
             Assert.InRange(Math.Abs(actual[i] - expected), 0, 1);
         }
 
-        Assert.Equal((long)a.CodedWidth * a.CodedHeight * 3 / 2 * (tenBit ? 2 : 1), pool.Bytes);
-        interpolator.EndFrame();
+        Assert.Equal((long)a.CodedWidth * a.CodedHeight * 3 / 2 * (tenBit ? 2 : 1), rig.Pool.Bytes);
+        rig.EndFrame();
         Assert.True(output.IsReleased);
     }
 
-    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
+    [EngineTheory]
     [InlineData(2, 0)]
     [InlineData(1, 90)]
     public void Identical_pair_preserves_anamorphic_and_rotated_geometry(int sar, int rotation)
     {
-        using GpuDevice gpu = GpuDevice.CreateWarp();
-        using var compositor = new Compositor(gpu, 96, 64, CompositeFormat.Rgba8Unorm, TestShaders);
+        using TestGpu gpu = TestGpu.Create(warp: true);
+        using var compositor = gpu.NewCompositor(96, 64, CompositeFormat.Rgba8Unorm, TestShaders);
         using LayerFrame source = Pattern(gpu, false, false, 32, 24);
         var nearest = new LayerFrame(0, "geometría", source.Frame, LayerTransform.Identity, new Rational(sar, 1), rotation);
         using CompositionFrame plain = Layers.Frame(96, 64, nearest);
@@ -129,11 +105,11 @@ public sealed class FrameInterpolatorTests
         AssertBytes(expected, compositor.ReadbackRgba(), 1);
     }
 
-    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
+    [EngineFact]
     public void Nearest_and_missing_pair_create_no_interpolation_textures()
     {
-        using GpuDevice gpu = GpuDevice.CreateWarp();
-        using var compositor = new Compositor(gpu, 32, 24, CompositeFormat.Rgba8Unorm, TestShaders);
+        using TestGpu gpu = TestGpu.Create(warp: true);
+        using var compositor = gpu.NewCompositor(32, 24, CompositeFormat.Rgba8Unorm, TestShaders);
         using LayerFrame source = Pattern(gpu, false, false, 32, 24);
         using LayerFrame next = Pattern(gpu, false, true, 32, 24);
         using CompositionFrame plain = Layers.Frame(32, 24, source);
@@ -154,7 +130,7 @@ public sealed class FrameInterpolatorTests
         Assert.Equal(0, compositor.InterpolationTextureCount);
     }
 
-    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
+    [EngineTheory]
     [InlineData("plain")]
     [InlineData("effects")]
     [InlineData("motion")]
@@ -164,15 +140,17 @@ public sealed class FrameInterpolatorTests
     [InlineData("motion-fallback")]
     public async Task Every_video_path_uses_blend_and_optical_flow(string path)
     {
-        using GpuDevice gpu = GpuDevice.CreateWarp();
-        using var compositor = new Compositor(gpu, 32, 24, CompositeFormat.Rgba8Unorm, TestShaders,
-            path == "motion-fallback" ? 4096 : null);
+        using TestGpu gpu = TestGpu.Create(warp: true);
+        // El tope del camino "motion-fallback" deja sitio para la mezcla pero no para los intermedios del flujo;
+        // en Vulkan los planos son R16/Rg16 (P010) y el slot cuesta el doble que el NV12 de D3D11.
+        using var compositor = gpu.NewCompositor(32, 24, CompositeFormat.Rgba8Unorm, TestShaders,
+            path == "motion-fallback" ? (TestGpu.IsVulkan ? 8192 : 4096) : null);
         await compositor.ShadersReady;
         byte[] nearest = Render(FrameSampling.Nearest);
         byte[] blend = Render(FrameSampling.Blend);
         byte[] optical = Render(FrameSampling.OpticalFlow);
         Assert.False(nearest.AsSpan().SequenceEqual(blend));
-        AssertBytes(blend, optical, 0);
+        TestGpu.AssertSameImage(blend, optical);
 
         byte[] Render(FrameSampling mode)
         {
@@ -209,12 +187,14 @@ public sealed class FrameInterpolatorTests
         }
     }
 
-    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
+    [EngineFact]
     public void Two_hundred_frames_reuse_the_pool_and_release_all_payloads()
     {
-        long before = Interlocked.Read(ref LiveCount(null));
-        using (GpuDevice gpu = GpuDevice.CreateWarp())
-        using (var compositor = new Compositor(gpu, 32, 24, CompositeFormat.Rgba8Unorm, TestShaders))
+        long before = TestGpu.IsVulkan || !OperatingSystem.IsWindowsVersionAtLeast(7) ? 0 : Interlocked.Read(ref LiveCount(null));
+        // Los planos son R16/Rg16 (P010) en Vulkan, el doble de bytes que el NV12 de D3D11 para el mismo slot.
+        long expectedSlot = TestGpu.IsVulkan ? 4608 : 2304;
+        using (TestGpu gpu = TestGpu.Create(warp: true))
+        using (var compositor = gpu.NewCompositor(32, 24, CompositeFormat.Rgba8Unorm, TestShaders))
         {
             for (int i = 0; i < 200; i++)
             {
@@ -225,65 +205,67 @@ public sealed class FrameInterpolatorTests
                 {
                     CompositeResult result = compositor.Render(frame);
                     Assert.Equal(1, result.LayersDrawn);
-                    Assert.Equal(2304, result.PoolBytes);
+                    Assert.Equal(expectedSlot, result.PoolBytes);
                     Assert.Equal(1, compositor.InterpolationTextureCount);
                 }
 
-                Assert.Equal(before, Interlocked.Read(ref LiveCount(null)));
+                if (!TestGpu.IsVulkan && OperatingSystem.IsWindowsVersionAtLeast(7))
+                {
+                    Assert.Equal(before, Interlocked.Read(ref LiveCount(null)));
+                }
             }
 
             compositor.TrimCachedViews();
             Assert.Equal(0, compositor.InterpolationTextureCount);
         }
 
-        Assert.Equal(before, Interlocked.Read(ref LiveCount(null)));
+        if (!TestGpu.IsVulkan && OperatingSystem.IsWindowsVersionAtLeast(7))
+        {
+            Assert.Equal(before, Interlocked.Read(ref LiveCount(null)));
+        }
     }
 
-    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
-    public unsafe void Mismatched_and_rgb_inputs_fall_back_without_allocating()
+    [EngineFact]
+    public void Mismatched_and_rgb_inputs_fall_back_without_allocating()
     {
-        using GpuDevice gpu = GpuDevice.CreateWarp();
-        using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 1024 * 1024);
-        using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
-        using LayerFrame a = Pattern(gpu, false, false, 32, 24);
-        using LayerFrame b = Pattern(gpu, true, false, 32, 24);
-        using LayerFrame c = Pattern(gpu, false, false, 16, 24);
-        Assert.Null(interpolator.Blend((D3D11TexturePayload)a.Frame.Payload!, (D3D11TexturePayload)b.Frame.Payload!, 0.5f));
-        Assert.Null(interpolator.Blend((D3D11TexturePayload)a.Frame.Payload!, (D3D11TexturePayload)c.Frame.Payload!, 0.5f));
-        using RenderTarget rgb = RenderTarget.Create(D3D11Gpu.For(gpu), 32, 24, GpuFormat.Bgra8Unorm);
-        using D3D11TexturePayload rgba = D3D11TexturePayload.FromTexture(gpu, (nint)rgb.Texture, 0, 32, 24, VideoColor.Bt709Limited);
-        Assert.Null(interpolator.Blend(rgba, rgba, 0.5f));
-        Assert.Equal(0, interpolator.TextureCount);
-        Assert.Equal(0, pool.Bytes);
+        using InterpolationRig rig = InterpolationRig.Create();
+        YuvImage imageA = Pattern(false, false, 32, 24);
+        YuvImage imageB = Pattern(true, false, 32, 24);
+        YuvImage imageC = Pattern(false, false, 16, 24);
+        IDecoderSurface a = rig.Upload(imageA.Codes(), imageA.Width, imageA.Height, 32, 24, PlaneDepth.Nv12, VideoColor.Bt709Limited);
+        IDecoderSurface b = rig.Upload(imageB.Codes(), imageB.Width, imageB.Height, 32, 24, PlaneDepth.P010, VideoColor.Bt709Limited);
+        IDecoderSurface c = rig.Upload(imageC.Codes(), imageC.Width, imageC.Height, 16, 24, PlaneDepth.Nv12, VideoColor.Bt709Limited);
+        Assert.Null(rig.Blend(a, b, 0.5f));
+        Assert.Null(rig.Blend(a, c, 0.5f));
+        Assert.Null(rig.Blend(rig.RgbaSurface(32, 24), rig.RgbaSurface(32, 24), 0.5f));
+        Assert.Equal(0, rig.TextureCount);
+        Assert.Equal(0, rig.Pool.Bytes);
     }
 
-    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
-    public unsafe void Budget_is_shared_and_simultaneous_outputs_stay_distinct()
+    [EngineFact]
+    public void Budget_is_shared_and_simultaneous_outputs_stay_distinct()
     {
-        using GpuDevice gpu = GpuDevice.CreateWarp();
-        using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 4608);
-        using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
-        using LayerFrame first = Pattern(gpu, false, false, 32, 24);
-        using LayerFrame second = Pattern(gpu, false, true, 32, 24);
-        var a = (D3D11TexturePayload)first.Frame.Payload!;
-        var b = (D3D11TexturePayload)second.Frame.Payload!;
-        D3D11TexturePayload one = Assert.IsType<D3D11TexturePayload>(interpolator.Blend(a, b, 0.25f));
-        ushort[] expected = ReadPlanes(gpu, one);
-        D3D11TexturePayload two = Assert.IsType<D3D11TexturePayload>(interpolator.Blend(a, b, 0.5f));
-        Assert.NotEqual(one.Texture, two.Texture);
-        Assert.Equal(expected, ReadPlanes(gpu, one));
-        Assert.Null(interpolator.Blend(a, b, 0.75f));
-        Assert.Null(pool.Rent(16, 16, GpuFormat.Rgba8Unorm, exact: true));
-        Assert.Equal(pool.CapBytes, pool.Bytes);
-        interpolator.EndFrame();
-        interpolator.Trim();
-        Assert.Equal(0, pool.Bytes);
-        Assert.NotNull(pool.Rent(16, 16, GpuFormat.Rgba8Unorm, exact: true));
+        using InterpolationRig rig = InterpolationRig.Create(4608);
+        YuvImage imageA = Pattern(false, false, 32, 24);
+        YuvImage imageB = Pattern(false, true, 32, 24);
+        IDecoderSurface a = rig.Upload(imageA.Codes(), imageA.Width, imageA.Height, 32, 24, PlaneDepth.Nv12, VideoColor.Bt709Limited);
+        IDecoderSurface b = rig.Upload(imageB.Codes(), imageB.Width, imageB.Height, 32, 24, PlaneDepth.Nv12, VideoColor.Bt709Limited);
+        IDecoderSurface one = Assert.IsAssignableFrom<IDecoderSurface>(rig.Blend(a, b, 0.25f));
+        ushort[] expected = rig.ReadPlanes(one);
+        IDecoderSurface two = Assert.IsAssignableFrom<IDecoderSurface>(rig.Blend(a, b, 0.5f));
+        Assert.False(InterpolationRig.SameTexture(one, two));
+        Assert.Equal(expected, rig.ReadPlanes(one));
+        Assert.Null(rig.Blend(a, b, 0.75f));
+        Assert.Null(rig.Pool.Rent(16, 16, GpuFormat.Rgba8Unorm, exact: true));
+        Assert.Equal(rig.Pool.CapBytes, rig.Pool.Bytes);
+        rig.EndFrame();
+        rig.Trim();
+        Assert.Equal(0, rig.Pool.Bytes);
+        Assert.NotNull(rig.Pool.Rent(16, 16, GpuFormat.Rgba8Unorm, exact: true));
     }
 
     [GpuArrayFact]
+    [SupportedOSPlatform("windows7.0")]
     public unsafe void Decoder_array_slices_are_selected_independently()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -311,12 +293,16 @@ public sealed class FrameInterpolatorTests
         }
     }
 
+    private static PlaneDepth Depth(bool tenBit) => tenBit ? PlaneDepth.P010 : PlaneDepth.Nv12;
+
     private static SourceGeometry Geometry(LayerFrame layer) => new(layer.SampleAspectRatio, layer.Rotation);
 
-    private static LayerFrame Pattern(GpuDevice gpu, bool tenBit, bool second, int width, int height)
+    /// <summary>La imagen de siempre: trama codificada algo mayor que la visible, con el patrón de 2×2 en lo visible.</summary>
+    private static YuvImage Pattern(bool tenBit, bool second, int width, int height)
     {
         int scale = tenBit ? 4 : 1;
-        var image = YuvImage.Solid(width + 16, height + 8, tenBit, new YuvCode(0, 0, 0));
+        var image = new YuvImage(width + 16, height + 8, tenBit);
+        image.Fill(0, 0, image.Width, image.Height, new YuvCode(0, 0, 0));
         for (int y = 0; y < height; y += 2)
         {
             for (int x = 0; x < width; x += 2)
@@ -327,9 +313,14 @@ public sealed class FrameInterpolatorTests
             }
         }
 
-        return Layers.From(gpu, [image], 0, width, height, new VideoColor(YuvMatrix.Bt601, true), LayerTransform.Identity);
+        return image;
     }
 
+    private static LayerFrame Pattern(TestGpu gpu, bool tenBit, bool second, int width, int height) =>
+        Layers.From(gpu, [Pattern(tenBit, second, width, height)], 0, width, height, new VideoColor(YuvMatrix.Bt601, true),
+            LayerTransform.Identity);
+
+    [SupportedOSPlatform("windows7.0")]
     private static unsafe ushort[] ReadPlanes(GpuDevice gpu, D3D11TexturePayload payload)
     {
         var device = (ID3D11Device*)gpu.NativeDevice;
@@ -380,6 +371,7 @@ public sealed class FrameInterpolatorTests
         for (int i = 0; i < expected.Length; i++) Assert.InRange(Math.Abs(expected[i] - actual[i]), 0, tolerance);
     }
 
+    [SupportedOSPlatform("windows7.0")]
     [UnsafeAccessor(UnsafeAccessorKind.StaticField, Name = "s_live")]
     private static extern ref long LiveCount(D3D11TexturePayload? type);
 }

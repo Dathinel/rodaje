@@ -1,27 +1,27 @@
 using System.Runtime.CompilerServices;
+using System.Runtime.Versioning;
 using Rodaje.Analysis.Video.Interpolation;
 using Rodaje.Media.Gpu;
 using Rodaje.Media.Video;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using Rodaje.Render.Interpolation;
 using Rodaje.Render.Shaders;
 using Rodaje.Render.Tests.Support;
 using TerraFX.Interop.DirectX;
 using Xunit.Abstractions;
 using static Rodaje.Render.RenderException;
-using Rodaje.Render.Gpu;
-using Rodaje.Render.Gpu.D3D11;
 
 namespace Rodaje.Render.Tests.Interpolation;
 
 [Collection("Interpolation payload lifetime")]
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class FlowInterpolatorTests(ITestOutputHelper output)
 {
     private const int Width = 320;
     private const int Height = 180;
     private static readonly ShaderCache TestShaders = new(null);
 
-    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
+    [Fact]
     public void Defaults_match_analysis_without_a_production_dependency()
     {
         var p = new FlowParameters();
@@ -37,14 +37,14 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         Assert.Equal(FlowDefaults.Beta, p.Beta);
     }
 
-    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
+    [D3D11Fact("compila HLSL con D3DCompiler; en Vulkan el SPIR-V del manifiesto lo cubren las pruebas de variantes")]
     public void All_compute_passes_compile_without_warnings()
     {
         foreach (string entry in new[] { "Downsample", "Search", "Densify", "Histogram", "Residual", "Decide", "Warp" })
             Assert.NotEmpty(TestShaders.GetOrCompile(FlowShaders.Optical(entry)));
     }
 
-    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
+    [EngineTheory]
     [InlineData(8, 0.25f)]
     [InlineData(8, 0.5f)]
     [InlineData(8, 0.75f)]
@@ -57,7 +57,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         Compare(a, b, truth, fraction, "Traslación y color", 16, true);
     }
 
-    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
+    [EngineTheory]
     [InlineData(8)]
     [InlineData(16)]
     public void Occlusion_matches_reference_psnr(int bitDepth)
@@ -66,7 +66,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         Compare(ConvertDepth(a, bitDepth), ConvertDepth(b, bitDepth), ConvertDepth(truth, bitDepth), 0.5f, "Oclusión", 0, false);
     }
 
-    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
+    [EngineTheory]
     [InlineData(8, 0.25f)]
     [InlineData(8, 0.5f)]
     [InlineData(8, 0.75f)]
@@ -80,24 +80,21 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         Compare(a, b, fraction < 0.5f ? a : b, fraction, "Corte", 0, false);
     }
 
-    private unsafe void Compare(PlanarFrame a, PlanarFrame b, PlanarFrame truth, float fraction, string scene, int margin, bool checkChroma)
+    private void Compare(PlanarFrame a, PlanarFrame b, PlanarFrame truth, float fraction, string scene, int margin, bool checkChroma)
     {
-        using GpuDevice gpu = GpuDevice.CreateWarp();
-        using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 64 * 1024 * 1024);
-        using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
-        using D3D11TexturePayload first = Upload(gpu, a);
-        using D3D11TexturePayload second = Upload(gpu, b);
-        D3D11TexturePayload result = Assert.IsType<D3D11TexturePayload>(interpolator.Flow(first, second, fraction));
-        Assert.Equal(1, interpolator.FlowFrames);
-        Assert.Equal(first.DxgiFormat, result.DxgiFormat);
+        using InterpolationRig rig = InterpolationRig.Create(64 * 1024 * 1024);
+        IDecoderSurface first = rig.Upload(Codes(a), Width, Height, Width, Height, Depth(a.BitDepth), VideoColor.Bt709Limited);
+        IDecoderSurface second = rig.Upload(Codes(b), Width, Height, Width, Height, Depth(b.BitDepth), VideoColor.Bt709Limited);
+        IDecoderSurface result = Assert.IsAssignableFrom<IDecoderSurface>(rig.Flow(first, second, fraction));
+        Assert.Equal(1, rig.FlowFrames);
+        Assert.Equal(first.PixelFormat, result.PixelFormat);
         Assert.Equal(first.Color, result.Color);
         Assert.Equal(first.Width, result.Width);
         Assert.Equal(first.Height, result.Height);
-        ushort[] codes = ReadPlanes(gpu, result);
+        ushort[] codes = rig.ReadPlanes(result);
         ushort[] y = codes[..(Width * Height)], uv = codes[(Width * Height)..];
         FlowOutcome reference = FlowReference.Interpolate(a, b, fraction, InterpolationMode.OpticalFlow);
-        (bool cut, float histogram, float residual) = ReadDecision(gpu, interpolator.FlowDecisionBuffer);
+        (bool cut, float histogram, float residual) = rig.ReadDecision()!.Value;
         Assert.Equal(reference.SceneCut, cut);
         double gpuY = ComputePsnr(y, truth.Y, Width, Height, a.BitDepth, margin);
         double cpuY = ComputePsnr(reference.Frame.Y, truth.Y, Width, Height, a.BitDepth, margin);
@@ -112,75 +109,77 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         }
     }
 
-    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
-    public unsafe void Two_hundred_frames_reuse_textures_and_release_payloads_and_budget()
+    [EngineFact]
+    public void Two_hundred_frames_reuse_textures_and_release_payloads_and_budget()
     {
-        long baseline = LiveCount(null);
-        using GpuDevice gpu = GpuDevice.CreateWarp();
-        using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 64 * 1024 * 1024);
-        using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
+        long baseline = TestGpu.IsVulkan || !OperatingSystem.IsWindowsVersionAtLeast(7) ? 0 : LiveCount(null);
         {
+            using InterpolationRig rig = InterpolationRig.Create(64 * 1024 * 1024);
             (PlanarFrame a, PlanarFrame b, _) = CreateTranslationScene(8);
-            using D3D11TexturePayload first = Upload(gpu, a);
-            using D3D11TexturePayload second = Upload(gpu, b);
+            IDecoderSurface first = rig.Upload(Codes(a), Width, Height, Width, Height, PlaneDepth.Nv12, VideoColor.Bt709Limited);
+            IDecoderSurface second = rig.Upload(Codes(b), Width, Height, Width, Height, PlaneDepth.Nv12, VideoColor.Bt709Limited);
             int textures = 0; long bytes = 0;
             for (int i = 0; i < 200; i++)
             {
-                D3D11TexturePayload result = Assert.IsType<D3D11TexturePayload>(interpolator.Flow(first, second, (i % 3 + 1) * 0.25f));
-                Assert.Equal(i + 1, interpolator.FlowFrames);
-                if (i == 0) { textures = interpolator.TextureCount; bytes = pool.Bytes; }
-                Assert.Equal(textures, interpolator.TextureCount); Assert.Equal(bytes, pool.Bytes);
-                _ = ReadPlanes(gpu, result);
-                interpolator.EndFrame();
+                IDecoderSurface result = Assert.IsAssignableFrom<IDecoderSurface>(rig.Flow(first, second, (i % 3 + 1) * 0.25f));
+                Assert.Equal(i + 1, rig.FlowFrames);
+                if (i == 0) { textures = rig.TextureCount; bytes = rig.Pool.Bytes; }
+                Assert.Equal(textures, rig.TextureCount); Assert.Equal(bytes, rig.Pool.Bytes);
+                _ = rig.ReadPlanes(result);
+                rig.EndFrame();
                 Assert.True(result.IsReleased);
-                Assert.Equal(baseline + 2, LiveCount(null));
+                if (!TestGpu.IsVulkan && OperatingSystem.IsWindowsVersionAtLeast(7))
+                {
+                    Assert.Equal(baseline + 2, LiveCount(null));
+                }
             }
-            interpolator.Trim();
-            Assert.Equal(0, pool.Bytes); Assert.Equal(0, interpolator.TextureCount);
+
+            rig.Trim();
+            Assert.Equal(0, rig.Pool.Bytes); Assert.Equal(0, rig.TextureCount);
         }
-        Assert.Equal(baseline, LiveCount(null));
+
+        if (!TestGpu.IsVulkan && OperatingSystem.IsWindowsVersionAtLeast(7))
+        {
+            Assert.Equal(baseline, LiveCount(null));
+        }
     }
 
-    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
+    [EngineTheory]
     [InlineData(1920, 1080, 64)]
     [InlineData(3840, 2160, 200)]
-    public unsafe void Intermediate_and_output_vram_stay_within_budget(int width, int height, int megabytes)
+    public void Intermediate_and_output_vram_stay_within_budget(int width, int height, int megabytes)
     {
-        using GpuDevice gpu = GpuDevice.CreateWarp();
-        using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), megabytes * 1024L * 1024);
-        using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
-        using D3D11TexturePayload first = Upload(gpu, LargePattern(width, height, 0));
-        using D3D11TexturePayload second = Upload(gpu, LargePattern(width, height, 8));
-        D3D11TexturePayload result = Assert.IsType<D3D11TexturePayload>(interpolator.Flow(first, second, 0.5f));
-        _ = ReadPlanes(gpu, result);
-        Assert.Equal(1, interpolator.FlowFrames);
-        output.WriteLine($"{width}×{height}: {pool.Bytes} bytes, {pool.Bytes / (1024.0 * 1024):F3} MiB (planos P010 incluidos).");
-        Assert.InRange(pool.Bytes, 1, megabytes * 1024L * 1024);
-        interpolator.EndFrame(); interpolator.Trim(); Assert.Equal(0, pool.Bytes);
+        using InterpolationRig rig = InterpolationRig.Create(megabytes * 1024L * 1024);
+        PlanarFrame frameA = LargePattern(width, height, 0);
+        PlanarFrame frameB = LargePattern(width, height, 8);
+        IDecoderSurface first = rig.Upload(Codes(frameA), width, height, width, height, PlaneDepth.P010, VideoColor.Bt709Limited);
+        IDecoderSurface second = rig.Upload(Codes(frameB), width, height, width, height, PlaneDepth.P010, VideoColor.Bt709Limited);
+        IDecoderSurface result = Assert.IsAssignableFrom<IDecoderSurface>(rig.Flow(first, second, 0.5f));
+        _ = rig.ReadPlanes(result);
+        Assert.Equal(1, rig.FlowFrames);
+        output.WriteLine($"{width}×{height}: {rig.Pool.Bytes} bytes, {rig.Pool.Bytes / (1024.0 * 1024):F3} MiB (planos P010 incluidos).");
+        Assert.InRange(rig.Pool.Bytes, 1, megabytes * 1024L * 1024);
+        rig.EndFrame(); rig.Trim(); Assert.Equal(0, rig.Pool.Bytes);
     }
 
-    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
-    public unsafe void Insufficient_intermediate_budget_falls_back_to_unchanged_blend()
+    [EngineFact]
+    public void Insufficient_intermediate_budget_falls_back_to_unchanged_blend()
     {
-        using GpuDevice gpu = GpuDevice.CreateWarp();
-        using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), Width * Height * 3);
-        using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
+        using InterpolationRig rig = InterpolationRig.Create(Width * Height * 3);
         (PlanarFrame a, PlanarFrame b, _) = CreateTranslationScene(8);
-        using D3D11TexturePayload first = Upload(gpu, a);
-        using D3D11TexturePayload second = Upload(gpu, b);
-        ushort[] expected = ReadPlanes(gpu, Assert.IsType<D3D11TexturePayload>(interpolator.Blend(first, second, 0.5f)));
-        ushort[] actual = ReadPlanes(gpu, Assert.IsType<D3D11TexturePayload>(interpolator.Flow(first, second, 0.5f)));
-        Assert.Equal(0, interpolator.FlowFrames); Assert.Equal(expected, actual);
-        interpolator.EndFrame(); interpolator.Trim(); Assert.Equal(0, pool.Bytes);
+        IDecoderSurface first = rig.Upload(Codes(a), Width, Height, Width, Height, PlaneDepth.Nv12, VideoColor.Bt709Limited);
+        IDecoderSurface second = rig.Upload(Codes(b), Width, Height, Width, Height, PlaneDepth.Nv12, VideoColor.Bt709Limited);
+        ushort[] expected = rig.ReadPlanes(Assert.IsAssignableFrom<IDecoderSurface>(rig.Blend(first, second, 0.5f)));
+        ushort[] actual = rig.ReadPlanes(Assert.IsAssignableFrom<IDecoderSurface>(rig.Flow(first, second, 0.5f)));
+        Assert.Equal(0, rig.FlowFrames); Assert.Equal(expected, actual);
+        rig.EndFrame(); rig.Trim(); Assert.Equal(0, rig.Pool.Bytes);
     }
 
     [GpuArrayTheory]
     [Trait("Categoria", "Rendimiento")]
     [InlineData(1920, 1080, 4)]
     [InlineData(3840, 2160, 12)]
+    [SupportedOSPlatform("windows7.0")]
     public unsafe void Hardware_reports_gpu_milliseconds_per_frame(int width, int height, double limit)
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -207,7 +206,8 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         Assert.True(median <= limit, $"{width}×{height}: {median:F3} ms supera {limit} ms.");
     }
 
-    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
+    [D3D11Fact("inyecta el fallo en ShaderCache.Compile, que Vulkan no usa: carga SPIR-V")]
+    [SupportedOSPlatform("windows7.0")]
     public unsafe void Failed_compute_pass_releases_intermediates_and_falls_back_to_blend()
     {
         var failingShaders = new ShaderCache(null)
@@ -232,31 +232,52 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         interpolator.EndFrame(); interpolator.Trim(); Assert.Equal(0, pool.Bytes);
     }
 
-    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
-    [InlineData(DXGI_FORMAT.DXGI_FORMAT_NV12)]
-    [InlineData(DXGI_FORMAT.DXGI_FORMAT_P010)]
-    [InlineData(DXGI_FORMAT.DXGI_FORMAT_P016)]
-    public unsafe void Visible_planes_ignore_coded_padding_and_preserve_format(DXGI_FORMAT format)
+    [EngineTheory]
+    [InlineData(PlaneDepth.Nv12)]
+    [InlineData(PlaneDepth.P010)]
+    [InlineData(PlaneDepth.P016)]
+    public void Visible_planes_ignore_coded_padding_and_preserve_format(PlaneDepth depth)
     {
-        int depth = format == DXGI_FORMAT.DXGI_FORMAT_NV12 ? 8 : 16;
-        (PlanarFrame a, PlanarFrame b, _) = CreateTranslationScene(depth);
-        using GpuDevice gpu = GpuDevice.CreateWarp();
-        using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 64 * 1024 * 1024);
-        using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
-        using D3D11TexturePayload first = Upload(gpu, a, format, 16);
-        using D3D11TexturePayload second = Upload(gpu, b, format, 32);
-        D3D11TexturePayload result = Assert.IsType<D3D11TexturePayload>(interpolator.Flow(first, second, 0.5f));
-        Assert.Equal(1, interpolator.FlowFrames);
-        Assert.Equal((int)format, result.DxgiFormat);
+        int bitDepth = depth == PlaneDepth.Nv12 ? 8 : 16;
+        (PlanarFrame a, PlanarFrame b, _) = CreateTranslationScene(bitDepth);
+        using InterpolationRig rig = InterpolationRig.Create(64 * 1024 * 1024);
+        IDecoderSurface first = rig.Upload(Padded(a, 16), Width + 16, Height + 16, Width, Height, depth, VideoColor.Bt709Limited);
+        IDecoderSurface second = rig.Upload(Padded(b, 32), Width + 32, Height + 32, Width, Height, depth, VideoColor.Bt709Limited);
+        IDecoderSurface result = Assert.IsAssignableFrom<IDecoderSurface>(rig.Flow(first, second, 0.5f));
+        Assert.Equal(1, rig.FlowFrames);
+        Assert.Equal(first.PixelFormat, result.PixelFormat);
         Assert.Equal(a.Width, result.Width); Assert.Equal(a.Height, result.Height);
         Assert.Equal(first.CodedWidth, result.CodedWidth); Assert.Equal(first.CodedHeight, result.CodedHeight);
         Assert.Equal(first.Color, result.Color);
-        ushort[] actual = ReadPlanes(gpu, result);
+        ushort[] actual = rig.ReadPlanes(result);
         PlanarFrame reference = FlowReference.Interpolate(a, b, 0.5f, InterpolationMode.OpticalFlow).Frame;
         ushort[] expected = [.. reference.Y, .. reference.UV];
         double error = actual.Select((c, i) => Math.Abs((double)c - expected[i])).Average();
         Assert.True(error < 1, $"Error medio de planos visibles: {error} códigos.");
+    }
+
+    private static ushort[] Codes(PlanarFrame frame) => [.. frame.Y, .. frame.UV];
+
+    private static PlaneDepth Depth(int bitDepth) => bitDepth == 8 ? PlaneDepth.Nv12 : PlaneDepth.P010;
+
+    /// <summary>Los planos en una trama mayor que la visible, con el relleno a todo código.</summary>
+    private static ushort[] Padded(PlanarFrame frame, int padding)
+    {
+        int codedWidth = frame.Width + padding;
+        int codedHeight = frame.Height + padding;
+        var codes = new ushort[codedWidth * codedHeight * 3 / 2];
+        Array.Fill(codes, (ushort)(frame.BitDepth == 8 ? 255 : 65535));
+        for (int row = 0; row < frame.Height; row++)
+        {
+            frame.Y.AsSpan(row * frame.Width, frame.Width).CopyTo(codes.AsSpan(row * codedWidth));
+        }
+
+        for (int row = 0; row < frame.Height / 2; row++)
+        {
+            frame.UV.AsSpan(row * frame.Width, frame.Width).CopyTo(codes.AsSpan((codedWidth * codedHeight) + (row * codedWidth)));
+        }
+
+        return codes;
     }
 
     private static PlanarFrame LargePattern(int width, int height, int shift)
@@ -271,6 +292,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
     private static PlanarFrame ConvertDepth(PlanarFrame frame, int depth) => depth == 8 ? frame : new PlanarFrame(frame.Width, frame.Height, 16,
         Array.ConvertAll(frame.Y, c => (ushort)(c * 256)), Array.ConvertAll(frame.UV, c => (ushort)(c * 256)));
 
+    [SupportedOSPlatform("windows7.0")]
     private static unsafe D3D11TexturePayload Upload(GpuDevice gpu, PlanarFrame frame, DXGI_FORMAT? format = null, int padding = 0)
     {
         bool eight = frame.BitDepth == 8;
@@ -309,25 +331,55 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         finally { texture->Release(); }
     }
 
-    private static unsafe (bool Cut, float Histogram, float Residual) ReadDecision(GpuDevice gpu, nint buffer)
+    [SupportedOSPlatform("windows7.0")]
+    private static unsafe ushort[] ReadPlanes(GpuDevice gpu, D3D11TexturePayload payload)
     {
-        var desc = new D3D11_BUFFER_DESC { ByteWidth = 16, Usage = D3D11_USAGE.D3D11_USAGE_STAGING, CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_READ };
-        ID3D11Buffer* staging;
-        Check(((ID3D11Device*)gpu.NativeDevice)->CreateBuffer(&desc, null, &staging), "CreateBuffer(lectura del corte)");
+        var device = (ID3D11Device*)gpu.NativeDevice;
         var context = (ID3D11DeviceContext*)gpu.NativeContext;
+        var texture = (ID3D11Texture2D*)payload.Texture;
+        D3D11_TEXTURE2D_DESC desc;
+        texture->GetDesc(&desc);
+        desc.ArraySize = 1;
+        desc.BindFlags = 0;
+        desc.Usage = D3D11_USAGE.D3D11_USAGE_STAGING;
+        desc.CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_READ;
+        ID3D11Texture2D* staging;
+        Check(device->CreateTexture2D(&desc, null, &staging), "CreateTexture2D(lectura de planos)");
         try
         {
-            context->CopyResource((ID3D11Resource*)staging, (ID3D11Resource*)buffer);
+            context->CopySubresourceRegion((ID3D11Resource*)staging, 0, 0, 0, 0, (ID3D11Resource*)texture, (uint)payload.ArraySlice, null);
             D3D11_MAPPED_SUBRESOURCE mapped;
-            Check(context->Map((ID3D11Resource*)staging, 0, D3D11_MAP.D3D11_MAP_READ, 0, &mapped), "Map(lectura del corte)");
-            try { float* values = (float*)mapped.pData; return (values[0] != 0, values[1], values[2]); }
-            finally { context->Unmap((ID3D11Resource*)staging, 0); }
+            Check(context->Map((ID3D11Resource*)staging, 0, D3D11_MAP.D3D11_MAP_READ, 0, &mapped), "Map(lectura de planos)");
+            try
+            {
+                int width = payload.Width;
+                int height = payload.Height;
+                var codes = new ushort[width * height * 3 / 2];
+                bool eight = payload.DxgiFormat == (int)DXGI_FORMAT.DXGI_FORMAT_NV12;
+                for (int y = 0; y < height * 3 / 2; y++)
+                {
+                    int row = y < height ? y : payload.CodedHeight + y - height;
+                    byte* data = (byte*)mapped.pData + ((nuint)row * mapped.RowPitch);
+                    for (int x = 0; x < width; x++) codes[(y * width) + x] = eight ? data[x] : ((ushort*)data)[x];
+                }
+
+                return codes;
+            }
+            finally
+            {
+                context->Unmap((ID3D11Resource*)staging, 0);
+            }
         }
-        finally { staging->Release(); }
+        finally
+        {
+            staging->Release();
+        }
     }
 
+    [SupportedOSPlatform("windows7.0")]
     [UnsafeAccessor(UnsafeAccessorKind.StaticField, Name = "s_live")]
     private static extern ref long LiveCount(D3D11TexturePayload? type);
+
     private static (PlanarFrame A, PlanarFrame B, PlanarFrame Truth) CreateTranslationScene(int bitDepth, float fraction = 0.5f)
     {
         float maxCode = bitDepth == 8 ? 255f : 65535f;
@@ -530,48 +582,4 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         double maxVal = bitDepth == 8 ? 255.0 : 65535.0;
         return 10.0 * Math.Log10((maxVal * maxVal) / mse);
     }
-    private static unsafe ushort[] ReadPlanes(GpuDevice gpu, D3D11TexturePayload payload)
-    {
-        var device = (ID3D11Device*)gpu.NativeDevice;
-        var context = (ID3D11DeviceContext*)gpu.NativeContext;
-        var texture = (ID3D11Texture2D*)payload.Texture;
-        D3D11_TEXTURE2D_DESC desc;
-        texture->GetDesc(&desc);
-        desc.ArraySize = 1;
-        desc.BindFlags = 0;
-        desc.Usage = D3D11_USAGE.D3D11_USAGE_STAGING;
-        desc.CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_READ;
-        ID3D11Texture2D* staging;
-        Check(device->CreateTexture2D(&desc, null, &staging), "CreateTexture2D(lectura de planos)");
-        try
-        {
-            context->CopySubresourceRegion((ID3D11Resource*)staging, 0, 0, 0, 0, (ID3D11Resource*)texture, (uint)payload.ArraySlice, null);
-            D3D11_MAPPED_SUBRESOURCE mapped;
-            Check(context->Map((ID3D11Resource*)staging, 0, D3D11_MAP.D3D11_MAP_READ, 0, &mapped), "Map(lectura de planos)");
-            try
-            {
-                int width = payload.Width;
-                int height = payload.Height;
-                var codes = new ushort[width * height * 3 / 2];
-                bool eight = payload.DxgiFormat == (int)DXGI_FORMAT.DXGI_FORMAT_NV12;
-                for (int y = 0; y < height * 3 / 2; y++)
-                {
-                    int row = y < height ? y : payload.CodedHeight + y - height;
-                    byte* data = (byte*)mapped.pData + ((nuint)row * mapped.RowPitch);
-                    for (int x = 0; x < width; x++) codes[(y * width) + x] = eight ? data[x] : ((ushort*)data)[x];
-                }
-
-                return codes;
-            }
-            finally
-            {
-                context->Unmap((ID3D11Resource*)staging, 0);
-            }
-        }
-        finally
-        {
-            staging->Release();
-        }
-    }
-
 }
