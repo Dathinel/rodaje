@@ -1,5 +1,8 @@
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using Rodaje.Media.Gpu;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using Rodaje.Render.Shaders;
 using TerraFX.Interop.DirectX;
 using static Rodaje.Render.RenderException;
@@ -9,11 +12,12 @@ namespace Rodaje.Render.Interpolation;
 /// <summary>Mezcla los códigos de los planos del origen; las salidas se devuelven al terminar el cuadro.</summary>
 internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache views, RenderTargetPool budget, ShaderCache shaders) : IDisposable
 {
+    private readonly D3D11Gpu _engine = D3D11Gpu.For(gpu);
     private readonly List<Slot> _slots = [];
     private readonly List<D3D11TexturePayload> _payloads = [];
-    private ID3D11ComputeShader* _luma;
-    private ID3D11ComputeShader* _chroma;
-    private ID3D11Buffer* _constants;
+    private GpuPipeline? _lumaPipeline;
+    private GpuPipeline? _chromaPipeline;
+    private GpuBuffer? _constants;
     private long _frame;
     private FlowInterpolator? _flow;
 
@@ -108,13 +112,12 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
                         format == DXGI_FORMAT.DXGI_FORMAT_NV12, Math.Clamp(fraction, 0, 1));
                 if (!flowed)
                 {
-                    Dispatch(_luma, first.Luma, second.Luma, slot.Luma, width, height, fraction);
-                    Dispatch(_chroma, first.Chroma, second.Chroma, slot.Chroma, width / 2, height / 2, fraction);
+                    Dispatch(_lumaPipeline!, first.LumaTexture, second.LumaTexture, slot.Luma, width, height, fraction);
+                    Dispatch(_chromaPipeline!, first.ChromaTexture, second.ChromaTexture, slot.Chroma, width / 2, height / 2, fraction);
                 }
             }
             finally
             {
-                Unbind();
                 if (ownSecond) second.Release();
             }
         }
@@ -123,7 +126,7 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
             if (ownFirst) first.Release();
         }
 
-        D3D11TexturePayload payload = D3D11TexturePayload.FromTexture(gpu, (nint)slot.Texture, 0, a.Width, a.Height, a.Color, a.PixelFormat);
+        D3D11TexturePayload payload = D3D11TexturePayload.FromTexture(gpu, (nint)((D3D11Texture)slot.Texture).Texture2D, 0, a.Width, a.Height, a.Color, a.PixelFormat);
         _payloads.Add(payload);
         return payload;
     }
@@ -159,9 +162,11 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
         EndFrame();
         Trim();
         _flow?.Dispose();
-        Com.Release(ref _luma);
-        Com.Release(ref _chroma);
-        Com.Release(ref _constants);
+        _lumaPipeline?.Desc.Compute?.Dispose();
+        _lumaPipeline?.Dispose();
+        _chromaPipeline?.Desc.Compute?.Dispose();
+        _chromaPipeline?.Dispose();
+        _constants?.Dispose();
     }
 
     private void Remove(int index)
@@ -182,14 +187,17 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
             BindFlags = (uint)(D3D11_BIND_FLAG.D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_FLAG.D3D11_BIND_UNORDERED_ACCESS),
         };
         var device = (ID3D11Device*)gpu.NativeDevice;
+        ID3D11Texture2D* texture;
+        Check(device->CreateTexture2D(&desc, null, &texture), "CreateTexture2D(interpolación)");
         try
         {
-            ID3D11Texture2D* texture;
-            Check(device->CreateTexture2D(&desc, null, &texture), "CreateTexture2D(interpolación)");
-            slot.Texture = texture;
+            slot.Texture = D3D11Texture.Wrap(_engine, texture,
+                new GpuTextureDesc(width, height, GpuFormat.Unknown, GpuTextureUsage.Sampled | GpuTextureUsage.Storage), null, null);
             bool eight = format == DXGI_FORMAT.DXGI_FORMAT_NV12;
-            slot.Luma = CreateView(texture, eight ? DXGI_FORMAT.DXGI_FORMAT_R8_UNORM : DXGI_FORMAT.DXGI_FORMAT_R16_UNORM);
-            slot.Chroma = CreateView(texture, eight ? DXGI_FORMAT.DXGI_FORMAT_R8G8_UNORM : DXGI_FORMAT.DXGI_FORMAT_R16G16_UNORM);
+            slot.Luma = CreatePlaneUav(texture, eight ? DXGI_FORMAT.DXGI_FORMAT_R8_UNORM : DXGI_FORMAT.DXGI_FORMAT_R16_UNORM,
+                width, height, eight ? GpuFormat.R8Unorm : GpuFormat.R16Unorm);
+            slot.Chroma = CreatePlaneUav(texture, eight ? DXGI_FORMAT.DXGI_FORMAT_R8G8_UNORM : DXGI_FORMAT.DXGI_FORMAT_R16G16_UNORM,
+                width / 2, height / 2, eight ? GpuFormat.Rg8Unorm : GpuFormat.Rg16Unorm);
             return slot;
         }
         catch
@@ -197,70 +205,45 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
             slot.Dispose();
             throw;
         }
+        finally
+        {
+            texture->Release();
+        }
     }
 
-    private ID3D11UnorderedAccessView* CreateView(ID3D11Texture2D* texture, DXGI_FORMAT format)
+    private D3D11Texture CreatePlaneUav(ID3D11Texture2D* texture, DXGI_FORMAT format, int width, int height, GpuFormat gpuFormat)
     {
         var desc = new D3D11_UNORDERED_ACCESS_VIEW_DESC { Format = format, ViewDimension = D3D11_UAV_DIMENSION.D3D11_UAV_DIMENSION_TEXTURE2D };
         ID3D11UnorderedAccessView* view;
         Check(((ID3D11Device*)gpu.NativeDevice)->CreateUnorderedAccessView((ID3D11Resource*)texture, &desc, &view), "CreateUnorderedAccessView(interpolación)");
-        return view;
+        try
+        {
+            return D3D11Texture.View(new GpuTextureDesc(width, height, gpuFormat, GpuTextureUsage.Storage), uav: view);
+        }
+        finally
+        {
+            view->Release();
+        }
     }
 
     private void EnsureShaders()
     {
-        if (_luma == null) _luma = CreateShader(FlowShaders.Luma);
-        if (_chroma == null) _chroma = CreateShader(FlowShaders.Chroma);
-        if (_constants != null) return;
-        var desc = new D3D11_BUFFER_DESC
-        {
-            ByteWidth = (uint)sizeof(Constants), Usage = D3D11_USAGE.D3D11_USAGE_DYNAMIC,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_CONSTANT_BUFFER,
-            CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_WRITE,
-        };
-        ID3D11Buffer* buffer;
-        Check(((ID3D11Device*)gpu.NativeDevice)->CreateBuffer(&desc, null, &buffer), "CreateBuffer(interpolación)");
-        _constants = buffer;
+        _lumaPipeline ??= _engine.CreatePipeline(new GpuPipelineDesc { Compute = _engine.CreateShader(FlowShaders.Luma, shaders) });
+        _chromaPipeline ??= _engine.CreatePipeline(new GpuPipelineDesc { Compute = _engine.CreateShader(FlowShaders.Chroma, shaders) });
+        _constants ??= _engine.CreateBuffer(new GpuBufferDesc(sizeof(Constants), GpuBufferKind.Constant));
     }
 
-    private ID3D11ComputeShader* CreateShader(ShaderVariant variant)
+    private void Dispatch(GpuPipeline pipeline, GpuTexture a, GpuTexture b, GpuTexture output, int width, int height, float fraction)
     {
-        byte[] code = shaders.GetOrCompile(variant);
-        ID3D11ComputeShader* shader;
-        fixed (byte* bytes = code)
-        {
-            Check(((ID3D11Device*)gpu.NativeDevice)->CreateComputeShader(bytes, (nuint)code.Length, null, &shader), "CreateComputeShader(interpolación)");
-        }
-
-        return shader;
-    }
-
-    private void Dispatch(ID3D11ComputeShader* shader, ID3D11ShaderResourceView* a, ID3D11ShaderResourceView* b,
-        ID3D11UnorderedAccessView* output, int width, int height, float fraction)
-    {
-        var context = (ID3D11DeviceContext*)gpu.NativeContext;
-        Unbind();
-        D3D11_MAPPED_SUBRESOURCE mapped;
-        Check(context->Map((ID3D11Resource*)_constants, 0, D3D11_MAP.D3D11_MAP_WRITE_DISCARD, 0, &mapped), "Map(interpolación)");
-        *(Constants*)mapped.pData = new Constants { Width = (uint)width, Height = (uint)height, Fraction = Math.Clamp(fraction, 0, 1) };
-        context->Unmap((ID3D11Resource*)_constants, 0);
-        ID3D11Buffer* constants = _constants;
-        ID3D11ShaderResourceView** inputs = stackalloc ID3D11ShaderResourceView*[2] { a, b };
-        context->CSSetShader(shader, null, 0);
-        context->CSSetConstantBuffers(0, 1, &constants);
-        context->CSSetShaderResources(0, 2, inputs);
-        context->CSSetUnorderedAccessViews(0, 1, &output, null);
-        context->Dispatch((uint)((width + 7) / 8), (uint)((height + 7) / 8), 1);
-    }
-
-    private void Unbind()
-    {
-        var context = (ID3D11DeviceContext*)gpu.NativeContext;
-        ID3D11ShaderResourceView** inputs = stackalloc ID3D11ShaderResourceView*[2] { null, null };
-        ID3D11UnorderedAccessView* output = null;
-        context->CSSetShaderResources(0, 2, inputs);
-        context->CSSetUnorderedAccessViews(0, 1, &output, null);
-        context->CSSetShader(null, null, 0);
+        using IGpuFrame frame = _engine.BeginFrame();
+        var constants = new Constants { Width = (uint)width, Height = (uint)height, Fraction = Math.Clamp(fraction, 0, 1) };
+        frame.Write(_constants!, MemoryMarshal.CreateReadOnlySpan(ref constants, 1));
+        var bindings = default(GpuBindings);
+        bindings.SetConstants(0, _constants);
+        bindings.SetResource(0, a);
+        bindings.SetResource(1, b);
+        bindings.SetStorage(0, output);
+        frame.Dispatch(pipeline, bindings, (width + 7) / 8, (height + 7) / 8);
     }
 
     [StructLayout(LayoutKind.Sequential)]
@@ -278,17 +261,17 @@ internal sealed unsafe class FrameInterpolator(GpuDevice gpu, PlaneViewCache vie
         public readonly int Height = height;
         public readonly DXGI_FORMAT Format = format;
         public readonly long Bytes = bytes;
-        public ID3D11Texture2D* Texture;
-        public ID3D11UnorderedAccessView* Luma;
-        public ID3D11UnorderedAccessView* Chroma;
+        public GpuTexture Texture = null!;
+        public GpuTexture Luma = null!;
+        public GpuTexture Chroma = null!;
         public bool InUse;
         public long LastUsed;
 
         public void Dispose()
         {
-            Com.Release(ref Chroma);
-            Com.Release(ref Luma);
-            Com.Release(ref Texture);
+            Chroma?.Dispose();
+            Luma?.Dispose();
+            Texture?.Dispose();
         }
     }
 }

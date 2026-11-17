@@ -121,12 +121,14 @@ internal sealed unsafe class D3D11Texture : GpuTexture
         return wrapped;
     }
 
-    /// <summary>Solo una vista (un plano del decodificador, el búfer de la cadena), con una referencia propia; sin recurso detrás.</summary>
-    public static D3D11Texture View(in GpuTextureDesc desc, ID3D11ShaderResourceView* srv = null, ID3D11RenderTargetView* rtv = null)
+    /// <summary>Solo vistas (un plano del decodificador o de una textura NV12, el búfer de la cadena), con referencias propias; sin recurso detrás.</summary>
+    public static D3D11Texture View(in GpuTextureDesc desc, ID3D11ShaderResourceView* srv = null, ID3D11RenderTargetView* rtv = null,
+        ID3D11UnorderedAccessView* uav = null)
     {
         if (srv != null) srv->AddRef();
         if (rtv != null) rtv->AddRef();
-        return new D3D11Texture(desc, null) { _srv = srv, _rtv = rtv };
+        if (uav != null) uav->AddRef();
+        return new D3D11Texture(desc, null) { _srv = srv, _rtv = rtv, _uav = uav };
     }
 
     protected override void Release()
