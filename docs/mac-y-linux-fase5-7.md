@@ -96,10 +96,31 @@ Las pruebas omitidas son las que necesitan los modelos o el corpus de `.entorno`
 
 ## Revisión de bloque
 
-**Sin hacer.** Daniel pidió a mitad del trabajo no lanzar encargos de la Cuadrilla ni subagentes (el PC iba lento), así que ninguna de las tres fases tiene todavía su revisión de bloque con otro modelo. Queda como tarea: una revisión de lectura de los PR #590, #591, #592, #594, #595, #596 y #597.
+Se hizo al levantarse la pausa de la Cuadrilla, de solo lectura y con otro modelo: **ChatGPT** (gpt-6-astra) la fase 6 y **Gemini** (gemini-3.8-flash-high) las fases 5 y 7.
+
+**Arreglado** (#600 y #601): reabrir el audio con tope (Resume → Start → Reopen podía entrar sin fin); el reloj se congela al cerrar la salida; la captura no deja salir excepciones del receptor y marca la discontinuidad tras un bloque perdido; el salto vacía la unidad de CoreAudio (`AudioUnitReset`); una operación de Pulse vencida se cancela y solo «hecha» vale; `ThisPlatform` da `linux-x64`/`osx-arm64` por sistema aunque la distribución informe otro RID; un sustituto UTF-16 suelto ya no rompe la maquetación; las fuentes del sistema de más de 20 MB no entran en el respaldo.
+
+**Queda como tarea:**
+
+- Captura de macOS: la unidad HAL no convierte la frecuencia; con una entrada a 44,1 kHz y pedido de 48 kHz puede no abrir. Leer el formato del dispositivo y remuestrear.
+- El receptor de la grabación de voz escribe el WAV dentro del hilo de audio (CoreAudio): pasar los paquetes por una cola a otro hilo.
+- CoreAudio convierte latencia y búfer del dispositivo con la frecuencia del cliente: con hardware a 96 kHz las duraciones salen dobles. Leer la frecuencia nominal del dispositivo.
+- Pulse: `cork` no comprueba que el servidor aceptó la orden (solo que terminó).
+- Las pruebas de transporte miden el reloj con silencio: falta una que capture una secuencia identificable a través de pausa, salto y cambio de salida.
+- `modulo-traducir` queda en CPU fuera de Windows: el backend Vulkan de LLamaSharp para Linux (y Metal en macOS, que ya trae el de CPU) por probar.
+- El bloque de RID se repite en seis `.csproj` de módulos y el paso de empaquetado en dos trabajos de `ci.yml`: unificar (`modules/Directory.Build.props`, acción compuesta).
+- Fuentes del sistema: los `name` solo de Macintosh (plataforma 1) se ignoran; rutas registradas sin normalizar.
+
+**No se aplicó:** que `<RuntimeIdentifiers>[^<]*` no cruza saltos de línea (en .NET una clase negada sí los incluye).
 
 ## Fallos encontrados por el camino
 
 - Dos pruebas de Engine que comparan vista previa y exportación de audio (`AudioEffectsMixTests`, `CompressorMixTests`) fallaron una vez cada una en Linux con «muestras distintas» y pasaron al repetir: inestables, ajenas a estas fases.
 - `AudioBufferList` de CoreAudio tiene 4 bytes de relleno antes del búfer; sin él se entregaban cero cuadros y el reloj de macOS no avanzaba (arreglado en #594).
 - `-r win-x64` en el `restore` de un módulo con los tres RID da NU1004: los módulos con los tres RID salen del bucle de la CI que lo pasa.
+
+## Preguntas para Daniel (se siguió con la recomendada)
+
+1. **Licencias de SkiaSharp** (ver «Licencias»): ¿se revisa ya qué trae `libSkiaSharp` de Linux y macOS? Bloquea el dibujo de títulos y toca a Uno (fase 8). Recomendada: sí, antes de la fase 8.
+2. **Módulos del formato 1 en Linux y macOS:** hoy el instalador los deja pasar (solo rechaza una `platform` distinta); no llegan por el catálogo porque cada sistema lee su índice. ¿Rechazarlos también a mano? Recomendada: sí, como «módulo de Windows», ajustando las pruebas de Packages que instalan módulos de ejemplo en Linux.
+3. **BlackHole (GPL-3.0) en el corredor de macOS:** solo para probar; ¿de acuerdo? El corredor ya trae dos dispositivos sin bucle; sin BlackHole no se puede medir la captura sincronizada.
