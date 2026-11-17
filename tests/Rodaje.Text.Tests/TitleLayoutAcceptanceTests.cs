@@ -56,6 +56,13 @@ public sealed class TitleLayoutAcceptanceTests(ITestOutputHelper output) : IDisp
                 continue;
             }
 
+            // Con respaldo por letra la línea entera se centra con otro ancho: se compara desde el borde de su primera unidad.
+            if (@case.FallsBackPerGlyph)
+            {
+                float shift = actual.Units.First(u => u.Line == a.Line).Left - expected.Units.First(u => u.Line == e.Line).Left;
+                a = a with { Left = a.Left - shift, Right = a.Right - shift };
+            }
+
             worst = Math.Max(worst, Math.Max(Math.Abs(e.Left - a.Left), Math.Abs(e.Right - a.Right)));
             Assert.True(Math.Abs(e.Left - a.Left) <= Tolerance && Math.Abs(e.Right - a.Right) <= Tolerance,
                 $"Unidad {i} («{layout.Drawn[e.Start..e.End]}»): DirectWrite {e.Left}..{e.Right}, HarfBuzz {a.Left}..{a.Right}.");
