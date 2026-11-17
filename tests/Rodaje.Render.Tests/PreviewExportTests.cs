@@ -30,12 +30,12 @@ public sealed class PreviewExportTests
         Fx.Make(BuiltInEffects.Grain, null, (BuiltInEffects.GrainParameters.Amount, 0.3)).At(2.0),
     ];
 
-    [GpuFact]
+    [EngineFact]
     public void Preview_and_export_give_the_same_bytes_with_six_new_effects()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvImage image = Scene(512, 288);
-        using var compositor = new Compositor(gpu, 512, 288);
+        using var compositor = gpu.NewCompositor(512, 288);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         using (CompositionFrame frame = Layers.Frame(512, 288, Layers.From(gpu, image, Bt709, new LayerLook(SixEffects()))))
         {
@@ -43,7 +43,7 @@ public sealed class PreviewExportTests
         }
 
         byte[] preview = compositor.ReadbackRgba();
-        using var export = new Compositor(gpu, 512, 288);
+        using var export = gpu.NewCompositor(512, 288);
         using (CompositionFrame frame = Layers.Frame(512, 288, Layers.From(gpu, image, Bt709, new LayerLook(SixEffects()))))
         {
             export.RenderStrict(frame);
@@ -52,14 +52,14 @@ public sealed class PreviewExportTests
         Assert.Equal(preview, export.ReadbackRgba());
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Half_resolution_preview_is_close_to_the_full_one_with_the_new_effects()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvImage image = Scene(512, 288);
         byte[] Render(int width, int height)
         {
-            using var compositor = new Compositor(gpu, width, height);
+            using var compositor = gpu.NewCompositor(width, height);
             Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
             LayerEffect[] effects = [.. SixEffects().Where(e => e.Code != EffectRegistry.Find(BuiltInEffects.Grain)!.Code)];
             using CompositionFrame frame = Layers.Frame(512, 288, Layers.From(gpu, image, Bt709, new LayerLook(effects)));
@@ -91,10 +91,10 @@ public sealed class PreviewExportTests
     /// Rampa P010 de un código cada dos columnas (64 a 939) con contraste +30 % y una curva: a la salida, en 10 bits, la
     /// pendiente es de 1,5 códigos por código y ningún salto pasa de 2 (leída en 8 bits serían saltos de 4).
     /// </summary>
-    [GpuFact]
+    [EngineFact]
     public void A_ten_bit_ramp_keeps_its_codes_through_the_grade()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         const int width = 1752;
         var image = new YuvImage(width, 16, tenBit: true);
         for (int x = 0; x < width; x += 2)
@@ -102,7 +102,7 @@ public sealed class PreviewExportTests
             image.Fill(x, 0, 2, 16, new YuvCode(64 + (x / 2), 512, 512));
         }
 
-        using var compositor = new Compositor(gpu, width, 16);
+        using var compositor = gpu.NewCompositor(width, 16);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         var curves = new LayerEffect(EffectRegistry.Find(BuiltInEffects.Curves)!.Code, default, new ResourceKey("0,0;0.5,0.5;1,1|||"));
         using (CompositionFrame frame = Layers.Frame(width, 16, Layers.From(gpu, image, Bt709, new LayerLook([Fx.Color((C.Contrast, 0.3)), curves]))))

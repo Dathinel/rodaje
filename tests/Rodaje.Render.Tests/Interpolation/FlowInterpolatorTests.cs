@@ -14,13 +14,14 @@ using Rodaje.Render.Gpu.D3D11;
 namespace Rodaje.Render.Tests.Interpolation;
 
 [Collection("Interpolation payload lifetime")]
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class FlowInterpolatorTests(ITestOutputHelper output)
 {
     private const int Width = 320;
     private const int Height = 180;
     private static readonly ShaderCache TestShaders = new(null);
 
-    [Fact]
+    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
     public void Defaults_match_analysis_without_a_production_dependency()
     {
         var p = new FlowParameters();
@@ -36,14 +37,14 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         Assert.Equal(FlowDefaults.Beta, p.Beta);
     }
 
-    [Fact]
+    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
     public void All_compute_passes_compile_without_warnings()
     {
         foreach (string entry in new[] { "Downsample", "Search", "Densify", "Histogram", "Residual", "Decide", "Warp" })
             Assert.NotEmpty(TestShaders.GetOrCompile(FlowShaders.Optical(entry)));
     }
 
-    [Theory]
+    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
     [InlineData(8, 0.25f)]
     [InlineData(8, 0.5f)]
     [InlineData(8, 0.75f)]
@@ -56,7 +57,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         Compare(a, b, truth, fraction, "Traslación y color", 16, true);
     }
 
-    [Theory]
+    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
     [InlineData(8)]
     [InlineData(16)]
     public void Occlusion_matches_reference_psnr(int bitDepth)
@@ -65,7 +66,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         Compare(ConvertDepth(a, bitDepth), ConvertDepth(b, bitDepth), ConvertDepth(truth, bitDepth), 0.5f, "Oclusión", 0, false);
     }
 
-    [Theory]
+    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
     [InlineData(8, 0.25f)]
     [InlineData(8, 0.5f)]
     [InlineData(8, 0.75f)]
@@ -111,7 +112,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
     public unsafe void Two_hundred_frames_reuse_textures_and_release_payloads_and_budget()
     {
         long baseline = LiveCount(null);
@@ -141,7 +142,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         Assert.Equal(baseline, LiveCount(null));
     }
 
-    [Theory]
+    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
     [InlineData(1920, 1080, 64)]
     [InlineData(3840, 2160, 200)]
     public unsafe void Intermediate_and_output_vram_stay_within_budget(int width, int height, int megabytes)
@@ -160,7 +161,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         interpolator.EndFrame(); interpolator.Trim(); Assert.Equal(0, pool.Bytes);
     }
 
-    [Fact]
+    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
     public unsafe void Insufficient_intermediate_budget_falls_back_to_unchanged_blend()
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
@@ -206,7 +207,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         Assert.True(median <= limit, $"{width}×{height}: {median:F3} ms supera {limit} ms.");
     }
 
-    [Fact]
+    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
     public unsafe void Failed_compute_pass_releases_intermediates_and_falls_back_to_blend()
     {
         var failingShaders = new ShaderCache(null)
@@ -231,7 +232,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         interpolator.EndFrame(); interpolator.Trim(); Assert.Equal(0, pool.Bytes);
     }
 
-    [Theory]
+    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
     [InlineData(DXGI_FORMAT.DXGI_FORMAT_NV12)]
     [InlineData(DXGI_FORMAT.DXGI_FORMAT_P010)]
     [InlineData(DXGI_FORMAT.DXGI_FORMAT_P016)]

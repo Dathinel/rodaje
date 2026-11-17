@@ -1,5 +1,7 @@
 using System.Runtime.InteropServices;
 using Rodaje.Media.Gpu;
+using Rodaje.Media.Video;
+using Rodaje.Render.Gpu;
 using TerraFX.Interop.DirectX;
 using TerraFX.Interop.Windows;
 
@@ -61,6 +63,7 @@ internal sealed class YuvImage
     }
 
     /// <summary>Crea un arreglo de texturas con una capa por imagen. Devuelve una referencia que hay que liberar.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public static unsafe nint CreateTexture(GpuDevice gpu, IReadOnlyList<YuvImage> slices)
     {
         YuvImage first = slices[0];
@@ -148,6 +151,53 @@ internal sealed class YuvImage
         }
     }
 
+    /// <summary>
+    /// Los planos de <paramref name="image"/> como una superficie de un <see cref="IGpu"/> (el camino de Vulkan):
+    /// luma entera y croma a la mitad en cada eje en la parte alta de <c>R16Unorm</c>/<c>Rg16Unorm</c> (P010), con los mismos
+    /// códigos que <see cref="Pack"/>. Los de 8 bits van como el mismo código en 10 bits (×4), que da el mismo color: lavapipe filtra
+    /// las texturas UNORM8 con 8 bits de precisión y una capa NV12 se alejaba un código de la de D3D11.
+    /// </summary>
+    public static GpuTextureSurface CreateSurface(IGpu gpu, YuvImage image, VideoColor color, int? visibleWidth = null, int? visibleHeight = null)
+    {
+        int samples = image.Width * image.Height;
+        GpuTexture luma = gpu.CreateTexture(
+            new GpuTextureDesc(image.Width, image.Height, GpuFormat.R16Unorm, GpuTextureUsage.Sampled),
+            image.PackPlane(0, samples));
+        try
+        {
+            GpuTexture chroma = gpu.CreateTexture(
+                new GpuTextureDesc(image.Width / 2, image.Height / 2, GpuFormat.Rg16Unorm, GpuTextureUsage.Sampled),
+                image.PackPlane(samples, image._chroma.Length));
+            return new GpuTextureSurface(luma, chroma, FramePixelFormat.P010, color,
+                visibleWidth, visibleHeight);
+        }
+        catch
+        {
+            luma.Dispose();
+            throw;
+        }
+    }
+
+    /// <summary><paramref name="count"/> códigos empaquetados desde <paramref name="offset"/> del plano completo (luma y croma juntos).</summary>
+    private unsafe byte[] PackPlane(int offset, int count)
+    {
+        byte[] packed = new byte[count * 2];
+        int shift = TenBit ? 6 : 8;
+        fixed (byte* destination = packed)
+        {
+            var words = (ushort*)destination;
+            for (int i = 0; i < count; i++)
+            {
+                words[i] = (ushort)(Code(offset + i) << shift);
+            }
+        }
+
+        return packed;
+    }
+
+    private ushort Code(int index) => index < _luma.Length ? _luma[index] : _chroma[index - _luma.Length];
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     private static void Check(HRESULT hr)
     {
         if (hr.FAILED)

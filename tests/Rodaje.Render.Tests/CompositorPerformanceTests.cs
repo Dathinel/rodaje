@@ -9,6 +9,7 @@ using Xunit.Abstractions;
 
 namespace Rodaje.Render.Tests;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class CompositorPerformanceTests(ITestOutputHelper output)
 {
     private const int Warmup = 30;

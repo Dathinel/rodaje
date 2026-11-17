@@ -11,6 +11,7 @@ namespace Rodaje.Render.Tests;
 /// Los monitores contra una referencia en la CPU hecha con los mismos píxeles leídos de la composición: barras SMPTE al 75 %
 /// (forma de onda, desfile, vectorscopio con sus objetivos) y rampas (histograma y forma de onda exactos).
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class ScopeTests
 {
     private const int Width = 1024;
@@ -23,7 +24,7 @@ public sealed class ScopeTests
         (0.75, 0.75, 0.75), (0.75, 0.75, 0), (0, 0.75, 0.75), (0, 0.75, 0), (0.75, 0, 0.75), (0.75, 0, 0), (0, 0, 0.75),
     ];
 
-    [GpuFact]
+    [D3D11GpuFact("monitores (ScopeRenderer)")]
     public void Bars_land_on_their_levels_and_on_the_vectorscope_targets()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -65,7 +66,7 @@ public sealed class ScopeTests
         Assert.Equal((128, 128), (cx, cy));
     }
 
-    [GpuFact]
+    [D3D11GpuFact("monitores (ScopeRenderer)")]
     public void A_gray_ramp_fills_the_histogram_evenly_and_rises_across_the_waveform()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -97,7 +98,7 @@ public sealed class ScopeTests
         Assert.InRange(used, 200u, 256u);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("monitores (ScopeRenderer)")]
     public void The_scope_image_arrives_without_waiting_and_shows_the_trace()
     {
         using GpuDevice gpu = GpuDevice.Create();

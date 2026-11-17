@@ -17,6 +17,7 @@ namespace Rodaje.Render.Tests;
 /// Fase C del HDR, parte 3 (D-058): «Expandir a HDR» de un clip SDR, LUT y curvas por PQ en una secuencia HDR, la miniatura de
 /// exportación y los osciloscopios recortados a SDR como el visor, y MaxCLL/MaxFALL medidos en la composición lineal.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class HdrPart3Tests
 {
     private static readonly VideoColor Pq2020 = new(YuvMatrix.Bt2020, false) { Transfer = HdrTransfer.Pq, Bt2020Primaries = true };
@@ -25,7 +26,7 @@ public sealed class HdrPart3Tests
     private const int Gray18 = 106;
     private const int Pq1000 = 723;
 
-    [GpuFact]
+    [D3D11GpuFact("conversor de exportación (ExportFrameConverter)")]
     public void Expanding_an_sdr_clip_takes_white_to_the_peak_and_keeps_the_18_percent_gray()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -42,7 +43,7 @@ public sealed class HdrPart3Tests
         Assert.True(expanded[16] < 500, $"El gris del 18 % quedó en {expanded[16]}.");
     }
 
-    [GpuFact]
+    [D3D11GpuFact("conversor de exportación (ExportFrameConverter)")]
     public void The_shader_expansion_follows_the_cpu_reference()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -65,10 +66,10 @@ public sealed class HdrPart3Tests
         }
     }
 
-    [GpuFact]
+    [EngineFact]
     public void An_sdr_sequence_ignores_the_expansion()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         var image = new YuvImage(32, 16, false);
         image.Fill(0, 0, 16, 16, new YuvCode(235, 128, 128));
         image.Fill(16, 0, 16, 16, new YuvCode(Gray18, 90, 160));
@@ -82,10 +83,10 @@ public sealed class HdrPart3Tests
     /// así que una LUT y una curva maestra de identidad dejan la imagen como estaba. Además compila la variante avanzada con
     /// LUT de <c>PsGraded</c>, la que dibuja los títulos: si no compila, el visor se queda sin ellos sin avisar.
     /// </summary>
-    [GpuFact]
+    [EngineFact]
     public void An_sdr_sequence_grades_with_the_lut_and_the_curves_as_before()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         var image = new YuvImage(32, 16, false);
         image.Fill(0, 0, 8, 16, new YuvCode(16, 128, 128));
         image.Fill(8, 0, 8, 16, new YuvCode(Gray18, 90, 160));
@@ -107,7 +108,7 @@ public sealed class HdrPart3Tests
         }
     }
 
-    [GpuFact]
+    [D3D11GpuFact("conversor de exportación (ExportFrameConverter)")]
     public void A_lut_and_curves_keep_a_1000_nit_patch_in_an_hdr_sequence()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -124,7 +125,7 @@ public sealed class HdrPart3Tests
         Assert.InRange(withCurves[0], Pq1000 - 8, Pq1000 + 8);
     }
 
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void The_export_thumbnail_of_an_hdr_composition_is_clipped_to_sdr_like_the_viewer()
     {
         using ExportGpu gpu = ExportGpu.Warp();
@@ -153,7 +154,7 @@ public sealed class HdrPart3Tests
         Assert.Equal(0, thumbnail.Bgra[(56 * 4) + 2]);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("medidor de luz (ContentLightMeter)")]
     public void The_light_meter_reports_maxcll_and_maxfall_in_nits()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -184,7 +185,7 @@ public sealed class HdrPart3Tests
         Assert.Equal(2, meter.Frames);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("monitores (ScopeRenderer)")]
     public void The_scopes_measure_an_hdr_composition_clipped_to_sdr()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -226,9 +227,10 @@ public sealed class HdrPart3Tests
         return ExportCheck.ReadOne(converter, 0)[0];
     }
 
-    private static byte[] Readback(GpuDevice gpu, SequenceColorSpace space, LayerFrame layer, Action<Compositor>? setup = null)
+    private static byte[] Readback(TestGpu gpu, SequenceColorSpace space, LayerFrame layer, Action<Compositor>? setup = null)
     {
-        using var compositor = new Compositor(gpu, 32, 16) { ColorSpace = space };
+        using var compositor = gpu.NewCompositor(32, 16);
+        compositor.ColorSpace = space;
         setup?.Invoke(compositor);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         using CompositionFrame frame = Layers.Frame(32, 16, layer);

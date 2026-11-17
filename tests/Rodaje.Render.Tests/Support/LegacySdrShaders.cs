@@ -1,6 +1,7 @@
 namespace Rodaje.Render.Tests.Support;
 
 /// <summary>Shader previo a D-052, congelado para comparar los bytes SDR con el pipeline actual en la misma GPU.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal static class LegacySdrShaders
 {
     // corners[i]: xy = NDC, zw = uv; local[i].xy = punto en el espacio local de la capa; orden TL, TR, BL, BR.

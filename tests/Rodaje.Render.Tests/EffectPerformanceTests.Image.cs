@@ -17,6 +17,7 @@ namespace Rodaje.Render.Tests;
 /// Lo que cuesta cada efecto nuevo con una capa 1080p (lo que usa <see cref="EffectCost"/>), seis efectos juntos en 1080p
 /// y 4K, y los monitores. Objetivos de la RTX 3050 Laptop, exigidos con <c>RODAJE_PRUEBAS_LARGAS=1</c>.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed partial class EffectPerformanceTests
 {
     public static TheoryData<string, string> NewEffects() => new()
@@ -37,7 +38,7 @@ public sealed partial class EffectPerformanceTests
     };
 
     /// <summary>El anclaje de esquinas no agrega pasadas: la capa sigue por el camino rápido con una w por esquina.</summary>
-    [GpuFact]
+    [D3D11GpuFact("temporizador de GPU (GpuTimer)")]
     public void A_corner_pinned_1080p_layer_costs_the_same_as_a_plain_one()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -59,7 +60,7 @@ public sealed partial class EffectPerformanceTests
     }
 
     /// <summary>El costo medido frente al estimado de <see cref="EffectCost"/>: dentro de ×3 (o 0,1 ms).</summary>
-    [GpuFact]
+    [D3D11GpuFact("temporizador de GPU (GpuTimer)")]
     public void Each_new_effect_costs_about_what_the_stack_shows()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -90,7 +91,7 @@ public sealed partial class EffectPerformanceTests
         }
     }
 
-    [GpuTheory]
+    [D3D11GpuTheory("temporizador de GPU (GpuTimer)")]
     [InlineData(1920, 1080, 4.0)]
     [InlineData(3840, 2160, 12.0)]
     public void Six_new_effects_fit_in_a_frame(int width, int height, double target)
@@ -111,7 +112,7 @@ public sealed partial class EffectPerformanceTests
         }
     }
 
-    [GpuTheory]
+    [D3D11GpuTheory("temporizador de GPU (GpuTimer)")]
     [InlineData(1920, 1080)]
     [InlineData(3840, 2160)]
     public void Scopes_measure_a_frame_in_under_a_millisecond_and_a_half(int width, int height)

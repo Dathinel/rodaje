@@ -17,11 +17,12 @@ using Rodaje.Render.Gpu.D3D11;
 namespace Rodaje.Render.Tests.Interpolation;
 
 [Collection("Interpolation payload lifetime")]
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class FrameInterpolatorTests
 {
     private static readonly ShaderCache TestShaders = new(null);
 
-    [Theory]
+    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
     [InlineData(0.5f)]
     [InlineData(0.25f)]
     public unsafe void P016_preserves_sixteen_bit_plane_codes(float fraction)
@@ -70,7 +71,7 @@ public sealed class FrameInterpolatorTests
         }
     }
 
-    [Theory]
+    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
     [InlineData(false, 0.5f)]
     [InlineData(false, 0.25f)]
     [InlineData(true, 0.5f)]
@@ -104,7 +105,7 @@ public sealed class FrameInterpolatorTests
         Assert.True(output.IsReleased);
     }
 
-    [Theory]
+    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
     [InlineData(2, 0)]
     [InlineData(1, 90)]
     public void Identical_pair_preserves_anamorphic_and_rotated_geometry(int sar, int rotation)
@@ -128,7 +129,7 @@ public sealed class FrameInterpolatorTests
         AssertBytes(expected, compositor.ReadbackRgba(), 1);
     }
 
-    [Fact]
+    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
     public void Nearest_and_missing_pair_create_no_interpolation_textures()
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
@@ -153,7 +154,7 @@ public sealed class FrameInterpolatorTests
         Assert.Equal(0, compositor.InterpolationTextureCount);
     }
 
-    [Theory]
+    [D3D11Theory("interpolación de cuadros (FrameInterpolator)")]
     [InlineData("plain")]
     [InlineData("effects")]
     [InlineData("motion")]
@@ -208,7 +209,7 @@ public sealed class FrameInterpolatorTests
         }
     }
 
-    [Fact]
+    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
     public void Two_hundred_frames_reuse_the_pool_and_release_all_payloads()
     {
         long before = Interlocked.Read(ref LiveCount(null));
@@ -238,7 +239,7 @@ public sealed class FrameInterpolatorTests
         Assert.Equal(before, Interlocked.Read(ref LiveCount(null)));
     }
 
-    [Fact]
+    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
     public unsafe void Mismatched_and_rgb_inputs_fall_back_without_allocating()
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
@@ -257,7 +258,7 @@ public sealed class FrameInterpolatorTests
         Assert.Equal(0, pool.Bytes);
     }
 
-    [Fact]
+    [D3D11Fact("interpolación de cuadros (FrameInterpolator)")]
     public unsafe void Budget_is_shared_and_simultaneous_outputs_stay_distinct()
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();

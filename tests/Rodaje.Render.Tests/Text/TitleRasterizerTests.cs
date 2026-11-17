@@ -16,11 +16,12 @@ namespace Rodaje.Render.Tests.Text;
 /// El rasterizador de títulos contra lo que se espera de cada parte del estilo: alfa premultiplicado, borde, sombra,
 /// fondo, saltos de línea, ajuste, alineación y escrituras de derecha a izquierda; y su paso por el compositor.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class TitleRasterizerTests(ITestOutputHelper output)
 {
     private static readonly bool Strict = Environment.GetEnvironmentVariable(Skip.LongVariable) == "1";
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void A_filled_title_is_premultiplied_with_opaque_glyphs_and_transparent_surroundings()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -39,7 +40,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.InRange(y, (image.Height / 2.0) - 30, (image.Height / 2.0) + 30);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void The_stroke_surrounds_the_fill_with_its_own_color()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -62,7 +63,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.True(texture.Width > without.Width);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void The_highlighted_word_takes_its_color_and_the_rest_keeps_the_fill()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -89,7 +90,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.InRange(yellowX, (with.Width / 2.0) - 60, (with.Width / 2.0) + 60);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void The_shadow_is_offset_and_blurred_below_the_text()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -112,7 +113,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.True(blurred.Width > sharp.Width, "El margen crece con el desenfoque para no cortar la sombra.");
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void The_background_covers_the_text_plus_its_padding()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -133,7 +134,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.Equal(0, image[0, 0].A);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Line_breaks_add_one_line_height_and_a_box_wraps_long_text()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -157,7 +158,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.True(wrapped.LocalHeight >= one.LocalHeight + (3 * step) - 2, "Debería ocupar al menos cuatro líneas.");
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Alignment_moves_short_lines_inside_the_box()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -179,7 +180,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.True(left < -450 && right > 450);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Right_to_left_and_mixed_scripts_rasterize_with_system_fallback()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -201,7 +202,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.True(wide.InkCenter().X > wide.Width / 2.0, "La palabra larga del principio debería quedar a la derecha.");
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void A_missing_family_falls_back_and_is_reported()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -219,7 +220,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.Equal("rodaje-fuentes@1.0.0/nada", missing.Source);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void The_font_pass_does_not_wait_for_a_rasterization_in_progress()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -244,7 +245,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.Equal("Fuente Que No Existe", Assert.Single(pass.Result).Family);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Private_fonts_register_without_installing_and_bad_files_are_rejected()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -270,7 +271,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         }
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void A_title_larger_than_its_byte_cap_is_rasterized_smaller()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -285,7 +286,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.InRange(texture.LocalWidth, normal.LocalWidth - 4, normal.LocalWidth + 4);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Equal_descriptors_share_one_texture_and_prepare_rasterizes_in_the_background()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -303,7 +304,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.Equal(1, titles.Rasterized);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void The_cache_evicts_old_titles_but_keeps_the_ones_on_screen()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -321,7 +322,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.Same(kept, titles.TryGet(onScreen));
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void The_compositor_places_the_title_with_its_transform_and_counts_pending_ones()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -346,7 +347,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.InRange(moved.At(1560, 240).R, 120, 136);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Preview_and_strict_export_compose_titles_identically()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -382,7 +383,7 @@ public sealed class TitleRasterizerTests(ITestOutputHelper output)
         Assert.Equal(Run(strict: false, withBlur: true), Run(strict: true, withBlur: true));
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Rasterizing_a_1080p_title_with_stroke_and_shadow_is_fast()
     {
         using GpuDevice gpu = GpuDevice.Create();

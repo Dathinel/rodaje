@@ -19,11 +19,12 @@ namespace Rodaje.Render.Tests;
 /// Fase C del HDR, parte 2 (D-055): en una secuencia HDR el compositor trabaja en luz lineal BT.2020 con 1,0 = 203 nits y sin
 /// recortar por arriba; una secuencia SDR sigue dando los mismos bytes de antes, también en el presentador.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class HdrLinearCompositorTests
 {
     private static readonly VideoColor Pq2020 = new(YuvMatrix.Bt2020, false) { Transfer = HdrTransfer.Pq, Bt2020Primaries = true };
 
-    [GpuTheory]
+    [D3D11GpuTheory("conversor de exportación (ExportFrameConverter)")]
     [InlineData(SequenceColorSpace.HdrPq, 573)]
     [InlineData(SequenceColorSpace.HdrHlg, 721)]
     public void Sdr_white_in_an_hdr_sequence_exports_the_code_of_203_nits(SequenceColorSpace space, int expected)
@@ -34,7 +35,7 @@ public sealed class HdrLinearCompositorTests
         Assert.InRange(luma[0], expected - 2, expected + 2);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("conversor de exportación (ExportFrameConverter)")]
     public void A_1000_nit_pq_patch_survives_in_a_pq_sequence_and_clips_in_an_sdr_one()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -46,7 +47,7 @@ public sealed class HdrLinearCompositorTests
         Assert.InRange(sdr[0], 500, 575);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("conversor de exportación (ExportFrameConverter)")]
     public void Layers_above_white_are_not_clipped_by_grading_in_an_hdr_sequence()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -56,7 +57,7 @@ public sealed class HdrLinearCompositorTests
         Assert.True(luma[0] > 650, $"El color recortó el parche a {luma[0]}.");
     }
 
-    [GpuFact]
+    [D3D11GpuFact("conversor de exportación (ExportFrameConverter)")]
     public void Sdr_present_bytes_are_the_same_as_before_hdr()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -66,7 +67,7 @@ public sealed class HdrLinearCompositorTests
         Assert.Equal(Present(gpu, compositor, LegacySdrShaders.Present), Present(gpu, compositor, null));
     }
 
-    [GpuFact]
+    [D3D11GpuFact("conversor de exportación (ExportFrameConverter)")]
     public void Hdr_preview_without_an_hdr_screen_matches_the_sdr_export_of_the_same_sequence()
     {
         using GpuDevice gpu = GpuDevice.Create();

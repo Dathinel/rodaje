@@ -11,11 +11,12 @@ namespace Rodaje.Render.Tests.Export;
 /// Fase C del HDR, parte 1: la exportación codifica la composición SDR a BT.2020 con PQ o HLG (blanco en 203 nits) y la
 /// salida SDR es, byte a byte, la de antes.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class ExportHdrEncodeTests
 {
     private static readonly Rational Rate = new(30, 1);
 
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void The_sdr_convert_shader_compiles_to_the_same_bytecode_as_before_hdr()
     {
         byte[] legacy = ShaderCompiler.Compile(LegacyExportShaders.Convert, "CsConvert", "cs_5_0", "rodaje-export-legacy.hlsl");
@@ -25,7 +26,7 @@ public sealed class ExportHdrEncodeTests
         Assert.NotEqual(legacy, ShaderCompiler.Compile(ExportShaders.ConvertHdrVariant.FullSource(), "CsConvert", "cs_5_0", "rodaje-export.hlsl"));
     }
 
-    [Theory]
+    [D3D11Theory("conversor de exportación (ExportFrameConverter)")]
     [InlineData(ExportPixelFormat.P010)]
     [InlineData(ExportPixelFormat.Yuv420P10)]
     [InlineData(ExportPixelFormat.Yuv422P10)]
@@ -42,7 +43,7 @@ public sealed class ExportHdrEncodeTests
     }
 
     /// <summary>Parte 2 (D-055): la composición de una secuencia HDR es lineal BT.2020 con 1,0 = 203 nits y no pasa por la curva BT.709 ni se recorta.</summary>
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void A_linear_hdr_composition_is_encoded_as_nits_without_clipping()
     {
         using ExportGpu gpu = ExportGpu.Warp();
@@ -68,7 +69,7 @@ public sealed class ExportHdrEncodeTests
             ShaderCompiler.Compile(ExportShaders.ConvertToneMapVariant.FullSource(), "CsConvert", "cs_5_0", "rodaje-export.hlsl"));
     }
 
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void Sdr_white_is_75_percent_in_hlg()
     {
         using ExportGpu gpu = ExportGpu.Warp();

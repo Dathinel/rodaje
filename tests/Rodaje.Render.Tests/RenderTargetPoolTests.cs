@@ -4,6 +4,7 @@ using TerraFX.Interop.DirectX;
 using static TerraFX.Interop.DirectX.D3D11;
 using Rodaje.Render.Gpu;
 using Rodaje.Render.Gpu.D3D11;
+using Rodaje.Render.Tests.Support;
 
 namespace Rodaje.Render.Tests;
 
@@ -12,9 +13,10 @@ namespace Rodaje.Render.Tests;
 /// filtro bilineal del borde lee el texel siguiente con peso 0 y 0 × NaN es NaN: con WARP y memoria sin limpiar la vista
 /// previa y la exportación diferían en las últimas filas (CI, PR #427).
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe class RenderTargetPoolTests
 {
-    [GpuFact]
+    [D3D11GpuFact("vista de destino D3D11 (RenderTarget.Rtv)")]
     public void A_new_intermediate_starts_at_zero_even_over_memory_that_held_nan()
     {
         using GpuDevice gpu = GpuDevice.Create();

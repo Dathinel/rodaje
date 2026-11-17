@@ -53,12 +53,12 @@ public sealed class ExtremeEffectValuesTests
 
     private static readonly float[] Indexes = [-1, 1e9f, float.NaN, float.PositiveInfinity, float.NegativeInfinity];
 
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(ImageEffects))]
     public void Cada_valor_extremo_de_un_efecto_da_una_imagen_sin_NaN(string type)
     {
         EffectDefinition definition = EffectRegistry.Find(type)!;
-        using GpuDevice gpu = GpuDevice.CreateWarp();
+        using TestGpu gpu = TestGpu.Create(warp: true);
         using var compositor = Ready(gpu);
         foreach (ParameterDefinition p in definition.Parameters)
         {
@@ -93,12 +93,12 @@ public sealed class ExtremeEffectValuesTests
         AssertFinite(compositor, gpu, new LayerLook([poisoned with { Values = all }]), $"{type} con todo NaN");
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(Transitions))]
     public void Cada_valor_extremo_de_una_transicion_da_una_imagen_sin_NaN(string type)
     {
         EffectDefinition definition = EffectRegistry.Find(type)!;
-        using GpuDevice gpu = GpuDevice.CreateWarp();
+        using TestGpu gpu = TestGpu.Create(warp: true);
         using var compositor = Ready(gpu);
         foreach (ParameterDefinition p in definition.Parameters)
         {
@@ -131,10 +131,10 @@ public sealed class ExtremeEffectValuesTests
         }
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Una_transformacion_con_valores_extremos_da_una_imagen_sin_NaN()
     {
-        using GpuDevice gpu = GpuDevice.CreateWarp();
+        using TestGpu gpu = TestGpu.Create(warp: true);
         using var compositor = Ready(gpu);
         double[] extremes = [0, -1, 1e-30, 1e30, -1e30, 1e300, double.MaxValue, double.NaN, double.PositiveInfinity, double.NegativeInfinity];
         foreach (double v in extremes)
@@ -158,9 +158,9 @@ public sealed class ExtremeEffectValuesTests
         }
     }
 
-    private static Compositor Ready(GpuDevice gpu)
+    private static Compositor Ready(TestGpu gpu)
     {
-        var compositor = new Compositor(gpu, Width, Height);
+        var compositor = gpu.NewCompositor(Width, Height);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(120)), "Los shaders de efectos no estuvieron listos.");
         return compositor;
     }
@@ -175,7 +175,7 @@ public sealed class ExtremeEffectValuesTests
         }
     }
 
-    private static void AssertTransition(Compositor compositor, GpuDevice gpu, EffectDefinition definition, EffectValues values, float progress,
+    private static void AssertTransition(Compositor compositor, TestGpu gpu, EffectDefinition definition, EffectValues values, float progress,
         (float, float)? shutter, string what)
     {
         LayerFrame incoming = Layers.From(gpu, Image(7), Bt709, track: 1);
@@ -183,10 +183,10 @@ public sealed class ExtremeEffectValuesTests
         AssertFinite(compositor, gpu, new LayerLook(Transition: transition), what);
     }
 
-    private static void AssertFinite(Compositor compositor, GpuDevice gpu, LayerLook look, string what) =>
+    private static void AssertFinite(Compositor compositor, TestGpu gpu, LayerLook look, string what) =>
         AssertFinite(Render(compositor, gpu, look, LayerTransform.Identity), what);
 
-    private static float[] Render(Compositor compositor, GpuDevice gpu, LayerLook? look, LayerTransform transform)
+    private static float[] Render(Compositor compositor, TestGpu gpu, LayerLook? look, LayerTransform transform)
     {
         LayerFrame layer = look is null
             ? Layers.From(gpu, Image(3), Bt709, transform)

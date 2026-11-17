@@ -15,30 +15,31 @@ using Rodaje.Render.Gpu.D3D11;
 
 namespace Rodaje.Render.Tests;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class HdrConversionTests
 {
     // Referencias calculadas en doble precisión desde los códigos YCbCr, con las ecuaciones de BT.2100/BT.709.
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(HdrTransfer.Pq, 400, 512, 512, 74.764, 74.764, 74.764)]
     [InlineData(HdrTransfer.Pq, 500, 480, 550, 188.906, 95.007, 72.173)]
     [InlineData(HdrTransfer.Hlg, 400, 512, 512, 74.427, 74.427, 74.427)]
     [InlineData(HdrTransfer.Hlg, 500, 480, 550, 126.960, 92.688, 82.357)]
     public void Midtones_and_color_match_reference_vectors(HdrTransfer transfer, int y, int cb, int cr, double r, double g, double b)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvImage image = YuvImage.Solid(16, 16, true, new YuvCode(y, cb, cr));
         var pixels = new RgbaImage(Render(gpu, image, Color(transfer), 1000), 16, 16);
         pixels.AssertColor(8, 8, new Rgb(r, g, b), 1);
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(HdrTransfer.Pq, 100)]
     [InlineData(HdrTransfer.Pq, 1000)]
     [InlineData(HdrTransfer.Hlg, 1000)]
     [InlineData(HdrTransfer.Hlg, 2000)]
     public void Reference_white_is_Sdr_white_and_black_stays_black(HdrTransfer transfer, double white)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         double encoded = transfer == HdrTransfer.Pq ? Pq(white) : 1;
         var image = YuvImage.Solid(32, 16, true, new YuvCode(64, 512, 512));
         image.Fill(16, 0, 16, 16, new YuvCode((int)Math.Round(64 + 876 * encoded), 512, 512));
@@ -48,12 +49,12 @@ public sealed class HdrConversionTests
         pixels.AssertColor(24, 8, new Rgb(255, 255, 255), 1);
     }
 
-    [GpuTheory]
+    [D3D11GpuTheory("conversor de exportación (ExportFrameConverter)")]
     [InlineData(HdrTransfer.Pq)]
     [InlineData(HdrTransfer.Hlg)]
     public void Preview_and_export_match_with_and_without_effects(HdrTransfer transfer)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvImage image = Scene(true);
         foreach (bool effects in new[] { false, true })
         {
@@ -64,23 +65,23 @@ public sealed class HdrConversionTests
         }
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(HdrTransfer.Pq, 100)]
     [InlineData(HdrTransfer.Hlg, 1000)]
     public void Automatic_reference_matches_the_transfer_default(HdrTransfer transfer, double white)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvImage image = Scene(true);
         Assert.Equal(Render(gpu, image, Color(transfer), white), Render(gpu, image, Color(transfer), 0));
         Assert.NotEqual(Render(gpu, image, Color(transfer), white * 2), Render(gpu, image, Color(transfer), white));
     }
 
-    [GpuTheory]
+    [D3D11GpuTheory("vistas D3D11 (PlaneViewCache)")]
     [InlineData(false)]
     [InlineData(true)]
     public void Sdr_bytes_ignore_hdr_controls_and_primaries(bool tenBit)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvImage image = Scene(tenBit);
         byte[] original = Render(gpu, image, VideoColor.Bt709Limited, 0);
         Assert.Equal(original, Render(gpu, image, VideoColor.Bt709Limited with { Bt2020Primaries = true }, 800));
@@ -90,17 +91,17 @@ public sealed class HdrConversionTests
             foreach (bool full in new[] { false, true })
             {
                 var color = new VideoColor(matrix, full);
-                Assert.Equal(RenderShader(gpu, image, color, LegacySdrShaders.Layer), RenderShader(gpu, image, color, RenderShaders.Layer));
+                Assert.Equal(RenderShader(gpu.Device, image, color, LegacySdrShaders.Layer), RenderShader(gpu.Device, image, color, RenderShaders.Layer));
             }
         }
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(HdrTransfer.Pq)]
     [InlineData(HdrTransfer.Hlg)]
     public void Bt2020_primaries_change_colored_pixels(HdrTransfer transfer)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvImage image = Scene(true);
         VideoColor color = Color(transfer);
         Assert.NotEqual(Render(gpu, image, color, 1000), Render(gpu, image, color with { Bt2020Primaries = false }, 1000));
@@ -170,9 +171,9 @@ public sealed class HdrConversionTests
         return image;
     }
 
-    private static byte[] Render(GpuDevice gpu, YuvImage image, VideoColor color, double white, bool strict = false, bool effects = false)
+    private static byte[] Render(TestGpu gpu, YuvImage image, VideoColor color, double white, bool strict = false, bool effects = false)
     {
-        using var compositor = new Compositor(gpu, image.Width, image.Height);
+        using var compositor = gpu.NewCompositor(image.Width, image.Height);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         LayerLook look = effects ? new LayerLook([Fx.Color((BuiltInEffects.ColorParameters.Contrast, 0.15)),
             Fx.Make(BuiltInEffects.Blur, null, (BuiltInEffects.BlurParameters.Radius, 2))]) : new LayerLook();
@@ -181,17 +182,22 @@ public sealed class HdrConversionTests
         if (strict)
         {
             compositor.RenderStrict(frame);
-            var format = new ExportVideoFormat(image.Width, image.Height, Rational.Fps30, ExportPixelFormat.Rgba, ExportColor.Srgb);
-            using var converter = new ExportFrameConverter(gpu, image.Width, image.Height, format) { Dither = false };
-            converter.Submit(compositor.Texture, 0);
-            byte[] exported = Array.ConvertAll(ExportCheck.ReadOne(converter, 0)[0], value => (byte)value);
-            Assert.Equal(compositor.ReadbackRgba(), exported);
-            return exported;
+            return ExportRgba(gpu.Device, compositor, image.Width, image.Height);
         }
         else
         {
             Assert.Equal(0, compositor.Render(frame).EffectsSkipped);
         }
         return compositor.ReadbackRgba();
+    }
+
+    private static byte[] ExportRgba(GpuDevice gpu, Compositor compositor, int width, int height)
+    {
+        var format = new ExportVideoFormat(width, height, Rational.Fps30, ExportPixelFormat.Rgba, ExportColor.Srgb);
+        using var converter = new ExportFrameConverter(gpu, width, height, format) { Dither = false };
+        converter.Submit(compositor.Texture, 0);
+        byte[] exported = Array.ConvertAll(ExportCheck.ReadOne(converter, 0)[0], value => (byte)value);
+        Assert.Equal(compositor.ReadbackRgba(), exported);
+        return exported;
     }
 }

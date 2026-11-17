@@ -9,9 +9,10 @@ using Rodaje.TestMedia;
 
 namespace Rodaje.Render.Tests;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class DecoderCompositionTests
 {
-    [HardwareFact(VideoCodec.H264, Audio = AudioCodec.Aac)]
+    [D3D11HardwareFact("decodificación D3D11VA (D3D11TexturePayload)", VideoCodec.H264, Audio = AudioCodec.Aac)]
     public void Composes_decoder_surfaces_and_reads_the_frame_code_of_each_layer()
     {
         GeneratedMedia clip = TestMediaGenerator.CreateDefault()!.GetOrCreate(TestMediaPresets.H264Ntsc24Aac);
@@ -39,7 +40,7 @@ public sealed class DecoderCompositionTests
         Assert.Equal(0, compositor.CachedViewCount);
     }
 
-    [HardwareFact(VideoCodec.H264, Audio = AudioCodec.Aac)]
+    [D3D11HardwareFact("decodificación D3D11VA (D3D11TexturePayload)", VideoCodec.H264, Audio = AudioCodec.Aac)]
     public void Views_of_a_closed_decoder_are_released_on_the_next_frame_or_trim_and_unused_ones_after_a_while()
     {
         GeneratedMedia clip = TestMediaGenerator.CreateDefault()!.GetOrCreate(TestMediaPresets.H264Ntsc24Aac);

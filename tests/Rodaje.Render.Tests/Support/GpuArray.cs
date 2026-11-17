@@ -16,6 +16,11 @@ internal static class GpuArray
 
     private static unsafe string? Probe()
     {
+        if (!OperatingSystem.IsWindowsVersionAtLeast(7))
+        {
+            return "Omitida: Direct3D 11 solo existe en Windows.";
+        }
+
         if (Rodaje.TestMedia.Skip.GpuTextures is { } sampling)
         {
             return sampling;
@@ -44,11 +49,11 @@ internal static class GpuArray
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 internal sealed class GpuArrayFactAttribute : FactAttribute
 {
-    public GpuArrayFactAttribute() => Skip = GpuArray.Reason;
+    public GpuArrayFactAttribute() => Skip = TestGpu.D3D11Only("arreglo NV12 del decodificador D3D11VA") ?? GpuArray.Reason;
 }
 
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
 internal sealed class GpuArrayTheoryAttribute : TheoryAttribute
 {
-    public GpuArrayTheoryAttribute() => Skip = GpuArray.Reason;
+    public GpuArrayTheoryAttribute() => Skip = TestGpu.D3D11Only("arreglo NV12 del decodificador D3D11VA") ?? GpuArray.Reason;
 }
