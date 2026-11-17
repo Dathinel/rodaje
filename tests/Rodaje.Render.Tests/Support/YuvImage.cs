@@ -172,7 +172,7 @@ internal sealed class YuvImage
                 new GpuTextureDesc(image.Width / 2, image.Height / 2, GpuFormat.Rg16Unorm, GpuTextureUsage.Sampled),
                 image.PackPlane(samples, image._chroma.Length));
             // 8 bits ×257 sigue siendo NV12 (misma normalización, también en rango completo); 10 bits en los altos, P010.
-            return new GpuTextureSurface(luma, chroma, TenBit ? FramePixelFormat.P010 : FramePixelFormat.Nv12, color,
+            return new GpuTextureSurface(luma, chroma, image.TenBit ? FramePixelFormat.P010 : FramePixelFormat.Nv12, color,
                 visibleWidth, visibleHeight);
         }
         catch
