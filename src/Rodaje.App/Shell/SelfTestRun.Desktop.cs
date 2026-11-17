@@ -5,6 +5,7 @@ using Rodaje.App.Views.Player;
 using Rodaje.Core.Timing;
 using Rodaje.Export;
 using Rodaje.Media.Export;
+using Rodaje.Media.Proxies;
 using Windows.ApplicationModel.DataTransfer;
 
 namespace Rodaje.App.Shell;
