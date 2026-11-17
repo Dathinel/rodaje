@@ -132,16 +132,6 @@ public sealed partial class ModuleProcess : IAsyncDisposable
         Process process = new() { StartInfo = start, EnableRaisingEvents = true };
         StringBuilder stderr = new();
         TaskCompletionSource<int> exited = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        process.ErrorDataReceived += (_, e) =>
-        {
-            if (e.Data is null) return;
-            lock (stderr)
-            {
-                stderr.AppendLine(e.Data);
-                if (stderr.Length > StderrTail) stderr.Remove(0, stderr.Length - StderrTail);
-            }
-        };
-        process.OutputDataReceived += (_, _) => { };
         process.Exited += (_, _) => exited.TrySetResult(SafeExitCode(process));
         try
         {
@@ -154,8 +144,15 @@ public sealed partial class ModuleProcess : IAsyncDisposable
             process.Dispose();
             throw new ModuleExitedException("No se pudo abrir el módulo: " + ex.Message, ex);
         }
-        process.BeginErrorReadLine();
-        process.BeginOutputReadLine();
+        Drain(process.StandardError.BaseStream, line =>
+        {
+            lock (stderr)
+            {
+                stderr.AppendLine(line);
+                if (stderr.Length > StderrTail) stderr.Remove(0, stderr.Length - StderrTail);
+            }
+        });
+        Drain(process.StandardOutput.BaseStream, null);
 
         ModuleClient client;
         try
@@ -193,6 +190,37 @@ public sealed partial class ModuleProcess : IAsyncDisposable
         }, CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
         _ = KillWhenFaulted(client.Completion, () => Kill(process), TaskScheduler.Default);
         return module;
+    }
+
+    /// <summary>
+    /// Lee stdout y stderr del módulo en hilos propios y no con Begin*ReadLine: en Windows son tuberías anónimas síncronas
+    /// y cada lectura pendiente tenía bloqueado un hilo del pool mientras el módulo viviera (dos por módulo). Con muchos
+    /// módulos el pool se quedaba sin hilos y cada continuación esperaba al que inyecta (~1 s).
+    /// </summary>
+    private static void Drain(Stream stream, Action<string>? line)
+    {
+        new Thread(() =>
+        {
+            try
+            {
+                if (line is null)
+                {
+                    // stdout se descarta; por bloques y sin ReadLine, que una línea enorme sin salto crecería en memoria.
+                    byte[] buffer = new byte[4096];
+                    while (stream.Read(buffer, 0, buffer.Length) > 0) { }
+                }
+                else
+                {
+                    using StreamReader reader = new(stream);
+                    while (reader.ReadLine() is { } l) line(l);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or ObjectDisposedException)
+            {
+                // El módulo terminó y el flujo se cerró.
+            }
+        })
+        { IsBackground = true, Name = line is null ? "módulo stdout" : "módulo stderr" }.Start();
     }
 
     /// <summary>
