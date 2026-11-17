@@ -76,7 +76,7 @@ internal static partial class FileDialogs
     {
         foreach ((string program, IReadOnlyList<string> arguments) in new (string, IReadOnlyList<string>)[] { ("zenity", zenity), ("kdialog", kdialog) })
         {
-            var start = new ProcessStartInfo(program) { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+            var start = new ProcessStartInfo(program) { RedirectStandardOutput = true, UseShellExecute = false };
             foreach (string argument in arguments)
             {
                 start.ArgumentList.Add(argument);
@@ -94,10 +94,8 @@ internal static partial class FileDialogs
 
             using (process)
             {
-                Task<string> stderr = process.StandardError.ReadToEndAsync();
                 string output = process.StandardOutput.ReadToEnd();
                 process.WaitForExit();
-                _ = stderr.Result;
                 return process.ExitCode == 0 ? output : null;
             }
         }

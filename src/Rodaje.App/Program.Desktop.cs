@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Crashes;
 using Uno.UI.Hosting;
 
 namespace Rodaje.App;
@@ -8,7 +9,7 @@ internal static partial class Program
     private static void RunInterface(Action createApp)
     {
         // Los FFmpeg y proxies que dejó vivos una sesión anterior que se cayó (en Windows los cierra el Job Object).
-        _ = Task.Run(Rodaje.Media.Proxies.ChildProcessGuard.SweepOrphans);
+        UiTask.Run(Task.Run(Rodaje.Media.Proxies.ChildProcessGuard.SweepOrphans));
         Metrics.Milestone("winui_start");
         UnoPlatformHostBuilder.Create()
             .App(() =>

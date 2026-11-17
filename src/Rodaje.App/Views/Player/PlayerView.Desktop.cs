@@ -3,6 +3,7 @@ using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Media.Imaging;
+using Rodaje.App.Views.Inspector;
 
 namespace Rodaje.App.Views.Player;
 
@@ -24,7 +25,7 @@ internal sealed partial class PlayerView
         engine.ViewerFrameReady += () =>
         {
             // Uno pendiente a la vez: si la interfaz va atrasada, pinta el último cuadro y no los intermedios.
-            if (Interlocked.Exchange(ref _viewerQueued, 1) == 0 && !dispatcher.TryEnqueue(() => ShowViewerFrame(engine)))
+            if (Interlocked.Exchange(ref _viewerQueued, 1) == 0 && !dispatcher.RunLater(() => ShowViewerFrame(engine)))
             {
                 Volatile.Write(ref _viewerQueued, 0);
             }

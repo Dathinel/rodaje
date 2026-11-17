@@ -116,8 +116,10 @@ public sealed class LongPathManifestTests
             foreach (string project in Directory.EnumerateFiles(Path.Combine(root, folder), "*.csproj", SearchOption.AllDirectories))
             {
                 string? outputType = Property(project, "OutputType");
-                if (string.Equals(outputType, "Exe", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(outputType, "WinExe", StringComparison.OrdinalIgnoreCase))
+                // La app de Linux (RID fijo linux-x64) no lleva manifiesto de Windows.
+                bool unixOnly = Property(project, "RuntimeIdentifier") is { } rid && !rid.StartsWith("win-", StringComparison.Ordinal);
+                if (!unixOnly && (string.Equals(outputType, "Exe", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(outputType, "WinExe", StringComparison.OrdinalIgnoreCase)))
                 {
                     projects.Add(project);
                 }
