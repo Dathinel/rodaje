@@ -192,7 +192,7 @@ public sealed class TitleLayout
         return [.. features];
     }
 
-    private static bool IsNewline(char c) => c is '\n' or '\r' or ' ' or ' ' or '\u0085' or '\u000B' or '\u000C';
+    private static bool IsNewline(char c) => c is '\n' or '\r' or '\u2028' or '\u2029' or '\u0085' or '\u000B' or '\u000C';
 
     /// <summary>Los clústeres del texto entero, en orden: cada párrafo partido en tramos de una sola fuente y cada salto aparte, con ancho cero.</summary>
     private static List<Shaped> Shape(string text, float size, float letterSpacing, ShapingFont primary, TitleFontSet fonts, Feature[] features)
