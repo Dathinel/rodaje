@@ -9,7 +9,7 @@ public sealed unsafe class CpuFramePayload : IDisposable
     private static long s_live;
     private AVFrame* _frame;
 
-    /// <param name="format">El formato si no es el que dice FFmpeg (BGRA o RGBA de 16 bits ya premultiplicado).</param>
+    // format: el formato si no es el que dice FFmpeg (BGRA o RGBA de 16 bits ya premultiplicado).
     internal CpuFramePayload(AVFrame* frame, VideoColor color, FramePixelFormat? format = null)
     {
         _frame = frame;
