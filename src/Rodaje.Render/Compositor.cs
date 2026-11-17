@@ -128,7 +128,8 @@ public sealed unsafe partial class Compositor : IDisposable
         try
         {
             _effects = new EffectPipeline(_pipeline, shaders ?? ShaderCache.Default);
-            _layers = new LayerRenderer(gpu, _pipeline, _effects, _views, _pool, _luts);
+            // Con D3D11 los decodificadores ya suben a la GPU (FrameUploader) y el contenido de CPU se salta, como siempre.
+            _layers = new LayerRenderer(gpu, _pipeline, _effects, _views, _pool, _luts) { Uploads = gpu is null ? new CpuFrameUploads(engine) : null };
             if (OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is not null)
             {
                 _interpolator = new FrameInterpolator(gpu, ((D3D11SurfaceCache)_views).Views, _pool, shaders ?? ShaderCache.Default);
@@ -169,7 +170,7 @@ public sealed unsafe partial class Compositor : IDisposable
     public nint Texture => _output is null ? 0 : (nint)_output.Texture;
 
     /// <summary>El último cuadro compuesto para <see cref="IGpu"/> (la misma textura que <see cref="Texture"/>).</summary>
-    internal GpuTexture? Output => _output?.Gpu;
+    public GpuTexture? Output => _output?.Gpu;
 
     /// <summary><c>ID3D11ShaderResourceView*</c> de <see cref="Texture"/>, con todos sus mipmaps.</summary>
     [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]

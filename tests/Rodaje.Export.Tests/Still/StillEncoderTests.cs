@@ -163,7 +163,7 @@ public sealed class StillEncoderTests : IDisposable
 
     internal static string Probe(string path)
     {
-        string ffprobe = Path.Combine(Path.GetDirectoryName(StillFfmpeg.Executable!.Path)!, "ffprobe.exe");
+        string ffprobe = Path.Combine(Path.GetDirectoryName(StillFfmpeg.Executable!.Path)!, Rodaje.Media.FfmpegLocator.ExecutableName("ffprobe"));
         return System.Text.Encoding.UTF8.GetString(Run(ffprobe, ["-v", "error", "-show_streams", path]));
     }
 

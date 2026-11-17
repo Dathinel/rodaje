@@ -12,6 +12,9 @@ using Rodaje.Playback;
 using Rodaje.Playback.Composition;
 using Rodaje.Render;
 using Rodaje.Render.Export;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
+using Rodaje.Render.Gpu.Vulkan;
 using Rodaje.Render.Text;
 
 namespace Rodaje.Export.Running;
@@ -149,17 +152,21 @@ public sealed class ExportJob : IDisposable
             Plan = plan;
             StreamCopy = plan.Video is null ? null : StreamCopyPlanner.Decide(plan, token);
             ExportStreamCopy? copy = StreamCopy?.Copy;
-            GpuDevice? gpu;
+            GpuDevice? gpu = null;
+            IGpu? engine = null;
             ExportDevicePool.Lease? deviceLease = null;
             using (Measure("Device"))
             {
-                gpu = plan.Video is null || copy is not null ? null : CreateDevice(out deviceLease);
+                if (plan.Video is not null && copy is null)
+                {
+                    engine = OpenGpu(out gpu, out deviceLease);
+                }
             }
             try
             {
-                Profile = ExportPerformanceProfile.For(Request.Settings.Performance, gpu?.DedicatedVideoMemory ?? 0);
+                Profile = ExportPerformanceProfile.For(Request.Settings.Performance, OperatingSystem.IsWindowsVersionAtLeast(7) ? gpu?.DedicatedVideoMemory ?? 0 : 0);
                 Thread.CurrentThread.Priority = Profile.ThreadPriority;
-                if (gpu is not null && Profile.GpuPriority != 0)
+                if (OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is not null && Profile.GpuPriority != 0)
                 {
                     ExportGpuPriority.TrySet(gpu, Profile.GpuPriority);
                 }
@@ -186,12 +193,16 @@ public sealed class ExportJob : IDisposable
                     EncodedFrameCount = plan.Interlaced ? plan.EncodedFrameCount : null,
                     VideoCopy = copy,
                 };
-                Result = plan.Video is null || copy is not null ? EncodeAudio(sink, request, token) : EncodeVideo(plan, gpu!, sink, request, token);
+                Result = plan.Video is null || copy is not null ? EncodeAudio(sink, request, token) : EncodeVideo(plan, gpu, engine!, sink, request, token);
             }
             finally
             {
                 _converter = null;
-                if (deviceLease is null)
+                if (gpu is null || !OperatingSystem.IsWindowsVersionAtLeast(7))
+                {
+                    engine?.Dispose();
+                }
+                else if (deviceLease is null)
                 {
                     gpu?.Dispose();
                 }
@@ -242,6 +253,29 @@ public sealed class ExportJob : IDisposable
         }
     }
 
+    /// <summary>El motor de la exportación: D3D11 sobre el dispositivo de siempre en Windows; Vulkan en los demás (sin dispositivo D3D11, los
+    /// decodificadores dan cuadros de CPU y el compositor los sube).</summary>
+    private IGpu OpenGpu(out GpuDevice? gpu, out ExportDevicePool.Lease? lease)
+    {
+        if (OperatingSystem.IsWindowsVersionAtLeast(7) && _options.CreateGpu is null)
+        {
+            gpu = CreateDevice(out lease);
+            return D3D11Gpu.For(gpu);
+        }
+
+        gpu = null;
+        lease = null;
+        try
+        {
+            return _options.CreateGpu?.Invoke() ?? VulkanGpu.Create();
+        }
+        catch (Exception ex) when (ex is not ExportException)
+        {
+            throw new ExportException(ExportErrorCode.GpuFailed, $"No se pudo abrir la GPU para exportar: {ex.Message}", ex);
+        }
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     private GpuDevice CreateDevice(out ExportDevicePool.Lease? lease)
     {
         lease = null;
@@ -293,15 +327,20 @@ public sealed class ExportJob : IDisposable
         return sink.Complete(token);
     }
 
-    private ExportSinkResult EncodeVideo(ExportPlan plan, GpuDevice gpu, FfmpegPipeSink sink, ExportSinkRequest request, CancellationToken token)
+    private ExportSinkResult EncodeVideo(ExportPlan plan, GpuDevice? gpu, IGpu engine, FfmpegPipeSink sink, ExportSinkRequest request,
+        CancellationToken token)
     {
         VideoExportSettings settings = plan.Settings.Video!;
-        TitleRasterizer titleResources;
+        // Los títulos se dibujan con Direct2D: fuera de Windows todavía no hay rasterizador.
+        TitleRasterizer? titleResources = null;
         using (Measure("Titles"))
         {
-            titleResources = CreateTitles(gpu);
+            if (OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is not null)
+            {
+                titleResources = CreateTitles(gpu);
+            }
         }
-        using TitleRasterizer titles = titleResources;
+        using TitleRasterizer? titles = titleResources;
         var options = new OfflineTimelineOptions
         {
             Titles = titles,
@@ -322,17 +361,31 @@ public sealed class ExportJob : IDisposable
         {
             timeline.Prepare(plan.Start, end, token);
         }
-        CheckFonts(titles, timeline.GeneratedContents(plan.Start, end));
+        IReadOnlyList<GeneratedContent> generated = timeline.GeneratedContents(plan.Start, end);
+        if (OperatingSystem.IsWindowsVersionAtLeast(7) && titles is not null)
+        {
+            CheckFonts(titles, generated);
+        }
+        else if (generated.Count > 0)
+        {
+            throw new ExportException(ExportErrorCode.ContentMissing, "Los títulos todavía no se pueden exportar en este sistema.")
+            {
+                Culprit = "títulos",
+            };
+        }
+
         ExportVideoFormat format = plan.Video!;
         bool alpha = format.PixelFormat.HasAlpha();
         bool blend = plan.ConvertsRate && settings.FrameRateConversion == FrameRateConversion.Blend;
         FrameSource source;
         using (Measure("Compositor"))
         {
-            source = new FrameSource(this, plan, timeline, gpu, titles, alpha, blend);
+            source = new FrameSource(this, plan, timeline, gpu, engine, titles, alpha, blend);
         }
         using var frames = source;
-        if (settings.MeasureLightLevels && format.Color.Transfer == ExportTransfer.Pq && timeline.ColorSpace != Rodaje.Core.Model.SequenceColorSpace.Sdr709)
+        // shortcut: el medidor de luz (MaxCLL/MaxFALL) es de D3D11; fuera de Windows el PQ sale sin esos metadatos. Portarlo a IGpu.
+        if (OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is not null && settings.MeasureLightLevels && format.Color.Transfer == ExportTransfer.Pq
+            && timeline.ColorSpace != Rodaje.Core.Model.SequenceColorSpace.Sdr709)
         {
             ContentLight measured = MeasureLight(plan, frames, gpu, timeline, token);
             LightLevels = measured;
@@ -345,8 +398,11 @@ public sealed class ExportJob : IDisposable
         ExportFrameConverter conversion;
         using (Measure("Converter"))
         {
-            conversion = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter, region: region,
-                source: timeline.ColorSpace);
+            conversion = OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is not null
+                ? new ExportFrameConverter(gpu, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter, region: region,
+                    source: timeline.ColorSpace)
+                : new ExportFrameConverter(engine, timeline.Width, timeline.Height, format, settings.Fit, settings.ScaleFilter, region: region,
+                    source: timeline.ColorSpace);
         }
         using var converter = conversion;
         _converter = converter;
@@ -425,6 +481,7 @@ public sealed class ExportJob : IDisposable
     }
 
     /// <summary>Compone cada cuadro de la salida y mide max(R, G, B) en la composición lineal entera (sin recorte ni escala).</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     private ContentLight MeasureLight(ExportPlan plan, FrameSource frames, GpuDevice gpu, OfflineTimeline timeline, CancellationToken token)
     {
         Publish(ExportJobState.MeasuringLight, 0, force: true);
@@ -441,6 +498,7 @@ public sealed class ExportJob : IDisposable
         return meter.Result;
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     private TitleRasterizer CreateTitles(GpuDevice gpu)
     {
         var titles = new TitleRasterizer(gpu);
@@ -464,6 +522,7 @@ public sealed class ExportJob : IDisposable
     /// La política de contenido que falta para las fuentes de los títulos, antes del primer cuadro: sin permiso para
     /// seguir, para con <see cref="ExportErrorCode.ContentMissing"/>; con él, los títulos salen con la fuente de respaldo.
     /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     private void CheckFonts(TitleRasterizer titles, IReadOnlyList<GeneratedContent> contents)
     {
         if (contents.Count == 0 || Request.ContinueWithoutMissing)
@@ -594,7 +653,7 @@ public sealed class ExportJob : IDisposable
         private readonly ExportJob _job;
         private readonly ExportPlan _plan;
         private readonly OfflineTimeline _timeline;
-        private readonly GpuDevice _gpu;
+        private readonly GpuDevice? _gpu;
         private readonly Compositor[] _compositors;
         private readonly long[] _held = [-1, -1];
         private readonly Time _sequenceFrame;
@@ -606,7 +665,8 @@ public sealed class ExportJob : IDisposable
         private VideoDecoder? _activeDecoder;
         private string? _activeDecoderMoviePath;
 
-        public FrameSource(ExportJob job, ExportPlan plan, OfflineTimeline timeline, GpuDevice gpu, TitleRasterizer titles, bool alpha, bool blend)
+        public FrameSource(ExportJob job, ExportPlan plan, OfflineTimeline timeline, GpuDevice? gpu, IGpu engine, TitleRasterizer? titles, bool alpha,
+            bool blend)
         {
             _job = job;
             _plan = plan;
@@ -617,13 +677,12 @@ public sealed class ExportJob : IDisposable
             _compositors = new Compositor[blend ? 2 : 1];
             for (int c = 0; c < _compositors.Length; c++)
             {
-                _compositors[c] = new Compositor(gpu, timeline.Width, timeline.Height)
-                {
-                    ColorSpace = timeline.ColorSpace,
-                    Resources = job._options.Content,
-                    Titles = titles,
-                    TransparentBackground = alpha,
-                };
+                _compositors[c] = OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is not null
+                    ? new Compositor(gpu, timeline.Width, timeline.Height) { Titles = titles }
+                    : new Compositor(engine, timeline.Width, timeline.Height);
+                _compositors[c].ColorSpace = timeline.ColorSpace;
+                _compositors[c].Resources = job._options.Content;
+                _compositors[c].TransparentBackground = alpha;
             }
 
             if (_plan.Settings.UseRenderCache)
@@ -677,11 +736,11 @@ public sealed class ExportJob : IDisposable
             using var measurement = _job.Measure("ConvertSubmit");
             if (b is null)
             {
-                converter.Submit(a.Texture, index);
+                converter.Submit(a.Output!, index);
             }
             else
             {
-                converter.SubmitBlend(a.Texture, b.Texture, weight, index);
+                converter.SubmitBlend(a.Output!, b.Output!, weight, index);
             }
         }
 
@@ -728,7 +787,7 @@ public sealed class ExportJob : IDisposable
             var layer = new LayerFrame(0, "cache", decoded!, LayerTransform.Identity, new Rational(1, 1), 0);
             using var compFrame = new CompositionFrame(Time.FromFrames(sequenceFrame, _timeline.FrameRate), _timeline.Width, _timeline.Height, [layer]);
             _compositors[0].RenderStrict(compFrame, Geometry);
-            converter.Submit(_compositors[0].Texture, index);
+            converter.Submit(_compositors[0].Output!, index);
             return true;
         }
 
@@ -751,6 +810,7 @@ public sealed class ExportJob : IDisposable
         };
 
         /// <summary>Compone el cuadro <c>index</c> y lo mide; con mezcla de dos cuadros se miden los dos (cota superior de la mezcla).</summary>
+        [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
         public void Measure(ContentLightMeter meter, long index, CancellationToken token)
         {
             (Compositor a, Compositor? b, _) = Compose(index, token);

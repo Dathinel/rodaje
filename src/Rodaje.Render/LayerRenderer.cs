@@ -106,6 +106,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     public void Dispose()
     {
         ReleaseHistory();
+        Uploads?.Dispose();
         _maskTextures.Dispose();
         _curves.Dispose();
     }
@@ -115,11 +116,15 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
     public IEffectResources? Resources { get; set; }
 
+    /// <summary>Sube los cuadros decodificados en la CPU (motores sin decodificación en la GPU); <c>null</c> los salta, como en D3D11.</summary>
+    public CpuFrameUploads? Uploads { get; init; }
+
     /// <summary>La textura de la capa si se puede dibujar; <c>null</c> si hay que saltarla.</summary>
     /// <exception cref="ArgumentException">La textura es de otro dispositivo.</exception>
     public IDecoderSurface? Usable(LayerFrame layer)
     {
-        if (layer.Frame.Payload is not IDecoderSurface payload || payload.IsReleased
+        object? content = layer.Frame.Payload is CpuFramePayload cpu && Uploads is { } uploads ? uploads.Get(cpu) : layer.Frame.Payload;
+        if (content is not IDecoderSurface payload || payload.IsReleased
             || payload.PixelFormat is not (FramePixelFormat.Nv12 or FramePixelFormat.P010 or FramePixelFormat.P016 or FramePixelFormat.Bgra8 or FramePixelFormat.Rgba16))
         {
             return null;

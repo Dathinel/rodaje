@@ -46,6 +46,7 @@ internal sealed unsafe partial class LayerRenderer
     /// <summary>Cierra un cuadro de la composición: suelta las historias de reducción de ruido que no se usaron en él.</summary>
     public void EndFrame()
     {
+        Uploads?.EndFrame();
         List<(string, int)>? stale = null;
         foreach (KeyValuePair<(string Clip, int Index), DenoiseHistory> entry in _history)
         {

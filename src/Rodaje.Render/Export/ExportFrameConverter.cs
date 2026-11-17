@@ -17,7 +17,6 @@ public delegate void ExportFrameHandler(in ExportVideoFrame frame);
 
 /// <summary>Miniatura BGRA (alfa 255) de un cuadro de la salida, para el progreso de la exportación.</summary>
 /// <param name="Index">Cuadro de la salida del que salió.</param>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed record ExportThumbnail(long Index, int Width, int Height, byte[] Bgra);
 
 /// <summary>
@@ -25,7 +24,6 @@ public sealed record ExportThumbnail(long Index, int Width, int Height, byte[] B
 /// Y'CbCr con la matriz y el rango de <see cref="ExportVideoFormat.Color"/>, croma «left», tramado al bajar a 8 bits, y un
 /// anillo de búferes de lectura para que la copia a la CPU no detenga a la GPU.
 /// </summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe class ExportFrameConverter : IDisposable
 {
     public const int DefaultRingSize = 3;
@@ -35,7 +33,8 @@ public sealed unsafe class ExportFrameConverter : IDisposable
 
     private const int MaxCachedSources = 4;
 
-    private readonly D3D11Gpu _engine;
+    private readonly IGpu _engine;
+    private readonly D3D11Gpu? _d3d;
     private readonly TimeProvider _time;
     private readonly ExportLayout _layout;
     private readonly ScalePlan _plan;
@@ -76,6 +75,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     /// Espacio de color de la composición (<see cref="Compositor.ColorSpace"/>): en HDR es luz lineal BT.2020 con 1,0 = 203 nits y se
     /// codifica a PQ/HLG o se recorta a SDR BT.709 según <paramref name="output"/>; en SDR, la de siempre.
     /// </param>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public ExportFrameConverter(GpuDevice gpu, int sourceWidth, int sourceHeight, ExportVideoFormat output,
         ExportFit fit = ExportFit.Bars, ExportScaleFilter filter = ExportScaleFilter.Auto, int ringSize = DefaultRingSize,
         ExportSourceRegion? region = null, SequenceColorSpace source = SequenceColorSpace.Sdr709)
@@ -84,7 +84,18 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     {
     }
 
+    /// <summary>Sobre cualquier motor de <see cref="IGpu"/> (Vulkan en Linux).</summary>
+    /// <remarks>shortcut: fuera de D3D11 no hay vistas de un tramo de mips, así que se escala sin mips (el plan de nivel 0); vale igual
+    /// salvo al reducir más de la mitad, donde sale con algo de aliasing. Cambiar cuando el contrato tenga vistas de mips.</remarks>
+    public ExportFrameConverter(IGpu gpu, int sourceWidth, int sourceHeight, ExportVideoFormat output,
+        ExportFit fit = ExportFit.Bars, ExportScaleFilter filter = ExportScaleFilter.Auto, int ringSize = DefaultRingSize,
+        ExportSourceRegion? region = null, SequenceColorSpace source = SequenceColorSpace.Sdr709)
+        : this(gpu, sourceWidth, sourceHeight, output, fit, filter, ringSize, ShaderCache.Default, TimeProvider.System, region, source)
+    {
+    }
+
     /// <summary>Con un dispositivo propio (WARP en las pruebas).</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     internal ExportFrameConverter(GpuDevice? gpu, nint device, nint context, int sourceWidth, int sourceHeight, ExportVideoFormat output,
         ExportFit fit, ExportScaleFilter filter, int ringSize, ShaderCache shaders, TimeProvider time, ExportSourceRegion? region = null,
         SequenceColorSpace source = SequenceColorSpace.Sdr709)
@@ -92,14 +103,24 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     {
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     internal ExportFrameConverter(GpuDevice gpu, int sourceWidth, int sourceHeight, ExportVideoFormat output,
+        ExportFit fit, ExportScaleFilter filter, int ringSize, ShaderCache shaders, TimeProvider time, ExportSourceRegion? region = null,
+        SequenceColorSpace source = SequenceColorSpace.Sdr709)
+        : this(D3D11Gpu.For(gpu ?? throw new ArgumentNullException(nameof(gpu))), sourceWidth, sourceHeight, output, fit, filter, ringSize, shaders,
+            time, region, source)
+    {
+    }
+
+    internal ExportFrameConverter(IGpu gpu, int sourceWidth, int sourceHeight, ExportVideoFormat output,
         ExportFit fit, ExportScaleFilter filter, int ringSize, ShaderCache shaders, TimeProvider time, ExportSourceRegion? region = null,
         SequenceColorSpace source = SequenceColorSpace.Sdr709)
     {
         Source = source;
         ArgumentNullException.ThrowIfNull(gpu);
         ArgumentNullException.ThrowIfNull(output);
-        _engine = D3D11Gpu.For(gpu);
+        _engine = gpu;
+        _d3d = OperatingSystem.IsWindowsVersionAtLeast(7) ? gpu as D3D11Gpu : null;
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceWidth);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(sourceHeight);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(sourceWidth, _engine.Caps.MaxTextureSize);
@@ -145,8 +166,9 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         }
     }
 
-    /// <summary>El dispositivo de la exportación.</summary>
-    public GpuDevice Device => _engine.Device;
+    /// <summary>El dispositivo de la exportación (solo con el motor D3D11).</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
+    public GpuDevice Device => _d3d?.Device ?? throw new InvalidOperationException("El conversor no usa el motor D3D11.");
 
     public int SourceWidth { get; }
 
@@ -193,6 +215,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     /// <param name="index">Número del cuadro en la salida; llega igual en <see cref="ExportVideoFrame.Index"/>.</param>
     /// <exception cref="InvalidOperationException">El anillo está lleno.</exception>
     /// <exception cref="ArgumentException">La textura no mide <see cref="SourceWidth"/>×<see cref="SourceHeight"/>.</exception>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public void Submit(nint compositeTexture, long index)
     {
         ThrowIfUnusable(compositeTexture, index);
@@ -203,13 +226,21 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     public void Submit(GpuTexture compositeTexture, long index)
     {
         ArgumentNullException.ThrowIfNull(compositeTexture);
-        Submit((nint)((D3D11Texture)compositeTexture).Texture2D, index);
+        if (OperatingSystem.IsWindowsVersionAtLeast(7) && _d3d is not null)
+        {
+            Submit((nint)((D3D11Texture)compositeTexture).Texture2D, index);
+            return;
+        }
+
+        ThrowIfUnusable(compositeTexture, index);
+        Enqueue(0, index, frame => (_flatPlan, compositeTexture, null));
     }
 
     /// <summary>
     /// Como <see cref="Submit(nint, long)"/>, pero mezcla dos composiciones (conversión de tasa con mezcla):
     /// <c>(1 − weight)·first + weight·second</c> en R'G'B' antes de convertir.
     /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public void SubmitBlend(nint first, nint second, float weight, long index)
     {
         ThrowIfUnusable(first, index);
@@ -224,7 +255,17 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     {
         ArgumentNullException.ThrowIfNull(first);
         ArgumentNullException.ThrowIfNull(second);
-        SubmitBlend((nint)((D3D11Texture)first).Texture2D, (nint)((D3D11Texture)second).Texture2D, weight, index);
+        if (OperatingSystem.IsWindowsVersionAtLeast(7) && _d3d is not null)
+        {
+            SubmitBlend((nint)((D3D11Texture)first).Texture2D, (nint)((D3D11Texture)second).Texture2D, weight, index);
+            return;
+        }
+
+        ThrowIfUnusable(first, index);
+        ThrowIfUnusable(second, index);
+        ArgumentOutOfRangeException.ThrowIfLessThan(weight, 0f);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(weight, 1f);
+        Enqueue(weight, index, frame => (_flatPlan, first, second));
     }
 
     /// <summary>Si hay un cuadro encolado, espera a que la GPU lo termine, se lo presta a <paramref name="handler"/> y lo suelta.</summary>
@@ -276,20 +317,24 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         }
 
         _disposed = true;
-        bool locked = !_engine.Device.IsDisposed;
-        if (locked)
+        bool locked = OperatingSystem.IsWindowsVersionAtLeast(7) && _d3d is not null && !_d3d.Device.IsDisposed;
+        if (locked && OperatingSystem.IsWindowsVersionAtLeast(7))
         {
-            _engine.Device.LockContext();
+            _d3d!.Device.LockContext();
         }
 
         try
         {
-            foreach (SourceViews source in _sources)
+            if (OperatingSystem.IsWindowsVersionAtLeast(7))
             {
-                source.Dispose();
+                foreach (SourceViews source in _sources)
+                {
+                    source.Dispose();
+                }
+
+                _sources.Clear();
             }
 
-            _sources.Clear();
             for (int i = 0; i < _slots.Length; i++)
             {
                 _slots[i].Staging?.Dispose();
@@ -312,9 +357,9 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         }
         finally
         {
-            if (locked)
+            if (locked && OperatingSystem.IsWindowsVersionAtLeast(7))
             {
-                _engine.Device.UnlockContext();
+                _d3d!.Device.UnlockContext();
             }
         }
     }
@@ -330,7 +375,26 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         }
     }
 
-    private void Enqueue(nint first, nint second, float weight, long index)
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
+    private void Enqueue(nint first, nint second, float weight, long index) => Enqueue(weight, index, frame =>
+    {
+        SourceViews a = Views(first);
+        SourceViews? b = second == 0 ? null : Views(second);
+        ScalePlan plan = a.CanMip && (b is null || b.CanMip) ? _plan : _flatPlan;
+        return (plan, a.Prepare(frame, plan.Level), b?.Prepare(frame, plan.Level));
+    });
+
+    private void ThrowIfUnusable(GpuTexture texture, long index)
+    {
+        ThrowIfUnusable((nint)1, index);
+        if (texture.Width != SourceWidth || texture.Height != SourceHeight)
+        {
+            throw new ArgumentException($"La composición mide {texture.Width}×{texture.Height} y el conversor espera {SourceWidth}×{SourceHeight}.");
+        }
+    }
+
+    /// <summary>Escala, convierte y encola la copia; <paramref name="prepare"/> da, dentro del cuadro, el plan y las vistas de las composiciones.</summary>
+    private void Enqueue(float weight, long index, Func<IGpuFrame, (ScalePlan Plan, GpuTexture First, GpuTexture? Second)> prepare)
     {
         int slotIndex = (_head + Pending) % Capacity;
         ref Slot slot = ref _slots[slotIndex];
@@ -338,13 +402,9 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         bool thumbnail = ThumbnailInterval >= TimeSpan.Zero && (!_anyThumbnail || _time.GetElapsedTime(_lastThumbnail, now) >= ThumbnailInterval);
         using (IGpuFrame frame = _engine.BeginFrame())
         {
-            SourceViews a = Views(first);
-            SourceViews? b = second == 0 ? null : Views(second);
-            ScalePlan plan = a.CanMip && (b is null || b.CanMip) ? _plan : _flatPlan;
-            GpuTexture firstView = a.Prepare(frame, plan.Level);
-            GpuTexture? secondView = b?.Prepare(frame, plan.Level);
+            (ScalePlan plan, GpuTexture firstView, GpuTexture? secondView) = prepare(frame);
             GpuTexture picture = firstView;
-            if (!plan.PassThrough || b is not null)
+            if (!plan.PassThrough || secondView is not null)
             {
                 RunScale(frame, plan, firstView, secondView, weight);
                 picture = _scaled!;
@@ -381,6 +441,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
         Pending++;
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     private SourceViews Views(nint texture)
     {
         for (int i = 0; i < _sources.Count; i++)
@@ -404,7 +465,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
             _sources.RemoveAt(0);
         }
 
-        var views = SourceViews.Create(_engine.NativeDevice, (ID3D11Texture2D*)texture, desc, _plan.Level);
+        var views = SourceViews.Create(_d3d!.NativeDevice, (ID3D11Texture2D*)texture, desc, _plan.Level);
         _sources.Add(views);
         return views;
     }
@@ -596,6 +657,7 @@ public sealed unsafe class ExportFrameConverter : IDisposable
     /// Vistas de una composición: el nivel que se lee y, si hace falta reducir, la cadena 0..nivel para generar los
     /// mips. Las vistas retienen la textura, así su puntero no se reutiliza mientras está en la caché.
     /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     private sealed class SourceViews : IDisposable
     {
         private D3D11Texture? _chain;
