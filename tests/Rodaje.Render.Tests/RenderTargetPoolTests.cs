@@ -2,6 +2,8 @@ using Rodaje.Media.Gpu;
 using Rodaje.TestMedia;
 using TerraFX.Interop.DirectX;
 using static TerraFX.Interop.DirectX.D3D11;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 
 namespace Rodaje.Render.Tests;
 
@@ -21,7 +23,7 @@ public sealed unsafe class RenderTargetPoolTests
         try
         {
             var context = (ID3D11DeviceContext*)gpu.NativeContext;
-            using var pool = new RenderTargetPool(device, context, RenderTargetPool.MinCapBytes);
+            using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), RenderTargetPool.MinCapBytes);
             float* nan = stackalloc float[4] { float.NaN, float.NaN, float.NaN, float.NaN };
             int poisoned = 0;
             for (int round = 0; round < 8; round++)
@@ -51,7 +53,7 @@ public sealed unsafe class RenderTargetPoolTests
             Height = (uint)target.Height,
             MipLevels = 1,
             ArraySize = 1,
-            Format = target.Format,
+            Format = D3D11Gpu.Native(target.Format),
             SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
             Usage = D3D11_USAGE.D3D11_USAGE_STAGING,
             CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_READ,

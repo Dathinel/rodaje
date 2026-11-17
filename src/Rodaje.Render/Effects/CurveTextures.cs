@@ -1,6 +1,6 @@
+using System.Runtime.InteropServices;
 using Rodaje.Core.Effects;
-using TerraFX.Interop.DirectX;
-using static Rodaje.Render.RenderException;
+using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render.Effects;
 
@@ -10,21 +10,20 @@ namespace Rodaje.Render.Effects;
 /// si cambian las curvas. Las tablas armadas se guardan por clave.
 /// </summary>
 /// <remarks>Solo desde el hilo que compone, con el candado del contexto tomado.</remarks>
-internal sealed unsafe class CurveTextures(ID3D11Device* device, ID3D11DeviceContext* context) : IDisposable
+internal sealed class CurveTextures(IGpu gpu) : IDisposable
 {
     private const int MaxCached = 32;
     private const int Rows = 2;
     private readonly Dictionary<string, Half[]> _tables = new(StringComparer.Ordinal);
     private readonly Dictionary<string, bool> _hue = new(StringComparer.Ordinal);
-    private ID3D11Texture2D* _texture;
-    private ID3D11ShaderResourceView* _view;
+    private GpuTexture? _texture;
     private string? _uploaded;
 
-    public ID3D11ShaderResourceView* Upload(string key)
+    public GpuTexture Upload(string key)
     {
-        if (_view != null && _uploaded == key)
+        if (_texture is not null && _uploaded == key)
         {
-            return _view;
+            return _texture;
         }
 
         if (!_tables.TryGetValue(key, out Half[]? table))
@@ -38,39 +37,14 @@ internal sealed unsafe class CurveTextures(ID3D11Device* device, ID3D11DeviceCon
             _tables[key] = table;
         }
 
-        if (_texture == null)
+        _texture ??= gpu.CreateTexture(new GpuTextureDesc(ToneCurve.TableSize, Rows, GpuFormat.Rgba16Float, GpuTextureUsage.Sampled));
+        using (IGpuFrame frame = gpu.BeginFrame())
         {
-            var desc = new D3D11_TEXTURE2D_DESC
-            {
-                Width = ToneCurve.TableSize,
-                Height = Rows,
-                MipLevels = 1,
-                ArraySize = 1,
-                Format = DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT,
-                SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
-                Usage = D3D11_USAGE.D3D11_USAGE_DYNAMIC,
-                BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_SHADER_RESOURCE,
-                CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_WRITE,
-            };
-            ID3D11Texture2D* texture;
-            Check(device->CreateTexture2D(&desc, null, &texture), "CreateTexture2D(curvas)");
-            _texture = texture;
-            ID3D11ShaderResourceView* view;
-            Check(device->CreateShaderResourceView((ID3D11Resource*)texture, null, &view), "CreateShaderResourceView(curvas)");
-            _view = view;
+            frame.Write(_texture, MemoryMarshal.AsBytes(table.AsSpan()), ToneCurve.TableSize * GpuFormats.BytesPerPixel(GpuFormat.Rgba16Float));
         }
 
-        D3D11_MAPPED_SUBRESOURCE mapped;
-        Check(context->Map((ID3D11Resource*)_texture, 0, D3D11_MAP.D3D11_MAP_WRITE_DISCARD, 0, &mapped), "Map(curvas)");
-        int row = ToneCurve.TableSize * 4;
-        for (int r = 0; r < Rows; r++)
-        {
-            table.AsSpan(r * row, row).CopyTo(new Span<Half>((byte*)mapped.pData + (r * mapped.RowPitch), row));
-        }
-
-        context->Unmap((ID3D11Resource*)_texture, 0);
         _uploaded = key;
-        return _view;
+        return _texture;
     }
 
     /// <summary>Si la clave trae curvas de tono o saturación: el shader las aplica solo entonces (<c>qual3.w</c>).</summary>
@@ -113,8 +87,8 @@ internal sealed unsafe class CurveTextures(ID3D11Device* device, ID3D11DeviceCon
 
     public void Dispose()
     {
-        Com.Release(ref _view);
-        Com.Release(ref _texture);
+        _texture?.Dispose();
+        _texture = null;
         _uploaded = null;
     }
 }

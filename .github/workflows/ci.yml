@@ -43,10 +43,11 @@ jobs:
         run: |
           set -euo pipefail
           dotnet restore Rodaje.slnx --locked-mode -p:EnableWindowsTargeting=true
-          # Los módulos que se publican con AOT, también con -r win-x64: su lockfile y el de lo que referencian no
-          # pueden depender de que se pase el RID. La app, el lanzador, AotSmoke y el eco se publican sin -r (lo llevan en el
-          # .csproj), porque como propiedad global llegaría a Rodaje.Core y demás bibliotecas y cambiaría sus lockfiles.
-          for m in Voice Subtitles AudioAi Vision Raw; do
+          # Los módulos que solo son de Windows (RID fijo win-x64), también con -r win-x64: su lockfile y el de lo que
+          # referencian no pueden depender de que se pase el RID. La app, el lanzador, AotSmoke, el eco y los módulos con los
+          # tres RID (D-066) se publican sin -r (lo llevan en el .csproj), porque como propiedad global llegaría a
+          # Rodaje.Core y demás bibliotecas y cambiaría sus lockfiles.
+          for m in Vision Raw; do
             dotnet restore "modules/Rodaje.Module.$m/Rodaje.Module.$m.csproj" -r win-x64 --locked-mode -p:EnableWindowsTargeting=true
           done
 
@@ -86,6 +87,18 @@ jobs:
         shell: bash
         run: bash build/pruebas-linux.sh 'Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento'
 
+      # El .paquete de modulo-audio-ia para este sistema (formato 2 con «platform»), instalado como lo hace el editor y
+      # arrancado por el protocolo (D-066, fase 7).
+      - name: Paquete de módulo de este sistema
+        shell: pwsh
+        run: |
+          ./build/empaquetar-modulo.ps1 -Modulo modulo-audio-ia -Salida dist/modulos
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:RODAJE_PAQUETE_MODULO = (Get-ChildItem dist/modulos -Filter '*.paquete' | Select-Object -First 1).FullName
+          dotnet test tests/Rodaje.Module.AudioAi.Tests/Rodaje.Module.AudioAi.Tests.csproj --filter 'FullyQualifiedName~PackagedModuleTests' `
+            --logger 'console;verbosity=detailed' --logger 'trx;LogFilePrefix=paquete' --results-directory TestResults
+          exit $LASTEXITCODE
+
       - name: Resultados
         if: always()
         uses: actions/upload-artifact@v4
@@ -124,6 +137,18 @@ jobs:
       - name: Pruebas
         shell: bash
         run: bash build/pruebas-linux.sh 'Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento'
+
+      # El .paquete de modulo-audio-ia para este sistema (formato 2 con «platform»), instalado como lo hace el editor y
+      # arrancado por el protocolo (D-066, fase 7).
+      - name: Paquete de módulo de este sistema
+        shell: pwsh
+        run: |
+          ./build/empaquetar-modulo.ps1 -Modulo modulo-audio-ia -Salida dist/modulos
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:RODAJE_PAQUETE_MODULO = (Get-ChildItem dist/modulos -Filter '*.paquete' | Select-Object -First 1).FullName
+          dotnet test tests/Rodaje.Module.AudioAi.Tests/Rodaje.Module.AudioAi.Tests.csproj --filter 'FullyQualifiedName~PackagedModuleTests' `
+            --logger 'console;verbosity=detailed' --logger 'trx;LogFilePrefix=paquete' --results-directory TestResults
+          exit $LASTEXITCODE
 
       - name: Resultados
         if: always()

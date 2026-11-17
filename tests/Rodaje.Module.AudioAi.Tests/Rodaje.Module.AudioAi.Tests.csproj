@@ -1,9 +1,9 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
-    <NoWarn>$(NoWarn);CA1707;CA1515;CA1861;CA2007;CA5394;CA1849;CA1716</NoWarn>
+    <NoWarn>$(NoWarn);CA1416;CA1707;CA1515;CA1861;CA2007;CA5394;CA1849;CA1716</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,6 +13,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\modules\Rodaje.Module.AudioAi\Rodaje.Module.AudioAi.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <!-- PackagedModuleTests instala el .paquete de este sistema como el editor. -->
+    <ProjectReference Include="..\..\src\Rodaje.Packages\Rodaje.Packages.csproj" />
     <!-- Para comparar Silero con el detector de energía de la app. -->
     <ProjectReference Include="..\..\src\Rodaje.Analysis\Rodaje.Analysis.csproj" />
   </ItemGroup>

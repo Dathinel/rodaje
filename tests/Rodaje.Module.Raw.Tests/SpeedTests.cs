@@ -16,7 +16,7 @@ public class SpeedTests(ITestOutputHelper output)
     [Trait("Categoria", "TiempoReal")]
     public async Task Develop_4k_speed()
     {
-        string exe = Environment.GetEnvironmentVariable("RODAJE_MODULO_RAW") is { Length: > 0 } e ? e : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Raw.exe");
+        string exe = Environment.GetEnvironmentVariable("RODAJE_MODULO_RAW") is { Length: > 0 } e ? e : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Raw" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         if (!File.Exists(exe) || !DevelopTests.HasLibRaw)
         {
             output.WriteLine(DevelopTests.Missing);

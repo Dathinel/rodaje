@@ -8,6 +8,8 @@ using Rodaje.Render.Tests.Support;
 using TerraFX.Interop.DirectX;
 using Xunit.Abstractions;
 using static Rodaje.Render.RenderException;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 
 namespace Rodaje.Render.Tests.Interpolation;
 
@@ -81,7 +83,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
         using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, 64 * 1024 * 1024);
+        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 64 * 1024 * 1024);
         using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
         using D3D11TexturePayload first = Upload(gpu, a);
         using D3D11TexturePayload second = Upload(gpu, b);
@@ -115,7 +117,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         long baseline = LiveCount(null);
         using GpuDevice gpu = GpuDevice.CreateWarp();
         using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, 64 * 1024 * 1024);
+        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 64 * 1024 * 1024);
         using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
         {
             (PlanarFrame a, PlanarFrame b, _) = CreateTranslationScene(8);
@@ -146,7 +148,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
         using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, megabytes * 1024L * 1024);
+        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), megabytes * 1024L * 1024);
         using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
         using D3D11TexturePayload first = Upload(gpu, LargePattern(width, height, 0));
         using D3D11TexturePayload second = Upload(gpu, LargePattern(width, height, 8));
@@ -163,7 +165,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
         using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, Width * Height * 3);
+        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), Width * Height * 3);
         using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
         (PlanarFrame a, PlanarFrame b, _) = CreateTranslationScene(8);
         using D3D11TexturePayload first = Upload(gpu, a);
@@ -182,7 +184,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
     {
         using GpuDevice gpu = GpuDevice.Create();
         using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, 200 * 1024L * 1024);
+        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 200 * 1024L * 1024);
         using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
         using D3D11TexturePayload first = Upload(gpu, LargePattern(width, height, 0));
         using D3D11TexturePayload second = Upload(gpu, LargePattern(width, height, 8));
@@ -214,7 +216,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         };
         using GpuDevice gpu = GpuDevice.CreateWarp();
         using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, 64 * 1024 * 1024);
+        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 64 * 1024 * 1024);
         using var interpolator = new FrameInterpolator(gpu, views, pool, failingShaders);
         (PlanarFrame a, PlanarFrame b, _) = CreateTranslationScene(8);
         using D3D11TexturePayload first = Upload(gpu, a);
@@ -239,7 +241,7 @@ public sealed class FlowInterpolatorTests(ITestOutputHelper output)
         (PlanarFrame a, PlanarFrame b, _) = CreateTranslationScene(depth);
         using GpuDevice gpu = GpuDevice.CreateWarp();
         using var views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice);
-        using var pool = new RenderTargetPool((ID3D11Device*)gpu.NativeDevice, (ID3D11DeviceContext*)gpu.NativeContext, 64 * 1024 * 1024);
+        using var pool = new RenderTargetPool(D3D11Gpu.For(gpu), 64 * 1024 * 1024);
         using var interpolator = new FrameInterpolator(gpu, views, pool, TestShaders);
         using D3D11TexturePayload first = Upload(gpu, a, format, 16);
         using D3D11TexturePayload second = Upload(gpu, b, format, 32);

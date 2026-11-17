@@ -5,7 +5,7 @@ Contrato vigente de la capa fina de GPU de D-066 ([propuestas/mac-y-linux.md](pr
 ## Forma
 
 - **`IGpu`**: crea recursos (desde cualquier hilo) y abre cuadros. `Caps`, `IsLost`, `CreateTexture`, `CreateBuffer`, `CreateSampler`, `CreateShader(ShaderVariant)`, `CreatePipeline`, `CreateTimer`, `CreateReadback`, `BeginFrame`.
-- **`IGpuFrame`**: donde se graba todo el trabajo. `Write`, `Copy`, `GenerateMips`, `Clear`, `ClearUint`, `ClearDepth`, `Draw`, `Dispatch`, `Resolve`, copia a un `GpuReadback`, `BeginTimer`/`EndTimer`, `Submit`.
+- **`IGpuFrame`**: donde se graba todo el trabajo. `Write`, `Copy`, `GenerateMips`, `Clear`, `ClearUint`, `ClearDepth`, `Draw`, `Dispatch`, `Resolve`, copia a un `GpuReadback`, `BeginTimer`/`EndTimer`, `Submit` (con valla) y `Flush` (sin ella).
 - **Recursos**: clases opacas (`GpuTexture`, `GpuBuffer`, `GpuSampler`, `GpuShader`, `GpuPipeline`, `GpuTimerQuery`, `GpuReadback`) que libera quien las crea. Sin COM ni punteros en la firma, sin reflexión (AOT).
 - **Enlaces por registro HLSL** (`GpuBindings`): hasta 16 `t#` (texturas o búferes de lectura), 4 `s#`, 4 `b#` y 8 `u#`. El motor Vulkan los traduce con los desplazamientos fijos del manifiesto (`b` +0, `t` +16, `s` +32, `u` +48).
 - **Destinos** (`GpuTargets`): hasta 4 de color y uno de profundidad.
@@ -51,7 +51,7 @@ D3D11 anula en silencio una entrada que sigue enlazada como salida. El motor pon
 
 ## Decisiones de la fase 3
 
-- **`IGpuFrame` es una interfaz** (llamada virtual por orden): se mide contra el límite del 2 % al cerrar la fase.
+- **`IGpuFrame` es una interfaz** (llamada virtual por orden). El coste está en el estado, no en la llamada: el motor D3D11 no repite lo que el dibujo anterior del mismo cuadro dejó puesto (canalización, destinos, viewport, constantes, muestreadores y el tramo de `t#` que no cambia) y lo olvida al abrir o cerrar un cuadro de fuera, al cambiar de destino y al despachar cómputo. Cifras en [mac-y-linux-fase3.md](mac-y-linux-fase3.md).
 - **Vistas implícitas**: una textura trae las que pide su uso (lectura de todos los mips, escritura del mip 0). Los planos del decodificador las traen del lado de Media.
 - **Lectura siempre en el formato del origen**, como pidió Unicomp.
 - **`GpuTargets` se queda en 4** destinos de color.

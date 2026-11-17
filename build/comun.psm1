@@ -16,7 +16,12 @@ function Inicializar-Rodaje([string]$Raiz, [int]$Fases = 0) {
     $script:TotalFases = $Fases
     if ($env:RODAJE_ENTORNO) { $entorno = $env:RODAJE_ENTORNO } else { $entorno = Join-Path $Raiz '.entorno' }
     $dotnetDir = Join-Path $entorno 'dotnet'
-    $script:Dotnet = Join-Path $dotnetDir 'dotnet.exe'
+    # $IsWindows no existe en PowerShell 5.1, que solo corre en Windows.
+    $script:Dotnet = Join-Path $dotnetDir $(if ($IsWindows -eq $false) { 'dotnet' } else { 'dotnet.exe' })
+    # En la CI de Linux y macOS el SDK lo pone setup-dotnet, sin .entorno/dotnet.
+    if ($IsWindows -eq $false -and -not (Test-Path -LiteralPath $script:Dotnet) -and (Get-Command dotnet -ErrorAction SilentlyContinue)) {
+        $script:Dotnet = (Get-Command dotnet).Source
+    }
     try { $sdk = (Get-Content -LiteralPath (Join-Path $Raiz 'global.json') -Raw -Encoding UTF8 -ErrorAction Stop | ConvertFrom-Json).sdk.version } catch { $sdk = '' }
     $ffmpeg = ''
     $linea = Select-String -LiteralPath (Join-Path $PSScriptRoot 'preparar-entorno.ps1') -Pattern "^\`$FfmpegVersion = '([^']+)'" -ErrorAction Stop | Select-Object -First 1
@@ -35,6 +40,7 @@ function Inicializar-Rodaje([string]$Raiz, [int]$Fases = 0) {
 
 # Las mismas variables que build\dotnet-local.cmd.
 function Usar-DotnetLocal($E) {
+    if (-not (Test-Path -LiteralPath $E.DotnetDir)) { return }
     $env:DOTNET_ROOT = $E.DotnetDir
     $env:NUGET_PACKAGES = Join-Path $E.Entorno 'nuget'
     $env:DOTNET_CLI_HOME = $E.Entorno
@@ -43,12 +49,13 @@ function Usar-DotnetLocal($E) {
     $env:DOTNET_NOLOGO = '1'
     $env:DOTNET_SKIP_FIRST_TIME_EXPERIENCE = '1'
     $env:DOTNET_CLI_FORCE_UTF8_ENCODING = '1'
-    $env:PATH = "$($E.DotnetDir);$env:PATH"
+    $env:PATH = "$($E.DotnetDir)$([System.IO.Path]::PathSeparator)$env:PATH"
 }
 
 # VsDevCmd.bat corre vswhere.exe desde la carpeta actual; con NoDefaultCurrentDirectoryInExePath
 # puesto falla y daña la ruta de link.exe. Añadir la carpeta al PATH del proceso lo evita. Devuelve la carpeta.
 function Agregar-Vswhere {
+    if ($IsWindows -eq $false) { return $null }
     $instaladorVs = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer'
     if (Test-Path -LiteralPath (Join-Path $instaladorVs 'vswhere.exe')) { $env:PATH = "$env:PATH;$instaladorVs" }
     return $instaladorVs

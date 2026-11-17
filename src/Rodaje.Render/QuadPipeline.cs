@@ -1,30 +1,35 @@
 using System.Runtime.InteropServices;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using TerraFX.Interop.DirectX;
-using static TerraFX.Interop.DirectX.D3D11;
-using static Rodaje.Render.RenderException;
 
 namespace Rodaje.Render;
 
-/// <summary>Estado de Direct3D común al compositor y al presentador: shaders, constantes, muestreador y mezclas.</summary>
+/// <summary>
+/// Los cuadriláteros del compositor y del presentador sobre <see cref="IGpu"/>: sombreador de vértices, constantes (b0), muestreador
+/// (s0) y una canalización por sombreador de píxeles y mezcla. Guarda las entradas enlazadas entre dibujos, como el contexto de D3D11.
+/// </summary>
 internal sealed unsafe class QuadPipeline : IDisposable
 {
-    private readonly ID3D11DeviceContext* _context;
-    private ID3D11VertexShader* _vertex;
-    private ID3D11PixelShader* _layer;
-    private ID3D11PixelShader* _present;
-    private ID3D11Buffer* _constants;
-    private ID3D11SamplerState* _sampler;
-    private ID3D11BlendState* _premultipliedOver;
-    private ID3D11RasterizerState* _noCulling;
+    private readonly D3D11Gpu _engine;
+    private readonly Dictionary<(GpuShader Pixel, GpuBlend Blend), GpuPipeline> _pipelines = [];
+    private GpuShader? _vertex;
+    private GpuShader? _layer;
+    private GpuShader? _present;
+    private GpuBuffer? _constants;
+    private GpuSampler? _sampler;
+    private GpuBindings _bindings;
+    private GpuPipeline? _current;
+    private GpuTexture? _target;
     private int _width;
     private int _height;
 
-    public QuadPipeline(ID3D11Device* device, ID3D11DeviceContext* context)
+    public QuadPipeline(D3D11Gpu engine)
     {
-        _context = context;
+        _engine = engine;
         try
         {
-            Create(device);
+            Create();
         }
         catch
         {
@@ -42,33 +47,41 @@ internal sealed unsafe class QuadPipeline : IDisposable
         Present,
     }
 
-    /// <summary>Deja el pipeline listo para dibujar cuadriláteros en <paramref name="target"/>; con el candado del contexto tomado.</summary>
-    public void Bind(ID3D11RenderTargetView* target, int width, int height, Shader shader)
+    public D3D11Gpu Engine => _engine;
+
+    /// <summary>El cuadro donde se graba; lo abre y lo cierra quien compone o presenta.</summary>
+    public IGpuFrame? Frame { get; set; }
+
+    internal IGpuFrame CurrentFrame => Frame ?? throw new InvalidOperationException("No hay un cuadro de GPU abierto.");
+
+    /// <summary>Deja el pipeline listo para dibujar cuadriláteros en <paramref name="target"/>.</summary>
+    public void Bind(GpuTexture target, int width, int height, Shader shader)
     {
         bool layer = shader == Shader.Layer;
-        Bind(target, width, height, layer ? _layer : _present, layer ? _premultipliedOver : null);
+        Bind(target, width, height, layer ? _layer! : _present!, layer ? GpuBlend.PremultipliedOver : GpuBlend.Opaque);
     }
 
-    /// <summary>Como <see cref="Bind(ID3D11RenderTargetView*, int, int, Shader)"/> con otro pixel shader y otra mezcla (<c>null</c>: sin mezcla).</summary>
-    public void Bind(ID3D11RenderTargetView* target, int width, int height, ID3D11PixelShader* pixelShader, ID3D11BlendState* blend)
+    /// <summary>Como <see cref="Bind(GpuTexture, int, int, Shader)"/> con otro pixel shader y otra mezcla (<see cref="GpuBlend.Opaque"/>: sin mezcla).</summary>
+    public void Bind(GpuTexture target, int width, int height, GpuShader? pixelShader, GpuBlend blend)
     {
-        _context->OMSetRenderTargets(1, &target, null);
+        ArgumentNullException.ThrowIfNull(pixelShader);
+        _target = target;
         _width = width;
         _height = height;
-        var viewport = new D3D11_VIEWPORT { Width = width, Height = height, MaxDepth = 1 };
-        _context->RSSetViewports(1, &viewport);
-        _context->RSSetState(_noCulling);
-        _context->IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY.D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
-        _context->IASetInputLayout(null);
-        _context->VSSetShader(_vertex, null, 0);
-        ID3D11Buffer* constants = _constants;
-        _context->VSSetConstantBuffers(0, 1, &constants);
-        _context->PSSetConstantBuffers(0, 1, &constants);
-        ID3D11SamplerState* sampler = _sampler;
-        _context->PSSetSamplers(0, 1, &sampler);
-        _context->PSSetShader(pixelShader, null, 0);
-        _context->OMSetBlendState(blend, null, uint.MaxValue);
+        if (!_pipelines.TryGetValue((pixelShader, blend), out GpuPipeline? pipeline))
+        {
+            pipeline = _engine.CreatePipeline(new GpuPipelineDesc { Vertex = _vertex, Pixel = pixelShader, Blend = blend });
+            _pipelines.Add((pixelShader, blend), pipeline);
+        }
+
+        _current = pipeline;
     }
+
+    /// <summary>Enlaza <paramref name="resource"/> en <c>t#</c> hasta que se cambie o se quite (<c>null</c>).</summary>
+    public void SetInput(int register, GpuResource? resource) => _bindings.SetResource(register, resource);
+
+    /// <summary>Enlaza un búfer de constantes en <c>b#</c> (los efectos usan b1).</summary>
+    public void SetConstants(int register, GpuBuffer buffer) => _bindings.SetConstants(register, buffer);
 
     /// <summary>
     /// 1 si la composición es una secuencia HDR: los shaders trabajan en luz lineal BT.2020 con 1,0 = 203 nits (<c>hdr.w</c>); 0, SDR
@@ -79,102 +92,48 @@ internal sealed unsafe class QuadPipeline : IDisposable
     /// <summary>Sube las constantes y dibuja la tira de cuatro vértices.</summary>
     public void Draw(in QuadConstants constants)
     {
-        D3D11_MAPPED_SUBRESOURCE mapped;
-        Check(_context->Map((ID3D11Resource*)_constants, 0, D3D11_MAP.D3D11_MAP_WRITE_DISCARD, 0, &mapped), "Map(constantes)");
+        IGpuFrame frame = CurrentFrame;
         QuadConstants exact = constants;
         exact.Hdr.W = HdrMode;
         exact.SetPixelGradients(_width, _height);
-        *(QuadConstants*)mapped.pData = exact;
-        _context->Unmap((ID3D11Resource*)_constants, 0);
-        _context->Draw(4, 0);
+        frame.Write(_constants!, MemoryMarshal.CreateReadOnlySpan(ref exact, 1));
+        frame.Draw(_current!, new GpuTargets(_target!), _bindings, GpuViewport.Of(_width, _height), new GpuDrawCall(4));
     }
 
-    /// <summary>Desenlaza las texturas y el destino, para que el decodificador pueda reutilizar sus superficies.</summary>
+    /// <summary>Quita las texturas de entrada (t0–t15); el destino lo suelta el cuadro al cerrarse.</summary>
     public void Unbind()
     {
-        ID3D11ShaderResourceView** none = stackalloc ID3D11ShaderResourceView*[InputSlots];
-        _context->PSSetShaderResources(0, InputSlots, none);
-        _context->OMSetRenderTargets(0, null, null);
+        for (int i = 0; i < GpuBindings.MaxResources; i++)
+        {
+            _bindings.SetResource(i, null);
+        }
     }
 
     public void Dispose()
     {
-        Com.Release(ref _vertex);
-        Com.Release(ref _layer);
-        Com.Release(ref _present);
-        Com.Release(ref _constants);
-        Com.Release(ref _sampler);
-        Com.Release(ref _premultipliedOver);
-        Com.Release(ref _noCulling);
-    }
-
-    private void Create(ID3D11Device* device)
-    {
-        byte[] vs = RenderShaders.Vertex;
-        byte[] layer = RenderShaders.Layer;
-        byte[] present = RenderShaders.Present;
-        fixed (byte* v = vs, l = layer, p = present)
+        Unbind();
+        foreach (GpuPipeline pipeline in _pipelines.Values)
         {
-            ID3D11VertexShader* vertex;
-            Check(device->CreateVertexShader(v, (nuint)vs.Length, null, &vertex), "CreateVertexShader");
-            _vertex = vertex;
-            ID3D11PixelShader* pixel;
-            Check(device->CreatePixelShader(l, (nuint)layer.Length, null, &pixel), "CreatePixelShader(capa)");
-            _layer = pixel;
-            Check(device->CreatePixelShader(p, (nuint)present.Length, null, &pixel), "CreatePixelShader(presentación)");
-            _present = pixel;
+            pipeline.Dispose();
         }
 
-        var bufferDesc = new D3D11_BUFFER_DESC
-        {
-            ByteWidth = (uint)sizeof(QuadConstants),
-            Usage = D3D11_USAGE.D3D11_USAGE_DYNAMIC,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_CONSTANT_BUFFER,
-            CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_WRITE,
-        };
-        ID3D11Buffer* constants;
-        Check(device->CreateBuffer(&bufferDesc, null, &constants), "CreateBuffer(constantes)");
-        _constants = constants;
+        _pipelines.Clear();
+        _vertex?.Dispose();
+        _layer?.Dispose();
+        _present?.Dispose();
+        _constants?.Dispose();
+        _sampler?.Dispose();
+    }
 
-        var samplerDesc = new D3D11_SAMPLER_DESC
-        {
-            Filter = D3D11_FILTER.D3D11_FILTER_MIN_MAG_MIP_LINEAR,
-            AddressU = D3D11_TEXTURE_ADDRESS_MODE.D3D11_TEXTURE_ADDRESS_CLAMP,
-            AddressV = D3D11_TEXTURE_ADDRESS_MODE.D3D11_TEXTURE_ADDRESS_CLAMP,
-            AddressW = D3D11_TEXTURE_ADDRESS_MODE.D3D11_TEXTURE_ADDRESS_CLAMP,
-            MaxLOD = D3D11_FLOAT32_MAX,
-        };
-        ID3D11SamplerState* sampler;
-        Check(device->CreateSamplerState(&samplerDesc, &sampler), "CreateSamplerState");
-        _sampler = sampler;
-
-        // "Over" con alfa premultiplicado: destino = fuente + destino · (1 − alfa de la fuente), también en alfa.
-        var blendDesc = new D3D11_BLEND_DESC();
-        blendDesc.RenderTarget[0] = new D3D11_RENDER_TARGET_BLEND_DESC
-        {
-            BlendEnable = true,
-            SrcBlend = D3D11_BLEND.D3D11_BLEND_ONE,
-            DestBlend = D3D11_BLEND.D3D11_BLEND_INV_SRC_ALPHA,
-            BlendOp = D3D11_BLEND_OP.D3D11_BLEND_OP_ADD,
-            SrcBlendAlpha = D3D11_BLEND.D3D11_BLEND_ONE,
-            DestBlendAlpha = D3D11_BLEND.D3D11_BLEND_INV_SRC_ALPHA,
-            BlendOpAlpha = D3D11_BLEND_OP.D3D11_BLEND_OP_ADD,
-            RenderTargetWriteMask = (byte)D3D11_COLOR_WRITE_ENABLE.D3D11_COLOR_WRITE_ENABLE_ALL,
-        };
-        ID3D11BlendState* blend;
-        Check(device->CreateBlendState(&blendDesc, &blend), "CreateBlendState");
-        _premultipliedOver = blend;
-
-        // Una capa reflejada (escala negativa en el futuro) invierte el sentido de los triángulos: no se descarta ninguno.
-        var rasterizerDesc = new D3D11_RASTERIZER_DESC
-        {
-            FillMode = D3D11_FILL_MODE.D3D11_FILL_SOLID,
-            CullMode = D3D11_CULL_MODE.D3D11_CULL_NONE,
-            DepthClipEnable = true,
-        };
-        ID3D11RasterizerState* rasterizer;
-        Check(device->CreateRasterizerState(&rasterizerDesc, &rasterizer), "CreateRasterizerState");
-        _noCulling = rasterizer;
+    private void Create()
+    {
+        _vertex = _engine.CreateShader(RenderShaders.Vertex, "vs_5_0", "rodaje-render.hlsl:VsQuad");
+        _layer = _engine.CreateShader(RenderShaders.Layer, "ps_5_0", "rodaje-render.hlsl:PsLayer");
+        _present = _engine.CreateShader(RenderShaders.Present, "ps_5_0", "rodaje-render.hlsl:PsPresent");
+        _constants = _engine.CreateBuffer(new GpuBufferDesc(sizeof(QuadConstants), GpuBufferKind.Constant));
+        _sampler = _engine.CreateSampler(new GpuSamplerDesc(GpuFilter.Linear, GpuAddressMode.Clamp));
+        _bindings.SetConstants(0, _constants);
+        _bindings.SetSampler(0, _sampler);
     }
 }
 

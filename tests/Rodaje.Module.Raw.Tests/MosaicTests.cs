@@ -149,7 +149,7 @@ public sealed class MosaicTests(ITestOutputHelper output)
     [Fact]
     public async Task Mosaic_through_the_protocol()
     {
-        string exe = Environment.GetEnvironmentVariable("RODAJE_MODULO_RAW") is { Length: > 0 } e ? e : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Raw.exe");
+        string exe = Environment.GetEnvironmentVariable("RODAJE_MODULO_RAW") is { Length: > 0 } e ? e : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Raw" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         if (!File.Exists(exe) || !DevelopTests.HasLibRaw)
         {
             output.WriteLine(DevelopTests.Missing);
