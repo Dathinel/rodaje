@@ -8,11 +8,11 @@ using TerraFX.Interop.Windows;
 using static Rodaje.Render.RenderException;
 using static TerraFX.Interop.DirectX.DirectX;
 using static TerraFX.Interop.Windows.Windows;
+using Rect = Rodaje.Render.Text.TitleRect;
 
 namespace Rodaje.Render.Text;
 
 /// <summary>Opciones de <see cref="TitleRasterizer"/>.</summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed record TitleRasterizerOptions
 {
     /// <summary>Memoria de todas las texturas de títulos; por omisión la misma que el pool de intermedios (7,5 % de la VRAM).</summary>
@@ -37,7 +37,6 @@ public sealed record TitleRasterizerOptions
 }
 
 /// <summary>Una fuente pedida por un título que no está en el equipo: se dibuja con <see cref="UsedFamily"/>.</summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed record MissingFont(string Family, string? Source, string ClipId, string UsedFamily);
 
 /// <summary>
@@ -60,7 +59,7 @@ public sealed record MissingFont(string Family, string? Source, string ClipId, s
 /// </para>
 /// </remarks>
 [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
-public sealed unsafe partial class TitleRasterizer : IGeneratedContentCache, IDisposable
+public sealed unsafe partial class TitleRasterizer : ITitleRasterizer
 {
     /// <summary>Un título no pasa de esto por lado aunque quepa en bytes (el límite de Direct3D 11).</summary>
     public const int MaxTextureSide = 16384;
@@ -118,6 +117,10 @@ public sealed unsafe partial class TitleRasterizer : IGeneratedContentCache, IDi
     public event EventHandler? Changed;
 
     public GpuDevice Device => _gpu;
+
+    public Rodaje.Render.Gpu.IGpu Engine => Rodaje.Render.Gpu.D3D11.D3D11Gpu.For(_gpu);
+
+    void ITitleRasterizer.BeginFrame() => BeginFrame();
 
     public long CacheCapBytes { get; }
 
@@ -549,26 +552,6 @@ public sealed unsafe partial class TitleRasterizer : IGeneratedContentCache, IDi
         public TitleTexture? Texture { get; } = texture;
 
         public long LastUsed { get; set; }
-    }
-
-    internal readonly record struct Rect(float Left, float Top, float Right, float Bottom)
-    {
-        public bool IsEmpty => !(Right > Left && Bottom > Top);
-
-        public Rect Union(Rect other) => IsEmpty ? other : other.IsEmpty ? this
-            : new(Math.Min(Left, other.Left), Math.Min(Top, other.Top), Math.Max(Right, other.Right), Math.Max(Bottom, other.Bottom));
-
-        public Rect Inflate(float by) => Inflate(by, by);
-
-        public Rect Inflate(float x, float y) => new(Left - x, Top - y, Right + x, Bottom + y);
-
-        public Rect Offset(float x, float y) => new(Left + x, Top + y, Right + x, Bottom + y);
-
-        public float Width => Right - Left;
-
-        public float Height => Bottom - Top;
-
-        public System.Numerics.Vector2 Center => new((Left + Right) / 2, (Top + Bottom) / 2);
     }
 }
 

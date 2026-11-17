@@ -6,6 +6,9 @@ using Rodaje.Media.Gpu;
 using Rodaje.Playback.Composition;
 using Rodaje.Render;
 using Rodaje.Render.Export;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
+using Rodaje.Render.Gpu.Vulkan;
 using Rodaje.Render.Text;
 
 namespace Rodaje.Export.Still;
@@ -16,12 +19,11 @@ namespace Rodaje.Export.Still;
 /// <c>ExportFrameConverter</c> a RGB(A) en la GPU → <see cref="StillEncoder"/> (<c>ffmpeg.exe</c>, PNG o JPEG).
 /// </summary>
 /// <remarks>
-/// Usa un <see cref="GpuDevice"/> propio, como la exportación, para no tocar el del reproductor; la vista previa no
+/// Usa un motor propio (en Windows, un <see cref="GpuDevice"/>; fuera, Vulkan), como la exportación, para no tocar el del reproductor; la vista previa no
 /// cede (un cuadro no la frena). La política de contenido que falta es la misma: sin
 /// <see cref="StillRequest.ContinueWithoutMissing"/>, una LUT, transición, efecto o fuente que falta para con
 /// <see cref="ExportErrorCode.ContentMissing"/> o <see cref="ExportErrorCode.EffectFailed"/>.
 /// </remarks>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class StillExporter
 {
     private static readonly Func<LayerFrame, SourceGeometry> Geometry = l => new SourceGeometry(l.SampleAspectRatio, l.Rotation);
@@ -73,8 +75,9 @@ public sealed class StillExporter
             StillPlan plan = StillPlan.Create(request);
             // Antes de la GPU: el destino se comprueba (no pisa un medio, se puede escribir, no está abierto) al crearlo.
             using var encoder = new StillEncoder(Options.Ffmpeg, plan, request.OutputPath, SourcePaths(request), Options.Journal);
-            using GpuDevice gpu = CreateDevice();
-            using TitleRasterizer titles = CreateTitles(gpu);
+            IGpu engine = OpenGpu(out GpuDevice? gpu);
+            using IDisposable owner = gpu is not null && OperatingSystem.IsWindowsVersionAtLeast(7) ? gpu : engine;
+            using ITitleRasterizer titles = CreateTitles(engine);
             var options = new OfflineTimelineOptions
             {
                 Titles = titles,
@@ -96,20 +99,23 @@ public sealed class StillExporter
             timeline.Prepare(start, end, cancellationToken);
             CheckFonts(request, titles, timeline.GeneratedContents(start, end));
 
-            using var compositor = new Compositor(gpu, timeline.Width, timeline.Height)
-            {
-                ColorSpace = timeline.ColorSpace,
-                Resources = Options.Content,
-                Titles = titles,
-                TransparentBackground = plan.HasAlpha,
-            };
+            using Compositor compositor = OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is not null
+                ? new Compositor(gpu, timeline.Width, timeline.Height)
+                : new Compositor(engine, timeline.Width, timeline.Height);
+            compositor.ColorSpace = timeline.ColorSpace;
+            compositor.Resources = Options.Content;
+            compositor.Titles = titles;
+            compositor.TransparentBackground = plan.HasAlpha;
             Compose(request, compositor, timeline.Render(frame.Value, cancellationToken));
 
             StillSettings settings = plan.Settings;
             ExportSourceRegion? region = settings.Crop is { } crop ? new ExportSourceRegion(crop.X, crop.Y, crop.Width, crop.Height) : null;
-            using var converter = new ExportFrameConverter(gpu, timeline.Width, timeline.Height, plan.Output, settings.Fit, settings.ScaleFilter,
-                ringSize: 2, region: region, source: timeline.ColorSpace);
-            converter.Submit(compositor.Texture, 0);
+            using ExportFrameConverter converter = OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is not null
+                ? new ExportFrameConverter(gpu, timeline.Width, timeline.Height, plan.Output, settings.Fit, settings.ScaleFilter,
+                    ringSize: 2, region: region, source: timeline.ColorSpace)
+                : new ExportFrameConverter(engine, timeline.Width, timeline.Height, plan.Output, settings.Fit, settings.ScaleFilter,
+                    ringSize: 2, region: region, source: timeline.ColorSpace);
+            converter.Submit(compositor.Output!, 0);
             long bytes = 0;
             void Write(in ExportVideoFrame image) => bytes = encoder.Write(in image, cancellationToken);
             if (!converter.TryRead(Write))
@@ -125,11 +131,19 @@ public sealed class StillExporter
         }
     }
 
-    private GpuDevice CreateDevice()
+    // Como en ExportJob: D3D11 sobre un dispositivo propio en Windows; Vulkan en los demás.
+    private IGpu OpenGpu(out GpuDevice? gpu)
     {
+        gpu = null;
         try
         {
-            return Options.CreateDevice?.Invoke() ?? GpuDevice.Create();
+            if (OperatingSystem.IsWindowsVersionAtLeast(7) && Options.CreateGpu is null)
+            {
+                gpu = Options.CreateDevice?.Invoke() ?? GpuDevice.Create();
+                return D3D11Gpu.For(gpu);
+            }
+
+            return Options.CreateGpu?.Invoke() ?? VulkanGpu.Create();
         }
         catch (Exception ex) when (ex is not ExportException)
         {
@@ -137,9 +151,9 @@ public sealed class StillExporter
         }
     }
 
-    private TitleRasterizer CreateTitles(GpuDevice gpu)
+    private ITitleRasterizer CreateTitles(IGpu gpu)
     {
-        var titles = new TitleRasterizer(gpu);
+        ITitleRasterizer titles = TitleRasterizers.Create(gpu);
         try
         {
             if (Options.FontFiles?.Invoke() is { Count: > 0 } fonts)
@@ -157,7 +171,7 @@ public sealed class StillExporter
     }
 
     // Como en ExportJob: sin permiso para seguir, una fuente que falta para antes de componer.
-    private static void CheckFonts(StillRequest request, TitleRasterizer titles, IReadOnlyList<GeneratedContent> contents)
+    private static void CheckFonts(StillRequest request, ITitleRasterizer titles, IReadOnlyList<GeneratedContent> contents)
     {
         if (contents.Count == 0 || request.ContinueWithoutMissing)
         {

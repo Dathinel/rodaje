@@ -17,7 +17,6 @@ namespace Rodaje.Render.Tests.Text;
 /// kerning, ajuste a la caja, arco, animación por letra determinista, desenfoque por unidad, barrido de karaoke,
 /// vista previa igual a exportación y lo que cuesta.
 /// </summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class ProTitleTests(ITestOutputHelper output)
 {
     private static readonly bool Strict = Environment.GetEnvironmentVariable(Skip.LongVariable) == "1";
@@ -30,15 +29,32 @@ public sealed class ProTitleTests(ITestOutputHelper output)
 
     private static TextStyle Style(double size = 96) => TitleRasterizerTests.Style("#FFFFFF", size);
 
+    [EngineFact]
+    public void Underlines_add_ink_and_radial_gradients_keep_their_own_alpha()
+    {
+        using TestGpu gpu = TestGpu.Create();
+        using var titles = gpu.NewTitles(new TitleRasterizerOptions { BackgroundThread = false });
+        TitleImage plain = TitleImage.Read(gpu, titles.Rasterize(Content("MMMM", Style()))!);
+        TitleImage underlined = TitleImage.Read(gpu, titles.Rasterize(Content("MMMM", Style(),
+            [new TextSpan { Start = 0, Length = 4, Underline = true }]))!);
+        Assert.True(underlined.Count(p => p.A > 128) > plain.Count(p => p.A > 128) + 200);
+        TextStyle radial = Style();
+        radial.Fill.Color = "#FFFFFF00";
+        radial.Fill.Gradient = new StyleGradient { Kind = GradientKind.Radial, Stops = [new(0, "#FF0000"), new(1, "#0000FF")] };
+        TitleImage image = TitleImage.Read(gpu, titles.Rasterize(Content("MMMMMMMM", radial))!);
+        Assert.True(image.Count(p => p.A == 255 && p.R > p.B) > 500);
+        Assert.True(image.Count(p => p.A == 255 && p.B > p.R) > 500);
+    }
+
     private static GeneratedContent Content(string text, TextStyle style, IReadOnlyList<TextSpan>? spans = null, double box = 0, double boxHeight = 0,
         IReadOnlyList<(int, int)>? words = null, int width = 1920, int height = 1080, double scale = 1) =>
         new(GeneratorKinds.Text, text, style, box, width, height, scale, extras: new TextExtras(spans, boxHeight, words)) { ClipId = "titulo" };
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [EngineFact]
     public void A_span_paints_its_word_in_its_own_color()
     {
-        using GpuDevice gpu = GpuDevice.Create();
-        using var titles = new TitleRasterizer(gpu, new TitleRasterizerOptions { BackgroundThread = false });
+        using TestGpu gpu = TestGpu.Create();
+        using var titles = gpu.NewTitles(new TitleRasterizerOptions { BackgroundThread = false });
         TitleImage image = TitleImage.Read(gpu, titles.Rasterize(Content("Hola mundo", Style(), [new TextSpan { Start = 5, Length = 5, Color = "#FF0000" }]))!);
         int red = image.Count(Red);
         int white = image.Count(White);
@@ -47,11 +63,11 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(Center(image, Red).X > image.Width / 2.0 && Center(image, White).X < image.Width / 2.0);
     }
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [EngineFact]
     public void A_bigger_span_grows_the_line_and_bold_adds_ink()
     {
-        using GpuDevice gpu = GpuDevice.Create();
-        using var titles = new TitleRasterizer(gpu, new TitleRasterizerOptions { BackgroundThread = false });
+        using TestGpu gpu = TestGpu.Create();
+        using var titles = gpu.NewTitles(new TitleRasterizerOptions { BackgroundThread = false });
         TextStyle light = Style();
         light.Font.Weight = 300;
         TitleTexture plain = titles.Rasterize(Content("Hola mundo", light))!;
@@ -61,11 +77,11 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(TitleImage.Read(gpu, bold).Count(p => p.A > 128) > TitleImage.Read(gpu, plain).Count(p => p.A > 128) * 1.3);
     }
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [EngineFact]
     public void A_vertical_gradient_goes_from_the_first_color_at_the_top_to_the_last_at_the_bottom()
     {
-        using GpuDevice gpu = GpuDevice.Create();
-        using var titles = new TitleRasterizer(gpu, new TitleRasterizerOptions { BackgroundThread = false });
+        using TestGpu gpu = TestGpu.Create();
+        using var titles = gpu.NewTitles(new TitleRasterizerOptions { BackgroundThread = false });
         TextStyle style = Style(160);
         style.Fill.Gradient = new StyleGradient { Angle = 90, Stops = [new(0, "#FFFF00"), new(1, "#FF0000")] };
         TitleImage image = TitleImage.Read(gpu, titles.Rasterize(Content("HIH", style))!);
@@ -98,11 +114,11 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.Equal(0, image.Count(p => p.A == 255 && p.B > 10));
     }
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [EngineFact]
     public void Several_strokes_stack_from_the_widest_outward()
     {
-        using GpuDevice gpu = GpuDevice.Create();
-        using var titles = new TitleRasterizer(gpu, new TitleRasterizerOptions { BackgroundThread = false });
+        using TestGpu gpu = TestGpu.Create();
+        using var titles = gpu.NewTitles(new TitleRasterizerOptions { BackgroundThread = false });
         TextStyle style = Style();
         style.Fill.Color = "#FF0000";
         style.Stroke = new StyleStroke { Color = "#000000", Width = 4 };
@@ -130,11 +146,11 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.Contains("wkrkw", sequence, StringComparison.Ordinal);
     }
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [EngineFact]
     public void Several_shadows_each_fall_their_own_way()
     {
-        using GpuDevice gpu = GpuDevice.Create();
-        using var titles = new TitleRasterizer(gpu, new TitleRasterizerOptions { BackgroundThread = false });
+        using TestGpu gpu = TestGpu.Create();
+        using var titles = gpu.NewTitles(new TitleRasterizerOptions { BackgroundThread = false });
         TextStyle style = Style();
         style.Shadow = new StyleShadow { Color = "#FF0000", Dx = 30 };
         style.ExtraShadows = [new StyleShadow { Color = "#0000FF", Dx = -30 }];
@@ -144,11 +160,11 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(Center(image, Blue).X < white - 15, "La azul a la izquierda.");
     }
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [EngineFact]
     public void Case_and_kerning_change_the_drawn_text_but_not_the_stored_one()
     {
-        using GpuDevice gpu = GpuDevice.Create();
-        using var titles = new TitleRasterizer(gpu, new TitleRasterizerOptions { BackgroundThread = false });
+        using TestGpu gpu = TestGpu.Create();
+        using var titles = gpu.NewTitles(new TitleRasterizerOptions { BackgroundThread = false });
         TextStyle upper = Style();
         upper.Typography = new StyleTypography { Case = TextCase.Upper };
         TextStyle small = Style();
@@ -170,11 +186,11 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(unkerned > kerned + 20);
     }
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [EngineFact]
     public void Fit_shrinks_a_long_line_into_its_box_and_fill_grows_a_short_one()
     {
-        using GpuDevice gpu = GpuDevice.Create();
-        using var titles = new TitleRasterizer(gpu, new TitleRasterizerOptions { BackgroundThread = false });
+        using TestGpu gpu = TestGpu.Create();
+        using var titles = gpu.NewTitles(new TitleRasterizerOptions { BackgroundThread = false });
         TextStyle shrink = Style();
         shrink.Typography = new StyleTypography { Fit = TextFit.Shrink };
         TextStyle fill = Style();
@@ -191,10 +207,10 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(TitleImage.Read(gpu, grown).Count(p => p.A > 128) > TitleImage.Read(gpu, plain).Count(p => p.A > 128) * 4);
     }
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [EngineFact]
     public void Text_on_an_arc_rises_in_the_middle_and_turns_its_letters()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         TextStyle style = Style(80);
         style.Path = new StylePath { Kind = TextPathKind.Arc, Bend = 140 };
         GeneratedContent content = Content("ARCOARCOARCOARCO", style);
@@ -212,10 +228,10 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(smileMiddle > smileLeft + 30, "Con el arco hacia abajo, al revés.");
     }
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [EngineFact]
     public void Per_letter_entrance_is_deterministic_and_reveals_left_to_right()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         TextStyle style = Style();
         style.In = TextAnimationPresets.Find("subir")!.In(TextUnit.Letter, 0.6);
         GeneratedContent content = Content("Letra por letra", style);
@@ -234,10 +250,10 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(MaxDifference(done, rest) <= 2, "Al terminar la entrada queda igual que en reposo.");
     }
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [EngineFact]
     public void Per_word_blur_softens_the_edges_while_it_lasts()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         TextStyle style = Style(120);
         style.In = new StyleAnimation
         {
@@ -253,10 +269,10 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(blurred > sharp * 3);
     }
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [EngineFact]
     public void Karaoke_sweep_paints_what_was_said_and_cuts_the_current_word()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         TextStyle style = Style();
         style.Highlight = new StyleHighlight { Color = "#FFD400", Mode = HighlightMode.Sweep };
         GeneratedContent content = Content("uno dos tres", style, words: [(0, 3), (4, 3), (8, 4)]);
@@ -280,10 +296,10 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.InRange(only, (second - first) * 0.8, (second - first) * 1.2);
     }
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [EngineFact]
     public void Preview_and_strict_export_compose_unit_titles_identically()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         TextStyle style = Style();
         style.Stroke = new StyleStroke { Color = "#202020", Width = 5 };
         style.Shadow = new StyleShadow { Color = "#00000099", Dx = 6, Dy = 8, Blur = 10 };
@@ -296,7 +312,8 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.Equal(Compose(gpu, content, motion, transform, strict: false).Pixels, Compose(gpu, content, motion, transform, strict: true).Pixels);
     }
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
+    [D3D11GpuFact("sincronización o medida del rasterizador Direct2D")]
     public void Three_animated_lines_per_letter_compose_fast_at_1080p_and_4k()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -365,10 +382,11 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         }
     }
 
-    internal static RgbaImage Compose(GpuDevice gpu, GeneratedContent content, TextMotion motion, LayerTransform? transform = null, bool strict = true)
+    internal static RgbaImage Compose(TestGpu gpu, GeneratedContent content, TextMotion motion, LayerTransform? transform = null, bool strict = true)
     {
-        using var titles = new TitleRasterizer(gpu, new TitleRasterizerOptions { BackgroundThread = false });
-        using var compositor = new Compositor(gpu, content.SequenceWidth, content.SequenceHeight, CompositeFormat.Rgba8Unorm) { Titles = titles };
+        using var titles = gpu.NewTitles(new TitleRasterizerOptions { BackgroundThread = false });
+        using var compositor = gpu.NewCompositor(content.SequenceWidth, content.SequenceHeight, CompositeFormat.Rgba8Unorm);
+        compositor.Titles = titles;
         compositor.ShadersReady.Wait(TimeSpan.FromMinutes(2));
         using var frame = new CompositionFrame(Time.Zero, content.SequenceWidth, content.SequenceHeight,
             [new LayerFrame(0, "titulo", content, transform ?? LayerTransform.Identity) { TextMotion = motion }]);

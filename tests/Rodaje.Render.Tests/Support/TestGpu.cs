@@ -72,6 +72,9 @@ internal sealed class TestGpu : IDisposable
             ? new Compositor(Gpu, width, height, format, shaders, poolCapBytes)
             : new Compositor(Device, width, height, format, shaders, poolCapBytes);
 
+    public Rodaje.Render.Text.ITitleRasterizer NewTitles(Rodaje.Render.Text.TitleRasterizerOptions? options = null) =>
+        Rodaje.Render.Text.TitleRasterizers.Create(Gpu, options);
+
     /// <summary>Por qué se omite una prueba del motor elegido, o <c>null</c> si puede correr.</summary>
     public static string? SkipReason => IsVulkan ? VulkanTestGpu.SkipReason : Rodaje.TestMedia.Skip.GpuTextures;
 

@@ -17,12 +17,20 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Rodaje.Text\Rodaje.Text.csproj" />
     <ProjectReference Include="..\Rodaje.Media\Rodaje.Media.csproj" />
     <ProjectReference Include="..\Rodaje.Playback\Rodaje.Playback.csproj" />
     <ProjectReference Include="..\Rodaje.Render.Spirv\Rodaje.Render.Spirv.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\docs\licencias\SkiaSharp-4.156.0-*.txt" Link="%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="4.156.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="4.156.0" />
     <PackageReference Include="TerraFX.Interop.Vulkan" Version="1.4.328.1" />
     <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
   </ItemGroup>

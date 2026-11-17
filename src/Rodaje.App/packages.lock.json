@@ -64,6 +64,24 @@
           "FFmpeg.AutoGen.Abstractions": "9.0.1.1"
         }
       },
+      "HarfBuzzSharp": {
+        "type": "Transitive",
+        "resolved": "14.4.0.100",
+        "contentHash": "dXd6KIt5t9JWazLHX4ldj+NzI3U1kZv77PWcqCvzxDHAz8Kw1dtz96N5WzhIFcZYfRz96L3ejGXNhJo6sI6TUQ==",
+        "dependencies": {
+          "HarfBuzzSharp.NativeAssets.Win32": "14.4.0.100"
+        }
+      },
+      "HarfBuzzSharp.NativeAssets.Linux": {
+        "type": "Transitive",
+        "resolved": "14.4.0.100",
+        "contentHash": "LioVXCvaFssh3FiALo6f/f2lQTNf4vgkrxEJxM3CS5MsYqWKHtRjyacgebYkVxSzbGTy2yBjbiT3D/nK8hZdkw=="
+      },
+      "HarfBuzzSharp.NativeAssets.Win32": {
+        "type": "Transitive",
+        "resolved": "14.4.0.100",
+        "contentHash": "WHOFEO1cgtQKq57Lt1qDoI4waG7Lrnla0DxempL+M9YwKeSSBsbYO5XnFGe2nzjQqjntiRZJjAtZkFpPw0FSeQ=="
+      },
       "Microsoft.Web.WebView2": {
         "type": "Transitive",
         "resolved": "1.0.3719.77",
@@ -87,6 +105,24 @@
           "Microsoft.Windows.SDK.BuildTools": "10.0.26100.4654",
           "Microsoft.Windows.SDK.BuildTools.MSIX": "1.7.251221100"
         }
+      },
+      "SkiaSharp": {
+        "type": "Transitive",
+        "resolved": "4.156.0",
+        "contentHash": "bdBfG346spQvqwvdz7w8yoqquN7MmU89O+TJ9TwnwyFuqhHkBOQnLJ57euu+4XWi99a5uXikDMZmcM4q58HUXw==",
+        "dependencies": {
+          "SkiaSharp.NativeAssets.Win32": "4.156.0"
+        }
+      },
+      "SkiaSharp.NativeAssets.Linux": {
+        "type": "Transitive",
+        "resolved": "4.156.0",
+        "contentHash": "H+s60e8mNUO8jiRuQQpMXQjcPnFTYb168t59mB/UAewSHNv5hXLfP8xiKeSDc4jAF/aMusjamXx9Di2FIurl/w=="
+      },
+      "SkiaSharp.NativeAssets.Win32": {
+        "type": "Transitive",
+        "resolved": "4.156.0",
+        "contentHash": "D4q5I+N/IBH3LTC/SK51MkfdjuX5JZVSS4gTJHbLPZ9btgga3xSC/gL/lyh18mfpwFmnm6b61DsEv6zrhTy0Ow=="
       },
       "TerraFX.Interop.Vulkan": {
         "type": "Transitive",
@@ -152,12 +188,23 @@
           "Rodaje.Media": "[1.0.3, )",
           "Rodaje.Playback": "[1.0.3, )",
           "Rodaje.Render.Spirv": "[1.0.3, )",
+          "Rodaje.Text": "[1.0.3, )",
+          "SkiaSharp": "[4.156.0, )",
+          "SkiaSharp.NativeAssets.Linux": "[4.156.0, )",
           "TerraFX.Interop.Vulkan": "[1.4.328.1, )",
           "TerraFX.Interop.Windows": "[10.0.26100.6, )"
         }
       },
       "rodaje.render.spirv": {
         "type": "Project"
+      },
+      "rodaje.text": {
+        "type": "Project",
+        "dependencies": {
+          "HarfBuzzSharp": "[14.4.0.100, )",
+          "HarfBuzzSharp.NativeAssets.Linux": "[14.4.0.100, )",
+          "Rodaje.Playback": "[1.0.3, )"
+        }
       }
     },
     "net10.0-windows10.0.26100/win-x64": {
@@ -180,6 +227,16 @@
           "Microsoft.WindowsAppSDK.InteractiveExperiences": "2.1.8"
         }
       },
+      "HarfBuzzSharp.NativeAssets.Linux": {
+        "type": "Transitive",
+        "resolved": "14.4.0.100",
+        "contentHash": "LioVXCvaFssh3FiALo6f/f2lQTNf4vgkrxEJxM3CS5MsYqWKHtRjyacgebYkVxSzbGTy2yBjbiT3D/nK8hZdkw=="
+      },
+      "HarfBuzzSharp.NativeAssets.Win32": {
+        "type": "Transitive",
+        "resolved": "14.4.0.100",
+        "contentHash": "WHOFEO1cgtQKq57Lt1qDoI4waG7Lrnla0DxempL+M9YwKeSSBsbYO5XnFGe2nzjQqjntiRZJjAtZkFpPw0FSeQ=="
+      },
       "Microsoft.Web.WebView2": {
         "type": "Transitive",
         "resolved": "1.0.3719.77",
@@ -189,6 +246,16 @@
         "type": "Transitive",
         "resolved": "10.0.14",
         "contentHash": "B28xsyrO3PRFGL9yd1lLWdX3/wATFkaxPFM3VmGOFG8pfx7jDeb1Yz09v6n+z0jNEPAlQLqOx2noOXw8aytYNw=="
+      },
+      "SkiaSharp.NativeAssets.Linux": {
+        "type": "Transitive",
+        "resolved": "4.156.0",
+        "contentHash": "H+s60e8mNUO8jiRuQQpMXQjcPnFTYb168t59mB/UAewSHNv5hXLfP8xiKeSDc4jAF/aMusjamXx9Di2FIurl/w=="
+      },
+      "SkiaSharp.NativeAssets.Win32": {
+        "type": "Transitive",
+        "resolved": "4.156.0",
+        "contentHash": "D4q5I+N/IBH3LTC/SK51MkfdjuX5JZVSS4gTJHbLPZ9btgga3xSC/gL/lyh18mfpwFmnm6b61DsEv6zrhTy0Ow=="
       }
     }
   }

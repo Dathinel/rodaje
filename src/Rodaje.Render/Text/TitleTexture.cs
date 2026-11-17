@@ -6,7 +6,6 @@ namespace Rodaje.Render.Text;
 /// Un título rasterizado: textura BGRA premultiplicada centrada en el bloque de texto, con margen para el borde y la
 /// sombra. <see cref="LocalWidth"/>×<see cref="LocalHeight"/> es lo que mide en píxeles de la secuencia a escala 1.
 /// </summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe class TitleTexture
 {
     internal TitleTexture(RenderTarget target, double localWidth, double localHeight, double scale, bool fontMissing, bool downscaled)
@@ -43,9 +42,11 @@ public sealed unsafe class TitleTexture
     public TitleUnitSet? Units { get; init; }
 
     /// <summary><c>ID3D11ShaderResourceView*</c> de la textura; vale mientras el rasterizador la tenga en caché.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public nint ShaderResourceView => (nint)Target.Srv;
 
     internal RenderTarget Target { get; }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     internal ID3D11Texture2D* Texture => Target.Texture;
 }

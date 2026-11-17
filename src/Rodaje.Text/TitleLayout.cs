@@ -9,7 +9,9 @@ using Buffer = HarfBuzzSharp.Buffer;
 namespace Rodaje.Text;
 
 /// <summary>Un grupo de caracteres que se dibuja junto (letra con sus acentos, ligadura…), como los clústeres de DirectWrite.</summary>
-public readonly record struct TitleCluster(int Start, int Length, int Line, float X, float Advance, bool IsWhitespace, bool IsNewline, ShapingFont Font);
+public readonly record struct TitleCluster(int Start, int Length, int Line, float X, float Advance, bool IsWhitespace, bool IsNewline, ShapingFont Font, float Size = 0);
+
+public readonly record struct TitleGlyph(int Start, uint Index, float X, float Y, ShapingFont Font, float Size);
 
 public readonly record struct TitleLine(int Start, int Length, float Top, float Height, float Baseline, float Left, float Width, float WidthWithTrailing);
 
@@ -19,9 +21,7 @@ public readonly record struct TitleLine(int Start, int Length, float Top, float 
 /// de fuentes), con HarfBuzz para dar forma a cada tramo (D-066, fase 5).
 /// </summary>
 /// <remarks>
-/// Shortcut: escritura de izquierda a derecha, sin tramos con otro peso, cursiva o tamaño y con el interlineado uniforme de
-/// siempre (DirectWrite usa el proporcional si hay letras de varios tamaños). Cuando la interfaz de Linux dibuje títulos con
-/// tramos o texto bidireccional, se añade aquí con sus casos de aceptación.
+/// Shortcut: escritura de izquierda a derecha; el texto bidireccional requiere resolver niveles antes de dar forma a los tramos.
 /// </remarks>
 public sealed class TitleLayout
 {
@@ -55,6 +55,8 @@ public sealed class TitleLayout
 
     public bool FontMissing { get; }
 
+    public IReadOnlyList<TitleGlyph> Glyphs { get; private init; } = [];
+
     /// <summary>Ancho del texto sin el espacio final de cada línea (<c>DWRITE_TEXT_METRICS.width</c>).</summary>
     public float TextWidth => Lines.Count == 0 ? 0 : Lines.Max(l => l.Width);
 
@@ -65,7 +67,8 @@ public sealed class TitleLayout
         ArgumentNullException.ThrowIfNull(fonts);
         TextStyle style = content.Style;
         StyleTypography? typography = style.Typography;
-        string drawn = TextCasing.Apply(content.Text, typography?.Case ?? TextCase.None);
+        bool[] lowered = new bool[content.Text.Length];
+        string drawn = TextCasing.Apply(content.Text, typography?.Case ?? TextCase.None, lowered);
         float size = (float)(style.Size * content.UnitScale);
         (ShapingFont font, bool missing) = fonts.Resolve(style.Font);
         float factor = 1;
@@ -73,7 +76,7 @@ public sealed class TitleLayout
         {
             bool Fits(float f)
             {
-                TitleLayout trial = Lay(content, fonts, font, missing, drawn, size * f, f);
+                TitleLayout trial = Lay(content, fonts, font, missing, drawn, size * f, f, lowered);
                 return (content.BoxWidth <= 0 || trial.TextWidth <= content.BoxWidth + 0.5) && (content.BoxHeight <= 0 || trial.Height <= content.BoxHeight + 0.5);
             }
 
@@ -95,10 +98,10 @@ public sealed class TitleLayout
             }
         }
 
-        return Lay(content, fonts, font, missing, drawn, size * factor, factor);
+        return Lay(content, fonts, font, missing, drawn, size * factor, factor, lowered);
     }
 
-    private static TitleLayout Lay(GeneratedContent content, TitleFontSet fonts, ShapingFont primary, bool missing, string drawn, float size, float factor)
+    private static TitleLayout Lay(GeneratedContent content, TitleFontSet fonts, ShapingFont primary, bool missing, string drawn, float size, float factor, bool[] lowered)
     {
         TextStyle style = content.Style;
         bool wrap = content.BoxWidth > 0;
@@ -113,7 +116,7 @@ public sealed class TitleLayout
         float spacing = (float)(lineHeight * size);
         Feature[] features = Features(style.Typography);
 
-        List<Shaped> shaped = Shape(drawn, size, letterSpacing, primary, fonts, features);
+        List<Shaped> shaped = Shape(drawn, size, letterSpacing, primary, fonts, features, content, lowered);
         List<(int First, int Count)> lineClusters = Break(shaped, wrap, maxWidth);
         if (lineClusters.Count == 0 || (drawn.Length > 0 && IsNewline(drawn[^1])))
         {
@@ -140,8 +143,29 @@ public sealed class TitleLayout
         }
 
         float layoutWidth = wrap ? maxWidth : Math.Max(1, widths.Max(w => w.WithTrailing));
-        float layoutHeight = Math.Max(1, spacing * lineClusters.Count);
+        bool mixed = lowered.Contains(true) || content.Spans.Any(s => s.Scale is { } scale && scale != 1);
+        var heights = new float[lineClusters.Count];
+        var baselines = new float[lineClusters.Count];
+        for (int l = 0; l < lineClusters.Count; l++)
+        {
+            var (first, count) = lineClusters[l];
+            float ascent = primary.Ascent * size / primary.UnitsPerEm;
+            float descent = primary.Descent * size / primary.UnitsPerEm;
+            if (mixed)
+            {
+                foreach (Shaped cluster in shaped.Skip(first).Take(count))
+                {
+                    ascent = Math.Max(ascent, cluster.Font.Ascent * cluster.Size / cluster.Font.UnitsPerEm);
+                    descent = Math.Max(descent, cluster.Font.Descent * cluster.Size / cluster.Font.UnitsPerEm);
+                }
+            }
+            heights[l] = mixed ? (ascent + descent) * (float)(lineHeight / 1.2) : spacing;
+            baselines[l] = mixed ? ascent * (float)(lineHeight / 1.2) : spacing * 0.8f;
+        }
+        float layoutHeight = Math.Max(1, heights.Sum());
+        float top = 0;
         var clusters = new List<TitleCluster>(shaped.Count);
+        var glyphs = new List<TitleGlyph>();
         for (int l = 0; l < lineClusters.Count; l++)
         {
             (int first, int count) = lineClusters[l];
@@ -155,16 +179,21 @@ public sealed class TitleLayout
             for (int c = first; c < first + count; c++)
             {
                 Shaped s = shaped[c];
-                clusters.Add(new TitleCluster(s.Start, s.Length, l, x, s.Advance, s.IsWhitespace, s.IsNewline, s.Font));
+                clusters.Add(new TitleCluster(s.Start, s.Length, l, x, s.Advance, s.IsWhitespace, s.IsNewline, s.Font, s.Size));
+                foreach (ShapedGlyph glyph in s.Glyphs ?? [])
+                {
+                    glyphs.Add(new TitleGlyph(s.Start, glyph.Index, x + glyph.X, top + baselines[l] + glyph.Y, s.Font, s.Size));
+                }
                 x += s.Advance;
             }
 
             int start = count > 0 ? shaped[first].Start : drawn.Length;
             int end = count > 0 ? shaped[first + count - 1].Start + shaped[first + count - 1].Length : drawn.Length;
-            lines.Add(new TitleLine(start, end - start, l * spacing, spacing, spacing * 0.8f, left, widths[l].Width, widths[l].WithTrailing));
+            lines.Add(new TitleLine(start, end - start, top, heights[l], baselines[l], left, widths[l].Width, widths[l].WithTrailing));
+            top += heights[l];
         }
 
-        return new TitleLayout(drawn, size, layoutWidth, layoutHeight, lines, clusters, missing);
+        return new TitleLayout(drawn, size, layoutWidth, layoutHeight, lines, clusters, missing) { Glyphs = glyphs };
     }
 
     private static Feature[] Features(StyleTypography? typography)
@@ -191,7 +220,7 @@ public sealed class TitleLayout
     private static bool IsNewline(char c) => c is '\n' or '\r' or '\u2028' or '\u2029' or '\u0085' or '\u000B' or '\u000C';
 
     /// <summary>Los clústeres del texto entero, en orden: cada párrafo partido en tramos de una sola fuente y cada salto aparte, con ancho cero.</summary>
-    private static List<Shaped> Shape(string text, float size, float letterSpacing, ShapingFont primary, TitleFontSet fonts, Feature[] features)
+    private static List<Shaped> Shape(string text, float size, float letterSpacing, ShapingFont primary, TitleFontSet fonts, Feature[] features, GeneratedContent content, bool[] lowered)
     {
         var result = new List<Shaped>(text.Length);
         int i = 0;
@@ -211,15 +240,36 @@ public sealed class TitleLayout
                 end++;
             }
 
-            foreach ((int start, int length, ShapingFont font) in Runs(text, i, end, primary, fonts))
+            int section = i;
+            while (section < end)
             {
-                ShapeRun(text, start, length, font, size, letterSpacing, features, result);
+                var format = FormatAt(section);
+                int next = section + 1;
+                while (next < end && FormatAt(next) == format)
+                {
+                    next++;
+                }
+                var requested = new StyleFont { Family = content.Style.Font.Family, Fallback = content.Style.Font.Fallback,
+                    Weight = format.Weight, Italic = format.Italic };
+                ShapingFont face = fonts.Resolve(requested).Font;
+                foreach ((int start, int length, ShapingFont font) in Runs(text, section, next, face, fonts))
+                {
+                    ShapeRun(text, start, length, font, size * (float)format.Scale, letterSpacing, features, result);
+                }
+                section = next;
             }
 
             i = end;
         }
 
         return result;
+
+        (int Weight, bool Italic, double Scale) FormatAt(int position)
+        {
+            TextSpan? span = TextSpans.At(content.Spans, position);
+            return (span?.Weight ?? content.Style.Font.Weight, span?.Italic ?? content.Style.Font.Italic,
+                Math.Clamp(span?.Scale ?? 1, TextSpans.MinScale, TextSpans.MaxScale) * (lowered[position] ? TextCasing.SmallCapsScale : 1));
+        }
     }
 
     /// <summary>Tramos de una sola fuente: la del título si tiene la letra; si no, la de respaldo. Las marcas siguen a su letra.</summary>
@@ -282,10 +332,17 @@ public sealed class TitleLayout
 
         // Cada clúster va de su primer índice al del siguiente; su avance es la suma de sus glifos.
         var starts = new SortedDictionary<int, float>();
+        var glyphs = new Dictionary<int, List<ShapedGlyph>>();
         for (int g = 0; g < infos.Length; g++)
         {
             int cluster = (int)infos[g].Cluster;
-            starts[cluster] = (starts.TryGetValue(cluster, out float sum) ? sum : 0) + (positions[g].XAdvance * scale);
+            float pen = starts.TryGetValue(cluster, out float sum) ? sum : 0;
+            if (!glyphs.TryGetValue(cluster, out List<ShapedGlyph>? group))
+            {
+                glyphs[cluster] = group = [];
+            }
+            group.Add(new ShapedGlyph(infos[g].Codepoint, pen + positions[g].XOffset * scale, -positions[g].YOffset * scale));
+            starts[cluster] = pen + (positions[g].XAdvance * scale);
         }
 
         int[] keys = [.. starts.Keys.Where(k => k >= start && k < start + length)];
@@ -305,7 +362,7 @@ public sealed class TitleLayout
                 blank &= char.IsWhiteSpace(text[c]);
             }
 
-            result.Add(new Shaped(clusterStart, clusterEnd - clusterStart, advance, blank, IsNewline: false, font));
+            result.Add(new Shaped(clusterStart, clusterEnd - clusterStart, advance, blank, IsNewline: false, font, glyphs.GetValueOrDefault(clusterStart), size));
         }
     }
 
@@ -397,5 +454,7 @@ public sealed class TitleLayout
         return lines;
     }
 
-    private readonly record struct Shaped(int Start, int Length, float Advance, bool IsWhitespace, bool IsNewline, ShapingFont Font);
+    private readonly record struct Shaped(int Start, int Length, float Advance, bool IsWhitespace, bool IsNewline, ShapingFont Font, IReadOnlyList<ShapedGlyph>? Glyphs = null, float Size = 0);
+
+    private readonly record struct ShapedGlyph(uint Index, float X, float Y);
 }
