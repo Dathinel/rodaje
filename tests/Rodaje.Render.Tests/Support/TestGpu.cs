@@ -96,6 +96,25 @@ internal sealed class TestGpu : IDisposable
         return IsVulkan ? vulkan : d3d11;
     }
 
+    /// <summary>
+    /// Dos lecturas que en D3D11 salen idénticas byte a byte (dos caminos que deben dar lo mismo). Con Vulkan se admite un código de
+    /// diferencia por canal: lavapipe redondea de otra forma el filtro y las mezclas en coma flotante (criterio de la fase 4: 1/255).
+    /// </summary>
+    public static void AssertSameImage(byte[] expected, byte[] actual)
+    {
+        if (!IsVulkan)
+        {
+            Assert.Equal(expected, actual);
+            return;
+        }
+
+        Assert.Equal(expected.Length, actual.Length);
+        for (int i = 0; i < expected.Length; i++)
+        {
+            Assert.True(Math.Abs(expected[i] - actual[i]) <= 1, $"Byte {i}: {actual[i]} frente a {expected[i]}.");
+        }
+    }
+
     public void Dispose()
     {
         if (_device is null || !OperatingSystem.IsWindowsVersionAtLeast(7))

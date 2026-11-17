@@ -224,7 +224,7 @@ public sealed class ImageEffectTests
 
         byte[] blended = Draw(second, frame);
         AssertImage(new RgbaImage(blended, Width, Height), FxReference.Temporal(spatialSecond, spatialFirst, 0.8, 0.5));
-        Assert.Equal(blended, Draw(second, frame));
+        TestGpu.AssertSameImage(blended, Draw(second, frame));
 
         AssertImage(new RgbaImage(Draw(first, frame + frame + frame), Width, Height), spatialFirst);
     }
@@ -282,7 +282,7 @@ public sealed class ImageEffectTests
         foreach (LayerLook look in new[] { new LayerLook([]), new LayerLook([identity]) })
         {
             RgbaImage result = EffectFidelityTests.Compose(gpu, Width, Height, out _, null, Layers.From(gpu, image, Bt709, look));
-            AssertImage(result, decoded, tolerance: 1);
+            AssertImage(result, decoded, tolerance: TestGpu.Tolerance(1, 2, "lavapipe redondea de otra forma el filtro y las mezclas en coma flotante"));
         }
     }
 
@@ -333,8 +333,9 @@ public sealed class ImageEffectTests
     }
 
     /// <summary>Cada píxel contra la referencia compuesta sobre negro; se admite una fracción de píxeles fuera (bordes de celda del grano).</summary>
-    private static void AssertImage(RgbaImage result, FloatImage expected, double tolerance = 2, double outliers = 0)
+    private static void AssertImage(RgbaImage result, FloatImage expected, double? tolerance = null, double outliers = 0)
     {
+        double limit = tolerance ?? TestGpu.Tolerance(2, 3, "lavapipe redondea de otra forma el filtro y las mezclas en coma flotante");
         int bad = 0;
         string? first = null;
         for (int y = 0; y < Height; y++)
@@ -344,7 +345,7 @@ public sealed class ImageEffectTests
                 (C3 color, _) = expected.Sample((x + 0.5) / Width, (y + 0.5) / Height);
                 Rgb want = color.Map(EffectReference.Saturate).To255();
                 (byte r, byte g, byte b, _) = result.At(x, y);
-                if (Math.Abs(r - want.R) > tolerance || Math.Abs(g - want.G) > tolerance || Math.Abs(b - want.B) > tolerance)
+                if (Math.Abs(r - want.R) > limit || Math.Abs(g - want.G) > limit || Math.Abs(b - want.B) > limit)
                 {
                     bad++;
                     first ??= $"({x}, {y}) = ({r}, {g}, {b}); se esperaba ({want.R:0.#}, {want.G:0.#}, {want.B:0.#})";
@@ -352,6 +353,6 @@ public sealed class ImageEffectTests
             }
         }
 
-        Assert.True(bad <= outliers * Width * Height, $"{bad} píxeles fuera de ±{tolerance}; el primero {first}.");
+        Assert.True(bad <= outliers * Width * Height, $"{bad} píxeles fuera de ±{limit}; el primero {first}.");
     }
 }

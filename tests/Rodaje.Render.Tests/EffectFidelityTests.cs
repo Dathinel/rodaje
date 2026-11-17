@@ -318,7 +318,7 @@ public sealed class EffectFidelityTests
             for (int x = 0; x < width; x++)
             {
                 (C3 color, _) = expected.Sample((x + 0.5) / width, (y + 0.5) / height);
-                image.AssertColor(x, y, color.Map(EffectReference.Saturate).To255());
+                image.AssertColor(x, y, color.Map(EffectReference.Saturate).To255(), TestGpu.Tolerance(2, 3, "lavapipe redondea de otra forma el filtro y las mezclas en coma flotante"));
             }
         }
     }

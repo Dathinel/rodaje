@@ -28,8 +28,8 @@ public sealed class TransitionTests
         byte[] outgoingAlone = Render(compositor, Outgoing(gpu));
         byte[] incomingAlone = Render(compositor, Incoming(gpu));
 
-        Assert.Equal(outgoingAlone, Render(compositor, WithTransition(gpu, type, 0)));
-        Assert.Equal(incomingAlone, Render(compositor, WithTransition(gpu, type, 1)));
+        TestGpu.AssertSameImage(outgoingAlone, Render(compositor, WithTransition(gpu, type, 0)));
+        TestGpu.AssertSameImage(incomingAlone, Render(compositor, WithTransition(gpu, type, 1)));
     }
 
     [EngineFact]

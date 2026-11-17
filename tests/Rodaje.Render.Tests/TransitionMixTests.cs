@@ -59,8 +59,8 @@ public sealed class TransitionMixTests(ITestOutputHelper output)
         byte[] a = Render(compositor, Outgoing(gpu));
         byte[] b = Render(compositor, Incoming(gpu));
 
-        Assert.Equal(a, Render(compositor, WithTransition(gpu, type, 0, NoValues, NoOptions)));
-        Assert.Equal(b, Render(compositor, WithTransition(gpu, type, 1, NoValues, NoOptions)));
+        TestGpu.AssertSameImage(a, Render(compositor, WithTransition(gpu, type, 0, NoValues, NoOptions)));
+        TestGpu.AssertSameImage(b, Render(compositor, WithTransition(gpu, type, 1, NoValues, NoOptions)));
     }
 
     [EngineTheory]
