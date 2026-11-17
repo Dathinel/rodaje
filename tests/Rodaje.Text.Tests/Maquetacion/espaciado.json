@@ -1,0 +1,96 @@
+{
+  "case": "espaciado",
+  "engine": "DirectWrite",
+  "units": [
+    {
+      "start": 0,
+      "end": 1,
+      "line": 0,
+      "word": 0,
+      "left": -173.44,
+      "right": -136.75,
+      "top": -48.98,
+      "bottom": 41.35
+    },
+    {
+      "start": 1,
+      "end": 2,
+      "line": 0,
+      "word": 0,
+      "left": -136.75,
+      "right": -97.06,
+      "top": -48.98,
+      "bottom": 41.35
+    },
+    {
+      "start": 2,
+      "end": 3,
+      "line": 0,
+      "word": 0,
+      "left": -97.06,
+      "right": -57.61,
+      "top": -48.98,
+      "bottom": 41.35
+    },
+    {
+      "start": 3,
+      "end": 4,
+      "line": 0,
+      "word": 0,
+      "left": -57.61,
+      "right": -16.49,
+      "top": -48.98,
+      "bottom": 41.35
+    },
+    {
+      "start": 4,
+      "end": 5,
+      "line": 0,
+      "word": 0,
+      "left": -16.49,
+      "right": 23.96,
+      "top": -48.98,
+      "bottom": 41.35
+    },
+    {
+      "start": 5,
+      "end": 6,
+      "line": 0,
+      "word": 0,
+      "left": 23.96,
+      "right": 49.55,
+      "top": -48.98,
+      "bottom": 41.35
+    },
+    {
+      "start": 6,
+      "end": 7,
+      "line": 0,
+      "word": 0,
+      "left": 49.55,
+      "right": 90.67,
+      "top": -48.98,
+      "bottom": 41.35
+    },
+    {
+      "start": 7,
+      "end": 8,
+      "line": 0,
+      "word": 0,
+      "left": 90.67,
+      "right": 132.26,
+      "top": -48.98,
+      "bottom": 41.35
+    },
+    {
+      "start": 8,
+      "end": 9,
+      "line": 0,
+      "word": 0,
+      "left": 132.26,
+      "right": 173.44,
+      "top": -48.98,
+      "bottom": 41.35
+    }
+  ]
+}

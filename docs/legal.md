@@ -126,6 +126,10 @@ Las licencias de software no resuelven las patentes. Rodaje reduce la exposició
 
 El autor no distribuye Rodaje comercialmente. La GPLv3 permite que terceros lo vendan, y la exposición a patentes de cada distribuidor es suya (Sección 11). Antes de una distribución comercial hay que consultarlo con alguien de propiedad intelectual.
 
+## Maquetación de títulos en Linux y macOS (D-066, fase 5)
+
+`src/Rodaje.Text` usa HarfBuzzSharp 14.4.0.100 (MIT) y su biblioteca nativa, que es HarfBuzz («Old MIT»); los dos compatibles con la GPLv3 por la misma lectura que la HarfBuzz de FFmpeg (`LICENCIAS.md`). Todavía no se distribuye: solo lo usan las pruebas. **Pendiente antes de dibujar títulos con Skia (y de la interfaz Uno, que trae SkiaSharp):** la biblioteca nativa de SkiaSharp lleva código de terceros con licencias propias según su `THIRD-PARTY-NOTICES.txt` (gif con MPL 1.1/GPL 2.0/LGPL 2.1 a elegir, FreeType con FTL o GPL 2.0, el DNG SDK de Adobe con un acuerdo que incluye indemnización, ICU, libjpeg-turbo, libpng, libwebp…). Hay que confirmar qué partes van de verdad en `libSkiaSharp` de Linux y macOS y que cada una se puede usar bajo una licencia compatible con la GPLv3; hasta entonces `Rodaje.Text` no depende de SkiaSharp.
+
 ## Compatibilidad con la GPLv3
 
 Las citas en inglés son literales de cada licencia. Todo lo marcado como pendiente está en [pendientes-legales.md](pendientes-legales.md).
