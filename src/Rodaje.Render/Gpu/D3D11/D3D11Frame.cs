@@ -23,7 +23,18 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
         }
 
         _closed = true;
-        gpu.Device.UnlockContext();
+        try
+        {
+            // Al cerrar el cuadro de fuera no queda nada enlazado: el decodificador puede reutilizar sus superficies.
+            if (--gpu.OpenFrames == 0)
+            {
+                UnbindAll();
+            }
+        }
+        finally
+        {
+            gpu.Device.UnlockContext();
+        }
     }
 
     public void Write<T>(GpuBuffer buffer, ReadOnlySpan<T> data)
@@ -250,6 +261,7 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
     {
         ID3D11Query* query = D3D11TimerQuery.CreateQuery(gpu.NativeDevice, D3D11_QUERY.D3D11_QUERY_EVENT);
         _context->End((ID3D11Asynchronous*)query);
+        _context->Flush();
         return new D3D11Fence(gpu, query);
     }
 
@@ -262,6 +274,29 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
         front = 0,
         back = 1,
     };
+
+    private void UnbindAll()
+    {
+        if (gpu.BoundTargets > 0)
+        {
+            _context->OMSetRenderTargets(0, null, null);
+            gpu.BoundTargets = 0;
+        }
+
+        UnbindComputeStorage();
+        var none = stackalloc ID3D11ShaderResourceView*[GpuBindings.MaxResources];
+        if (gpu.BoundPixelResources > 0)
+        {
+            _context->PSSetShaderResources(0, (uint)gpu.BoundPixelResources, none);
+            gpu.BoundPixelResources = 0;
+        }
+
+        if (gpu.BoundComputeResources > 0)
+        {
+            _context->CSSetShaderResources(0, (uint)gpu.BoundComputeResources, none);
+            gpu.BoundComputeResources = 0;
+        }
+    }
 
     private void UnbindComputeStorage()
     {

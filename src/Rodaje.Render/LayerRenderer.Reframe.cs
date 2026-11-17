@@ -2,6 +2,7 @@ using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Playback.Composition;
 using Rodaje.Render.Effects;
+using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render;
 

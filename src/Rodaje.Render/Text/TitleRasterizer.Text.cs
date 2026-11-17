@@ -4,6 +4,8 @@ using System.Runtime.InteropServices;
 using Rodaje.Core.Model;
 using Rodaje.Core.Text;
 using Rodaje.Playback.Composition;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using TerraFX.Interop.DirectX;
 using TerraFX.Interop.Windows;
 using static Rodaje.Render.RenderException;
@@ -335,30 +337,10 @@ public sealed unsafe partial class TitleRasterizer
 
     private RenderTarget CreateTarget(int width, int height, int mipLevels = 1)
     {
-        var desc = new D3D11_TEXTURE2D_DESC
-        {
-            Width = (uint)width,
-            Height = (uint)height,
-            MipLevels = (uint)mipLevels,
-            ArraySize = 1,
-            Format = DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM,
-            SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
-            Usage = D3D11_USAGE.D3D11_USAGE_DEFAULT,
-            BindFlags = (uint)(D3D11_BIND_FLAG.D3D11_BIND_RENDER_TARGET | D3D11_BIND_FLAG.D3D11_BIND_SHADER_RESOURCE),
-            MiscFlags = mipLevels > 1 ? (uint)D3D11_RESOURCE_MISC_FLAG.D3D11_RESOURCE_MISC_GENERATE_MIPS : 0,
-        };
-        ID3D11Texture2D* texture;
-        Check(_device->CreateTexture2D(&desc, null, &texture), "CreateTexture2D(título)");
-        ID3D11ShaderResourceView* srv = null;
-        HRESULT hr = _device->CreateShaderResourceView((ID3D11Resource*)texture, null, &srv);
-        if (hr.FAILED)
-        {
-            texture->Release();
-            Check(hr, "CreateShaderResourceView(título)");
-        }
-
-        long bytes = RenderTarget.BytesFor(width, height, desc.Format);
-        return new RenderTarget(texture, null, srv, width, height, desc.Format, mipLevels > 1 ? bytes * 4 / 3 : bytes);
+        GpuTextureUsage usage = GpuTextureUsage.RenderTarget | GpuTextureUsage.Sampled | (mipLevels > 1 ? GpuTextureUsage.GenerateMips : 0);
+        GpuTexture texture = D3D11Gpu.For(_gpu).CreateTexture(new GpuTextureDesc(width, height, GpuFormat.Bgra8Unorm, usage, mipLevels));
+        long bytes = RenderTarget.BytesFor(width, height, GpuFormat.Bgra8Unorm);
+        return new RenderTarget(texture, mipLevels > 1 ? bytes * 4 / 3 : bytes);
     }
 
     /// <summary>El mapa de bits de Direct2D que dibuja sobre la textura.</summary>

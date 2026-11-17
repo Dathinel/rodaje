@@ -25,6 +25,7 @@ public sealed unsafe partial class D3D11Gpu : IGpu
     internal int BoundComputeResources;
     internal int BoundStorage;
     internal int BoundTargets;
+    internal int OpenFrames;
 
     private D3D11Gpu(GpuDevice device, bool ownsDevice)
     {
@@ -81,6 +82,7 @@ public sealed unsafe partial class D3D11Gpu : IGpu
     {
         ObjectDisposedException.ThrowIf(_disposed || Device.IsDisposed, this);
         Device.LockContext();
+        OpenFrames++;
         return new D3D11Frame(this);
     }
 

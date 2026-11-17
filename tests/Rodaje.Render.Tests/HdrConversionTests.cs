@@ -10,6 +10,8 @@ using Rodaje.Render.Tests.Export;
 using Rodaje.Render.Export;
 using Rodaje.TestMedia;
 using TerraFX.Interop.DirectX;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 
 namespace Rodaje.Render.Tests;
 
@@ -115,24 +117,22 @@ public sealed class HdrConversionTests
         var device = (ID3D11Device*)gpu.NativeDevice;
         var context = (ID3D11DeviceContext*)gpu.NativeContext;
         using var target = new OffscreenTarget(gpu, image.Width, image.Height);
-        using var pipeline = new QuadPipeline(device, context);
+        D3D11Gpu engine = D3D11Gpu.For(gpu);
+        using var pipeline = new QuadPipeline(engine);
+        using GpuTexture targetTexture = D3D11Texture.View(default, rtv: (ID3D11RenderTargetView*)target.RenderTargetView);
         using var views = new PlaneViewCache(device);
         using LayerFrame layer = Layers.From(gpu, image, color);
         var payload = (D3D11TexturePayload)layer.Frame.Payload!;
-        ID3D11PixelShader* shader;
-        fixed (byte* bytes = shaderBytes)
-        {
-            RenderException.Check(device->CreatePixelShader(bytes, (nuint)shaderBytes.Length, null, &shader), "CreatePixelShader(regresión SDR)");
-        }
-        gpu.LockContext();
+        using GpuShader shader = engine.CreateShader(shaderBytes, "ps_5_0", "regresión SDR");
+        pipeline.Frame = engine.BeginFrame();
         PlaneViews planes = views.Get(payload, out bool owned);
         try
         {
             var placement = new LayerPlacement(Matrix3x2.Identity, image.Width, image.Height, 1);
             QuadConstants quad = LayerRenderer.LayerQuad(payload, placement, new SourceGeometry(new Rational(1, 1), 0), 1, image.Width, image.Height, 1);
-            pipeline.Bind((ID3D11RenderTargetView*)target.RenderTargetView, image.Width, image.Height, shader, null);
-            ID3D11ShaderResourceView** inputs = stackalloc ID3D11ShaderResourceView*[2] { planes.Luma, planes.Chroma };
-            context->PSSetShaderResources(0, 2, inputs);
+            pipeline.Bind(targetTexture, image.Width, image.Height, shader, GpuBlend.Opaque);
+            pipeline.SetInput(0, planes.LumaTexture);
+            pipeline.SetInput(1, planes.ChromaTexture);
             pipeline.Draw(quad);
         }
         finally
@@ -142,8 +142,8 @@ public sealed class HdrConversionTests
             {
                 planes.Release();
             }
-            shader->Release();
-            gpu.UnlockContext();
+            pipeline.Frame.Dispose();
+            pipeline.Frame = null;
         }
         return target.Read().Pixels;
     }

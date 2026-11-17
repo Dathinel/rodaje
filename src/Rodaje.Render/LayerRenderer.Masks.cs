@@ -3,6 +3,7 @@ using Rodaje.Core.Effects;
 using Rodaje.Playback.Composition;
 using Rodaje.Render.Effects;
 using TerraFX.Interop.DirectX;
+using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render;
 
@@ -137,7 +138,7 @@ internal sealed unsafe partial class LayerRenderer
         int reduce = Math.Clamp((int)(SoftestEdge(masks, imageWidth, imageHeight) * width / imageWidth / 8), 1, 4);
         width = Math.Max(1, (width + reduce - 1) / reduce);
         height = Math.Max(1, (height + reduce - 1) / reduce);
-        ID3D11PixelShader* shader = _effects.TryGetShader(EffectShader.Mask, 0);
+        GpuShader? shader = _effects.TryGetShader(EffectShader.Mask, 0);
         RenderTarget? target = shader == null ? null : _pool.Rent(width, height, IntermediateFormat);
         if (target is null)
         {
@@ -213,7 +214,7 @@ internal sealed unsafe partial class LayerRenderer
             {
                 float start = (float)MaskGeometry.StartValue(mode);
                 clear[0] = clear[1] = clear[2] = clear[3] = start;
-                _context->ClearRenderTargetView(target.Rtv, clear);
+                _quad.CurrentFrame.Clear(target.Gpu, new GpuColor(clear[0], clear[1], clear[2], clear[3]));
             }
 
             float radians = Value(values, definition, 4) * MathF.PI / 180;
@@ -229,17 +230,17 @@ internal sealed unsafe partial class LayerRenderer
             RenderTarget? coarse = points > CoarseMinPoints && width * height > CoarseMinPixels
                 ? Coarse(shader, constants, inputs, width, height, imageWidth, imageHeight, halfSoft, out constants)
                 : null;
-            _quad.Bind(target.Rtv, width, height, shader, _effects.MaskBlend(mode));
-            _context->PSSetShaderResources(8, 2, inputs);
-            ID3D11ShaderResourceView* coarseView = coarse is null ? null : coarse.Srv;
-            _context->PSSetShaderResources(11, 1, &coarseView);
+            _quad.Bind(target.Gpu, width, height, shader, EffectPipeline.MaskBlend(mode));
+            _quad.SetInputView(8, inputs[0]);
+            _quad.SetInputView(9, inputs[1]);
+            _quad.SetInput(11, coarse?.Gpu);
             _effects.Set(constants);
             _quad.Draw(QuadConstants.FullTarget());
             inputs[0] = null;
             inputs[1] = null;
-            _context->PSSetShaderResources(8, 2, inputs);
-            coarseView = null;
-            _context->PSSetShaderResources(11, 1, &coarseView);
+            _quad.SetInput(8, null);
+            _quad.SetInput(9, null);
+            _quad.SetInput(11, null);
             _pool.Return(coarse);
             applied++;
         }
@@ -305,7 +306,7 @@ internal sealed unsafe partial class LayerRenderer
     /// sin recorrer la polilínea toda celda que esté a más de media diagonal y medio borde del contorno; solo las celdas
     /// del contorno hacen la cuenta entera, con el mismo resultado. Devuelve la textura y las constantes de la pasada fina.
     /// </summary>
-    private RenderTarget? Coarse(ID3D11PixelShader* shader, EffectConstants constants, ID3D11ShaderResourceView** inputs, int width,
+    private RenderTarget? Coarse(GpuShader? shader, EffectConstants constants, ID3D11ShaderResourceView** inputs, int width,
         int height, float imageWidth, float imageHeight, float halfSoft, out EffectConstants fine)
     {
         fine = constants;
@@ -319,8 +320,9 @@ internal sealed unsafe partial class LayerRenderer
 
         EffectConstants pass = constants;
         pass.Canvas.Z = 1;
-        _quad.Bind(coarse.Rtv, cw, ch, shader, null);
-        _context->PSSetShaderResources(8, 2, inputs);
+        _quad.Bind(coarse.Gpu, cw, ch, shader, GpuBlend.Opaque);
+        _quad.SetInputView(8, inputs[0]);
+        _quad.SetInputView(9, inputs[1]);
         _effects.Set(pass);
         _quad.Draw(QuadConstants.FullTarget());
 
@@ -339,7 +341,7 @@ internal sealed unsafe partial class LayerRenderer
     /// </summary>
     private ImageView? MixMasked(ImageView before, ImageView after, ImageView mask, MaskViewMode view)
     {
-        ID3D11PixelShader* shader = _effects.TryGetShader(EffectShader.MaskMix, 0);
+        GpuShader? shader = _effects.TryGetShader(EffectShader.MaskMix, 0);
         RenderTarget? output = shader == null ? null : _pool.Rent(before.Width, before.Height, IntermediateFormat);
         if (output is null)
         {
@@ -352,7 +354,7 @@ internal sealed unsafe partial class LayerRenderer
         constants.MapB = after.Map;
         constants.Mix0 = new((float)view, 0, 0, 0);
         constants.Mix1 = mask.Map;
-        _quad.Bind(output.Rtv, output.Width, output.Height, shader, null);
+        _quad.Bind(output.Gpu, output.Width, output.Height, shader, GpuBlend.Opaque);
         BindInputs(null, null, before.Target, after.Target, mask.Target);
         _effects.Set(constants);
         _quad.Draw(QuadConstants.FullTarget());
