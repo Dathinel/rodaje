@@ -153,22 +153,22 @@ internal sealed class YuvImage
 
     /// <summary>
     /// Los planos de <paramref name="image"/> como una superficie de un <see cref="IGpu"/> (el camino de Vulkan):
-    /// luma entera y croma a la mitad en cada eje, 8 bits en <c>R8Unorm</c>/<c>Rg8Unorm</c> (NV12) o 10 bits en la parte
-    /// alta de <c>R16Unorm</c>/<c>Rg16Unorm</c> (P010), con los mismos códigos que <see cref="Pack"/>.
+    /// luma entera y croma a la mitad en cada eje en la parte alta de <c>R16Unorm</c>/<c>Rg16Unorm</c> (P010), con los mismos
+    /// códigos que <see cref="Pack"/>. Los de 8 bits van como el mismo código en 10 bits (×4), que da el mismo color: lavapipe filtra
+    /// las texturas UNORM8 con 8 bits de precisión y una capa NV12 se alejaba un código de la de D3D11.
     /// </summary>
     public static GpuTextureSurface CreateSurface(IGpu gpu, YuvImage image, VideoColor color, int? visibleWidth = null, int? visibleHeight = null)
     {
         int samples = image.Width * image.Height;
         GpuTexture luma = gpu.CreateTexture(
-            new GpuTextureDesc(image.Width, image.Height, image.TenBit ? GpuFormat.R16Unorm : GpuFormat.R8Unorm, GpuTextureUsage.Sampled),
+            new GpuTextureDesc(image.Width, image.Height, GpuFormat.R16Unorm, GpuTextureUsage.Sampled),
             image.PackPlane(0, samples));
         try
         {
             GpuTexture chroma = gpu.CreateTexture(
-                new GpuTextureDesc(image.Width / 2, image.Height / 2, image.TenBit ? GpuFormat.Rg16Unorm : GpuFormat.Rg8Unorm,
-                    GpuTextureUsage.Sampled),
+                new GpuTextureDesc(image.Width / 2, image.Height / 2, GpuFormat.Rg16Unorm, GpuTextureUsage.Sampled),
                 image.PackPlane(samples, image._chroma.Length));
-            return new GpuTextureSurface(luma, chroma, image.TenBit ? FramePixelFormat.P010 : FramePixelFormat.Nv12, color,
+            return new GpuTextureSurface(luma, chroma, FramePixelFormat.P010, color,
                 visibleWidth, visibleHeight);
         }
         catch
@@ -181,24 +181,14 @@ internal sealed class YuvImage
     /// <summary><paramref name="count"/> códigos empaquetados desde <paramref name="offset"/> del plano completo (luma y croma juntos).</summary>
     private unsafe byte[] PackPlane(int offset, int count)
     {
-        int bytes = TenBit ? count * 2 : count;
-        byte[] packed = new byte[bytes];
+        byte[] packed = new byte[count * 2];
+        int shift = TenBit ? 6 : 8;
         fixed (byte* destination = packed)
         {
             var words = (ushort*)destination;
-            if (TenBit)
+            for (int i = 0; i < count; i++)
             {
-                for (int i = 0; i < count; i++)
-                {
-                    words[i] = (ushort)(Code(offset + i) << 6);
-                }
-            }
-            else
-            {
-                for (int i = 0; i < count; i++)
-                {
-                    destination[i] = (byte)Code(offset + i);
-                }
+                words[i] = (ushort)(Code(offset + i) << shift);
             }
         }
 

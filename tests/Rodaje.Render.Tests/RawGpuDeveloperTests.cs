@@ -65,7 +65,7 @@ public sealed class RawGpuDeveloperTests(ITestOutputHelper output)
         return new SyntheticDng { Width = width, Height = height, Scene = (x, y) => scene[(y * width) + x] };
     }
 
-    [Theory]
+    [D3D11Theory("revelado RAW (GpuRawDeveloper)")]
     [InlineData(RawOutputCurve.Linear, 0)]
     [InlineData(RawOutputCurve.Rec709, 0)]
     [InlineData(RawOutputCurve.Srgb, 1.5)]
@@ -80,7 +80,7 @@ public sealed class RawGpuDeveloperTests(ITestOutputHelper output)
         Assert.True(worst <= 1, $"Diferencia máxima {worst:0.00} unidades de media precisión.");
     }
 
-    [Fact]
+    [D3D11Fact("revelado RAW (GpuRawDeveloper)")]
     public void Warp_matches_the_cpu_reference_on_noise_with_a_colour_matrix_and_every_pattern()
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
@@ -100,7 +100,7 @@ public sealed class RawGpuDeveloperTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [D3D11Fact("revelado RAW (GpuRawDeveloper)")]
     public void The_gpu_returns_the_scene_with_the_as_shot_balance()
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
@@ -118,7 +118,7 @@ public sealed class RawGpuDeveloperTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [D3D11Fact("revelado RAW (GpuRawDeveloper)")]
     public void A_12_bit_ramp_keeps_more_than_2000_levels_in_rgba16f()
     {
         const int Levels = 3840, Block = 4;
@@ -136,7 +136,7 @@ public sealed class RawGpuDeveloperTests(ITestOutputHelper output)
         Assert.True(distinct > 2000, $"Solo {distinct}.");
     }
 
-    [Fact]
+    [D3D11Fact("revelado RAW (GpuRawDeveloper)")]
     public void Bad_sizes_and_parameters_are_rejected()
     {
         using GpuDevice gpu = GpuDevice.CreateWarp();
