@@ -7,6 +7,7 @@ using TerraFX.Interop.DirectX;
 namespace Rodaje.Render.Tests.Text;
 
 /// <summary>Un título rasterizado leído a la CPU (BGRA premultiplicado), con medidas para comparar contra lo esperado.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class TitleImage
 {
     private TitleImage(byte[] bgra, int width, int height)

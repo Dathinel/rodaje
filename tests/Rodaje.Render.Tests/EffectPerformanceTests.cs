@@ -17,6 +17,7 @@ namespace Rodaje.Render.Tests;
 /// y se detecta una regresión grave.
 /// </summary>
 [Trait("Categoria", "Rendimiento")]
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed partial class EffectPerformanceTests(ITestOutputHelper output)
 {
     private const int Warmup = 30;
@@ -74,7 +75,7 @@ public sealed partial class EffectPerformanceTests(ITestOutputHelper output)
         }
     }
 
-    [GpuFact]
+    [D3D11GpuFact("temporizador de GPU (GpuTimer)")]
     public void One_4k_layer_with_color_and_lut()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -176,7 +177,7 @@ public sealed partial class EffectPerformanceTests(ITestOutputHelper output)
         }
     }
 
-    [GpuFact]
+    [D3D11GpuFact("temporizador de GPU (GpuTimer)")]
     public void One_1080p_layer_with_key_wheels_curves_and_compare()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -218,7 +219,7 @@ public sealed partial class EffectPerformanceTests(ITestOutputHelper output)
         Layers.FromTexture(gpu, texture, 2, 3840, 2160, Bt709, LayerTransform.Identity, 2, new LayerLook([Graded()], BlendMode.Overlay)),
     ];
 
-    [GpuTheory]
+    [D3D11GpuTheory("temporizador de GPU (GpuTimer)")]
     [InlineData(1920, 1080, 3.0)]
     [InlineData(3840, 2160, 9.0)]
     public void Motion_blur_with_16_samples(int width, int height, double target)
@@ -243,7 +244,7 @@ public sealed partial class EffectPerformanceTests(ITestOutputHelper output)
         }
     }
 
-    [GpuFact]
+    [D3D11GpuFact("temporizador de GPU (GpuTimer)")]
     public void A_skewed_flipped_1080p_layer_keeps_the_fast_path()
     {
         using GpuDevice gpu = GpuDevice.Create();

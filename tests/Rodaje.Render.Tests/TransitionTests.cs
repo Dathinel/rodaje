@@ -19,23 +19,23 @@ public sealed class TransitionTests
         [T.Crossfade, T.Dip, T.Wipe, T.Push, T.ZoomDissolve, T.BlurDissolve, T.Preset];
 
     /// <summary>En 0 se ve exactamente el clip que sale y en 1 exactamente el que entra, byte a byte.</summary>
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(Kinds))]
     public void Progress_0_is_the_outgoing_clip_and_1_the_incoming_one(string type)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = Ready(gpu);
         byte[] outgoingAlone = Render(compositor, Outgoing(gpu));
         byte[] incomingAlone = Render(compositor, Incoming(gpu));
 
-        Assert.Equal(outgoingAlone, Render(compositor, WithTransition(gpu, type, 0)));
-        Assert.Equal(incomingAlone, Render(compositor, WithTransition(gpu, type, 1)));
+        TestGpu.AssertSameImage(outgoingAlone, Render(compositor, WithTransition(gpu, type, 0)));
+        TestGpu.AssertSameImage(incomingAlone, Render(compositor, WithTransition(gpu, type, 1)));
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Crossfade_at_half_is_the_average_within_one_code()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = Ready(gpu);
         byte[] a = Render(compositor, Outgoing(gpu));
         byte[] b = Render(compositor, Incoming(gpu));
@@ -47,10 +47,10 @@ public sealed class TransitionTests
         }
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Dip_passes_through_the_color_at_the_middle()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = Ready(gpu);
         EffectValues values = Fx.Transition(T.Dip, (T.DipParameters.Red, 1), (T.DipParameters.Green, 0.5), (T.DipParameters.Blue, 0));
         var image = new RgbaImage(Render(compositor, WithTransition(gpu, T.Dip, 0.5f, values)), Width, Height);
@@ -59,10 +59,10 @@ public sealed class TransitionTests
         image.AssertColor(200, 100, new Rgb(255, 127.5, 0));
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Wipe_shows_the_incoming_clip_on_the_left_first()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = Ready(gpu);
         var a = new RgbaImage(Render(compositor, Outgoing(gpu)), Width, Height);
         var b = new RgbaImage(Render(compositor, Incoming(gpu)), Width, Height);
@@ -73,12 +73,12 @@ public sealed class TransitionTests
         Assert.Equal(a.At(220, 64), image.At(220, 64));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(0, 40, 220)]
     [InlineData(1, 220, 40)]
     public void Push_moves_the_outgoing_clip_toward_its_direction(int direction, int outgoingX, int incomingX)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = Ready(gpu);
         var a = new RgbaImage(Render(compositor, Outgoing(gpu)), Width, Height);
         var b = new RgbaImage(Render(compositor, Incoming(gpu)), Width, Height);
@@ -94,12 +94,12 @@ public sealed class TransitionTests
     /// Arriba (2) y abajo (3), en la columna 128, donde el entrante tiene franjas horizontales: a la mitad, el entrante
     /// asoma medio cuadro (64 filas) por el lado contrario al que sale el saliente.
     /// </summary>
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(2, 20, 100)]
     [InlineData(3, 100, 20)]
     public void Push_up_and_down_move_the_clips_vertically(int direction, int outgoingY, int incomingY)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = Ready(gpu);
         var a = new RgbaImage(Render(compositor, Outgoing(gpu)), Width, Height);
         var b = new RgbaImage(Render(compositor, Incoming(gpu)), Width, Height);
@@ -115,12 +115,12 @@ public sealed class TransitionTests
     /// A la mitad, frente a la fórmula en la CPU aplicada a cada lado compuesto solo (sobre negro, o sea premultiplicado,
     /// con la croma ya interpolada): el zoom achica el muestreo hacia el centro y el desenfoque es la misma pirámide.
     /// </summary>
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(T.ZoomDissolve)]
     [InlineData(T.BlurDissolve)]
     public void Zoom_and_blur_dissolve_at_half_match_the_cpu_reference(string type)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = Ready(gpu);
         var image = new RgbaImage(Render(compositor, WithTransition(gpu, type, 0.5f)), Width, Height);
 
@@ -151,10 +151,10 @@ public sealed class TransitionTests
         }
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_preset_that_arrives_unresolved_falls_back_to_crossfade_and_is_counted()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = Ready(gpu);
         byte[] crossfade = Render(compositor, WithTransition(gpu, T.Crossfade, 0.3f));
         using CompositionFrame frame = Layers.Frame(Width, Height, WithTransition(gpu, T.Preset, 0.3f));
@@ -165,10 +165,10 @@ public sealed class TransitionTests
         Assert.Equal(1, result.EffectsApplied);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Each_side_keeps_its_own_effects()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = Ready(gpu);
         LayerEffect[] sepia = [Fx.Color((BuiltInEffects.ColorParameters.Saturation, -1))];
         byte[] outgoingAlone = Render(compositor, Outgoing(gpu, sepia));
@@ -181,9 +181,9 @@ public sealed class TransitionTests
         Assert.Equal(2, result.EffectsApplied);
     }
 
-    internal static Compositor Ready(GpuDevice gpu)
+    internal static Compositor Ready(TestGpu gpu)
     {
-        var compositor = new Compositor(gpu, Width, Height);
+        var compositor = gpu.NewCompositor(Width, Height);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         return compositor;
     }
@@ -210,7 +210,7 @@ public sealed class TransitionTests
     });
 
     /// <summary>Saliente: degradado horizontal de 8 franjas a cuadro completo.</summary>
-    private static LayerFrame Outgoing(GpuDevice gpu, IReadOnlyList<LayerEffect>? effects = null, LayerTransition? transition = null)
+    private static LayerFrame Outgoing(TestGpu gpu, IReadOnlyList<LayerEffect>? effects = null, LayerTransition? transition = null)
     {
         var image = new YuvImage(Width, Height, false);
         for (int band = 0; band < 8; band++)
@@ -222,7 +222,7 @@ public sealed class TransitionTests
     }
 
     /// <summary>Entrante: una imagen más chica (deja bordes transparentes) con franjas horizontales.</summary>
-    private static LayerFrame Incoming(GpuDevice gpu)
+    private static LayerFrame Incoming(TestGpu gpu)
     {
         var image = new YuvImage(128, 128, false);
         for (int band = 0; band < 4; band++)
@@ -233,6 +233,6 @@ public sealed class TransitionTests
         return Layers.From(gpu, image, Bt709, track: 1);
     }
 
-    private static LayerFrame WithTransition(GpuDevice gpu, string type, float progress, EffectValues? values = null) =>
+    private static LayerFrame WithTransition(TestGpu gpu, string type, float progress, EffectValues? values = null) =>
         Outgoing(gpu, null, new LayerTransition(EffectRegistry.Find(type)!.Code, progress, values ?? Fx.Transition(type), Incoming(gpu)));
 }

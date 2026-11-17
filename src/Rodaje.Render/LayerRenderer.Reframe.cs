@@ -11,7 +11,6 @@ namespace Rodaje.Render;
 /// equirectangular entero al tamaño del origen (hasta <see cref="MaxEquirectangularSide"/>) y este paso lo proyecta a la
 /// vista plana del tamaño en pantalla, donde siguen los demás efectos.
 /// </summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe partial class LayerRenderer
 {
     /// <summary>Lado mayor del equirectangular en el intermedio: 8K de ancho ya da más detalle del que cabe en una vista 4K.</summary>

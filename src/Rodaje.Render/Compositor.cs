@@ -18,7 +18,6 @@ using static Rodaje.Render.RenderException;
 namespace Rodaje.Render;
 
 /// <summary>Formato del destino de la composición.</summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public enum CompositeFormat
 {
     /// <summary>
@@ -43,7 +42,6 @@ public enum CompositeFormat
 /// <param name="TitlesPending">
 /// Títulos que todavía no estaban rasterizados: el cuadro sale sin ellos (también cuentan en <paramref name="LayersSkipped"/>).
 /// </param>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public readonly record struct CompositeResult(int LayersDrawn, int LayersSkipped, int EffectsApplied = 0, int EffectsSkipped = 0,
     int MissingContent = 0, long PoolBytes = 0, int TitlesPending = 0);
 
@@ -63,22 +61,22 @@ public readonly record struct CompositeResult(int LayersDrawn, int LayersSkipped
 /// de <see cref="LayerTransform"/> siguen en píxeles de la secuencia y se escalan al destino.
 /// </para>
 /// </remarks>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe partial class Compositor : IDisposable
 {
-    private readonly GpuDevice _gpu;
-    private readonly D3D11Gpu _engine;
+    private readonly GpuDevice? _gpu;
+    private readonly IGpu _engine;
     private readonly QuadPipeline _pipeline;
     private readonly GpuSurfaceCache _views;
     private readonly EffectPipeline _effects;
     private readonly RenderTargetPool _pool;
     private readonly LutTextures _luts;
     private readonly LayerRenderer _layers;
-    private readonly FrameInterpolator _interpolator;
+    private readonly FrameInterpolator? _interpolator;
     private RenderTarget? _output;
     private GpuReadback? _readback;
     private TitleRasterizer? _titles;
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public Compositor(GpuDevice gpu, int width, int height, CompositeFormat format = CompositeFormat.Rgba16Float)
         : this(gpu, width, height, format, TimeProvider.System)
     {
@@ -86,34 +84,57 @@ public sealed unsafe partial class Compositor : IDisposable
 
     /// <param name="shaders">Caché de los shaders de efectos; por omisión <see cref="ShaderCache.Default"/>.</param>
     /// <param name="poolCapBytes">Tope de los intermedios; por omisión según la VRAM (<see cref="PoolCapFor"/>).</param>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public Compositor(GpuDevice gpu, int width, int height, CompositeFormat format, ShaderCache? shaders, long? poolCapBytes = null)
         : this(gpu, width, height, format, TimeProvider.System, shaders, poolCapBytes)
     {
     }
 
+    /// <summary>
+    /// Sobre cualquier motor de <see cref="IGpu"/>. En uno que no es D3D11 no hay interpolación de cuadros ni títulos (llegan con las
+    /// superficies Vulkan y el dibujo de títulos en Unix): esas capas salen sin interpolar o se saltan.
+    /// </summary>
+    public Compositor(IGpu gpu, int width, int height, CompositeFormat format = CompositeFormat.Rgba16Float, ShaderCache? shaders = null,
+        long? poolCapBytes = null)
+        : this(gpu, DeviceOf(gpu), width, height, format, TimeProvider.System, shaders, poolCapBytes)
+    {
+    }
+
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     internal Compositor(GpuDevice gpu, int width, int height, CompositeFormat format, TimeProvider time,
         ShaderCache? shaders = null, long? poolCapBytes = null)
+        : this(D3D11Gpu.For(gpu ?? throw new ArgumentNullException(nameof(gpu))), gpu, width, height, format, time, shaders, poolCapBytes)
     {
-        ArgumentNullException.ThrowIfNull(gpu);
+    }
+
+    private Compositor(IGpu engine, GpuDevice? gpu, int width, int height, CompositeFormat format, TimeProvider time,
+        ShaderCache? shaders, long? poolCapBytes)
+    {
+        ArgumentNullException.ThrowIfNull(engine);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(width, D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION);
-        ArgumentOutOfRangeException.ThrowIfGreaterThan(height, D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(width, engine.Caps.MaxTextureSize);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(height, engine.Caps.MaxTextureSize);
         _gpu = gpu;
-        _engine = D3D11Gpu.For(gpu);
+        _engine = engine;
         Width = width;
         Height = height;
         Format = format;
         MipLevels = 1 + (int)Math.Log2(Math.Max(width, height));
         _views = _engine.CreateSurfaceCache(time);
-        _pool = new RenderTargetPool(_engine, poolCapBytes ?? PoolCapFor(gpu.DedicatedVideoMemory));
+        _pool = new RenderTargetPool(_engine, poolCapBytes ?? PoolCapFor(gpu is not null && OperatingSystem.IsWindowsVersionAtLeast(7) ? gpu.DedicatedVideoMemory : 0));
         _luts = new LutTextures(_engine);
         _pipeline = new QuadPipeline(_engine);
         try
         {
             _effects = new EffectPipeline(_pipeline, shaders ?? ShaderCache.Default);
-            _layers = new LayerRenderer(gpu, _pipeline, _effects, _views, _pool, _luts);
-            _interpolator = new FrameInterpolator(gpu, ((D3D11SurfaceCache)_views).Views, _pool, shaders ?? ShaderCache.Default);
+            // Con D3D11 los decodificadores ya suben a la GPU (FrameUploader) y el contenido de CPU se salta, como siempre.
+            _layers = new LayerRenderer(gpu, _pipeline, _effects, _views, _pool, _luts) { Uploads = gpu is null ? new CpuFrameUploads(engine) : null };
+            if (OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is not null)
+            {
+                _interpolator = new FrameInterpolator(gpu, ((D3D11SurfaceCache)_views).Views, _pool, shaders ?? ShaderCache.Default);
+            }
+
             CreateTarget();
         }
         catch
@@ -123,7 +144,14 @@ public sealed unsafe partial class Compositor : IDisposable
         }
     }
 
-    public GpuDevice Device => _gpu;
+    /// <summary>El dispositivo D3D11 del compositor (solo con el motor D3D11).</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
+    public GpuDevice Device => _gpu ?? throw new InvalidOperationException("El compositor no usa el motor D3D11.");
+
+    /// <summary>El motor de la GPU.</summary>
+    public IGpu Engine => _engine;
+
+    private static GpuDevice? DeviceOf(IGpu gpu) => OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is D3D11Gpu d3d ? d3d.Device : null;
 
     public int Width { get; }
 
@@ -138,12 +166,14 @@ public sealed unsafe partial class Compositor : IDisposable
     /// <c>ID3D11Texture2D*</c> con el último cuadro compuesto, premultiplicado (alfa 1 en todo el cuadro salvo con
     /// <see cref="TransparentBackground"/>). Vale hasta <see cref="Dispose"/>.
     /// </summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public nint Texture => _output is null ? 0 : (nint)_output.Texture;
 
     /// <summary>El último cuadro compuesto para <see cref="IGpu"/> (la misma textura que <see cref="Texture"/>).</summary>
-    internal GpuTexture? Output => _output?.Gpu;
+    public GpuTexture? Output => _output?.Gpu;
 
     /// <summary><c>ID3D11ShaderResourceView*</c> de <see cref="Texture"/>, con todos sus mipmaps.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public nint ShaderResourceView => _output is null ? 0 : (nint)_output.Srv;
 
     /// <summary>
@@ -162,7 +192,7 @@ public sealed unsafe partial class Compositor : IDisposable
     /// <summary>Vistas de superficies del decodificador guardadas, para diagnóstico.</summary>
     public int CachedViewCount => _views.Count;
 
-    internal int InterpolationTextureCount => _interpolator.TextureCount;
+    internal int InterpolationTextureCount => OperatingSystem.IsWindowsVersionAtLeast(7) ? _interpolator?.TextureCount ?? 0 : 0;
 
     /// <summary>De dónde salen las LUT. Sin proveedor, una capa con LUT sale sin ella y se cuenta en <see cref="CompositeResult.MissingContent"/>.</summary>
     public IEffectResources? Resources
@@ -182,7 +212,7 @@ public sealed unsafe partial class Compositor : IDisposable
         get => _titles;
         set
         {
-            if (value is not null && value.Device != _gpu)
+            if (value is not null && (!OperatingSystem.IsWindowsVersionAtLeast(7) || value.Device != _gpu))
             {
                 throw new ArgumentException("El rasterizador de títulos es de otro dispositivo.", nameof(value));
             }
@@ -214,8 +244,9 @@ public sealed unsafe partial class Compositor : IDisposable
         int drawn;
         var stats = default(FrameStats);
         var destination = new Destination(_output, Width, Height, frame.Width, frame.Height);
-        TitleRasterizer? titles = _titles;
-        if (titles is not null)
+        // Los títulos se dibujan con Direct2D: en otro motor no hay rasterizador y esas capas se saltan.
+        TitleRasterizer? titles = OperatingSystem.IsWindowsVersionAtLeast(7) ? _titles : null;
+        if (titles is not null && OperatingSystem.IsWindowsVersionAtLeast(7))
         {
             titles.BeginFrame();
             if (strict)
@@ -247,7 +278,11 @@ public sealed unsafe partial class Compositor : IDisposable
             _layers.ShowQualifierMask = false;
             _layers.EndFrame();
             _pipeline.Unbind();
-            _interpolator.EndFrame();
+            if (OperatingSystem.IsWindowsVersionAtLeast(7))
+            {
+                _interpolator?.EndFrame();
+            }
+
             _views.EndFrame();
             _pool.EndFrame();
             _pipeline.Frame = null;
@@ -493,20 +528,21 @@ public sealed unsafe partial class Compositor : IDisposable
         return LayerSource.Of(new ImageView(rented, destination.Width, destination.Height));
     }
 
-    private D3D11TexturePayload? Usable(LayerFrame layer)
+    private IDecoderSurface? Usable(LayerFrame layer)
     {
-        D3D11TexturePayload? payload = _layers.Usable(layer);
-        if (payload is not null && layer.Sampling is FrameSampling.Blend or FrameSampling.OpticalFlow
-            && layer.Next?.Payload is D3D11TexturePayload next)
+        IDecoderSurface? payload = _layers.Usable(layer);
+        if (OperatingSystem.IsWindowsVersionAtLeast(7) && _interpolator is { } interpolator && payload is D3D11TexturePayload current
+            && layer.Sampling is FrameSampling.Blend or FrameSampling.OpticalFlow && layer.Next?.Payload is D3D11TexturePayload next)
         {
             return (layer.Sampling == FrameSampling.OpticalFlow
-                ? _interpolator.Flow(payload, next, layer.Fraction)
-                : _interpolator.Blend(payload, next, layer.Fraction)) ?? payload;
+                ? interpolator.Flow(current, next, layer.Fraction)
+                : interpolator.Blend(current, next, layer.Fraction)) ?? payload;
         }
 
         return payload;
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     private static void RasterizeTitles(TitleRasterizer titles, IReadOnlyList<LayerFrame> layers)
     {
         foreach (LayerFrame layer in layers)
@@ -555,10 +591,10 @@ public sealed unsafe partial class Compositor : IDisposable
 
     private bool DrawTitle(LayerFrame layer, GeneratedContent content, TitleRasterizer? titles, in Destination destination, ref FrameStats stats)
     {
-        if (titles is null || titles.TryGet(content) is not { } title)
+        if (!OperatingSystem.IsWindowsVersionAtLeast(7) || titles is null || titles.TryGet(content) is not { } title)
         {
             stats.LayersSkipped++;
-            if (titles is not null && !titles.IsReady(content))
+            if (OperatingSystem.IsWindowsVersionAtLeast(7) && titles is not null && !titles.IsReady(content))
             {
                 stats.TitlesPending++;
             }
@@ -594,15 +630,14 @@ public sealed unsafe partial class Compositor : IDisposable
             return result;
         }
 
-        _gpu.LockContext();
-        try
+        using (_engine.BeginFrame())
         {
-            _interpolator.Trim();
+            if (OperatingSystem.IsWindowsVersionAtLeast(7))
+            {
+                _interpolator?.Trim();
+            }
+
             _pool.Trim();
-        }
-        finally
-        {
-            _gpu.UnlockContext();
         }
 
         result = Compose(frame, geometry, strict: true);
@@ -692,37 +727,35 @@ public sealed unsafe partial class Compositor : IDisposable
     /// </summary>
     public void TrimCachedViews()
     {
-        _gpu.LockContext();
-        try
+        using (_engine.BeginFrame())
         {
             _views.Trim();
-            _interpolator.Trim();
+            if (OperatingSystem.IsWindowsVersionAtLeast(7))
+            {
+                _interpolator?.Trim();
+            }
+
             _pool.Trim();
-        }
-        finally
-        {
-            _gpu.UnlockContext();
         }
     }
 
     /// <summary>Suelta las vistas guardadas de superficies del decodificador (por ejemplo, al cerrar una fuente).</summary>
     public void ReleaseCachedViews()
     {
-        _gpu.LockContext();
-        try
+        using (_engine.BeginFrame())
         {
             _views.Clear();
-        }
-        finally
-        {
-            _gpu.UnlockContext();
         }
     }
 
     public void Dispose()
     {
-        _views.Dispose();
-        _interpolator?.Dispose();
+        _views?.Dispose();
+        if (OperatingSystem.IsWindowsVersionAtLeast(7))
+        {
+            _interpolator?.Dispose();
+        }
+
         _pool.Dispose();
         _luts.Dispose();
         _layers?.Dispose();

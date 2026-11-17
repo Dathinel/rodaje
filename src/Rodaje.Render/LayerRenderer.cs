@@ -9,7 +9,6 @@ using Rodaje.Render.Gpu;
 namespace Rodaje.Render;
 
 /// <summary>Dónde se dibuja: la composición o un lienzo de transición, con su relación con la secuencia.</summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal readonly unsafe struct Destination(RenderTarget target, int width, int height, int sequenceWidth, int sequenceHeight)
 {
     public RenderTarget Target { get; } = target;
@@ -30,10 +29,9 @@ internal readonly unsafe struct Destination(RenderTarget target, int width, int 
 /// Lo que dibuja una capa: los planos Y'CbCr de un cuadro decodificado o el intermedio RGBA premultiplicado de una capa
 /// compuesta, que ocupa el cuadro de la secuencia.
 /// </summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
-internal readonly record struct LayerSource(D3D11TexturePayload? Planes, ImageView Image)
+internal readonly record struct LayerSource(IDecoderSurface? Planes, ImageView Image)
 {
-    public static LayerSource Of(D3D11TexturePayload payload) => new(payload, default);
+    public static LayerSource Of(IDecoderSurface payload) => new(payload, default);
 
     public static LayerSource Of(ImageView image) => new(null, image);
 
@@ -42,7 +40,6 @@ internal readonly record struct LayerSource(D3D11TexturePayload? Planes, ImageVi
 
 /// <summary>Efectos que la vista previa puede dejar fuera: para comparar antes y después y para el cuentagotas del croma.</summary>
 [Flags]
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public enum PreviewBypass
 {
     None = 0,
@@ -61,7 +58,6 @@ public enum PreviewBypass
 }
 
 /// <summary>Contadores de un cuadro para <see cref="CompositeResult"/>.</summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal struct FrameStats
 {
     public int LayersSkipped;
@@ -78,12 +74,11 @@ internal struct FrameStats
 /// shader con una copia del fondo; y una transición, en dos lienzos que mezcla un shader.
 /// </summary>
 /// <remarks>Lo que no se puede aplicar en este cuadro (shader sin compilar, pool lleno) se salta y se cuenta; nunca se espera.</remarks>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe partial class LayerRenderer : IDisposable
 {
     internal const GpuFormat IntermediateFormat = GpuFormat.Rgba16Float;
 
-    private readonly GpuDevice _gpu;
+    private readonly GpuDevice? _gpu;
     private readonly QuadPipeline _quad;
     private readonly EffectPipeline _effects;
     private readonly GpuSurfaceCache _views;
@@ -95,7 +90,8 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     private LayerTransform? _motionTransform;
     private float _motionWeight;
 
-    public LayerRenderer(GpuDevice gpu, QuadPipeline quad, EffectPipeline effects, GpuSurfaceCache views, RenderTargetPool pool, LutTextures luts)
+    /// <param name="gpu">El dispositivo D3D11 de las superficies de D3D11VA; <c>null</c> en otro motor.</param>
+    public LayerRenderer(GpuDevice? gpu, QuadPipeline quad, EffectPipeline effects, GpuSurfaceCache views, RenderTargetPool pool, LutTextures luts)
     {
         _gpu = gpu;
         _quad = quad;
@@ -110,6 +106,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     public void Dispose()
     {
         ReleaseHistory();
+        Uploads?.Dispose();
         _maskTextures.Dispose();
         _curves.Dispose();
     }
@@ -119,17 +116,21 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
     public IEffectResources? Resources { get; set; }
 
+    /// <summary>Sube los cuadros decodificados en la CPU (motores sin decodificación en la GPU); <c>null</c> los salta, como en D3D11.</summary>
+    public CpuFrameUploads? Uploads { get; init; }
+
     /// <summary>La textura de la capa si se puede dibujar; <c>null</c> si hay que saltarla.</summary>
     /// <exception cref="ArgumentException">La textura es de otro dispositivo.</exception>
-    public D3D11TexturePayload? Usable(LayerFrame layer)
+    public IDecoderSurface? Usable(LayerFrame layer)
     {
-        if (layer.Frame.Payload is not D3D11TexturePayload payload || payload.IsReleased
+        object? content = layer.Frame.Payload is CpuFramePayload cpu && Uploads is { } uploads ? uploads.Get(cpu) : layer.Frame.Payload;
+        if (content is not IDecoderSurface payload || payload.IsReleased
             || payload.PixelFormat is not (FramePixelFormat.Nv12 or FramePixelFormat.P010 or FramePixelFormat.P016 or FramePixelFormat.Bgra8 or FramePixelFormat.Rgba16))
         {
             return null;
         }
 
-        if (payload.Device != _gpu)
+        if (OtherDevice(payload, _gpu))
         {
             throw new ArgumentException($"La capa de la pista {layer.TrackIndex} ({layer.ClipId}) es una textura de otro dispositivo.");
         }
@@ -137,8 +138,12 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         return payload;
     }
 
+    // Una textura de D3D11VA de otro dispositivo (o en un motor que no es ese D3D11) no se puede leer.
+    private static bool OtherDevice(IDecoderSurface surface, GpuDevice? gpu) =>
+        OperatingSystem.IsWindowsVersionAtLeast(7) && surface is D3D11TexturePayload payload && payload.Device != gpu;
+
     /// <summary>El camino rápido: dibuja con el pipeline ya enlazado (<c>PsLayer</c> y "over").</summary>
-    public bool DrawPlain(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight, float pixelScale)
+    public bool DrawPlain(LayerFrame layer, IDecoderSurface payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight, float pixelScale)
     {
         geometry = geometry with { Crop = CropOf(layer) };
         if (Place(layer, payload, geometry, sequenceWidth, sequenceHeight) is not { } placement)
@@ -201,7 +206,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
     private GpuBlend StateFor(BlendMode blend) => _motionWeight > 0 ? EffectPipeline.Accumulate : EffectPipeline.BlendState(blend);
 
-    private LayerPlacement? Place(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight) =>
+    private LayerPlacement? Place(LayerFrame layer, IDecoderSurface payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight) =>
         Place(layer, LayerSource.Of(payload), geometry, sequenceWidth, sequenceHeight);
 
     private LayerPlacement? Place(LayerFrame layer, LayerSource source, SourceGeometry geometry, int sequenceWidth, int sequenceHeight)
@@ -567,7 +572,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
             : PlacedQuad(placement, VideoLayout.Crop(VideoLayout.Corners(0, 1, 1), geometry.Crop), opacity, sequenceWidth, sequenceHeight, pixelScale);
 
     /// <summary>Constantes de una capa YUV: colocación, rango, matriz y recorte del relleno del decodificador.</summary>
-    internal static QuadConstants LayerQuad(D3D11TexturePayload payload, in LayerPlacement placement, SourceGeometry geometry,
+    internal static QuadConstants LayerQuad(IDecoderSurface payload, in LayerPlacement placement, SourceGeometry geometry,
         float opacity, float sequenceWidth, float sequenceHeight, float pixelScale)
     {
         YuvRange range = YuvRange.For(payload.PixelFormat, payload.Color.FullRange);
@@ -592,7 +597,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     }
 
     // Una capa SDR solo lleva hdr.y con «Expandir a HDR» (el pico, 203–1000 nits): en una secuencia SDR ningún shader lo lee.
-    private static void SetHdr(ref QuadConstants constants, D3D11TexturePayload? payload, in LayerTransform transform)
+    private static void SetHdr(ref QuadConstants constants, IDecoderSurface? payload, in LayerTransform transform)
     {
         if (payload is null)
         {

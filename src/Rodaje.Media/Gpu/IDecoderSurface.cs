@@ -15,7 +15,14 @@ public interface IDecoderSurface
 
     int Height { get; }
 
+    /// <summary>Ancho de la textura (puede medir más que la imagen: el relleno del decodificador se recorta al muestrear).</summary>
+    int CodedWidth { get; }
+
+    int CodedHeight { get; }
+
     VideoColor Color { get; }
+
+    bool IsReleased { get; }
 
     /// <summary>Falso si ya se liberó.</summary>
     bool AddRef();

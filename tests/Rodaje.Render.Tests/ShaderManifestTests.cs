@@ -1,8 +1,10 @@
 using Rodaje.Render.Shaders;
+using Rodaje.Render.Tests.Support;
 
 namespace Rodaje.Render.Tests;
 
 /// <summary>Pruebas del manifiesto de variantes de shader.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class ShaderManifestTests
 {
     [Fact]
@@ -43,7 +45,7 @@ public sealed class ShaderManifestTests
         return data;
     }
 
-    [Theory]
+    [D3D11Theory("compilador HLSL (D3DCompiler)")]
     [MemberData(nameof(AllVariantIndices))]
     public void Every_manifest_variant_compiles_with_shader_compiler(int index)
     {

@@ -21,6 +21,7 @@ namespace Rodaje.Export.Still;
 /// <see cref="StillRequest.ContinueWithoutMissing"/>, una LUT, transición, efecto o fuente que falta para con
 /// <see cref="ExportErrorCode.ContentMissing"/> o <see cref="ExportErrorCode.EffectFailed"/>.
 /// </remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class StillExporter
 {
     private static readonly Func<LayerFrame, SourceGeometry> Geometry = l => new SourceGeometry(l.SampleAspectRatio, l.Rotation);

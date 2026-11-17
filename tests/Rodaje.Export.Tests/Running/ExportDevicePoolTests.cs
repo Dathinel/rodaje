@@ -5,6 +5,8 @@ using Xunit;
 namespace Rodaje.Export.Tests.Running;
 
 [Collection(ExportGpuGroup.Name)]
+// El pool presta dispositivos D3D11.
+[Trait("Categoria", "SoloWindows")]
 public sealed class ExportDevicePoolTests
 {
     [Fact]

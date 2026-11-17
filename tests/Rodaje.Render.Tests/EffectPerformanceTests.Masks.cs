@@ -10,9 +10,10 @@ using M = Rodaje.Core.Model.BuiltInEffects.MaskParameters;
 namespace Rodaje.Render.Tests;
 
 /// <summary>Cuatro máscaras difuminadas sobre una capa, a 1080p y 4K, y una zona desenfocada con su máscara.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed partial class EffectPerformanceTests
 {
-    [GpuTheory]
+    [D3D11GpuTheory("temporizador de GPU (GpuTimer)")]
     [InlineData(1920, 1080, 1.5)]
     [InlineData(3840, 2160, 2.0)]
     public void Four_feathered_masks(int width, int height, double target)
@@ -32,7 +33,7 @@ public sealed partial class EffectPerformanceTests
         }
     }
 
-    [GpuFact]
+    [D3D11GpuFact("temporizador de GPU (GpuTimer)")]
     public void A_blurred_zone_with_its_mask_in_4k()
     {
         using GpuDevice gpu = GpuDevice.Create();

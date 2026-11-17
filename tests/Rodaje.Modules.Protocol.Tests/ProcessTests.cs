@@ -26,7 +26,9 @@ public sealed class ProcessTests(ITestOutputHelper output)
     /// recibía y <see cref="ModuleProcess.DisposeAsync"/> lo mataba a los 2 s. La versión determinista es
     /// <c>ShutdownCloseTests</c>.
     /// </summary>
+    /// <remarks>Depende de cuánto tarda la máquina con la CPU llena: en los corredores de macOS falla sin motivo en el código.</remarks>
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public async Task Echo_module_exits_with_0_on_shutdown_with_the_cpu_full()
     {
         using CancellationTokenSource burn = new();

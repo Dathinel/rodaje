@@ -135,6 +135,12 @@ internal sealed unsafe class D3D11Frame(D3D11Gpu gpu) : IGpuFrame
 
     public GpuDecoderPlanes Acquire(GpuSurfaceCache cache, IDecoderSurface surface)
     {
+        if (surface is GpuTextureSurface { Luma: D3D11Texture luma, Chroma: D3D11Texture chroma })
+        {
+            // Los sombreadores leen los planos como Texture2DArray, como los de D3D11VA.
+            return new GpuDecoderPlanes(luma.ArrayView(gpu), chroma.ArrayView(gpu));
+        }
+
         if (surface is not D3D11TexturePayload payload)
         {
             throw new ArgumentException("La superficie no es de D3D11.", nameof(surface));

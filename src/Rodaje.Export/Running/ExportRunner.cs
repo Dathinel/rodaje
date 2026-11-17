@@ -47,6 +47,9 @@ public sealed record ExportRunnerOptions
     /// <summary>El dispositivo propio de la exportación; por omisión, uno nuevo en la GPU por defecto.</summary>
     public Func<GpuDevice>? CreateDevice { get; init; }
 
+    /// <summary>Otro motor que D3D11 (Vulkan), que la exportación cierra al terminar; fuera de Windows, por omisión, un <c>VulkanGpu</c> nuevo.</summary>
+    public Func<Rodaje.Render.Gpu.IGpu>? CreateGpu { get; init; }
+
     /// <summary>Dispositivo compartido de fondo, antes que CreateDevice; su propietario lo cierra tras el último trabajo.</summary>
     public ExportDevicePool? DevicePool { get; init; }
 

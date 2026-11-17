@@ -18,6 +18,8 @@ using Xunit.Abstractions;
 namespace Rodaje.Export.Tests.RenderCache;
 
 [Collection(ExportGpuGroup.Name)]
+// Los fragmentos de la caché de render se componen con el dispositivo D3D11 compartido.
+[Trait("Categoria", "SoloWindows")]
 public sealed class RenderCacheJobTests(ITestOutputHelper output) : IDisposable
 {
     private readonly string _folder = CreateFolder();

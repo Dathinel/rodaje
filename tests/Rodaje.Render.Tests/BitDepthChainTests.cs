@@ -16,12 +16,13 @@ namespace Rodaje.Render.Tests;
 /// Mide cuántos niveles de una rampa P010 de 1024 códigos llegan a cada punto de la cadena (docs/hdr.md): el intermedio
 /// del compositor, la lectura de 8 bits de la vista previa y el conversor de exportación en 10 y 8 bits.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class BitDepthChainTests(ITestOutputHelper output)
 {
     private const int Width = 2048;
     private const int Height = 16;
 
-    [GpuFact]
+    [D3D11GpuFact("conversor de exportación (ExportFrameConverter)")]
     public void A_1024_level_p010_ramp_through_compositor_and_export_converter()
     {
         // Rango completo: el código c (0..1023) es R'G'B' = c/1023, dos columnas por código.
@@ -69,7 +70,7 @@ public sealed class BitDepthChainTests(ITestOutputHelper output)
     /// Un FFV1 yuv444p12 de rango completo con los 4096 códigos sube como P016 (no se baja a P010) y el intermedio conserva
     /// más de 2000 (el techo de media precisión para 12 bits es 3073).
     /// </summary>
-    [HardwareFact]
+    [D3D11HardwareFact("decodificación D3D11VA (D3D11TexturePayload)")]
     public void A_4096_level_yuv444p12_file_keeps_more_than_10_bits_in_the_intermediate()
     {
         const int width = 4096;

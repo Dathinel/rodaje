@@ -6,6 +6,7 @@ using Rodaje.Media.Gpu;
 using Rodaje.Render.Export;
 using Rodaje.TestMedia;
 using Xunit.Abstractions;
+using Rodaje.Render.Tests.Support;
 
 namespace Rodaje.Render.Tests.Export;
 
@@ -16,6 +17,7 @@ namespace Rodaje.Render.Tests.Export;
 /// solo se exigen con <c>RODAJE_PRUEBAS_LARGAS=1</c>; sin ella se informan y se detecta una regresión grave.
 /// </summary>
 [Trait("Categoria", "Rendimiento")]
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class ExportPerformanceTests(ITestOutputHelper output)
 {
     private const int Warmup = 30;
@@ -23,7 +25,7 @@ public sealed class ExportPerformanceTests(ITestOutputHelper output)
     private static readonly bool Strict = Environment.GetEnvironmentVariable(Skip.LongVariable) == "1";
 
     /// <param name="minFps">Caudal mínimo del anillo con <c>RODAJE_PRUEBAS_LARGAS=1</c>.</param>
-    [GpuTheory]
+    [D3D11GpuTheory("conversor de exportación (ExportFrameConverter)")]
     [InlineData(1920, 1080, 1920, 1080, ExportPixelFormat.Nv12, 500)]
     [InlineData(1920, 1080, 1920, 1080, ExportPixelFormat.P010, 400)]
     [InlineData(1920, 1080, 1280, 720, ExportPixelFormat.Nv12, 500)]
