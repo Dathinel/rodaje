@@ -18,7 +18,6 @@ internal sealed unsafe partial class LayerRenderer
     /// Dibuja un título ya rasterizado. Uno por unidades se compone antes en un intermedio (cada línea, palabra o letra con
     /// su pose del cuadro, su desenfoque por mipmap y el karaoke) y desde ahí sigue el mismo camino que un bloque.
     /// </summary>
-    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public bool DrawTitle(LayerFrame layer, TitleTexture title, in Destination destination, ref FrameStats stats)
     {
         if (title.Units is not { } units)
@@ -47,7 +46,6 @@ internal sealed unsafe partial class LayerRenderer
     /// Las celdas del atlas con la pose de su unidad en un intermedio transparente, centrado en el centro del bloque y del
     /// tamaño que ocupan en este cuadro. Nulo si no se ve nada, falta el shader o no hay memoria.
     /// </summary>
-    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     private TitleImage? ComposeUnits(LayerFrame layer, TitleTexture title, TitleUnitSet set, in Destination destination)
     {
         GpuShader? shader = _effects.TryGetShader(EffectShader.Fx, 0);

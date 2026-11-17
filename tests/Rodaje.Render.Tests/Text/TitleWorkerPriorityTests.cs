@@ -24,7 +24,7 @@ public sealed class TitleWorkerPriorityTests(ITestOutputHelper output)
         Assert.Equal(ThreadPriority.Normal, new TitleRasterizerOptions().WorkerPriority);
     }
 
-    [D3D11GpuFact("títulos con Direct2D")]
+    [D3D11GpuFact("prioridad y contención del hilo Direct2D")]
     public void The_worker_thread_takes_the_priority_of_the_options()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -47,7 +47,7 @@ public sealed class TitleWorkerPriorityTests(ITestOutputHelper output)
     /// normales que no ceden, a prioridad normal y debajo de lo normal. Solo se exige que a prioridad normal llegue (el
     /// tope es contra cuelgues, no una medida de rendimiento); las cifras quedan en la salida de la prueba.
     /// </summary>
-    [D3D11GpuFact("títulos con Direct2D")]
+    [D3D11GpuFact("prioridad y contención del hilo Direct2D")]
     public void Under_full_cpu_a_new_title_still_arrives_at_the_default_priority()
     {
         using GpuDevice gpu = GpuDevice.Create();

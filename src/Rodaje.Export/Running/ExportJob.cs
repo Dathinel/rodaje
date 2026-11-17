@@ -331,16 +331,12 @@ public sealed class ExportJob : IDisposable
         CancellationToken token)
     {
         VideoExportSettings settings = plan.Settings.Video!;
-        // Los títulos se dibujan con Direct2D: fuera de Windows todavía no hay rasterizador.
-        TitleRasterizer? titleResources = null;
+        ITitleRasterizer titleResources;
         using (Measure("Titles"))
         {
-            if (OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is not null)
-            {
-                titleResources = CreateTitles(gpu);
-            }
+            titleResources = CreateTitles(engine);
         }
-        using TitleRasterizer? titles = titleResources;
+        using ITitleRasterizer titles = titleResources;
         var options = new OfflineTimelineOptions
         {
             Titles = titles,
@@ -362,17 +358,7 @@ public sealed class ExportJob : IDisposable
             timeline.Prepare(plan.Start, end, token);
         }
         IReadOnlyList<GeneratedContent> generated = timeline.GeneratedContents(plan.Start, end);
-        if (OperatingSystem.IsWindowsVersionAtLeast(7) && titles is not null)
-        {
-            CheckFonts(titles, generated);
-        }
-        else if (generated.Count > 0)
-        {
-            throw new ExportException(ExportErrorCode.ContentMissing, "Los títulos todavía no se pueden exportar en este sistema.")
-            {
-                Culprit = "títulos",
-            };
-        }
+        CheckFonts(titles, generated);
 
         ExportVideoFormat format = plan.Video!;
         bool alpha = format.PixelFormat.HasAlpha();
@@ -495,10 +481,9 @@ public sealed class ExportJob : IDisposable
         return meter.Result;
     }
 
-    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
-    private TitleRasterizer CreateTitles(GpuDevice gpu)
+    private ITitleRasterizer CreateTitles(IGpu gpu)
     {
-        var titles = new TitleRasterizer(gpu);
+        var titles = TitleRasterizers.Create(gpu);
         try
         {
             if (_options.FontFiles?.Invoke() is { Count: > 0 } fonts)
@@ -519,8 +504,7 @@ public sealed class ExportJob : IDisposable
     /// La política de contenido que falta para las fuentes de los títulos, antes del primer cuadro: sin permiso para
     /// seguir, para con <see cref="ExportErrorCode.ContentMissing"/>; con él, los títulos salen con la fuente de respaldo.
     /// </summary>
-    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
-    private void CheckFonts(TitleRasterizer titles, IReadOnlyList<GeneratedContent> contents)
+    private void CheckFonts(ITitleRasterizer titles, IReadOnlyList<GeneratedContent> contents)
     {
         if (contents.Count == 0 || Request.ContinueWithoutMissing)
         {
@@ -662,7 +646,7 @@ public sealed class ExportJob : IDisposable
         private VideoDecoder? _activeDecoder;
         private string? _activeDecoderMoviePath;
 
-        public FrameSource(ExportJob job, ExportPlan plan, OfflineTimeline timeline, GpuDevice? gpu, IGpu engine, TitleRasterizer? titles, bool alpha,
+        public FrameSource(ExportJob job, ExportPlan plan, OfflineTimeline timeline, GpuDevice? gpu, IGpu engine, ITitleRasterizer? titles, bool alpha,
             bool blend)
         {
             _job = job;
@@ -676,7 +660,7 @@ public sealed class ExportJob : IDisposable
             {
                 _compositors[c] = OperatingSystem.IsWindowsVersionAtLeast(7) && gpu is not null
                     ? new Compositor(gpu, timeline.Width, timeline.Height) { Titles = titles }
-                    : new Compositor(engine, timeline.Width, timeline.Height);
+                    : new Compositor(engine, timeline.Width, timeline.Height) { Titles = titles };
                 _compositors[c].ColorSpace = timeline.ColorSpace;
                 _compositors[c].Resources = job._options.Content;
                 _compositors[c].TransparentBackground = alpha;

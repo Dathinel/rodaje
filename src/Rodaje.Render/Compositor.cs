@@ -75,7 +75,7 @@ public sealed unsafe partial class Compositor : IDisposable
     private readonly SurfaceInterpolator? _surfaceInterpolator;
     private RenderTarget? _output;
     private GpuReadback? _readback;
-    private TitleRasterizer? _titles;
+    private ITitleRasterizer? _titles;
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public Compositor(GpuDevice gpu, int width, int height, CompositeFormat format = CompositeFormat.Rgba16Float)
@@ -213,12 +213,12 @@ public sealed unsafe partial class Compositor : IDisposable
     /// uno con la fuente cambiada por el respaldo cuenta en <see cref="CompositeResult.MissingContent"/>.
     /// </summary>
     /// <exception cref="ArgumentException">El rasterizador es de otro dispositivo.</exception>
-    public TitleRasterizer? Titles
+    public ITitleRasterizer? Titles
     {
         get => _titles;
         set
         {
-            if (value is not null && (!OperatingSystem.IsWindowsVersionAtLeast(7) || value.Device != _gpu))
+            if (value is not null && value.Engine != _engine)
             {
                 throw new ArgumentException("El rasterizador de títulos es de otro dispositivo.", nameof(value));
             }
@@ -250,9 +250,8 @@ public sealed unsafe partial class Compositor : IDisposable
         int drawn;
         var stats = default(FrameStats);
         var destination = new Destination(_output, Width, Height, frame.Width, frame.Height);
-        // Los títulos se dibujan con Direct2D: en otro motor no hay rasterizador y esas capas se saltan.
-        TitleRasterizer? titles = OperatingSystem.IsWindowsVersionAtLeast(7) ? _titles : null;
-        if (titles is not null && OperatingSystem.IsWindowsVersionAtLeast(7))
+        ITitleRasterizer? titles = _titles;
+        if (titles is not null)
         {
             titles.BeginFrame();
             if (strict)
@@ -315,11 +314,11 @@ public sealed unsafe partial class Compositor : IDisposable
     public bool ShowQualifierMask { get; set; }
 
     private int DrawLayers(CompositionFrame frame, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination,
-        TitleRasterizer? titles, ref FrameStats stats) =>
+        ITitleRasterizer? titles, ref FrameStats stats) =>
         DrawLayers(frame.Layers, geometry, destination, titles, TransparentBackground, ref stats);
 
     private int DrawLayers(IReadOnlyList<LayerFrame> layers, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination,
-        TitleRasterizer? titles, bool transparent, ref FrameStats stats)
+        ITitleRasterizer? titles, bool transparent, ref FrameStats stats)
     {
         int drawn = 0;
         RenderTarget target = destination.Target;
@@ -406,7 +405,7 @@ public sealed unsafe partial class Compositor : IDisposable
     /// capa. Una capa compuesta se compone una sola vez. Sin memoria para el intermedio, la capa sale sin desenfoque.
     /// </summary>
     private bool DrawMotion(LayerFrame layer, IReadOnlyList<LayerTransform> samples, Func<LayerFrame, SourceGeometry>? geometry,
-        in Destination destination, TitleRasterizer? titles, ref FrameStats stats)
+        in Destination destination, ITitleRasterizer? titles, ref FrameStats stats)
     {
         RenderTarget? accumulation = _pool.Rent(destination.Width, destination.Height, LayerRenderer.IntermediateFormat);
         if (accumulation is null)
@@ -464,7 +463,7 @@ public sealed unsafe partial class Compositor : IDisposable
     }
 
     /// <summary>La capa sin desenfoque de movimiento, por el camino que le toca.</summary>
-    private bool DrawStill(LayerFrame layer, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination, TitleRasterizer? titles,
+    private bool DrawStill(LayerFrame layer, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination, ITitleRasterizer? titles,
         ref FrameStats stats)
     {
         if (layer.Generated is { } generated)
@@ -490,7 +489,7 @@ public sealed unsafe partial class Compositor : IDisposable
     /// Una capa compuesta, o una transición con una de cada lado: cada capa compuesta se compone antes en un intermedio
     /// transparente del tamaño del destino (recursivo) y se dibuja como una capa más con sus efectos y su transición.
     /// </summary>
-    private bool DrawWithNested(LayerFrame layer, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination, TitleRasterizer? titles,
+    private bool DrawWithNested(LayerFrame layer, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination, ITitleRasterizer? titles,
         ref FrameStats stats)
     {
         RenderTarget? outgoing = null;
@@ -515,7 +514,7 @@ public sealed unsafe partial class Compositor : IDisposable
     }
 
     /// <summary>Lo que dibuja la capa: sus planos o, si es compuesta, su intermedio recién compuesto (que queda en <paramref name="rented"/>).</summary>
-    private LayerSource? Source(LayerFrame layer, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination, TitleRasterizer? titles,
+    private LayerSource? Source(LayerFrame layer, Func<LayerFrame, SourceGeometry>? geometry, in Destination destination, ITitleRasterizer? titles,
         ref FrameStats stats, ref RenderTarget? rented)
     {
         if (layer.Nested is not { } nested)
@@ -557,8 +556,7 @@ public sealed unsafe partial class Compositor : IDisposable
         return payload;
     }
 
-    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
-    private static void RasterizeTitles(TitleRasterizer titles, IReadOnlyList<LayerFrame> layers)
+    private static void RasterizeTitles(ITitleRasterizer titles, IReadOnlyList<LayerFrame> layers)
     {
         foreach (LayerFrame layer in layers)
         {
@@ -580,7 +578,7 @@ public sealed unsafe partial class Compositor : IDisposable
     }
 
     /// <summary>Compone otra vez sin el color en un intermedio y copia su parte izquierda sobre la salida.</summary>
-    private void DrawCompare(CompositionFrame frame, Func<LayerFrame, SourceGeometry>? geometry, TitleRasterizer? titles, float split,
+    private void DrawCompare(CompositionFrame frame, Func<LayerFrame, SourceGeometry>? geometry, ITitleRasterizer? titles, float split,
         PreviewBypass bypass)
     {
         int width = Math.Clamp((int)MathF.Round(split * Width), 0, Width);
@@ -604,12 +602,12 @@ public sealed unsafe partial class Compositor : IDisposable
         }
     }
 
-    private bool DrawTitle(LayerFrame layer, GeneratedContent content, TitleRasterizer? titles, in Destination destination, ref FrameStats stats)
+    private bool DrawTitle(LayerFrame layer, GeneratedContent content, ITitleRasterizer? titles, in Destination destination, ref FrameStats stats)
     {
-        if (!OperatingSystem.IsWindowsVersionAtLeast(7) || titles is null || titles.TryGet(content) is not { } title)
+        if (titles is null || titles.TryGet(content) is not { } title)
         {
             stats.LayersSkipped++;
-            if (OperatingSystem.IsWindowsVersionAtLeast(7) && titles is not null && !titles.IsReady(content))
+            if (titles is not null && !titles.IsReady(content))
             {
                 stats.TitlesPending++;
             }

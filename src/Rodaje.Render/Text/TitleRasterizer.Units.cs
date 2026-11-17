@@ -4,6 +4,7 @@ using Rodaje.Playback.Composition;
 using TerraFX.Interop.DirectX;
 using TerraFX.Interop.Windows;
 using static Rodaje.Render.RenderException;
+using Rect = Rodaje.Render.Text.TitleRect;
 
 namespace Rodaje.Render.Text;
 

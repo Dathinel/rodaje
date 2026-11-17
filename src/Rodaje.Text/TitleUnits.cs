@@ -31,7 +31,7 @@ public static class TitleUnits
                 float left = cluster.X - offsetX;
                 float right = cluster.X + cluster.Advance - offsetX;
                 // Como HitTestTextPosition: el alto de la letra alrededor de la línea base, con las métricas de su fuente.
-                float scale = layout.Size / cluster.Font.UnitsPerEm;
+                float scale = (cluster.Size > 0 ? cluster.Size : layout.Size) / cluster.Font.UnitsPerEm;
                 float baseline = line.Top + line.Baseline - offsetY;
                 float top = baseline - (cluster.Font.Ascent * scale);
                 float bottom = baseline + (cluster.Font.Descent * scale);

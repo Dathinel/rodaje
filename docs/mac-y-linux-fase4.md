@@ -1,5 +1,7 @@
 # Linux y macOS, fase 4: el motor Vulkan
 
+**Actualización del 17-nov:** el dibujo de títulos con Skia y la decisión de licencias están en [Títulos con SkiaSharp](mac-y-linux-titulos-skia.md).
+
 Resultado de la fase 4 de D-066 ([propuestas/mac-y-linux.md](propuestas/mac-y-linux.md)), 17-nov. Contrato en [igpu.md](igpu.md); criterio de píxeles en [mac-y-linux-fase0.md](mac-y-linux-fase0.md) (d).
 
 ## Qué quedó

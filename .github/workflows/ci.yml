@@ -273,6 +273,11 @@ jobs:
         run: |
           & build/dotnet-local.cmd test tests/Rodaje.Render.Vulkan.Tests --no-build -m:2 --filter FullyQualifiedName~Generate_warp_references --logger 'console;verbosity=detailed'
           exit $LASTEXITCODE
+      - name: Referencias Direct2D para títulos Skia
+        shell: pwsh
+        run: |
+          & build/dotnet-local.cmd test tests/Rodaje.Render.Tests -m:2 --filter FullyQualifiedName~Generate_warp_references_for_titles
+          exit $LASTEXITCODE
       - uses: actions/upload-artifact@v4
         with:
           name: referencias-warp
@@ -307,6 +312,9 @@ jobs:
           path: TestResults/referencias-warp
       - name: Comparar con WARP
         run: dotnet test tests/Rodaje.Render.Vulkan.Tests -m:2 --filter "FullyQualifiedName~Variants|FullyQualifiedName~Composition|FullyQualifiedName~ExportHash" --logger 'console;verbosity=detailed'
+      - name: Títulos Skia frente a Direct2D
+        run: dotnet test tests/Rodaje.Render.Tests -m:2 --filter FullyQualifiedName~SkiaTitleReferenceTests --logger 'console;verbosity=detailed'
+
       - uses: actions/upload-artifact@v4
         if: always()
         with:

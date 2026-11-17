@@ -33,6 +33,85 @@ public sealed class ExportHashTests(ITestOutputHelper output)
 {
     private const string ReferenceVariable = "RODAJE_REFERENCIAS_WARP";
 
+    [VulkanFact]
+    public async Task Vulkan_exports_animated_titles_and_checks_missing_fonts()
+    {
+        if (Unavailable() is { } reason)
+        {
+            output.WriteLine(reason);
+            return;
+        }
+        string root = AppContext.BaseDirectory;
+        while (!File.Exists(Path.Combine(root, "Rodaje.slnx")))
+        {
+            root = Directory.GetParent(root)!.FullName;
+        }
+        string font = Path.Combine(root, "tests", "Rodaje.Text.Tests", "Fuentes", "Anton-Regular.ttf");
+        var style = new TextStyle
+        {
+            Font = new StyleFont { Family = "Anton", Fallback = ["Anton"] }, Size = 180,
+            Fill = new StyleFill { Color = "#FFD400" },
+            Stroke = new StyleStroke { Color = "#304080", Width = 8 },
+            Shadow = new StyleShadow { Color = "#FF0000", Dx = 15, Dy = 15, Blur = 12 },
+            In = Rodaje.Core.Text.TextAnimationPresets.Find("subir")!.In(TextUnit.Letter, 0.5),
+        };
+        var clip = new Clip
+        {
+            Id = "title", Start = Time.Zero, SourceIn = Time.Zero, SourceOut = Time.FromSeconds(1),
+            Generator = new ClipGenerator { Text = "TÍTULO", Style = style, Edges = new GeneratorEdges { In = true, Out = false } },
+        };
+        var sequence = new Sequence
+        {
+            Id = "sec", Name = "Títulos", Width = 320, Height = 180, FrameRate = Rational.Fps30,
+            VideoTracks = [new Track { Id = "v", Kind = TrackKind.Video, Name = "Títulos", Clips = [clip] }],
+        };
+        var project = new Project { Id = "p", Name = "Títulos", Sequences = [sequence] };
+        Assert.Empty(ModelValidator.Validate(project));
+        using var scratch = new Scratch();
+        IReadOnlyList<EncoderSpec> encoders = await new CatalogEncoderSource(Ffmpeg).GetAsync();
+        var runner = new ExportRunner(new ExportRunnerOptions
+        {
+            Ffmpeg = Ffmpeg, CreateGpu = () => VulkanGpu.Create(preferSoftware: true), FontFiles = () => [font],
+        });
+        var settings = new ExportSettings
+        {
+            Container = ExportContainer.Mkv,
+            Video = new VideoExportSettings { Codec = ExportCodec.Ffv1, EncoderId = "ffv1", BitDepth = 10,
+                Chroma = ChromaSubsampling.Chroma420, RateControl = RateControl.Lossless },
+        };
+        async Task<ExportJobState> Export(string name, bool continueWithout)
+        {
+            string path = scratch.Combine(name + ".mkv");
+            using ExportJob job = runner.Start(new ExportRequest(project, "sec", path, settings) { ContinueWithoutMissing = continueWithout }, encoders);
+            await job.Completion.WaitAsync(TimeSpan.FromMinutes(2));
+            if (name == "missing")
+            {
+                Assert.Equal(ExportErrorCode.ContentMissing, job.Failure?.Code);
+                Assert.Contains("Fuente Que No Existe", job.Failure!.Message, StringComparison.Ordinal);
+                Assert.False(File.Exists(path));
+            }
+            else
+            {
+                Assert.True(job.Progress.State == ExportJobState.Completed, job.Failure?.ToString());
+                Assert.Equal(30, FrameCount(path));
+                byte[] rgb = Run("-i", path, "-f", "rawvideo", "-pix_fmt", "rgb24", "-");
+                int frameBytes = 320 * 180 * 3;
+                int Yellow(int frame) => Enumerable.Range(0, 320 * 180).Count(p =>
+                    rgb[frame * frameBytes + p * 3] > 170 && rgb[frame * frameBytes + p * 3 + 1] > 140
+                    && rgb[frame * frameBytes + p * 3 + 2] < 90);
+                Assert.True(Yellow(25) > 500, "El título debe verse en el vídeo decodificado.");
+                Assert.True(Yellow(0) < Yellow(25) / 4, "La entrada por letras debe evaluarse durante la exportación.");
+                output.WriteLine($"{name}: 30 cuadros, relleno amarillo al final {Yellow(25)} px.");
+            }
+            return job.Progress.State;
+        }
+
+        Assert.Equal(ExportJobState.Completed, await Export("title", false));
+        style.Font.Family = "Fuente Que No Existe";
+        Assert.Equal(ExportJobState.Failed, await Export("missing", false));
+        Assert.Equal(ExportJobState.Completed, await Export("fallback", true));
+    }
+
     public static TheoryData<string> Codecs => ["ffv1", "prores_ks"];
 
     [VulkanTheory]

@@ -11,6 +11,7 @@ using TerraFX.Interop.Windows;
 using static Rodaje.Render.RenderException;
 using static TerraFX.Interop.DirectX.DirectX;
 using static TerraFX.Interop.Windows.Windows;
+using Rect = Rodaje.Render.Text.TitleRect;
 
 namespace Rodaje.Render.Text;
 
