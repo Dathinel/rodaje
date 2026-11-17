@@ -1,5 +1,6 @@
 using System.Globalization;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -10,6 +11,7 @@ using Rodaje.Render.Gpu;
 using Rodaje.Render.Gpu.D3D11;
 using Rodaje.Render.Tests.Gpu;
 using Rodaje.Render.Tests.Support;
+using Rodaje.Render.Tests.Variants;
 using Xunit.Abstractions;
 
 namespace Rodaje.Render.Tests.Composition;
@@ -27,15 +29,15 @@ public sealed class CompositorEngineTests(ITestOutputHelper output)
     private const double MeanLimit = 2e-4;
     private const double P999Limit = 4e-3;
     private static readonly VideoColor Bt709 = VideoColor.Bt709Limited;
-    private const double ExceptionMeanLimit = 5e-3;
 
     // Como en las variantes (docs/mac-y-linux-fase0.md, d): pasadas por intermedios que leen en fracciones arbitrarias, donde WARP
-    // trunca el bilineal a 1/256. En lavapipe la media queda en 2,5e-4 a 3,5e-4; en la RTX 3050, por debajo de 1e-7.
-    private static readonly Dictionary<string, string> s_exceptions = new(StringComparer.Ordinal)
+    // trunca el bilineal a 1/256. En lavapipe la media queda en 2,5e-4 a 3,5e-4; en la RTX 3050, por debajo de 1e-7. Cada excepción
+    // lleva sus límites (media, p99,9 y máximo): lo peor de lavapipe (registro de la CI) y de la RTX 3050, con un margen de ≈1,5.
+    private static readonly Dictionary<string, (string Reason, double Mean, double P999, double Max)> s_exceptions = new(StringComparer.Ordinal)
     {
-        ["desenfoque"] = "el desenfoque lee el intermedio entre texeles (bilineal de WARP truncado a 1/256)",
-        ["nitidez"] = "la nitidez lee el intermedio entre texeles y amplifica la diferencia (bilineal de WARP truncado a 1/256)",
-        ["fundido-cruzado"] = "la transición mezcla dos lienzos intermedios leídos entre texeles (bilineal de WARP truncado a 1/256)",
+        ["desenfoque"] = ("el desenfoque lee el intermedio entre texeles (bilineal de WARP truncado a 1/256)", 4.3e-4, 2.2e-3, 2.2e-3),
+        ["nitidez"] = ("la nitidez lee el intermedio entre texeles y amplifica la diferencia (bilineal de WARP truncado a 1/256)", 5.4e-4, 1.2e-2, 1.4e-2),
+        ["fundido-cruzado"] = ("la transición mezcla dos lienzos intermedios leídos entre texeles (bilineal de WARP truncado a 1/256)", 3.8e-4, 3.7e-3, 5.9e-3),
     };
 
     public static TheoryData<string> Cases => [.. s_cases.Keys];
@@ -74,25 +76,28 @@ public sealed class CompositorEngineTests(ITestOutputHelper output)
         ],
     };
 
-    [VulkanTheory]
+    [WarpComparisonTheory]
     [MemberData(nameof(Cases))]
     public void Vulkan_composes_like_d3d11_warp(string name)
     {
         float[] vulkan = Compose(VulkanTestGpu.Gpu, name);
-        float[]? reference = Reference(name, out string? skip);
+        // Sin RODAJE_REFERENCIAS_WARP fuera de Windows la teoría se omite en el descubrimiento: aquí solo se llega sin
+        // referencia cuando la variable está puesta (el trabajo dedicado de la CI), y entonces es un fallo.
+        float[]? reference = Reference(name, out string? missing);
         if (reference is null)
         {
-            output.WriteLine(skip);
-            return;
+            Assert.Fail(missing);
         }
 
         Assert.Equal(reference.Length, vulkan.Length);
         (double max, double mean, double p999) = Errors(reference, vulkan);
         output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"{name}: máximo {max:0.###e+0}, medio {mean:0.###e+0}, p99,9 {p999:0.###e+0}"));
-        if (s_exceptions.TryGetValue(name, out string? reason))
+        if (s_exceptions.TryGetValue(name, out (string Reason, double Mean, double P999, double Max) limits))
         {
-            output.WriteLine("Excepción: " + reason);
-            Assert.True(mean <= ExceptionMeanLimit, $"{name}: error medio {mean} > {ExceptionMeanLimit}");
+            output.WriteLine("Excepción: " + limits.Reason);
+            Assert.True(mean <= limits.Mean, $"{name}: error medio {mean} > {limits.Mean}");
+            Assert.True(p999 <= limits.P999, $"{name}: p99,9 {p999} > {limits.P999}");
+            Assert.True(max <= limits.Max, $"{name}: máximo {max} > {limits.Max}");
             return;
         }
 
@@ -101,14 +106,11 @@ public sealed class CompositorEngineTests(ITestOutputHelper output)
     }
 
     /// <summary>Con <c>RODAJE_REFERENCIAS_WARP</c> en Windows, deja la composición de WARP de cada caso para el trabajo de Linux.</summary>
-    [Fact]
+    [WarpGenerationFact]
+    [SupportedOSPlatform("windows7.0")]
     public void Generate_warp_references()
     {
-        string? folder = Environment.GetEnvironmentVariable(ReferenceVariable);
-        if (folder is null || !OperatingSystem.IsWindowsVersionAtLeast(7))
-        {
-            return;
-        }
+        string folder = Environment.GetEnvironmentVariable(ReferenceVariable)!;
 
         Directory.CreateDirectory(folder);
         using D3D11Gpu warp = D3D11Gpu.Create(preferSoftware: true);
@@ -120,20 +122,19 @@ public sealed class CompositorEngineTests(ITestOutputHelper output)
 
     private const string ReferenceVariable = "RODAJE_REFERENCIAS_WARP";
 
-    private static float[]? Reference(string name, out string? skip)
+    private static float[]? Reference(string name, out string? missing)
     {
-        skip = null;
+        missing = null;
         if (OperatingSystem.IsWindowsVersionAtLeast(7))
         {
             using D3D11Gpu warp = D3D11Gpu.Create(preferSoftware: true);
             return Compose(warp, name);
         }
 
-        string? folder = Environment.GetEnvironmentVariable(ReferenceVariable);
-        string? file = folder is null ? null : Path.Combine(folder, $"compositor-{name}.bin");
-        if (file is null || !File.Exists(file))
+        string file = Path.Combine(Environment.GetEnvironmentVariable(ReferenceVariable)!, $"compositor-{name}.bin");
+        if (!File.Exists(file))
         {
-            skip = $"Sin referencia de WARP para {name} ({ReferenceVariable}): solo se comprobó que compone.";
+            missing = $"Falta la referencia de WARP del compositor para {name}: {file} (la genera el trabajo «Referencias de efectos (WARP)» de la CI).";
             return null;
         }
 
