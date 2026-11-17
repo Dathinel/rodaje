@@ -21,6 +21,7 @@
     <Project Path="src/Rodaje.Packages/Rodaje.Packages.csproj" />
     <Project Path="src/Rodaje.Playback/Rodaje.Playback.csproj" />
     <Project Path="src/Rodaje.Render/Rodaje.Render.csproj" />
+    <Project Path="src/Rodaje.Render.Spirv/Rodaje.Render.Spirv.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/Rodaje.Acceptance.Tests/Rodaje.Acceptance.Tests.csproj" />

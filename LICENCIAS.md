@@ -219,6 +219,7 @@ Para quitar el fondo quedan excluidos RMBG-1.4 y RMBG-2.0, de uso no comercial c
 | Microsoft.NET.Test.Sdk 18.10.1 | MIT, © Microsoft Corporation | Solo pruebas. |
 | coverlet.collector 10.1.0 | MIT, © 2018 Toni Solarin-Sodara | Solo cobertura. |
 | CsCheck 4.9.1 | Apache-2.0, © Anthony Lloyd | Pruebas basadas en propiedades. |
+| Microsoft.Direct3D.DXC 1.9.2609.5 | LLVM/NCSA (University of Illinois/NCSA Open Source License) | Solo al compilar los shaders a SPIR-V con Rodaje.ShaderTool; no se distribuye con el programa. |
 | nasm, meson, ninja, cmake y pkg-config de Homebrew (BSD-2-Clause, Apache-2.0, Apache-2.0, BSD-3-Clause y GPL-2.0-or-later) | Varias | Solo para compilar el FFmpeg de macOS en la CI; no se enlazan ni se redistribuyen. Sus versiones quedan en `herramientas.txt` de la fuente correspondiente. |
 | Inno Setup 7.1.0 (portable, en `.entorno`) | Licencia propia de Inno Setup (`license.txt`: © 1997-2026 Jordan Russell, partes © 2000-2026 Martijn Laan; uso y redistribución permitidos, también comerciales) | Arma el instalador (`build\instalador.ps1`). El `Rodaje-<v>-instalador.exe` lleva su programa de instalación, así que esa parte viaja. Al distribuir en binario la condición 2 pide conservar el aviso de copyright y las direcciones web que ya trae (por ejemplo en su «Acerca de»); el reconocimiento en la documentación es opcional. Aviso literal en `THIRD-PARTY-NOTICES.txt`, sección 9. |
 | FFmpeg 9.0 de gyan.dev (instalado con winget) | GPL | Solo para pruebas y preparación de material en el equipo de desarrollo. Nunca se copia a `dist\`. |

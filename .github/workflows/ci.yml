@@ -116,6 +116,10 @@ jobs:
 
       - uses: ./.github/actions/preparar-windows
 
+      - name: Shaders SPIR-V al día
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build\shaders.ps1 comprobar
+
       - name: Publicar AOT para la autoprueba
         shell: pwsh
         run: |
