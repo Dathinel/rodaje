@@ -71,9 +71,14 @@ public sealed class CoreAudioOutputTests(ITestOutputHelper output)
         Assert.Equal(Time.FromSeconds(10), clock.Position);
         Assert.Equal(Time.FromSeconds(10), source.LastSeek);
 
+        // En el corredor de macOS Thread.Sleep se pasa a veces más de 100 ms: se compara con lo que pasó de verdad.
+        var wall = System.Diagnostics.Stopwatch.StartNew();
         clock.Start();
         Thread.Sleep(400);
-        Assert.InRange(clock.Position.ToSeconds(), 10.2, 10.45);
+        double advanced = clock.Position.ToSeconds() - 10;
+        double elapsed = wall.Elapsed.TotalSeconds;
+        output.WriteLine(string.Create(CultureInfo.InvariantCulture, $"Tras el salto: {advanced * 1_000:0.0} ms de reloj en {elapsed * 1_000:0.0} ms de pared."));
+        Assert.InRange(advanced, elapsed - 0.1, elapsed + 0.02);
 
         clock.Seek(Time.FromSeconds(20));
         Time afterSeek = clock.Position;

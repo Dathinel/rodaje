@@ -21,7 +21,8 @@ namespace Rodaje.Audio;
 public sealed unsafe class CoreAudioOutput : IAudioOutput, IRenderTransport
 {
     private const int ControlTimeoutMilliseconds = 2000;
-    private static readonly long DevicePollInterval = Stopwatch.Frequency / 4;
+    // Cada vuelta del hilo de control (50 ms): al cambiar el predeterminado la unidad deja de pedir audio y el reloj se pararía.
+    private static readonly long DevicePollInterval = Stopwatch.Frequency / 20;
 
     private readonly AudioOutputOptions _options;
     private readonly FrameRenderer _renderer;
