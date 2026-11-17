@@ -136,6 +136,9 @@ internal static unsafe partial class CoreAudio
     public static partial int AudioUnitUninitialize(nint unit);
 
     [LibraryImport(AudioToolbox)]
+    public static partial int AudioUnitReset(nint unit, uint scope, uint element);
+
+    [LibraryImport(AudioToolbox)]
     public static partial int AudioOutputUnitStart(nint unit);
 
     [LibraryImport(AudioToolbox)]

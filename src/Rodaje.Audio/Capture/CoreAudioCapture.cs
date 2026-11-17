@@ -20,6 +20,7 @@ internal sealed unsafe class CoreAudioCapture : IAudioCapture
     private nint _unit;
     private volatile CapturePacketHandler? _handler;
     private bool _started;
+    private bool _lost;
     private bool _disposed;
 
     public CoreAudioCapture(string? deviceId, int sampleRate)
@@ -142,15 +143,34 @@ internal sealed unsafe class CoreAudioCapture : IAudioCapture
         {
             var list = new AudioBufferListOne { NumberBuffers = 1, NumberChannels = 1, DataByteSize = (uint)(count * sizeof(float)), Data = samples };
             int status = CoreAudio.AudioUnitRender(_unit, flags, time, bus, (uint)count, &list);
-            if (status != 0 || _handler is not { } handler)
+            if (status != 0)
             {
+                // Ese bloque se perdió: el siguiente lo dice, para que quien graba rellene el hueco.
+                _lost = true;
                 return status;
+            }
+
+            if (_handler is not { } handler)
+            {
+                return 0;
             }
 
             // HostTime marca cuándo el dispositivo entregó la primera muestra; se capturó una latencia de entrada antes.
             long captured = CoreAudio.HostToStopwatch(time->HostTime) - _inputLatencyTicks;
             long ticks100ns = (long)((Int128)captured * TimeSpan.TicksPerSecond / Stopwatch.Frequency);
-            handler(new ReadOnlySpan<float>(samples, (int)(list.DataByteSize / sizeof(float))), ticks100ns, false);
+            bool discontinuity = _lost;
+            _lost = false;
+            try
+            {
+                handler(new ReadOnlySpan<float>(samples, (int)(list.DataByteSize / sizeof(float))), ticks100ns, discontinuity);
+            }
+#pragma warning disable CA1031 // Una excepción no puede salir al hilo de CoreAudio: se cuenta el bloque como perdido.
+            catch (Exception)
+#pragma warning restore CA1031
+            {
+                _lost = true;
+            }
+
             return 0;
         }
     }

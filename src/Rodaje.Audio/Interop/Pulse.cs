@@ -47,6 +47,7 @@ internal static unsafe partial class Pulse
     public const int StreamAdjustLatency = 0x2000;
 
     public const int OperationRunning = 0;
+    public const int OperationDone = 1;
     public const int SeekRelative = 0;
 
     /// <summary>«Lo que el servidor elija» en <see cref="PulseBufferAttr"/>.</summary>
@@ -170,6 +171,9 @@ internal static unsafe partial class Pulse
     [LibraryImport(Library)]
     public static partial void pa_operation_unref(nint operation);
 
+    [LibraryImport(Library)]
+    public static partial void pa_operation_cancel(nint operation);
+
     public static string Text(nint utf8) => Marshal.PtrToStringUTF8(utf8) ?? "";
 
     public static string Error(nint context) => context == 0 ? "no se pudo crear la conexión" : Text(pa_strerror(pa_context_errno(context)));
@@ -237,14 +241,20 @@ internal static unsafe partial class Pulse
         }
 
         long deadline = Stopwatch.GetTimestamp() + (long)(timeout.TotalSeconds * Stopwatch.Frequency);
-        bool done;
-        while (!(done = pa_operation_get_state(operation) != OperationRunning) && Stopwatch.GetTimestamp() < deadline)
+        int state;
+        while ((state = pa_operation_get_state(operation)) == OperationRunning && Stopwatch.GetTimestamp() < deadline)
         {
             Iterate(mainloop, 10);
         }
 
+        if (state == OperationRunning)
+        {
+            pa_operation_cancel(operation);
+        }
+
         pa_operation_unref(operation);
-        return done;
+        // Shortcut: «hecha» no dice si el servidor la aceptó (eso llega por la llamada de vuelta, que aquí no se usa).
+        return state == OperationDone;
     }
 
     public static void Close(ref nint stream)

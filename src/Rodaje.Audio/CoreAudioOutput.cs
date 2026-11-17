@@ -21,6 +21,7 @@ namespace Rodaje.Audio;
 public sealed unsafe class CoreAudioOutput : IAudioOutput, IRenderTransport
 {
     private const int ControlTimeoutMilliseconds = 2000;
+    private const int MaxReopenDepth = 3;
     // Cada vuelta del hilo de control (50 ms): al cambiar el predeterminado la unidad deja de pedir audio y el reloj se pararía.
     private static readonly long DevicePollInterval = Stopwatch.Frequency / 20;
 
@@ -58,6 +59,7 @@ public sealed unsafe class CoreAudioOutput : IAudioOutput, IRenderTransport
 
     private AudioDeviceInfo? _device;
     private int _restarts;
+    private int _reopenDepth;
     private int _controlTimeouts;
     private int _disposed;
 
@@ -148,6 +150,9 @@ public sealed unsafe class CoreAudioOutput : IAudioOutput, IRenderTransport
         {
             _thread.Join();
         }
+
+        // Cerrada, el reloj se congela como en WasapiOutput (si corría libre seguiría avanzando).
+        _model.Stop(Now());
 
         _wake.Dispose();
         _ready.Dispose();
@@ -391,6 +396,12 @@ public sealed unsafe class CoreAudioOutput : IAudioOutput, IRenderTransport
     private void DoFlush(Time target)
     {
         StopUnit();
+        if (_unit != 0)
+        {
+            // Lo que quedó en el conversor de la unidad no debe sonar tras el salto.
+            _ = CoreAudio.AudioUnitReset(_unit, CoreAudio.ScopeGlobal, 0);
+        }
+
         _renderer.Seek(target);
         if (_unit == 0)
         {
@@ -469,9 +480,21 @@ public sealed unsafe class CoreAudioOutput : IAudioOutput, IRenderTransport
         CloseUnit();
         Interlocked.Increment(ref _restarts);
         EnterFreeRun(Now());
-        if (TryOpenUnit(out string? error))
+        // Abrir bien y arrancar mal vuelve a entrar aquí (Resume → Start → Reopen): con tope, como WASAPI; si no, corre
+        // libre y el bucle reintenta cada segundo.
+        string? error = "se intentó reabrir demasiadas veces seguidas";
+        if (_reopenDepth < MaxReopenDepth && TryOpenUnit(out error))
         {
-            Resume();
+            _reopenDepth++;
+            try
+            {
+                Resume();
+            }
+            finally
+            {
+                _reopenDepth--;
+            }
+
             if (Device is { } info)
             {
                 RaiseDeviceChanged(info, lost ? $"Se perdió {previous} ({why}). El audio sigue por {info.Name}." : $"El audio ahora suena por {info.Name}.");
