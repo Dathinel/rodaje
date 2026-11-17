@@ -235,3 +235,65 @@ jobs:
             TestResults/maquetacion/**
             dist/Rodaje/app/rodaje-error.txt
           if-no-files-found: ignore
+
+  referencias-warp:
+    name: Referencias de efectos (WARP)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}\.entorno\nuget
+      DOTNET_ROOT: ${{ github.workspace }}\.entorno\dotnet
+      DOTNET_CLI_HOME: ${{ github.workspace }}\.entorno
+      DOTNET_MULTILEVEL_LOOKUP: '0'
+      DOTNET_CLI_FORCE_UTF8_ENCODING: '1'
+      DOTNET_PROCESSOR_COUNT: '2'
+      RODAJE_REFERENCIAS_WARP: ${{ github.workspace }}\TestResults\referencias-warp
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/preparar-windows
+      - name: Compilar pruebas Vulkan
+        shell: pwsh
+        run: |
+          & build/dotnet-local.cmd build tests/Rodaje.Render.Vulkan.Tests -m:2
+          exit $LASTEXITCODE
+      - name: Generar referencias WARP
+        shell: pwsh
+        run: |
+          & build/dotnet-local.cmd test tests/Rodaje.Render.Vulkan.Tests --no-build -m:2 --filter FullyQualifiedName~Generate_warp_references --logger 'console;verbosity=detailed'
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: referencias-warp
+          path: TestResults/referencias-warp
+          if-no-files-found: error
+
+  vulkan-warp:
+    name: Vulkan frente a WARP (lavapipe)
+    runs-on: ubuntu-24.04
+    needs: referencias-warp
+    timeout-minutes: 20
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+      DOTNET_PROCESSOR_COUNT: '2'
+      RODAJE_REFERENCIAS_WARP: ${{ github.workspace }}/TestResults/referencias-warp
+      RODAJE_VK_EXIGIR: '1'
+      RODAJE_VK_INFORME: ${{ github.workspace }}/TestResults/vulkan-warp.json
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ./.github/actions/preparar-linux
+      - name: Instalar lavapipe
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mesa-vulkan-drivers libvulkan1
+      - uses: actions/download-artifact@v4
+        with:
+          name: referencias-warp
+          path: TestResults/referencias-warp
+      - name: Comparar variantes
+        run: dotnet test tests/Rodaje.Render.Vulkan.Tests -m:2 --filter FullyQualifiedName~Variants --logger 'console;verbosity=detailed'
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: informe-vulkan-warp
+          path: TestResults/vulkan-warp.json
+          if-no-files-found: error

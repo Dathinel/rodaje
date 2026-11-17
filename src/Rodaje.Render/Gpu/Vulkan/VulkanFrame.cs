@@ -453,6 +453,11 @@ internal sealed unsafe class VulkanFrame(VulkanGpu gpu, FrameContext context) : 
     /// <summary>Pasa la imagen entera a <paramref name="layout"/> con una barrera si hace falta (cambio de estado o escritura de por medio).</summary>
     private void Use(VulkanTexture texture, VkImageLayout layout, bool write)
     {
+        if (texture.Layout == VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED)
+        {
+            ClearNew(texture);
+        }
+
         if (texture.Layout != layout || texture.Written || write)
         {
             VulkanBarriers.Image(Commands, texture.Image, texture.Range(), texture.Layout, layout);
@@ -460,6 +465,29 @@ internal sealed unsafe class VulkanFrame(VulkanGpu gpu, FrameContext context) : 
         }
 
         texture.Written = write;
+    }
+
+    /// <summary>
+    /// Una textura recién creada empieza a cero en todos sus mips, como en D3D11 (el contenido de una imagen nueva de Vulkan no está
+    /// definido y lo que no se dibuja, por ejemplo fuera de una capa girada, saldría con basura).
+    /// </summary>
+    private void ClearNew(VulkanTexture texture)
+    {
+        VkImageSubresourceRange range = texture.Range();
+        VulkanBarriers.Image(Commands, texture.Image, range, VkImageLayout.VK_IMAGE_LAYOUT_UNDEFINED, VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        if (texture.Aspect == VkImageAspectFlags.VK_IMAGE_ASPECT_DEPTH_BIT)
+        {
+            var depth = default(VkClearDepthStencilValue);
+            vkCmdClearDepthStencilImage(Commands, texture.Image, VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &depth, 1, &range);
+        }
+        else
+        {
+            var color = default(VkClearColorValue);
+            vkCmdClearColorImage(Commands, texture.Image, VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &color, 1, &range);
+        }
+
+        texture.Layout = VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+        texture.Written = true;
     }
 
     /// <summary>Pone las entradas en su estado y escribe el conjunto de descriptores de la pasada.</summary>

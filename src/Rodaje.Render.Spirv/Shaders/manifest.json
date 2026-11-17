@@ -24,7 +24,7 @@
       "entryPoint": "VsQuad",
       "profile": "vs_6_0",
       "defines": [],
-      "sha256": "0572e392e7982d3f524e921fc93e60affa3ff8913d38763effbe8cf345afb7a3",
+      "sha256": "d7fde7d3ccd3e7b14ede56752cff2f408fa47f1e4584fee78e9777c5bc13863a",
       "resources": [
         {
           "register": "b0",
