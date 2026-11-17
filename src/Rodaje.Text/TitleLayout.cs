@@ -9,12 +9,8 @@ using Buffer = HarfBuzzSharp.Buffer;
 namespace Rodaje.Text;
 
 /// <summary>Un grupo de caracteres que se dibuja junto (letra con sus acentos, ligadura…), como los clústeres de DirectWrite.</summary>
-/// <param name="X">Borde de entrada en la caja del texto, ya alineado.</param>
-/// <param name="Advance">Avance, con el espaciado entre letras.</param>
 public readonly record struct TitleCluster(int Start, int Length, int Line, float X, float Advance, bool IsWhitespace, bool IsNewline, ShapingFont Font);
 
-/// <param name="Width">Ancho sin el espacio en blanco del final.</param>
-/// <param name="WidthWithTrailing">Ancho con el espacio en blanco del final.</param>
 public readonly record struct TitleLine(int Start, int Length, float Top, float Height, float Baseline, float Left, float Width, float WidthWithTrailing);
 
 /// <summary>

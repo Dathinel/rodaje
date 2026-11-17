@@ -3,8 +3,6 @@ using Rodaje.Core.Model;
 namespace Rodaje.Text;
 
 /// <summary>Una unidad de un título animado por unidades (letra, palabra o línea), en píxeles con el origen en el centro de la caja.</summary>
-/// <param name="Left">Borde de entrada del primer clúster.</param>
-/// <param name="Right">Borde de salida del último clúster.</param>
 public readonly record struct TitleUnitBox(int Start, int End, int Line, int Word, float Left, float Right, float Top, float Bottom);
 
 /// <summary>Las unidades de un título como las parte <c>TitleRasterizer.Segment</c> en Windows: sin espacios, con su palabra y su línea.</summary>
