@@ -19,15 +19,16 @@ public static class ProjectFilePaths
 {
     /// <summary>
     /// Resuelve contra <paramref name="projectDirectory"/> las rutas relativas del proyecto recién leído: las de los medios
-    /// y las de las referencias <c>file:</c>. Una referencia que no se puede resolver queda como está.
+    /// y las de las referencias <c>file:</c>. Una referencia que no se puede resolver queda como está. Antes, las rutas de los
+    /// medios pasan por <paramref name="mappings"/> (el mapeo de rutas de Preferencias, para abrir en Linux un proyecto de Windows y al revés).
     /// </summary>
-    public static void MakeAbsolute(Project project, string projectDirectory)
+    public static void MakeAbsolute(Project project, string projectDirectory, IReadOnlyList<PathMapping>? mappings = null)
     {
         ArgumentNullException.ThrowIfNull(project);
         ArgumentException.ThrowIfNullOrWhiteSpace(projectDirectory);
         foreach (MediaRef media in project.Media)
         {
-            media.Path = media.ResolvePath(projectDirectory);
+            media.Path = media.ResolvePath(projectDirectory, mappings);
         }
 
         RewriteFileOptions(project, path => Path.IsPathFullyQualified(path) ? null : AbsoluteFile(path, projectDirectory));
