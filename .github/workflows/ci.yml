@@ -57,6 +57,32 @@ jobs:
         shell: pwsh
         run: build/preparar-entorno.ps1 -SoloFFmpeg
 
+      # El corredor no tiene tarjeta de sonido: PulseAudio con dos sumideros nulos a 48 kHz, que avanzan con el reloj del
+      # sistema. Las pruebas de Pulse (Categoria=AudioPulse) los usan para el reloj, el cambio de salida y la captura por
+      # el monitor; sin servidor se omiten.
+      - name: PulseAudio con sumideros nulos
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq pulseaudio pulseaudio-utils
+          pulseaudio -D --exit-idle-time=-1 --system=false
+          for i in $(seq 1 20); do pactl info >/dev/null 2>&1 && break; sleep 0.5; done
+          pactl load-module module-null-sink sink_name=rodaje_a rate=48000 channels=2
+          pactl load-module module-null-sink sink_name=rodaje_b rate=48000 channels=2
+          pactl set-default-sink rodaje_a
+          # Sin suspender los sumideros inactivos: al despertar uno, el servidor tarda hasta 1,1 s en sonar y las pruebas
+          # medirían eso en vez del reloj (con un dispositivo real despierto pasa lo mismo que aquí).
+          pactl unload-module module-suspend-on-idle || true
+          # Un flujo de ceros en cada sumidero, como un dispositivo ya en marcha: un sumidero nulo sin flujos duerme con
+          # latencia larga y tardaba de 1,1 a 1,6 s en atender un flujo nuevo. Los ceros no cambian lo que se mide.
+          for s in rodaje_a rodaje_b; do
+            nohup pacat --playback --device=$s --latency-msec=20 --format=float32le --rate=48000 --channels=2 /dev/zero >/dev/null 2>&1 &
+          done
+          sleep 1
+          pactl info | grep -E 'Server Name|Server Version|Default Sink'
+          pactl list short sinks
+
       - name: Pruebas
         shell: bash
         run: bash build/pruebas-linux.sh 'Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento'
