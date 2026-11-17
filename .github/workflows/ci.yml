@@ -70,6 +70,9 @@ jobs:
           pactl load-module module-null-sink sink_name=rodaje_a rate=48000 channels=2
           pactl load-module module-null-sink sink_name=rodaje_b rate=48000 channels=2
           pactl set-default-sink rodaje_a
+          # Sin suspender los sumideros inactivos: al despertar uno, el servidor tarda hasta 1,1 s en sonar y las pruebas
+          # medirían eso en vez del reloj (con un dispositivo real despierto pasa lo mismo que aquí).
+          pactl unload-module module-suspend-on-idle || true
           pactl info | grep -E 'Server Name|Server Version|Default Sink'
           pactl list short sinks
 
