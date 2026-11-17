@@ -1,7 +1,7 @@
 {
   "version": 1,
   "dependencies": {
-    "net10.0-windows7.0": {
+    "net10.0": {
       "coverlet.collector": {
         "type": "Direct",
         "requested": "[10.1.0, )",
@@ -124,7 +124,7 @@
         "type": "Project",
         "dependencies": {
           "Microsoft.ML.OnnxRuntime.DirectML": "[1.24.4, )",
-          "Rodaje.Modules.Protocol": "[1.0.0, )"
+          "Rodaje.Modules.Protocol": "[1.0.3, )"
         }
       },
       "rodaje.modules.protocol": {
