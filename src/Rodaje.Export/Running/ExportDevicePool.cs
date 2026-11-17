@@ -3,6 +3,7 @@ using Rodaje.Media.Gpu;
 namespace Rodaje.Export.Running;
 
 /// <summary>Un dispositivo de fondo por propietario; el último trabajo lo libera si ya se cerró el propietario.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class ExportDevicePool : IDisposable
 {
     private readonly Lock _gate = new();

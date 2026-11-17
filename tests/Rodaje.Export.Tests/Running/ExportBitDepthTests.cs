@@ -257,7 +257,7 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
 
         string folder = Path.Combine(ExportEndToEndTests.Folder(), "complemento");
         ZipFile.ExtractToDirectory(package, folder);
-        return FfmpegExecutable.OpenGplAddOn(Path.Combine(folder, "bin", "ffmpeg.exe"));
+        return FfmpegExecutable.OpenGplAddOn(Path.Combine(folder, "bin", Rodaje.Media.FfmpegLocator.ExecutableName("ffmpeg")));
     }
 
     /// <summary>1 s de FFV1 yuv420p10le de rango completo: el código de luma es x/2 (0..1023), croma neutro.</summary>
@@ -374,7 +374,7 @@ public sealed class ExportBitDepthTests(ITestOutputHelper output) : IDisposable
     /// <summary>Flujo de video y primer cuadro con sus datos adjuntos (ffprobe en JSON).</summary>
     private static async Task<string> ProbeJsonAsync(string path)
     {
-        string ffprobe = Path.Combine(Path.GetDirectoryName(Skip.ProxyExecutable!.Path)!, "ffprobe.exe");
+        string ffprobe = Path.Combine(Path.GetDirectoryName(Skip.ProxyExecutable!.Path)!, Rodaje.Media.FfmpegLocator.ExecutableName("ffprobe"));
         byte[] json = await RunAsync(ffprobe, ["-v", "error", "-select_streams", "v:0", "-read_intervals", "%+#1", "-show_frames", "-show_streams", "-of", "json", path]);
         return System.Text.Encoding.UTF8.GetString(json);
     }

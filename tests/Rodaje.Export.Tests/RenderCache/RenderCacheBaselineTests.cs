@@ -59,7 +59,7 @@ public sealed class RenderCacheBaselineTests(ITestOutputHelper output)
         try
         {
             // La misma instalación LGPL que cargó el atributo, sin recurrir a un ffmpeg del PATH.
-            var ffmpeg = new FfmpegTool(Path.Combine(FfmpegLibrary.Directory!, "ffmpeg.exe"), "FFmpeg del entorno");
+            var ffmpeg = new FfmpegTool(Path.Combine(FfmpegLibrary.Directory!, Rodaje.Media.FfmpegLocator.ExecutableName("ffmpeg")), "FFmpeg del entorno");
             report.Write($"{ffmpeg.Version}; bibliotecas: {FfmpegLibrary.VersionInfo}; ejecutable: {ffmpeg.ExecutablePath}.");
             string configuration = ReadText(ffmpeg, ["-hide_banner", "-buildconf"]);
             Assert.DoesNotContain("--enable-gpl", configuration, StringComparison.Ordinal);

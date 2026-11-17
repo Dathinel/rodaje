@@ -251,7 +251,7 @@ jobs:
   referencias-warp:
     name: Referencias de efectos (WARP)
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       NUGET_PACKAGES: ${{ github.workspace }}\.entorno\nuget
       DOTNET_ROOT: ${{ github.workspace }}\.entorno\dotnet
@@ -283,7 +283,7 @@ jobs:
     name: Vulkan frente a WARP (lavapipe)
     runs-on: ubuntu-24.04
     needs: referencias-warp
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
       DOTNET_PROCESSOR_COUNT: '2'
@@ -297,12 +297,16 @@ jobs:
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y -qq mesa-vulkan-drivers libvulkan1
+      # La exportación de ExportHashTests codifica con el FFmpeg LGPL del entorno, como el trabajo de Linux.
+      - name: FFmpeg LGPL
+        shell: pwsh
+        run: build/preparar-entorno.ps1 -SoloFFmpeg
       - uses: actions/download-artifact@v4
         with:
           name: referencias-warp
           path: TestResults/referencias-warp
-      - name: Comparar variantes
-        run: dotnet test tests/Rodaje.Render.Vulkan.Tests -m:2 --filter "FullyQualifiedName~Variants|FullyQualifiedName~Composition" --logger 'console;verbosity=detailed'
+      - name: Comparar con WARP
+        run: dotnet test tests/Rodaje.Render.Vulkan.Tests -m:2 --filter "FullyQualifiedName~Variants|FullyQualifiedName~Composition|FullyQualifiedName~ExportHash" --logger 'console;verbosity=detailed'
       - uses: actions/upload-artifact@v4
         if: always()
         with:

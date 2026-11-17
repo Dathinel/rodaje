@@ -61,7 +61,7 @@ internal static class CpuExportEnvironment
     public static FfmpegExecutable Ffmpeg => State.Value.Executable
         ?? throw new InvalidOperationException(Reason ?? "Sin ffmpeg.exe.");
 
-    public static string FfprobePath => Path.Combine(Path.GetDirectoryName(Ffmpeg.Path)!, "ffprobe.exe");
+    public static string FfprobePath => Path.Combine(Path.GetDirectoryName(Ffmpeg.Path)!, Rodaje.Media.FfmpegLocator.ExecutableName("ffprobe"));
 
     /// <summary>
     /// <see cref="Reason"/> y además que este <c>ffmpeg.exe</c> traiga compilados los codificadores. Solo omite si falta

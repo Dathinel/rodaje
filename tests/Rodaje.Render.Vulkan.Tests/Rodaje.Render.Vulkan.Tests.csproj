@@ -20,10 +20,13 @@
 
   <ItemGroup>
     <Compile Include="..\Rodaje.Render.Tests\Support\Fx.cs" Link="Support\Fx.cs" />
+    <Compile Include="..\Rodaje.Export.Tests\Running\ExportProjects.cs" Link="Export\ExportProjects.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Render\Rodaje.Render.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Export\Rodaje.Export.csproj" />
+    <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
   </ItemGroup>
 
   <ItemGroup>
