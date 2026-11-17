@@ -1,9 +1,10 @@
 using System.Diagnostics;
+using System.Runtime.InteropServices;
 using Rodaje.Media.Gpu;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using Rodaje.Render.Shaders;
 using TerraFX.Interop.DirectX;
-using static Rodaje.Render.RenderException;
-using static TerraFX.Interop.DirectX.DXGI;
 
 namespace Rodaje.Render.Scopes;
 
@@ -55,7 +56,7 @@ public sealed class ScopeCounts(uint[] raw, int width, int height, int step)
 /// <summary>
 /// Los monitores de imagen en la GPU (compute shaders): cuenta los píxeles de la composición por columna y nivel, por
 /// celda de croma y por nivel, y dibuja el monitor elegido en una imagen de 512 × 256 que baja por un anillo de
-/// <c>Staging</c> sin esperar a la GPU. Se usa desde el hilo que compone, después de <see cref="Compositor.Render"/>.
+/// lecturas sin esperar a la GPU. Se usa desde el hilo que compone, después de <see cref="Compositor.Render"/>.
 /// </summary>
 public sealed unsafe class ScopeRenderer : IDisposable
 {
@@ -78,20 +79,20 @@ public sealed unsafe class ScopeRenderer : IDisposable
     private const int CountSlots = MaxSlot + 1;
     private const int Ring = 3;
 
-    private readonly GpuDevice _gpu;
-    private readonly ID3D11Device* _device;
-    private readonly ID3D11DeviceContext* _context;
+    private readonly D3D11Gpu _engine;
     private readonly Task _ready;
-    private readonly ID3D11Texture2D*[] _staging = new ID3D11Texture2D*[Ring];
+    private readonly GpuReadback?[] _staging = new GpuReadback?[Ring];
     private readonly (long Sequence, ScopeKind Kind)[] _pending = new (long, ScopeKind)[Ring];
-    private ID3D11ComputeShader* _accumulate;
-    private ID3D11ComputeShader* _maximum;
-    private ID3D11ComputeShader* _draw;
-    private ID3D11Buffer* _constants;
-    private ID3D11Buffer* _counts;
-    private ID3D11UnorderedAccessView* _countsView;
-    private ID3D11Texture2D* _image;
-    private ID3D11UnorderedAccessView* _imageView;
+    private GpuShader[]? _compiled;
+    private GpuPipeline? _accumulate;
+    private GpuPipeline? _maximum;
+    private GpuPipeline? _draw;
+    private GpuBuffer? _constants;
+    private GpuBuffer? _counts;
+    private GpuTexture? _image;
+    private GpuReadback? _countsRead;
+    private GpuTexture? _source;
+    private nint _sourceTexture;
     private long _submitted;
     private long _read;
     private bool _disposed;
@@ -99,18 +100,26 @@ public sealed unsafe class ScopeRenderer : IDisposable
     public ScopeRenderer(GpuDevice gpu, ShaderCache? shaders = null)
     {
         ArgumentNullException.ThrowIfNull(gpu);
-        _gpu = gpu;
-        _device = (ID3D11Device*)gpu.NativeDevice;
-        _context = (ID3D11DeviceContext*)gpu.NativeContext;
+        _engine = D3D11Gpu.For(gpu);
         ShaderCache cache = shaders ?? ShaderCache.Default;
         _ready = Task.Run(() =>
         {
-            byte[][] code = [cache.GetOrCompile(ScopeShaders.Accumulate), cache.GetOrCompile(ScopeShaders.Maximum), cache.GetOrCompile(ScopeShaders.Draw)];
-            return code;
+            GpuShader? accumulate = null;
+            GpuShader? maximum = null;
+            try
+            {
+                accumulate = _engine.CreateShader(ScopeShaders.Accumulate, cache);
+                maximum = _engine.CreateShader(ScopeShaders.Maximum, cache);
+                return (GpuShader[])[accumulate, maximum, _engine.CreateShader(ScopeShaders.Draw, cache)];
+            }
+            catch
+            {
+                accumulate?.Dispose();
+                maximum?.Dispose();
+                throw;
+            }
         }).ContinueWith(t => _compiled = t.Result, TaskScheduler.Default);
     }
-
-    private byte[][]? _compiled;
 
     /// <summary>Termina cuando los shaders están compilados (o falló la compilación: la excepción queda aquí).</summary>
     public Task Ready => _ready;
@@ -134,8 +143,7 @@ public sealed unsafe class ScopeRenderer : IDisposable
         }
 
         long start = Stopwatch.GetTimestamp();
-        _gpu.LockContext();
-        try
+        using (IGpuFrame frame = _engine.BeginFrame())
         {
             EnsureResources();
             int slot = (int)(_submitted % Ring);
@@ -145,14 +153,10 @@ public sealed unsafe class ScopeRenderer : IDisposable
                 _read = _submitted - Ring + 1;
             }
 
-            Measure(compositor, kind);
-            _context->CopyResource((ID3D11Resource*)_staging[slot], (ID3D11Resource*)_image);
-            _context->Flush();
+            Measure(frame, compositor, kind);
+            frame.Copy(_image!, new GpuBox(0, 0, ImageWidth, ImageHeight), _staging[slot]!);
+            frame.Submit();
             _pending[slot] = (++_submitted, kind);
-        }
-        finally
-        {
-            _gpu.UnlockContext();
         }
 
         LastSubmitMilliseconds = Stopwatch.GetElapsedTime(start).TotalMilliseconds;
@@ -165,43 +169,30 @@ public sealed unsafe class ScopeRenderer : IDisposable
     /// <summary>La imagen más nueva que la GPU ya terminó, o <c>null</c> si no hay ninguna nueva. Nunca espera.</summary>
     public ScopeImage? TryRead()
     {
-        if (_read >= _submitted || _staging[0] == null)
+        if (_read >= _submitted || _staging[0] is null)
         {
             return null;
         }
 
         ScopeImage? latest = null;
-        _gpu.LockContext();
-        try
+        while (_read < _submitted)
         {
-            while (_read < _submitted)
+            int slot = (int)(_read % Ring);
+            if (!_staging[slot]!.TryMap(out GpuMappedRows rows))
             {
-                int slot = (int)(_read % Ring);
-                D3D11_MAPPED_SUBRESOURCE mapped;
-                int hr = _context->Map((ID3D11Resource*)_staging[slot], 0, D3D11_MAP.D3D11_MAP_READ,
-                    (uint)D3D11_MAP_FLAG.D3D11_MAP_FLAG_DO_NOT_WAIT, &mapped);
-                if (hr == DXGI_ERROR_WAS_STILL_DRAWING)
-                {
-                    break;
-                }
-
-                Check(hr, "Map(monitor)");
-                var pixels = new byte[ImageWidth * ImageHeight * 4];
-                for (int y = 0; y < ImageHeight; y++)
-                {
-                    new ReadOnlySpan<byte>((byte*)mapped.pData + ((nuint)y * mapped.RowPitch), ImageWidth * 4).CopyTo(pixels.AsSpan(y * ImageWidth * 4));
-                }
-
-                _context->Unmap((ID3D11Resource*)_staging[slot], 0);
-                PixelFingerprint.Record("monitor", pixels.AsSpan());
-                (long sequence, ScopeKind kind) = _pending[slot];
-                latest = new ScopeImage(pixels, ImageWidth, ImageHeight, kind, sequence);
-                _read++;
+                break;
             }
-        }
-        finally
-        {
-            _gpu.UnlockContext();
+
+            var pixels = new byte[ImageWidth * ImageHeight * 4];
+            using (rows)
+            {
+                rows.CopyTo(pixels);
+            }
+
+            PixelFingerprint.Record("monitor", pixels.AsSpan());
+            (long sequence, ScopeKind kind) = _pending[slot];
+            latest = new ScopeImage(pixels, ImageWidth, ImageHeight, kind, sequence);
+            _read++;
         }
 
         return latest;
@@ -212,42 +203,27 @@ public sealed unsafe class ScopeRenderer : IDisposable
     {
         ArgumentNullException.ThrowIfNull(compositor);
         Ready.GetAwaiter().GetResult();
-        _gpu.LockContext();
-        try
+        int width;
+        int height;
+        int step;
+        using (IGpuFrame frame = _engine.BeginFrame())
         {
             EnsureResources();
-            (int width, int height, int step) = Measure(compositor, kind);
-            var desc = new D3D11_BUFFER_DESC
-            {
-                ByteWidth = CountSlots * 4,
-                Usage = D3D11_USAGE.D3D11_USAGE_STAGING,
-                CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_READ,
-            };
-            ID3D11Buffer* staging;
-            Check(_device->CreateBuffer(&desc, null, &staging), "CreateBuffer(lectura de monitores)");
-            try
-            {
-                _context->CopyResource((ID3D11Resource*)staging, (ID3D11Resource*)_counts);
-                D3D11_MAPPED_SUBRESOURCE mapped;
-                Check(_context->Map((ID3D11Resource*)staging, 0, D3D11_MAP.D3D11_MAP_READ, 0, &mapped), "Map(monitores)");
-                var raw = new uint[CountSlots];
-                new ReadOnlySpan<uint>(mapped.pData, CountSlots).CopyTo(raw);
-                _context->Unmap((ID3D11Resource*)staging, 0);
-                return new ScopeCounts(raw, width, height, step);
-            }
-            finally
-            {
-                staging->Release();
-            }
+            (width, height, step) = Measure(frame, compositor, kind);
+            frame.Copy(_counts!, 0, CountSlots * 4, _countsRead!);
         }
-        finally
+
+        var raw = new uint[CountSlots];
+        using (GpuMappedRows rows = _countsRead!.Map())
         {
-            _gpu.UnlockContext();
+            MemoryMarshal.Cast<byte, uint>(rows.Row(0)).CopyTo(raw);
         }
+
+        return new ScopeCounts(raw, width, height, step);
     }
 
-    /// <summary>Tres pasadas: limpiar y contar, el máximo del histograma y el dibujo. Con el candado del contexto tomado.</summary>
-    private (int Width, int Height, int Step) Measure(Compositor compositor, ScopeKind kind)
+    /// <summary>Tres pasadas: limpiar y contar, el máximo del histograma y el dibujo. Dentro de un cuadro grabado.</summary>
+    private (int Width, int Height, int Step) Measure(IGpuFrame frame, Compositor compositor, ScopeKind kind)
     {
         int width = compositor.Width;
         int height = compositor.Height;
@@ -266,115 +242,57 @@ public sealed unsafe class ScopeRenderer : IDisposable
             TotalPixels = (float)measuredWidth * measuredHeight,
             Hdr = compositor.ColorSpace != Rodaje.Core.Model.SequenceColorSpace.Sdr709 ? 1 : 0,
         };
-        D3D11_MAPPED_SUBRESOURCE mapped;
-        Check(_context->Map((ID3D11Resource*)_constants, 0, D3D11_MAP.D3D11_MAP_WRITE_DISCARD, 0, &mapped), "Map(constantes de monitores)");
-        *(ScopeConstants*)mapped.pData = constants;
-        _context->Unmap((ID3D11Resource*)_constants, 0);
-
-        uint* zero = stackalloc uint[4];
-        _context->ClearUnorderedAccessViewUint(_countsView, zero);
-        ID3D11Buffer* buffer = _constants;
-        var source = (ID3D11ShaderResourceView*)compositor.ShaderResourceView;
-        ID3D11UnorderedAccessView** views = stackalloc ID3D11UnorderedAccessView*[2] { _countsView, _imageView };
-        _context->CSSetConstantBuffers(0, 1, &buffer);
-        _context->CSSetShaderResources(0, 1, &source);
-        _context->CSSetUnorderedAccessViews(0, 2, views, null);
-        _context->CSSetShader(_accumulate, null, 0);
-        _context->Dispatch((uint)((measuredWidth + 15) / 16), (uint)((measuredHeight + 15) / 16), 1);
-        _context->CSSetShader(_maximum, null, 0);
-        _context->Dispatch(1, 1, 1);
-        _context->CSSetShader(_draw, null, 0);
-        _context->Dispatch(ImageWidth / 8, ImageHeight / 8, 1);
-
-        ID3D11ShaderResourceView* noSource = null;
-        views[0] = null;
-        views[1] = null;
-        _context->CSSetShaderResources(0, 1, &noSource);
-        _context->CSSetUnorderedAccessViews(0, 2, views, null);
-        _context->CSSetShader(null, null, 0);
+        frame.Write(_constants!, MemoryMarshal.CreateReadOnlySpan(ref constants, 1));
+        frame.ClearUint(_counts!, 0);
+        var bindings = default(GpuBindings);
+        bindings.SetConstants(0, _constants);
+        bindings.SetResource(0, Source(compositor));
+        bindings.SetStorage(0, _counts);
+        bindings.SetStorage(1, _image);
+        frame.Dispatch(_accumulate!, bindings, (measuredWidth + 15) / 16, (measuredHeight + 15) / 16);
+        frame.Dispatch(_maximum!, bindings, 1, 1);
+        frame.Dispatch(_draw!, bindings, ImageWidth / 8, ImageHeight / 8);
         return (measuredWidth, measuredHeight, step);
+    }
+
+    /// <summary>La composición envuelta para el motor; se envuelve otra vez solo si cambia el puntero.</summary>
+    private GpuTexture Source(Compositor compositor)
+    {
+        if (_source is not null && _sourceTexture == compositor.Texture)
+        {
+            return _source;
+        }
+
+        _source?.Dispose();
+        var desc = new GpuTextureDesc(compositor.Width, compositor.Height,
+            compositor.Format == CompositeFormat.Rgba16Float ? GpuFormat.Rgba16Float : GpuFormat.Rgba8Unorm,
+            GpuTextureUsage.Sampled, MipLevels: compositor.MipLevels);
+        _source = _engine.Wrap((ID3D11Texture2D*)compositor.Texture, desc,
+            (ID3D11ShaderResourceView*)compositor.ShaderResourceView);
+        _sourceTexture = compositor.Texture;
+        return _source;
     }
 
     private void EnsureResources()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        if (_accumulate != null)
+        if (_accumulate is not null)
         {
             return;
         }
 
-        byte[][] code = _compiled!;
-        _accumulate = CreateShader(code[0]);
-        _maximum = CreateShader(code[1]);
-        _draw = CreateShader(code[2]);
-
-        var constants = new D3D11_BUFFER_DESC
-        {
-            ByteWidth = (uint)sizeof(ScopeConstants),
-            Usage = D3D11_USAGE.D3D11_USAGE_DYNAMIC,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_CONSTANT_BUFFER,
-            CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_WRITE,
-        };
-        ID3D11Buffer* buffer;
-        Check(_device->CreateBuffer(&constants, null, &buffer), "CreateBuffer(constantes de monitores)");
-        _constants = buffer;
-
-        var counts = new D3D11_BUFFER_DESC
-        {
-            ByteWidth = CountSlots * 4,
-            Usage = D3D11_USAGE.D3D11_USAGE_DEFAULT,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_UNORDERED_ACCESS,
-            MiscFlags = (uint)D3D11_RESOURCE_MISC_FLAG.D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS,
-        };
-        Check(_device->CreateBuffer(&counts, null, &buffer), "CreateBuffer(cuentas de monitores)");
-        _counts = buffer;
-        var countsView = new D3D11_UNORDERED_ACCESS_VIEW_DESC
-        {
-            Format = DXGI_FORMAT.DXGI_FORMAT_R32_TYPELESS,
-            ViewDimension = D3D11_UAV_DIMENSION.D3D11_UAV_DIMENSION_BUFFER,
-        };
-        countsView.Buffer.NumElements = CountSlots;
-        countsView.Buffer.Flags = (uint)D3D11_BUFFER_UAV_FLAG.D3D11_BUFFER_UAV_FLAG_RAW;
-        ID3D11UnorderedAccessView* uav;
-        Check(_device->CreateUnorderedAccessView((ID3D11Resource*)_counts, &countsView, &uav), "CreateUnorderedAccessView(cuentas de monitores)");
-        _countsView = uav;
-
-        var image = new D3D11_TEXTURE2D_DESC
-        {
-            Width = ImageWidth,
-            Height = ImageHeight,
-            MipLevels = 1,
-            ArraySize = 1,
-            Format = DXGI_FORMAT.DXGI_FORMAT_R8G8B8A8_UNORM,
-            SampleDesc = new DXGI_SAMPLE_DESC(1, 0),
-            Usage = D3D11_USAGE.D3D11_USAGE_DEFAULT,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_UNORDERED_ACCESS,
-        };
-        ID3D11Texture2D* texture;
-        Check(_device->CreateTexture2D(&image, null, &texture), "CreateTexture2D(monitor)");
-        _image = texture;
-        Check(_device->CreateUnorderedAccessView((ID3D11Resource*)texture, null, &uav), "CreateUnorderedAccessView(monitor)");
-        _imageView = uav;
-
-        image.Usage = D3D11_USAGE.D3D11_USAGE_STAGING;
-        image.BindFlags = 0;
-        image.CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_READ;
+        GpuShader[] shaders = _compiled!;
+        _accumulate = _engine.CreatePipeline(new GpuPipelineDesc { Compute = shaders[0] });
+        _maximum = _engine.CreatePipeline(new GpuPipelineDesc { Compute = shaders[1] });
+        _draw = _engine.CreatePipeline(new GpuPipelineDesc { Compute = shaders[2] });
+        _constants = _engine.CreateBuffer(new GpuBufferDesc(sizeof(ScopeConstants), GpuBufferKind.Constant));
+        _counts = _engine.CreateBuffer(new GpuBufferDesc(CountSlots * 4, GpuBufferKind.Raw, Storage: true));
+        _image = _engine.CreateTexture(new GpuTextureDesc(ImageWidth, ImageHeight, GpuFormat.Rgba8Unorm, GpuTextureUsage.Storage));
+        _countsRead = _engine.CreateReadback(CountSlots * 4);
         for (int i = 0; i < Ring; i++)
         {
-            Check(_device->CreateTexture2D(&image, null, &texture), "CreateTexture2D(lectura de monitor)");
-            _staging[i] = texture;
+            _staging[i] = _engine.CreateReadback(ImageWidth, ImageHeight, GpuFormat.Rgba8Unorm);
         }
-    }
-
-    private ID3D11ComputeShader* CreateShader(byte[] code)
-    {
-        ID3D11ComputeShader* shader;
-        fixed (byte* bytes = code)
-        {
-            Check(_device->CreateComputeShader(bytes, (nuint)code.Length, null, &shader), "CreateComputeShader(monitor)");
-        }
-
-        return shader;
     }
 
     public void Dispose()
@@ -385,31 +303,29 @@ public sealed unsafe class ScopeRenderer : IDisposable
         }
 
         _disposed = true;
-        _gpu.LockContext();
-        try
+        _source?.Dispose();
+        _accumulate?.Dispose();
+        _maximum?.Dispose();
+        _draw?.Dispose();
+        _constants?.Dispose();
+        _counts?.Dispose();
+        _countsRead?.Dispose();
+        _image?.Dispose();
+        foreach (GpuReadback? staging in _staging)
         {
-            Com.Release(ref _accumulate);
-            Com.Release(ref _maximum);
-            Com.Release(ref _draw);
-            Com.Release(ref _constants);
-            Com.Release(ref _countsView);
-            Com.Release(ref _counts);
-            Com.Release(ref _imageView);
-            Com.Release(ref _image);
-            for (int i = 0; i < Ring; i++)
-            {
-                ID3D11Texture2D* staging = _staging[i];
-                Com.Release(ref staging);
-                _staging[i] = null;
-            }
+            staging?.Dispose();
         }
-        finally
+
+        if (_compiled is { } shaders)
         {
-            _gpu.UnlockContext();
+            foreach (GpuShader shader in shaders)
+            {
+                shader.Dispose();
+            }
         }
     }
 
-    [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential)]
+    [StructLayout(LayoutKind.Sequential)]
     private struct ScopeConstants
     {
         public uint SourceWidth;

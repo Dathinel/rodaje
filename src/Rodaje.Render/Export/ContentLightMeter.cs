@@ -1,7 +1,9 @@
+using System.Runtime.InteropServices;
 using Rodaje.Media.Gpu;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using Rodaje.Render.Shaders;
 using TerraFX.Interop.DirectX;
-using static Rodaje.Render.RenderException;
 
 namespace Rodaje.Render.Export;
 
@@ -17,19 +19,19 @@ public sealed unsafe class ContentLightMeter : IDisposable
 {
     private const int Tile = 16;
 
-    private readonly GpuDevice _gpu;
-    private readonly ID3D11Device* _device;
-    private readonly ID3D11DeviceContext* _context;
+    private readonly D3D11Gpu _engine;
     private readonly int _width;
     private readonly int _height;
     private readonly int _tilesPerRow;
     private readonly int _tileCount;
     private readonly float[] _tiles;
-    private ID3D11ComputeShader* _shader;
-    private ID3D11Buffer* _constants;
-    private ID3D11Buffer* _buffer;
-    private ID3D11UnorderedAccessView* _view;
-    private ID3D11Buffer* _staging;
+    private GpuShader? _shader;
+    private GpuPipeline? _pipeline;
+    private GpuBuffer? _constants;
+    private GpuBuffer? _buffer;
+    private GpuReadback? _readback;
+    private GpuTexture? _source;
+    private nint _sourceView;
     private double _peak;
     private double _average;
     private bool _disposed;
@@ -42,9 +44,7 @@ public sealed unsafe class ContentLightMeter : IDisposable
         ArgumentNullException.ThrowIfNull(gpu);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
-        _gpu = gpu;
-        _device = (ID3D11Device*)gpu.NativeDevice;
-        _context = (ID3D11DeviceContext*)gpu.NativeContext;
+        _engine = D3D11Gpu.For(gpu);
         _width = width;
         _height = height;
         _tilesPerRow = (width + Tile - 1) / Tile;
@@ -52,7 +52,7 @@ public sealed unsafe class ContentLightMeter : IDisposable
         _tiles = new float[_tileCount * 2];
         try
         {
-            Create((shaders ?? ShaderCache.Default).GetOrCompile(ExportShaders.LightVariant));
+            Create(shaders);
         }
         catch
         {
@@ -75,44 +75,21 @@ public sealed unsafe class ContentLightMeter : IDisposable
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         ArgumentOutOfRangeException.ThrowIfZero(shaderResourceView);
-        _gpu.LockContext();
-        try
+        using (IGpuFrame frame = _engine.BeginFrame())
         {
-            D3D11_MAPPED_SUBRESOURCE mapped;
-            Check(_context->Map((ID3D11Resource*)_constants, 0, D3D11_MAP.D3D11_MAP_WRITE_DISCARD, 0, &mapped), "Map(constantes de luz)");
-            *(uint*)mapped.pData = (uint)_width;
-            *((uint*)mapped.pData + 1) = (uint)_height;
-            *((uint*)mapped.pData + 2) = (uint)_tilesPerRow;
-            *((uint*)mapped.pData + 3) = 0;
-            _context->Unmap((ID3D11Resource*)_constants, 0);
-
-            var source = (ID3D11ShaderResourceView*)shaderResourceView;
-            ID3D11Buffer* constants = _constants;
-            ID3D11UnorderedAccessView* view = _view;
-            _context->CSSetShader(_shader, null, 0);
-            _context->CSSetConstantBuffers(0, 1, &constants);
-            _context->CSSetShaderResources(0, 1, &source);
-            _context->CSSetUnorderedAccessViews(0, 1, &view, null);
-            _context->Dispatch((uint)_tilesPerRow, (uint)(_tileCount / _tilesPerRow), 1);
-            ID3D11ShaderResourceView* noSource = null;
-            ID3D11UnorderedAccessView* noView = null;
-            _context->CSSetShaderResources(0, 1, &noSource);
-            _context->CSSetUnorderedAccessViews(0, 1, &noView, null);
-            _context->CSSetShader(null, null, 0);
-            _context->CopyResource((ID3D11Resource*)_staging, (ID3D11Resource*)_buffer);
-            Check(_context->Map((ID3D11Resource*)_staging, 0, D3D11_MAP.D3D11_MAP_READ, 0, &mapped), "Map(luz)");
-            try
-            {
-                new ReadOnlySpan<float>(mapped.pData, _tiles.Length).CopyTo(_tiles);
-            }
-            finally
-            {
-                _context->Unmap((ID3D11Resource*)_staging, 0);
-            }
+            Span<uint> constants = stackalloc uint[] { (uint)_width, (uint)_height, (uint)_tilesPerRow, 0 };
+            frame.Write(_constants!, constants);
+            var bindings = default(GpuBindings);
+            bindings.SetConstants(0, _constants);
+            bindings.SetResource(0, Source((ID3D11ShaderResourceView*)shaderResourceView));
+            bindings.SetStorage(0, _buffer);
+            frame.Dispatch(_pipeline!, bindings, _tilesPerRow, _tileCount / _tilesPerRow);
+            frame.Copy(_buffer!, 0, _tiles.Length * 4, _readback!);
         }
-        finally
+
+        using (GpuMappedRows rows = _readback!.Map())
         {
-            _gpu.UnlockContext();
+            MemoryMarshal.Cast<byte, float>(rows.Row(0)).CopyTo(_tiles);
         }
 
         double peak = 0;
@@ -136,70 +113,52 @@ public sealed unsafe class ContentLightMeter : IDisposable
         }
 
         _disposed = true;
-        _gpu.LockContext();
+        _pipeline?.Dispose();
+        _shader?.Dispose();
+        _constants?.Dispose();
+        _buffer?.Dispose();
+        _readback?.Dispose();
+        _source?.Dispose();
+        _source = null;
+        _sourceView = 0;
+    }
+
+    /// <summary>La composición tras la vista de <paramref name="view"/>, envuelta una vez por puntero.</summary>
+    private GpuTexture Source(ID3D11ShaderResourceView* view)
+    {
+        if (_source is not null && _sourceView == (nint)view)
+        {
+            return _source;
+        }
+
+        _source?.Dispose();
+        _source = null;
+        _sourceView = 0;
+        ID3D11Resource* resource;
+        view->GetResource(&resource);
         try
         {
-            Com.Release(ref _shader);
-            Com.Release(ref _constants);
-            Com.Release(ref _view);
-            Com.Release(ref _buffer);
-            Com.Release(ref _staging);
+            var texture = (ID3D11Texture2D*)resource;
+            D3D11_TEXTURE2D_DESC desc;
+            texture->GetDesc(&desc);
+            _source = _engine.Wrap(texture, new GpuTextureDesc((int)desc.Width, (int)desc.Height,
+                D3D11Gpu.FromNative(desc.Format), GpuTextureUsage.Sampled), view);
+            _sourceView = (nint)view;
+            return _source;
         }
         finally
         {
-            _gpu.UnlockContext();
+            resource->Release();
         }
     }
 
-    private void Create(byte[] code)
+    private void Create(ShaderCache? shaders)
     {
-        ID3D11ComputeShader* shader;
-        fixed (byte* bytes = code)
-        {
-            Check(_device->CreateComputeShader(bytes, (nuint)code.Length, null, &shader), "CreateComputeShader(luz)");
-        }
-
-        _shader = shader;
-        var constants = new D3D11_BUFFER_DESC
-        {
-            ByteWidth = 16,
-            Usage = D3D11_USAGE.D3D11_USAGE_DYNAMIC,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_CONSTANT_BUFFER,
-            CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_WRITE,
-        };
-        ID3D11Buffer* buffer;
-        Check(_device->CreateBuffer(&constants, null, &buffer), "CreateBuffer(constantes de luz)");
-        _constants = buffer;
-
-        uint size = (uint)(_tileCount * 8);
-        var tiles = new D3D11_BUFFER_DESC
-        {
-            ByteWidth = size,
-            Usage = D3D11_USAGE.D3D11_USAGE_DEFAULT,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_UNORDERED_ACCESS,
-            MiscFlags = (uint)D3D11_RESOURCE_MISC_FLAG.D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS,
-        };
-        Check(_device->CreateBuffer(&tiles, null, &buffer), "CreateBuffer(teselas de luz)");
-        _buffer = buffer;
-        var viewDesc = new D3D11_UNORDERED_ACCESS_VIEW_DESC
-        {
-            Format = DXGI_FORMAT.DXGI_FORMAT_R32_TYPELESS,
-            ViewDimension = D3D11_UAV_DIMENSION.D3D11_UAV_DIMENSION_BUFFER,
-        };
-        viewDesc.Buffer.FirstElement = 0;
-        viewDesc.Buffer.NumElements = size / 4;
-        viewDesc.Buffer.Flags = (uint)D3D11_BUFFER_UAV_FLAG.D3D11_BUFFER_UAV_FLAG_RAW;
-        ID3D11UnorderedAccessView* view;
-        Check(_device->CreateUnorderedAccessView((ID3D11Resource*)_buffer, &viewDesc, &view), "CreateUnorderedAccessView(teselas de luz)");
-        _view = view;
-
-        var staging = new D3D11_BUFFER_DESC
-        {
-            ByteWidth = size,
-            Usage = D3D11_USAGE.D3D11_USAGE_STAGING,
-            CPUAccessFlags = (uint)D3D11_CPU_ACCESS_FLAG.D3D11_CPU_ACCESS_READ,
-        };
-        Check(_device->CreateBuffer(&staging, null, &buffer), "CreateBuffer(lectura de luz)");
-        _staging = buffer;
+        _shader = _engine.CreateShader(ExportShaders.LightVariant, shaders);
+        _pipeline = _engine.CreatePipeline(new GpuPipelineDesc { Compute = _shader });
+        _constants = _engine.CreateBuffer(new GpuBufferDesc(16, GpuBufferKind.Constant));
+        int size = _tileCount * 8;
+        _buffer = _engine.CreateBuffer(new GpuBufferDesc(size, GpuBufferKind.Raw, Storage: true));
+        _readback = _engine.CreateReadback(size);
     }
 }

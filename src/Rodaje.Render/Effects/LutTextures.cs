@@ -1,6 +1,6 @@
+using System.Runtime.InteropServices;
 using Rodaje.Playback.Composition;
-using TerraFX.Interop.DirectX;
-using static Rodaje.Render.RenderException;
+using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render.Effects;
 
@@ -9,7 +9,7 @@ namespace Rodaje.Render.Effects;
 /// <see cref="LutData"/> para la misma referencia, se vuelve a subir.
 /// </summary>
 /// <remarks>Solo se usa desde el hilo que compone, con el candado del contexto tomado.</remarks>
-internal sealed unsafe class LutTextures(ID3D11Device* device) : IDisposable
+internal sealed class LutTextures(IGpu gpu) : IDisposable
 {
     private const int MaxEntries = 8;
     private const int MinTextureSize = 17;
@@ -18,13 +18,13 @@ internal sealed unsafe class LutTextures(ID3D11Device* device) : IDisposable
 
     public int Count => _entries.Count;
 
-    public ID3D11ShaderResourceView* Get(ResourceKey key, LutData lut)
+    public GpuTexture Get(ResourceKey key, LutData lut)
     {
         string reference = key.Reference ?? "";
         if (_entries.TryGetValue(reference, out Entry? entry) && ReferenceEquals(entry.Data, lut))
         {
             entry.LastUse = ++_uses;
-            return entry.View;
+            return entry.Texture;
         }
 
         if (entry is not null)
@@ -41,7 +41,7 @@ internal sealed unsafe class LutTextures(ID3D11Device* device) : IDisposable
 
         var created = new Entry(lut, Upload(lut)) { LastUse = ++_uses };
         _entries.Add(reference, created);
-        return created.View;
+        return created.Texture;
     }
 
     public void Dispose()
@@ -62,38 +62,12 @@ internal sealed unsafe class LutTextures(ID3D11Device* device) : IDisposable
     /// </remarks>
     public static int TextureSize(int size) => size >= MinTextureSize ? size : ((size - 1) * (int)Math.Ceiling((MinTextureSize - 1.0) / (size - 1))) + 1;
 
-    private ID3D11ShaderResourceView* Upload(LutData lut)
+    private GpuTexture Upload(LutData lut)
     {
         int n = TextureSize(lut.Size);
         Half[] texels = Texels(lut, n);
-
-        var desc = new D3D11_TEXTURE3D_DESC
-        {
-            Width = (uint)n,
-            Height = (uint)n,
-            Depth = (uint)n,
-            MipLevels = 1,
-            Format = DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT,
-            Usage = D3D11_USAGE.D3D11_USAGE_IMMUTABLE,
-            BindFlags = (uint)D3D11_BIND_FLAG.D3D11_BIND_SHADER_RESOURCE,
-        };
-        ID3D11Texture3D* texture;
-        fixed (Half* data = texels)
-        {
-            var initial = new D3D11_SUBRESOURCE_DATA { pSysMem = data, SysMemPitch = (uint)(n * 8), SysMemSlicePitch = (uint)(n * n * 8) };
-            Check(device->CreateTexture3D(&desc, &initial, &texture), "CreateTexture3D(LUT)");
-        }
-
-        try
-        {
-            ID3D11ShaderResourceView* view;
-            Check(device->CreateShaderResourceView((ID3D11Resource*)texture, null, &view), "CreateShaderResourceView(LUT)");
-            return view;
-        }
-        finally
-        {
-            texture->Release();
-        }
+        var desc = new GpuTextureDesc(n, n, GpuFormat.Rgba16Float, GpuTextureUsage.Sampled, Depth: n);
+        return gpu.CreateTexture(desc, MemoryMarshal.AsBytes(texels.AsSpan()));
     }
 
     private static Half[] Texels(LutData lut, int n)
@@ -136,16 +110,14 @@ internal sealed unsafe class LutTextures(ID3D11Device* device) : IDisposable
         return Plane(rgb, z0) + ((Plane(rgb, z0 + 1) - Plane(rgb, z0)) * fz);
     }
 
-    private sealed class Entry(LutData data, ID3D11ShaderResourceView* view) : IDisposable
+    private sealed class Entry(LutData data, GpuTexture texture) : IDisposable
     {
-        private ID3D11ShaderResourceView* _view = view;
-
         public LutData Data { get; } = data;
 
-        public ID3D11ShaderResourceView* View => _view;
+        public GpuTexture Texture { get; } = texture;
 
         public long LastUse { get; set; }
 
-        public void Dispose() => Com.Release(ref _view);
+        public void Dispose() => Texture.Dispose();
     }
 }

@@ -148,7 +148,6 @@ internal sealed unsafe partial class LayerRenderer
 
         float pixel = imageWidth / width;
         float shortSide = Math.Min(imageWidth, imageHeight);
-        ID3D11ShaderResourceView** inputs = stackalloc ID3D11ShaderResourceView*[2];
         float* clear = stackalloc float[4];
         foreach (LayerEffect mask in masks)
         {
@@ -165,8 +164,8 @@ internal sealed unsafe partial class LayerRenderer
             Float4 box = default;
             float margin = 0;
             float halfSoft = 0;
-            ID3D11ShaderResourceView* path = null;
-            ID3D11ShaderResourceView* matte = null;
+            GpuTexture? path = null;
+            GpuTexture? matte = null;
             if (shape is MaskShape.Path or MaskShape.Bezier or MaskShape.Stroke)
             {
                 ReadOnlySpan<Vector3> polyline = mask.Resource is { Reference: { } text }
@@ -225,19 +224,15 @@ internal sealed unsafe partial class LayerRenderer
             constants.Canvas = new(imageWidth, imageHeight, 0, 0);
             constants.Key0 = new(Value(values, definition, 8) * Math.Min(halfWidth, halfHeight), halfThickness, pixel, margin);
             constants.Key1 = box;
-            inputs[0] = path;
-            inputs[1] = matte;
             RenderTarget? coarse = points > CoarseMinPoints && width * height > CoarseMinPixels
-                ? Coarse(shader, constants, inputs, width, height, imageWidth, imageHeight, halfSoft, out constants)
+                ? Coarse(shader, constants, path, matte, width, height, imageWidth, imageHeight, halfSoft, out constants)
                 : null;
             _quad.Bind(target.Gpu, width, height, shader, EffectPipeline.MaskBlend(mode));
-            _quad.SetInputView(8, inputs[0]);
-            _quad.SetInputView(9, inputs[1]);
+            _quad.SetInput(8, path);
+            _quad.SetInput(9, matte);
             _quad.SetInput(11, coarse?.Gpu);
             _effects.Set(constants);
             _quad.Draw(QuadConstants.FullTarget());
-            inputs[0] = null;
-            inputs[1] = null;
             _quad.SetInput(8, null);
             _quad.SetInput(9, null);
             _quad.SetInput(11, null);
@@ -306,7 +301,7 @@ internal sealed unsafe partial class LayerRenderer
     /// sin recorrer la polilínea toda celda que esté a más de media diagonal y medio borde del contorno; solo las celdas
     /// del contorno hacen la cuenta entera, con el mismo resultado. Devuelve la textura y las constantes de la pasada fina.
     /// </summary>
-    private RenderTarget? Coarse(GpuShader? shader, EffectConstants constants, ID3D11ShaderResourceView** inputs, int width,
+    private RenderTarget? Coarse(GpuShader? shader, EffectConstants constants, GpuTexture? path, GpuTexture? matte, int width,
         int height, float imageWidth, float imageHeight, float halfSoft, out EffectConstants fine)
     {
         fine = constants;
@@ -321,8 +316,8 @@ internal sealed unsafe partial class LayerRenderer
         EffectConstants pass = constants;
         pass.Canvas.Z = 1;
         _quad.Bind(coarse.Gpu, cw, ch, shader, GpuBlend.Opaque);
-        _quad.SetInputView(8, inputs[0]);
-        _quad.SetInputView(9, inputs[1]);
+        _quad.SetInput(8, path);
+        _quad.SetInput(9, matte);
         _effects.Set(pass);
         _quad.Draw(QuadConstants.FullTarget());
 

@@ -28,13 +28,13 @@ internal readonly record struct ImageView(RenderTarget Target, int Width, int He
 internal readonly record struct SpatialStep(GpuEffectKind Kind, EffectValues Values, EffectDefinition Definition, int Index, int Region);
 
 /// <summary>Efectos por píxel de una capa: banderas de la variante, LUT y cuántos se aplican.</summary>
-internal readonly unsafe struct LayerPlan(int flags, ID3D11ShaderResourceView* lut, int perPixelCount, ID3D11ShaderResourceView* curves = null)
+internal readonly struct LayerPlan(int flags, GpuTexture? lut, int perPixelCount, GpuTexture? curves = null)
 {
-    public ID3D11ShaderResourceView* Curves { get; } = curves;
+    public GpuTexture? Curves { get; } = curves;
 
     public int Flags { get; } = flags;
 
-    public ID3D11ShaderResourceView* Lut { get; } = lut;
+    public GpuTexture? Lut { get; } = lut;
 
     public int PerPixelCount { get; } = perPixelCount;
 }
@@ -58,8 +58,8 @@ internal sealed unsafe partial class LayerRenderer
         ulong scoped = ScopedEffects(list);
         int flags = 0;
         int perPixel = 0;
-        ID3D11ShaderResourceView* lut = null;
-        ID3D11ShaderResourceView* curves = null;
+        GpuTexture? lut = null;
+        GpuTexture? curves = null;
         int advanced = 0;
         for (int i = 0; i < list.Count; i++)
         {
@@ -180,7 +180,7 @@ internal sealed unsafe partial class LayerRenderer
     /// (cada uno va fusionado una sola vez).
     /// </summary>
     private bool AddPerPixel(LayerEffect effect, GpuEffectKind kind, EffectDefinition definition, ref EffectConstants effects, ref int flags,
-        ref int advanced, ref ID3D11ShaderResourceView* lut, ref ID3D11ShaderResourceView* curves, ref FrameStats stats)
+        ref int advanced, ref GpuTexture? lut, ref GpuTexture? curves, ref FrameStats stats)
     {
         EffectValues values = effect.Values;
         switch (kind)
@@ -259,8 +259,8 @@ internal sealed unsafe partial class LayerRenderer
 
         EffectConstants constants = default;
         int flags = 0, advanced = 0;
-        ID3D11ShaderResourceView* lut = null;
-        ID3D11ShaderResourceView* curves = null;
+        GpuTexture? lut = null;
+        GpuTexture? curves = null;
         AddPerPixel(effect, gpu.Kind, definition, ref constants, ref flags, ref advanced, ref lut, ref curves, ref stats);
         if (advanced != 0)
         {
@@ -592,7 +592,7 @@ internal sealed unsafe partial class LayerRenderer
         effects.Mix0 = new(MixCode(kind), progress, middle, samples);
         effects.Fx0 = transition.Shutter is { } open ? new(Shutter(open.From, progress), Shutter(open.To, progress), 0, 0) : default;
         effects.Canvas = new(destination.Width, destination.Height, 0, 0);
-        ID3D11ShaderResourceView* gradient = null;
+        GpuTexture? gradient = null;
         if (kind == GpuEffectKind.BlurDissolve)
         {
             float sigma = BlurSigma(Value(values, definition, 0) * middle) * destination.PixelScale;
@@ -634,7 +634,7 @@ internal sealed unsafe partial class LayerRenderer
             effects.MapB = viewB.Map;
             _quad.Bind(destination.Target.Gpu, destination.Width, destination.Height, shader, EffectPipeline.BlendState(blend));
             BindInputs(background, null, viewA.Target, viewB.Target);
-            _quad.SetInputView(9, gradient);
+            _quad.SetInput(9, gradient);
             _effects.Set(effects);
             _quad.Draw(QuadConstants.FullTarget());
             _quad.SetInput(9, null);

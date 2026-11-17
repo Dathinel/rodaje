@@ -104,7 +104,7 @@ public sealed unsafe partial class Compositor : IDisposable
         MipLevels = 1 + (int)Math.Log2(Math.Max(width, height));
         _views = new PlaneViewCache((ID3D11Device*)gpu.NativeDevice, time);
         _pool = new RenderTargetPool(_engine, poolCapBytes ?? PoolCapFor(gpu.DedicatedVideoMemory));
-        _luts = new LutTextures((ID3D11Device*)gpu.NativeDevice);
+        _luts = new LutTextures(_engine);
         _pipeline = new QuadPipeline(_engine);
         try
         {
