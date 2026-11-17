@@ -16,6 +16,7 @@ internal sealed unsafe class D3D11Texture : GpuTexture
     private ID3D11RenderTargetView* _rtv;
     private ID3D11UnorderedAccessView* _uav;
     private ID3D11DepthStencilView* _dsv;
+    private D3D11Texture? _arrayView;
 
     private D3D11Texture(GpuTextureDesc desc, ID3D11Resource* resource)
         : base(desc)
@@ -132,8 +133,30 @@ internal sealed unsafe class D3D11Texture : GpuTexture
         return new D3D11Texture(desc, null) { _srv = srv, _rtv = rtv, _uav = uav };
     }
 
+    /// <summary>La misma textura vista como <c>Texture2DArray</c> de una porción (los planos que leen los sombreadores de capa).</summary>
+    public D3D11Texture ArrayView(D3D11Gpu gpu)
+    {
+        if (_arrayView is null)
+        {
+            var desc = new D3D11_SHADER_RESOURCE_VIEW_DESC
+            {
+                Format = D3D11Gpu.Native(Desc.Format),
+                ViewDimension = D3D_SRV_DIMENSION.D3D11_SRV_DIMENSION_TEXTURE2DARRAY,
+            };
+            desc.Texture2DArray.MipLevels = uint.MaxValue;
+            desc.Texture2DArray.ArraySize = 1;
+            ID3D11ShaderResourceView* view;
+            Check(gpu.NativeDevice->CreateShaderResourceView(_resource, &desc, &view), "CreateShaderResourceView(arreglo)");
+            _arrayView = View(Desc, view);
+            view->Release();
+        }
+
+        return _arrayView;
+    }
+
     protected override void Release()
     {
+        _arrayView?.Dispose();
         Com.Release(ref _srv);
         Com.Release(ref _rtv);
         Com.Release(ref _uav);

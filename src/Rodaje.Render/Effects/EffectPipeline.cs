@@ -9,7 +9,6 @@ namespace Rodaje.Render.Effects;
 
 /// <summary>Constantes de los efectos, en el orden del <c>cbuffer Effects</c> de <see cref="EffectShaders"/>.</summary>
 [StructLayout(LayoutKind.Sequential)]
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal struct EffectConstants
 {
     public Float4 Grade;
@@ -44,7 +43,6 @@ internal struct EffectConstants
 /// Shaders, constantes y mezclas de los efectos. Los shaders se crean en segundo plano (de la caché en disco o compilándolos);
 /// mientras uno no está, <see cref="TryGetShader"/> devuelve <c>null</c> y el cuadro sigue sin él.
 /// </summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed class EffectPipeline : IDisposable
 {
     // Con fuente premultiplicada S = Cs·a y fondo opaco Cb (fórmulas W3C con alfa):
@@ -72,11 +70,17 @@ internal sealed class EffectPipeline : IDisposable
     public unsafe EffectPipeline(QuadPipeline quad, ShaderCache cache)
     {
         _quad = quad;
-        D3D11Gpu engine = quad.Engine;
+        IGpu engine = quad.Engine;
         _constants = engine.CreateBuffer(new GpuBufferDesc(sizeof(EffectConstants), GpuBufferKind.Constant));
+        if (!OperatingSystem.IsWindowsVersionAtLeast(7) || engine is not D3D11Gpu d3d)
+        {
+            // Vulkan: el SPIR-V ya está compilado; quien crea el motor lo cierra después del compositor.
+            Ready = Task.Run(() => CreateShaders(engine, cache));
+            return;
+        }
 
         // El hilo de fondo retiene el dispositivo hasta terminar, aunque el compositor se cierre antes.
-        engine.NativeDevice->AddRef();
+        d3d.NativeDevice->AddRef();
         Ready = Task.Run(() =>
         {
             try
@@ -85,7 +89,7 @@ internal sealed class EffectPipeline : IDisposable
             }
             finally
             {
-                engine.NativeDevice->Release();
+                d3d.NativeDevice->Release();
             }
         });
     }
@@ -143,7 +147,7 @@ internal sealed class EffectPipeline : IDisposable
         _constants.Dispose();
     }
 
-    private void CreateShaders(D3D11Gpu engine, ShaderCache cache)
+    private void CreateShaders(IGpu engine, ShaderCache cache)
     {
         for (int i = 0; i < EffectShaders.All.Length; i++)
         {

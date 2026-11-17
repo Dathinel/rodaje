@@ -5,16 +5,18 @@ using TerraFX.Interop.DirectX;
 namespace Rodaje.Render;
 
 /// <summary>Una textura de destino y de lectura. <see cref="Width"/> y <see cref="Height"/> son los de la textura.</summary>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class RenderTarget(GpuTexture texture, long bytes) : IDisposable
 {
     public GpuTexture Gpu { get; } = texture;
 
     /// <summary>Para lo que aún no pasó a <see cref="IGpu"/>.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public ID3D11Texture2D* Texture => ((D3D11Texture)Gpu).Texture2D;
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public ID3D11RenderTargetView* Rtv => ((D3D11Texture)Gpu).Rtv;
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public ID3D11ShaderResourceView* Srv => ((D3D11Texture)Gpu).Srv;
 
     public int Width => Gpu.Width;
@@ -47,7 +49,6 @@ internal sealed unsafe class RenderTarget(GpuTexture texture, long bytes) : IDis
 /// Los tamaños se redondean a 64 px para que una capa que cambia de escala no cree una textura por cuadro; quien la usa
 /// dibuja en la parte que pidió. Solo se usa desde el hilo que compone, con el candado del contexto tomado.
 /// </remarks>
-[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed class RenderTargetPool : IDisposable
 {
     public const long MaxCapBytes = 300L * 1024 * 1024;
@@ -55,11 +56,11 @@ internal sealed class RenderTargetPool : IDisposable
     private const int Granularity = 64;
     private const int IdleFrames = 240;
 
-    private readonly D3D11Gpu _engine;
+    private readonly IGpu _engine;
     private readonly List<RenderTarget> _targets = [];
     private long _frame;
 
-    public RenderTargetPool(D3D11Gpu engine, long capBytes)
+    public RenderTargetPool(IGpu engine, long capBytes)
     {
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(capBytes);
         _engine = engine;

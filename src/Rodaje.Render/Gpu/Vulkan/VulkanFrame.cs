@@ -252,8 +252,12 @@ internal sealed unsafe class VulkanFrame(VulkanGpu gpu, FrameContext context) : 
         vkCmdClearDepthStencilImage(Commands, native.Image, VkImageLayout.VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &clear, 1, &range);
     }
 
-    public GpuDecoderPlanes Acquire(GpuSurfaceCache cache, IDecoderSurface surface) =>
-        throw new NotSupportedException("Las superficies Vulkan del decodificador llegan con la fase 9 (D-066).");
+    /// <remarks>Las superficies <c>AVVkFrame</c> del decodificador llegan con la fase 9 (D-066); hoy, las de texturas propias.</remarks>
+    public GpuDecoderPlanes Acquire(GpuSurfaceCache cache, IDecoderSurface surface) => surface switch
+    {
+        GpuTextureSurface { Luma: VulkanTexture, Chroma: VulkanTexture } own => new GpuDecoderPlanes(own.Luma, own.Chroma),
+        _ => throw new ArgumentException("La superficie no es de este motor Vulkan.", nameof(surface)),
+    };
 
     // Dibujo y cómputo
 

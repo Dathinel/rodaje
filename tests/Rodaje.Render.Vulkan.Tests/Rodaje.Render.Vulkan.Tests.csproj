@@ -19,6 +19,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="..\Rodaje.Render.Tests\Support\Fx.cs" Link="Support\Fx.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Render\Rodaje.Render.csproj" />
   </ItemGroup>
 
