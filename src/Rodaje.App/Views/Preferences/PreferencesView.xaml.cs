@@ -99,6 +99,7 @@ internal sealed partial class PreferencesView : UserControl
         GeneratedFolderBox.Text = _model.GeneratedMediaFolder;
         StillImageDurationBox.Value = _model.StillImageDurationSeconds;
         StillCaptureFolderBox.Text = _model.StillCaptureFolder;
+        PathMappingsBox.Text = _model.PathMappings;
         AutosaveMinutesBox.Value = _model.AutosaveMinutes;
         CheckUpdatesBox.IsChecked = _model.CheckForUpdates;
         ProxyUsageBox.SelectedIndex = (int)_model.ProxyUsage;
@@ -137,6 +138,7 @@ internal sealed partial class PreferencesView : UserControl
         ProfileImported = profileChanges;
         model.StillImageDurationSeconds = double.IsFinite(StillImageDurationBox.Value) ? StillImageDurationBox.Value : Rodaje.Core.Model.MediaRef.DefaultStillImageDurationSeconds;
         model.StillCaptureFolder = StillCaptureFolderBox.Text;
+        model.PathMappings = PathMappingsBox.Text;
         model.AutosaveMinutes = double.IsFinite(AutosaveMinutesBox.Value) ? (int)Math.Round(AutosaveMinutesBox.Value) : Rodaje.Core.Serialization.AutosaveSchedule.DefaultIntervalMinutes;
         model.CheckForUpdates = CheckUpdatesBox.IsChecked == true;
         model.GenerateProxies = AutoProxiesBox.IsChecked == true;
