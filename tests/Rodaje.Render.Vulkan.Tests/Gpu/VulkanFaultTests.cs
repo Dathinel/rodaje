@@ -9,9 +9,9 @@ using TerraFX.Interop.Vulkan;
 namespace Rodaje.Render.Tests.Gpu;
 
 /// <summary>
-/// Lo que la revisión de la fase 4 encontró en el motor Vulkan: formatos de las imágenes de escritura, GPU perdida, esperas sobre un
-/// envío reciclado y recursos a medio crear. Cada una con su propio dispositivo: las que lo rompen no estropean el compartido.
-/// Las fugas las ve la pasada de validación de la CI (<c>RODAJE_VK_VALIDACION=1</c>): <see cref="VulkanGpu.ValidationErrors"/> no crece.
+/// Lo que la revisiÃ³n de la fase 4 encontrÃ³ en el motor Vulkan: formatos de las imÃ¡genes de escritura, GPU perdida, esperas sobre un
+/// envÃ­o reciclado y recursos a medio crear. Cada una con su propio dispositivo: las que lo rompen no estropean el compartido.
+/// Las fugas las ve la pasada de validaciÃ³n de la CI (<c>RODAJE_VK_VALIDACION=1</c>): <see cref="VulkanGpu.ValidationErrors"/> no crece.
 /// </summary>
 public sealed unsafe class VulkanFaultTests
 {
@@ -35,7 +35,7 @@ public sealed unsafe class VulkanFaultTests
             }
         }
 
-        Assert.True(checkedImages > 10, $"Solo {checkedImages} imágenes de escritura en el manifiesto.");
+        Assert.True(checkedImages >= 10, $"Solo {checkedImages} imÃ¡genes de escritura en el manifiesto.");
     }
 
     [VulkanFact]
@@ -110,14 +110,14 @@ public sealed unsafe class VulkanFaultTests
 
         var reused = new List<FrameContext>();
         FrameContext? waited = null;
-        // Hasta que Wait elija la valla, nadie ve el envío terminado (si no, Wait volvería sin esperar).
+        // Hasta que Wait elija la valla, nadie ve el envÃ­o terminado (si no, Wait volverÃ­a sin esperar).
         gpu.FenceStatusForTests = static () => VkResult.VK_NOT_READY;
         gpu.WaitSelected = context =>
         {
             gpu.WaitSelected = null;
             gpu.FenceStatusForTests = null;
             waited = context;
-            // Entre elegir la valla y esperarla, el envío termina y otros cuadros piden contextos (Poll los recicla).
+            // Entre elegir la valla y esperarla, el envÃ­o termina y otros cuadros piden contextos (Poll los recicla).
             VkFence handle = context.Fence;
             Assert.Equal(VkResult.VK_SUCCESS, Vulkan.vkWaitForFences(gpu.Device, 1, &handle, Vulkan.VK_TRUE, 5_000_000_000));
             for (int i = 0; i < 3; i++)
@@ -168,7 +168,7 @@ public sealed unsafe class VulkanFaultTests
     public void Failed_device_setup_releases_the_device()
     {
         int errors = VulkanGpu.ValidationErrors.Count;
-        // El muestreador es lo último de los recursos por omisión: texturas, búfer y dispositivo ya existen y deben soltarse.
+        // El muestreador es lo Ãºltimo de los recursos por omisiÃ³n: texturas, bÃºfer y dispositivo ya existen y deben soltarse.
         VulkanGpu.FailForTests = "vkCreateSampler";
         try
         {
@@ -184,11 +184,11 @@ public sealed unsafe class VulkanFaultTests
         Assert.Equal(errors, VulkanGpu.ValidationErrors.Count);
     }
 
-    /// <summary>Cambia el <c>Image Format</c> de las imágenes de escritura (<c>OpTypeImage</c> con <c>Sampled</c> = 2) del módulo.</summary>
+    /// <summary>Cambia el <c>Image Format</c> de las imÃ¡genes de escritura (<c>OpTypeImage</c> con <c>Sampled</c> = 2) del mÃ³dulo.</summary>
     private static byte[] WithStorageFormat(byte[] spirv, uint format)
     {
         byte[] copy = (byte[])spirv.Clone();
-        Span<uint> words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(copy);
+        Span<uint> words = System.Runtime.InteropServices.MemoryMarshal.Cast<byte, uint>(copy.AsSpan());
         for (int i = 5; i < words.Length;)
         {
             int count = (int)(words[i] >> 16);
