@@ -175,6 +175,24 @@ public sealed unsafe partial class D3D11Gpu : IGpu
 
     public GpuReadback CreateReadback(int bytes) => D3D11Readback.ForBuffer(this, bytes);
 
+    public GpuSurfaceCache CreateSurfaceCache(TimeProvider? time = null) => new D3D11SurfaceCache(this, time);
+
+    /// <summary>Una cadena de intercambio para composición (<c>SwapChainPanel</c>); <see cref="D3D11Swapchain.Native"/> la da.</summary>
+    public IGpuSwapchain CreateSwapchain(int width, int height, GpuFormat format)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        return new D3D11Swapchain(this, width, height, format);
+    }
+
+    /// <summary>Quita los destinos del contexto (con el candado tomado), para que la cadena pueda soltar sus búferes.</summary>
+    internal void NativeContextUnbindTargets()
+    {
+        _context->OMSetRenderTargets(0, null, null);
+        BoundTargets = 0;
+        ForgetDrawState();
+    }
+
     internal ID3D11Device* NativeDevice => _device;
 
     internal ID3D11DeviceContext* Context => _context;

@@ -81,7 +81,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     private readonly GpuDevice _gpu;
     private readonly QuadPipeline _quad;
     private readonly EffectPipeline _effects;
-    private readonly PlaneViewCache _views;
+    private readonly GpuSurfaceCache _views;
     private readonly RenderTargetPool _pool;
     private readonly LutTextures _luts;
     private readonly List<SpatialStep> _spatial = [];
@@ -90,7 +90,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     private LayerTransform? _motionTransform;
     private float _motionWeight;
 
-    public LayerRenderer(GpuDevice gpu, QuadPipeline quad, EffectPipeline effects, PlaneViewCache views, RenderTargetPool pool, LutTextures luts)
+    public LayerRenderer(GpuDevice gpu, QuadPipeline quad, EffectPipeline effects, GpuSurfaceCache views, RenderTargetPool pool, LutTextures luts)
     {
         _gpu = gpu;
         _quad = quad;
@@ -143,25 +143,10 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
         QuadConstants constants = LayerQuad(payload, placement, geometry, Opacity(layer), sequenceWidth, sequenceHeight, pixelScale);
         SetHdr(ref constants, payload, layer.Transform);
-        PlaneViews views = _views.Get(payload, out bool owned);
-        try
-        {
-            _quad.SetInput(0, views.LumaTexture);
-            _quad.SetInput(1, views.ChromaTexture);
-            _quad.Draw(constants);
-            if (owned)
-            {
-                _quad.SetInput(0, null);
-                _quad.SetInput(1, null);
-            }
-        }
-        finally
-        {
-            if (owned)
-            {
-                views.Release();
-            }
-        }
+        GpuDecoderPlanes planes = _quad.CurrentFrame.Acquire(_views, payload);
+        _quad.SetInput(0, planes.Luma);
+        _quad.SetInput(1, planes.Chroma);
+        _quad.Draw(constants);
 
         return true;
     }
@@ -506,22 +491,12 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
             return;
         }
 
-        PlaneViews views = _views.Get(payload, out bool owned);
-        try
-        {
-            _quad.SetInput(0, views.LumaTexture);
-            _quad.SetInput(1, views.ChromaTexture);
-            _quad.Draw(quad);
-            _quad.SetInput(0, null);
-            _quad.SetInput(1, null);
-        }
-        finally
-        {
-            if (owned)
-            {
-                views.Release();
-            }
-        }
+        GpuDecoderPlanes planes = _quad.CurrentFrame.Acquire(_views, payload);
+        _quad.SetInput(0, planes.Luma);
+        _quad.SetInput(1, planes.Chroma);
+        _quad.Draw(quad);
+        _quad.SetInput(0, null);
+        _quad.SetInput(1, null);
     }
 
     /// <summary>Enlaza t3 (fondo), t4 (LUT), t5 y t6 (intermedios), t7 (máscaras) y t10 (curvas). Va después de enlazar el destino.</summary>

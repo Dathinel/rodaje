@@ -19,7 +19,7 @@ namespace Rodaje.Media.Gpu;
 /// </para>
 /// </remarks>
 [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
-public sealed unsafe class D3D11TexturePayload : IDisposable
+public sealed unsafe class D3D11TexturePayload : IDecoderSurface, IDisposable
 {
     private static long s_live;
 
