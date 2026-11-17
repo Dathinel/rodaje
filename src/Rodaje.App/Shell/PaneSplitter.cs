@@ -107,7 +107,7 @@ internal sealed partial class PaneSplitter : Grid
         }
 
         long now = Environment.TickCount64;
-        if (now - _lastPress <= TerraFX.Interop.Windows.Windows.GetDoubleClickTime())
+        if (now - _lastPress <= SystemInput.DoubleClickMilliseconds)
         {
             _lastPress = 0;
             e.Handled = true;

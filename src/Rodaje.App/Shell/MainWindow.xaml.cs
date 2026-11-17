@@ -28,7 +28,6 @@ using Rodaje.Engine.Timeline;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
 using Windows.Storage;
-using static TerraFX.Interop.Windows.Windows;
 
 namespace Rodaje.App.Shell;
 
@@ -717,7 +716,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             return;
         }
 
-        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        uint dpi = WindowDpi();
         global::Windows.Foundation.Point origin = TitleBar.DragRegion.TransformToVisual(Root).TransformPoint(new global::Windows.Foundation.Point(0, 0));
         AppWindowTitleBar bar = AppWindow.TitleBar;
         TitleBarDragRegion.Rect? region = TitleBarDragRegion.Compute(origin.X, origin.Y, TitleBar.DragRegion.ActualWidth, TitleBar.DragRegion.ActualHeight,
@@ -731,7 +730,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         AppSettings s = _settings.Current;
         LibraryColumn.Width = new GridLength(s.LibraryWidth);
         InspectorColumn.Width = new GridLength(s.InspectorWidth);
-        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        uint dpi = WindowDpi();
         double width = s.WindowWidth > 0 ? s.WindowWidth : 1440;
         double height = s.WindowHeight > 0 ? s.WindowHeight : 900;
         // 1440×900 en un portátil, o el tamaño guardado en un monitor más grande, no pueden pasar bajo la barra de tareas.
@@ -764,7 +763,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             return;
         }
 
-        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        uint dpi = WindowDpi();
         double width = AppWindow.ClientSize.Width * 96.0 / Math.Max(1u, dpi);
         double height = AppWindow.ClientSize.Height * 96.0 / Math.Max(1u, dpi);
         if (scale == 1 || width <= 0 || height <= 0)
@@ -794,7 +793,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     /// </summary>
     private void FitSidePanels(double? availableWidth = null)
     {
-        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        uint dpi = WindowDpi();
         double winWidth = dpi > 0 ? AppWindow.Size.Width * 96.0 / dpi : AppWindow.Size.Width;
         double width = availableWidth > 0 ? availableWidth.Value : (winWidth > 0 ? winWidth : Root.ActualWidth);
         if (_playerFullScreen || width <= 0)
@@ -858,7 +857,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             s.WindowMaximized = maximized;
             if (!maximized && AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Restored })
             {
-                uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+                uint dpi = WindowDpi();
                 s.WindowWidth = AppWindow.Size.Width * 96.0 / dpi;
                 s.WindowHeight = AppWindow.Size.Height * 96.0 / dpi;
             }
@@ -1074,21 +1073,6 @@ internal sealed partial class MainWindow : Window, IShellHost
     /// <summary>Corrida automática sin <c>--visible</c> (<see cref="AppOptions.RunsInBackground"/>).</summary>
     internal bool RunsInBackground => _options.RunsInBackground;
 
-    /// <summary>
-    /// Autoprueba y medición: la ventana se pinta fuera de pantalla, sin botón en la barra de tareas y sin poder activarse
-    /// (deshabilitada para Win32: el foco de XAML no arrastra el del teclado de quien usa el equipo).
-    /// </summary>
-    internal void ShowInBackground()
-    {
-        var hwnd = (TerraFX.Interop.Windows.HWND)_hwnd;
-        _ = SetWindowLongPtrW(hwnd, TerraFX.Interop.Windows.GWL.GWL_EXSTYLE,
-            GetWindowLongPtrW(hwnd, TerraFX.Interop.Windows.GWL.GWL_EXSTYLE) | TerraFX.Interop.Windows.WS.WS_EX_NOACTIVATE | TerraFX.Interop.Windows.WS.WS_EX_TOOLWINDOW);
-        _ = EnableWindow(hwnd, TerraFX.Interop.Windows.BOOL.FALSE);
-        AppWindow.Move(new PointInt32(StartupSplash.OffScreen, StartupSplash.OffScreen));
-        AppWindow.Show(false);
-        // Sin activarse no llega Activated: lo que espera a la primera activación se hace aquí.
-        OnFirstActivation();
-    }
 
     private void OnActivated(object sender, WindowActivatedEventArgs args) => OnFirstActivation();
 
