@@ -8,9 +8,10 @@ using Rodaje.TestMedia;
 
 namespace Rodaje.Render.Tests;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class StillImageTests
 {
-    [HardwareTheory]
+    [D3D11HardwareTheory("decodificación D3D11VA (D3D11TexturePayload)")]
     [InlineData(false, null)]
     [InlineData(true, null)]
     [InlineData(false, "rgba64be")]
@@ -40,7 +41,7 @@ public sealed class StillImageTests
     }
 
     /// <summary>Un PNG de 16 bits con una rampa de 4096 códigos sube como RGBA16 y el intermedio conserva más de 1024 niveles (8 bits daba 256).</summary>
-    [HardwareFact]
+    [D3D11HardwareFact("decodificación D3D11VA (D3D11TexturePayload)")]
     public void A_16_bit_png_keeps_more_than_8_bits_in_the_intermediate()
     {
         const int width = 4096;
@@ -88,7 +89,7 @@ public sealed class StillImageTests
         Assert.Equal(255, rgba[at + 3]);
     }
 
-    [HardwareFact]
+    [D3D11HardwareFact("decodificación D3D11VA (D3D11TexturePayload)")]
     public void A_transformed_photo_keeps_its_alpha_through_a_mask()
     {
         using var image = new StillImageFile();
@@ -109,7 +110,7 @@ public sealed class StillImageTests
         AssertPixel(rgba, 32, 64, 191);
     }
 
-    [HardwareFact]
+    [D3D11HardwareFact("decodificación D3D11VA (D3D11TexturePayload)")]
     public void Bilinear_filtering_does_not_reveal_the_rgb_hidden_by_zero_alpha()
     {
         using var image = new StillImageFile();
@@ -124,7 +125,7 @@ public sealed class StillImageTests
         compositor.RenderStrict(composition);
         AssertPixel(compositor.ReadbackRgba(), 21, 64, 191);
     }
-    [HardwareTheory]
+    [D3D11HardwareTheory("decodificación D3D11VA (D3D11TexturePayload)")]
     [InlineData(10000, 100)]
     [InlineData(100, 10000)]
     public void Oversized_images_are_scaled_before_upload(int width, int height)

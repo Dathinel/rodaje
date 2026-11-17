@@ -17,6 +17,7 @@ namespace Rodaje.Render.Tests.Text;
 /// kerning, ajuste a la caja, arco, animación por letra determinista, desenfoque por unidad, barrido de karaoke,
 /// vista previa igual a exportación y lo que cuesta.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class ProTitleTests(ITestOutputHelper output)
 {
     private static readonly bool Strict = Environment.GetEnvironmentVariable(Skip.LongVariable) == "1";
@@ -33,7 +34,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         IReadOnlyList<(int, int)>? words = null, int width = 1920, int height = 1080, double scale = 1) =>
         new(GeneratorKinds.Text, text, style, box, width, height, scale, extras: new TextExtras(spans, boxHeight, words)) { ClipId = "titulo" };
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void A_span_paints_its_word_in_its_own_color()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -46,7 +47,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(Center(image, Red).X > image.Width / 2.0 && Center(image, White).X < image.Width / 2.0);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void A_bigger_span_grows_the_line_and_bold_adds_ink()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -60,7 +61,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(TitleImage.Read(gpu, bold).Count(p => p.A > 128) > TitleImage.Read(gpu, plain).Count(p => p.A > 128) * 1.3);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void A_vertical_gradient_goes_from_the_first_color_at_the_top_to_the_last_at_the_bottom()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -97,7 +98,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.Equal(0, image.Count(p => p.A == 255 && p.B > 10));
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Several_strokes_stack_from_the_widest_outward()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -129,7 +130,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.Contains("wkrkw", sequence, StringComparison.Ordinal);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Several_shadows_each_fall_their_own_way()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -143,7 +144,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(Center(image, Blue).X < white - 15, "La azul a la izquierda.");
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Case_and_kerning_change_the_drawn_text_but_not_the_stored_one()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -169,7 +170,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(unkerned > kerned + 20);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Fit_shrinks_a_long_line_into_its_box_and_fill_grows_a_short_one()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -190,7 +191,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(TitleImage.Read(gpu, grown).Count(p => p.A > 128) > TitleImage.Read(gpu, plain).Count(p => p.A > 128) * 4);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Text_on_an_arc_rises_in_the_middle_and_turns_its_letters()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -211,7 +212,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(smileMiddle > smileLeft + 30, "Con el arco hacia abajo, al revés.");
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Per_letter_entrance_is_deterministic_and_reveals_left_to_right()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -233,7 +234,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(MaxDifference(done, rest) <= 2, "Al terminar la entrada queda igual que en reposo.");
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Per_word_blur_softens_the_edges_while_it_lasts()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -252,7 +253,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.True(blurred > sharp * 3);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Karaoke_sweep_paints_what_was_said_and_cuts_the_current_word()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -279,7 +280,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.InRange(only, (second - first) * 0.8, (second - first) * 1.2);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Preview_and_strict_export_compose_unit_titles_identically()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -295,7 +296,7 @@ public sealed class ProTitleTests(ITestOutputHelper output)
         Assert.Equal(Compose(gpu, content, motion, transform, strict: false).Pixels, Compose(gpu, content, motion, transform, strict: true).Pixels);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Three_animated_lines_per_letter_compose_fast_at_1080p_and_4k()
     {
         using GpuDevice gpu = GpuDevice.Create();

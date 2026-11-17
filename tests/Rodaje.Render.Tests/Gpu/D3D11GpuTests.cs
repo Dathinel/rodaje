@@ -12,6 +12,7 @@ namespace Rodaje.Render.Tests.Gpu;
 /// El motor D3D11 de <see cref="IGpu"/> en WARP (está en todo Windows y da los mismos bytes en cada corrida): las comprobaciones comunes
 /// a todos los motores (<see cref="GpuEngineChecks"/>) y lo propio de D3D11 (superficies de D3D11VA, cadena de composición).
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class D3D11GpuTests : IDisposable
 {
     private static readonly string s_hlsl = ReadHlsl();
@@ -30,7 +31,7 @@ public sealed class D3D11GpuTests : IDisposable
         _gpu.Dispose();
     }
 
-    [Fact]
+    [D3D11Fact("motor D3D11 en WARP")]
     public void Software_engine_declares_raster_and_no_depth_readback()
     {
         Assert.True(_gpu.Caps.IsSoftware);
@@ -41,55 +42,55 @@ public sealed class D3D11GpuTests : IDisposable
         Assert.True(_gpu.Caps.CanBlend(GpuFormat.Rgba16Float));
     }
 
-    [Fact]
+    [D3D11Fact("motor D3D11 en WARP")]
     public void Clear_copy_and_readback_keep_bytes_and_rows_from_the_top() => _checks.Clear_copy_and_readback_keep_bytes_and_rows_from_the_top();
 
-    [Fact]
+    [D3D11Fact("motor D3D11 en WARP")]
     public void Draw_without_vertex_buffer_fills_the_target_with_the_constant_color() => _checks.Draw_without_vertex_buffer_fills_the_target_with_the_constant_color();
 
-    [Fact]
+    [D3D11Fact("motor D3D11 en WARP")]
     public void Premultiplied_over_blends_like_the_compositor() => _checks.Premultiplied_over_blends_like_the_compositor();
 
-    [Fact]
+    [D3D11Fact("motor D3D11 en WARP")]
     public void Compute_writes_a_storage_texture_and_a_raw_buffer() => _checks.Compute_writes_a_storage_texture_and_a_raw_buffer();
 
-    [Fact]
+    [D3D11Fact("motor D3D11 en WARP")]
     public void Id_target_is_cleared_and_read_back_one_pixel_at_a_time() => _checks.Id_target_is_cleared_and_read_back_one_pixel_at_a_time();
 
-    [Theory]
+    [D3D11Theory("motor D3D11 en WARP")]
     [InlineData(GpuTopology.LineList)]
     [InlineData(GpuTopology.LineStrip)]
     public void Lines_draw_one_pixel_wide_edges(GpuTopology topology) => _checks.Lines_draw_one_pixel_wide_edges(topology);
 
-    [Theory]
+    [D3D11Theory("motor D3D11 en WARP")]
     [InlineData(GpuCullMode.Back)]
     [InlineData(GpuCullMode.Front)]
     [InlineData(GpuCullMode.None)]
     public void Clockwise_triangles_are_the_front_faces(GpuCullMode cull) => _checks.Clockwise_triangles_are_the_front_faces(cull);
 
-    [Fact]
+    [D3D11Fact("motor D3D11 en WARP")]
     public void Depth_test_without_write_keeps_the_stored_depth() => _checks.Depth_test_without_write_keeps_the_stored_depth();
 
-    [Theory]
+    [D3D11Theory("motor D3D11 en WARP")]
     [InlineData(0, 0f, false)]
     [InlineData(-100, 0f, true)]
     [InlineData(0, -1f, true)]
     public void Depth_bias_lets_a_coplanar_draw_pass_a_less_test(int bias, float slope, bool passes) => _checks.Depth_bias_lets_a_coplanar_draw_pass_a_less_test(bias, slope, passes);
 
-    [Theory]
+    [D3D11Theory("motor D3D11 en WARP")]
     [InlineData(GpuIndexFormat.Bits16)]
     [InlineData(GpuIndexFormat.Bits32)]
     public void Indexed_draw_takes_16_and_32_bit_indices(GpuIndexFormat format) => _checks.Indexed_draw_takes_16_and_32_bit_indices(format);
 
-    [Fact]
+    [D3D11Fact("motor D3D11 en WARP")]
     public void Multisampled_target_resolves_to_partial_coverage_on_edges() => _checks.Multisampled_target_resolves_to_partial_coverage_on_edges();
 
-    [Fact]
+    [D3D11Fact("motor D3D11 en WARP")]
     public void Timer_and_fence_complete() => _checks.Timer_and_fence_complete();
 
-    [Fact]
+    [D3D11Fact("motor D3D11 en WARP")]
     public void Generated_mips_average_the_level_above() => _checks.Generated_mips_average_the_level_above();
-    [Fact]
+    [D3D11Fact("motor D3D11 en WARP")]
     public void Acquired_decoder_surface_samples_its_planes_without_a_copy()
     {
         GpuDevice device = _gpu.Device;
@@ -118,7 +119,7 @@ public sealed class D3D11GpuTests : IDisposable
         }
     }
 
-    [Fact]
+    [D3D11Fact("motor D3D11 en WARP")]
     public void Swapchain_back_buffer_is_a_target_that_presents_and_resizes()
     {
         using IGpuSwapchain swapchain = _gpu.CreateSwapchain(GpuEngineChecks.Size, GpuEngineChecks.Size, GpuFormat.Bgra8Unorm);

@@ -24,7 +24,7 @@ public sealed class ImageEffectTests
     private const int Height = 96;
     private static readonly VideoColor Bt709 = VideoColor.Bt709Limited;
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(0.5, 1.5, 0.0, 0.6, 0.25)]
     [InlineData(0.8, 3.0, 1.0, 0.0, 3.5)]
     public void Grain_matches_the_reference(double amount, double size, double color, double response, double seconds)
@@ -33,10 +33,10 @@ public sealed class ImageEffectTests
             s => FxReference.Grain(s, amount, size, color, response, seconds), outliers: 0.002);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Grain_changes_every_frame_and_repeats_for_the_same_one()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerEffect grain = Fx.Make(BuiltInEffects.Grain, null, (Gr.Amount, 0.6));
         byte[] first = Render(gpu, grain.At(1.0));
         byte[] again = Render(gpu, grain.At(1.0));
@@ -51,7 +51,7 @@ public sealed class ImageEffectTests
         Assert.True(different > first.Length / 4 / 2, $"Solo cambiaron {different} píxeles entre cuadros.");
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(0.6, 8.0, 1.0)]
     [InlineData(0.3, 30.0, 2.5)]
     public void Glow_matches_the_reference(double threshold, double radius, double intensity)
@@ -61,7 +61,7 @@ public sealed class ImageEffectTests
             s => FxReference.Glow(s, threshold, radius, intensity));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData("radial", 6.0, 0.0)]
     [InlineData("lateral", 4.0, 30.0)]
     public void Chromatic_aberration_matches_the_reference(string mode, double amount, double angle)
@@ -71,7 +71,7 @@ public sealed class ImageEffectTests
             s => FxReference.Aberration(s, mode == "lateral", amount, angle));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData("left", 0.5, 2.0)]
     [InlineData("right", 0.3, 2.0)]
     [InlineData("top", 0.5, 2.0)]
@@ -85,7 +85,7 @@ public sealed class ImageEffectTests
             s => FxReference.Mirror(s, EffectRegistry.MirrorModes.IndexOf(mode), axis, tiles));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(0.0, 0.0, 0.0, 90.0, "rectilinear")]
     [InlineData(60.0, 20.0, 0.0, 100.0, "rectilinear")]
     [InlineData(-120.0, -35.0, 25.0, 70.0, "rectilinear")]
@@ -100,11 +100,11 @@ public sealed class ImageEffectTests
             s => FxReference.Reframe360(s, yaw, pitch, roll, fov, projection == "stereographic"), outliers: 0.03);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Reframe_360_on_warp_matches_the_reference()
     {
         (YuvImage image, FloatImage decoded) = Noise(5);
-        using GpuDevice gpu = GpuDevice.CreateWarp();
+        using TestGpu gpu = TestGpu.Create(warp: true);
         LayerEffect reframe = Fx.Make(BuiltInEffects.Reframe360, null, (BuiltInEffects.Reframe360Parameters.Yaw, 60.0),
             (BuiltInEffects.Reframe360Parameters.Pitch, 20.0), (BuiltInEffects.Reframe360Parameters.Fov, 100.0));
         RgbaImage result = EffectFidelityTests.Compose(gpu, Width, Height, out CompositeResult stats, null, Layers.From(gpu, image, Bt709, new LayerLook([reframe])));
@@ -112,11 +112,11 @@ public sealed class ImageEffectTests
         AssertImage(result, FxReference.Reframe360(decoded, 60, 20, 0, 100, false), outliers: 0.03);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_reframed_clip_fills_a_sequence_of_another_shape_with_the_view_of_that_shape()
     {
         (YuvImage image, FloatImage decoded) = Noise(9);
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         const int wide = 160, high = 90;
         LayerEffect reframe = Fx.Make(BuiltInEffects.Reframe360, null, (BuiltInEffects.Reframe360Parameters.Yaw, 30.0), (BuiltInEffects.Reframe360Parameters.Fov, 80.0));
 
@@ -139,7 +139,7 @@ public sealed class ImageEffectTests
         Assert.True(bad <= 0.03 * wide * high, $"{bad} píxeles fuera de ±2.");
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(0.6, 1.0)]
     [InlineData(-0.5, 1.2)]
     public void Lens_distortion_matches_the_reference(double amount, double zoom)
@@ -148,7 +148,7 @@ public sealed class ImageEffectTests
             (BuiltInEffects.LensDistortionParameters.Zoom, zoom)), s => FxReference.Distortion(s, amount, zoom));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(6.0, 0.0)]
     [InlineData(20.0, 35.0)]
     [InlineData(70.0, 90.0)]
@@ -158,7 +158,7 @@ public sealed class ImageEffectTests
             s => FxReference.LineBlur(s, radius, angle));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(8.0, 0.5, 0.5)]
     [InlineData(25.0, 0.3, 0.6)]
     public void Radial_blur_matches_the_reference(double radius, double centerX, double centerY)
@@ -167,7 +167,7 @@ public sealed class ImageEffectTests
             .Choose(BuiltInEffects.BlurOptions.Kind, "radial"), s => FxReference.ZoomBlur(s, radius, centerX, centerY));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(3.0)]
     [InlineData(24.0)]
     public void Lens_blur_matches_the_reference(double radius)
@@ -176,7 +176,7 @@ public sealed class ImageEffectTests
             s => FxReference.LensBlur(s, radius));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(1.5, 2.0, 0.05)]
     [InlineData(2.5, 1.0, 0.15)]
     public void Sharpen_with_threshold_matches_the_reference(double amount, double radius, double threshold)
@@ -186,7 +186,7 @@ public sealed class ImageEffectTests
             s => FxReference.SharpenWithThreshold(s, amount, radius, threshold));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(0.5, 0.5)]
     [InlineData(1.0, 0.1)]
     public void Spatial_denoise_matches_the_bilateral_reference(double strength, double detail)
@@ -199,15 +199,15 @@ public sealed class ImageEffectTests
     /// Con el cuadro siguiente del mismo clip se mezcla con el resultado anterior; el mismo cuadro otra vez da los mismos
     /// bytes, y un salto (otro cuadro no contiguo) vuelve a solo la parte espacial.
     /// </summary>
-    [GpuFact]
+    [EngineFact]
     public void Temporal_denoise_blends_with_the_previous_frame_only_when_it_is_the_next_one()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerEffect denoise = Fx.Make(BuiltInEffects.Denoise, null, (Dn.Strength, 0.4), (Dn.Temporal, 0.8), (Dn.Detail, 0.5));
         (YuvImage first, FloatImage firstDecoded) = Noise(1);
         (YuvImage second, FloatImage secondDecoded) = Noise(2);
         Time frame = Time.FromSeconds(1 / 25.0);
-        using var compositor = new Compositor(gpu, Width, Height);
+        using var compositor = gpu.NewCompositor(Width, Height);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
 
         byte[] Draw(YuvImage image, Time pts)
@@ -230,7 +230,7 @@ public sealed class ImageEffectTests
     }
 
     /// <summary>Un desenfoque con zona «dentro» solo cambia lo que cubre la máscara que limita efectos; la capa no se recorta.</summary>
-    [GpuFact]
+    [EngineFact]
     public void A_region_mask_limits_the_effect_without_cutting_the_layer()
     {
         LayerEffect mask = Fx.Make(BuiltInEffects.Mask, null, (Mk.X, 0.25), (Mk.Y, 0.5), (Mk.Width, 0.5), (Mk.Height, 1))
@@ -238,7 +238,7 @@ public sealed class ImageEffectTests
         LayerEffect blur = Fx.Make(BuiltInEffects.Blur, null, (Bl.Radius, 9)).Choose(BuiltInEffects.RegionOptions.Region, "inside");
         (YuvImage image, FloatImage decoded) = Noise(3);
         FloatImage blurred = decoded.Blur(3);
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         RgbaImage result = EffectFidelityTests.Compose(gpu, Width, Height, out CompositeResult stats, null,
             Layers.From(gpu, image, Bt709, new LayerLook([mask, blur])));
         Assert.Equal(0, stats.EffectsSkipped);
@@ -270,7 +270,7 @@ public sealed class ImageEffectTests
     /// mismo que en la GPU: antes, el recorte del cuadrilátero en el viewport y el redondeo hacia abajo del bilineal de WARP
     /// sumaban hasta 2,5/255 en los bordes fuertes.
     /// </summary>
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(false)]
     [InlineData(true)]
     public void An_unchanged_pass_through_the_intermediate_is_exact_on_hardware_and_warp(bool warp)
@@ -278,7 +278,7 @@ public sealed class ImageEffectTests
         (YuvImage image, FloatImage decoded) = Noise(5);
         LayerEffect identity = Fx.Make(BuiltInEffects.Mirror, null, (BuiltInEffects.MirrorParameters.Axis, 1.0))
             .Choose(BuiltInEffects.MirrorOptions.Mode, "left");
-        using GpuDevice gpu = warp ? GpuDevice.CreateWarp() : GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create(warp);
         foreach (LayerLook look in new[] { new LayerLook([]), new LayerLook([identity]) })
         {
             RgbaImage result = EffectFidelityTests.Compose(gpu, Width, Height, out _, null, Layers.From(gpu, image, Bt709, look));
@@ -286,10 +286,10 @@ public sealed class ImageEffectTests
         }
     }
 
-    private static byte[] Render(GpuDevice gpu, LayerEffect effect)
+    private static byte[] Render(TestGpu gpu, LayerEffect effect)
     {
         (YuvImage image, _) = Noise(7);
-        using var compositor = new Compositor(gpu, Width, Height);
+        using var compositor = gpu.NewCompositor(Width, Height);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         using CompositionFrame frame = Layers.Frame(Width, Height, Layers.From(gpu, image, Bt709, new LayerLook([effect])));
         compositor.Render(frame);
@@ -325,7 +325,7 @@ public sealed class ImageEffectTests
     private static void AssertSpatial(LayerEffect effect, Func<FloatImage, FloatImage> reference, double outliers = 0)
     {
         (YuvImage image, FloatImage decoded) = Noise(5);
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         RgbaImage result = EffectFidelityTests.Compose(gpu, Width, Height, out CompositeResult stats, null,
             Layers.From(gpu, image, Bt709, new LayerLook([effect])));
         Assert.Equal(0, stats.EffectsSkipped);

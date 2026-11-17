@@ -13,6 +13,7 @@ namespace Rodaje.Render.Tests.Export;
 /// Dispositivo para las pruebas del conversor: WARP (el rasterizador de software de Windows, también en la CI) o la GPU
 /// de verdad a través de <see cref="GpuDevice"/>.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class ExportGpu : IDisposable
 {
     private ID3D11Device* _device;

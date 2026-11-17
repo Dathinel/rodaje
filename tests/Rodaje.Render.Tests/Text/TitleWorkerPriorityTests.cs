@@ -6,6 +6,7 @@ using Rodaje.Playback.Composition;
 using Rodaje.Render.Text;
 using Rodaje.TestMedia;
 using Xunit.Abstractions;
+using Rodaje.Render.Tests.Support;
 
 namespace Rodaje.Render.Tests.Text;
 
@@ -14,6 +15,7 @@ namespace Rodaje.Render.Tests.Text;
 /// con el candado del contexto de la GPU que también toma el hilo de render. Con la CPU llena de hilos normales, uno debajo
 /// de lo normal casi no corre.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class TitleWorkerPriorityTests(ITestOutputHelper output)
 {
     [Fact]
@@ -22,7 +24,7 @@ public sealed class TitleWorkerPriorityTests(ITestOutputHelper output)
         Assert.Equal(ThreadPriority.Normal, new TitleRasterizerOptions().WorkerPriority);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void The_worker_thread_takes_the_priority_of_the_options()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -45,7 +47,7 @@ public sealed class TitleWorkerPriorityTests(ITestOutputHelper output)
     /// normales que no ceden, a prioridad normal y debajo de lo normal. Solo se exige que a prioridad normal llegue (el
     /// tope es contra cuelgues, no una medida de rendimiento); las cifras quedan en la salida de la prueba.
     /// </summary>
-    [GpuFact]
+    [D3D11GpuFact("títulos con Direct2D")]
     public void Under_full_cpu_a_new_title_still_arrives_at_the_default_priority()
     {
         using GpuDevice gpu = GpuDevice.Create();

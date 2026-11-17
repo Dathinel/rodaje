@@ -4,6 +4,7 @@ using Rodaje.Render.Text;
 using Rodaje.TestMedia;
 using Rodaje.Text.Tests;
 using Xunit.Abstractions;
+using Rodaje.Render.Tests.Support;
 
 namespace Rodaje.Render.Tests.Text;
 
@@ -12,11 +13,12 @@ namespace Rodaje.Render.Tests.Text;
 /// rectángulo, leída del rasterizador de verdad. Es la referencia que la maquetación de HarfBuzz tiene que repetir en Linux y
 /// macOS. Si falta el archivo de un caso se escribe en TestResults/maquetacion para copiarlo a Rodaje.Text.Tests/Maquetacion.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class TitleLayoutReferenceTests(ITestOutputHelper output)
 {
     public static TheoryData<string> Cases() => [.. TitleLayoutCases.All.Select(c => c.Name)];
 
-    [GpuTheory]
+    [D3D11GpuTheory("títulos con Direct2D")]
     [MemberData(nameof(Cases))]
     public void DirectWrite_lays_out_the_case_as_its_reference_says(string name)
     {

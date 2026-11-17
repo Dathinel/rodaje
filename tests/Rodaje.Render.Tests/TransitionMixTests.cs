@@ -42,7 +42,7 @@ public sealed class TransitionMixTests(ITestOutputHelper output)
     }
 
     /// <summary>Las nuevas, como las de siempre: en 0 exactamente el clip que sale y en 1 el que entra.</summary>
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(T.Slide)]
     [InlineData(T.ZoomBlur)]
     [InlineData(T.Spin)]
@@ -54,7 +54,7 @@ public sealed class TransitionMixTests(ITestOutputHelper output)
     [InlineData(T.Bounce)]
     public void Progress_0_and_1_are_exactly_each_clip(string type)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = TransitionTests.Ready(gpu);
         byte[] a = Render(compositor, Outgoing(gpu));
         byte[] b = Render(compositor, Incoming(gpu));
@@ -63,12 +63,12 @@ public sealed class TransitionMixTests(ITestOutputHelper output)
         Assert.Equal(b, Render(compositor, WithTransition(gpu, type, 1, NoValues, NoOptions)));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(Cases))]
     public void Each_new_transition_matches_its_cpu_reference_on_the_gpu(string type, double progress, bool shutter) =>
         AssertMatches(false, type, progress, NoValues, NoOptions, shutter ? (progress - 0.06, progress + 0.06) : null);
 
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(Devices))]
     public void Warp_draws_them_like_the_gpu(bool warp)
     {
@@ -78,7 +78,7 @@ public sealed class TransitionMixTests(ITestOutputHelper output)
         }
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData("linear", "off")]
     [InlineData("radial", "off")]
     [InlineData("angular", "on")]
@@ -89,7 +89,7 @@ public sealed class TransitionMixTests(ITestOutputHelper output)
         AssertMatches(false, T.Luma, 0.45, new Dictionary<string, double> { [TP.Angle] = 30, [TP.Softness] = 0.15 },
             new Dictionary<string, string> { [T.LumaOptions.Gradient] = gradient, [T.LumaOptions.Invert] = invert }, null);
 
-    [GpuFact]
+    [EngineFact]
     public void A_wipe_and_a_luma_dissolve_draw_a_colored_border_ahead_of_the_change()
     {
         var border = new Dictionary<string, double>
@@ -100,14 +100,14 @@ public sealed class TransitionMixTests(ITestOutputHelper output)
         AssertMatches(false, T.Luma, 0.5, border, new Dictionary<string, string> { [T.LumaOptions.Gradient] = "radial" }, null);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_luma_image_drives_the_dissolve_and_a_missing_one_is_counted()
     {
         var resources = new MatteResources();
         AssertMatches(false, T.Luma, 0.5, new Dictionary<string, double> { [TP.Softness] = 0.1 }, NoOptions, null, resources,
             (u, _) => Math.Clamp((u * 256) - 0.5, 0, 255) / 255);
 
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = TransitionTests.Ready(gpu);
         compositor.Resources = new MatteResources(missing: true);
         LayerFrame layer = WithTransition(gpu, T.Luma, 0.5, NoValues, NoOptions, resource: new ResourceKey("file:falta.png"));
@@ -115,12 +115,12 @@ public sealed class TransitionMixTests(ITestOutputHelper output)
         Assert.Equal(1, compositor.Render(frame).MissingContent);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_push_with_motion_blur_is_the_average_of_the_mix_along_the_shutter() =>
         AssertMatches(false, T.Push, 0.5, new Dictionary<string, double> { [TP.MotionBlur] = 0.5 },
             new Dictionary<string, string> { [T.PushOptions.Direction] = "up" }, (0.42, 0.58));
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(T.Bounce, "right")]
     [InlineData(T.Bounce, "down")]
     public void A_bounce_overshoots_and_fills_the_gap_with_the_mirrored_incoming_clip(string type, string direction)
@@ -133,7 +133,7 @@ public sealed class TransitionMixTests(ITestOutputHelper output)
         IReadOnlyDictionary<string, string> options, (double From, double To)? shutter, IEffectResources? resources = null,
         Func<double, double, double>? luma = null)
     {
-        using GpuDevice gpu = warp ? GpuDevice.CreateWarp() : GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create(warp);
         using Compositor compositor = TransitionTests.Ready(gpu);
         compositor.Resources = resources;
         FloatImage a = Opaque(Render(compositor, Outgoing(gpu)));
@@ -185,7 +185,7 @@ public sealed class TransitionMixTests(ITestOutputHelper output)
     });
 
     /// <summary>Saliente: celdas de 16 px de colores distintos, para que se note cualquier corrimiento.</summary>
-    private static LayerFrame Outgoing(GpuDevice gpu, LayerTransition? transition = null)
+    private static LayerFrame Outgoing(TestGpu gpu, LayerTransition? transition = null)
     {
         var image = new YuvImage(Width, Height, false);
         for (int cy = 0; cy < Height / 16; cy++)
@@ -200,7 +200,7 @@ public sealed class TransitionMixTests(ITestOutputHelper output)
     }
 
     /// <summary>Entrante: franjas de 32 × 16 px con otra paleta.</summary>
-    private static LayerFrame Incoming(GpuDevice gpu)
+    private static LayerFrame Incoming(TestGpu gpu)
     {
         var image = new YuvImage(Width, Height, false);
         for (int cy = 0; cy < Height / 16; cy++)
@@ -214,7 +214,7 @@ public sealed class TransitionMixTests(ITestOutputHelper output)
         return Layers.From(gpu, image, Bt709, track: 1);
     }
 
-    private static LayerFrame WithTransition(GpuDevice gpu, string type, double progress, IReadOnlyDictionary<string, double> values,
+    private static LayerFrame WithTransition(TestGpu gpu, string type, double progress, IReadOnlyDictionary<string, double> values,
         IReadOnlyDictionary<string, string> options, (double From, double To)? shutter = null, ResourceKey? resource = null) =>
         Outgoing(gpu, new LayerTransition(EffectRegistry.Find(type)!.Code, (float)progress, TransitionValues.Of(type, values, options), Incoming(gpu))
         {

@@ -1,8 +1,10 @@
 using Rodaje.Render.Effects;
 using Rodaje.Render.Shaders;
+using Rodaje.Render.Tests.Support;
 
 namespace Rodaje.Render.Tests;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class ShaderCompileTests : IDisposable
 {
     private readonly string _directory = Path.Combine(Path.GetTempPath(), "rodaje-shaders-" + Guid.NewGuid().ToString("N"));
@@ -19,7 +21,7 @@ public sealed class ShaderCompileTests : IDisposable
     }
 
     /// <summary>Cada variante compila con las advertencias como errores (las opciones de <see cref="ShaderCompiler"/>).</summary>
-    [Theory]
+    [D3D11Theory("compilador HLSL (D3DCompiler)")]
     [MemberData(nameof(Variants))]
     public void Every_effect_variant_compiles_without_warnings(int index)
     {
@@ -55,7 +57,7 @@ public sealed class ShaderCompileTests : IDisposable
         Assert.Equal(Enumerable.Range(0, EffectShaders.All.Length), indices.Order());
     }
 
-    [Fact]
+    [D3D11Fact("compilador HLSL (D3DCompiler)")]
     public void Disk_cache_writes_once_and_reads_back_in_a_new_session()
     {
         ShaderVariant variant = EffectShaders.All[EffectShaders.IndexOf(EffectShader.Blur, 0)];

@@ -5,6 +5,7 @@ using TerraFX.Interop.Windows;
 namespace Rodaje.Render.Tests.Support;
 
 /// <summary>Textura BGRA8 (o R10G10B10A2) con vista de destino, como el búfer de una cadena de intercambio, que se puede leer.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class OffscreenTarget : IDisposable
 {
     private readonly GpuDevice _gpu;

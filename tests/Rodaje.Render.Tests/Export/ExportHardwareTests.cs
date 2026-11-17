@@ -5,15 +5,17 @@ using Rodaje.Playback.Composition;
 using Rodaje.Render.Export;
 using Rodaje.TestMedia;
 using Xunit.Abstractions;
+using Rodaje.Render.Tests.Support;
 
 namespace Rodaje.Render.Tests.Export;
 
 /// <summary>La misma fidelidad que en WARP, en la GPU de verdad (la generación de mips y la aritmética son del controlador).</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class ExportHardwareTests(ITestOutputHelper output)
 {
     private static readonly Rational Rate = new(30, 1);
 
-    [GpuTheory]
+    [D3D11GpuTheory("conversor de exportación (ExportFrameConverter)")]
     [InlineData(ExportPixelFormat.Nv12)]
     [InlineData(ExportPixelFormat.P010)]
     [InlineData(ExportPixelFormat.Yuv420P)]
@@ -30,7 +32,7 @@ public sealed class ExportHardwareTests(ITestOutputHelper output)
         ExportCheck.Compare(output, gpu, Picture.Test(254, 144, pixels.HasAlpha()), format);
     }
 
-    [GpuTheory]
+    [D3D11GpuTheory("conversor de exportación (ExportFrameConverter)")]
     [InlineData(512, 288, ExportFit.Bars)]
     [InlineData(384, 216, ExportFit.Bars)]
     [InlineData(768, 432, ExportFit.Bars)]
@@ -44,7 +46,7 @@ public sealed class ExportHardwareTests(ITestOutputHelper output)
         ExportCheck.Compare(output, gpu, Picture.Test(sourceWidth, sourceHeight), format, fit);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("conversor de exportación (ExportFrameConverter)")]
     public void Compositor_output_converts_with_or_without_a_transparent_background()
     {
         using GpuDevice gpu = GpuDevice.Create();

@@ -20,10 +20,10 @@ public sealed class CompoundLayerTests
     private static readonly VideoColor Bt709 = VideoColor.Bt709Limited;
     private static readonly LayerTransform Half = LayerTransform.Identity with { Opacity = 0.5 };
 
-    [GpuFact]
+    [EngineFact]
     public void Color_and_half_opacity_on_a_compound_match_them_on_its_only_clip()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = TransitionTests.Ready(gpu);
         byte[] expected = Render(compositor, Layers.From(gpu, Bands(), Bt709, new LayerLook([Look()]), Half));
         byte[] actual = Render(compositor, Compound([Layers.From(gpu, Bands(), Bt709)], Half, [Look()]));
@@ -31,10 +31,10 @@ public sealed class CompoundLayerTests
         AssertWithin(expected, actual, 1);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Half_opacity_on_a_compound_of_two_layers_is_half_of_their_composition()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = TransitionTests.Ready(gpu);
         byte[] inner = Render(compositor, Layers.From(gpu, Bands(), Bt709), Small(gpu));
         byte[] actual = Render(compositor, Compound([Layers.From(gpu, Bands(), Bt709), Small(gpu)], Half, []));
@@ -42,10 +42,10 @@ public sealed class CompoundLayerTests
         AssertHalf(inner, actual);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_compound_inside_a_compound_multiplies_the_opacities()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = TransitionTests.Ready(gpu);
         byte[] inner = Render(compositor, Layers.From(gpu, Bands(), Bt709), Small(gpu));
         LayerFrame twice = Compound([Compound([Layers.From(gpu, Bands(), Bt709), Small(gpu)], Half, [])], LayerTransform.Identity with { Opacity = 0.5 }, []);
@@ -57,13 +57,13 @@ public sealed class CompoundLayerTests
         }
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(T.Crossfade, true)]
     [InlineData(T.Crossfade, false)]
     [InlineData(T.Wipe, true)]
     public void A_transition_with_a_compound_matches_the_same_transition_with_its_clip(string type, bool compoundLeaves)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = TransitionTests.Ready(gpu);
         int code = EffectRegistry.Find(type)!.Code;
         EffectValues values = Fx.Transition(type);
@@ -81,15 +81,15 @@ public sealed class CompoundLayerTests
         AssertWithin(expected, actual, 1);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void An_empty_compound_draws_nothing_and_a_full_pool_skips_it()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = TransitionTests.Ready(gpu);
         byte[] black = Render(compositor);
         Assert.Equal(black, Render(compositor, Compound([], Half, [])));
 
-        using var tiny = new Compositor(gpu, Width, Height, CompositeFormat.Rgba16Float, null, poolCapBytes: 1024);
+        using var tiny = gpu.NewCompositor(Width, Height, CompositeFormat.Rgba16Float, null, poolCapBytes: 1024);
         Assert.True(tiny.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         using CompositionFrame frame = Layers.Frame(Width, Height, Compound([Layers.From(gpu, Bands(), Bt709)], Half, []));
         CompositeResult result = tiny.Render(frame);
@@ -126,7 +126,7 @@ public sealed class CompoundLayerTests
     }
 
     /// <summary>Una imagen más chica centrada: deja ver lo de abajo.</summary>
-    private static LayerFrame Small(GpuDevice gpu)
+    private static LayerFrame Small(TestGpu gpu)
     {
         var image = new YuvImage(128, 128, false);
         image.Fill(0, 0, 128, 128, ReferenceColor.Encode(220, 40, 130, Bt709, false));

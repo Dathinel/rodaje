@@ -30,7 +30,7 @@ public sealed class EffectFidelityTests
         { C.Shadows, 1 }, { C.Shadows, -0.6 },
     };
 
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(ColorCases))]
     public void Each_color_control_matches_the_reference(string parameter, double value)
     {
@@ -40,7 +40,7 @@ public sealed class EffectFidelityTests
             c => EffectReference.Grade(c, P(C.Exposure), P(C.Contrast), P(C.Saturation), P(C.Temperature), P(C.Tint), P(C.Highlights), P(C.Shadows)));
     }
 
-    [GpuFact]
+    [EngineFact]
     public void All_color_controls_together_match_the_reference()
     {
         AssertPalette(
@@ -49,7 +49,7 @@ public sealed class EffectFidelityTests
             c => EffectReference.Grade(c, 0.3, 0.2, -0.3, 0.4, -0.2, -0.4, 0.3));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(2)]
     [InlineData(17)]
     [InlineData(33)]
@@ -60,7 +60,7 @@ public sealed class EffectFidelityTests
         AssertPalette(new LayerLook([Fx.ColorWithLut("prueba@1/identidad", 1)]), c => c, tolerance: 1, resources: resources);
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(1.0)]
     [InlineData(0.5)]
     public void A_curved_lut_matches_trilinear_interpolation(double intensity)
@@ -71,7 +71,7 @@ public sealed class EffectFidelityTests
             resources: resources);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_lut_that_is_not_loaded_is_counted_and_the_layer_goes_without_it()
     {
         var resources = new FakeResources();
@@ -83,13 +83,13 @@ public sealed class EffectFidelityTests
         Assert.Equal(1, resources.Requests);
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(0.7, 0.3, 0.4)]
     [InlineData(1.0, 0.0, 1.0)]
     [InlineData(0.4, 0.6, 0.05)]
     public void Vignette_matches_the_reference_across_the_frame(double amount, double size, double softness)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvCode gray = ReferenceColor.Encode(180, 170, 160, Bt709, false);
         C3 expectedBase = C3.From(ReferenceColor.Decode(gray, Bt709, false));
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(256, 128, false, gray), Bt709, new LayerLook([Fx.Vignette(amount, size, softness)]));
@@ -105,7 +105,7 @@ public sealed class EffectFidelityTests
         }
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(3.0)]
     [InlineData(9.0)]
     [InlineData(30.0)]
@@ -115,7 +115,7 @@ public sealed class EffectFidelityTests
         AssertSpatial(new LayerLook([Fx.Blur(radius)]), source => source.Blur(radius / 3));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(1.0, 1.0)]
     [InlineData(2.5, 3.0)]
     [InlineData(0.8, 6.0)]
@@ -124,7 +124,7 @@ public sealed class EffectFidelityTests
         AssertSpatial(new LayerLook([Fx.Sharpen(amount, radius)]), source => source.Sharpen(amount, radius));
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Blur_then_sharpen_run_in_the_order_of_the_stack()
     {
         AssertSpatial(new LayerLook([Fx.Blur(6), Fx.Sharpen(1.5, 2)]), source => source.Blur(2).Sharpen(1.5, 2));
@@ -143,11 +143,11 @@ public sealed class EffectFidelityTests
     }
 
     /// <summary>Los 13 modos sobre 8×8 combinaciones de fondo y capa, opacos y con opacidad 0,6.</summary>
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(BlendCases))]
     public void Every_blend_mode_matches_the_w3c_formula(BlendMode mode, double opacity)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         (int R, int G, int B)[] top =
         [
             (0, 0, 0), (255, 255, 255), (64, 128, 192), (250, 20, 128), (128, 128, 128), (30, 200, 240), (190, 60, 10), (100, 220, 90),
@@ -177,10 +177,10 @@ public sealed class EffectFidelityTests
         }
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_shader_blend_on_a_moved_layer_reads_the_background_under_it()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         int size = Block * 8;
         var bottomImage = new YuvImage(size, size, false);
         for (int i = 0; i < 8; i++)
@@ -205,10 +205,10 @@ public sealed class EffectFidelityTests
     }
 
     /// <summary>La vista previa a la mitad se parece a la completa reducida: radios y posiciones están en píxeles de la secuencia.</summary>
-    [GpuFact]
+    [EngineFact]
     public void Half_resolution_matches_the_full_one_reduced()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         byte[] full = HalfScene(gpu, 512, 256);
         byte[] half = HalfScene(gpu, 256, 128);
 
@@ -230,7 +230,7 @@ public sealed class EffectFidelityTests
         Assert.True(mean <= 3, $"Diferencia media {mean:0.00}/255.");
     }
 
-    private static byte[] HalfScene(GpuDevice gpu, int width, int height)
+    private static byte[] HalfScene(TestGpu gpu, int width, int height)
     {
         // Luma con detalle de 8 px y croma suave, como un video real: con croma al azar por bloque, el submuestreo 4:2:0
         // ya separa media y completa en los bordes, con o sin efectos.
@@ -254,7 +254,7 @@ public sealed class EffectFidelityTests
             new LayerLook([Fx.Color((C.Contrast, 0.3), (C.Saturation, 0.4)), Fx.Vignette(0.6, 0.4, 0.5)]));
         LayerFrame top = Layers.From(gpu, topImage, Bt709, new LayerLook([Fx.Blur(12), Fx.Sharpen(0.5, 2)], BlendMode.Overlay),
             new LayerTransform(60, -20, 0.6, 8, 0.9), 1);
-        using var compositor = new Compositor(gpu, width, height);
+        using var compositor = gpu.NewCompositor(width, height);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         using CompositionFrame frame = Layers.Frame(512, 256, bottom, top);
         Assert.Equal(0, compositor.Render(frame).EffectsSkipped);
@@ -268,7 +268,7 @@ public sealed class EffectFidelityTests
     /// <summary>Paleta de 8 bloques con <paramref name="look"/>; compara el centro de cada bloque con la referencia.</summary>
     private static CompositeResult AssertPalette(LayerLook look, Func<C3, C3> reference, double tolerance = 2, IEffectResources? resources = null)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         var source = new YuvImage(Block * Palette.Length, Block, false);
         for (int i = 0; i < Palette.Length; i++)
         {
@@ -310,7 +310,7 @@ public sealed class EffectFidelityTests
             (x, y) => C3.From(ReferenceColor.Decode(codes[(y * width) + x], Bt709, false)));
         FloatImage expected = reference(decoded);
 
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         RgbaImage image = Compose(gpu, width, height, out CompositeResult result, null, Layers.From(gpu, source, Bt709, look));
         Assert.Equal(0, result.EffectsSkipped);
         for (int y = 0; y < height; y++)
@@ -323,10 +323,10 @@ public sealed class EffectFidelityTests
         }
     }
 
-    internal static RgbaImage Compose(GpuDevice gpu, int width, int height, out CompositeResult result, IEffectResources? resources,
+    internal static RgbaImage Compose(TestGpu gpu, int width, int height, out CompositeResult result, IEffectResources? resources,
         params LayerFrame[] layers)
     {
-        using var compositor = new Compositor(gpu, width, height);
+        using var compositor = gpu.NewCompositor(width, height);
         compositor.Resources = resources;
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)), "Los shaders de efectos no estuvieron listos.");
         using CompositionFrame frame = Layers.Frame(width, height, layers);

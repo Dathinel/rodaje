@@ -10,9 +10,10 @@ using Xunit.Abstractions;
 
 namespace Rodaje.Render.Tests;
 
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class RawIntermediateReadTests(ITestOutputHelper output)
 {
-    [FfmpegLibraryFact(Encoder = "prores_ks")]
+    [D3D11FfmpegLibraryFact("revelado RAW (GpuRawDeveloper)", Encoder = "prores_ks")]
     public void RawIntermediate_hdr_recovers_two_stops_that_sdr_prores_loses()
     {
         using var media = new RawIntermediateMedia();
@@ -32,7 +33,7 @@ public sealed class RawIntermediateReadTests(ITestOutputHelper output)
         AssertPatch(prores, 48, 0.25f);
     }
 
-    [FfmpegLibraryFact(Encoder = "ffv1")]
+    [D3D11FfmpegLibraryFact("revelado RAW (GpuRawDeveloper)", Encoder = "ffv1")]
     public void RawIntermediate_pq_maps_to_finite_sdr_on_warp()
     {
         using var media = new RawIntermediateMedia();

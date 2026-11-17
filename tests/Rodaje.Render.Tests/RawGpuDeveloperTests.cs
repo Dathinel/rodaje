@@ -5,6 +5,7 @@ using Rodaje.Media.Gpu;
 using Rodaje.Render.Raw;
 using Rodaje.TestMedia;
 using Xunit.Abstractions;
+using Rodaje.Render.Tests.Support;
 
 namespace Rodaje.Render.Tests;
 
@@ -12,6 +13,7 @@ namespace Rodaje.Render.Tests;
 /// Fase D del HDR (docs/hdr.md): el revelado de Bayer en la GPU contra la referencia de la CPU (<see cref="MosaicDeveloper"/>),
 /// en WARP para que corra en cualquier máquina y, con GPU de verdad, con el tiempo por cuadro.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class RawGpuDeveloperTests(ITestOutputHelper output)
 {
     /// <summary>
@@ -146,7 +148,7 @@ public sealed class RawGpuDeveloperTests(ITestOutputHelper output)
     }
 
     /// <summary>Tiempo por cuadro en 1080p y 4K DCI, en la GPU de la máquina y en la CPU (referencia); las cifras van a docs/hdr.md.</summary>
-    [GpuFact]
+    [D3D11GpuFact("revelado RAW (GpuRawDeveloper)")]
     public void Time_per_frame_on_the_gpu_and_the_cpu_reference()
     {
         using GpuDevice gpu = GpuDevice.Create();

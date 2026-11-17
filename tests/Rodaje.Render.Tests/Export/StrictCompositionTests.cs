@@ -15,13 +15,13 @@ public sealed class StrictCompositionTests
 {
     private static readonly VideoColor Bt709 = VideoColor.Bt709Limited;
 
-    [GpuFact]
+    [EngineFact]
     public void Waits_for_the_shaders_instead_of_skipping()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using var gate = new ManualResetEventSlim(false);
-        var cache = new ShaderCache(null) { Compile = _ => { gate.Wait(); return TrivialShader.Code; } };
-        using var compositor = new Compositor(gpu, 256, 128, CompositeFormat.Rgba16Float, cache);
+        var cache = new ShaderCache(null) { Compile = _ => { gate.Wait(); return OperatingSystem.IsWindowsVersionAtLeast(7) ? TrivialShader.Code : []; } };
+        using var compositor = gpu.NewCompositor(256, 128, CompositeFormat.Rgba16Float, cache);
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(256, 128, false, new YuvCode(120, 128, 128)), Bt709,
             new LayerLook([Fx.Color((BuiltInEffectsColor.Exposure, 1)), Fx.Blur(5)], BlendMode.Overlay));
         using CompositionFrame frame = Layers.Frame(256, 128, layer);
@@ -32,13 +32,13 @@ public sealed class StrictCompositionTests
         Assert.Equal((3, 0), (result.EffectsApplied, result.EffectsSkipped));
     }
 
-    [GpuFact]
+    [EngineFact(VulkanSkip = "los shaders SPIR-V de Vulkan siempre están listos (VulkanGpu.CreateShader carga el bytecode y no usa la caché perezosa, src/Rodaje.Render/Gpu/Vulkan/VulkanGpu.cs:258)")]
     public void Shaders_that_never_arrive_are_an_export_error()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using var gate = new ManualResetEventSlim(false);
-        var cache = new ShaderCache(null) { Compile = _ => { gate.Wait(); return TrivialShader.Code; } };
-        using var compositor = new Compositor(gpu, 64, 64, CompositeFormat.Rgba16Float, cache);
+        var cache = new ShaderCache(null) { Compile = _ => { gate.Wait(); return OperatingSystem.IsWindowsVersionAtLeast(7) ? TrivialShader.Code : []; } };
+        using var compositor = gpu.NewCompositor(64, 64, CompositeFormat.Rgba16Float, cache);
         using CompositionFrame frame = Layers.Frame(64, 64);
         try
         {
@@ -52,11 +52,11 @@ public sealed class StrictCompositionTests
         }
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_pool_that_stays_full_is_an_export_error()
     {
-        using GpuDevice gpu = GpuDevice.Create();
-        using var compositor = new Compositor(gpu, 256, 128, CompositeFormat.Rgba16Float, ShaderCache.Default, poolCapBytes: 1024);
+        using TestGpu gpu = TestGpu.Create();
+        using var compositor = gpu.NewCompositor(256, 128, CompositeFormat.Rgba16Float, ShaderCache.Default, poolCapBytes: 1024);
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(256, 128, false, new YuvCode(120, 128, 128)), Bt709,
             new LayerLook([Fx.Blur(20)]));
         using CompositionFrame frame = Layers.Frame(256, 128, layer);
@@ -66,11 +66,11 @@ public sealed class StrictCompositionTests
         Assert.Equal(ExportErrorCode.EffectFailed, error.Code);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Unknown_effects_are_an_export_error()
     {
-        using GpuDevice gpu = GpuDevice.Create();
-        using var compositor = new Compositor(gpu, 64, 64);
+        using TestGpu gpu = TestGpu.Create();
+        using var compositor = gpu.NewCompositor(64, 64);
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(64, 64, false, new YuvCode(120, 128, 128)), Bt709,
             new LayerLook([new LayerEffect(9999, default, null)]));
         using CompositionFrame frame = Layers.Frame(64, 64, layer);
@@ -78,11 +78,11 @@ public sealed class StrictCompositionTests
         Assert.Equal(ExportErrorCode.EffectFailed, Assert.Throws<ExportException>(() => compositor.RenderStrict(frame)).Code);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_clean_frame_is_composed_once()
     {
-        using GpuDevice gpu = GpuDevice.Create();
-        using var compositor = new Compositor(gpu, 64, 64);
+        using TestGpu gpu = TestGpu.Create();
+        using var compositor = gpu.NewCompositor(64, 64);
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(64, 64, false, new YuvCode(120, 128, 128)), Bt709,
             new LayerLook([Fx.Color((BuiltInEffectsColor.Exposure, 0.5))]));
         using CompositionFrame frame = Layers.Frame(64, 64, layer);
