@@ -19,6 +19,8 @@ internal sealed partial class PlayerView
     private void AttachViewer(PlayerEngine engine, DispatcherQueue dispatcher)
     {
         VideoPanel.Children.Add(_viewerImage);
+        // Uno enlaza los x:Bind al cargarse el control: un Bindings.Update de antes (el de Attach) no llega al tiempo ni al transporte.
+        Loaded += (_, _) => Bindings.Update();
         engine.ViewerFrameReady += () =>
         {
             // Uno pendiente a la vez: si la interfaz va atrasada, pinta el último cuadro y no los intermedios.
