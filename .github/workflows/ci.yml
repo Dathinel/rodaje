@@ -2,7 +2,8 @@
 # - linux y macos: los proyectos que compilan para net10.0 sin Windows (build/pruebas-linux.sh).
 # - windows: la solución entera con el entorno propio (.entorno, D-005). Bloquea; sin exclusiones por nombre.
 # Las pruebas largas y de hardware solo corren con RODAJE_PRUEBAS_LARGAS=1, que aquí no se pone: esas,
-# TiempoReal y Rendimiento las corre nocturna.yml.
+# TiempoReal y Rendimiento las corre nocturna.yml en Linux y Windows. Las de TiempoReal de macOS (reloj de CoreAudio)
+# no tienen pasada programada: son manuales (Mac aparcado, docs/mac-y-linux-fase4.md).
 
 name: CI
 
