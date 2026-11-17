@@ -121,7 +121,8 @@ public sealed class EffectFidelityTests
     [InlineData(0.8, 6.0)]
     public void Sharpen_matches_the_unsharp_mask_reference(double amount, double radius)
     {
-        AssertSpatial(new LayerLook([Fx.Sharpen(amount, radius)]), source => source.Sharpen(amount, radius));
+        AssertSpatial(new LayerLook([Fx.Sharpen(amount, radius)]), source => source.Sharpen(amount, radius),
+            TestGpu.Tolerance(2, 2 + amount, "la nitidez amplifica (1 + cantidad) veces la diferencia de un código del desenfoque en lavapipe"));
     }
 
     [EngineFact]
@@ -288,7 +289,7 @@ public sealed class EffectFidelityTests
     }
 
     /// <summary>Ruido de luma con croma fija (exacta en 4:2:0); compara todos los píxeles con la referencia.</summary>
-    private static void AssertSpatial(LayerLook look, Func<FloatImage, FloatImage> reference)
+    private static void AssertSpatial(LayerLook look, Func<FloatImage, FloatImage> reference, double? tolerance = null)
     {
         const int width = 128;
         const int height = 96;
@@ -318,7 +319,7 @@ public sealed class EffectFidelityTests
             for (int x = 0; x < width; x++)
             {
                 (C3 color, _) = expected.Sample((x + 0.5) / width, (y + 0.5) / height);
-                image.AssertColor(x, y, color.Map(EffectReference.Saturate).To255(), TestGpu.Tolerance(2, 3, "lavapipe redondea de otra forma el filtro y las mezclas en coma flotante"));
+                image.AssertColor(x, y, color.Map(EffectReference.Saturate).To255(), tolerance ?? TestGpu.Tolerance(2, 3, "lavapipe redondea de otra forma el filtro y las mezclas en coma flotante"));
             }
         }
     }

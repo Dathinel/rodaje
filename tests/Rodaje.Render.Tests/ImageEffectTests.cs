@@ -183,7 +183,7 @@ public sealed class ImageEffectTests
     {
         AssertSpatial(Fx.Make(BuiltInEffects.Sharpen, null, (BuiltInEffects.SharpenParameters.Amount, amount),
             (BuiltInEffects.SharpenParameters.Radius, radius), (BuiltInEffects.SharpenParameters.Threshold, threshold)),
-            s => FxReference.SharpenWithThreshold(s, amount, radius, threshold));
+            s => FxReference.SharpenWithThreshold(s, amount, radius, threshold), tolerance: TestGpu.Tolerance(2, 2 + amount, "la nitidez amplifica (1 + cantidad) veces la diferencia de un código del desenfoque en lavapipe"));
     }
 
     [EngineTheory]
@@ -322,14 +322,14 @@ public sealed class ImageEffectTests
         return (image, FloatImage.FromColors(Width, Height, (x, y) => C3.From(ReferenceColor.Decode(codes[(y * Width) + x], Bt709, false))));
     }
 
-    private static void AssertSpatial(LayerEffect effect, Func<FloatImage, FloatImage> reference, double outliers = 0)
+    private static void AssertSpatial(LayerEffect effect, Func<FloatImage, FloatImage> reference, double outliers = 0, double? tolerance = null)
     {
         (YuvImage image, FloatImage decoded) = Noise(5);
         using TestGpu gpu = TestGpu.Create();
         RgbaImage result = EffectFidelityTests.Compose(gpu, Width, Height, out CompositeResult stats, null,
             Layers.From(gpu, image, Bt709, new LayerLook([effect])));
         Assert.Equal(0, stats.EffectsSkipped);
-        AssertImage(result, reference(decoded), outliers: outliers);
+        AssertImage(result, reference(decoded), tolerance, outliers);
     }
 
     /// <summary>Cada píxel contra la referencia compuesta sobre negro; se admite una fracción de píxeles fuera (bordes de celda del grano).</summary>
