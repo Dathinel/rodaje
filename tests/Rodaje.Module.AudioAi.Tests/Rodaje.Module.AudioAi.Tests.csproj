@@ -13,6 +13,8 @@
   <ItemGroup>
     <ProjectReference Include="..\..\modules\Rodaje.Module.AudioAi\Rodaje.Module.AudioAi.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <!-- PackagedModuleTests instala el .paquete de este sistema como el editor. -->
+    <ProjectReference Include="..\..\src\Rodaje.Packages\Rodaje.Packages.csproj" />
     <!-- Para comparar Silero con el detector de energía de la app. -->
     <ProjectReference Include="..\..\src\Rodaje.Analysis\Rodaje.Analysis.csproj" />
   </ItemGroup>

@@ -32,7 +32,8 @@ public interface IAudioCapture : IDisposable
 public static class AudioCapture
 {
     /// <summary>Los dispositivos de entrada activos, el predeterminado primero. Vacío si no hay o el servicio de audio no responde.</summary>
-    public static IReadOnlyList<AudioCaptureDevice> ListDevices() => OperatingSystem.IsWindows() ? ListWasapiDevices() : [];
+    public static IReadOnlyList<AudioCaptureDevice> ListDevices() =>
+        OperatingSystem.IsWindows() ? ListWasapiDevices() : OperatingSystem.IsLinux() ? PulseCapture.ListDevices() : [];
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     private static IReadOnlyList<AudioCaptureDevice> ListWasapiDevices()
@@ -94,7 +95,9 @@ public static class AudioCapture
     /// <exception cref="AudioDeviceUnavailableException">No hay micrófono, está en uso exclusivo o Windows lo rechazó.</exception>
     public static IAudioCapture Open(string? deviceId, int sampleRate = 48_000) => OperatingSystem.IsWindows()
         ? new WasapiCapture(deviceId, sampleRate)
-        : throw new AudioDeviceUnavailableException("La captura de audio en este sistema todavía no está disponible.");
+        : OperatingSystem.IsLinux()
+            ? new PulseCapture(deviceId, sampleRate)
+            : throw new AudioDeviceUnavailableException("La captura de audio en este sistema todavía no está disponible.");
 
     [System.Runtime.Versioning.SupportedOSPlatform("windows")]
     internal static IMMDeviceEnumerator CreateEnumerator(ComWrappers wrappers)

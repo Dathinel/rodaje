@@ -9,7 +9,9 @@ public static class AudioOutput
     public static IAudioOutput Open(IAudioSampleSource source, AudioOutputOptions? options = null) =>
         Open(source, options ?? new AudioOutputOptions(), OperatingSystem.IsWindows()
             ? WasapiOutput.Open
-            : (_, _) => throw new AudioDeviceUnavailableException("La salida de audio en este sistema todavía no está disponible."));
+            : OperatingSystem.IsLinux()
+                ? PulseOutput.Open
+                : (_, _) => throw new AudioDeviceUnavailableException("La salida de audio en este sistema todavía no está disponible."));
 
     internal static IAudioOutput Open(
         IAudioSampleSource source,

@@ -1,0 +1,119 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "Microsoft.DotNet.ILCompiler": {
+        "type": "Direct",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "CDQ/+XRT1JT/0u87j9exR1AociehKUzxae4KCOWxCQ1PIKbYS0F8ovxaCrqRlkylGmbhywKxV/zbbrEhWa5NXg=="
+      },
+      "Microsoft.ML.OnnxRuntime": {
+        "type": "Direct",
+        "requested": "[1.30.0, )",
+        "resolved": "1.30.0",
+        "contentHash": "RaF3KjPXB/IbNvvrcQtrxS/NZjB9dEHnZQTsdJCLP5Fnn1Jj3LomeqR1mMAoRFKinJ0pIe85PLhLlfGBYqzgWA==",
+        "dependencies": {
+          "Microsoft.ML.OnnxRuntime.Managed": "1.30.0"
+        }
+      },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.12, )",
+        "resolved": "10.0.12",
+        "contentHash": "xi+BDjFpW+Sb+MHFHaH6Y/gV9I8BluFwRXc1QyCdoZbIK26eNiBeFuMTe/FMwc33G1wdHCyDg7CVTmb8OdQrMQ=="
+      },
+      "Microsoft.ML.OnnxRuntime.Managed": {
+        "type": "Transitive",
+        "resolved": "1.30.0",
+        "contentHash": "KHW+vp+i4Mdf6RhIsMvurTVepafXHjg8/VQ0o6sa2wEK0KzV/4iEoRTUvsymcRP+XPAM/r6kZCaTADdV6Xn4RA==",
+        "dependencies": {
+          "System.Numerics.Tensors": "9.0.0"
+        }
+      },
+      "System.Numerics.Tensors": {
+        "type": "Transitive",
+        "resolved": "9.0.0",
+        "contentHash": "hyJB4UlpAi19Xr9AXzu2NuagKC4lPfHObNMEAA0HmqFz2rX7wKgzeYzO/jM/eBHDhnUGFFEjk5cOoJaxqg5J4A=="
+      },
+      "rodaje.modules.protocol": {
+        "type": "Project"
+      }
+    },
+    "net10.0/linux-x64": {
+      "Microsoft.DotNet.ILCompiler": {
+        "type": "Direct",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "CDQ/+XRT1JT/0u87j9exR1AociehKUzxae4KCOWxCQ1PIKbYS0F8ovxaCrqRlkylGmbhywKxV/zbbrEhWa5NXg==",
+        "dependencies": {
+          "runtime.linux-x64.Microsoft.DotNet.ILCompiler": "10.0.14"
+        }
+      },
+      "Microsoft.ML.OnnxRuntime": {
+        "type": "Direct",
+        "requested": "[1.30.0, )",
+        "resolved": "1.30.0",
+        "contentHash": "RaF3KjPXB/IbNvvrcQtrxS/NZjB9dEHnZQTsdJCLP5Fnn1Jj3LomeqR1mMAoRFKinJ0pIe85PLhLlfGBYqzgWA==",
+        "dependencies": {
+          "Microsoft.ML.OnnxRuntime.Managed": "1.30.0"
+        }
+      },
+      "runtime.linux-x64.Microsoft.DotNet.ILCompiler": {
+        "type": "Transitive",
+        "resolved": "10.0.14",
+        "contentHash": "RbHp9HXSvTnYCy1X8LUQmL0LcW++jP8Crqvt6ZjSH2MXqJ7w3FBHS9sUf1iFuCD6ztYdAQNd/QgMpDGZE/aRIA=="
+      }
+    },
+    "net10.0/osx-arm64": {
+      "Microsoft.DotNet.ILCompiler": {
+        "type": "Direct",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "CDQ/+XRT1JT/0u87j9exR1AociehKUzxae4KCOWxCQ1PIKbYS0F8ovxaCrqRlkylGmbhywKxV/zbbrEhWa5NXg==",
+        "dependencies": {
+          "runtime.osx-arm64.Microsoft.DotNet.ILCompiler": "10.0.14"
+        }
+      },
+      "Microsoft.ML.OnnxRuntime": {
+        "type": "Direct",
+        "requested": "[1.30.0, )",
+        "resolved": "1.30.0",
+        "contentHash": "RaF3KjPXB/IbNvvrcQtrxS/NZjB9dEHnZQTsdJCLP5Fnn1Jj3LomeqR1mMAoRFKinJ0pIe85PLhLlfGBYqzgWA==",
+        "dependencies": {
+          "Microsoft.ML.OnnxRuntime.Managed": "1.30.0"
+        }
+      },
+      "runtime.osx-arm64.Microsoft.DotNet.ILCompiler": {
+        "type": "Transitive",
+        "resolved": "10.0.14",
+        "contentHash": "t4T2d4Ye79r1GTjP9JuJHkA874jiKCvdhcsj8HAUD5U2XF8GpjRsT6YSusy67My5V12iydckl0D4qC9iZsmpvQ=="
+      }
+    },
+    "net10.0/win-x64": {
+      "Microsoft.DotNet.ILCompiler": {
+        "type": "Direct",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "CDQ/+XRT1JT/0u87j9exR1AociehKUzxae4KCOWxCQ1PIKbYS0F8ovxaCrqRlkylGmbhywKxV/zbbrEhWa5NXg==",
+        "dependencies": {
+          "runtime.win-x64.Microsoft.DotNet.ILCompiler": "10.0.14"
+        }
+      },
+      "Microsoft.ML.OnnxRuntime": {
+        "type": "Direct",
+        "requested": "[1.30.0, )",
+        "resolved": "1.30.0",
+        "contentHash": "RaF3KjPXB/IbNvvrcQtrxS/NZjB9dEHnZQTsdJCLP5Fnn1Jj3LomeqR1mMAoRFKinJ0pIe85PLhLlfGBYqzgWA==",
+        "dependencies": {
+          "Microsoft.ML.OnnxRuntime.Managed": "1.30.0"
+        }
+      },
+      "runtime.win-x64.Microsoft.DotNet.ILCompiler": {
+        "type": "Transitive",
+        "resolved": "10.0.14",
+        "contentHash": "B28xsyrO3PRFGL9yd1lLWdX3/wATFkaxPFM3VmGOFG8pfx7jDeb1Yz09v6n+z0jNEPAlQLqOx2noOXw8aytYNw=="
+      }
+    }
+  }
+}

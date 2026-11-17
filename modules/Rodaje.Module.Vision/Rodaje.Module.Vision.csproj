@@ -7,8 +7,18 @@
   -->
   <PropertyGroup>
     <OutputType>Exe</OutputType>
-    <TargetFramework>net10.0-windows</TargetFramework>
-    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- El ejecutable es del sistema que compila (D-066, fase 7). Windows usa ONNX Runtime con DirectML y Linux y macOS el
+         de CPU (con CoreML en macOS): son paquetes distintos, así que cada lado tiene su lockfile, elegido por VisionUnix
+         (por omisión, el anfitrión; -p:VisionUnix=true arma el de Linux y macOS en Windows). Los tres RID siempre, para
+         que el lockfile no dependa del anfitrión. -->
+    <VisionUnix Condition="'$(VisionUnix)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">false</VisionUnix>
+    <VisionUnix Condition="'$(VisionUnix)' == ''">true</VisionUnix>
+    <RuntimeIdentifiers>win-x64;linux-x64;osx-arm64</RuntimeIdentifiers>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">win-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('Linux'))">linux-x64</RuntimeIdentifier>
+    <RuntimeIdentifier Condition="'$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX'))">osx-arm64</RuntimeIdentifier>
+    <NuGetLockFilePath Condition="'$(VisionUnix)' == 'true'">packages.unix.lock.json</NuGetLockFilePath>
     <RootNamespace>Rodaje.Module.Vision</RootNamespace>
     <AssemblyName>Rodaje.Module.Vision</AssemblyName>
     <IsPackable>false</IsPackable>
@@ -28,7 +38,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.4" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime.DirectML" Version="1.24.4" Condition="'$(VisionUnix)' != 'true'" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.30.0" Condition="'$(VisionUnix)' == 'true'" />
   </ItemGroup>
 
 </Project>
