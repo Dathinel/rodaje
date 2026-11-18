@@ -6,8 +6,13 @@
 set -uo pipefail
 filtro="$1"
 estado=0
-for p in Core Packages Playback TestServer Analysis Modules.Protocol Media Audio Engine TestMedia Module.AudioAi Module.Voice Module.Subtitles Module.Translate Module.Vision Text Render.Vulkan Render Export; do
-  proyecto="tests/Rodaje.$p.Tests/Rodaje.$p.Tests.csproj"
+for p in Core Packages Playback TestServer Analysis Media Audio Engine TestMedia Module.AudioAi Module.Voice Module.Subtitles Module.Translate Module.Vision Text Render.Vulkan Render Export Modules.Protocol; do
+  if [ "$p" = Modules.Protocol ]; then
+    # El protocolo vive en el submódulo externo/sala (D-066, bloque de integración).
+    proyecto="externo/sala/tests/Rodaje.$p.Tests/Rodaje.$p.Tests.csproj"
+  else
+    proyecto="tests/Rodaje.$p.Tests/Rodaje.$p.Tests.csproj"
+  fi
   dotnet restore "$proyecto" --locked-mode || { estado=1; continue; }
   dotnet test "$proyecto" --no-restore --filter "$filtro" \
     --logger "trx;LogFilePrefix=$p" --results-directory TestResults \

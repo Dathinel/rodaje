@@ -237,7 +237,7 @@ jobs:
           $reloj = [System.Diagnostics.Stopwatch]::StartNew()
           powershell -NoProfile -ExecutionPolicy Bypass -File build\app.ps1 -SoloPublicar
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & build\dotnet-local.cmd publish modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj -c Release -o modules\Rodaje.Module.Echo\bin\aot -m:4 --nologo
+          & build\dotnet-local.cmd publish externo\sala\modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj -c Release -o externo\sala\modules\Rodaje.Module.Echo\bin\aot -m:4 --nologo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "Publicación AOT: $($reloj.Elapsed.TotalSeconds.ToString('F1')) s" >> $env:GITHUB_STEP_SUMMARY
 
