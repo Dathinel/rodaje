@@ -134,7 +134,7 @@ Consecuencias para las fases 3 y 4:
 
 ### (e) Protocolo de módulos por socket Unix y memoria compartida
 
-Prototipo `eco/` ([README](../experimentos/linux-fase0/eco/README.md)): un ejecutable AOT que hace de editor y de módulo. Usa el marco y los mensajes **reales** del protocolo v1 (`MessageChannel.cs`, `Messages.cs` y `ModuleExceptions.cs` enlazados desde `src/Rodaje.Modules.Protocol/`, sin cambios) sobre un socket de dominio Unix, con la región de memoria compartida como archivo mapeado en una carpeta 0700.
+Prototipo `eco/` ([README](../experimentos/linux-fase0/eco/README.md)): un ejecutable AOT que hace de editor y de módulo. Usa el marco y los mensajes **reales** del protocolo v1 (`MessageChannel.cs`, `Messages.cs` y `ModuleExceptions.cs` enlazados desde `externo/sala/src/Rodaje.Modules.Protocol/` — antes `src/Rodaje.Modules.Protocol/` —, sin cambios) sobre un socket de dominio Unix, con la región de memoria compartida como archivo mapeado en una carpeta 0700.
 
 | Comprobación | Linux (`ubuntu-24.04`) | macOS (`macos-15`, arm64) |
 |---|---|---|
