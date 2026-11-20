@@ -88,4 +88,34 @@ public sealed class ProjectWireTests
 
         Assert.False(parsed.IsValid);
     }
+
+    private static Project WithTranscript(DateTimeKind kind)
+    {
+        Project project = SharedStateTests.Rich();
+        project.Transcripts.Add(new MediaTranscript
+        {
+            Id = "transcript-1",
+            MediaId = project.Media[0].Id,
+            Language = "es",
+            Model = "modelo",
+            Created = kind == DateTimeKind.Utc ? new DateTime(2026, 11, 15, 15, 0, 0, DateTimeKind.Utc) : new DateTime(2026, 11, 15, 15, 0, 0, DateTimeKind.Utc).ToLocalTime(),
+            MediaDuration = project.Media[0].Duration,
+            Words = [new SpokenWord { Start = Rodaje.Core.Timing.Time.Zero, End = Rodaje.Core.Timing.Time.FromSeconds(0.5), Text = "Hola", Confidence = 0.9 }],
+        });
+        return project;
+    }
+
+    [Fact]
+    public void A_transcript_makes_the_trip_and_its_date_does_not_depend_on_the_time_zone()
+    {
+        Project local = WithTranscript(DateTimeKind.Local);
+        Project utc = WithTranscript(DateTimeKind.Utc);
+
+        ProjectParseResult parsed = ProjectWire.TryParse(ProjectWire.ToJson(local));
+
+        Assert.True(parsed.IsValid, parsed.Rejection?.Message);
+        Assert.Equal(SharedState.Capture(utc).Hash, SharedState.Capture(local).Hash);
+        Assert.Equal(SharedState.Capture(utc).Hash, SharedState.Capture(parsed.Project!).Hash);
+        Assert.Single(parsed.Project!.Transcripts);
+    }
 }

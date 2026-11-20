@@ -28,7 +28,18 @@ internal static class ElementCodec
 
     public static string EncodeMedia(MediaRef media, IBlobMap? blobs) => Encode(media, MediaPathKey, blobs);
 
-    public static string EncodeTranscript(MediaTranscript transcript, IBlobMap? blobs) => Encode(transcript, null, blobs);
+    // La fecha de creación se escribe siempre en UTC: con un desfase local, dos equipos en husos distintos darían textos distintos del mismo instante.
+    public static string EncodeTranscript(MediaTranscript transcript, IBlobMap? blobs)
+    {
+        if (transcript.Created.Kind == DateTimeKind.Utc)
+        {
+            return Encode(transcript, null, blobs);
+        }
+
+        MediaTranscript copy = transcript.Clone();
+        copy.Created = transcript.Created.ToUniversalTime();
+        return Encode(copy, null, blobs);
+    }
 
     public static string EncodeSequence(Sequence sequence, IBlobMap? blobs) => Encode(sequence.WithoutContents(), null, blobs);
 
