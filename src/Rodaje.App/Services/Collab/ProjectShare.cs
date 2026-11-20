@@ -79,7 +79,7 @@ public sealed partial class ProjectShareHost : IDisposable
 
     private void OnDirect(string from, JsonElement message)
     {
-        if (ShareMessages.Type(message) == ShareMessages.Ask && _room.State is { IsHost: true, Phase: RoomPhase.Hosting })
+        if (ShareMessages.Type(message) == ShareMessages.Ask && _room.State is { IsHost: true, Phase: RoomPhase.Hosting or RoomPhase.Connected })
         {
             UiTask.Run(Task.Run(() => ServeAsync(from)));
         }
