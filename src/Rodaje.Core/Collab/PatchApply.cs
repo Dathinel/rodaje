@@ -46,17 +46,10 @@ public static class PatchApply
         }
 
         PatchOp[] ordered = [.. patch.Ops.Order(Comparer<PatchOp>.Create(PatchCanon.Compare))];
-        var decoded = new Decoded[ordered.Length];
-        for (int i = 0; i < ordered.Length; i++)
+        PatchRejection? rejected = DecodeAll(ordered, options.Blobs, out Decoded[] decoded);
+        if (rejected is not null)
         {
-            if (ordered[i].Content is { } content)
-            {
-                (decoded[i], PatchRejection? rejection) = Decode(ordered[i], content, options.Blobs);
-                if (rejection is not null)
-                {
-                    return new PatchResult(rejection);
-                }
-            }
+            return new PatchResult(rejected);
         }
 
         Project candidate = project.Clone();
@@ -74,9 +67,29 @@ public static class PatchApply
         }
 
         // La copia candidata salió bien: el mismo cambio sobre el proyecto vivo no puede fallar (es el mismo algoritmo sobre lo mismo).
+        // Se lee otra vez el contenido: los objetos de la pasada anterior ya cuelgan de la copia candidata.
+        DecodeAll(ordered, options.Blobs, out decoded);
         Apply(project, ordered, decoded, patch.Orders);
         versions.Advance(patch);
         return PatchResult.Accepted;
+    }
+
+    private static PatchRejection? DecodeAll(PatchOp[] ordered, IBlobMap? blobs, out Decoded[] decoded)
+    {
+        decoded = new Decoded[ordered.Length];
+        for (int i = 0; i < ordered.Length; i++)
+        {
+            if (ordered[i].Content is { } content)
+            {
+                (decoded[i], PatchRejection? rejection) = Decode(ordered[i], content, blobs);
+                if (rejection is not null)
+                {
+                    return rejection;
+                }
+            }
+        }
+
+        return null;
     }
 
     private sealed record Decoded(MediaRef? Media = null, MediaTranscript? Transcript = null, Sequence? Sequence = null, Track? Track = null, Clip? Clip = null, Marker? Marker = null, Region? Region = null);
