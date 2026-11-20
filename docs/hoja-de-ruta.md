@@ -71,7 +71,9 @@ En segundo plano y frente a la base de la 1.0.3.
 
 **Orden y paralelismo (20-nov).** B10 (parches en Core) y B13 (internet y diagnóstico) arrancan a la vez, porque no se tocan; B11 (sesión y pantallas) arranca también, con el esqueleto y la parte de red, y engancha los parches cuando B10 se una; B12 (pruebas hostiles) empieza con B11; B14, B15 y B16 empiezan cuando B11 tenga lo básico. B4 a B7 siguen en paralelo; **B9 (repaso con ratón, repetido) y la prueba de colaboración entre dos equipos cierran antes de B8**. Un jefe por bloque; los jefes de B10, B11 y B13 se coordinan por las interfaces de `propuestas/colaboracion.md`.
 
-**Listón de pulido para la prueba en otro país:** nada de errores sin explicar (todo fallo de red dice qué pasó y qué hacer), conexión directa o por relé visible, comprobación de la misma versión al entrar, aprobación del anfitrión siempre, un panel de diagnóstico que Daniel pueda leer por teléfono, y `docs/prueba-colaboracion.md` con el guion paso a paso para los dos.
+**Requisito de interfaz (consejo de Daniel, 20-nov):** en toda operación larga (cargar un proyecto, renderizar, exportar, analizar, descargar, generar proxies, enviar o recibir por la red) tiene que haber algo visual que diga que no se quedó trabado, y debe ser una **barra de progreso con porcentaje, no una rueda** (la rueda no dice si avanza). Si el porcentaje no se conoce: por fases («paso 2 de 5: …») o con el último avance («sigue trabajando, último avance hace 4 s»), con el tiempo restante estimado cuando se pueda y un botón de cancelar. Bloque **B9b** (auditoría y componente común); la red de B11 y B13 lo usa desde el principio.
+
+**Listón de pulido para la prueba en otro país:** nada de errores sin explicar (todo fallo de red dice qué pasó y qué hacer), conexión directa o por relé visible, comprobación de la misma versión al entrar, aprobación del anfitrión siempre, progreso visible en toda operación larga, un panel de diagnóstico que Daniel pueda leer por teléfono, y `docs/prueba-colaboracion.md` con el guion paso a paso para los dos.
 
 ## Repaso y colaboración: detalle (sin Linux)
 
