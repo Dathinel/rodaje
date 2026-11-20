@@ -33,7 +33,9 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
         RegisterPropertyChangedCallback(VisibilityProperty, (_, _) =>
         {
             if (Visibility == Visibility.Visible) Refresh();
+            else _services?.Session.ForgetTranscriptSelection();
         });
+        AddHandler(PointerPressedEvent, new PointerEventHandler(OnPanelPointerPressed), true);
     }
 
     public TranscriptPanelModel Model { get; } = new();
@@ -246,6 +248,24 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
         }
 
         return null;
+    }
+
+    // Un clic en cualquier parte del panel le da el foco (salvo en lo que se lo queda por sí mismo): con el foco fuera, Supr
+    // iría al borrado de la línea de tiempo.
+    private void OnPanelPointerPressed(object sender, PointerRoutedEventArgs args)
+    {
+        if (!TakesFocusItself(args.OriginalSource as DependencyObject)) Focus(FocusState.Pointer);
+    }
+
+    private static bool TakesFocusItself(DependencyObject? element)
+    {
+        for (; element is not null; element = VisualTreeHelper.GetParent(element))
+        {
+            if (element is TextBox or ComboBox or ToggleSwitch or Microsoft.UI.Xaml.Controls.Primitives.ButtonBase
+                or Microsoft.UI.Xaml.Controls.Primitives.ScrollBar) return true;
+        }
+
+        return false;
     }
 
     private void OnWordTapped(object sender, TappedRoutedEventArgs args)

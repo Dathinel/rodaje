@@ -362,12 +362,14 @@ public sealed partial class EditorSession : ObservableObject
     {
         VerifyAccess();
         ArgumentNullException.ThrowIfNull(clipIds);
+        _wordSelection = null;
         SetSelection([.. clipIds.Distinct(StringComparer.Ordinal)]);
     }
 
     public void ToggleSelection(string clipId)
     {
         VerifyAccess();
+        _wordSelection = null;
         List<string> next = [.. _selection];
         if (!next.Remove(clipId))
         {
@@ -380,6 +382,7 @@ public sealed partial class EditorSession : ObservableObject
     public void ClearSelection()
     {
         VerifyAccess();
+        _wordSelection = null;
         SetSelection([]);
     }
 
