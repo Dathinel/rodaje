@@ -37,7 +37,7 @@ public sealed class ElementVersions
         ArgumentNullException.ThrowIfNull(patch);
         foreach (PatchOp op in patch.Ops)
         {
-            Set(op.Key, Math.Max(Get(op.Key), op.BaseVersion) + 1);
+            Set(op.Key, (int)Math.Min(int.MaxValue, (long)Math.Max(Get(op.Key), op.BaseVersion) + 1));
         }
     }
 

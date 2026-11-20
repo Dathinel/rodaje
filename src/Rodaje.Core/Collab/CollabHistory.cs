@@ -170,6 +170,38 @@ public sealed class CollabHistory
             }
         }
 
+        // Quitar una pista o una secuencia se llevaría lo que otra persona haya puesto dentro después.
+        var removed = new HashSet<ElementKey>(entry.Elements.Where(p => (undo ? p.Value.Before : p.Value.After) is null).Select(p => p.Key));
+        foreach (ElementKey gone in removed.Where(k => k.Kind is ElementKind.Track or ElementKind.Sequence))
+        {
+            foreach ((ElementKey child, ElementState state) in current.Elements)
+            {
+                if (state.Parent == gone.Id && !entry.Elements.ContainsKey(child))
+                {
+                    return new HistoryOutcome(null, HistoryFailure.ChangedByOthers, child);
+                }
+            }
+        }
+
+        // Si otra persona reordenó los mismos elementos, el orden del paso ya no es el de ahora.
+        foreach ((string container, (IReadOnlyList<string>? before, IReadOnlyList<string>? after) lists) in entry.Orders)
+        {
+            IReadOnlyList<string>? expected = undo ? lists.after : lists.before;
+            if (expected is null || !current.Orders.TryGetValue(container, out IReadOnlyList<string>? now))
+            {
+                continue;
+            }
+
+            var inExpected = new HashSet<string>(expected, StringComparer.Ordinal);
+            var inNow = new HashSet<string>(now, StringComparer.Ordinal);
+            string[] seen = [.. now.Where(inExpected.Contains)];
+            string[] wanted = [.. expected.Where(inNow.Contains)];
+            if (!seen.SequenceEqual(wanted, StringComparer.Ordinal))
+            {
+                return new HistoryOutcome(null, HistoryFailure.ChangedByOthers, new ElementKey(PatchDiff.ContainerKind(container), seen.Zip(wanted, (x, y) => x == y ? null : x).FirstOrDefault(x => x is not null) ?? seen[0]));
+            }
+        }
+
         var orders = new Dictionary<string, IReadOnlyList<string>>(current.Orders, StringComparer.Ordinal);
         foreach ((string container, (IReadOnlyList<string>? before, IReadOnlyList<string>? after) lists) in entry.Orders)
         {

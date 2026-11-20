@@ -74,6 +74,8 @@ public static class WireSanitizer
     internal static PatchRejection Malformed(string message, ElementKey? element = null) =>
         new(PatchRejectionReason.Malformed, message, element);
 
+    internal static PatchResult Reject(string message) => new(Malformed(message));
+
     private static PatchRejection Hostile(string message, ElementKey? element = null) =>
         new(PatchRejectionReason.Hostile, message, element);
 
@@ -177,7 +179,7 @@ public static class WireSanitizer
             return Malformed($"El parche cambia dos veces el mismo elemento («{Shorten(key.ToString())}»).", key);
         }
 
-        if (!op.TryGetProperty("v", out JsonElement version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out int v) || v < 0)
+        if (!op.TryGetProperty("v", out JsonElement version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out int v) || v < 0 || v == int.MaxValue)
         {
             return Malformed("Un cambio del parche no tiene una versión válida.", key);
         }
@@ -371,10 +373,9 @@ public static class WireSanitizer
             return "!El contenido trae una ruta de archivo (file:) donde solo se admiten referencias a blobs.";
         }
 
-        if (text.StartsWith("\\\\", StringComparison.Ordinal) || text.StartsWith("//", StringComparison.Ordinal)
-            || (text.Length >= 3 && char.IsAsciiLetter(text[0]) && text[1] == ':' && text[2] is '\\' or '/'))
+        if (LooksLikePath(text))
         {
-            return "!El contenido trae una ruta de red o absoluta donde no se admite.";
+            return "!El contenido trae una ruta de archivo donde solo se admiten referencias a blobs.";
         }
 
         if (text.StartsWith(ElementCodec.BlobPrefix, StringComparison.Ordinal) && !ContentHash.IsValid(text[ElementCodec.BlobPrefix.Length..]))
@@ -384,6 +385,13 @@ public static class WireSanitizer
 
         return null;
     }
+
+    // Una opción que no es una referencia a un paquete ni a un blob no puede ser una ruta: ni de red, ni absoluta, ni relativa, ni con «..».
+    private static bool LooksLikePath(string text) =>
+        text.StartsWith('/') || text.StartsWith('\\')
+        || (text.Length >= 2 && char.IsAsciiLetter(text[0]) && text[1] == ':')
+        || text.Contains("../", StringComparison.Ordinal) || text.Contains("..\\", StringComparison.Ordinal)
+        || text.StartsWith("./", StringComparison.Ordinal) || text.StartsWith(".\\", StringComparison.Ordinal);
 
     private static bool IsContainer(string container, WireLimits limits)
     {

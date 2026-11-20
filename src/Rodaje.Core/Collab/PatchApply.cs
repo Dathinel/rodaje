@@ -1,4 +1,5 @@
 using Rodaje.Core.Model;
+using Rodaje.Core.Serialization;
 
 namespace Rodaje.Core.Collab;
 
@@ -52,31 +53,47 @@ public static class PatchApply
             return new PatchResult(rejected);
         }
 
-        Project candidate = project.Clone();
-        if (Apply(candidate, ordered, decoded, patch.Orders) is { } failed)
+        // Un segundo juego de objetos para el proyecto vivo: los del primero cuelgan de la copia candidata, y el contenido (y lo que
+        // resuelva el mapa de blobs) se lee una sola vez, así que lo validado es exactamente lo que se aplica.
+        Decoded[] forLive;
+        try
         {
-            return new PatchResult(failed);
-        }
+            forLive = [.. decoded.Select(d => d.Copy())];
+            Project candidate = project.Clone();
+            if (Apply(candidate, ordered, decoded, patch.Orders) is { } failed)
+            {
+                return new PatchResult(failed);
+            }
 
-        IReadOnlyList<string> problems = ModelValidator.Validate(candidate);
-        if (problems.Count > 0)
+            if (ProjectSerializer.FindNullItems(candidate).Count > 0)
+            {
+                return WireSanitizer.Reject("El cambio trae un elemento vacío (null) dentro de una lista y no se aplicó.");
+            }
+
+            IReadOnlyList<string> problems = ModelValidator.Validate(candidate);
+            if (problems.Count > 0)
+            {
+                // Sin el texto del problema: puede traer un valor de este equipo, como la ruta de un archivo.
+                return PatchResult.Reject(
+                    PatchRejectionReason.Invalid,
+                    $"El cambio dejaría el proyecto con {problems.Count} dato(s) inconsistente(s) y no se aplicó.");
+            }
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
         {
-            return PatchResult.Reject(
-                PatchRejectionReason.Invalid,
-                "El cambio dejaría el proyecto con datos inconsistentes y no se aplicó: " + problems[0]);
+            // Datos hostiles que pasan el formato pero rompen una operación (un null dentro de una lista, por ejemplo).
+            return WireSanitizer.Reject("El cambio trae datos que no se pudieron comprobar y no se aplicó.");
         }
 
         // La copia candidata salió bien: el mismo cambio sobre el proyecto vivo no puede fallar (es el mismo algoritmo sobre lo mismo).
-        // Se lee otra vez el contenido: los objetos de la pasada anterior ya cuelgan de la copia candidata.
-        DecodeAll(ordered, options.Blobs, out decoded);
-        Apply(project, ordered, decoded, patch.Orders);
+        Apply(project, ordered, forLive, patch.Orders);
         versions.Advance(patch);
         return PatchResult.Accepted;
     }
 
     private static PatchRejection? DecodeAll(PatchOp[] ordered, IBlobMap? blobs, out Decoded[] decoded)
     {
-        decoded = new Decoded[ordered.Length];
+        decoded = [.. ordered.Select(_ => new Decoded())];
         for (int i = 0; i < ordered.Length; i++)
         {
             if (ordered[i].Content is { } content)
@@ -92,7 +109,10 @@ public static class PatchApply
         return null;
     }
 
-    private sealed record Decoded(MediaRef? Media = null, MediaTranscript? Transcript = null, Sequence? Sequence = null, Track? Track = null, Clip? Clip = null, Marker? Marker = null, Region? Region = null);
+    private sealed record Decoded(MediaRef? Media = null, MediaTranscript? Transcript = null, Sequence? Sequence = null, Track? Track = null, Clip? Clip = null, Marker? Marker = null, Region? Region = null)
+    {
+        public Decoded Copy() => new(Media?.Clone(), Transcript?.Clone(), Sequence?.Clone(), Track?.Clone(), Clip?.Clone(), Marker?.Clone(), Region?.Clone());
+    }
 
     private static PatchRejection? CheckShape(Patch patch, PatchApplyOptions options)
     {
@@ -167,9 +187,10 @@ public static class PatchApply
 
     private static PatchRejection? Apply(Project project, PatchOp[] ops, Decoded[] decoded, IReadOnlyList<PatchOrder> orders)
     {
+        var touched = new HashSet<ElementKey>(ops.Select(o => o.Key));
         for (int i = 0; i < ops.Length; i++)
         {
-            PatchRejection? rejection = ops[i].Content is null ? Delete(project, ops[i]) : Upsert(project, ops[i], decoded[i]);
+            PatchRejection? rejection = ops[i].Content is null ? Delete(project, ops[i], touched) : Upsert(project, ops[i], decoded[i]);
             if (rejection is not null)
             {
                 return rejection;
@@ -184,10 +205,13 @@ public static class PatchApply
         return null;
     }
 
+    private static PatchRejection Occupied(PatchOp op) =>
+        new(PatchRejectionReason.VersionConflict, "Otra persona añadió algo a lo que querías borrar. Tu cambio no entró.", op.Key);
+
     private static PatchRejection Gone(PatchOp op) =>
         new(PatchRejectionReason.VersionConflict, "Otra persona quitó este elemento antes que tú. Tu cambio no entró.", op.Key);
 
-    private static PatchRejection? Delete(Project project, PatchOp op)
+    private static PatchRejection? Delete(Project project, PatchOp op, HashSet<ElementKey> touched)
     {
         bool removed = false;
         switch (op.Kind)
@@ -202,9 +226,22 @@ public static class PatchApply
                 removed = project.Sequences.Any(s => s.Regions.RemoveAll(r => r.Id == op.Id) > 0);
                 break;
             case ElementKind.Track:
+                // Lo que cuelga de ella se borra o se mueve con su propio cambio y su propia versión: una pista con clips de otra persona no se borra.
+                if (project.Sequences.SelectMany(s => s.AllTracks).Any(t => t.Id == op.Id && t.Clips.Exists(c => !touched.Contains(new ElementKey(ElementKind.Clip, c.Id)))))
+                {
+                    return Occupied(op);
+                }
+
                 removed = project.Sequences.Any(s => s.VideoTracks.RemoveAll(t => t.Id == op.Id) + s.AudioTracks.RemoveAll(t => t.Id == op.Id) > 0);
                 break;
             case ElementKind.Sequence:
+                if (project.Sequences.Any(s => s.Id == op.Id && (s.AllTracks.Any(t => !touched.Contains(new ElementKey(ElementKind.Track, t.Id)))
+                    || s.Markers.Exists(m => !touched.Contains(new ElementKey(ElementKind.Marker, m.Id)))
+                    || s.Regions.Exists(r => !touched.Contains(new ElementKey(ElementKind.Region, r.Id))))))
+                {
+                    return Occupied(op);
+                }
+
                 removed = project.Sequences.RemoveAll(s => s.Id == op.Id) > 0;
                 break;
             case ElementKind.Transcript:

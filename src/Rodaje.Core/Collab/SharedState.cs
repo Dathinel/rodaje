@@ -129,9 +129,3 @@ public sealed class SharedState
 
     private static void Field(StringBuilder text, string value) => text.Append(value.Length).Append(':').Append(value).Append(';');
 }
-
-internal static class Pending
-{
-    public static NotImplementedException Exception() =>
-        new("Pendiente de la implementación de B10 (docs/propuestas/colaboracion-api-parches.md): este PR solo fija los tipos.");
-}

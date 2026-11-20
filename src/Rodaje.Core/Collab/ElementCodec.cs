@@ -28,7 +28,8 @@ internal static class ElementCodec
 
     public static string EncodeMedia(MediaRef media, IBlobMap? blobs) => Encode(media, MediaPathKey, blobs);
 
-    // La fecha de creación se escribe siempre en UTC: con un desfase local, dos equipos en husos distintos darían textos distintos del mismo instante.
+    // La fecha de creación se escribe siempre en UTC: con un desfase local, dos equipos en husos distintos darían textos distintos del
+    // mismo instante. Una fecha sin zona (Unspecified) se toma como UTC, nunca como hora local, para que tampoco dependa del equipo.
     public static string EncodeTranscript(MediaTranscript transcript, IBlobMap? blobs)
     {
         if (transcript.Created.Kind == DateTimeKind.Utc)
@@ -37,7 +38,7 @@ internal static class ElementCodec
         }
 
         MediaTranscript copy = transcript.Clone();
-        copy.Created = transcript.Created.ToUniversalTime();
+        copy.Created = AsUtc(transcript.Created);
         return Encode(copy, null, blobs);
     }
 
@@ -120,7 +121,23 @@ internal static class ElementCodec
 
     public static MediaRef? DecodeMedia(string content, IBlobMap? blobs, out string? error) => Decode<MediaRef>(content, blobs, out error);
 
-    public static MediaTranscript? DecodeTranscript(string content, IBlobMap? blobs, out string? error) => Decode<MediaTranscript>(content, blobs, out error);
+    public static MediaTranscript? DecodeTranscript(string content, IBlobMap? blobs, out string? error)
+    {
+        MediaTranscript? transcript = Decode<MediaTranscript>(content, blobs, out error);
+        if (transcript is not null)
+        {
+            transcript.Created = AsUtc(transcript.Created);
+        }
+
+        return transcript;
+    }
+
+    private static DateTime AsUtc(DateTime value) => value.Kind switch
+    {
+        DateTimeKind.Utc => value,
+        DateTimeKind.Local => value.ToUniversalTime(),
+        _ => DateTime.SpecifyKind(value, DateTimeKind.Utc),
+    };
 
     public static Sequence? DecodeSequence(string content, IBlobMap? blobs, out string? error) => Decode<Sequence>(content, blobs, out error);
 

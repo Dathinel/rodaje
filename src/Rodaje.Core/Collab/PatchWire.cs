@@ -87,6 +87,35 @@ public static class PatchWire
     }
 
     /// <summary>
+    /// Las huellas de los blobs (LUT, máscaras) que el contenido del parche referencia, sin repetir y en orden. Quien recibe el parche
+    /// pide los que no tenga; <see cref="Patch.Blobs"/> viene vacío porque Core no conoce los tamaños.
+    /// </summary>
+    public static IReadOnlyList<string> BlobHashes(Patch patch)
+    {
+        ArgumentNullException.ThrowIfNull(patch);
+        var found = new SortedSet<string>(StringComparer.Ordinal);
+        foreach (PatchOp op in patch.Ops)
+        {
+            if (op.Content is null)
+            {
+                continue;
+            }
+
+            int at = 0;
+            while ((at = op.Content.IndexOf(ElementCodec.BlobPrefix, at, StringComparison.Ordinal)) >= 0)
+            {
+                at += ElementCodec.BlobPrefix.Length;
+                if (at + ContentHash.HexLength <= op.Content.Length && ContentHash.IsValid(op.Content.Substring(at, ContentHash.HexLength)))
+                {
+                    found.Add(op.Content.Substring(at, ContentHash.HexLength));
+                }
+            }
+        }
+
+        return [.. found];
+    }
+
+    /// <summary>
     /// Lee un parche que llegó de otro equipo: pasa antes por <see cref="WireSanitizer"/> y nunca lanza. Un texto hostil o mal
     /// formado devuelve el rechazo, no una excepción.
     /// </summary>
