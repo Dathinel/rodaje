@@ -65,6 +65,34 @@ public sealed class EdlRoundTripTests
     }
 
     [Fact]
+    public void An_empty_first_track_is_skipped_too_and_the_busy_one_takes_the_main_name()
+    {
+        TimelineDraft draft = RandomTimelines.Create(4);
+        Sequence sequence = draft.Sequence;
+        sequence.VideoTracks.Insert(0, new Track { Id = "vacia", Kind = TrackKind.Video, Name = "Vacía" });
+        var options = new InterchangeOptions { FrameRate = sequence.FrameRate, IncludeAudio = false };
+
+        IReadOnlyList<InterchangeOutput> outputs = EdlWriter.Write(draft.Project, sequence, null, options);
+
+        Assert.Equal("", outputs[0].Suffix);
+        Assert.All(outputs, o => Assert.Contains("001", o.Text, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Without_any_event_one_empty_list_is_still_written()
+    {
+        TimelineDraft draft = RandomTimelines.Create(4);
+        foreach (Track track in draft.Sequence.VideoTracks.Concat(draft.Sequence.AudioTracks))
+        {
+            track.Clips.Clear();
+        }
+
+        IReadOnlyList<InterchangeOutput> outputs = EdlWriter.Write(draft.Project, draft.Sequence, null, new InterchangeOptions { FrameRate = draft.Sequence.FrameRate });
+
+        Assert.Equal([""], outputs.Select(o => o.Suffix));
+    }
+
+    [Fact]
     public void A_hand_written_list_with_cut_dissolve_speed_freeze_and_marker_reads_as_expected()
     {
         const string edl = """
