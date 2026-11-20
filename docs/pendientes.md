@@ -62,6 +62,9 @@ Lo que queda abierto en Rodaje, por prioridad. Cada punto se quita al cerrarlo y
 48. **Mover una frase por texto no mueve sus subtítulos.** `MoveWords` no arrastra la pista de subtítulos (D-061).
 49. **Aviso de «Detectar ritmo» con muy pocos pulsos.** Con 4 pulsos (la voz) ajusta igual; decidir si avisa (pregunta de Daniel).
 50. **F6 y R7 sin prueba automática.** Espacio sobre un botón con foco de teclado, F2 desde el buscador, y el cursor y la zona de agarre de 12 px del asa de fundido.
+51. **R8: el aviso «Faltan medios» sigue tras deshacer la importación de una EDL.** Queda obsoleto; debe quitarse al deshacer (`docs/repaso-raton-20-nov.md`).
+52. **Movimientos continuos casi indistinguibles.** En el repaso Tambaleo se veía, Flotar variaba poco y Pulso y Temblor no se distinguieron de los keyframes del título; revisar las amplitudes de fábrica con el ojo de Daniel (`docs/rendimiento-keyframes.md`).
+53. **Sin probar con ratón real:** selección por arrastre y Supr sobre una frase entera en el panel Transcripción (F2/F4), alta de keyframes con la reproducción en marcha, el zoom de la gráfica con la rueda, el recorrido del visor con X e Y, cancelar una exportación, F6 desde el buscador, importar FCPXML y «Borrar el render en caché».
 
 ## Solo Daniel
 
