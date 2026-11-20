@@ -54,10 +54,10 @@ En segundo plano y frente a la base de la 1.0.3.
 **Hecho cuando:** las cifras están en `CHANGELOG.md` y ninguna empeora sin explicación.
 
 ### B6 · Preparar la publicación (sin publicar)
-1. ☐ Versión subida donde la subió la 1.0.3 (`Directory.Build.props`).
-2. ☐ `CHANGELOG.md` de la 1.0.4 en lenguaje de usuario, README y guías al día.
-3. ☐ `pruebas-a-mano.md` con la lista corta y ordenada de lo nuevo que Daniel debe probar con el ratón.
-4. ☐ `docs/publicar-1.0.4.md` con los pasos exactos que quedan, marcando los que usan la clave privada.
+1. ◐ Versión subida donde la subió la 1.0.3 (`Directory.Build.props`).
+2. ◐ `CHANGELOG.md` de la 1.0.4 en lenguaje de usuario, README y guías al día.
+3. ✔ `pruebas-a-mano.md` con la lista corta y ordenada de lo nuevo que Daniel debe probar con el ratón.
+4. ✔ `docs/publicar-1.0.4.md` con los pasos exactos que quedan, marcando los que usan la clave privada.
 **Hecho cuando:** `build\distribuir.ps1` arma instalador, zip y notas sin errores.
 
 ### B7 · Revisión final

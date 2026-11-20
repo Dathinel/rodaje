@@ -1,6 +1,6 @@
 # Rodaje
 
-Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0.3. Repositorio público `Dathinel/rodaje`, GPLv3 con términos adicionales de atribución y permiso para complementos (D-032); marca en `TRADEMARK.md`. Las notas de trabajo y los pendientes no van en este repositorio: viven en `.proceso\` (privado e ignorado), si está clonado.
+Editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3), versión 1.0.4 (candidata, sin publicar). Repositorio público `Dathinel/rodaje`, GPLv3 con términos adicionales de atribución y permiso para complementos (D-032); marca en `TRADEMARK.md`. Las notas de trabajo y los pendientes no van en este repositorio: viven en `.proceso\` (privado e ignorado), si está clonado.
 
 ## Cómo se trabaja aquí
 

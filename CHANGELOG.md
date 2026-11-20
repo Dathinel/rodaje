@@ -6,7 +6,9 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ---
 
-## [Sin publicar]
+## [1.0.4] - 2026-11-20
+
+La versión de lo grande: editar por el texto, render en caché, cuadros intermedios, plantillas de movimiento e intercambio con otros editores.
 
 ### Añadido
 - **Plantillas de movimiento (D-064):** Biblioteca › «Plantillas» con rótulos y títulos de varias capas que traen campos para rellenar (texto, color, fuente, tamaño, casillas y opciones) en el inspector, sin tocar los keyframes; cada cambio es un paso del historial. Miniatura animada generada en el equipo, «Convertir en títulos», «Guardar como plantilla…» desde uno o varios títulos, «Exportar…» a un `.paquete` e importación con el instalador de siempre, y «Actualizar a X» cuando hay una versión más nueva instalada (conserva los valores que siguen existiendo; nunca automático). Elemento de paquete nuevo `motion-template` (`rodaje.template` v1), también para transiciones y efectos con valores. El proyecto pasa al formato 16 solo si usa plantillas. Guía en `docs/guia/plantillas-de-movimiento.md`.
@@ -16,9 +18,10 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 - **Código de tiempo de cámara:** los medios guardan su TC y su carrete (`timecode`, `reel_name` de FFmpeg, también de la pista `tmcd` de un MOV) y la secuencia su TC de inicio; el proyecto pasa al formato 16 solo si alguno tiene valor. Un medio importado de una EDL sin haber visto su archivo se reenlaza por el carrete y sus clips se corren al TC real del archivo.
 - **Render en caché (D-060):** los tramos pesados se calculan solos tras 3 s sin editar ni reproducir, a ProRes 422 HQ de 2 s en `%LOCALAPPDATA%\Rodaje\render` (o `RODAJE_RENDER`), y se reproducen como un solo clip. Cada cuadro tiene una huella de lo que decide sus píxeles: mover un tramo o deshacer conserva lo calculado, y cambiar un shader, el preajuste o FFmpeg lo invalida. Una franja de 4 px sobre la regla dice qué va lento (rojo), qué va justo (amarillo) y qué está en caché (verde), con su explicación en la ayuda. **Secuencia › Calcular de entrada a salida** (**Ctrl+Mayús+R**), **Preferencias › Rendimiento** con modo (inteligente, manual o apagado), carpeta, tope y «Borrar el render en caché», el cálculo en **Trabajos** con su avance y cancelar, y la casilla **«Usar el render en caché»** al exportar (apagada por omisión). Un fragmento ilegible sale del índice y el tramo vuelve a componerse en vivo.
 - **Editar por el texto (D-061):** la transcripción de un medio se guarda en el proyecto (formato 16, solo si hay alguna; sin ella el archivo sigue en 15, 14 o 13) y sirve para todos sus clips, con cualquier recorte, velocidad o reversa. «Subtítulos automáticos» transcribe el medio entero la primera vez y, en los demás clips del mismo medio, saca los subtítulos al instante sin otra pasada de Whisper. Panel **Transcripción** (Ver › Transcripción): el texto de la pista guía sigue al cursor; se seleccionan palabras y Supr las borra con ripple y con el video enlazado, Retroceso deja el hueco, Ctrl+X y Ctrl+V mueven una frase, Ctrl+F busca sin distinguir mayúsculas ni tildes. «Quitar muletillas…» (Herramientas › Texto y voz) propone las seguras marcadas («eh», «um») y las dudosas sin marcar («o sea», «bueno»), y quitar pausas largas deja un respiro de 0,15 s. **F2** corrige una palabra, **Alt+1…9** asigna hablante (con nombre y color al inicio del párrafo) y vale para todos los clips del mismo medio; «Mostrar lo quitado» enseña tachado lo que se cortó y «Recuperar» lo devuelve a su sitio con su video. Cada acción es un solo Ctrl+Z.
-- **Tambaleo y Temblor:** dos animaciones de texto de fábrica (Inspector › Texto › Animación) que se balancean o tiemblan y se calman, para no poner cientos de keyframes a mano.
-
+- **Estilos de subtítulo animados de fábrica:** la categoría «Texto» de la biblioteca trae «Palabra a palabra», «Karaoke», «Pop» y «Líneas», armados con la entrada por palabra y el resaltado que ya existían.
+- **Movimiento continuo de texto:** Inspector › Texto › Animación › «Movimiento continuo» (Tambaleo, Temblor, Pulso, Flotar) con Cantidad y Velocidad; es una animación en bucle del estilo (un campo `loop`, sin keyframes), igual de barata que un keyframe e idéntica al exportar.
 - **Mapeo de rutas (Preferencias):** una fila «origen | destino» por línea que se aplica a las rutas de los medios al abrir un proyecto, para abrir en este equipo un proyecto hecho con otras rutas (otra unidad, otro sistema). No cambia el archivo del proyecto.
+
 
 ### Corregido
 - **Cuadros intermedios:** el cuadro de destino de la mezcla y del flujo óptico ya no sale del tramo recortado del clip; funcionan también en reversa, con proxies y en pausa; al recortar un clip con «Cuadros intermedios» a 1× se conserva el modo; «Pegar atributos», la selección de varios clips con modos distintos y el cuadro congelado dan el resultado esperado.
@@ -28,14 +31,17 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 - **Módulos de IA:** un módulo que escribe mucho en su salida estándar o de errores ya no puede bloquearse esperando a que Rodaje la lea.
 - **HDR de 12 bits:** el proxy de un intermedio FFV1 PQ en un MKV corto y el color en BT.2020 pasan la revisión independiente.
 - **Autoprueba:** los pasos «Antes/después» y «Waveform» son estables.
+- **Editar por el texto, tras el repaso con el ratón:** Supr con palabras elegidas ya no borra el clip entero; los subtítulos siguen a las palabras que se borran (antes un clip de subtítulos bloqueaba el cierre del hueco); en el panel Transcripción lo elegido se dibuja con fondo legible y un clic sobre una palabra la encuentra y mueve el cursor.
+- **Exportar:** una excepción en el hilo de una exportación (por ejemplo una carpeta temporal sin permiso) ya no cierra la app: queda como un error de esa exportación. Con solo la entrada marcada, el rango dice «(0:04 – final)» y con solo la salida «(inicio – 0:04)».
+- **Ajustar al ritmo:** los clips de audio sueltos no entran en el montaje (antes la música podía quedar en un trozo de 0,3 s).
+- **Avisos:** los de edición nombran el clip en vez de su identificador interno; un error o una advertencia sin acción no sobrevive al abrir otro proyecto; el informe de FCPXML da el código de tiempo de inicio de cada clip avisado y la EDL ya no escribe un archivo vacío para una pista de video sin clips.
+- **Interfaz:** en Preferencias › Rendimiento se desplaza la pestaña (en pantallas de 1440×900 quedaban fuera el tope de GB y «Borrar el render en caché»); las asas de fundido del audio tienen una zona de agarre de 12 px; Espacio pulsa el botón al que se llegó con el teclado, y F2 funciona desde el buscador.
+- **Audio:** un vaciado del búfer entra y sale del silencio con un fundido de 2,7 ms en vez de un escalón (chasquido).
 
-- **Estilos de subtítulo animados de fábrica:** la categoría «Texto» de la biblioteca trae «Palabra a palabra», «Karaoke», «Pop» y «Líneas», armados con la entrada por palabra y el resaltado que ya existían.
 
-- **Movimiento continuo de texto:** Inspector › Texto › Animación › «Movimiento continuo» (Tambaleo, Temblor, Pulso, Flotar) con Cantidad y Velocidad; es una animación en bucle del estilo (un campo `loop`, sin keyframes), igual de barata que un keyframe e idéntica al exportar.
 
 ### Cambiado
-
-- **Muchos keyframes:** evaluar y buscar un keyframe es por bisección (antes lineal), la gráfica del inspector se muestrea por los píxeles que tiene (antes 48 muestras por tramo: unos 60.000 puntos con 1250 keyframes en un parámetro) y ni ella ni la línea de tiempo dibujan rombos que se pisan; un vaciado de búfer de audio entra y sale del silencio con un fundido de 2,7 ms en vez de un escalón (chasquido). Cifras en `docs/rendimiento-keyframes.md`.
+- **Muchos keyframes:** evaluar y buscar un keyframe es por bisección (antes lineal), la gráfica del inspector se muestrea por los píxeles que tiene (antes 48 muestras por tramo: unos 60.000 puntos con 1250 keyframes en un parámetro) y ni ella ni la línea de tiempo dibujan rombos que se pisan. Cifras en `docs/rendimiento-keyframes.md`.
 - La autoprueba y las medidas (`--autoprueba`, `--medir`, `--arranque`) corren de fondo: la ventana no aparece en pantalla ni toma el foco; `--visible` la muestra como antes.
 - Por dentro (sin cambio visible): el compositor, la exportación y los títulos pasan por una capa de GPU común (`IGpu`) con los mismos píxeles que antes (comprobado con huellas de cada lectura), y el SDK de .NET sube a la 10.0.403. En Windows el envío de trabajo a la GPU con 8 capas cuesta un 21 % más de CPU por cuadro (aceptado; las cifras de la verificación van en `docs/publicar-1.0.4.md`).
 - Preparado, sin publicar todavía: Rodaje compila y pasa sus pruebas en Linux y en macOS (motor Vulkan, títulos con HarfBuzz, audio con Pulse y CoreAudio, módulos por sistema), pero esta versión es solo para Windows.
