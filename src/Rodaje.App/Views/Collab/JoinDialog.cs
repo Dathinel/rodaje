@@ -42,13 +42,15 @@ internal static class JoinDialog
             Text = pastedInvite ?? "",
         };
         var paste = new Button { Content = "Pegar" };
-        paste.Click += async (_, _) =>
+        async Task PasteAsync()
         {
             if (await CollabClipboard.TryGetTextAsync() is { Length: > 0 } text)
             {
                 invite.Text = text.Trim();
             }
-        };
+        }
+
+        paste.Click += (_, _) => UiTask.Run(PasteAsync());
         var name = new TextBox { Header = "Tu nombre en la sala", PlaceholderText = "Escribe cómo te verán los demás", MaxLength = CollabNames.MaxAlias, Text = collab.Alias.Length > 0 ? collab.Alias : CollabHost.SuggestedAlias() };
         string folder = DefaultFolder();
         var folderText = new TextBlock { Text = folder, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };

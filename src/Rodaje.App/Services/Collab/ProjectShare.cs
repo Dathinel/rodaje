@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text.Json;
 using Rodaje.Core.Collab;
 using Rodaje.Core.Model;
+using Rodaje.App.Services.Crashes;
 
 namespace Rodaje.App.Services.Collab;
 
@@ -80,7 +81,7 @@ public sealed partial class ProjectShareHost : IDisposable
     {
         if (ShareMessages.Type(message) == ShareMessages.Ask && _room.State is { IsHost: true, Phase: RoomPhase.Hosting })
         {
-            _ = Task.Run(() => ServeAsync(from));
+            UiTask.Run(Task.Run(() => ServeAsync(from)));
         }
     }
 
@@ -161,7 +162,7 @@ public sealed partial class ProjectShareHost : IDisposable
             }
 
             Interlocked.Exchange(ref _last, now);
-            _ = host.TellAsync(to, value.Done, value.Total);
+            UiTask.Run(host.TellAsync(to, value.Done, value.Total));
         }
     }
 

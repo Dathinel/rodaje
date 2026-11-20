@@ -156,7 +156,7 @@ internal static class SharedProjectFlow
 
         if (work.IsCompletedSuccessfully)
         {
-            return (work.Result, false);
+            return (await work, false);
         }
 
         var retry = new ContentDialog

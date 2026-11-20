@@ -1211,6 +1211,12 @@ internal sealed partial class MainWindow : Window, IShellHost
                 && (Services.Collab.CollabClosing.Describe(_services.Collab?.Room.State) is not { } room
                     || await _dialogs.ConfirmAsync(Services.Collab.CollabClosing.Title, room.Text, room.Confirm)))
             {
+                // Salir de la sala antes de cerrar: los demás ven que se fue y no una caída de la conexión.
+                if (_services.Collab is { } collab)
+                {
+                    await collab.Room.LeaveAsync();
+                }
+
                 _allowClose = true;
                 Close();
             }
@@ -1227,20 +1233,6 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
     }
 
-    /// <summary>Cierra la sala de colaboración (si hay) para que los demás vean que se fue en vez de una caída de la conexión.</summary>
-    private void LeaveRoomOnClose()
-    {
-        try
-        {
-            _services.Collab?.Room.LeaveAsync().Wait(TimeSpan.FromSeconds(2));
-            _services.Collab?.Dispose();
-        }
-        catch (Exception ex) when (ex is AggregateException or ObjectDisposedException)
-        {
-            // La ventana se cierra igual: dathinel-red termina solo al cerrarse la tubería.
-        }
-    }
-
     private void OnClosed(object sender, WindowEventArgs args)
     {
         if (_closed)
@@ -1250,7 +1242,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         _closed = true;
         _notificationTimer.Stop();
-        LeaveRoomOnClose();
+        _services.Collab?.Dispose();
         StartupSplash.Close();
         CompositionTarget.Rendering -= OnRendering;
         _transportTimer.Stop();

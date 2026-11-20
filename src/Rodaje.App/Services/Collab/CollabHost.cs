@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text.Json;
 using Dathinel.Sala;
 using Rodaje.Core.Model;
+using Rodaje.App.Services.Crashes;
 
 namespace Rodaje.App.Services.Collab;
 
@@ -155,8 +156,8 @@ public sealed partial class CollabHost : IDisposable
             () => session.IsInGesture);
         engine.Desynced += reason => UiInvoke.Run<int>(_post, () =>
         {
-            _ = Room.EndWithAsync("Tu copia del proyecto dejó de coincidir con la de la sala y no se puede seguir editando así. "
-                + "Tu copia sigue en este equipo. Vuelve a entrar con una invitación nueva. (" + reason + ")");
+            UiTask.Run(Room.EndWithAsync("Tu copia del proyecto dejó de coincidir con la de la sala y no se puede seguir editando así. "
+                + "Tu copia sigue en este equipo. Vuelve a entrar con una invitación nueva. (" + reason + ")"));
             return 0;
         });
         Engine = engine;

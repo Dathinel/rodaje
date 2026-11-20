@@ -1,5 +1,6 @@
 using System.Text.Json;
 using Dathinel.Sala;
+using Rodaje.App.Services.Crashes;
 
 namespace Rodaje.App.Services.Collab;
 
@@ -236,10 +237,10 @@ public sealed class RoomService : IAsyncDisposable
 
     /// <summary>Anula todas las invitaciones sin usar. Los que ya entraron siguen dentro.</summary>
     public Task RevokeInvitesAsync(CancellationToken cancellationToken = default) =>
-        Guard(() => HostRoom().RevocarAsync(null, cancellationToken));
+        GuardAsync(() => HostRoom().RevocarAsync(null, cancellationToken));
 
     public Task ApproveAsync(string key, Rol role, CancellationToken cancellationToken = default) =>
-        Guard(async () =>
+        GuardAsync(async () =>
         {
             Dathinel.Sala.Sala sala = HostRoom();
             RoomRequest? request = State.Requests.FirstOrDefault(r => r.Key == key)
@@ -249,7 +250,7 @@ public sealed class RoomService : IAsyncDisposable
         });
 
     public Task RejectAsync(string key, CancellationToken cancellationToken = default) =>
-        Guard(async () =>
+        GuardAsync(async () =>
         {
             Dathinel.Sala.Sala sala = HostRoom();
             await sala.RechazarAsync(key, cancellationToken).ConfigureAwait(false);
@@ -257,14 +258,14 @@ public sealed class RoomService : IAsyncDisposable
         });
 
     public Task KickAsync(string key, CancellationToken cancellationToken = default) =>
-        Guard(async () =>
+        GuardAsync(async () =>
         {
             await HostRoom().ExpulsarAsync(key, cancellationToken).ConfigureAwait(false);
             Publish(Refreshed);
         });
 
     public Task SetRoleAsync(string key, Rol role, CancellationToken cancellationToken = default) =>
-        Guard(async () =>
+        GuardAsync(async () =>
         {
             await HostRoom().CambiarRolAsync(key, role, cancellationToken).ConfigureAwait(false);
             Publish(Refreshed);
@@ -330,21 +331,21 @@ public sealed class RoomService : IAsyncDisposable
 
     /// <summary>Manda un mensaje fuera del orden (al anfitrión, o a un miembro si este equipo hospeda).</summary>
     public Task SendDirectAsync(JsonElement payload, string? to = null, CancellationToken cancellationToken = default) =>
-        Guard(() => Active().EnviarDirectoAsync(payload, to, cancellationToken));
+        GuardAsync(() => Active().EnviarDirectoAsync(payload, to, cancellationToken));
 
     /// <summary>Ofrece un archivo propio (dentro de la carpeta de la sala) por su SHA-256 en minúsculas.</summary>
     public Task OfferBlobAsync(string path, string hash, long size, CancellationToken cancellationToken = default) =>
-        Guard(() => Active().OfrecerBlobsAsync([(path, hash, size)], cancellationToken));
+        GuardAsync(() => Active().OfrecerBlobsAsync([(path, hash, size)], cancellationToken));
 
-    public Task RetractBlobAsync(string hash) => Guard(() => Active().RetirarBlobsAsync([hash]));
+    public Task RetractBlobAsync(string hash) => GuardAsync(() => Active().RetirarBlobsAsync([hash]));
 
     /// <summary>Baja un blob que otro miembro ofreció. Sala comprueba tamaño y SHA-256 y lo deja en <paramref name="destination"/>.</summary>
     public Task RequestBlobAsync(string from, string hash, long size, string destination, long limit, CancellationToken cancellationToken = default) =>
-        Guard(() => Active().PedirBlobAsync(from, hash, size, destination, limit, cancellationToken));
+        GuardAsync(() => Active().PedirBlobAsync(from, hash, size, destination, limit, cancellationToken));
 
     /// <summary>Manda la presencia propia (≤ 4 KiB, ≤ 20 por segundo; Sala descarta lo de más).</summary>
     public Task SendPresenceAsync(JsonElement presence, CancellationToken cancellationToken = default) =>
-        Guard(() => Active().PresenciaAsync(presence, cancellationToken));
+        GuardAsync(() => Active().PresenciaAsync(presence, cancellationToken));
 
     /// <summary>
     /// Pide la reserva de una pista u otra etiqueta: <c>true</c> si es nuestra (estaba libre o ya la teníamos). Una clave que
@@ -358,12 +359,12 @@ public sealed class RoomService : IAsyncDisposable
         }
 
         bool mine = false;
-        await Guard(async () => mine = await Active().ReservarAsync(key, cancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        await GuardAsync(async () => mine = await Active().ReservarAsync(key, cancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
         return mine;
     }
 
     public Task ReleaseAsync(string key, CancellationToken cancellationToken = default) =>
-        Dathinel.Sala.Sala.ClaveDeReservaValida(key) ? Guard(() => Active().SoltarAsync(key, cancellationToken)) : Task.CompletedTask;
+        Dathinel.Sala.Sala.ClaveDeReservaValida(key) ? GuardAsync(() => Active().SoltarAsync(key, cancellationToken)) : Task.CompletedTask;
 
     /// <summary>Quién tiene cada reserva que este equipo conoce (clave → clave del dueño).</summary>
     public IReadOnlyDictionary<string, string> Reservations
@@ -397,7 +398,7 @@ public sealed class RoomService : IAsyncDisposable
             _sala = s;
         }
 
-        _ = Task.Run(() => WatchMembersAsync(s));
+        UiTask.Run(Task.Run(() => WatchMembersAsync(s)));
         s.SolicitudRecibida += r => OnSala(s, () => Publish(st => st with
         {
             Requests = [.. st.Requests.Where(x => x.Key != r.Clave), new RoomRequest(r.Clave, r.Alias, r.Huella)],
@@ -455,10 +456,10 @@ public sealed class RoomService : IAsyncDisposable
             Publish(st => Refreshed(st) with { Phase = RoomPhase.Connected });
             Notify("Se restableció la conexión.", false);
         });
-        s.Cerrada += motivo => OnSala(s, () => _ = EndAsync(s, CollabMessages.ForClosed(motivo)));
+        s.Cerrada += motivo => OnSala(s, () => UiTask.Run(EndAsync(s, CollabMessages.ForClosed(motivo))));
         // Estuvo fuera tanto que la sala ya no guarda lo que se perdió: hace falta una copia nueva del proyecto.
-        s.Desfasada += since => OnSala(s, () => _ = EndAsync(s, CollabMessages.ForClosed("desfasada")));
-        s.Superada += (_, _) => OnSala(s, () => _ = EndAsync(s, CollabMessages.ForClosed("traspaso")));
+        s.Desfasada += since => OnSala(s, () => UiTask.Run(EndAsync(s, CollabMessages.ForClosed("desfasada"))));
+        s.Superada += (_, _) => OnSala(s, () => UiTask.Run(EndAsync(s, CollabMessages.ForClosed("traspaso"))));
     }
 
     /// <summary>
@@ -569,7 +570,7 @@ public sealed class RoomService : IAsyncDisposable
         [
             .. raw
                 .Select(m => new RoomMember(m.Clave, m.Alias, m.Rol, m.Clave == host, m.Clave == me, Huella.Palabras(m.Clave), MemberColors.IndexFor(m.Clave), !_offline.Contains(m.Clave) || m.Clave == me))
-                .OrderByDescending(m => m.IsHost).ThenByDescending(m => m.IsMe).ThenBy(m => m.Alias, StringComparer.CurrentCultureIgnoreCase),
+                .OrderByDescending(m => m.IsHost).ThenByDescending(m => m.IsMe).ThenBy(m => m.Alias, StringComparer.OrdinalIgnoreCase),
         ];
         if (sala.EsAnfitrion)
         {
@@ -689,7 +690,7 @@ public sealed class RoomService : IAsyncDisposable
         }
     }
 
-    private static async Task Guard(Func<Task> action)
+    private static async Task GuardAsync(Func<Task> action)
     {
         try
         {

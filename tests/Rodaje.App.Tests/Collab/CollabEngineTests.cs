@@ -199,7 +199,19 @@ public sealed class CollabEngineTests
         Task b = guest.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("mk-b", "B", 3)));
         await Task.WhenAll(a, b);
 
-        await CollabHarness.Until(() => host.HashOnUi() == guest.HashOnUi() && host.Live.Sequences[0].Markers.Count == guest.Live.Sequences[0].Markers.Count, "convergen", 30);
+        try
+        {
+            await CollabHarness.Until(() => host.HashOnUi() == guest.HashOnUi() && host.Live.Sequences[0].Markers.Count == guest.Live.Sequences[0].Markers.Count, "convergen", 30);
+        }
+        catch (Xunit.Sdk.XunitException ex)
+        {
+            // Si pasa en la CI, el informe trae lo que había en cada lado para encontrar la causa.
+            string Dump(Replica r) => string.Join(",", r.Live.Sequences[0].Markers.Select(m => m.Id)) + " | avisos: " + string.Join(" / ", r.Notices) + " | desinc: " + string.Join(" / ", r.Desyncs);
+            Assert.Fail($"{ex.Message}
+anfitrión: {Dump(host)}
+invitado: {Dump(guest)}");
+        }
+
         int markers = host.Live.Sequences[0].Markers.Count(m => m.Id is "mk-a" or "mk-b");
         Assert.InRange(markers, 1, 2);
         if (markers == 1)

@@ -3,6 +3,7 @@ using System.Threading.Channels;
 using Dathinel.Sala;
 using Rodaje.Core.Collab;
 using Rodaje.Core.Model;
+using Rodaje.App.Services.Crashes;
 
 namespace Rodaje.App.Services.Collab;
 
@@ -81,7 +82,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         _ui = ui;
         _liveChanged = liveChanged;
         _notice = notice;
-        _ = Task.Run(SendLoopAsync);
+        UiTask.Run(Task.Run(SendLoopAsync));
     }
 
     /// <summary>Lo confirmado y lo vivo dejaron de coincidir y no hay arreglo seguro: la persona tiene que volver a entrar.</summary>
@@ -409,7 +410,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
     /// <summary>El anfitrión no aceptó un paso propio: lo vivo vuelve a lo confirmado y se dice por qué.</summary>
     public void Rejected(Rechazo rejection)
     {
-        _ = Task.Run(async () =>
+        UiTask.Run(Task.Run(async () =>
         {
             Pending? match;
             lock (_m)
@@ -434,7 +435,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
             {
                 await _ui(() => Revert(match, CollabMessages.Rejected(rejection.Motivo, rejection.Detalle))).ConfigureAwait(false);
             }
-        });
+        }));
     }
 
     private List<Pending> SnapshotPending()
@@ -497,24 +498,26 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         }
 
         _retryScheduled = true;
-        _ = Task.Delay(TimeSpan.FromMilliseconds(200)).ContinueWith(
-            _ => _ui(() =>
-            {
-                _retryScheduled = false;
-                if (_isBusy())
-                {
-                    ScheduleRetry();
-                    return;
-                }
+        UiTask.Run(RetryLaterAsync());
+    }
 
-                while (_deferred.TryDequeue(out Patch? next))
-                {
-                    ApplyRemote(next);
-                }
-            }),
-            CancellationToken.None,
-            TaskContinuationOptions.None,
-            TaskScheduler.Default);
+    private async Task RetryLaterAsync()
+    {
+        await Task.Delay(TimeSpan.FromMilliseconds(200)).ConfigureAwait(false);
+        await _ui(() =>
+        {
+            _retryScheduled = false;
+            if (_isBusy())
+            {
+                ScheduleRetry();
+                return;
+            }
+
+            while (_deferred.TryDequeue(out Patch? next))
+            {
+                ApplyRemote(next);
+            }
+        }).ConfigureAwait(false);
     }
 
     private void ApplyRemote(Patch patch)

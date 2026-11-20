@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Rodaje.App.Services.Crashes;
 
 namespace Rodaje.App.Services.Collab;
 
@@ -46,7 +47,7 @@ public sealed partial class CollabPresence : IDisposable
         room.PresenceReceived += OnPresence;
         room.ReservationChanged += OnReservation;
         room.StateChanged += OnState;
-        _ = Task.Run(LoopAsync);
+        UiTask.Run(Task.Run(LoopAsync));
     }
 
     public IReadOnlyDictionary<string, PeerPresence> Peers
@@ -162,7 +163,7 @@ public sealed partial class CollabPresence : IDisposable
 
         foreach (string key in now)
         {
-            _ = Task.Run(async () =>
+            UiTask.Run(Task.Run(async () =>
             {
                 try
                 {
@@ -172,7 +173,7 @@ public sealed partial class CollabPresence : IDisposable
                 {
                     // Sala la suelta sola a los 2 minutos sin actividad.
                 }
-            });
+            }));
         }
     }
 

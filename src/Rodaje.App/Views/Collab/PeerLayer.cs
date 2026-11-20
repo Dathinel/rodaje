@@ -1,4 +1,5 @@
 using Microsoft.UI.Dispatching;
+using Rodaje.App.Views.Inspector;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
@@ -38,7 +39,7 @@ internal sealed class PeerLayer
         _presence = presence;
         _session = session;
         _renderer = renderer;
-        presence.Changed += () => queue.TryEnqueue(() => _dirty = true);
+        presence.Changed += () => queue.RunLater(() => _dirty = true);
         session.HistoryChanged += (_, _) => _dirty = true;
         session.SelectionChanged += (_, _) => _dirty = true;
         _timer = queue.CreateTimer();
