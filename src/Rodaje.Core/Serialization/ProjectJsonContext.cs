@@ -30,6 +30,7 @@ namespace Rodaje.Core.Serialization;
         typeof(CamelCaseEnumConverter<TextFit>),
         typeof(CamelCaseEnumConverter<GradientKind>),
         typeof(CamelCaseEnumConverter<TextUnit>),
+        typeof(CamelCaseEnumConverter<TextLoopKind>),
         typeof(CamelCaseEnumConverter<UnitOrder>),
         typeof(CamelCaseEnumConverter<HighlightMode>),
         typeof(CamelCaseEnumConverter<TextPathKind>),

@@ -33,6 +33,8 @@ public class KeyframeScalingTests(ITestOutputHelper output)
         _ => 0.8 + (0.2 * Math.Sin(i * 1.7)),
     };
 
+    // Mide tiempos: va con las pruebas de Rendimiento (nocturna), no en cada PR.
+    [Trait("Categoria", "Rendimiento")]
     [Theory]
     [InlineData(50)]
     [InlineData(200)]
@@ -81,6 +83,27 @@ public class KeyframeScalingTests(ITestOutputHelper output)
         Assert.True(evalUs < 25, $"evaluar: {evalUs} us");
         Assert.True(addMs / total < 2, $"añadir: {addMs / total} ms por keyframe");
         output.WriteLine($"N={total}: añadir total {addMs:F0} ms ({addMs / total:F3} ms/keyframe), deshacer/rehacer {undoMs:F3} ms/paso, evaluar {evalUs:F3} us, guardar {saveMs:F1} ms ({json.Length / 1024} KB), memoria {mem / 1024 / 1024} MB ({acc:F0})");
+    }
+
+    [Fact]
+    public void Se_anaden_y_deshacen_cientos_de_keyframes_sin_perder_ninguno()
+    {
+        (UndoStack stack, Project project, string fx) = Setup(60);
+        for (int i = 0; i < 50; i++)
+        {
+            stack.Execute(Edits.SetKeyframe(SequenceId, "titulo", fx, T.Rotation, S(i), Wobble(i, T.Rotation), Interpolation.EaseInOut));
+        }
+
+        Parameter p = Seq(project).VideoTracks[0].Clips[^1].Effects[0].Parameters[T.Rotation];
+        Assert.Equal(50, p.Keyframes.Count);
+        Assert.True(p.Keyframes.Zip(p.Keyframes.Skip(1)).All(k => k.First.Time < k.Second.Time));
+        while (stack.CanUndo && p.Keyframes.Count > 0)
+        {
+            stack.Undo();
+            p = Seq(project).VideoTracks[0].Clips[^1].Effects[0].Parameters.GetValueOrDefault(T.Rotation) ?? new Parameter();
+        }
+
+        Assert.Empty(p.Keyframes);
     }
 
     [Fact]
