@@ -118,6 +118,47 @@ jobs:
           path: TestResults/**/*.trx
           if-no-files-found: ignore
 
+  # La app de Linux (D-066, fase 8): Uno con Native AOT para linux-x64 y su autoprueba bajo Xvfb con lavapipe.
+  linux-app:
+    name: Interfaz Uno en Linux (AOT, Xvfb)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/preparar-linux
+
+      - name: Paquetes (Xvfb, lavapipe, fuentes)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb xdotool imagemagick libfontconfig1 libgl1 libegl1 libx11-6 libxrandr2 libxi6 libxcursor1 \
+            fonts-dejavu-core mesa-vulkan-drivers libvulkan1 ffmpeg
+
+      - name: FFmpeg LGPL
+        shell: pwsh
+        run: build/preparar-entorno.ps1 -SoloFFmpeg
+
+      - name: Publicar y autoprueba
+        shell: bash
+        run: xvfb-run -a -s "-screen 0 1600x900x24" bash build/app-linux.sh --autoprueba
+
+      - name: Resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-linux
+          path: |
+            salida-linux/*.log
+            salida-linux/*.txt
+            salida-linux/*.json
+            salida-linux/*.png
+            src/Rodaje.App.Desktop/packages.lock.json
+          if-no-files-found: ignore
+
   macos:
     name: macOS (proyectos sin Windows)
     runs-on: macos-15

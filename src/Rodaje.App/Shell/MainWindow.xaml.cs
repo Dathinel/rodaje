@@ -28,7 +28,6 @@ using Rodaje.Engine.Timeline;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Graphics;
 using Windows.Storage;
-using static TerraFX.Interop.Windows.Windows;
 
 namespace Rodaje.App.Shell;
 
@@ -679,70 +678,21 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
     }
 
-    /// <summary>
-    /// La barra de título propia. La región de arrastre no se deja a <c>SetTitleBar</c>: con la escala de la interfaz
-    /// (Preferencias) la raíz se dibuja transformada y la región se calcula aquí en píxeles con esa escala y la del monitor
-    /// (<see cref="TitleBarDragRegion"/>), y se recalcula al cambiar el tamaño de la ventana, de la barra o la escala.
-    /// </summary>
-    private void SetUpTitleBar()
-    {
-        AppWindowTitleBar bar = AppWindow.TitleBar;
-        bar.ExtendsContentIntoTitleBar = true;
-        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, AppIcon.FileName));
-        bar.PreferredHeightOption = TitleBarHeightOption.Tall;
-        bar.ButtonBackgroundColor = Colors.Transparent;
-        bar.ButtonInactiveBackgroundColor = Colors.Transparent;
-        ApplyTitleBarColors();
-        Theme.ThemeResources.ThemeChanged += (_, _) => ApplyTitleBarColors();
-        TitleBar.DragRegion.Loaded += (_, _) => UpdateDragRegion();
-        TitleBar.DragRegion.SizeChanged += (_, _) => UpdateDragRegion();
-    }
-
-    // Los botones de la ventana (minimizar, maximizar, cerrar) siguen al tema, también cuando cambia en caliente.
-    private void ApplyTitleBarColors()
-    {
-        AppWindowTitleBar bar = AppWindow.TitleBar;
-        bar.ButtonForegroundColor = Theme.ThemeResources.SolidColor("TextBrush");
-        bar.ButtonHoverForegroundColor = Theme.ThemeResources.SolidColor("TextBrush");
-        bar.ButtonHoverBackgroundColor = Theme.ThemeResources.SolidColor("ControlHoverBrush");
-        bar.ButtonPressedBackgroundColor = Theme.ThemeResources.SolidColor("ControlPressedBrush");
-        bar.ButtonInactiveForegroundColor = Theme.ThemeResources.SolidColor("TextMutedBrush");
-    }
-
-    private void UpdateDragRegion()
-    {
-        // Antes de cargarse en el árbol (la activación llega antes), TransformToVisual lanza E_UNEXPECTED; Loaded lo repite.
-        if (_closed || !TitleBar.DragRegion.IsLoaded)
-        {
-            return;
-        }
-
-        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
-        global::Windows.Foundation.Point origin = TitleBar.DragRegion.TransformToVisual(Root).TransformPoint(new global::Windows.Foundation.Point(0, 0));
-        AppWindowTitleBar bar = AppWindow.TitleBar;
-        TitleBarDragRegion.Rect? region = TitleBarDragRegion.Compute(origin.X, origin.Y, TitleBar.DragRegion.ActualWidth, TitleBar.DragRegion.ActualHeight,
-            _settings.Current.UiScale / 100.0, Math.Max(1u, dpi) / 96.0, AppWindow.ClientSize.Width, bar.LeftInset, bar.RightInset);
-        RectInt32[] rects = region is { } r ? [new RectInt32(r.X, r.Y, r.Width, r.Height)] : [];
-        bar.SetDragRectangles(rects);
-    }
-
     private void RestoreLayout()
     {
         AppSettings s = _settings.Current;
         LibraryColumn.Width = new GridLength(s.LibraryWidth);
         InspectorColumn.Width = new GridLength(s.InspectorWidth);
-        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        uint dpi = WindowDpi();
         double width = s.WindowWidth > 0 ? s.WindowWidth : 1440;
         double height = s.WindowHeight > 0 ? s.WindowHeight : 900;
         // 1440×900 en un portátil, o el tamaño guardado en un monitor más grande, no pueden pasar bajo la barra de tareas.
-        RectInt32 work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Nearest).WorkArea;
-        var wanted = new ScreenRect(AppWindow.Position.X, AppWindow.Position.Y, (int)(width * dpi / 96), (int)(height * dpi / 96));
-        ScreenRect fit = wanted.FitInside(new ScreenRect(work.X, work.Y, work.Width, work.Height));
+        ScreenRect fit = FitInWorkArea(new ScreenRect(AppWindow.Position.X, AppWindow.Position.Y, (int)(width * dpi / 96), (int)(height * dpi / 96)));
         width = fit.Width * 96.0 / dpi;
         height = fit.Height * 96.0 / dpi;
         // Hasta el primer diseño no se sabe el alto de las demás filas: se estima y SizeChanged lo corrige.
         TimelineRow.Height = new GridLength(TimelineProportion.Height(s.TimelineShare, height, 100));
-        AppWindow.MoveAndResize(new RectInt32(fit.X, fit.Y, fit.Width, fit.Height));
+        MoveAndResize(fit);
         if (s.WindowMaximized && !_options.RunsInBackground && AppWindow.Presenter is OverlappedPresenter presenter)
         {
             presenter.Maximize();
@@ -764,7 +714,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             return;
         }
 
-        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        uint dpi = WindowDpi();
         double width = AppWindow.ClientSize.Width * 96.0 / Math.Max(1u, dpi);
         double height = AppWindow.ClientSize.Height * 96.0 / Math.Max(1u, dpi);
         if (scale == 1 || width <= 0 || height <= 0)
@@ -794,7 +744,7 @@ internal sealed partial class MainWindow : Window, IShellHost
     /// </summary>
     private void FitSidePanels(double? availableWidth = null)
     {
-        uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+        uint dpi = WindowDpi();
         double winWidth = dpi > 0 ? AppWindow.Size.Width * 96.0 / dpi : AppWindow.Size.Width;
         double width = availableWidth > 0 ? availableWidth.Value : (winWidth > 0 ? winWidth : Root.ActualWidth);
         if (_playerFullScreen || width <= 0)
@@ -858,7 +808,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             s.WindowMaximized = maximized;
             if (!maximized && AppWindow.Presenter is OverlappedPresenter { State: OverlappedPresenterState.Restored })
             {
-                uint dpi = GetDpiForWindow((TerraFX.Interop.Windows.HWND)_hwnd);
+                uint dpi = WindowDpi();
                 s.WindowWidth = AppWindow.Size.Width * 96.0 / dpi;
                 s.WindowHeight = AppWindow.Size.Height * 96.0 / dpi;
             }
@@ -1074,21 +1024,6 @@ internal sealed partial class MainWindow : Window, IShellHost
     /// <summary>Corrida automática sin <c>--visible</c> (<see cref="AppOptions.RunsInBackground"/>).</summary>
     internal bool RunsInBackground => _options.RunsInBackground;
 
-    /// <summary>
-    /// Autoprueba y medición: la ventana se pinta fuera de pantalla, sin botón en la barra de tareas y sin poder activarse
-    /// (deshabilitada para Win32: el foco de XAML no arrastra el del teclado de quien usa el equipo).
-    /// </summary>
-    internal void ShowInBackground()
-    {
-        var hwnd = (TerraFX.Interop.Windows.HWND)_hwnd;
-        _ = SetWindowLongPtrW(hwnd, TerraFX.Interop.Windows.GWL.GWL_EXSTYLE,
-            GetWindowLongPtrW(hwnd, TerraFX.Interop.Windows.GWL.GWL_EXSTYLE) | TerraFX.Interop.Windows.WS.WS_EX_NOACTIVATE | TerraFX.Interop.Windows.WS.WS_EX_TOOLWINDOW);
-        _ = EnableWindow(hwnd, TerraFX.Interop.Windows.BOOL.FALSE);
-        AppWindow.Move(new PointInt32(StartupSplash.OffScreen, StartupSplash.OffScreen));
-        AppWindow.Show(false);
-        // Sin activarse no llega Activated: lo que espera a la primera activación se hace aquí.
-        OnFirstActivation();
-    }
 
     private void OnActivated(object sender, WindowActivatedEventArgs args) => OnFirstActivation();
 
@@ -1103,7 +1038,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         Program.Metrics.Milestone("ventana_activada");
         // Escala de la interfaz: si aún no se conoce (0), GridLength con infinito lanzaría.
         double scale = Root.XamlRoot?.RasterizationScale is double s && s > 0 && double.IsFinite(s) ? s : 1;
-        TitleBar.CaptionInset.Width = new GridLength(Math.Max(0, AppWindow.TitleBar.RightInset / scale));
+        TitleBar.CaptionInset.Width = new GridLength(Math.Max(0, CaptionButtonsWidth() / scale));
         UpdateDragRegion();
         Theme.ThemeResources.FollowWindows(_dispatcher, () => _settings.Current);
     }

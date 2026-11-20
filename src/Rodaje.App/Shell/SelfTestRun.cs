@@ -35,82 +35,6 @@ internal static partial class SelfTestRun
 {
     private const string CapturesVariable = "RODAJE_AUTOPRUEBA_CAPTURAS";
 
-    public static async Task RunAsync(MainWindow window, PlayerEngine engine, Metrics metrics)
-    {
-        int code = 1;
-        try
-        {
-            await CaptureAsync(window, "inicio");
-            SelectFirstClip(window);
-            foreach (InspectorView.Tab tab in Enum.GetValues<InspectorView.Tab>())
-            {
-                window.InspectorPane.Show(tab);
-                await Task.Delay(250);
-                await CaptureAsync(window, "inspector-" + tab.ToString().ToLowerInvariant());
-            }
-
-            await ToolsAsync(window);
-            await TranscriptAsync(window);
-            await PreferencesAsync(window);
-            await ShortcutsAsync(window);
-            await ShowCurveAsync(window);
-            await ToggleReverseAsync(window);
-            await InterpolationAsync(window);
-            await SampledAsync(window, engine, new Rational(1, 2), FrameSampling.Blend, 0.5f);
-            await SampledAsync(window, engine, new Rational(1, 4), FrameSampling.OpticalFlow, 0.75f);
-            await TitleAsync(window, engine);
-            await TemplatesAsync(window, engine);
-            await ImageAsync(window, engine);
-            await MasksAsync(window, engine);
-            await TrackingAsync(window, engine);
-            await TransitionsAsync(window, engine);
-            await TransformAsync(window, engine);
-            await ColorAsync(window, engine);
-            await MixerAsync(window);
-            await ShowExportAsync(window);
-            await PluginsAsync(window);
-            await ModuleAsync(window);
-            await FormatAsync(window, engine);
-            await InterchangeAsync(window);
-            await RenderCacheAsync(window);
-            window.InspectorPane.Show(InspectorView.Tab.Properties);
-            await LayoutAsync(window);
-            if (window.Session.Sequence.Duration.Ticks > 0)
-            {
-                window.Session.Play();
-                for (int i = 0; i < 100 && !metrics.HasMilestone("primer_cuadro") && engine.FailureMessage is null; i++)
-                {
-                    await Task.Delay(100);
-                }
-
-                await Task.Delay(1000);
-                window.Session.Pause();
-            }
-
-            code = engine.FailureMessage is null && (window.Session.Sequence.Duration.Ticks == 0 || metrics.HasMilestone("primer_cuadro")) ? 0 : 1;
-            if (code != 0)
-            {
-                Program.WriteCrash("autoprueba: " + (engine.FailureMessage ?? "no llegó el primer cuadro en 10 s"));
-            }
-            else if (!IsUpstreamCreditShown(window))
-            {
-                Program.WriteCrash("autoprueba: el crédito upstream de la barra de título no se ve (LICENSE, término adicional 1)");
-                code = 1;
-            }
-        }
-#pragma warning disable CA1031 // La autoprueba informa cualquier fallo con el código de salida.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            Program.WriteCrash("autoprueba: " + ex);
-            code = 2;
-        }
-
-        WriteReport(metrics);
-        Program.ExitCode = code;
-        window.Close();
-    }
-
     /// <summary>Las cifras que anotan los pasos («autoprueba: …») quedan en <c>autoprueba.txt</c>, en la carpeta de datos de la corrida.</summary>
     private static void WriteReport(Metrics metrics)
     {
@@ -568,7 +492,7 @@ internal static partial class SelfTestRun
         await Task.Delay(200);
         if (player.PlacementInWindow() is { } hinted)
         {
-            double scale = window.Content.XamlRoot.RasterizationScale;
+            double scale = window.Content!.XamlRoot!.RasterizationScale;
             PanelRectCheck(hinted.Status, r, scale, name);
         }
 
@@ -935,7 +859,7 @@ internal static partial class SelfTestRun
         bool maximized = presenter?.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized;
         presenter?.Restore();
         Windows.Graphics.SizeInt32 before = window.AppWindow.Size;
-        double scale = window.Content.XamlRoot.RasterizationScale;
+        double scale = window.Content!.XamlRoot!.RasterizationScale;
         window.AppWindow.Resize(new Windows.Graphics.SizeInt32((int)(1280 * scale), (int)(720 * scale)));
         await Task.Delay(500);
         await CaptureAsync(window, "ventana-1280x720");
@@ -966,7 +890,7 @@ internal static partial class SelfTestRun
             throw new InvalidOperationException("La vista previa del tema Claro no se aplicó.");
         }
 
-        if (((FrameworkElement)window.Content).ActualTheme != ElementTheme.Light || dialog.ActualTheme != ElementTheme.Light)
+        if (((FrameworkElement)window.Content!).ActualTheme != ElementTheme.Light || dialog.ActualTheme != ElementTheme.Light)
         {
             throw new InvalidOperationException("Con el tema Claro, la ventana o el diálogo siguen con los controles de WinUI en oscuro.");
         }
@@ -984,7 +908,7 @@ internal static partial class SelfTestRun
             throw new InvalidOperationException("Cancelar Preferencias no devolvió el tema de los ajustes.");
         }
 
-        if (((FrameworkElement)window.Content).ActualTheme != Theme.ThemeResources.RequestedTheme)
+        if (((FrameworkElement)window.Content!).ActualTheme != Theme.ThemeResources.RequestedTheme)
         {
             throw new InvalidOperationException("Cancelar Preferencias no devolvió el tema de WinUI de los ajustes.");
         }

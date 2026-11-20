@@ -125,7 +125,7 @@ internal static class VoiceOverDialog
         VoiceOverTickState state = VoiceOverTickState.Countdown(CountdownSeconds);
         status.Text = state.Remaining.ToString(CultureInfo.InvariantCulture);
         note.Text = "Prepárate: empieza a sonar al llegar a cero.";
-        DispatcherQueueTimer timer = root.Content.DispatcherQueue.CreateTimer();
+        DispatcherQueueTimer timer = root.Content!.DispatcherQueue.CreateTimer();
         timer.Interval = TimeSpan.FromMilliseconds(1000 / VoiceOverTickState.TicksPerSecond);
         timer.Tick += (_, _) =>
         {

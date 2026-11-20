@@ -40,3 +40,6 @@ muestras/
 
 # --- Proceso (repo privado Dathinel/rodaje-proceso, clonado aquí) ---
 .proceso/
+
+# La app de Linux (build/app-linux.sh)
+/salida-linux/

@@ -134,7 +134,7 @@ internal sealed partial class PlayerView
             return;
         }
 
-        AppWindow main = AppWindow.GetFromWindowId(XamlRoot.ContentIslandEnvironment.AppWindowId);
+        AppWindow main = AppWindow.GetFromWindowId(XamlRoot!.ContentIslandEnvironment!.AppWindowId);
         IReadOnlyList<DisplayArea> displays = DisplayArea.FindAll();
         var screens = new List<ScreenRect>();
         for (int i = 0; i < displays.Count; i++)

@@ -74,7 +74,7 @@ internal sealed partial class PropertiesPanel : UserControl, IEditorView
         var custom = new MenuFlyoutItem { Text = "Otro objetivo…" };
         custom.Click += (_, _) => UiTask.Run(async () =>
         {
-            if (await AskTargetAsync(XamlRoot, "Normalizar el clip") is { } lufs)
+            if (await AskTargetAsync(XamlRoot!, "Normalizar el clip") is { } lufs)
             {
                 await NormalizeAsync(lufs);
             }

@@ -14,7 +14,7 @@ internal static class ProjectSwitch
     /// Abre la sesión del proyecto nuevo con <paramref name="openSession"/> (que cierra la anterior) y luego suelta de
     /// <paramref name="titles"/> lo que no se usó en los dos últimos cuadros.
     /// </summary>
-    public static void Load(Action openSession, TitleRasterizer? titles)
+    public static void Load(Action openSession, ITitleRasterizer? titles)
     {
         ArgumentNullException.ThrowIfNull(openSession);
         openSession();

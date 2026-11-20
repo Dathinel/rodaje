@@ -206,7 +206,7 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
             if ((!active && !selected) || text.ActualHeight <= 0) continue;
             for (int offset = 0; offset < run.Text.Length; offset++)
             {
-                if (run.ContentStart.GetPositionAtOffset(offset, LogicalDirection.Forward) is not { } pointer) continue;
+                if (run.ContentStart!.GetPositionAtOffset(offset, LogicalDirection.Forward) is not { } pointer) continue;
                 Rect rect = pointer.GetCharacterRect(LogicalDirection.Forward);
                 if (rect.Width <= 0 || rect.Height <= 0) continue;
                 if (pending is { } prior && pendingActive == active && Math.Abs(prior.Y - rect.Y) < 0.5
@@ -239,7 +239,7 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
             {
                 for (int offset = 0; offset < run.Text.Length; offset++)
                 {
-                    TextPointer? pointer = run.ContentStart.GetPositionAtOffset(offset, LogicalDirection.Forward);
+                    TextPointer? pointer = run.ContentStart!.GetPositionAtOffset(offset, LogicalDirection.Forward);
                     if (pointer is not null && pointer.GetCharacterRect(LogicalDirection.Forward).Contains(point)) return run;
                 }
             }
@@ -327,7 +327,7 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
             Rect target = new(0, 0, row.ActualWidth, Math.Min(row.ActualHeight, Scroller.ViewportHeight));
             if (TextOf(row) is { } text && text.Inlines.OfType<Run>().FirstOrDefault(r => _wordIndices.GetValueOrDefault(r, -1) == word) is { } run)
             {
-                target = run.ContentStart.GetCharacterRect(LogicalDirection.Forward);
+                target = run.ContentStart!.GetCharacterRect(LogicalDirection.Forward);
                 Point wordAt = row.TransformToVisual(Scroller).TransformPoint(new Point(target.X, target.Y));
                 if (wordAt.Y >= 0 && wordAt.Y + target.Height <= Scroller.ViewportHeight) return;
             }

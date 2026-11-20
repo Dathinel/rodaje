@@ -12,7 +12,7 @@ using Rodaje.Engine.Timeline;
 namespace Rodaje.App;
 
 /// <summary>Entrada propia (DISABLE_XAML_GENERATED_MAIN) para medir el arranque y poner el motor en marcha antes que WinUI.</summary>
-internal static class Program
+internal static partial class Program
 {
     public static Metrics Metrics { get; } = new();
 
@@ -58,16 +58,7 @@ internal static class Program
             // Los archivos de la línea de comandos se leen mientras WinUI levanta la ventana.
             var prober = new PrefetchingProber(new FfmpegMediaProber());
             prober.Prefetch(options.Files.Where(f => !ProjectPaths.IsProjectFile(f)));
-            WinRT.ComWrappersSupport.InitializeComWrappers();
-            Metrics.Milestone("winui_start");
-            Application.Start(_ =>
-            {
-                // Envuelto: una excepción en una continuación del hilo de la interfaz deja informe y aviso en vez de
-                // cerrar la app con un error «stowed» de WinRT.
-                SynchronizationContext.SetSynchronizationContext(new GuardedSynchronizationContext(
-                    new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread()), OnDispatcherException));
-                Instance = new App(options, engine, prober, settings, settingsWarning);
-            });
+            RunInterface(() => Instance = new App(options, engine, prober, settings, settingsWarning));
             // Application.Exit (o la última ventana cerrada) vuelve aquí: cierre limpio antes de soltar el motor, que
             // puede tardar o quedar a medias si alguien mata el proceso mientras tanto.
             Crashes.EndSession();

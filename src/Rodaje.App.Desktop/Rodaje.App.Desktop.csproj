@@ -1,0 +1,68 @@
+<Project Sdk="Uno.Sdk/7.0.22">
+
+  <!--
+    La app en Linux (D-066, fase 8): el mismo código y los mismos XAML de src\Rodaje.App, compilados con Uno (Skia, X11)
+    para net10.0-desktop. Lo de cada sistema va en archivos partidos: *.Windows.cs solo en la app de WinUI y *.Desktop.cs
+    solo aquí. Fuera de Rodaje.slnx: la app de Windows no cambia.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0-desktop</TargetFramework>
+    <OutputType>Exe</OutputType>
+    <!-- RID fijo, como la app de Windows: así packages.lock.json es estable y no cambia los de las bibliotecas (NU1004). -->
+    <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+    <PublishAot>true</PublishAot>
+    <UnoSingleProject>true</UnoSingleProject>
+    <RootNamespace>Rodaje.App</RootNamespace>
+    <AssemblyName>rodaje</AssemblyName>
+    <ApplicationTitle>Rodaje</ApplicationTitle>
+    <ApplicationId>io.github.dathinel.rodaje</ApplicationId>
+    <ApplicationDisplayVersion>$(Version)</ApplicationDisplayVersion>
+    <ApplicationVersion>1</ApplicationVersion>
+    <ApplicationPublisher>Dathinel</ApplicationPublisher>
+    <UnoFeatures>Skia;</UnoFeatures>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
+    <EnableDefaultPageItems>false</EnableDefaultPageItems>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <IsTrimmable>true</IsTrimmable>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <!--
+      NETSDK1201, PRI257 y NU1507 vienen de la plantilla de Uno. CA1416 (solo Windows) se ve como aviso: el código común
+      todavía llama a D3D11 en ramas que fuera de Windows no se ejecutan (el motor elige Vulkan); la lista es el trabajo
+      que queda. Uno0001 marca miembros de WinUI que Uno no implementa (no hacen nada en Linux). CA1001: en Uno son
+      IDisposable tipos de WinUI que en Windows no lo son (geometrías, WriteableBitmap), y la app no los suelta en ninguno.
+    -->
+    <NoWarn>$(NoWarn);NU1507;NETSDK1201;PRI257;CA1001</NoWarn>
+    <WarningsNotAsErrors>$(WarningsNotAsErrors);CA1416;Uno0001</WarningsNotAsErrors>
+    <App>..\Rodaje.App</App>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="$(App)\**\*.cs" Exclude="$(App)\bin\**;$(App)\obj\**;$(App)\**\*.Windows.cs" Link="%(RecursiveDir)%(Filename)%(Extension)" />
+    <ApplicationDefinition Include="$(App)\App.xaml" Link="App.xaml" />
+    <Page Include="$(App)\**\*.xaml" Exclude="$(App)\App.xaml;$(App)\bin\**;$(App)\obj\**" Link="%(RecursiveDir)%(Filename)%(Extension)" />
+    <EmbeddedResource Include="$(App)\Services\Packages\catalogo.json" LogicalName="Rodaje.App.catalogo.json" />
+    <EmbeddedResource Include="$(App)\Services\Packages\clave-catalogo.txt" LogicalName="Rodaje.App.clave-catalogo.txt" />
+    <EmbeddedResource Include="$(App)\Services\SafeZones\Fabrica\*.json" LogicalName="Rodaje.App.zonas.%(Filename).json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Rodaje.Analysis\Rodaje.Analysis.csproj" />
+    <ProjectReference Include="..\Rodaje.Engine\Rodaje.Engine.csproj" />
+    <ProjectReference Include="..\Rodaje.Export\Rodaje.Export.csproj" />
+    <ProjectReference Include="..\Rodaje.Render\Rodaje.Render.csproj" />
+    <ProjectReference Include="..\Rodaje.Packages\Rodaje.Packages.csproj" />
+    <ProjectReference Include="..\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
+  </ItemGroup>
+
+  <!-- Los using implícitos de Uno.Sdk (System.Windows.Input, Windows.Storage…) chocan con nombres de Rodaje: la app no los tiene. -->
+  <Target Name="QuitarUsingsDeUno" BeforeTargets="GenerateGlobalUsings">
+    <ItemGroup>
+      <Using Remove="@(Using)" Condition="'%(Using.Sdk)' == 'Uno'" />
+    </ItemGroup>
+  </Target>
+
+</Project>

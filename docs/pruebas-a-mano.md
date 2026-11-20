@@ -177,3 +177,18 @@ Hace falta al menos un paquete con plantillas instalado (el `.paquete` de `Compl
 7. Reversa a 0,5× con flujo y una rampa (curva «Bala»): igual de continuo que hacia adelante.
 8. Exporta el tramo a 0,25× con flujo: el archivo debe verse como la vista previa en pausa.
 9. Guarda, cierra y abre el proyecto: el modo sigue. Ábrelo con Rodaje 1.0.3: se ve como «Cuadro más cercano» (lo esperado).
+
+## Rodaje en Linux (D-066, fase 8)
+
+En el PC de siempre con Ubuntu 24.04 desde el USB (sesión X11 o Wayland con XWayland). Hace falta el driver de NVIDIA (o Mesa) con Vulkan y zenity (viene con GNOME). La app es el artefacto pp-linux de la CI (o uild/app-linux.sh en el propio Linux): carpeta pp/, ejecutable odaje.
+
+1. **Arranque**: abre odaje sin argumentos dos veces seguidas y cronometra desde el doble clic hasta poder pulsar un menú (en caliente, la segunda). Objetivo: menos de 1 s. Dilo en segundos.
+2. **Abrir y guardar**: Archivo › Importar medios (diálogo de zenity con el filtro «Videos, audios e imágenes»), luego Guardar como… y Abrir proyecto. Di si el diálogo se ve bien y si la ventana de Rodaje se queda en gris mientras está abierto (es lo esperado de momento).
+3. **Visor**: reproduce un 1080p y un 4K HEVC 10 bits. El visor va por la CPU en esta fase (el nativo es la fase 9): di si va fluido, cuántos cuadros perdidos marca la barra de estado y si el tamaño del visor sigue a la ventana al redimensionar. Pausa en un título: se debe ver igual que en Windows.
+4. **Editar**: corta (B o «Dividir»), recorta un borde, deshaz y rehaz, mueve un clip con el ratón. Mira si las líneas finas (curvas del inspector, mezclador, regla de la línea de tiempo) se dibujan: Uno no implementa LineGeometry y puede que falten.
+5. **Arrastrar y soltar**: arrastra un video desde el gestor de archivos (Nautilus) a la biblioteca y a la línea de tiempo. Esto la CI no lo puede probar.
+6. **Portapapeles**: en Ayuda, copia un informe o una línea de ffmpeg (Exportar › Avanzado) y pégala en un editor de texto.
+7. **Mapeo de rutas**: copia al USB un proyecto de Windows con sus medios. En Preferencias › General › Mapeo de rutas escribe D:\Tu carpeta | /media/<tú>/<USB>/Tu carpeta y abre el proyecto: los medios deben aparecer sin «Volver a vincular».
+8. **Exportar**: exporta 10 s a ProRes y a H.264 (si la lista ofrece h264_nvenc o h264_vaapi). Abre el archivo con el reproductor del sistema.
+9. **Teclado**: en un teclado español, mira cómo se llaman en Atajos las teclas de signos ( '  y  ¡ ): en Linux salen con el nombre de la tecla de EE. UU. (pendiente).
+10. **Audio**: reproduce con sonido (PipeWire); di si se oye sincronizado con la imagen.

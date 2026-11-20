@@ -426,7 +426,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
                 continue;
             }
 
-            double top = WinRT.CastExtensions.As<UIElement>(container).TransformToVisual(MediaGrid).TransformPoint(default).Y;
+            double top = XamlCast.As<UIElement>(container).TransformToVisual(MediaGrid).TransformPoint(default).Y;
             if (top > -CoverHeight && top < height)
             {
                 visible.Add(item);
@@ -462,7 +462,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             DependencyObject child = VisualTreeHelper.GetChild(root, i);
             if (child is FrameworkElement { Name: "ScrollViewer" })
             {
-                return WinRT.CastExtensions.As<ScrollViewer>(child);
+                return XamlCast.As<ScrollViewer>(child);
             }
 
             if (FindScroller(child) is { } found)

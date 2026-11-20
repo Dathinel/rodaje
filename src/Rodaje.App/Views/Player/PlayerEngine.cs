@@ -12,8 +12,6 @@ using Rodaje.Media;
 using Rodaje.Media.Gpu;
 using Rodaje.Playback.Composition;
 using Rodaje.Render;
-using TerraFX.Interop.Windows;
-using static TerraFX.Interop.Windows.Windows;
 
 namespace Rodaje.App.Views.Player;
 
@@ -71,6 +69,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private Project? _pendingReload;
     private long _pendingReloadAt;
 
+    // D3D11: en Linux (PlayerEngine.Desktop.cs) quedan en null y lo que depende de ellos no se hace.
+#pragma warning disable CS0649
     private GpuDevice? _gpu;
     private TimelineSession? _session;
     private Compositor? _compositor;
@@ -92,6 +92,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private TenBitViewer _tenBitViewer;
     private HdrViewer _hdrViewer;
     private GpuTimer? _gpuTimer;
+#pragma warning restore CS0649
     private PreviewProxies? _proxies;
     private ProxyUsage _proxyUsage = ProxyUsage.Auto;
     private IEffectContent? _content;
@@ -180,10 +181,6 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
     /// <summary>VRAM dedicada de la GPU del reproductor; 0 mientras no abrió (la usa el presupuesto de los módulos).</summary>
     public long DedicatedVideoMemory => Volatile.Read(ref _gpu)?.DedicatedVideoMemory ?? 0;
-
-    public int SwapChainWidth => _swapChain?.Width ?? 0;
-
-    public int SwapChainHeight => _swapChain?.Height ?? 0;
 
     public void Start() => _thread.Start();
 
@@ -529,7 +526,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                     _dirty = true;
                 }
 
-                if (_session is null || _swapChain is null)
+                if (_session is null || !HasViewer)
                 {
                     PublishSnapshot();
                     _wake.WaitOne(IdleWaitMs);
@@ -541,7 +538,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 {
                     // Uno por refresco: la cadena tiene latencia máxima 1, así que esto marca el ritmo del vsync.
                     long waitStart = Stopwatch.GetTimestamp();
-                    _ = WaitForSingleObjectEx((HANDLE)_swapChain.FrameWaitHandle, 100, true);
+                    WaitForRefresh();
                     _lastWaitMs = Stopwatch.GetElapsedTime(waitStart).TotalMilliseconds;
 
                     // Una edición que llegó durante la espera entra en este mismo cuadro y no en el siguiente.
@@ -590,10 +587,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         _metrics.Milestone("ffmpeg_lista");
 
-        _gpu = GpuDevice.TryCreate(out string? gpuFailure) ?? throw new InvalidOperationException("Hace falta una GPU con Direct3D 11. " + gpuFailure);
-        DeviceDescription = _gpu.ToString();
-        _presenter = new Presenter(_gpu) { Surround = _surround };
-        _gpuTimer = new GpuTimer(_gpu);
+        OpenGpu();
         CreateTitles();
         _metrics.Milestone("gpu_lista");
     }
@@ -613,7 +607,11 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         _external?.Dispose();
         _proxies?.Dispose();
         _gpu?.Dispose();
+        CloseGpu();
     }
+
+    /// <summary>Lo que el visor de cada sistema abre aparte del dispositivo de D3D11 (en Linux, el de Vulkan).</summary>
+    partial void CloseGpu();
 
     private void CloseSession()
     {
@@ -641,32 +639,12 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _pendingSize = null;
         }
 
-        if (request is not { } size || _gpu is null)
+        if (request is not { } size || !GpuOpened)
         {
             return;
         }
 
-        if (_swapChain is null)
-        {
-            _swapChain = new CompositionSwapChain(_gpu, size.Width, size.Height, size.ScaleX, size.ScaleY, UsesTenBits(), UsesScRgb());
-            _metrics.Milestone("cadena_creada");
-            ViewerIsScRgb = _swapChain.ScRgb;
-            if (_swapChain.ScRgb)
-            {
-                _metrics.Note("visor HDR (scRGB R16G16B16A16_FLOAT)");
-            }
-            else if (_swapChain.TenBits)
-            {
-                _metrics.Note("visor de 10 bits (R10G10B10A2)");
-            }
-            SwapChainCreated?.Invoke(_swapChain.NativeSwapChain);
-        }
-        else
-        {
-            _swapChain.Resize(size.Width, size.Height, size.ScaleX, size.ScaleY);
-            _resizeSince = size.RequestedAt;
-        }
-
+        ApplyViewerSize(size);
         EnsureCompositor();
         _dirty = true;
     }
@@ -735,7 +713,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         _framesDropped = 0;
         _usesProxy = false;
         _shuttleRate = 0;
-        if (_project is null || _sequenceId is null || _gpu is null)
+        if (_project is null || _sequenceId is null || !GpuOpened)
         {
             return;
         }
@@ -938,14 +916,14 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     /// </summary>
     private void EnsureCompositor()
     {
-        if (_session is null || _swapChain is null || _gpu is null)
+        if (_session is null || !HasViewer || !GpuOpened)
         {
             return;
         }
 
         int width = _session.Width;
         int height = _session.Height;
-        bool halve = _zoom > 0 ? _zoom <= 0.5 : _swapChain.Width * 2 <= width && _swapChain.Height * 2 <= height;
+        bool halve = _zoom > 0 ? _zoom <= 0.5 : SwapChainWidth * 2 <= width && SwapChainHeight * 2 <= height;
         int divisor = Math.Max(halve ? 2 : 1, _quality.Divisor);
         _previewDivisor = _quality.Divisor;
         width = Math.Max(1, width / divisor);
@@ -959,7 +937,10 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         _compositor?.Dispose();
         _compositor = null;
-        _compositor = new Compositor(_gpu, width, height) { Resources = _content, Titles = _titles, ColorSpace = _session.ColorSpace };
+        _compositor = CreateCompositor(width, height);
+        _compositor.Resources = _content;
+        _compositor.Titles = _titles;
+        _compositor.ColorSpace = _session.ColorSpace;
         _compositor.ShadersReady.ContinueWith(ready =>
         {
             string message = ready.Exception?.GetBaseException().Message ?? "error desconocido";
@@ -1003,7 +984,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         if (_compositor is not null)
         {
             TimeSpan interval = _quality.Quality == PreviewQuality.Auto && _session.IsPlaying ? AutoGpuSampleInterval : GpuSampleInterval;
-            bool measure = !_gpuPending && Stopwatch.GetElapsedTime(_lastGpuBegin) >= interval;
+            bool measure = _gpuTimer is not null && !_gpuPending && Stopwatch.GetElapsedTime(_lastGpuBegin) >= interval;
             if (measure)
             {
                 _lastGpuBegin = Stopwatch.GetTimestamp();
@@ -1028,9 +1009,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         }
 
         _lastSignature = Signature(frame);
-        // La misma cuenta que el contorno y las guías del visor (ViewerGeometry), con la forma de la secuencia y no la de la composición.
-        PixelRect placement = ViewerGeometry.Image(_swapChain!.Width, _swapChain.Height, _session.Width, _session.Height, _zoom);
-        _swapChain!.Render(_presenter!, _compositor, placement);
+        PresentViewer();
         PresentExternal();
         long presented = Stopwatch.GetTimestamp();
         _metrics.Presented(_session.IsPlaying && !_session.IsSeekPending, Stopwatch.GetElapsedTime(start, presented).TotalMilliseconds);
@@ -1093,7 +1072,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     {
         if (_session is not { } s)
         {
-            PlaybackSnapshot empty = PlaybackSnapshot.Empty with { Status = _gpu is null ? "Preparando el reproductor…" : "Sin secuencia" };
+            PlaybackSnapshot empty = PlaybackSnapshot.Empty with { Status = !GpuOpened ? "Preparando el reproductor…" : "Sin secuencia" };
             if (!empty.Equals(_snapshot))
             {
                 _snapshot = empty;
