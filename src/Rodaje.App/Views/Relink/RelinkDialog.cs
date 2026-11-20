@@ -323,8 +323,7 @@ internal static class RelinkDialog
     private static void NotifyRemaining(EditorServices services, nint hwnd, MediaRelinkService relink, IReadOnlyList<MediaRef> missing)
     {
         EditorSession session = services.Session;
-        session.Notify(NotificationSeverity.Warning, missing.Count == 1 ? "Falta un medio" : "Faltan medios", MediaRelinkService.Describe(missing),
-            new NotificationAction("Volver a enlazar", () => UiTask.Run(ReopenAsync())));
+        MediaRelinkService.NotifyMissing(session, missing, new NotificationAction("Volver a enlazar", () => UiTask.Run(ReopenAsync())));
 
         async Task ReopenAsync()
         {

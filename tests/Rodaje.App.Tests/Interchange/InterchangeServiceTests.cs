@@ -1,5 +1,6 @@
 using Rodaje.App.Services;
 using Rodaje.App.Services.Interchange;
+using Rodaje.App.Services.Relink;
 using Rodaje.App.Tests.Support;
 using Rodaje.Core.Interchange;
 using Rodaje.Core.Model;
@@ -72,6 +73,42 @@ public sealed class InterchangeServiceTests
         Assert.Single(session.Project.Media);
         Assert.Empty(ModelValidator.Validate(session.Project));
     }
+
+    /// <summary>
+    /// R8: el aviso «Faltan medios» de la importación se quedaba puesto al deshacerla. Ahora caduca cuando esos medios
+    /// ya no están en el proyecto (deshacer o abrir otro) y se repone al rehacer.
+    /// </summary>
+    [Fact]
+    public void The_missing_media_notice_is_retracted_on_undo_shown_again_on_redo_and_retracted_on_open() => UiThread.Run(async () =>
+    {
+        EditorSession session = new(new FakePlayback(), new FakeProber(), new FakeDialogs { Choice = UnsavedChangesChoice.Discard }, new SequentialIdGenerator());
+        var shown = new List<EditorNotification>();
+        var retracted = new List<EditorNotification>();
+        session.Notified += (_, n) => shown.Add(n);
+        session.NotificationRetracted += (_, n) => retracted.Add(n);
+
+        InterchangeResult result = Result(session);
+        IReadOnlyList<MediaRef> missing = InterchangeService.Missing(result);
+        Assert.Single(missing);
+        Assert.True(session.Execute(new InterchangeService(new FakeProber()).ImportCommand(result, session.SequenceId, F(0))));
+
+        MediaRelinkService.NotifyMissing(session, missing, new NotificationAction("Volver a enlazar", () => { }));
+        EditorNotification notice = Assert.Single(shown);
+        Assert.Equal(NotificationSeverity.Warning, notice.Severity);
+        Assert.Empty(retracted);
+
+        Assert.True(session.Undo());
+        Assert.Same(notice, Assert.Single(retracted));
+
+        Assert.True(session.Redo());
+        Assert.Equal(2, shown.Count);
+        Assert.Same(notice, shown[1]);
+        Assert.Single(retracted);
+
+        Assert.True(await session.NewProjectAsync());
+        Assert.Equal(2, retracted.Count);
+        Assert.Same(notice, retracted[1]);
+    });
 
     [Fact]
     public void Media_that_is_not_on_disk_goes_to_relink()

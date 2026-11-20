@@ -92,6 +92,33 @@ public sealed class Track
         return copy;
     }
 
+    /// <summary>Una copia con todo menos los clips (que quedan vacíos); comparte efectos, envíos y transiciones: es para serializar, no para editar.</summary>
+    internal Track WithoutClips()
+    {
+        Track copy = (Track)MemberwiseClone();
+        copy.Clips = [];
+        return copy;
+    }
+
+    /// <summary>Copia todo el estado de <paramref name="other"/> salvo los clips, que siguen siendo los de esta pista.</summary>
+    internal void CopyHeaderFrom(Track other)
+    {
+        Id = other.Id;
+        Kind = other.Kind;
+        Name = other.Name;
+        Muted = other.Muted;
+        Locked = other.Locked;
+        Hidden = other.Hidden;
+        Role = other.Role;
+        Solo = other.Solo;
+        Armed = other.Armed;
+        Output = other.Output;
+        Sends = other.Sends.ConvertAll(t => t.Clone());
+        Height = other.Height;
+        Effects = other.Effects.ConvertAll(e => e.Clone());
+        Transitions = other.Transitions.ConvertAll(t => t.Clone());
+    }
+
     /// <summary>Copia el estado de otra pista sobre esta, conservando la identidad del objeto.</summary>
     internal void CopyStateFrom(Track other)
     {

@@ -55,6 +55,20 @@ public sealed class MediaRef
     [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
     public string? Reel { get; set; }
 
+    /// <summary>
+    /// Huella corta del archivo para emparejarlo entre equipos (<see cref="Rodaje.Core.Collab.ContentKey"/>: tamaño y SHA-256 del
+    /// primer y último MiB); nula si aún no se calculó (formato 16, D-067). No lleva ruta ni fecha.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ContentKey { get; set; }
+
+    /// <summary>
+    /// SHA-256 del archivo entero (<see cref="Rodaje.Core.Collab.ContentHash"/>); nulo si aún no se calculó (formato 16, D-067).
+    /// Un medio solo es «el mismo» en otro equipo cuando coincide.
+    /// </summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ContentHash { get; set; }
+
     /// <summary>Devuelve la ruta absoluta, resolviendo las relativas contra la carpeta del proyecto.</summary>
     /// <remarks>
     /// <c>\Videos\a.mp4</c> y <c>C:a.mp4</c> tienen raíz pero no son absolutas: se resuelven contra la
