@@ -36,7 +36,7 @@ public sealed class RhythmClipsTests
 
         IReadOnlyList<string> clips = RhythmClips.Montage(sequence, sequence.AllTracks.SelectMany(t => t.Clips).Select(c => c.Id), music);
 
-        Assert.Equal(["toma1", "toma2", "sonido1"], clips.Order());
+        Assert.Equal(["sonido1", "toma1", "toma2"], clips.Order());
     }
 
     [Fact]
