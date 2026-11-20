@@ -64,6 +64,8 @@ public sealed class WireSanitizerTests
         "base-negativa",
         "orden-repetido",
         "orden-id-repetido",
+        "orden-sin-version",
+        "orden-version-negativa",
         "contenedor-desconocido",
         "blob-sin-huella",
         "texto-gigante",
@@ -103,6 +105,8 @@ public sealed class WireSanitizerTests
             case "base-negativa": tree["base"] = -5; break;
             case "orden-repetido": tree["orders"]!.AsArray().Add(tree["orders"]![0]!.DeepClone()); break;
             case "orden-id-repetido": tree["orders"]![0]!["ids"]!.AsArray().Add("m-dup"); tree["orders"]![0]!["ids"]!.AsArray().Add("m-dup"); break;
+            case "orden-sin-version": tree["orders"]![0]!.AsObject().Remove("v"); break;
+            case "orden-version-negativa": tree["orders"]![0]!["v"] = -1; break;
             case "contenedor-desconocido": tree["orders"]![0]!["container"] = "../../x"; break;
             case "blob-sin-huella": tree["blobs"] = new JsonArray(new JsonObject { ["sha256"] = "123", ["size"] = 1 }); break;
             case "texto-gigante": clip["content"]!["color"] = new string('x', 200_000); break;

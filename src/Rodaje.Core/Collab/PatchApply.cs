@@ -46,6 +46,16 @@ public static class PatchApply
             }
         }
 
+        foreach (PatchOrder order in patch.Orders)
+        {
+            if (order.BaseVersion != versions.GetOrder(order.Container))
+            {
+                return PatchResult.Reject(
+                    PatchRejectionReason.VersionConflict,
+                    "Otra persona cambió el orden de esa lista antes que tú. Tu cambio no entró; vuelve a hacerlo.");
+            }
+        }
+
         PatchOp[] ordered = [.. patch.Ops.Order(Comparer<PatchOp>.Create(PatchCanon.Compare))];
         PatchRejection? rejected = DecodeAll(ordered, options.Blobs, out Decoded[] decoded);
         if (rejected is not null)
@@ -188,9 +198,17 @@ public static class PatchApply
     private static PatchRejection? Apply(Project project, PatchOp[] ops, Decoded[] decoded, IReadOnlyList<PatchOrder> orders)
     {
         var touched = new HashSet<ElementKey>(ops.Select(o => o.Key));
+        Dictionary<string, int>? mediaIndex = null;
         for (int i = 0; i < ops.Length; i++)
         {
-            PatchRejection? rejection = ops[i].Content is null ? Delete(project, ops[i], touched) : Upsert(project, ops[i], decoded[i]);
+            if (ops[i].Kind == ElementKind.Media && ops[i].Content is not null)
+            {
+                mediaIndex ??= IndexById(project.Media);
+            }
+
+            PatchRejection? rejection = ops[i].Content is null
+                ? Delete(project, ops[i], touched)
+                : Upsert(project, ops[i], decoded[i], mediaIndex);
             if (rejection is not null)
             {
                 return rejection;
@@ -203,6 +221,18 @@ public static class PatchApply
         }
 
         return null;
+    }
+
+    // Id → sitio en la lista: dar de alta muchos medios sin él sale cuadrático (buscar cada id recorriéndola entera).
+    private static Dictionary<string, int> IndexById(List<MediaRef> media)
+    {
+        var index = new Dictionary<string, int>(media.Count, StringComparer.Ordinal);
+        for (int i = 0; i < media.Count; i++)
+        {
+            index.TryAdd(media[i].Id, i);
+        }
+
+        return index;
     }
 
     private static PatchRejection Occupied(PatchOp op) =>
@@ -261,16 +291,17 @@ public static class PatchApply
     private static PatchRejection Clash(PatchOp op) =>
         new(PatchRejectionReason.Invalid, "El cambio mueve un elemento a un sitio donde no puede estar.", op.Key);
 
-    private static PatchRejection? Upsert(Project project, PatchOp op, Decoded decoded)
+    private static PatchRejection? Upsert(Project project, PatchOp op, Decoded decoded, Dictionary<string, int>? mediaIndex)
     {
         switch (op.Kind)
         {
             case ElementKind.Media:
             {
                 MediaRef media = decoded.Media!;
-                int at = project.Media.FindIndex(m => m.Id == op.Id);
+                int at = mediaIndex is null ? project.Media.FindIndex(m => m.Id == op.Id) : mediaIndex.GetValueOrDefault(op.Id, -1);
                 if (at < 0)
                 {
+                    mediaIndex?.Add(op.Id, project.Media.Count);
                     project.Media.Add(media);
                 }
                 else

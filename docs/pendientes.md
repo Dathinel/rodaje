@@ -76,6 +76,27 @@ Lo que queda abierto en Rodaje, por prioridad. Cada punto se quita al cerrarlo y
 - Proxies (B14): falta generar el proxy de sala con FFmpeg (video bajo con AAC), el almacén aparte por `ContentHash` que la limpieza no toque y el medio «solo proxy» en la reproducción; el reparto por huella ya está en `ProxyShare.cs`.
 - `dathinel-red.exe` no va todavía en la distribución (B13): sin él la colaboración no abre.
 
+### Colaboración (B12): lo que dejó fuera la segunda revisión independiente
+
+Del hallazgo 4 (límites acumulados y coste) solo entró lo barato: índice por identificador en `PatchApply`/`PatchReservations` y tope de elementos en la copia inicial (`ProjectWire.MaxElements`). Queda:
+- Presupuestos acumulados de elementos y memoria entre parches sucesivos: el tope cubre la copia recibida, no el crecimiento por lotes de altas válidas.
+- Virtualizar la lista visual de medios (`MediaSearchDialog` crea un control por medio) y cancelación durante operaciones largas.
+- La copia inicial sigue clonando y validando el proyecto entero varias veces por parche.
+
+Del hallazgo 5 quedó fuera: reutilizar capturas entre peticiones, cancelar al salir el solicitante y una cuota con política de retirada para los archivos por huella que quedan en `compartido`.
+
+Del hallazgo 6 quedó fuera: `ConvergeToConfirmed` sigue descartando todos los pendientes (incluidos los independientes válidos) en lugar de conservarlos para reenvío, y la restauración usa un parche normal que puede fallar si el inverso excede el tope de 900 KiB. En esta rama no está el comportamiento del PR #670.
+
+Hallazgos de la revisión no abordados en B12:
+- **9 (molesta):** el bucle de espera de respuesta de `ProjectShareGuest` puede seguir girando tras cancelar hasta agotar el plazo; falta comprobar el token dentro del bucle y propagar la cancelación.
+- **10 (menor):** `LooksLikePath` no reconoce rutas relativas ordinarias (`carpeta/archivo.cube`) en opciones de efectos desconocidos; distinguir opciones de texto de referencias y validar las admitidas.
+
+Garantías que la revisión no pudo verificar y siguen abiertas:
+- Qué revisión de Sala respalda roles, identidad autenticada, deduplicación del envoltorio y confinamiento de blobs (pregunta de Daniel); el validador de Rodaje tampoco comprueba `author.Rol`, así que un miembro con rol «mirar» podría pasar validación local si Sala no lo corta antes.
+- Pruebas de red y de carga reales entre equipos, comportamiento ante agotamiento real de memoria, reparse points, autenticación del remitente en el transporte y cuotas de Sala.
+- Limpieza de diagnóstico y registros (`ParaTelefono()`, transporte, rutas locales en mensajes) y las tareas de interfaz descartadas sin observación ni transición a sesión fallida (`CollabEngine`).
+- Si se mantiene el contrato de conservar y reenviar pendientes independientes tras un rechazo (pregunta de Daniel; hoy se descartan).
+
 ## Solo Daniel
 
 - **Repaso con ratón de lo nuevo desde la 1.0.3.** Probar en la interfaz: render en caché, editar por texto, intercambio EDL/FCPXML/OTIO, flujo óptico, plantillas de movimiento, CinemaDNG en HDR de 12 bits y los arreglos de B2 y B3 (`docs/pruebas-a-mano.md`, `docs/hoja-de-ruta.md` B9).
