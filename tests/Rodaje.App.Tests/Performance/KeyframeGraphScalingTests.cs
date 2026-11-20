@@ -49,4 +49,21 @@ public class KeyframeGraphScalingTests(Xunit.Abstractions.ITestOutputHelper outp
         output.WriteLine($"1250 keyframes: {ms:F2} ms y {KeyframeGraph.Sample(p, GraphMode.Value, maxPoints: 1200).Count} puntos con tope; sin tope {sw.Elapsed.TotalMilliseconds:F2} ms y {old} puntos");
         Assert.True(ms < 50, $"{ms} ms por dibujo");
     }
+
+    [Fact]
+    public void El_recorrido_del_visor_con_1000_keyframes_no_pasa_de_su_tope()
+    {
+        var transform = new EffectInstance { Id = "t", Type = BuiltInEffects.Transform };
+        foreach (string name in new[] { BuiltInEffects.TransformParameters.X, BuiltInEffects.TransformParameters.Y })
+        {
+            transform.Parameters[name] = Wobble(1000);
+        }
+
+        var sw = Stopwatch.StartNew();
+        IReadOnlyList<System.Numerics.Vector2> points = Rodaje.App.Views.Player.MotionPathView.Sample(transform, 1920, 1080);
+        double ms = sw.Elapsed.TotalMilliseconds;
+        output.WriteLine($"recorrido de 1000 keyframes: {points.Count} puntos, {ms:F1} ms (antes ~24.000 puntos)");
+        Assert.InRange(points.Count, 999, 2600);
+        Assert.True(ms < 500, $"{ms} ms");
+    }
 }

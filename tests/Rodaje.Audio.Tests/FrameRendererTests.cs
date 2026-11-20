@@ -78,7 +78,7 @@ public class FrameRendererTests
         Assert.Equal(1_000, produced);
         Assert.Equal(CountingSource.Left(100), device[100 * 2]);
         Assert.Equal(CountingSource.Left(699), device[699 * 2]);
-        Assert.True(device[700 * 2] > 0f && device[700 * 2] < CountingSource.Left(699));
+        Assert.True(device[700 * 2] > 0f && device[701 * 2] < device[700 * 2]);
         Assert.All(device[((700 + FrameRenderer.GapFadeFrames) * 2)..], s => Assert.Equal(0f, s));
         Assert.Equal(1, renderer.Underruns);
         Assert.Equal(300, renderer.UnderrunFrames);
