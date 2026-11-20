@@ -90,7 +90,7 @@ internal sealed partial class ModuleJobsView : UserControl, IEditorView
     {
         private readonly ModuleJob _job;
         private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
-        private readonly ProgressBar _bar = new() { Maximum = 1 };
+        private readonly Shared.OperationProgressView _progress = new() { ShowCancel = false };
         private readonly Button _cancel = new() { Content = "", FontSize = ThemeResources.Size("CaptionFontSize"), VerticalAlignment = VerticalAlignment.Top };
 
         public Row(ModuleJob job)
@@ -105,7 +105,7 @@ internal sealed partial class ModuleJobsView : UserControl, IEditorView
             var text = new StackPanel { Spacing = 4 };
             text.Children.Add(title);
             text.Children.Add(_status);
-            text.Children.Add(_bar);
+            text.Children.Add(_progress);
             var grid = new Grid { ColumnSpacing = 8 };
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -119,11 +119,12 @@ internal sealed partial class ModuleJobsView : UserControl, IEditorView
 
         public void Update()
         {
-            _status.Text = _job.StatusText;
+            // En marcha, la vista común dice etapa, porcentaje, tiempo restante y «último avance»; al terminar, queda el resultado.
+            _status.Text = _job.IsFinished ? _job.StatusText : "";
+            _status.Visibility = _job.IsFinished ? Visibility.Visible : Visibility.Collapsed;
             _status.Foreground = _job.State == ModuleJobState.Failed ? Resource<Brush>("MeterHighBrush") : Resource<Brush>("TextMutedBrush");
-            _bar.Value = _job.Progress;
-            _bar.IsIndeterminate = _job.IsIndeterminate;
-            _bar.Visibility = _cancel.Visibility = _job.IsFinished ? Visibility.Collapsed : Visibility.Visible;
+            _progress.Operation = _job.IsFinished ? null : _job.Operation;
+            _cancel.Visibility = _job.IsFinished ? Visibility.Collapsed : Visibility.Visible;
             _cancel.IsEnabled = !_job.IsCancelling;
         }
     }

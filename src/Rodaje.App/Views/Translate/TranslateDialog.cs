@@ -69,16 +69,16 @@ internal static class TranslateDialog
 
         const string Intro = "Se crea una pista nueva encima con los mismos tiempos; la original no cambia.";
         const string SameLanguage = "Elige un idioma distinto del original.";
-        var busy = new ProgressRing { IsActive = false, Width = 20, Height = 20 };
+        var busy = new Views.Shared.OperationProgressView { Width = AnalysisUi.PreviewWidth, ShowMessage = false, ShowCancel = false };
         var status = new TextBlock
         {
             Text = Intro,
             TextWrapping = TextWrapping.Wrap,
-            Width = AnalysisUi.PreviewWidth - 30,
+            Width = AnalysisUi.PreviewWidth,
         };
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
-        row.Children.Add(busy);
+        var row = new StackPanel { Spacing = 4, Margin = new Thickness(0, 8, 0, 0) };
         row.Children.Add(status);
+        row.Children.Add(busy);
         panel.Children.Add(track);
         panel.Children.Add(source);
         panel.Children.Add(target);
@@ -120,7 +120,6 @@ internal static class TranslateDialog
         {
             ContentDialogButtonClickDeferral deferral = args.GetDeferral();
             running = true;
-            busy.IsActive = true;
             Refresh();
             try
             {
@@ -129,7 +128,18 @@ internal static class TranslateDialog
                 string? from = Chosen(source, sources) is { Code: not "auto" } s ? s.Code : null;
                 IReadOnlyList<SubtitleText> texts = session.Sequence.FindTrack(chosenTrack.TrackId) is { } t ? SubtitleTrackTranslation.Collect(t) : [];
                 status.Text = Fmt($"Traduciendo {texts.Count} textos al {to.Name.ToLower(CultureInfo.CurrentCulture)}… (sigue en Trabajos si cierras)");
-                TrackTranslation result = await translator.TranslateAsync(texts, from, to.Code, "Traducir subtítulos", work.Token);
+                Task<TrackTranslation> call;
+                // El avance del trabajo de módulo (etapa, porcentaje, tiempo restante) va al diálogo y a la barra de avisos.
+                using (modules.Jobs.CaptureNext(j =>
+                {
+                    busy.Operation = j.Operation;
+                    scope?.Follow(j.Operation);
+                }))
+                {
+                    call = translator.TranslateAsync(texts, from, to.Code, "Traducir subtítulos", work.Token);
+                }
+
+                TrackTranslation result = await call;
                 done = (chosenTrack.TrackId, to, result);
             }
             catch (OperationCanceledException)
@@ -157,7 +167,7 @@ internal static class TranslateDialog
             finally
             {
                 running = false;
-                busy.IsActive = false;
+                busy.Operation = null;
                 Refresh();
                 deferral.Complete();
             }

@@ -2,6 +2,7 @@ using Microsoft.UI;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Interchange;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
@@ -64,7 +65,20 @@ internal static partial class InterchangeCommands
         Project project = session.Project;
         InterchangeOptions options = InterchangeService.OptionsFor(session.Sequence);
         var service = new InterchangeService(new FfmpegMediaProber());
-        InterchangeResult result = await service.ReadAsync(picked[0], project, options);
+        // Leer y sondear los medios de un montaje grande puede tardar: avance con porcentaje (medios sondeados) y Cancelar.
+        using LongActionScope? scope = services.LongActions.TryBegin(
+            "interchange.importar", ImportTitle, "Leyendo «" + Path.GetFileName(picked[0]) + "»", canCancel: true, showAfter: LongActionService.QuickOperationDelay);
+        InterchangeResult result;
+        try
+        {
+            result = await service.ReadAsync(picked[0], project, options, scope?.Progress, scope?.Token ?? default);
+        }
+        catch (OperationCanceledException) when (scope is { Token.IsCancellationRequested: true })
+        {
+            session.Notify(NotificationSeverity.Informational, ImportTitle, "Cancelado: no se importó nada.");
+            return;
+        }
+
         if (!ReferenceEquals(project, session.Project))
         {
             return;
@@ -113,6 +127,8 @@ internal static partial class InterchangeCommands
             return;
         }
 
+        using LongActionScope? scope = services.LongActions.TryBegin(
+            "interchange.exportar", ExportTitle, "Escribiendo «" + Path.GetFileName(path) + "»", showAfter: LongActionService.QuickOperationDelay);
         (IReadOnlyList<string> files, InterchangeReport report) = await InterchangeService.ExportAsync(path, session.Project, sequence.Id, options);
         string names = string.Join(", ", files.Select(Path.GetFileName));
         session.Notify(NotificationSeverity.Success, ExportTitle, $"«{sequence.Name}» en {names}.",

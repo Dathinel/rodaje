@@ -1,6 +1,6 @@
 using Rodaje.App.Services.Format;
 
-namespace Rodaje.App.Services.Progress;
+namespace Rodaje.App.Services.Operations;
 
 /// <summary>
 /// Lo que la interfaz dibuja de una operación larga en un instante: nunca una rueda, siempre algo que diga si avanza.
@@ -154,6 +154,7 @@ public sealed class OperationProgress
     private long _sampleTime;
     private double _sampleFraction;
     private double _rate;
+    private bool _waiting;
     private bool _canCancel;
     private bool _cancelling;
     private bool _finished;
@@ -216,6 +217,7 @@ public sealed class OperationProgress
             if (advanced)
             {
                 _lastAdvance = now;
+                _waiting = false;
             }
         }
     }
@@ -252,6 +254,18 @@ public sealed class OperationProgress
             {
                 _lastAdvance = now;
             }
+        }
+    }
+
+    /// <summary>
+    /// Espera su turno (una cola): no ha empezado, así que no se dice «Sigue trabajando» por mucho que dure. Vuelve a
+    /// <c>false</c> con el primer avance.
+    /// </summary>
+    public void SetWaiting(bool waiting)
+    {
+        lock (_lock)
+        {
+            _waiting = waiting;
         }
     }
 
@@ -310,7 +324,7 @@ public sealed class OperationProgress
         {
             TimeSpan elapsed = _clock.GetElapsedTime(_start, now);
             TimeSpan since = _clock.GetElapsedTime(_lastAdvance, now);
-            bool stalled = !_finished && !_cancelling && since >= _stallAfter;
+            bool stalled = !_finished && !_cancelling && !_waiting && since >= _stallAfter;
             return new OperationSnapshot(
                 _fraction, _phase, _phaseCount, _phaseText, _message, elapsed, since,
                 stalled || _finished || _cancelling ? null : Estimate(elapsed),

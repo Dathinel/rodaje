@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Rodaje.App.Services.Operations;
 
 namespace Rodaje.App.Services.Modules;
 
@@ -31,6 +32,7 @@ public sealed class ModuleJob
         ModuleName = moduleName;
         _cancel = CancellationTokenSource.CreateLinkedTokenSource(external);
         Token = _cancel.Token;
+        Operation.SetCancellable(true);
         // Desde la fila o desde quien lanzó el trabajo: el módulo puede tardar en confirmar (hasta CancelGrace, 10 s).
         _ = Token.Register(OnCancelRequested);
     }
@@ -38,6 +40,9 @@ public sealed class ModuleJob
     public string Title { get; }
 
     public string ModuleName { get; }
+
+    /// <summary>El avance con fases, tiempo restante suavizado y «último avance» que dibuja la vista común.</summary>
+    public OperationProgress Operation { get; } = new();
 
     public ModuleJobState State { get; private set; } = ModuleJobState.Waiting;
 
@@ -108,6 +113,7 @@ public sealed class ModuleJob
         if (!IsFinished)
         {
             _cancelling = true;
+            Operation.MarkCancelling();
             _owner.Notify();
         }
     }
@@ -121,12 +127,14 @@ public sealed class ModuleJob
 
         Progress = double.IsFinite(fraction) ? Math.Clamp(fraction, 0, 1) : Progress;
         Stage = stage ?? Stage;
+        Operation.Report(Progress, stage);
         _owner.Notify();
     }
 
     internal void SetWaiting(string stage)
     {
         Stage = stage;
+        Operation.Report(null, stage);
         _owner.Notify();
     }
 
@@ -135,6 +143,7 @@ public sealed class ModuleJob
         if (State == ModuleJobState.Waiting)
         {
             State = ModuleJobState.Running;
+            Operation.Report(null, Stage ?? "Procesando");
             _runningSince = Stopwatch.GetTimestamp();
             _owner.Notify();
         }
@@ -153,6 +162,8 @@ public sealed class ModuleJob
         {
             Progress = 1;
         }
+
+        Operation.Complete();
 
         _cancel.Dispose();
         _owner.Finished(this);
@@ -196,6 +207,9 @@ public sealed class ModuleJobList(SynchronizationContext? context)
     /// <summary>Un trabajo terminó, falló o se canceló.</summary>
     public event EventHandler<ModuleJob>? JobFinished;
 
+    [ThreadStatic]
+    private static Action<ModuleJob>? t_capture;
+
     public ModuleJob Add(string title, string moduleName, CancellationToken cancellationToken = default)
     {
         var job = new ModuleJob(this, title, moduleName, cancellationToken);
@@ -205,7 +219,30 @@ public sealed class ModuleJobList(SynchronizationContext? context)
         }
 
         Notify();
+        if (t_capture is { } capture)
+        {
+            t_capture = null;
+            capture(job);
+        }
+
         return job;
+    }
+
+    /// <summary>
+    /// Entrega el siguiente trabajo que se añada <b>desde este hilo</b> mientras dure el <c>using</c>. Sirve a un diálogo para
+    /// llegar al avance del trabajo de módulo que lanza (<c>ModuleManager.RunAsync</c> lo añade antes de su primer
+    /// <c>await</c>): <c>using (jobs.CaptureNext(j => job = j)) { task = servicio.HacerAsync(…); }</c>.
+    /// </summary>
+    public IDisposable CaptureNext(Action<ModuleJob> onJob)
+    {
+        ArgumentNullException.ThrowIfNull(onJob);
+        t_capture = onJob;
+        return new Release();
+    }
+
+    private sealed class Release : IDisposable
+    {
+        public void Dispose() => t_capture = null;
     }
 
     public bool ClearFinished()
