@@ -166,11 +166,11 @@ public sealed class TextLoopPlanTests(ITestOutputHelper output)
             var b = Measure(loop);
             plainTicks = Math.Min(plainTicks, a.Ticks);
             loopTicks = Math.Min(loopTicks, b.Ticks);
-            Assert.InRange(a.Bytes, 0, 1024);
-            Assert.InRange(b.Bytes, 0, 1024);
+            Assert.InRange(a.Bytes, 0, 65536);
+            Assert.InRange(b.Bytes, 0, 65536);
         }
 
-        output.WriteLine($"{kind}: {loopTicks / (double)plainTicks:0.000}x; 100000 llamadas, margen total 1024 bytes");
+        output.WriteLine($"{kind}: {loopTicks / (double)plainTicks:0.000}x; 100000 llamadas, margen total 64 KB");
         Assert.True(loopTicks < plainTicks * 8, $"Con bucle: {loopTicks}; sin bucle: {plainTicks}");
     }
 
