@@ -155,4 +155,30 @@ public sealed class ExportDialogModelTests
         var error = Assert.Throws<InvalidOperationException>(() => model.CreateVersionRequests([ExportPresets.YouTube1080p.Id], project, "sec", null));
         Assert.Contains("vacía", error.Message, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void Proxy_only_media_blocks_export_and_points_to_the_host()
+    {
+        var project = ExportTestData.Project();
+        var model = new ExportDialogModel(new ExportPreferences(), project.Sequences[0], [], SimulatedEncoders.All, project.Name, null,
+            proxyOnlyMedia: ["toma.mp4"]);
+
+        Assert.False(model.CanExport);
+        string problem = Assert.Single(model.VersionProblems);
+        Assert.Contains("«toma.mp4»", problem, StringComparison.Ordinal);
+        Assert.Contains("Exporta en el anfitrión", problem, StringComparison.Ordinal);
+        Assert.Throws<InvalidOperationException>(() => model.CreateVersionRequests([ExportPresets.YouTube1080p.Id], project, "sec", null));
+        Assert.Throws<InvalidOperationException>(() => model.CreateRequest(project, "sec", null));
+    }
+
+    [Fact]
+    public void Several_proxy_only_media_mention_the_count()
+    {
+        var project = ExportTestData.Project();
+        var model = new ExportDialogModel(new ExportPreferences(), project.Sequences[0], [], SimulatedEncoders.All, project.Name, null,
+            proxyOnlyMedia: ["a.mp4", "b.mp4"]);
+
+        Assert.Contains(model.VersionProblems, p => p.Contains("2 medios", StringComparison.Ordinal) && p.Contains("Exporta en el anfitrión", StringComparison.Ordinal));
+        Assert.False(model.CanExport);
+    }
 }

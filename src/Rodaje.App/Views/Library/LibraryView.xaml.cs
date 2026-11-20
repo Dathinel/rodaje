@@ -7,10 +7,12 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Collab;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Packages;
+using Rodaje.App.Services.Progress;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
@@ -18,6 +20,7 @@ using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Library.Logic;
 using Rodaje.App.Views.Plugins;
 using Rodaje.App.Views.Shared;
+using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Engine.Timeline;
 using Rodaje.Media.Proxies;
@@ -44,6 +47,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     private readonly MenuFlyoutItem _addItem;
     private readonly MenuFlyoutItem _replaceItem;
     private readonly MenuFlyoutItem _proxyItem;
+    private readonly MenuFlyoutItem _roomProxyItem;
     private readonly MenuFlyoutItem _revealItem;
     private readonly MenuFlyoutItem _removeItem;
     private readonly MenuFlyoutItem _favoriteItem;
@@ -83,6 +87,8 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         _mediaMenu.Items.Add(MenuItem("Abrir en el visor de origen", "", (_, _) => OpenTargetInSource()));
         _mediaMenu.Items.Add(_replaceItem);
         _mediaMenu.Items.Add(_proxyItem);
+        _roomProxyItem = MenuItem("Pedir la copia ligera a quien hospeda", "\uE8C4", (_, _) => UiTask.Run(RequestRoomProxyAsync()));
+        _mediaMenu.Items.Add(_roomProxyItem);
         _favoriteItem = MenuItem("Añadir a favoritos", "\uE734", (_, _) => ToggleFavoriteTarget());
         _moveItem = new MenuFlyoutSubItem { Text = "Mover a", Icon = new FontIcon { Glyph = "\uE8DE" } };
         _mediaMenu.Items.Add(_revealItem);
@@ -650,6 +656,8 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             _proxyItem.Text = "Generar proxy";
             ToolTipService.SetToolTip(_proxyItem, null);
         }
+        _roomProxyItem.Visibility = item.IsOffline && !item.IsSubclip && _services?.Collab?.Proxies?.CanRequest(item.Id) == true
+            ? Visibility.Visible : Visibility.Collapsed;
         _removeItem.IsEnabled = !item.IsUsed;
         _removeItem.Text = item.IsUsed ? "Quitar del proyecto (está en uso)" : "Quitar del proyecto";
         bool favorite = _organization.IsFavorite(item.Id);
@@ -813,6 +821,64 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         catch (Exception ex) when (ex is ProxyGenerationException or IOException or InvalidOperationException or UnauthorizedAccessException)
         {
             session.Notify(NotificationSeverity.Error, $"No se pudo generar el proxy de «{item.Name}»", ex.Message);
+        }
+    }
+
+    /// <summary>«Pedir la copia ligera a quien hospeda»: el medio sin original se queda con su proxy de sala (B14).</summary>
+    private async Task RequestRoomProxyAsync()
+    {
+        if (_menuTarget is not { } item || _services?.Collab?.Proxies is not { } proxies || !proxies.CanRequest(item.Id) || XamlRoot is null)
+        {
+            return;
+        }
+
+        EditorSession session = _services.Session;
+        var operation = new OperationProgress();
+        using var cancel = new CancellationTokenSource();
+        var view = new OperationProgressView
+        {
+            Operation = operation,
+            OnCancel = () =>
+            {
+                operation.MarkCancelling();
+                cancel.Cancel();
+            },
+        };
+        var dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = "Copia ligera de la sala",
+            Content = view,
+            CloseButtonText = "Cerrar",
+            DefaultButton = ContentDialogButton.Close,
+        };
+        Task<string> work = proxies.RequestAsync(item.Id, operation, cancel.Token);
+        _ = work.ContinueWith(_ => _dispatcher?.RunLater(dialog.Hide));
+        if (DialogGate.IsOpen)
+        {
+            return;
+        }
+
+        await DialogGate.ShowAsync(dialog);
+        try
+        {
+            string relative = await work;
+            // La ruta queda relativa a la carpeta de la sala, sin los datos del archivo: los del medio ya son los del original.
+            session.Execute(new RelinkMediaCommand([new MediaRelinkTarget(item.Id, relative)]));
+            session.Notify(NotificationSeverity.Success, "Copia ligera lista",
+                $"«{item.Name}» ya se ve y se oye con la copia ligera de la sala. El original sigue faltando: la exportación se hace en el anfitrión.");
+        }
+        catch (OperationCanceledException)
+        {
+            session.Notify(NotificationSeverity.Informational, "Copia ligera cancelada", $"«{item.Name}» sigue sin archivo.");
+        }
+        catch (EditException ex)
+        {
+            session.Notify(NotificationSeverity.Warning, $"«{item.Name}» no quedó enlazado", ex.Message);
+        }
+        catch (CollabException ex)
+        {
+            session.Notify(NotificationSeverity.Error, $"No llegó la copia ligera de «{item.Name}»", ex.Message);
         }
     }
 

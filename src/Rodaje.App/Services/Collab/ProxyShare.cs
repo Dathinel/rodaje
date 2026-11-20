@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Dathinel.Sala;
 
 namespace Rodaje.App.Services.Collab;
 
@@ -37,15 +38,19 @@ public sealed partial class ProxyShareHost : IDisposable
     private readonly RoomService _room;
     private readonly IRoomProxyMaker _maker;
     private readonly string _folder;
+    private readonly Func<CancellationToken, Task<Diagnostico?>> _diagnostic;
     private readonly SemaphoreSlim _one = new(1, 1);
     private readonly CancellationTokenSource _stop = new();
     private readonly Dictionary<string, RoomProxy> _made = new(StringComparer.Ordinal);
 
-    public ProxyShareHost(RoomService room, IRoomProxyMaker maker, string roomFolder)
+    /// <param name="diagnostic">Cómo leer el diagnóstico de la sala (el de <see cref="RoomService"/> salvo en las pruebas).</param>
+    public ProxyShareHost(RoomService room, IRoomProxyMaker maker, string roomFolder,
+        Func<CancellationToken, Task<Diagnostico?>>? diagnostic = null)
     {
         _room = room;
         _maker = maker;
         _folder = Path.Combine(Path.GetFullPath(roomFolder), "proxies");
+        _diagnostic = diagnostic ?? room.DiagnosticAsync;
         room.DirectReceived += OnDirect;
     }
 
@@ -65,10 +70,49 @@ public sealed partial class ProxyShareHost : IDisposable
         }
     }
 
+    /// <summary>Lo que oye el invitado cuando la copia ligera solo podría viajar por el relé público.</summary>
+    public const string RelayRefusal = "Por internet con el relé de pruebas no se mandan proxies.";
+
+    /// <summary>
+    /// Si el camino hasta <paramref name="peer"/> pasa por el relé público de n0: los proxies no van por ahí (son
+    /// archivos grandes y el relé es de pruebas). Solo se mandan por conexión directa o por un relé propio; un relé
+    /// propio se conoce por <see cref="DiagnosticoRed.ReleSolicitado"/> que ya no es «n0».
+    /// </summary>
+    public static bool OverPublicRelay(Diagnostico? diagnostic, string peer)
+    {
+        if (diagnostic is null || diagnostic.Red.ReleSolicitado != "n0")
+        {
+            return false;
+        }
+
+        if (diagnostic.Red.SoloRele)
+        {
+            return true;
+        }
+
+        return diagnostic.Pares.FirstOrDefault(p => p.Clave == peer)?.Camino == Camino.Rele;
+    }
+
     private async Task ServeAsync(string to, string mediaHash)
     {
         try
         {
+            Diagnostico? diagnostic;
+            try
+            {
+                diagnostic = await _diagnostic(_stop.Token).ConfigureAwait(false);
+            }
+            catch (Exception ex) when (ex is not OutOfMemoryException and not OperationCanceledException)
+            {
+                diagnostic = null;
+            }
+
+            if (OverPublicRelay(diagnostic, to))
+            {
+                await Fail(to, mediaHash, RelayRefusal).ConfigureAwait(false);
+                return;
+            }
+
             await _one.WaitAsync(_stop.Token).ConfigureAwait(false);
         }
         catch (OperationCanceledException)
@@ -87,7 +131,17 @@ public sealed partial class ProxyShareHost : IDisposable
             if (proxy is null || !File.Exists(proxy.Path))
             {
                 Directory.CreateDirectory(_folder);
-                proxy = await _maker.MakeAsync(mediaHash, _folder, new Throttled(this, to, mediaHash), _stop.Token).ConfigureAwait(false);
+                try
+                {
+                    proxy = await _maker.MakeAsync(mediaHash, _folder, new Throttled(this, to, mediaHash), _stop.Token).ConfigureAwait(false);
+                }
+                catch (CollabException ex)
+                {
+                    // El maker es código de este equipo: su texto, en español y sin rutas, es lo que hay que explicar.
+                    await Fail(to, mediaHash, ex.Message).ConfigureAwait(false);
+                    return;
+                }
+
                 if (proxy is null)
                 {
                     await Fail(to, mediaHash, "Quien hospeda la sala no tiene ese archivo, así que no puede hacer su copia ligera.").ConfigureAwait(false);

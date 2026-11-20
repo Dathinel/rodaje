@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using Dathinel.Sala;
 using Rodaje.App.Services.Collab;
 
 namespace Rodaje.App.Tests.Collab;
@@ -75,6 +76,86 @@ public sealed class ProxyShareTests
         Assert.Contains("No se pudo preparar", hostile.Message, StringComparison.Ordinal);
 
         await Assert.ThrowsAsync<CollabException>(() => ProxyShareGuest.RequestAsync(guest, "no-es-una-huella", Path.Combine(guest.RoomFolder, "z.mp4")));
+    }
+
+    private static Diagnostico Diag(string releSolicitado, bool soloRele, string guestKey, Camino camino) =>
+        new("anfitrion", true, "1.0.4",
+            new DiagnosticoRed(releSolicitado, null, releSolicitado != "ninguno", soloRele, false),
+            [new DiagnosticoPar(guestKey, "Luis", camino, null, null, null, "1.0.4", null, null, null, 0, 0, 0)],
+            null, 0, null, null);
+
+    private static string GuestKey(RoomService guest) => guest.State.Members.First(m => m.IsMe).Key;
+
+    [SalaFact]
+    public async Task Por_el_rele_publico_de_n0_el_anfitrion_se_niega_sin_generar()
+    {
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        FakeMaker maker = new((_, folder) => Write(folder, 300_000));
+        Diagnostico n0 = Diag("n0", soloRele: true, GuestKey(guest), Camino.Rele);
+        using ProxyShareHost share = new(host, maker, host.RoomFolder, _ => Task.FromResult<Diagnostico?>(n0));
+
+        CollabException ex = await Assert.ThrowsAsync<CollabException>(() =>
+            ProxyShareGuest.RequestAsync(guest, MediaHash, Path.Combine(guest.RoomFolder, "x.mp4")).WaitAsync(TimeSpan.FromSeconds(30)));
+
+        Assert.Contains("relé de pruebas", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(0, maker.Calls);
+    }
+
+    [SalaFact]
+    public async Task Por_camino_directo_o_rele_propio_si_se_mandan_proxies()
+    {
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        string key = GuestKey(guest);
+        FakeMaker maker = new((_, folder) => Write(folder, 300_000));
+        var diagnostics = new Queue<Diagnostico>([
+            // El relé de n0 está configurado pero este par habla por un camino directo: se permite.
+            Diag("n0", soloRele: false, key, Camino.Directo),
+            // Todo va por un relé propio, no por el de pruebas: se permite.
+            Diag("https://rele.mi-casa.es:3340", soloRele: true, key, Camino.Rele),
+        ]);
+        using ProxyShareHost share = new(host, maker, host.RoomFolder, _ => Task.FromResult<Diagnostico?>(diagnostics.Dequeue()));
+
+        string first = await ProxyShareGuest.RequestAsync(guest, MediaHash, Path.Combine(guest.RoomFolder, "a.mp4")).WaitAsync(TimeSpan.FromSeconds(30));
+        string second = await ProxyShareGuest.RequestAsync(guest, MediaHash, Path.Combine(guest.RoomFolder, "b.mp4")).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.True(File.Exists(first) && File.Exists(second));
+        Assert.Equal(1, maker.Calls);
+    }
+
+    [SalaFact]
+    public async Task Dos_peticiones_a_la_vez_generan_una_sola_vez()
+    {
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        FakeMaker maker = new((_, folder) => Write(folder, 300_000), steps: 4);
+        using ProxyShareHost share = new(host, maker, host.RoomFolder);
+
+        Task<string> a = ProxyShareGuest.RequestAsync(guest, MediaHash, Path.Combine(guest.RoomFolder, "a.mp4"));
+        Task<string> b = ProxyShareGuest.RequestAsync(guest, MediaHash, Path.Combine(guest.RoomFolder, "b.mp4"));
+        await Task.WhenAll(a, b).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.True(File.Exists(await a) && File.Exists(await b));
+        Assert.Equal(1, maker.Calls);
+    }
+
+    [SalaFact]
+    public async Task El_texto_del_fallo_del_maker_llega_al_invitado()
+    {
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        FakeMaker maker = new((_, _) => throw new CollabException("Este equipo no puede hacer copias ligeras: le falta el componente de video."));
+        using ProxyShareHost share = new(host, maker, host.RoomFolder);
+
+        CollabException ex = await Assert.ThrowsAsync<CollabException>(() =>
+            ProxyShareGuest.RequestAsync(guest, MediaHash, Path.Combine(guest.RoomFolder, "x.mp4")).WaitAsync(TimeSpan.FromSeconds(30)));
+
+        Assert.Contains("componente de video", ex.Message, StringComparison.Ordinal);
     }
 
     private sealed class Sync<T>(Action<T> add) : IProgress<T>

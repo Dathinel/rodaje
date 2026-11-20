@@ -16,8 +16,10 @@ public sealed class ExportDialogModel
     private readonly Sequence _sequence;
 
     /// <param name="marks">Las marcas I y O de la secuencia: con ellas, el rango propuesto es «Entre la entrada y la salida».</param>
+    /// <param name="proxyOnlyMedia">Los medios del proyecto que solo tienen la copia ligera de la sala; con ellos no se exporta.</param>
     public ExportDialogModel(ExportPreferences preferences, Sequence sequence, IReadOnlyCollection<string> selectedClipIds,
-        IReadOnlyList<EncoderSpec> encoders, string projectName, string? projectFolder, SequenceMarks marks = default)
+        IReadOnlyList<EncoderSpec> encoders, string projectName, string? projectFolder, SequenceMarks marks = default,
+        IReadOnlyList<string>? proxyOnlyMedia = null)
     {
         ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(sequence);
@@ -25,6 +27,7 @@ public sealed class ExportDialogModel
         _preferences = preferences;
         _sequence = sequence;
         Encoders = encoders;
+        ProxyOnlyMedia = proxyOnlyMedia ?? [];
         Ranges = ExportRanges.Choices(sequence, selectedClipIds ?? [], marks);
         RangeIndex = ExportRanges.DefaultIndex(Ranges);
         Performance = preferences.Performance;
@@ -169,6 +172,9 @@ public sealed class ExportDialogModel
     /// <summary>Lo que impide exportar (vacío si se puede); la ruta que ya existe no impide, pide confirmar.</summary>
     public IReadOnlyList<string> Problems => [.. ExportSettingsEditor.Validate(Settings, Encoders).Select(p => p.Message), .. VersionProblems];
 
+    /// <summary>Los nombres de los medios del proyecto que solo tienen la copia ligera de la sala (B14).</summary>
+    public IReadOnlyList<string> ProxyOnlyMedia { get; }
+
     /// <summary>Lo que impide exportar sea cual sea el preajuste (duración y destino): es lo que frena «Varias versiones».</summary>
     public IReadOnlyList<string> VersionProblems
     {
@@ -178,6 +184,15 @@ public sealed class ExportDialogModel
             if (Duration.Ticks <= 0)
             {
                 problems.Add("La secuencia está vacía: no hay nada que exportar.");
+            }
+
+            // La copia ligera es para editar, no para sacar la película: con el original faltando, exportar aquí
+            // produciría un archivo con la calidad del proxy. B16 traerá la exportación encargada al anfitrión.
+            if (ProxyOnlyMedia.Count > 0)
+            {
+                problems.Add(ProxyOnlyMedia.Count == 1
+                    ? $"«{ProxyOnlyMedia[0]}» solo tiene su copia ligera de la sala. Exporta en el anfitrión."
+                    : $"{ProxyOnlyMedia.Count} medios solo tienen su copia ligera de la sala. Exporta en el anfitrión.");
             }
 
             if (OutputCheck is not (OutputCheck.Ok or OutputCheck.Exists))

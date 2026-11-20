@@ -147,6 +147,31 @@ public sealed class MediaMatchTests : IDisposable
         Assert.DoesNotContain(_root, JsonSerializer.Serialize(MediaManifest.ToJson(first).GetRawText()), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task Buscar_por_huella_devuelve_la_ruta_del_medio_que_la_tiene()
+    {
+        byte[] a = Bytes(7, 3000), b = Bytes(8, 4000);
+        string pa = Write(@"clips\a.mp4", a);
+        string pb = Write(@"clips\b.mp4", b);
+        int reads = 0;
+        MediaManifestBuilder builder = new((p, ct) =>
+        {
+            reads++;
+            return MediaMatch.Sha256Async(p, ct);
+        });
+        string wanted = Convert.ToHexStringLower(SHA256.HashData(b));
+
+        string? found = await builder.FindByHashAsync(
+            [new MediaRef { Id = "m1", Path = pa }, new MediaRef { Id = "m2", Path = Path.Combine(_root, "falta.mp4") }, new MediaRef { Id = "m3", Path = pb }],
+            m => m.Path, wanted);
+
+        Assert.Equal(pb, found);
+        Assert.Null(await builder.FindByHashAsync([new MediaRef { Id = "m1", Path = pa }], m => m.Path, wanted));
+        Assert.Null(await builder.FindByHashAsync([new MediaRef { Id = "m1", Path = pa }], m => m.Path, new string('f', 64)));
+        // La segunda vez no rehasea nada: el resultado viene de la caché del manifesto.
+        Assert.Equal(2, reads);
+    }
+
     private sealed class CloudFs : Rodaje.Core.Editing.IRelinkFileSystem
     {
         public IEnumerable<Rodaje.Core.Editing.RelinkFile> EnumerateFiles(string folder, CancellationToken cancellationToken) =>
