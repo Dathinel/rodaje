@@ -47,7 +47,8 @@ public sealed record RoomState(
     Rol MyRole,
     IReadOnlyList<RoomMember> Members,
     IReadOnlyList<RoomRequest> Requests,
-    string? Problem)
+    string? Problem,
+    string MyPhrase = "")
 {
     public static readonly RoomState Closed = new(RoomPhase.Closed, false, "", "", Rol.Editar, [], [], null);
 

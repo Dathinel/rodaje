@@ -76,6 +76,17 @@ internal static class JoinDialog
         statusRow.Children.Add(progress);
         var inviteHint = InviteDialog.Hint("Pega aquí el enlace o texto de invitación que te enviaron.");
         var nameHint = InviteDialog.Hint("Escribe tu nombre para continuar.");
+        var words = new TextBlock { TextWrapping = TextWrapping.Wrap, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Visibility = Visibility.Collapsed };
+        var wordsHint = InviteDialog.Hint("Dile estas palabras a quien te invitó para que compruebe que eres tú.");
+        wordsHint.Visibility = Visibility.Collapsed;
+        void ShowWords(RoomState st)
+        {
+            bool has = st.MyPhrase.Length > 0;
+            words.Text = has ? "Tus palabras de comprobación: " + st.MyPhrase : "";
+            words.Visibility = wordsHint.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        room.StateChanged += ShowWords;
         var clock = new OperationClock();
         DispatcherQueueTimer ticker = DispatcherQueue.GetForCurrentThread().CreateTimer();
         ticker.Interval = TimeSpan.FromSeconds(1);
@@ -91,6 +102,8 @@ internal static class JoinDialog
         form.Children.Add(InviteDialog.Hint("Guardamos una copia en tu equipo para que tus cambios no se pierdan si se corta la conexión."));
         form.Children.Add(problem);
         form.Children.Add(statusRow);
+        form.Children.Add(words);
+        form.Children.Add(wordsHint);
 
         var dialog = new ContentDialog
         {
@@ -182,6 +195,7 @@ internal static class JoinDialog
         dialog.Closed += (_, _) => cancel.Cancel();
 
         await DialogGate.ShowAsync(dialog);
+        room.StateChanged -= ShowWords;
         ticker.Stop();
         cancel.Dispose();
         if (joined)

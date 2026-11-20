@@ -1,4 +1,5 @@
 using Dathinel.Sala;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -25,6 +26,8 @@ internal sealed class RoomPanel
     private readonly Func<Task> _invite;
     private readonly List<RoomNotice> _notices = [];
     private readonly StackPanel _root = new() { Spacing = 12, MinWidth = 380, MaxWidth = 460 };
+    private string _diagnosis = "";
+    private DispatcherQueueTimer? _timer;
 
     public RoomPanel(EditorServices services, CollabHost collab, Func<Task> invite)
     {
@@ -36,6 +39,38 @@ internal sealed class RoomPanel
     }
 
     public FrameworkElement Content => _root;
+
+    /// <summary>Mientras el panel está abierto, el diagnóstico se pone al día cada segundo (es barato).</summary>
+    public void StartDiagnostics()
+    {
+        if (_timer is not null)
+        {
+            return;
+        }
+
+        _timer = DispatcherQueue.GetForCurrentThread().CreateTimer();
+        _timer.Interval = TimeSpan.FromSeconds(1);
+        _timer.Tick += (_, _) => UiTask.Run(RefreshDiagnosticsAsync());
+        _timer.Start();
+        UiTask.Run(RefreshDiagnosticsAsync());
+    }
+
+    public void StopDiagnostics()
+    {
+        _timer?.Stop();
+        _timer = null;
+    }
+
+    private async Task RefreshDiagnosticsAsync()
+    {
+        Dathinel.Sala.Diagnostico? d = await Room.DiagnosticAsync();
+        string text = d?.ParaTelefono() ?? "";
+        if (text != _diagnosis)
+        {
+            _diagnosis = text;
+            Render(Room.State);
+        }
+    }
 
     private RoomService Room => _collab.Room;
 
@@ -91,6 +126,22 @@ internal sealed class RoomPanel
 
                 _root.Children.Add(line);
             }
+        }
+
+        if (state.InRoom)
+        {
+            _root.Children.Add(Text("Conexión", FontWeights.SemiBold));
+            _root.Children.Add(InviteDialog.Hint(_diagnosis.Length > 0 ? _diagnosis : "Midiendo la conexión…"));
+            var copyDiagnosis = new Button { Content = "Copiar diagnóstico", IsEnabled = _diagnosis.Length > 0 };
+            copyDiagnosis.Click += (_, _) =>
+            {
+                if (CollabClipboard.TrySetText(_diagnosis))
+                {
+                    _services.Session.Notify(NotificationSeverity.Success, "Diagnóstico copiado", "No lleva datos personales: puedes leérselo por teléfono a quien te ayuda.");
+                }
+            };
+            _root.Children.Add(copyDiagnosis);
+            _root.Children.Add(InviteDialog.Hint("Copia un resumen sin datos personales para leérselo por teléfono a quien te ayuda."));
         }
 
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
