@@ -82,6 +82,19 @@ public class EffectRegistryTests
     }
 
     [Fact]
+    public void Audio_FadeShape_EsUnaOpcionConTresCurvasYPotenciaConstantePorDefecto()
+    {
+        OptionDefinition shape = EffectRegistry.Find(BuiltInEffects.Audio)!.FindOption(BuiltInEffects.AudioOptions.FadeShape)!;
+
+        Assert.Equal(EffectRegistry.FadeShapes.AsEnumerable(), shape.Choices.AsEnumerable());
+        Assert.Equal(BuiltInEffects.FadeShapes.Power, shape.DefaultValue);
+        Assert.Equal(["power", "linear", "exponential"], EffectRegistry.FadeShapes.AsEnumerable());
+        Assert.True(shape.Accepts(BuiltInEffects.FadeShapes.Linear));
+        Assert.False(shape.Accepts("Linear"));
+        Assert.Equal(BuiltInEffects.FadeShapes.Power, EffectRegistry.DefaultOption(BuiltInEffects.Audio, BuiltInEffects.AudioOptions.FadeShape));
+    }
+
+    [Fact]
     public void Blend_HasThirteenModes()
     {
         OptionDefinition mode = EffectRegistry.Find(BuiltInEffects.Blend)!.FindOption(BuiltInEffects.BlendOptions.Mode)!;

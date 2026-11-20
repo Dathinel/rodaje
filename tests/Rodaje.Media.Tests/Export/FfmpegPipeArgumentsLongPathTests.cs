@@ -23,6 +23,19 @@ public sealed class FfmpegPipeArgumentsLongPathTests
         .Replace('/', '\\');
 
     [Fact]
+    public void The_loudness_measurement_opens_the_mix_with_the_long_path_prefix()
+    {
+        string wave = Work + @"\mezcla.wav";
+
+        IReadOnlyList<string> args = FfmpegLoudness.MeasureArguments(wave, -14, -1);
+
+        Assert.True(wave.Length >= MaxPath, $"La prueba necesita una mezcla que pase de MAX_PATH; tiene {wave.Length}.");
+        Assert.Equal(@"\\?\" + wave, InputAfter(args, 0));
+        Assert.Equal(@"C:\v\mezcla.wav", InputAfter(FfmpegLoudness.MeasureArguments(@"C:\v\mezcla.wav", -14, -1), 0));
+        Assert.Contains("loudnorm=I=-14.0:TP=-1.0:LRA=11.0:print_format=json", args);
+    }
+
+    [Fact]
     public void The_mix_in_a_long_temporary_folder_reaches_ffmpeg_with_the_long_path_prefix()
     {
         string wave = Work + @"\mezcla.wav";

@@ -1,4 +1,5 @@
 using System.Globalization;
+using Rodaje.Engine.Presentation;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
@@ -9,6 +10,12 @@ public static class MediaDetails
 {
     /// <summary>Lo que se ve mientras el códec se está leyendo del archivo.</summary>
     public const string Pending = "…";
+
+    public static string DurationText(MediaRef media, Subclip? subclip = null)
+    {
+        ArgumentNullException.ThrowIfNull(media);
+        return media.IsStillImage ? "Imagen" : Timecode.Format(subclip?.Duration ?? media.Duration);
+    }
 
     /// <summary>«1920×1080», o «—» si es solo audio.</summary>
     public static string Resolution(MediaRef media)

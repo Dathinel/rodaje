@@ -265,7 +265,6 @@ internal sealed partial class LibraryView
             PrimaryButtonText = "Aceptar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
         dialog.PrimaryButtonClick += (_, args) =>
         {

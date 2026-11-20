@@ -17,20 +17,7 @@ internal static class RawCommands
         return router.Bind(ImportCinemaDng, () => Run(services));
     }
 
-    private static void Run(EditorServices services) => UiTask.Run(RunAsync(services));
-
-    private static async Task RunAsync(EditorServices services)
-    {
-        try
-        {
-            await CinemaDngDialog.ShowAsync(services);
-        }
-#pragma warning disable CA1031 // Un fallo del diálogo no debe cerrar la app: se avisa.
-        catch (Exception ex)
-#pragma warning restore CA1031
-        {
-            UiTask.Report(ex, notify: false);
-            services.Session.Notify(NotificationSeverity.Error, "Importar CinemaDNG", ex.Message);
-        }
-    }
+    // Como acción larga: barra de avance y «Cancelar» en la ventana mientras revela, y un fallo queda como aviso.
+    private static void Run(EditorServices services) =>
+        UiTask.Run(services.LongActions.RunAsync(ImportCinemaDng, CinemaDngDialog.Title, scope => CinemaDngDialog.ShowAsync(services, scope), canCancel: true));
 }

@@ -184,14 +184,57 @@ public sealed class PackageService
     /// se bajan aparte (<see cref="EnsureModelsAsync"/>).
     /// </summary>
     /// <exception cref="PackageInstallException">No se pudo instalar.</exception>
-    public Task<InstallResult> InstallFromFileAsync(string path, string? expectedSha256 = null, bool allowDowngrade = false) =>
+    public async Task<LocalPackageInstall> InstallLocalFileAsync(string path, Func<Task<bool>>? confirm = null)
+    {
+        try
+        {
+            return new(LocalInstallOutcome.Installed, await InstallFromFileAsync(path));
+        }
+        catch (PackageConfirmationRequiredException ex)
+        {
+            if (confirm is null) return new(LocalInstallOutcome.NeedsConfirmation);
+            if (!await confirm()) return new(LocalInstallOutcome.Cancelled);
+            return new(LocalInstallOutcome.Installed, await InstallFromFileAsync(path, ex.Sha256));
+        }
+    }
+
+    public async Task<InstallResult> InstallFromFileAsync(string path, string? expectedSha256 = null, bool allowDowngrade = false)
+    {
+        using FileStream archive = new(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+        string hash = expectedSha256 ?? await Task.Run(() => PackageInstaller.ComputeSha256(path));
+        try
+        {
+            return await InstallCoreAsync(path, hash, allowDowngrade, trusted: expectedSha256 is not null);
+        }
+        catch (PackageConfirmationRequiredException)
+        {
+            bool published = false;
+            try
+            {
+                published = await Downloader.IsPublishedModuleAsync(hash);
+            }
+            catch (Exception ex) when (ex is PackageDownloadException or HttpRequestException or IOException or UnauthorizedAccessException or OperationCanceledException)
+            {
+            }
+
+            if (!published) throw;
+            return await InstallCoreAsync(path, hash, allowDowngrade, trusted: true);
+        }
+    }
+
+    private Task<InstallResult> InstallCoreAsync(string path, string hash, bool allowDowngrade, bool trusted) =>
         ExclusiveAsync(() =>
         {
             try
             {
-                return _installer.Install(path, expectedSha256, allowDowngrade, allowReplace: ActiveInstances() == 1,
+                return _installer.Install(path, hash, allowDowngrade, allowReplace: ActiveInstances() == 1,
                     beforeCommit: m =>
                     {
+                        if (!trusted && (m.Kind == PackageKind.Module || m.DeclaresModuleEntry))
+                        {
+                            throw new PackageConfirmationRequiredException(hash);
+                        }
+
                         if (m.Kind == PackageKind.Module)
                         {
                             CloseModuleNow(m.Id);

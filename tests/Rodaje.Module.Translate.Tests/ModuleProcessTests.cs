@@ -15,7 +15,7 @@ namespace Rodaje.Module.Translate.Tests;
 public sealed class ModuleProcessTests(ITestOutputHelper output)
 {
     private static string Exe =>
-        Environment.GetEnvironmentVariable("RODAJE_MODULO_TRADUCIR") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Translate.exe");
+        Environment.GetEnvironmentVariable("RODAJE_MODULO_TRADUCIR") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Translate" + (OperatingSystem.IsWindows() ? ".exe" : ""));
 
     [Fact]
     public async Task Bad_requests_and_a_missing_model_are_explained_without_closing_the_module()

@@ -39,8 +39,8 @@ internal static class VisionDialogs
                 && session.Project.FindMedia(found.Clip.MediaId) is { HasVideo: true, FrameRate: not null, Width: > 0, Height: > 0 } media)
             {
                 return found.Clip.Speed is { Freeze: true }
-                    ? (null, null, "Un cuadro congelado no se puede analizar: hazlo sobre el clip original.")
-                    : (found.Clip, media, null);
+                    ? (null, null, "Un fotograma congelado no se puede analizar: hazlo sobre el clip original.")
+                    : QuickTools.Locked(session.Sequence, found.Clip.Id) is { } locked ? (null, null, locked) : (found.Clip, media, null);
             }
         }
 
@@ -75,7 +75,7 @@ internal static class VisionDialogs
         var panel = new StackPanel { Spacing = 8, Width = AnalysisUi.PreviewWidth };
         panel.Children.Add(new TextBlock
         {
-            Text = string.Create(SpanishNumbers.Format, $"«{media.Name}»: {frames} cuadros. El sujeto queda y el fondo se vuelve transparente; debajo se ve la pista de abajo."),
+            Text = string.Create(SpanishNumbers.Format, $"«{media.Name}»: {frames} fotogramas. El sujeto queda y el fondo se vuelve transparente; debajo se ve la pista de abajo."),
             TextWrapping = TextWrapping.Wrap,
         });
         var quality = new ComboBox { Header = "Calidad", Width = AnalysisUi.PreviewWidth, SelectedIndex = 0 };
@@ -89,7 +89,8 @@ internal static class VisionDialogs
         Estimate();
         quality.SelectionChanged += (_, _) => Estimate();
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
-        var progress = new ProgressBar { Maximum = 1, Width = AnalysisUi.PreviewWidth, Visibility = Visibility.Collapsed };
+        var progress = new Views.Shared.OperationProgressView { Width = AnalysisUi.PreviewWidth, ShowMessage = false, ShowCancel = false, Visibility = Visibility.Collapsed };
+        var activity = new ModuleDialogActivity();
         panel.Children.Add(progress);
         panel.Children.Add(status);
         ContentDialog dialog = AnalysisUi.Dialog(root, RemoveBackgroundTitle, "Aplicar", panel, AnalysisApplyPhase.NeedsAnalysis);
@@ -102,8 +103,7 @@ internal static class VisionDialogs
         void ShowActivity()
         {
             ModuleActivityView view = ModuleActivity.Describe(job, cancel.IsCancellationRequested, "Recortando el sujeto");
-            progress.IsIndeterminate = view.IsIndeterminate;
-            progress.Value = view.Progress;
+            progress.Operation = activity.Current(job, cancel.IsCancellationRequested);
             status.Text = view.Text;
             scope.Report(view.IsIndeterminate ? null : view.Progress, view.Text);
         }
@@ -112,9 +112,11 @@ internal static class VisionDialogs
         dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(AnalyzeBeforeApply(args));
         async Task AnalyzeBeforeApply(ContentDialogButtonClickEventArgs args)
         {
+            // Apagado mientras corre el módulo: un segundo clic no lanza otro Run. Si falló, vuelve para reintentar.
             ContentDialogButtonClickDeferral deferral = args.GetDeferral();
+            dialog.IsPrimaryButtonEnabled = false;
             try { if (matte is null) { work = Run(); await work; } args.Cancel = matte is null; }
-            finally { deferral.Complete(); }
+            finally { dialog.IsPrimaryButtonEnabled = true; deferral.Complete(); }
         }
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();
@@ -148,6 +150,7 @@ internal static class VisionDialogs
         {
             quality.IsEnabled = false;
             progress.Visibility = Visibility.Visible;
+            activity.Restart();
             ShowActivity();
             timer.Start();
             try
@@ -169,6 +172,7 @@ internal static class VisionDialogs
             {
                 timer.Stop();
                 progress.Visibility = Visibility.Collapsed;
+                quality.IsEnabled = matte is null;
             }
         }
     }
@@ -216,7 +220,8 @@ internal static class VisionDialogs
         Slider? smooth = null;
         smooth = AnalysisUi.Slider(panel, "Suavidad", 0, 1, smoothing, 0.05, v => string.Create(SpanishNumbers.Format, $"{v * 100:0} %"),
             () => smoothing = smooth!.Value);
-        var progress = new ProgressBar { Maximum = 1, Width = AnalysisUi.PreviewWidth, Visibility = Visibility.Collapsed };
+        var progress = new Views.Shared.OperationProgressView { Width = AnalysisUi.PreviewWidth, ShowMessage = false, ShowCancel = false, Visibility = Visibility.Collapsed };
+        var activity = new ModuleDialogActivity();
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
         panel.Children.Add(progress);
         panel.Children.Add(status);
@@ -230,8 +235,7 @@ internal static class VisionDialogs
         void ShowActivity()
         {
             ModuleActivityView view = ModuleActivity.Describe(job, cancel.IsCancellationRequested, "Buscando al sujeto");
-            progress.IsIndeterminate = view.IsIndeterminate;
-            progress.Value = view.Progress;
+            progress.Operation = activity.Current(job, cancel.IsCancellationRequested);
             status.Text = view.Text;
             scope.Report(view.IsIndeterminate ? null : view.Progress, view.Text);
         }
@@ -240,9 +244,11 @@ internal static class VisionDialogs
         dialog.PrimaryButtonClick += (_, args) => Rodaje.App.Services.Crashes.UiTask.Run(AnalyzeBeforeApply(args));
         async Task AnalyzeBeforeApply(ContentDialogButtonClickEventArgs args)
         {
+            // Apagado mientras corre el módulo: un segundo clic no lanza otro Run. Si falló, vuelve para reintentar.
             ContentDialogButtonClickDeferral deferral = args.GetDeferral();
+            dialog.IsPrimaryButtonEnabled = false;
             try { if (plan is null) { work = Run(); await work; } args.Cancel = plan is null; }
-            finally { deferral.Complete(); }
+            finally { dialog.IsPrimaryButtonEnabled = true; deferral.Complete(); }
         }
         ContentDialogResult? answer = await DialogGate.ShowAsync(dialog);
         timer.Stop();
@@ -280,6 +286,7 @@ internal static class VisionDialogs
             aspect.IsEnabled = false;
             subject.IsEnabled = false;
             progress.Visibility = Visibility.Visible;
+            activity.Restart();
             ShowActivity();
             timer.Start();
             (_, int aw, int ah) = ReframeAspects[Math.Max(0, aspect.SelectedIndex)];
@@ -289,7 +296,7 @@ internal static class VisionDialogs
                     $"Reencuadre de «{media.Name}»", cancel.Token, j => job = j);
                 status.Text = double.IsNaN(plan.Inside)
                     ? string.Create(SpanishNumbers.Format, $"{plan.Keys.Count} keyframes. Aplica para verlo; un Ctrl+Z lo quita.")
-                    : string.Create(SpanishNumbers.Format, $"{plan.Keys.Count} keyframes; el sujeto queda dentro del recorte en el {plan.Inside * 100:0} % de los cuadros. Aplica para verlo; un Ctrl+Z lo quita.");
+                    : string.Create(SpanishNumbers.Format, $"{plan.Keys.Count} keyframes; el sujeto queda dentro del recorte en el {plan.Inside * 100:0} % de los fotogramas. Aplica para verlo; un Ctrl+Z lo quita.");
                 dialog.IsPrimaryButtonEnabled = true;
             }
             catch (OperationCanceledException)
@@ -304,6 +311,7 @@ internal static class VisionDialogs
             {
                 timer.Stop();
                 progress.Visibility = Visibility.Collapsed;
+                aspect.IsEnabled = subject.IsEnabled = plan is null;
             }
         }
     }

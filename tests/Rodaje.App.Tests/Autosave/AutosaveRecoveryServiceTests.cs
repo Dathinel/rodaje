@@ -47,9 +47,25 @@ public class AutosaveRecoveryServiceTests
         using var h = new AutosaveHarness();
         h.Service.Start();
 
-        await h.Service.OfferRecoveryAsync();
+        Assert.Null(await h.Service.OfferRecoveryAsync(new NotificationAction("Copiar informe", () => { })));
 
         Assert.Empty(h.Notifications);
+    });
+
+    [Fact]
+    public void Oferta_ConElInformeDelCierre_VaEnElMismoAviso() => UiThread.Run(async () =>
+    {
+        using var h = new AutosaveHarness();
+        h.Service.Start();
+        h.CrashedSession(h.Temp.File("Corto.rodaje"), "Corto");
+        var copy = new NotificationAction("Copiar informe", () => { });
+
+        NotificationAction? recover = await h.Service.OfferRecoveryAsync(copy);
+
+        EditorNotification offer = Assert.Single(h.Notifications);
+        Assert.Same(recover, offer.Action);
+        Assert.Equal("Recuperar", offer.Action!.Text);
+        Assert.Same(copy, offer.SecondaryAction);
     });
 
     [Fact]

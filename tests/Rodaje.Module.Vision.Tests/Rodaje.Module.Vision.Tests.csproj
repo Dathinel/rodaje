@@ -1,9 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- El módulo trae otro ONNX Runtime fuera de Windows (ver su .csproj): otro lockfile. -->
+    <VisionUnix Condition="'$(VisionUnix)' == '' And $([MSBuild]::IsOSPlatform('Windows'))">false</VisionUnix>
+    <VisionUnix Condition="'$(VisionUnix)' == ''">true</VisionUnix>
+    <NuGetLockFilePath Condition="'$(VisionUnix)' == 'true'">packages.unix.lock.json</NuGetLockFilePath>
     <IsPackable>false</IsPackable>
-    <NoWarn>$(NoWarn);CA1707;CA1515;CA1861;CA2007;CA5394;CA1849;CA1716</NoWarn>
+    <NoWarn>$(NoWarn);CA1416;CA1707;CA1515;CA1861;CA2007;CA5394;CA1849;CA1716</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,7 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\modules\Rodaje.Module.Vision\Rodaje.Module.Vision.csproj" />
-    <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <ProjectReference Include="..\..\externo\sala\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
   </ItemGroup>
 
   <ItemGroup>

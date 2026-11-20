@@ -2,6 +2,7 @@ using Rodaje.Core.Timing;
 using Rodaje.Media.Export;
 using Rodaje.Render.Export;
 using Xunit.Abstractions;
+using Rodaje.Render.Tests.Support;
 
 namespace Rodaje.Render.Tests.Export;
 
@@ -9,6 +10,7 @@ namespace Rodaje.Render.Tests.Export;
 /// Fidelidad del conversor en WARP (corre también en la CI, sin GPU) contra <see cref="ExportReference"/>: cada formato
 /// de píxel, matrices y rangos, escalas, formas, mezcla, anillo y miniaturas.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class ExportFrameConverterTests(ITestOutputHelper output)
 {
     private static readonly Rational Rate = new(30, 1);
@@ -24,7 +26,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         return data;
     }
 
-    [Theory]
+    [D3D11Theory("conversor de exportación (ExportFrameConverter)")]
     [MemberData(nameof(AllFormats))]
     public void Every_pixel_format_matches_the_reference(ExportPixelFormat pixels)
     {
@@ -34,7 +36,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         ExportCheck.Compare(output, gpu, source, format, tolerance: 1);
     }
 
-    [Theory]
+    [D3D11Theory("conversor de exportación (ExportFrameConverter)")]
     [InlineData(ExportPixelFormat.Nv12)]
     [InlineData(ExportPixelFormat.Rgb24)]
     [InlineData(ExportPixelFormat.Yuv444P)]
@@ -47,7 +49,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         ExportCheck.Compare(output, gpu, Picture.Test(width, height, pixels.HasAlpha()), format, tolerance: 1);
     }
 
-    [Theory]
+    [D3D11Theory("conversor de exportación (ExportFrameConverter)")]
     [InlineData(ExportMatrix.Bt601, false, ExportPixelFormat.Nv12)]
     [InlineData(ExportMatrix.Bt709, true, ExportPixelFormat.Nv12)]
     [InlineData(ExportMatrix.Bt601, true, ExportPixelFormat.Yuv444P10)]
@@ -59,7 +61,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         ExportCheck.Compare(output, gpu, Picture.Test(64, 36), format, tolerance: 1);
     }
 
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void Without_dither_flat_colors_have_one_code()
     {
         using ExportGpu gpu = ExportGpu.Warp();
@@ -70,7 +72,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         Assert.Equal(0, ExportCheck.Worst(planes, ExportReference.Convert(source, format, dither: false)));
     }
 
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void Dither_spreads_a_fractional_code_and_keeps_its_mean()
     {
         using ExportGpu gpu = ExportGpu.Warp();
@@ -83,7 +85,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
     }
 
     /// <summary>Barras BT.709 al 100 % y al 75 %: los códigos publicados ±1 con tramado, e ida y vuelta a R'G'B' ±1 sin él.</summary>
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void Bt709_bars_land_on_the_published_codes_and_round_trip()
     {
         using ExportGpu gpu = ExportGpu.Warp();
@@ -136,7 +138,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void Exact_half_reads_mip_one()
     {
         using ExportGpu gpu = ExportGpu.Warp();
@@ -146,7 +148,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         ExportCheck.Compare(output, gpu, Picture.Test(128, 72), format, tolerance: 1);
     }
 
-    [Theory]
+    [D3D11Theory("conversor de exportación (ExportFrameConverter)")]
     [InlineData(96, 54, ExportScaleFilter.Auto)]
     [InlineData(40, 24, ExportScaleFilter.Auto)]
     [InlineData(200, 112, ExportScaleFilter.Auto)]
@@ -161,7 +163,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         ExportCheck.Compare(output, gpu, Picture.Test(sourceWidth, sourceHeight), format, filter: filter, tolerance: filter == ExportScaleFilter.Bilinear ? 3 : 1);
     }
 
-    [Theory]
+    [D3D11Theory("conversor de exportación (ExportFrameConverter)")]
     [InlineData(ExportFit.Bars)]
     [InlineData(ExportFit.Crop)]
     [InlineData(ExportFit.Stretch)]
@@ -184,7 +186,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void Bars_are_transparent_with_alpha()
     {
         using ExportGpu gpu = ExportGpu.Warp();
@@ -194,7 +196,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         Assert.Contains(planes[3][(36 * 32)..(36 * 33)], v => v == 255);
     }
 
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void Straight_alpha_recovers_the_color_under_a_half_transparent_layer()
     {
         using ExportGpu gpu = ExportGpu.Warp();
@@ -204,7 +206,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         Assert.Equal(new[] { 204, 102, 51, 128 }, rgba[..4]);
     }
 
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void Blend_mixes_two_composites_before_converting()
     {
         using ExportGpu gpu = ExportGpu.Warp();
@@ -228,7 +230,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void Ring_keeps_order_and_refuses_to_overflow()
     {
         using ExportGpu gpu = ExportGpu.Warp();
@@ -269,7 +271,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         }
     }
 
-    [Theory]
+    [D3D11Theory("conversor de exportación (ExportFrameConverter)")]
     [InlineData(128, 72, 32, 16, 64, 36, 0)]
     [InlineData(256, 144, 64, 32, 128, 72, 1)]
     public void A_crop_gives_the_same_samples_as_its_region_alone(int width, int height, int x, int y, int cropWidth, int cropHeight, int level)
@@ -303,7 +305,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void A_crop_outside_the_composite_is_rejected()
     {
         using ExportGpu gpu = ExportGpu.Warp();
@@ -312,7 +314,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         Assert.Throws<ArgumentOutOfRangeException>(() => gpu.Converter(128, 72, format, region: new ExportSourceRegion(0, 0, 0, 36)));
     }
 
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void Composite_of_another_size_is_rejected()
     {
         using ExportGpu gpu = ExportGpu.Warp();
@@ -330,7 +332,7 @@ public sealed class ExportFrameConverterTests(ITestOutputHelper output)
         }
     }
 
-    [Fact]
+    [D3D11Fact("conversor de exportación (ExportFrameConverter)")]
     public void Thumbnail_every_half_second()
     {
         using ExportGpu gpu = ExportGpu.Warp();

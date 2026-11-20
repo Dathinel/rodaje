@@ -1,19 +1,29 @@
 using Rodaje.Media.Gpu;
 using Rodaje.Media.Video;
+using Rodaje.Render.Gpu;
+using Rodaje.Render.Gpu.D3D11;
 using TerraFX.Interop.DirectX;
 using static Rodaje.Render.RenderException;
 
 namespace Rodaje.Render;
 
-/// <summary>Vistas Y y UV de una capa de textura NV12 o P010.</summary>
+/// <summary>Vistas de una capa NV12/P010/P016 o RGBA; en RGBA solo se muestrea la primera.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal readonly unsafe struct PlaneViews(ID3D11ShaderResourceView* luma, ID3D11ShaderResourceView* chroma)
 {
     public ID3D11ShaderResourceView* Luma { get; } = luma;
 
     public ID3D11ShaderResourceView* Chroma { get; } = chroma;
 
+    /// <summary>Las mismas vistas para <see cref="IGpu"/> (t0 y t1); retienen su propia referencia.</summary>
+    public GpuTexture LumaTexture { get; } = D3D11Texture.View(default, luma);
+
+    public GpuTexture ChromaTexture { get; } = D3D11Texture.View(default, chroma);
+
     public void Release()
     {
+        LumaTexture.Dispose();
+        ChromaTexture.Dispose();
         Luma->Release();
         Chroma->Release();
     }
@@ -25,6 +35,7 @@ internal readonly unsafe struct PlaneViews(ID3D11ShaderResourceView* luma, ID3D1
 /// sueltan en el siguiente cuadro (o en <see cref="Trim"/>), y las que llevan <see cref="MaxIdle"/> sin usarse, también.
 /// </summary>
 /// <remarks>Solo se usa desde el hilo que compone, con el candado del contexto tomado.</remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class PlaneViewCache(ID3D11Device* device, TimeProvider? time = null) : IDisposable
 {
     public static readonly TimeSpan MaxIdle = TimeSpan.FromSeconds(2);
@@ -41,7 +52,7 @@ internal sealed unsafe class PlaneViewCache(ID3D11Device* device, TimeProvider? 
     /// <summary>Vistas para <paramref name="payload"/>; <paramref name="owned"/> indica que quien llama debe liberarlas.</summary>
     public PlaneViews Get(D3D11TexturePayload payload, out bool owned)
     {
-        if (!payload.IsDecoderSurface)
+        if (!payload.IsDecoderSurface && payload.PixelFormat is not (FramePixelFormat.Bgra8 or FramePixelFormat.Rgba16))
         {
             owned = true;
             return Create(payload);
@@ -58,7 +69,9 @@ internal sealed unsafe class PlaneViewCache(ID3D11Device* device, TimeProvider? 
 
         if (_entries.Count >= MaxEntries)
         {
-            Clear();
+            // Llena: vistas de un solo uso. Vaciarla aquí soltaría vistas que quien llama aún tiene en la mano.
+            owned = true;
+            return Create(payload);
         }
 
         PlaneViews views = Create(payload);
@@ -116,7 +129,9 @@ internal sealed unsafe class PlaneViewCache(ID3D11Device* device, TimeProvider? 
     public void Dispose() => Clear();
     private static (DXGI_FORMAT Luma, DXGI_FORMAT Chroma) PlaneFormats(FramePixelFormat format) => format switch
     {
-        FramePixelFormat.P010 => (DXGI_FORMAT.DXGI_FORMAT_R16_UNORM, DXGI_FORMAT.DXGI_FORMAT_R16G16_UNORM),
+        FramePixelFormat.Bgra8 => (DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM),
+        FramePixelFormat.Rgba16 => (DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_UNORM, DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_UNORM),
+        FramePixelFormat.P010 or FramePixelFormat.P016 => (DXGI_FORMAT.DXGI_FORMAT_R16_UNORM, DXGI_FORMAT.DXGI_FORMAT_R16G16_UNORM),
         _ => (DXGI_FORMAT.DXGI_FORMAT_R8_UNORM, DXGI_FORMAT.DXGI_FORMAT_R8G8_UNORM),
     };
 

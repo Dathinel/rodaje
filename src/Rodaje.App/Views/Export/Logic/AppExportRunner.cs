@@ -23,7 +23,9 @@ public sealed partial class AppExportRunner : IExportRunner
 {
     private readonly Lazy<(ExportRunner? Runner, string? Problem)> _setup;
 
-    public AppExportRunner(IEffectContent? content, IExportPreview? preview, Func<IReadOnlyList<string>>? fontFiles = null, ExportJournal? journal = null)
+    /// <param name="configure">Lo que la app añade a las opciones (el render en caché de «Usar el render en caché»).</param>
+    public AppExportRunner(IEffectContent? content, IExportPreview? preview, Func<IReadOnlyList<string>>? fontFiles = null, ExportJournal? journal = null,
+        Func<ExportRunnerOptions, ExportRunnerOptions>? configure = null)
     {
         _setup = new(() =>
         {
@@ -33,7 +35,7 @@ public sealed partial class AppExportRunner : IExportRunner
                 return (null, reason ?? "No se encontró el ffmpeg.exe LGPL.");
             }
 
-            return (new ExportRunner(new ExportRunnerOptions
+            var options = new ExportRunnerOptions
             {
                 Ffmpeg = ffmpeg,
                 Content = content,
@@ -41,7 +43,8 @@ public sealed partial class AppExportRunner : IExportRunner
                 Preview = preview,
                 Journal = journal ?? ExportJournal.Default,
                 Encoders = new CatalogEncoderSource(ffmpeg, Rodaje.Media.Gpu.GpuProfileReader.Current),
-            }), null);
+            };
+            return (new ExportRunner(configure?.Invoke(options) ?? options), null);
         }, LazyThreadSafetyMode.ExecutionAndPublication);
     }
 
@@ -116,6 +119,8 @@ public sealed partial class AppExportRunner : IExportRunner
         public ExportProgress Progress => _job.Progress;
 
         public ExportException? Failure => _job.Failure;
+
+        public string? MeasuredNote => _job.LightLevels is { } light ? $"MaxCLL {light.MaxCll} nits · MaxFALL {light.MaxFall} nits (medidos)" : null;
 
         public BgraImage? Thumbnail
         {

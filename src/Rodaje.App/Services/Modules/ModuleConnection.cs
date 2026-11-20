@@ -95,6 +95,11 @@ internal sealed partial class ModuleConnection(ModuleDescriptor descriptor, Modu
 
             if (_process is null)
             {
+                try { ModuleCatalog.VerifyIntegrity(Descriptor); }
+                catch (Rodaje.Packages.PackageInstallException ex)
+                {
+                    throw new ModuleProtocolException(ex.Message, ex);
+                }
                 ModuleProcess process = await ModuleProcess.StartAsync(Descriptor.EntryPath, null,
                     options.ClientOptions with { HandshakeTimeout = options.StartTimeout },
                     p => job?.TryAssign(p), cancellationToken).ConfigureAwait(false);

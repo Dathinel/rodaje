@@ -98,7 +98,12 @@ public static partial class TimelineEdits
         {
             Time span = o - i;
             at = i;
-            if (sIn is { } x && sOut is { } y && y - x != span)
+            if (media.IsStillImage)
+            {
+                a = sIn ?? (sOut is { } photoOut ? photoOut - span : Time.Zero);
+                b = a + span;
+            }
+            else if (sIn is { } x && sOut is { } y && y - x != span)
             {
                 (a, b) = (x, y);
                 switch (request.Fit)
@@ -127,7 +132,7 @@ public static partial class TimelineEdits
         else
         {
             a = sIn ?? Time.Zero;
-            b = sOut ?? media.Duration;
+            b = sOut ?? media.InitialClipDuration;
             if (b <= a)
             {
                 throw new EditException("La salida del origen tiene que ir después de su entrada.");
@@ -136,7 +141,7 @@ public static partial class TimelineEdits
             at = qOut is { } end && qIn is null ? end - (b - a) : qIn ?? request.Playhead;
         }
 
-        if (a < Time.Zero || b > media.Duration)
+        if (!media.IsStillImage && (a < Time.Zero || b > media.Duration))
         {
             throw new EditException($"No hay material suficiente en «{media.Name}» para ese tramo: falta {(a < Time.Zero ? Time.Zero - a : b - media.Duration)}.");
         }
@@ -257,7 +262,9 @@ public static partial class TimelineEdits
                 return ThreePointEdit(ctx, request with
                 {
                     SourceIn = request.SourceIn ?? Time.Zero,
-                    SourceOut = request.SourceOut ?? media.Duration,
+                    SourceOut = media.IsStillImage
+                        ? (request.SourceIn ?? Time.Zero) + (end - start)
+                        : request.SourceOut ?? media.InitialClipDuration,
                     SequenceIn = start,
                     SequenceOut = end,
                     Mode = PlacementMode.Overwrite,

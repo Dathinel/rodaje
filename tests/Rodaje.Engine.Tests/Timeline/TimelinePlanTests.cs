@@ -231,6 +231,7 @@ public sealed class TimelinePlanTests
     }
 
     [Fact]
+    [Trait("Categoria", "SoloWindows")]
     public void Relative_media_paths_resolve_against_the_project_directory()
     {
         var b = new TimelineBuilder(1, 0);

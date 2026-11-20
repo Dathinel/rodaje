@@ -6,6 +6,7 @@ using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Audio;
+using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Theme;
 using Rodaje.Core.Model;
 
@@ -17,11 +18,17 @@ internal enum TrackToggle
     Hidden,
     Muted,
     Locked,
+
+    /// <summary>Solo de una pista de audio: con alguno puesto, solo suenan las pistas con solo.</summary>
+    Solo,
+
+    /// <summary>Ctrl+clic en el solo: la pista queda como única con solo (o, si ya lo era, se quitan todos).</summary>
+    SoloExclusive,
 }
 
 /// <summary>
-/// Las cabeceras de pista: nombre, tipo («principal · magnética» o «libre») y los interruptores de ocultar, silenciar y
-/// bloquear. Se rearman solo cuando cambian las pistas o su estado, no al editar clips. Las de audio muestran el volumen
+/// Las cabeceras de pista: nombre, tipo («principal · magnética» o «libre») y los interruptores de ocultar, silenciar,
+/// solo y bloquear. Se rearman solo cuando cambian las pistas o su estado, no al editar clips. Las de audio muestran el volumen
 /// de la pista: arrastrarlo a los lados lo cambia (0,25 dB por píxel, con Mayús 0,05) y el doble clic lo vuelve a 0 dB.
 /// </summary>
 internal sealed class TrackHeaders
@@ -35,9 +42,21 @@ internal sealed class TrackHeaders
 
     private readonly Dictionary<string, TextBlock> _gains = new(StringComparer.Ordinal);
     private string _signature = "";
+    private readonly Dictionary<string, Grid> _grids = new(StringComparer.Ordinal);
+    private double _lastWidth;
+    private bool _lastMagnetic;
+    private bool _resizing;
     private TrackLayout? _lastLayout;
     private Func<Track, double>? _gainOf;
     private (string TrackId, double StartX, double StartDb)? _gainDrag;
+    private (string TrackId, double StartY, int? Index)? _reorderDrag;
+    private Rectangle? _dropLine;
+    private const double ReorderThreshold = 4;
+
+    /// <summary>La tecla de una acción para mostrarla en el menú de la cabecera (la pone la línea de tiempo desde el registro).</summary>
+    public Func<string, string>? KeyText { get; set; }
+
+    private string Key(string actionId) => KeyText?.Invoke(actionId) ?? "";
 
     public TrackHeaders(Canvas canvas, TimelineBrushes brushes, Style toggleStyle)
     {
@@ -83,6 +102,24 @@ internal sealed class TrackHeaders
     /// <summary>Del menú de una cabecera: cerrar todos los huecos de la pista.</summary>
     public event Action<string>? CloseGapsRequested;
 
+    /// <summary>Se tocó una cabecera: queda seleccionada (Supr la elimina).</summary>
+    public event Action<string>? TrackSelected;
+
+    /// <summary>Del menú de una cabecera: eliminar la pista.</summary>
+    public event Action<string>? DeleteRequested;
+
+    /// <summary>Del menú de una cabecera: subirla (true) o bajarla un lugar.</summary>
+    public event Action<string, bool>? StepRequested;
+
+    /// <summary>Se soltó una cabecera arrastrada: la posición nueva dentro de su tipo.</summary>
+    public event Action<string, int>? ReorderRequested;
+
+    /// <summary>Si la pista puede subir (true) o bajar; la da la vista, que conoce la secuencia.</summary>
+    public Func<string, bool, bool>? CanStep { get; set; }
+
+    /// <summary>La pista cuya cabecera está seleccionada, si hay.</summary>
+    public string? SelectedTrackId { get; private set; }
+
     public double ScrollY
     {
         get => -_shift.Y;
@@ -102,19 +139,62 @@ internal sealed class TrackHeaders
         }
     }
 
+    /// <summary>Selecciona la cabecera de una pista (o ninguna) y la redibuja.</summary>
+    public void Select(string? trackId)
+    {
+        if (SelectedTrackId == trackId)
+        {
+            return;
+        }
+
+        // Solo el fondo: rearmar quitaría la cabecera que se está tocando y cortaría su arrastre.
+        string? previous = SelectedTrackId;
+        SelectedTrackId = trackId;
+        foreach (string? id in (string?[])[previous, trackId])
+        {
+            if (id is not null && _grids.TryGetValue(id, out Grid? grid) && _lastLayout?.Find(id) is { } row)
+            {
+                grid.Background = HeaderBackground(row);
+            }
+        }
+    }
+
+    private Brush HeaderBackground(TrackRow row) =>
+        row.TrackId == SelectedTrackId ? _brushes.AccentSubtle : row.IsMain ? _brushes.Control : _brushes.TrackFill(row.Kind);
+
     public void Update(TrackLayout layout, bool magnetic, double width)
     {
-        string signature = string.Join("|", layout.Rows.Select(r =>
-            $"{r.TrackId}:{r.Track.Name}:{r.Track.Role}:{r.Track.Hidden}:{r.Track.Muted}:{r.Track.Locked}:{r.IsMain}:{r.Top}:{r.Height}")) + $"|{magnetic}|{width}";
+        if (SelectedTrackId is { } selected && layout.Find(selected) is null)
+        {
+            SelectedTrackId = null;
+        }
+
+        string signature = HeaderSignature.Of(layout, magnetic, width, ThemeResources.TimelineFontScale);
         _lastLayout = layout;
+        _lastWidth = width;
+        _lastMagnetic = magnetic;
         if (signature == _signature)
         {
+            return;
+        }
+
+        // Rearmar quitaría el asa que tiene el puntero capturado y el gesto del alto no se cerraría: solo se recolocan.
+        if (_resizing && layout.Rows.Count == _grids.Count && layout.Rows.All(r => _grids.ContainsKey(r.TrackId)))
+        {
+            foreach (TrackRow row in layout.Rows)
+            {
+                Grid grid = _grids[row.TrackId];
+                grid.Height = row.Height;
+                Canvas.SetTop(grid, row.Top);
+            }
+
             return;
         }
 
         _signature = signature;
         _canvas.Children.Clear();
         _gains.Clear();
+        _grids.Clear();
         foreach (TrackRow row in layout.Rows)
         {
             _canvas.Children.Add(Build(row, magnetic, width));
@@ -128,7 +208,7 @@ internal sealed class TrackHeaders
         {
             Width = width,
             Height = row.Height,
-            Background = row.IsMain ? _brushes.Control : _brushes.Panel,
+            Background = HeaderBackground(row),
             BorderBrush = _brushes.Stroke,
             BorderThickness = new Thickness(0, 0, 1, 0),
             Padding = new Thickness(10, 0, 4, 0),
@@ -147,7 +227,7 @@ internal sealed class TrackHeaders
         labels.Children.Add(new TextBlock
         {
             Text = track.Name,
-            FontSize = ThemeResources.Size("BodyFontSize"),
+            FontSize = ThemeResources.TimelineSize("BodyFontSize"),
             FontWeight = row.IsMain ? Microsoft.UI.Text.FontWeights.SemiBold : Microsoft.UI.Text.FontWeights.Normal,
             Foreground = track.Hidden || track.Muted ? _brushes.TextMuted : _brushes.Text,
             TextTrimming = TextTrimming.CharacterEllipsis,
@@ -161,7 +241,7 @@ internal sealed class TrackHeaders
             labels.Children.Add(new TextBlock
             {
                 Text = Caption(row, magnetic),
-                FontSize = ThemeResources.Size("MicroFontSize"),
+                FontSize = ThemeResources.TimelineSize("MicroFontSize"),
                 Foreground = row.IsMain && magnetic ? _brushes.Accent : _brushes.TextMuted,
                 TextTrimming = TextTrimming.CharacterEllipsis,
             });
@@ -192,13 +272,99 @@ internal sealed class TrackHeaders
             };
             toggles.Children.Add(record);
             toggles.Children.Add(Toggle(track, TrackToggle.Muted, track.Muted, track.Muted ? "" : "", track.Muted ? "Activar sonido" : "Silenciar pista"));
+            toggles.Children.Add(SoloToggle(track));
         }
 
         toggles.Children.Add(Toggle(track, TrackToggle.Locked, track.Locked, track.Locked ? "" : "", track.Locked ? "Desbloquear pista" : "Bloquear pista"));
         grid.Children.Add(toggles);
         grid.Children.Add(HeightGrip(row));
         grid.ContextFlyout = Menu(row);
+        HookReorder(grid, row);
+        _grids[row.TrackId] = grid;
         return grid;
+    }
+
+    /// <summary>Tocar la cabecera la selecciona; arrastrarla en vertical la lleva a otra posición entre las de su tipo.</summary>
+    private void HookReorder(Grid grid, TrackRow row)
+    {
+        string trackId = row.TrackId;
+        bool movable = !row.IsMain && !row.Track.Locked;
+        grid.PointerPressed += (_, e) =>
+        {
+            if (!e.GetCurrentPoint(grid).Properties.IsLeftButtonPressed)
+            {
+                return;
+            }
+
+            TrackSelected?.Invoke(trackId);
+            if (movable && grid.CapturePointer(e.Pointer))
+            {
+                _reorderDrag = (trackId, e.GetCurrentPoint(_canvas).Position.Y, null);
+            }
+
+            e.Handled = true;
+        };
+        grid.PointerMoved += (_, e) =>
+        {
+            if (_reorderDrag is not { } drag || drag.TrackId != trackId || _lastLayout is not { } layout)
+            {
+                return;
+            }
+
+            double y = e.GetCurrentPoint(_canvas).Position.Y;
+            if (drag.Index is null && Math.Abs(y - drag.StartY) < ReorderThreshold)
+            {
+                return;
+            }
+
+            (int Index, double LineY)? slot = layout.ReorderSlot(trackId, y);
+            _reorderDrag = drag with { Index = slot?.Index ?? -1 };
+            ShowDropLine(slot is { } s && s.Index != layout.IndexInKind(trackId) ? s.LineY : null);
+            e.Handled = true;
+        };
+        void End(PointerRoutedEventArgs e, bool commit)
+        {
+            if (_reorderDrag is not { } drag || drag.TrackId != trackId)
+            {
+                return;
+            }
+
+            _reorderDrag = null;
+            grid.ReleasePointerCaptures();
+            ShowDropLine(null);
+            if (commit && drag.Index is int index and >= 0 && index != _lastLayout?.IndexInKind(trackId))
+            {
+                ReorderRequested?.Invoke(trackId, index);
+            }
+
+            e.Handled = true;
+        }
+
+        grid.PointerReleased += (_, e) => End(e, commit: true);
+        grid.PointerCaptureLost += (_, e) => End(e, commit: false);
+    }
+
+    private void ShowDropLine(double? y)
+    {
+        if (y is not { } top)
+        {
+            if (_dropLine is not null)
+            {
+                _dropLine.Visibility = Visibility.Collapsed;
+            }
+
+            return;
+        }
+
+        _dropLine ??= new Rectangle { Height = 2, Fill = _brushes.Accent, IsHitTestVisible = false };
+        if (!_canvas.Children.Contains(_dropLine))
+        {
+            _canvas.Children.Add(_dropLine);
+        }
+
+        _dropLine.Width = _lastWidth;
+        _dropLine.Visibility = Visibility.Visible;
+        Canvas.SetTop(_dropLine, top - 1);
     }
 
     /// <summary>Franja del borde de abajo: arrastrarla cambia el alto de la pista (doble clic: el de siempre).</summary>
@@ -228,6 +394,7 @@ internal sealed class TrackHeaders
         grip.PointerPressed += (_, e) =>
         {
             dragging = grip.CapturePointer(e.Pointer);
+            _resizing = dragging;
             startY = e.GetCurrentPoint(_canvas).Position.Y;
             startHeight = row.Height;
             e.Handled = true;
@@ -241,17 +408,27 @@ internal sealed class TrackHeaders
                 e.Handled = true;
             }
         };
-        grip.PointerReleased += (_, e) =>
+        void End(PointerRoutedEventArgs e)
         {
-            if (dragging)
+            if (!dragging)
             {
-                dragging = false;
-                grip.ReleasePointerCapture(e.Pointer);
-                grip.Background = _brushes.Transparent;
-                HeightCommitted?.Invoke(trackId);
-                e.Handled = true;
+                return;
             }
-        };
+
+            dragging = false;
+            _resizing = false;
+            grip.ReleasePointerCaptures();
+            grip.Background = _brushes.Transparent;
+            HeightCommitted?.Invoke(trackId);
+            e.Handled = true;
+            if (_lastLayout is { } layout)
+            {
+                Update(layout, _lastMagnetic, _lastWidth);
+            }
+        }
+
+        grip.PointerReleased += (_, e) => End(e);
+        grip.PointerCaptureLost += (_, e) => End(e);
         grip.DoubleTapped += (_, e) =>
         {
             HeightChanging?.Invoke(trackId, null);
@@ -279,12 +456,15 @@ internal sealed class TrackHeaders
         }
 
         menu.Items.Add(height);
+        AddOrderItems(menu, row);
         var gaps = new MenuFlyoutItem { Text = "Cerrar todos los huecos de la pista", Icon = new FontIcon { Glyph = "" }, IsEnabled = !row.Track.Locked };
         gaps.Click += (_, _) => CloseGapsRequested?.Invoke(row.TrackId);
+        gaps.KeyboardAcceleratorTextOverride = Key(TimelineShortcuts.CloseGaps);
         menu.Items.Add(gaps);
         menu.Items.Add(new MenuFlyoutSeparator());
         var add = new MenuFlyoutItem { Text = "Añadir pista de subtítulos", Icon = new FontIcon { Glyph = "" } };
         add.Click += (_, _) => SubtitleTrackRequested?.Invoke();
+        add.KeyboardAcceleratorTextOverride = Key(ActionIds.AddSubtitleTrack);
         menu.Items.Add(add);
         if (row.Kind == TrackKind.Video && !row.IsMain)
         {
@@ -297,8 +477,10 @@ internal sealed class TrackHeaders
             {
                 var import = new MenuFlyoutItem { Text = Subtitles.SubtitleFileCommands.ImportLabel, Icon = new FontIcon { Glyph = "" } };
                 import.Click += (_, _) => SubtitleFileRequested?.Invoke(null);
+                import.KeyboardAcceleratorTextOverride = Key(SubtitleShortcuts.Import);
                 var export = new MenuFlyoutItem { Text = Subtitles.SubtitleFileCommands.ExportLabel, Icon = new FontIcon { Glyph = "" } };
                 export.Click += (_, _) => SubtitleFileRequested?.Invoke(trackId);
+                export.KeyboardAcceleratorTextOverride = Key(SubtitleShortcuts.Export);
                 menu.Items.Add(new MenuFlyoutSeparator());
                 menu.Items.Add(import);
                 menu.Items.Add(export);
@@ -307,6 +489,16 @@ internal sealed class TrackHeaders
 
         if (row.Kind == TrackKind.Audio)
         {
+            var solo = new ToggleMenuFlyoutItem { Text = "Solo", IsChecked = row.Track.Solo };
+            string soloTrack = row.TrackId;
+            solo.Click += (_, _) => Toggled?.Invoke(soloTrack, TrackToggle.Solo);
+            solo.KeyboardAcceleratorTextOverride = Key(TimelineShortcuts.SoloTrack);
+            var exclusive = new MenuFlyoutItem { Text = "Solo exclusivo (solo esta pista)" };
+            exclusive.Click += (_, _) => Toggled?.Invoke(soloTrack, TrackToggle.SoloExclusive);
+            menu.Items.Add(new MenuFlyoutSeparator());
+            menu.Items.Add(solo);
+            menu.Items.Add(exclusive);
+
             var effects = new MenuFlyoutSubItem { Text = "Preajuste de audio", Icon = new FontIcon { Glyph = "\uE9E9" } };
             var dynamics = new MenuFlyoutItem { Text = "Compresor de la pista\u2026" };
             string dynamicsTrack = row.TrackId;
@@ -343,6 +535,32 @@ internal sealed class TrackHeaders
         return menu;
     }
 
+    private void AddOrderItems(MenuFlyout menu, TrackRow row)
+    {
+        string trackId = row.TrackId;
+        var up = new MenuFlyoutItem { Text = "Subir pista", Icon = new FontIcon { Glyph = "\uE74A" } };
+        var down = new MenuFlyoutItem { Text = "Bajar pista", Icon = new FontIcon { Glyph = "\uE74B" } };
+        var delete = new MenuFlyoutItem { Text = "Eliminar pista", Icon = new FontIcon { Glyph = "\uE74D" }, IsEnabled = !row.IsMain && !row.Track.Locked };
+        if (row.IsMain)
+        {
+            ToolTipService.SetToolTip(delete, "La pista principal no se elimina");
+        }
+
+        up.Click += (_, _) => StepRequested?.Invoke(trackId, true);
+        down.Click += (_, _) => StepRequested?.Invoke(trackId, false);
+        delete.Click += (_, _) => DeleteRequested?.Invoke(trackId);
+        delete.KeyboardAcceleratorTextOverride = Key(ActionIds.Delete);
+        menu.Opening += (_, _) =>
+        {
+            up.IsEnabled = !row.Track.Locked && CanStep?.Invoke(trackId, true) == true;
+            down.IsEnabled = !row.Track.Locked && CanStep?.Invoke(trackId, false) == true;
+        };
+        menu.Items.Add(up);
+        menu.Items.Add(down);
+        menu.Items.Add(delete);
+        menu.Items.Add(new MenuFlyoutSeparator());
+    }
+
     private RadioMenuFlyoutItem PresetItem(string trackId, AudioPreset? preset, string text, bool isChecked)
     {
         var item = new RadioMenuFlyoutItem { Text = text, IsChecked = isChecked, GroupName = "preajuste" };
@@ -360,7 +578,7 @@ internal sealed class TrackHeaders
         var text = new TextBlock
         {
             Text = GainText(_gainOf?.Invoke(track) ?? 0),
-            FontSize = ThemeResources.Size("MicroFontSize"),
+            FontSize = ThemeResources.TimelineSize("MicroFontSize"),
             Foreground = track.Locked ? _brushes.TextDisabled : _brushes.TextMuted,
             HorizontalAlignment = HorizontalAlignment.Left,
             Padding = new Thickness(0, 0, 8, 0),
@@ -430,7 +648,8 @@ internal sealed class TrackHeaders
     {
         if (row.Kind == TrackKind.Audio)
         {
-            return row.Track.Locked ? "Audio · bloqueada" : "Audio";
+            string audio = row.Track.Solo ? "Audio · solo" : "Audio";
+            return row.Track.Locked ? audio + " · bloqueada" : audio;
         }
 
         string kind = row.IsMain ? (magnetic ? "Principal · magnética" : "Principal · libre")
@@ -445,7 +664,7 @@ internal sealed class TrackHeaders
             Style = _toggleStyle,
             Width = 24,
             Height = 24,
-            FontSize = ThemeResources.Size("BodyFontSize"),
+            FontSize = ThemeResources.TimelineSize("BodyFontSize"),
             Content = glyph,
             IsChecked = isOn,
         };
@@ -453,6 +672,36 @@ internal sealed class TrackHeaders
         ToolTipService.SetToolTip(button, tip);
         string trackId = track.Id;
         button.Click += (_, _) => Toggled?.Invoke(trackId, which);
+        return button;
+    }
+
+    /// <summary>
+    /// El «S» del solo, como en el mezclador: un clic lo pone o lo quita; con Ctrl, solo exclusivo (esta pista como única
+    /// con solo). Se ve con el acento mientras está puesto.
+    /// </summary>
+    private ToggleButton SoloToggle(Track track)
+    {
+        var button = new ToggleButton
+        {
+            Style = _toggleStyle,
+            Width = 24,
+            Height = 24,
+            FontSize = ThemeResources.TimelineSize("BodyFontSize"),
+            FontWeight = Microsoft.UI.Text.FontWeights.SemiBold,
+            Content = "S",
+            IsChecked = track.Solo,
+            Foreground = track.Solo ? _brushes.Accent : _brushes.Text,
+        };
+        TimelineView.KeepOffFocus(button);
+        ToolTipService.SetToolTip(button, track.Solo ? "Quitar el solo" : "Solo: suena esta pista y las demás callan (Ctrl+clic: solo esta)");
+        Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(button, "Solo de la pista");
+        string trackId = track.Id;
+        button.Click += (_, _) =>
+        {
+            bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
+                .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
+            Toggled?.Invoke(trackId, ctrl ? TrackToggle.SoloExclusive : TrackToggle.Solo);
+        };
         return button;
     }
 }

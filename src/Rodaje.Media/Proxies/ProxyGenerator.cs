@@ -41,7 +41,8 @@ public sealed record ProxyGeneratorOptions
     public int MaxConcurrent { get; init; } = 2;
 
     /// <summary>Codificadores en orden de preferencia; se usa el primero que funcione en este equipo.</summary>
-    public IReadOnlyList<string> EncoderPreference { get; init; } = ProxyEncoders.PreferenceFor(GpuProfileReader.Current);
+    public IReadOnlyList<string> EncoderPreference { get; init; } = ProxyEncoders.PreferenceFor(
+        OperatingSystem.IsWindowsVersionAtLeast(7) ? GpuProfileReader.Current : GpuProfile.CpuOnly(Environment.ProcessorCount));
 
     /// <summary>Decodifica el original con D3D11VA dentro de ffmpeg; si falla, se repite por software.</summary>
     public bool HardwareDecoding { get; init; } = true;
@@ -117,11 +118,27 @@ public sealed class ProxyGenerator : IDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
-        settings ??= ProxySettings.Default;
-        settings.Validate();
         string source = Path.GetFullPath(sourcePath);
         progress?.Report(new ProxyProgress(source, ProxyJobPhase.Queued, 0, 0, 0, 0, null));
         SourceFingerprint fingerprint = await Task.Run(() => SourceFingerprint.Compute(source), cancellationToken).ConfigureAwait(false);
+        return await GenerateAsync(fingerprint, settings, progress, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Como <see cref="GenerateAsync(string, ProxySettings?, IProgress{ProxyProgress}?, CancellationToken)"/>, pero con
+    /// la huella ya calculada: el almacén la indexa por <see cref="SourceFingerprint.Key"/>, que puede ser otra clave del
+    /// contenido (el proxy de la sala usa el SHA-256 entero del archivo).
+    /// </summary>
+    public async Task<ProxyEntry> GenerateAsync(
+        SourceFingerprint fingerprint,
+        ProxySettings? settings = null,
+        IProgress<ProxyProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(fingerprint);
+        settings ??= ProxySettings.Default;
+        settings.Validate();
+        string source = Path.GetFullPath(fingerprint.Path);
         string key = $"{fingerprint.Key}-{settings.Tag}";
         var listener = new Listener(source, progress);
         SharedJob? job;
@@ -313,7 +330,7 @@ public sealed class ProxyGenerator : IDisposable
         cancellationToken.ThrowIfCancellationRequested();
         var watch = Stopwatch.StartNew();
         process.Start();
-        ChildProcessJob.TryAssign(process);
+        ChildProcessGuard.TryAssign(process);
         try
         {
             process.PriorityClass = Options.Priority;
@@ -384,7 +401,9 @@ public sealed class ProxyGenerator : IDisposable
                 $"el proxy empieza en {video.StartTime} y el original en {original.StartTime}; sus cuadros no coincidirían.");
         }
 
-        if (!original.IsVariableFrameRate && video.FrameRate != original.FrameRate)
+        // Las marcas en ms (Matroska) dan en un clip corto una media un 0,2 % distinta: vale si ningún cuadro se corre medio cuadro.
+        if (!original.IsVariableFrameRate && video.FrameRate != original.FrameRate
+            && Math.Abs(video.FrameCount * ((video.FrameRate.ToDouble() / original.FrameRate.ToDouble()) - 1)) >= 0.5)
         {
             throw new ProxyEncodeException($"el proxy quedó a {video.FrameRate} fps y el original es de {original.FrameRate}.");
         }

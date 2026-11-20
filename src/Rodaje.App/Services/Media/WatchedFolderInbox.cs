@@ -47,8 +47,14 @@ public sealed class WatchedFolderInbox(EditorSession session, Func<AppSettings> 
             return;
         }
 
-        Forget(paths);
-        await session.ImportMediaAsync(paths).ConfigureAwait(true);
+        Pending = [];
+        Changed?.Invoke(this, EventArgs.Empty);
+        // Se anotan cuando la importación los trató: si falla o no entra nada, la próxima pasada los vuelve a ofrecer.
+        ImportResult result = await session.ImportMediaAsync(paths).ConfigureAwait(true);
+        if (result.MediaIds.Count + result.Skipped.Count > 0)
+        {
+            WatchedFolderScanner.MarkHandled(settings(), paths);
+        }
     }
 
     /// <summary>No ofrecer más lo que hay ahora.</summary>

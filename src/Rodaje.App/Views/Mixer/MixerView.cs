@@ -79,7 +79,7 @@ internal sealed partial class MixerView : UserControl, IEditorView, IStripHost
         bar.Children.Add(addBus);
         var help = new TextBlock
         {
-            Text = "Las inserciones se aplican de arriba abajo · T: automatización «tocar» · Ctrl+S: solo exclusivo",
+            Text = "Las inserciones se aplican de arriba abajo · Botón T: automatización «tocar» · Ctrl+clic en S: solo exclusivo",
             Style = ThemeResources.Style("CaptionTextStyle"),
             Foreground = ThemeResources.Brush("TextMutedBrush"),
             VerticalAlignment = VerticalAlignment.Center,
@@ -335,9 +335,15 @@ internal sealed partial class MixerView : UserControl, IEditorView, IStripHost
         }
     }
 
-    public void FaderStarted(MixerStrip strip, string parameter)
+    public void FaderStarted(MixerStrip strip, string parameter, bool nudge)
     {
         EndGesture();
+        // Un cambio suelto no abre gesto: las muescas seguidas del mismo fader se funden en un paso por la clave de SetFader.
+        if (strip.Locked || nudge)
+        {
+            return;
+        }
+
         StripView? view = _views.Find(v => v.Strip.OwnerId == strip.OwnerId);
         if (strip.Kind != StripKind.Master && view?.Touch == true && Session.IsPlaying)
         {
@@ -357,6 +363,11 @@ internal sealed partial class MixerView : UserControl, IEditorView, IStripHost
 
     public void FaderChanging(MixerStrip strip, string parameter, double value)
     {
+        if (strip.Locked)
+        {
+            return;
+        }
+
         if (_touch is not null)
         {
             _touchValue = value;
@@ -382,6 +393,17 @@ internal sealed partial class MixerView : UserControl, IEditorView, IStripHost
         }
 
         EndGesture();
+        RejectLocked(strip);
+    }
+
+    /// <summary>Una pista bloqueada no cambia: se avisa y la tira vuelve a lo que hay (el control ya mostraba lo arrastrado).</summary>
+    private void RejectLocked(MixerStrip strip)
+    {
+        if (strip.Locked)
+        {
+            Session.Notify(NotificationSeverity.Warning, "No se pudo hacer", $"La pista «{strip.Name}» está bloqueada. Desbloquéala para editarla.");
+            Refresh();
+        }
     }
 
     /// <summary>Lo tocado hasta ahora va a la automatización; el gesto lo deja en un solo paso al soltar.</summary>
@@ -422,9 +444,9 @@ internal sealed partial class MixerView : UserControl, IEditorView, IStripHost
 
     public void SetOutput(MixerStrip strip, string? busId)
     {
-        if (strip.Output != busId)
+        if (strip.Output != busId && !Session.Execute(Edits.SetTrackOutput(Session.SequenceId, strip.OwnerId, busId)))
         {
-            Session.Execute(Edits.SetTrackOutput(Session.SequenceId, strip.OwnerId, busId));
+            Refresh();
         }
     }
 
@@ -432,6 +454,16 @@ internal sealed partial class MixerView : UserControl, IEditorView, IStripHost
 
     public void SendChanging(MixerStrip strip, string busId, double gainDb, bool dragging)
     {
+        if (strip.Locked)
+        {
+            if (!dragging)
+            {
+                RejectLocked(strip);
+            }
+
+            return;
+        }
+
         if (strip.Sends.FirstOrDefault(s => s.BusId == busId) is { } send && Math.Abs(send.GainDb - gainDb) > 1e-9)
         {
             Session.TryExecute(Edits.SetSend(Session.SequenceId, strip.OwnerId, busId, gainDb: gainDb));
@@ -571,7 +603,6 @@ internal sealed partial class MixerView : UserControl, IEditorView, IStripHost
             PrimaryButtonText = "Aceptar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
         return await DialogGate.ShowAsync(dialog).ConfigureAwait(true) == ContentDialogResult.Primary && !string.IsNullOrWhiteSpace(box.Text)
             ? box.Text.Trim()

@@ -29,6 +29,7 @@ public sealed class ProxyStoreTests : IDisposable
     }
 
     [Fact]
+    [Trait("Categoria", "SoloWindows")]
     public void Fingerprint_is_stable_and_depends_on_path_size_date_and_both_ends()
     {
         string source = WriteSource("toma 1.mov", 5 << 20);
@@ -177,6 +178,7 @@ public sealed class ProxyStoreTests : IDisposable
     }
 
     [Fact]
+    [Trait("Categoria", "SoloWindows")]
     public void Committing_over_an_open_proxy_without_valid_metadata_fails_without_losing_the_old_file()
     {
         SourceFingerprint fingerprint = SourceFingerprint.Compute(WriteSource("bloqueado.mp4", 2048));
@@ -269,6 +271,7 @@ public sealed class ProxyStoreTests : IDisposable
     }
 
     [Fact]
+    [Trait("Categoria", "SoloWindows")]
     public void A_proxy_that_is_open_is_not_deleted_and_keeps_its_metadata()
     {
         string source = WriteSource("g.mp4", 2048);

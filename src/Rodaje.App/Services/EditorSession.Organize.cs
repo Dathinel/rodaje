@@ -67,8 +67,7 @@ public sealed partial class EditorSession
             return false;
         }
 
-        IEnumerable<string> ids = Timeline.IgnoreGroups ? SelectedClipIds : SelectionWithGroups();
-        return Execute(Edits.MoveClips(SequenceId, ids, Time.FromFrames(frames, Sequence.FrameRate), _ids));
+        return Execute(Edits.MoveClips(SequenceId, SelectedClipIds, Time.FromFrames(frames, Sequence.FrameRate), _ids, alone: Timeline.IgnoreGroups));
     }
 
     /// <summary>Recorta el borde elegido <paramref name="frames"/> cuadros (positivo: hacia la derecha).</summary>

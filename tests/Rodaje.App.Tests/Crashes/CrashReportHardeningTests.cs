@@ -48,6 +48,30 @@ public class CrashReportHardeningTests
     }
 
     [Fact]
+    public void Rafaga_CuentaDesdeQueElInformeQuedoEscrito()
+    {
+        using var dir = new TempDirectory();
+        DateTime now = Start;
+        var reporter = new CrashReporter(dir.Path, "1.0.0+prueba", new SessionLog(), clock: () => now)
+        {
+            // Un disco lento (antivirus, disco dormido): escribir el informe tarda más que el intervalo de la ráfaga.
+            ReportWriter = (path, text) =>
+            {
+                now = now.AddSeconds(11);
+                File.WriteAllText(path, text);
+                return true;
+            },
+        };
+
+        reporter.Write(CrashKind.DispatcherCallback, Thrown("falló el tick"), fatal: false, out bool a);
+        reporter.Write(CrashKind.DispatcherCallback, Thrown("falló el tick"), fatal: false, out bool b);
+
+        Assert.False(a);
+        Assert.True(b);
+        Assert.Single(Directory.GetFiles(dir.Path, "*.txt"));
+    }
+
+    [Fact]
     public void MismaPila_ConMensajesQueSoloCambianEnNumeros_EsUnaRepeticion()
     {
         using var dir = new TempDirectory();
@@ -137,6 +161,7 @@ public class CrashReportHardeningTests
     }
 
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public async Task EndSession_ConUnInformeAMediasEnOtroHilo_NoEsperaSinFin()
     {
         using var dir = new TempDirectory();

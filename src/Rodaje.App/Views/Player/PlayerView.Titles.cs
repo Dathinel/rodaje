@@ -47,10 +47,16 @@ internal sealed partial class PlayerView
     }
 
     /// <summary>Dónde pone el render la imagen dentro del panel (la misma cuenta que el render); nulo sin tamaño.</summary>
-    private ViewerPlacement? Placement() => Session is null
-        ? null
-        : ViewerGeometry.Place(VideoPanel.ActualWidth, VideoPanel.ActualHeight, VideoPanel.CompositionScaleX, VideoPanel.CompositionScaleY,
-            Session.Sequence.Width, Session.Sequence.Height, _zoom);
+    private ViewerPlacement? Placement()
+    {
+        if (Session is null)
+        {
+            return null;
+        }
+
+        (float sx, float sy) = PanelScale();
+        return ViewerGeometry.Place(VideoPanel.ActualWidth, VideoPanel.ActualHeight, sx, sy, Session.Sequence.Width, Session.Sequence.Height, _zoom);
+    }
 
     /// <summary>
     /// Para la autoprueba: la imagen en píxeles del área cliente de la ventana (donde el render la pinta) y el texto del

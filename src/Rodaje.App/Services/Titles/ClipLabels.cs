@@ -14,12 +14,12 @@ public static class ClipLabels
     /// <summary>Por qué un título no admite velocidad, slip ni estirar.</summary>
     public const string NoMaterial = "Un título no tiene material: su duración se cambia recortando sus bordes.";
 
-    /// <summary>Cuánto se corrió un corte o un clip, en cuadros con signo: «+12 cuadros», «−1 cuadro», «0 cuadros».</summary>
+    /// <summary>Cuánto se corrió un corte o un clip, en fotogramas con signo: «+12 fotogramas», «−1 fotograma», «0 fotogramas».</summary>
     public static string FrameShift(Rodaje.Core.Timing.Time shift, Rodaje.Core.Timing.Rational frameRate)
     {
         long frames = (long)Math.Round(shift.ToSeconds() * frameRate.ToDouble());
         string sign = frames > 0 ? "+" : frames < 0 ? "−" : "";
-        return FormattableString.Invariant($"{sign}{Math.Abs(frames)} {(Math.Abs(frames) == 1 ? "cuadro" : "cuadros")}");
+        return FormattableString.Invariant($"{sign}{Math.Abs(frames)} {(Math.Abs(frames) == 1 ? "fotograma" : "fotogramas")}");
     }
 
     /// <summary>
@@ -31,6 +31,22 @@ public static class ClipLabels
         string sign = rounded > 0 ? "+" : rounded < 0 ? "−" : "±";
         string number = Math.Abs(rounded).ToString(Math.Abs(rounded) >= 1 ? "0" : "0.0", System.Globalization.CultureInfo.InvariantCulture).Replace('.', ',');
         return sign + number;
+    }
+
+    /// <summary>
+    /// El aviso de una edición que falló con el nombre de cada clip en vez de su id interno: «el clip «clip-3f9…»» pasa a
+    /// «el clip «voz»». Lo que va entre comillas angulares y no es el id de un clip se deja como está.
+    /// </summary>
+    public static string NameClipsIn(Project project, string message)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(message);
+        return System.Text.RegularExpressions.Regex.Replace(message, "«([^»]+)»", match =>
+        {
+            string id = match.Groups[1].Value;
+            Clip? clip = project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).FirstOrDefault(c => c.Id == id);
+            return clip is not null && Name(project, clip) is { Length: > 0 } name ? "«" + name + "»" : match.Value;
+        });
     }
 
     /// <summary>Nombre del clip; <paramref name="fallback"/> si es un medio que ya no está.</summary>
@@ -50,6 +66,11 @@ public static class ClipLabels
     public static string TitleName(ClipGenerator generator)
     {
         ArgumentNullException.ThrowIfNull(generator);
+        if (generator.Template is { Name.Length: > 0 } template)
+        {
+            return template.Name;
+        }
+
         if (generator.Kind != GeneratorKinds.Text)
         {
             return generator.Kind;

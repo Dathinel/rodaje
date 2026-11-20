@@ -162,12 +162,21 @@ public class TextAnimatorTests
         TextAnimator.Delays(UnitOrder.Random, delays);
         UnitPose[] poses = new UnitPose[200];
         a.Evaluate(0.5, delays, poses);
-        long before = GC.GetAllocatedBytesForCurrentThread();
-        for (int i = 0; i < 100; i++)
+
+        // La ventana con menos bytes de hasta tres: una reserva por llamada sale en todas; en la CI de Windows una sola
+        // ventana contó 6576 B de una vez (0,33 B por pose: del runtime en este hilo, no de Evaluate).
+        long fewest = long.MaxValue;
+        for (int round = 0; round < 3 && fewest != 0; round++)
         {
-            a.Evaluate(i / 100.0, delays, poses);
+            long before = GC.GetAllocatedBytesForCurrentThread();
+            for (int i = 0; i < 100; i++)
+            {
+                a.Evaluate(i / 100.0, delays, poses);
+            }
+
+            fewest = Math.Min(fewest, GC.GetAllocatedBytesForCurrentThread() - before);
         }
 
-        Assert.Equal(0, GC.GetAllocatedBytesForCurrentThread() - before);
+        Assert.Equal(0, fewest);
     }
 }

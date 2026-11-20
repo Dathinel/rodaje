@@ -36,6 +36,7 @@ internal sealed unsafe class TitleImage
         int height = 1080) =>
         new(GeneratorKinds.Text, text, style ?? new TextStyle(), boxWidth, width, height, scale) { ClipId = "titulo" };
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public static TitleImage Read(GpuDevice gpu, TitleTexture title)
     {
         var device = (ID3D11Device*)gpu.NativeDevice;
@@ -74,6 +75,24 @@ internal sealed unsafe class TitleImage
             staging->Release();
         }
 
+        PixelFingerprint.Record("titulo", pixels.AsSpan());
+        return new TitleImage(pixels, title.Width, title.Height);
+    }
+
+    public static TitleImage Read(Rodaje.Render.Tests.Support.TestGpu gpu, TitleTexture title) => Read(gpu.Gpu, title);
+
+    public static TitleImage Read(Rodaje.Render.Gpu.IGpu gpu, TitleTexture title)
+    {
+        using var readback = gpu.CreateReadback(title.Width, title.Height, Rodaje.Render.Gpu.GpuFormat.Bgra8Unorm);
+        using (var frame = gpu.BeginFrame())
+        {
+            frame.Copy(title.Target.Gpu, new Rodaje.Render.Gpu.GpuBox(0, 0, title.Width, title.Height), readback);
+            var fence = frame.Submit();
+            Assert.True(fence.Wait(TimeSpan.FromSeconds(30)));
+        }
+        byte[] pixels = new byte[title.Width * title.Height * 4];
+        readback.Read(pixels);
+        PixelFingerprint.Record("titulo", pixels.AsSpan());
         return new TitleImage(pixels, title.Width, title.Height);
     }
 

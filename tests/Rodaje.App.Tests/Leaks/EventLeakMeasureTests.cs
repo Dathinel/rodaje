@@ -29,7 +29,9 @@ public sealed class EventLeakMeasureTests(ITestOutputHelper output)
         if (OperatingSystem.IsWindows())
         {
             Assert.NotNull(HandleLeakCriterion.Find(leaking));
-            Assert.True(cleanThreads[^1] - cleanThreads[0] >= (Samples - 1) * ThreadsPerSample, $"Los hilos no se contaron: Thread {string.Join(" ", cleanThreads)}.");
+            // El grupo de hilos puede soltar algún hilo ocioso de pruebas anteriores durante la corrida (en la CI:
+            // 65 67 70 73 76 79 82 85 88 91, donde caducó uno en el primer tramo y los demás subieron de 3 en 3).
+            Assert.True(HandleLeakCriterion.MedianFloorStep(cleanThreads) >= ThreadsPerSample, $"Los hilos no se contaron: Thread {string.Join(" ", cleanThreads)}.");
             if (perThread >= 1)
             {
                 // Lo que hacía falta restar: sin eso, los hilos que se suman parecerían una fuga de eventos.

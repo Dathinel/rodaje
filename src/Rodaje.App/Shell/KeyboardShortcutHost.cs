@@ -1,12 +1,19 @@
 using Microsoft.UI.Input;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
+using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services.Shortcuts;
 using Windows.System;
 using Windows.UI.Core;
 
 namespace Rodaje.App.Shell;
+
+internal interface IFocusedShortcutTarget
+{
+    bool TryHandleShortcut(KeyChord chord);
+}
 
 /// <summary>
 /// Atajos de toda la ventana: escucha el túnel (<c>PreviewKeyDown</c>) en la raíz, antes que cualquier control, y pasa
@@ -63,12 +70,25 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
         LastKeyDownTimestamp = System.Diagnostics.Stopwatch.GetTimestamp();
         var chord = new KeyChord((int)e.Key, CurrentModifiers());
         bool handled = _intercept?.Invoke(chord) == true
-            || (!FocusedSliderTakes(chord) && _router.Dispatch(chord, e.KeyStatus.WasKeyDown, FocusKind()));
+            || TryFocusedShortcut(chord)
+            || (!FocusedSliderTakes(chord) && !ShortcutFocusRules.SpaceGoesToButton(chord, FocusedKeyboardButton()) && _router.Dispatch(chord, e.KeyStatus.WasKeyDown, FocusKind(e.OriginalSource)));
         if (handled)
         {
             _consumed.Add(e.Key);
             e.Handled = true;
         }
+    }
+
+    private bool TryFocusedShortcut(KeyChord chord)
+    {
+        DependencyObject? focused = _root.XamlRoot is { } root ? FocusManager.GetFocusedElement(root) as DependencyObject : null;
+        while (focused is not null)
+        {
+            if (focused is IFocusedShortcutTarget target) return target.TryHandleShortcut(chord);
+            focused = VisualTreeHelper.GetParent(focused);
+        }
+
+        return false;
     }
 
     private void OnPreviewKeyUp(object sender, KeyRoutedEventArgs e)
@@ -79,24 +99,31 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
         }
     }
 
-    // Un deslizador con el foco se mueve con las flechas, Inicio, Fin y RePág/AvPág sin modificadores: no son atajos.
+    // Un deslizador al que se llegó con el teclado se mueve con las flechas, Inicio, Fin y RePág/AvPág sin modificadores: no
+    // son atajos. Tras arrastrarlo con el ratón se queda el foco, pero Inicio sigue yendo al inicio y no al mínimo.
     private bool FocusedSliderTakes(KeyChord chord) =>
         chord.Modifiers == KeyModifiers.None
         && (VirtualKey)chord.Key is VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down
             or VirtualKey.Home or VirtualKey.End or VirtualKey.PageUp or VirtualKey.PageDown
-        && _root.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is Slider;
+        && _root.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is Slider { FocusState: FocusState.Keyboard };
+
+    private bool FocusedKeyboardButton() =>
+        _root.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is ButtonBase { FocusState: FocusState.Keyboard };
 
     // Si WinUI lleva el foco a la barra de menús por su cuenta (por ejemplo, al quitar del árbol el botón que lo tenía),
     // no llega por el teclado: Espacio sigue reproduciendo en lugar de abrir «Archivo».
     private void OnGettingFocus(UIElement sender, GettingFocusEventArgs args) =>
         _menuByKeyboard = args.NewFocusedElement is MenuBarItem && args.InputDevice == FocusInputDeviceKind.Keyboard;
 
-    private KeyFocus FocusKind() =>
-        (_root.XamlRoot is { } root ? FocusManager.GetFocusedElement(root) : null) switch
+    // La tecla nace en el control con el foco (el TextBox dentro de un NumberBox): más fiable que preguntar al FocusManager,
+    // que en el inspector llegó a no ver el cuadro y dejó pasar Ctrl+A y Fin a la línea de tiempo.
+    private KeyFocus FocusKind(object? source) =>
+        (source ?? (_root.XamlRoot is { } root ? FocusManager.GetFocusedElement(root) : null)) switch
         {
             TextBox or PasswordBox or RichEditBox or AutoSuggestBox or NumberBox => KeyFocus.TextInput,
             MenuFlyoutItemBase => KeyFocus.KeyboardMenu,
             MenuBarItem => _menuByKeyboard ? KeyFocus.KeyboardMenu : KeyFocus.Other,
+            SelectorItem or ListViewBase => KeyFocus.List,
             _ => KeyFocus.Other,
         };
 }

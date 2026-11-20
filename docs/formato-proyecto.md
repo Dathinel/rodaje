@@ -1,8 +1,10 @@
 # Formato de proyecto `.rodaje`
 
-Un proyecto de Rodaje se guarda en un archivo con extensión `.rodaje`. Es texto JSON en UTF-8, sin marca BOM, indentado con dos espacios y con saltos de línea LF. Se eligió JSON legible y no un formato binario por dos razones: el proyecto es el trabajo de quien edita y debe poder abrirse, revisarse e incluso repararse con un editor de texto, y otros programas (un editor de audio, herramientas en Python) deben poder leer y escribir el mismo proyecto sin depender del código de Rodaje. Por eso este documento describe el formato completo, con sus reglas, y junto a él se publica un esquema JSON en `schema/rodaje-proyecto.v13.schema.json` (los de las versiones 1 a 10 se conservan para los archivos viejos) que cualquier validador del estándar draft 2020-12 entiende.
+Un proyecto de Rodaje se guarda en un archivo con extensión `.rodaje`. Es texto JSON en UTF-8, sin marca BOM, indentado con dos espacios y con saltos de línea LF. Se eligió JSON legible y no un formato binario por dos razones: el proyecto es el trabajo de quien edita y debe poder abrirse, revisarse e incluso repararse con un editor de texto, y otros programas (un editor de audio, herramientas en Python) deben poder leer y escribir el mismo proyecto sin depender del código de Rodaje. Por eso este documento describe el formato completo, con sus reglas, y junto a él se publica un esquema JSON en `schema/rodaje-proyecto.v16.schema.json` (los de las versiones 1 a 15 se conservan para los archivos viejos) que cualquier validador del estándar draft 2020-12 entiende.
 
 El archivo nunca contiene video, audio ni imágenes. Solo guarda dónde están los archivos de origen y cómo se usan, de modo que editar jamás modifica el material original y un proyecto pesa unos pocos kilobytes.
+
+Por compatibilidad con Rodaje 1.0.1, el guardado usa `schemaVersion: 13` cuando la biblioteca no contiene ninguna imagen fija. Solo se escribe formato 14 si hay al menos un medio con `isStillImage: true`, aunque no se use en un clip, formato 15 si alguna secuencia es HDR (`colorSpace` distinto de `sdr-709`) y formato 16 solo si el proyecto usa algún campo del 16 (ver «Formato 16»). Es una ampliación provisional de D-050; Daniel puede cambiarla. La lectura migra todas las versiones al modelo actual en memoria.
 
 ## Unidades: el tiempo en ticks
 
@@ -18,7 +20,7 @@ El siguiente archivo es un proyecto real y válido. Tiene una toma de video de 1
 
 ```json
 {
-  "schemaVersion": 13,
+  "schemaVersion": 14,
   "id": "project-6c1f0a2e",
   "name": "Paseo en bicicleta",
   "media": [
@@ -42,7 +44,8 @@ El siguiente archivo es un proyecto real y válido. Tiene una toma de video de 1
       "id": "media-2",
       "path": "fotos/montaña.jpg",
       "name": "montaña",
-      "duration": 2540160000000,
+      "duration": 0,
+      "isStillImage": true,
       "hasVideo": true,
       "hasAudio": false,
       "frameRate": null,
@@ -192,11 +195,11 @@ Leído en voz alta, el ejemplo dice lo siguiente. La toma dura 300 cuadros a 29,
 
 ## Qué significa cada campo
 
-La raíz del archivo es el proyecto. `schemaVersion` es la versión del formato y hoy vale 13; es el primer dato que se lee y decide cómo se interpreta el resto. `id` identifica al proyecto y `name` es el nombre que ve quien edita. `media` es la biblioteca de medios y `sequences` son las líneas de tiempo, que pueden ser varias, por ejemplo una horizontal y otra vertical del mismo material.
+La raíz del archivo es el proyecto. `schemaVersion` es la versión del formato y hoy vale 14; es el primer dato que se lee y decide cómo se interpreta el resto. `id` identifica al proyecto y `name` es el nombre que ve quien edita. `media` es la biblioteca de medios y `sequences` son las líneas de tiempo, que pueden ser varias, por ejemplo una horizontal y otra vertical del mismo material.
 
 Cada medio describe un archivo de origen. `path` es su ruta; se prefiere relativa a la carpeta donde está el `.rodaje`, para que el proyecto se pueda mover junto con su material a otro PC, aunque se aceptan rutas absolutas. Se admiten tanto `/` como `\` como separador. `name` es el nombre visible, `duration` la duración total del archivo en ticks, `hasVideo` y `hasAudio` dicen qué contiene, `frameRate` es la tasa de su video o `null` si no tiene (una imagen fija o un archivo de solo audio), `width` y `height` son las dimensiones de la imagen en píxeles y `sampleRate` y `audioChannels` describen su sonido. Los campos que no aplican valen 0.
 
-Cada secuencia tiene su propio `id` y `name`, su tasa de cuadros `frameRate`, su resolución `width` × `height` y la frecuencia de muestreo `sampleRate` a la que se mezcla el audio. Las pistas van en dos listas separadas, `videoTracks` y `audioTracks`, y el orden dentro de cada lista importa: en `videoTracks` el primer elemento es la capa de más abajo y cada pista siguiente se compone encima de la anterior, de abajo hacia arriba, como en cualquier editor de video. Una pista tiene `id`, `kind` (que vale `"video"` o `"audio"` y debe coincidir con la lista en la que está), `name`, y tres interruptores: `muted` la silencia, `hidden` la oculta de la imagen y `locked` impide editarla. Su lista `clips` está ordenada por posición, `effects` guarda los efectos de toda la pista y `transitions` las transiciones de sus cortes (ver más abajo). Después de las pistas, `markers` guarda los marcadores, cada uno con `id`, el instante `time` y un `name` que puede ir vacío, ordenados por tiempo; y `regions` guarda las regiones, tramos con nombre `[start, end)` que pueden solaparse, ordenadas por inicio. Los dos admiten `color` (`#RRGGBB`) y `note` (texto libre de hasta 2000 caracteres), que solo se escriben si tienen valor; un Rodaje anterior los ignora al leer, por eso no cambian el número de versión. Los dos están en tiempo de la secuencia: con el ripple en el modo «pistas, marcadores y regiones», cerrar un hueco o recortar los corre junto con los clips.
+Cada secuencia tiene su propio `id` y `name`, su tasa de cuadros `frameRate`, su resolución `width` × `height`, la frecuencia de muestreo `sampleRate` a la que se mezcla el audio y, desde el formato 15, un `colorSpace` opcional: `sdr-709` (lo de siempre; es el valor si falta y no se escribe), `hdr-pq` (BT.2020 con PQ, HDR10) o `hdr-hlg` (BT.2020 con HLG). Con HDR la exportación en HEVC Main 10, AV1 de 10 bits y ProRes sale etiquetada BT.2020 con esa curva y el blanco SDR en 203 nits; en 8 bits o RGB sale SDR. Las pistas van en dos listas separadas, `videoTracks` y `audioTracks`, y el orden dentro de cada lista importa: en `videoTracks` el primer elemento es la capa de más abajo y cada pista siguiente se compone encima de la anterior, de abajo hacia arriba, como en cualquier editor de video. Una pista tiene `id`, `kind` (que vale `"video"` o `"audio"` y debe coincidir con la lista en la que está), `name`, y tres interruptores: `muted` la silencia, `hidden` la oculta de la imagen y `locked` impide editarla. Su lista `clips` está ordenada por posición, `effects` guarda los efectos de toda la pista y `transitions` las transiciones de sus cortes (ver más abajo). Después de las pistas, `markers` guarda los marcadores, cada uno con `id`, el instante `time` y un `name` que puede ir vacío, ordenados por tiempo; y `regions` guarda las regiones, tramos con nombre `[start, end)` que pueden solaparse, ordenadas por inicio. Los dos admiten `color` (`#RRGGBB`) y `note` (texto libre de hasta 2000 caracteres), que solo se escriben si tienen valor; un Rodaje anterior los ignora al leer, por eso no cambian el número de versión. Los dos están en tiempo de la secuencia: con el ripple en el modo «pistas, marcadores y regiones», cerrar un hueco o recortar los corre junto con los clips.
 
 El clip es el corazón del formato y se describe con tres instantes. `sourceIn` es el punto de entrada dentro del archivo de origen, incluido; `sourceOut` es el punto de salida, excluido; y `start` es el lugar de la pista donde se coloca el clip. Su duración es `sourceOut − sourceIn` y su final en la pista es `start + duración`. Estos dos valores no se guardan porque se calculan, y un programa externo no debe escribirlos. Toda la edición no destructiva consiste en cambiar estos tres números: recortar mueve `sourceIn` o `sourceOut`, deslizar mueve `start`. `mediaId` dice qué medio usa, `enabled` permite apagar un clip sin borrarlo, y `linkId`, si no es `null`, agrupa clips que se editan juntos; normalmente el video y el audio de una misma toma. El valor de `linkId` es un texto cualquiera que comparten los clips del grupo y no tiene que aparecer en ningún otro lugar.
 
@@ -208,7 +211,7 @@ Los tipos que el motor entiende están en `EffectRegistry` (`src/Rodaje.Core/Eff
 
 | Tipo | Parámetros (por defecto) | Opciones |
 |---|---|---|
-| `rodaje.transform` | `x` (0), `y` (0) en píxeles de la secuencia, `scale` (1), `rotation` (0) en grados, `opacity` (1); desde el formato 7, `anchorX`, `anchorY` (0: punto de anclaje desde el centro de la imagen, en píxeles a escala 1; escala, giro e inclinación pivotan en él y moverlo no mueve la imagen), `scaleX`, `scaleY` (1: escala por eje que multiplica a `scale`), `skewX`, `skewY` (0, de −85 a 85 grados), `shutterAngle` (0: desenfoque de movimiento apagado; 180 es el de cine, hasta 720), `shutterPhase` (0, de −360 a 360: corrimiento del centro del obturador) y `motionSamples` (16, de 2 a 64); los tres del obturador, sin keyframes | `flipX`, `flipY`: `off` u `on` (voltear alrededor del centro de la imagen) |
+| `rodaje.transform` | `x` (0), `y` (0) en píxeles de la secuencia, `scale` (1), `rotation` (0) en grados, `opacity` (1); desde el formato 7, `anchorX`, `anchorY` (0: punto de anclaje desde el centro de la imagen, en píxeles a escala 1; escala, giro e inclinación pivotan en él y moverlo no mueve la imagen), `scaleX`, `scaleY` (1: escala por eje que multiplica a `scale`), `skewX`, `skewY` (0, de −85 a 85 grados), `shutterAngle` (0: desenfoque de movimiento apagado; 180 es el de cine, hasta 720), `shutterPhase` (0, de −360 a 360: corrimiento del centro del obturador) y `motionSamples` (16, de 2 a 64); los tres del obturador, sin keyframes; `hdrReferenceNits` (0: blanco PQ de 100 nits o pico HLG de 1000; en un clip SDR con `hdrExpand`, el pico de 203 a 1000, 0 usa 1000) | `flipX`, `flipY`: `off` u `on` (voltear alrededor del centro de la imagen); `hdrExpand`: `off` u `on` (expandir un clip SDR a HDR en una secuencia HDR, D-058) |
 | `rodaje.color` | `exposure` en pasos, `contrast`, `saturation`, `temperature`, `tint`, `highlights`, `shadows` (todos 0, de −1 a 1 salvo la exposición, de −4 a 4), `lutIntensity` (1) | `lut`: referencia `paquete@versión/elemento` de un `.cube`, o `file:` más la ruta de un `.cube` suelto (con `/`, relativa a la carpeta del `.rodaje` o absoluta); vacía o ausente sin LUT |
 | `rodaje.vignette` | `amount`, `size`, `softness` (0,5), `roundness` (0: elipse del cuadro; 1: círculo), `centerX`, `centerY` (0,5) | |
 | `rodaje.blur` | `radius` (10) en píxeles de la secuencia, `angle` (0, grados, direccional), `centerX`, `centerY` (0,5, radial) | `kind`: `gaussian` (por defecto), `lens`, `directional`, `radial`; `region` |
@@ -222,7 +225,7 @@ Los tipos que el motor entiende están en `EffectRegistry` (`src/Rodaje.Core/Eff
 | `rodaje.reframe360` | `yaw` (0, de −180 a 180: positivo mira a la derecha), `pitch` (0, de −90 a 90: positivo mira arriba), `roll` (0, de −180 a 180: positivo gira la imagen en sentido horario), `fov` (90, de 20 a 330: campo de visión horizontal en grados; la rectilínea llega a 170) | `projection`: `rectilinear` (por defecto) o `stereographic` (pequeño planeta). Lee el clip como equirectangular 360 y lo convierte en una vista plana que llena la secuencia; va antes que los demás efectos de imagen. Lo trae el motor y se aplica siempre, pero la interfaz solo lo ofrece con el complemento `rodaje-360` (D-038) |
 | `rodaje.qualifier` | Selección: `hueCenter` (120°), `hueWidth` (30°), `hueSoftness` (15°), `satLow` (0,1), `satHigh` (1), `lumaLow` (0), `lumaHigh` (1), `softness` (0,1). Corrección: `hueShift` (0°), `saturation` (0), `exposure` (0 EV) | `invert`: `off` u `on` |
 | `rodaje.blend` | | `blendMode`: `normal`, `add`, `multiply`, `screen`, `overlay`, `softLight`, `hardLight`, `darken`, `lighten`, `difference`, `exclusion`, `colorDodge` o `colorBurn` |
-| `rodaje.audio` | `gainDb` (0; −60 o menos es silencio), `fadeIn` y `fadeOut` en segundos (0, sin keyframes), `pan` y `balance` (0, de −100 a 100; formato 10) | |
+| `rodaje.audio` | `gainDb` (0; −60 o menos es silencio), `fadeIn` y `fadeOut` en segundos (0, sin keyframes), `pan` y `balance` (0, de −100 a 100; formato 10) | `fadeShape`: la curva de `fadeIn` y `fadeOut`, `power` (potencia constante, por defecto y se omite), `linear` o `exponential`; una versión anterior la ignora y funde en potencia constante |
 | `rodaje.stabilize` | Reservado: se reconoce, pero todavía no se aplica | |
 | `rodaje.mask` | `x`, `y` (0,5: centro en fracción de la imagen de la capa), `width`, `height` (0,5: fracción del ancho y del alto), `rotation` (0, grados), `feather` (0: borde suave en fracción del lado corto, centrado en el contorno), `opacity` (1), `expansion` (0, de −0,5 a 0,5: corre el contorno hacia afuera o hacia adentro, en fracción del lado corto), `roundness` (0 a 1: radio de las esquinas del rectángulo en fracción de la mitad de su lado corto), `thickness` (0,02: grosor de la pluma de trazo en fracción del lado corto) | `shape`: `rectangle`, `ellipse`, `path`, `image`, `bezier` o `stroke`; `invert`: `off` u `on`; `combine`: `add`, `subtract`, `intersect` o `difference` (sin la opción, `intersect`); `path` (trazo libre de antes: `x,y;x,y;…`, de 3 a 256 puntos relativos a la caja, de −0,5 a 0,5); `points` (vértices de `bezier` y `stroke`, ver abajo); `shapeKeys` (forma animada, ver abajo); `matte` (`file:` y la ruta del video gris de la máscara de imagen, relativa al proyecto) y `matteStart` (segundos del origen de su primer cuadro); `target` (id de un efecto de imagen del mismo clip: la máscara limita ese efecto en vez de la capa); `name` y `color` (`#RRGGBB`), solo para la interfaz |
 | `rodaje.crop` | `left`, `top`, `right`, `bottom` (0: fracción de la imagen que se quita de cada borde, hasta 0,98; si dos opuestos suman más, se reducen a la par) | `aspect`: `free`, `16:9`, `9:16`, `1:1`, `4:5` o `4:3` (la impone la interfaz al ajustar; el motor solo lee los bordes). Lo que queda se ajusta al cuadro como la imagen entera |
@@ -230,7 +233,7 @@ Los tipos que el motor entiende están en `EffectRegistry` (`src/Rodaje.Core/Eff
 | `rodaje.cornerpin` | `topLeftX`, `topLeftY`, `topRightX`, `topRightY`, `bottomRightX`, `bottomRightY`, `bottomLeftX`, `bottomLeftY` (0: cuánto se corre cada esquina de la imagen ajustada al cuadro, en píxeles de la secuencia, antes de la transformación; formato 13) | La imagen va a ese cuadrilátero con perspectiva (una homografía). Si queda cruzado o con una esquina detrás del horizonte, la capa sale sin anclaje |
 | `rodaje.track` | `threshold` (0,7, de 0,05 a 0,99: confianza bajo la que un cuadro es dudoso; no se anima) | `kind` (`point`, `two`, `corners` o `region`), `name`, `color`, `points` (`x,y,anchoPatrón,altoPatrón,anchoBúsqueda,altoBúsqueda` por punto, separados por `;`, en fracciones de la imagen) y `samples`: `ticks@x,y,c;x,y,c|…` con los tiempos del origen en orden estricto, la misma cantidad de puntos (1 a 4) en cada cuadro y la confianza `c` de 0 a 1 (0: perdido y estimado; 1: puesto a mano), hasta 4 194 304 caracteres. No dibuja nada: guarda un seguimiento para aplicarlo (formato 13). Un texto que no se puede leer se ignora |
 | `rodaje.chromakey` | `keyRed`, `keyGreen`, `keyBlue` (0; 0,7; 0,2: color clave en R'G'B', sin keyframes), `tolerance` (0,2), `softness` (0,1), `spill` (0,5), `cleanup` (0) | |
-| `rodaje.wheels` | `liftRed`, `liftGreen`, `liftBlue`, `lift` (0, de −0,5 a 0,5), `gammaRed`, `gammaGreen`, `gammaBlue`, `gamma`, `gainRed`, `gainGreen`, `gainBlue`, `gain` (0, de −1 a 1): tinte por canal y valor general de sombras, medios y luces | |
+| `rodaje.wheels` | `liftRed`, `liftGreen`, `liftBlue`, `lift` (0, de −0,5 a 0,5), `gammaRed`, `gammaGreen`, `gammaBlue`, `gamma`, `gainRed`, `gainGreen`, `gainBlue`, `gain` (0, de −1 a 1): tinte por canal y valor general de sombras, medios y luces; `offsetRed`, `offsetGreen`, `offsetBlue`, `offset` (0, de −0,5 a 0,5): desplazamiento, que se suma a todo el color antes de las otras tres ruedas (un archivo sin ellos vale 0, sin cambio de formato) | |
 | `rodaje.curves` | | `master`, `red`, `green`, `blue` (texto `x,y;x,y;…` de 0 a 1, hasta 16 puntos; vacía es la identidad). Cada canal pasa por su curva y luego por la general. `hueHue`, `hueSat` (periódicas en el tono) y `lumaSat`: curvas de ajuste con 0,5 sin cambio (giro de tono de ±media vuelta; ganancia de saturación 2·y) |
 | `rodaje.speed` | Reservado y oculto (código 8): la velocidad es `speed` del clip (formato 4) y un efecto de este tipo se rechaza | |
 
@@ -295,13 +298,13 @@ Un clip puede llevar `speed`; si no lo lleva (o es `null`) se reproduce a 1× y 
 | `reverse` | El origen corre hacia atrás: el clip empieza en `sourceOut`. |
 | `freeze` | Cuadro congelado: muestra `sourceIn` durante `duration`, y `sourceOut` es `sourceIn + 1`. Solo en pistas de video, sin `reverse`, curva ni otra velocidad. |
 | `preservePitch` | El audio mantiene el tono (por omisión, sí). |
-| `frameSampling` | `nearest`; `blend` y `opticalFlow` están reservados y hoy se ven como `nearest`. |
+| `frameSampling` | `nearest` (el cuadro que contiene el instante), `blend` (mezcla de los dos vecinos) u `opticalFlow` (cuadro intermedio por flujo óptico; por encima de 4× mezcla). Válidos desde el formato 4: un Rodaje 1.0.3 o anterior los ve como `nearest`. También se guarda en un clip a 1× para conformar otra cadencia (24 en 30). |
 
 El origen de cada instante se calcula exacto con enteros, sin redondeos acumulados. Sea `I(u)` lo que avanza el origen tras `u` ticks de la línea de tiempo (`u·num/den`, o la integral de la curva). En el instante `t` del clip, con `τ = t − start` y `p(τ) = ⌊I(offset + τ)⌋ − ⌊I(offset)⌋`, se ve `sourceIn + p(τ)` (o `sourceOut − 1 − p(τ)` en reversa). Por eso `sourceOut − sourceIn` debe valer exactamente `⌈I(offset + duration)⌉ − ⌊I(offset)⌋`, y `|offset| + duration` no puede pasar de 2^44 ticks (unas 6,9 horas). Los keyframes de los efectos siguen en tiempo del origen; en un congelado avanzan con un tiempo virtual, `sourceIn + offset + τ`. Los clips de un mismo enlace llevan la misma velocidad (`rate`, `curve`, `reverse` y `freeze`). Un ejemplo con velocidad constante, reversa, curva y congelado está en `tests/Rodaje.Core.Tests/Serialization/ejemplos/proyecto-v4.rodaje`.
 
 ### Títulos y clips generados (formato 5)
 
-Un clip puede llevar `generator` en lugar de `mediaId`: su imagen no sale de un archivo sino que la genera Rodaje. Hoy el único tipo es `text`, un título; `kind` es abierto (color sólido y formas llegarán sin cambiar el formato) y un tipo desconocido se conserva al guardar y no se dibuja. Un generador no tiene medio, así que su origen es virtual y no tiene límites: `sourceOut − sourceIn` sigue siendo la duración en la pista, los keyframes de sus efectos siguen en tiempo del origen y `sourceIn` puede ser negativo (al alargar el inicio de un título). Va solo en pistas de video, sin `speed`, y `mediaId` no se escribe.
+Un clip puede llevar `generator` en lugar de `mediaId`: su imagen no sale de un archivo sino que la genera Rodaje. El primer tipo fue `text`, un título; `kind` es abierto (color sólido y formas llegarán sin cambiar el formato) y un tipo desconocido se conserva al guardar y no se dibuja. La excepción es `template` (plantillas de movimiento, D-064), que pide el formato 16 para que un Rodaje anterior rechace el archivo en vez de dejar los rótulos invisibles. Un generador no tiene medio, así que su origen es virtual y no tiene límites: `sourceOut − sourceIn` sigue siendo la duración en la pista, los keyframes de sus efectos siguen en tiempo del origen y `sourceIn` puede ser negativo (al alargar el inicio de un título). Va solo en pistas de video, sin `speed`, y `mediaId` no se escribe.
 
 ```
 { "id": "clip-9", "sourceIn": 0, "sourceOut": 2116800000, "start": 705600000, "linkId": null, "enabled": true,
@@ -332,7 +335,7 @@ Un clip puede llevar `generator` en lugar de `mediaId`: su imagen no sale de un 
 | `edges` | Qué bordes animan: `in` la entrada y `out` la salida (las dos verdaderas por omisión). `before` y `after` (ticks, opcionales, 0 por omisión) dicen cuánto del título original queda antes del borde izquierdo y después del derecho: dividir un título los guarda para que cada trozo se vea igual que antes, también con el corte en plena entrada o salida, y apaga el borde interno cuya animación quedó entera al otro lado (un corte lejos de la entrada y la salida deja los bordes internos apagados y sin desfase). Recortar no los toca, así que la animación sigue al nuevo borde. |
 | `words` | Opcional. Las palabras transcritas de un subtítulo automático, para editar por palabra: lista de `{ "start", "end", "text" }` con los tiempos en ticks del origen del clip (como los keyframes; un subtítulo nuevo tiene `sourceIn` 0, así que van desde su borde izquierdo y pueden empezar un poco antes de él). Cada `text` tiene de 1 a 100 caracteres sin espacios ni caracteres de control; `start` ≤ `end`, en orden de `start`, dentro de ±360 000 s; hasta 2000 palabras. El texto que se ve es siempre `text` del generador: si se edita a mano, las palabras no cambian. Dividir el clip las copia enteras a los dos trozos (las que quedan fuera de `sourceIn`–`sourceOut` no se ven). |
 
-Topes del estilo: `size` mayor que 0 y hasta 1000; `stroke.width` hasta la mitad de `size`; `shadow.blur` hasta 64; `lineHeight` mayor que 0 y hasta 10; desplazamientos, márgenes y radios hasta 1000 en valor absoluto; `reference` de 1 a 16 384; nombres de familia hasta 128 caracteres; hasta 64 puntos por curva. En todo el proyecto, los textos de los generadores y sus palabras transcritas suman como mucho 2 000 000 de caracteres.
+Topes del estilo: `size` mayor que 0 y hasta 1000; `stroke.width` hasta la mitad de `size`; `shadow.blur` hasta 64; `lineHeight` mayor que 0 y hasta 10; desplazamientos, márgenes y radios hasta 1000 en valor absoluto; `reference` de 1 a 16 384; nombres de familia hasta 128 caracteres; hasta 64 puntos por curva. En todo el proyecto, los textos de los generadores (también los de cada capa de un `template`) y sus palabras transcritas suman como mucho 2 000 000 de caracteres.
 
 `words` y `style.highlight` se agregaron dentro del formato 5 sin subir la versión ni migrar: son opcionales, un archivo sin él se lee como antes y el esquema `rodaje-proyecto.v5.schema.json` lo describe. Un Rodaje anterior abre un archivo con `words` pero, como con cualquier campo desconocido, lo pierde al guardar; el texto de los subtítulos no cambia.
 
@@ -427,3 +430,85 @@ Al volver a guardar, Rodaje siempre escribe la versión actual, así que un proy
 Un corte de luz a mitad de una escritura puede dejar un archivo cortado. Por eso Rodaje nunca escribe directamente sobre el proyecto. Primero escribe el contenido completo en un archivo temporal con el mismo nombre y la terminación `.tmp` (`Mi proyecto.rodaje.tmp`), en la misma carpeta, y le pide al sistema que lo lleve físicamente al disco antes de seguir. Solo entonces lo cambia por el proyecto. Si el proyecto ya existía, el cambio se hace con una operación de reemplazo de Windows que deja la versión anterior como `Mi proyecto.rodaje.bak`; si no existía, el temporal simplemente se renombra. Se corte cuando se corte, en disco queda la versión anterior completa o la nueva completa, nunca una mezcla.
 
 Si alguna vez un proyecto no abre porque está dañado, la copia `.bak` contiene el guardado anterior: basta con hacer una copia de ella, quitarle la terminación `.bak` y abrirla. Un `.tmp` que quede en la carpeta es el resto de un guardado interrumpido; no hace falta borrarlo, porque el siguiente guardado lo reemplaza. Otros programas que escriban archivos `.rodaje` deberían seguir el mismo procedimiento.
+
+En el formato 14, `MediaRef.isStillImage` distingue PNG, JPEG, WebP, BMP y TIFF de los videos. Su `duration` vale 0, `frameRate` es nulo y no tienen audio. Sus clips empiezan con 5 s por defecto; `sourceIn` y `sourceOut` describen un origen virtual sin límite de material (también permite entrada negativa al alargar por la izquierda). Los keyframes siguen ese tiempo virtual, pero la imagen siempre es el cuadro 0. La migración 13 → 14 solo cambia la versión: los medios anteriores conservan sus metadatos y el indicador nuevo vale falso.
+
+En el formato 15, `Sequence.colorSpace` dice en qué espacio se trabaja y se exporta la secuencia. La migración 14 → 15 solo cambia la versión: una secuencia sin el campo es `sdr-709`, como eran todas; un Rodaje anterior rechaza el 15 en lugar de exportar una secuencia HDR como SDR sin avisar.
+
+### Formato 16
+
+El 16 es una sola subida que comparten cuatro bloques. Cada uno añade campos opcionales que solo se escriben cuando se usan, y registra en `ProjectSerializer.Format16Uses` una comprobación que dice si el proyecto usa alguno; `ProjectSerializer.MinimumSchemaVersion` escribe 16 si alguna da verdadero y, si no, 15, 14 o 13 como antes, byte a byte igual que la 1.0.3. Así un proyecto sin nada nuevo lo sigue abriendo la 1.0.x, y uno que usa el 16 lo rechaza con el aviso de siempre («creado con una versión más nueva de Rodaje (formato 16)») en lugar de perder datos. La migración 15 → 16 solo cambia la versión. `schema/rodaje-proyecto.v16.schema.json` se regenera cada vez que un bloque añade campos.
+
+| Bloque | Decisión | Campos que añade | Se escribe 16 si |
+|---|---|---|---|
+| Editar por el texto | D-061 | `transcripts` en el proyecto (una transcripción por medio, con palabras y hablantes) | hay alguna transcripción |
+| Intercambio (EDL, FCPXML, OTIO) | D-062 | `startTimecode` en la secuencia; `timecode` y `reel` en el medio | algún medio o secuencia tiene TC o carrete |
+| Plantillas de movimiento | D-064 | generador `template` en los clips (documento, valores y capas) | algún clip lleva un generador `template` |
+| Trabajo en grupo | D-067 | `contentKey` y `contentHash` en el medio | algún medio tiene identidad de contenido |
+
+#### Transcripciones (D-061)
+
+`transcripts`, en la raíz, solo aparece si hay alguna. Cada transcripción es de un medio entero y en tiempo del origen (no del clip): cualquier clip de ese medio, con cualquier recorte o velocidad, muestra su parte. Las palabras usan claves cortas porque son casi todo el peso (una hora de habla, unas 9 000 palabras, ocupa ~0,5 MB):
+
+```json
+"transcripts": [
+  {
+    "id": "transcript-1",
+    "mediaId": "media-1",
+    "language": "es",
+    "model": "large-v3-turbo-q5_0",
+    "created": "2026-11-15T10:00:00Z",
+    "mediaDuration": 7056000000,
+    "speakers": [ { "id": "speaker-1", "name": "Ana", "color": "#3A7BD5" } ],
+    "words": [
+      { "s": 0, "e": 352800000, "t": "Hola", "c": 0.98, "sp": "speaker-1", "p": true },
+      { "s": 423360000, "e": 705600000, "t": "a", "c": 0.91 }
+    ]
+  }
+]
+```
+
+Al guardar, la lista `words` de cada transcripción va en una sola línea (indentada pesaría el doble); al leer da igual cómo venga. `s` y `e` son el inicio y el fin en ticks del medio, `t` el texto, `c` la probabilidad (0–1), `sp` el hablante (opcional) y `p` si la palabra abre párrafo (opcional, falso por omisión). Reglas: el medio existe y tiene como mucho una transcripción; las palabras van en orden, con `0 ≤ s ≤ e ≤ mediaDuration`, texto no vacío y sin caracteres de control, y un `sp` declarado en `speakers`; ids únicos; como mucho 200 000 palabras. Quitar el medio quita su transcripción; reenlazarlo la conserva, y si la duración nueva difiere más de un cuadro de `mediaDuration` la app avisa de que puede no coincidir.
+
+**Campos del intercambio (D-062).** Los tres son textos opcionales que no se escriben si son nulos:
+
+- `startTimecode` (secuencia): código de tiempo del primer cuadro, `HH:MM:SS:FF` o con `;` antes de los cuadros en drop frame; nulo es `00:00:00:00`. Si la tasa de la secuencia es de TC SMPTE (24, 25, 30, 48, 50 o 60 cuadros, o sus variantes NTSC), tiene que ser un TC válido a esa tasa: drop frame solo a 29,97 y 59,94, y sin los números que salta.
+- `timecode` (medio): el TC del primer cuadro del archivo, tal como lo da FFmpeg (`timecode` del flujo de video, de la pista `tmcd` de un MOV o del contenedor MXF). Se valida igual, a la tasa del medio; un medio sin tasa (solo audio) solo se comprueba por la forma.
+- `reel` (medio): carrete o nombre de cinta (`reel_name`), de 1 a 256 caracteres sin caracteres de control.
+
+**Identidad de contenido (D-067).** Dos textos opcionales del medio, que no se escriben si son nulos y no llevan ruta ni fecha:
+
+- `contentKey`: `<tamaño>:<SHA-256>` en mayúsculas del primer y del último MiB del archivo (entero si pesa hasta 2 MiB). Es una muestra para encontrar candidatos sin leer todo el archivo.
+- `contentHash`: SHA-256 del archivo entero, 64 dígitos hexadecimales en mayúsculas. Un medio solo cuenta como «el mismo» en otro equipo cuando coincide.
+
+Quien guarda no los calcula: los pone la colaboración, en segundo plano. Un Rodaje 1.0.3 o anterior rechaza el archivo con el aviso de siempre (formato más nuevo) en cuanto uno de los dos existe; sin ellos el archivo sigue siendo el 13, 14 o 15 de antes, byte a byte.
+
+Un medio importado de una EDL cuyo archivo aún no se encontró se guarda **provisional**: ancho, alto, frecuencia de muestreo y canales a cero, y la duración que usan sus clips. Sus clips están en el TC del evento (como si el medio empezara en `00:00:00:00`); al reenlazarlo con el archivo de verdad se corren a `TC del clip − TC inicial del archivo`, en el mismo paso del historial.
+
+#### Plantillas de movimiento (D-064)
+
+Un título o rótulo hecho con una plantilla de movimiento (`motion-template`, ver [formato-paquete.md](formato-paquete.md#motion-template-rodajetemplate-v1)) es **un clip con generador de tipo `template`**: una sola pieza en la pista que se mueve, divide, copia y deshace como cualquier título.
+
+```json
+"generator": { "kind": "template", "text": "",
+  "template": { "source": "rodaje-plantillas@1.0.0/barra", "name": "Rótulo inferior Barra", "minSeconds": 1.5,
+                "document": "{\"format\":\"rodaje.template\",…}", "values": { "nombre": "Ana Ruiz", "acento": "#2A9D8F" },
+                "layers": [ { "id": "nombre", "text": "Ana Ruiz", "style": { …estilo completo… }, "box": { "widthFraction": 0.5 },
+                              "x": -560, "y": 380, "start": 0, "end": 0 } ] },
+  "edges": { "in": true, "out": true } }
+```
+
+| Campo | Qué es |
+|---|---|
+| `template.layers` | **El resultado instanciado**, lo que se dibuja: de 1 a 16 capas con `id` único y, cada una, las reglas de un título (`text`, `style` completo, `box`) más `x`, `y` (píxeles de la `reference` de su estilo, desde el centro, escalados con la misma razón que el estilo y sumados a la transformación del clip) y `start`, `end` (segundos de desfase desde el borde izquierdo y antes del derecho, ≥ 0). La capa de abajo va primera |
+| `template.document` | Copia del `rodaje.template` como texto, hasta 256 KB, para volver a instanciar con otros valores. El núcleo no lo interpreta: lo hace la app con el lector de paquetes y entrega las capas nuevas |
+| `template.values` | Los valores puestos, un objeto plano `id → valor`: texto (también los colores `#RRGGBB[AA]`), número, booleano u objeto `font`; un `choice` guarda su `value` |
+| `template.source`, `template.name` | De dónde salió (`paquete@versión/elemento`, vacío si es propia) y su nombre. Copia completa, como el estilo (D-029): el proyecto se ve igual sin el paquete |
+| `template.minSeconds` | La duración más corta a la que se puede recortar el clip (0 a 600 s) |
+| `text` | Vacío en un `template`: el texto está en cada capa |
+
+Cada capa ocupa del clip el tramo `[inicio + start, final − end]` (con `edges.before`/`after` si salió de dividir, como un título) y la entrada y salida de su estilo van pegadas a ese tramo; no hace falta recolocar nada al recortar. Los efectos del clip se aplican a todas las capas. «Convertir en títulos» cambia el clip por un título por capa en pistas libres. Edición de texto en la pista, subtítulos, «Convertir en keyframes» y la búsqueda siguen siendo solo de los títulos `text`. Se escribe 16 si algún clip lleva un generador `template`.
+
+### Movimiento continuo del texto
+
+`style.loop` es opcional y se omite cuando es nulo. No cambia la versión del formato: los lectores anteriores lo ignoran. Contiene `kind` (`wobble`, `shake`, `pulse`, `float`; por defecto `wobble`), `amount` (finito de 0,1 a 2, por defecto 1) y `speed` (Hz, finito de 0,1 a 20; si falta: 0,8, 6, 1,2 y 0,5 respectivamente). Con cantidad 1, Tambaleo desplaza ±12 píxeles y gira ±5°, Temblor desplaza hasta ±3 píxeles por eje mediante sumas de senos de frecuencias inconmensurables, Pulso escala entre 0,94 y 1,06 y Flotar desplaza verticalmente ±10 píxeles. Las medidas son de la referencia del estilo. El tiempo son segundos desde el inicio del clip: se evalúa sin estado, sin azar y sin keyframes, sobre el bloque entero, también durante entrada y salida. Su delta se compone antes de la transformación del clip, igual en vista previa y exportación.

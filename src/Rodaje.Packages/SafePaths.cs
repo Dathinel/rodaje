@@ -46,7 +46,21 @@ public static class SafePaths
     public static bool IsInside(string fullPath, string directory)
     {
         string root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(directory)) + Path.DirectorySeparatorChar;
-        return Path.GetFullPath(fullPath).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+        string candidate = Path.GetFullPath(fullPath);
+        if (!candidate.StartsWith(root, StringComparison.OrdinalIgnoreCase)) return false;
+        // Solo se miran los componentes por debajo de la raíz: un enlace dentro del paquete es un escape,
+        // pero que la propia carpeta de instalación cuelgue de una unión es elección legítima del usuario.
+        for (string? current = candidate; current is not null && current.Length >= root.Length; current = Path.GetDirectoryName(current))
+        {
+            try
+            {
+                if ((File.GetAttributes(current) & FileAttributes.ReparsePoint) != 0) return false;
+            }
+            catch (FileNotFoundException) { }
+            catch (DirectoryNotFoundException) { }
+        }
+
+        return true;
     }
 
     private static bool IsSafeSegment(string segment)

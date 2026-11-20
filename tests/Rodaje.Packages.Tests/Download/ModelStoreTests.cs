@@ -31,7 +31,7 @@ public sealed class ModelStoreTests : IAsyncLifetime, IDisposable
     }
 
     private ModelStore Store(DownloadUrlPolicy? policy = null, params string[] bundled) =>
-        new(_temp.Combine("modelos"), new FileDownloader(_http) { RetryDelay = TimeSpan.Zero }, policy ?? DownloadUrlPolicy.WithLoopback(), bundled);
+        new(_temp.Combine("modelos"), new FileDownloader(_http, SignedIndex.MaxEntrySize) { RetryDelay = TimeSpan.Zero }, policy ?? DownloadUrlPolicy.WithLoopback(), bundled);
 
     [Fact]
     public async Task A_model_is_stored_once_by_its_hash()

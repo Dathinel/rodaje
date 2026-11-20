@@ -38,7 +38,7 @@ public sealed class ModelFactAttribute : FactAttribute
 internal static class ModuleHarness
 {
     public static string Exe =>
-        Environment.GetEnvironmentVariable("RODAJE_MODULO_SUBTITULOS") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Subtitles.exe");
+        Environment.GetEnvironmentVariable("RODAJE_MODULO_SUBTITULOS") is { Length: > 0 } exe ? exe : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Subtitles" + (OperatingSystem.IsWindows() ? ".exe" : ""));
 
     public static Task<ModuleProcess> StartAsync(ModuleClientOptions? options = null) => ModuleProcess.StartAsync(Exe, options: options);
 

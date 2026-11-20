@@ -1,12 +1,14 @@
 namespace Rodaje.Render.Scopes;
 
 /// <summary>Un objetivo del vectorscopio: el color de una barra y dónde cae en la cuadrícula de 256 × 256.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public readonly record struct VectorTarget(string Label, double X, double Y);
 
 /// <summary>
 /// La retícula de los monitores, con las mismas cuentas que los shaders (BT.709, R'G'B' de 0 a 1): dónde caen los
 /// objetivos de las barras al 75 % y al 100 %, la línea de piel y las líneas de nivel de la forma de onda.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public static class ScopeGraticule
 {
     /// <summary>Ángulo de la línea de piel en el vectorscopio (desde +Cb, en sentido antihorario).</summary>

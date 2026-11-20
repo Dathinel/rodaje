@@ -1,0 +1,48 @@
+{
+  "version": 1,
+  "dependencies": {
+    "net10.0": {
+      "HarfBuzzSharp": {
+        "type": "Direct",
+        "requested": "[14.4.0.100, )",
+        "resolved": "14.4.0.100",
+        "contentHash": "dXd6KIt5t9JWazLHX4ldj+NzI3U1kZv77PWcqCvzxDHAz8Kw1dtz96N5WzhIFcZYfRz96L3ejGXNhJo6sI6TUQ==",
+        "dependencies": {
+          "HarfBuzzSharp.NativeAssets.Win32": "14.4.0.100",
+          "HarfBuzzSharp.NativeAssets.macOS": "14.4.0.100"
+        }
+      },
+      "HarfBuzzSharp.NativeAssets.Linux": {
+        "type": "Direct",
+        "requested": "[14.4.0.100, )",
+        "resolved": "14.4.0.100",
+        "contentHash": "LioVXCvaFssh3FiALo6f/f2lQTNf4vgkrxEJxM3CS5MsYqWKHtRjyacgebYkVxSzbGTy2yBjbiT3D/nK8hZdkw=="
+      },
+      "Microsoft.NET.ILLink.Tasks": {
+        "type": "Direct",
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "YlTamXppEQls6DYWt7RdUuwWDb0lyw/vXCaGeQpLCpsLmfwGuCkOz/vIGgMTV7ECsJcavkCOkxZXv9s8rdAHkQ=="
+      },
+      "HarfBuzzSharp.NativeAssets.macOS": {
+        "type": "Transitive",
+        "resolved": "14.4.0.100",
+        "contentHash": "uuX4UStoXz1WSXWWJp474E4Mfog4yE0YbK4dWzWbTiXv777xf8/+qjNQeTsf+kDUlLNDqoMsXv1fTb67+YzWRA=="
+      },
+      "HarfBuzzSharp.NativeAssets.Win32": {
+        "type": "Transitive",
+        "resolved": "14.4.0.100",
+        "contentHash": "WHOFEO1cgtQKq57Lt1qDoI4waG7Lrnla0DxempL+M9YwKeSSBsbYO5XnFGe2nzjQqjntiRZJjAtZkFpPw0FSeQ=="
+      },
+      "rodaje.core": {
+        "type": "Project"
+      },
+      "rodaje.playback": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Core": "[1.0.3, )"
+        }
+      }
+    }
+  }
+}

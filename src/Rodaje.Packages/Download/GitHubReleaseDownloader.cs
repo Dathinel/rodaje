@@ -46,16 +46,23 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
     private readonly SemaphoreSlim _indexGate = new(1, 1);
     private SignedIndex? _index;
     private long _indexTime;
+    private DateTimeOffset? _vistoMax;
 
     public GitHubReleaseDownloader(GitHubReleaseOptions options, HttpClient http)
     {
         _options = options ?? throw new ArgumentNullException(nameof(options));
         _http = http ?? throw new ArgumentNullException(nameof(http));
         _key = IndexSignature.TryImportPublicKey(options.PublicKey);
-        Files = new FileDownloader(http);
+        Files = new FileDownloader(http, SignedIndex.MaxEntrySize);
     }
 
     public FileDownloader Files { get; init; }
+
+    public async Task<bool> IsPublishedModuleAsync(string sha256, CancellationToken cancellationToken = default)
+    {
+        SignedIndex index = await GetIndexAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
+        return index.Entries.Any(e => e.Kind == IndexEntryKind.Module && string.Equals(e.Sha256, sha256, StringComparison.OrdinalIgnoreCase));
+    }
 
     public bool IsAvailable => _key is not null;
 
@@ -102,7 +109,11 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
                 throw new DownloadVerificationException("El índice de complementos es más viejo que uno ya visto; no se usó.");
             }
 
-            RememberSeen(index.Generated);
+            if (!RememberSeen(index.Generated))
+            {
+                problems.Add("No se pudo guardar el estado antirretroceso del índice; queda protegido solo en esta sesión.");
+            }
+
             IndexProblems = problems;
             _index = index;
             _indexTime = Environment.TickCount64;
@@ -118,7 +129,7 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
     public async Task<IReadOnlyDictionary<string, PackageVersion>> AvailableVersionsAsync(CancellationToken cancellationToken)
     {
         SignedIndex index = await GetIndexAsync(cancellationToken: cancellationToken).ConfigureAwait(false);
-        return index.Entries.Where(e => e.Kind != IndexEntryKind.Model && e.WorksWith(_options.AppVersion))
+        return index.Entries.Where(e => e.Kind is not (IndexEntryKind.Model or IndexEntryKind.App) && e.WorksWith(_options.AppVersion))
             .GroupBy(e => e.Id, StringComparer.Ordinal)
             .ToDictionary(g => g.Key, g => g.Max(e => e.Version)!, StringComparer.Ordinal);
     }
@@ -187,29 +198,39 @@ public sealed class GitHubReleaseDownloader : IPackageDownloader, IDisposable
 
     private DateTimeOffset? LastSeen()
     {
+        DateTimeOffset? delArchivo;
         try
         {
-            return File.Exists(StatePath) && DateTimeOffset.TryParse(File.ReadAllText(StatePath).Trim(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset seen)
+            delArchivo = File.Exists(StatePath) && DateTimeOffset.TryParse(File.ReadAllText(StatePath).Trim(), CultureInfo.InvariantCulture, DateTimeStyles.AssumeUniversal, out DateTimeOffset seen)
                 ? seen
                 : null;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            return null;
+            delArchivo = null;
         }
+
+        return _vistoMax is { } m && (delArchivo is null || m > delArchivo) ? m : delArchivo;
     }
 
-    private void RememberSeen(DateTimeOffset generated)
+    private bool RememberSeen(DateTimeOffset generated)
     {
+        if (_vistoMax is null || generated > _vistoMax)
+        {
+            _vistoMax = generated;
+        }
+
         try
         {
             Directory.CreateDirectory(_options.DownloadFolder);
             string temporary = StatePath + ".tmp";
             File.WriteAllText(temporary, generated.ToString("O", CultureInfo.InvariantCulture));
             File.Move(temporary, StatePath, overwrite: true);
+            return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            return false;
         }
     }
 

@@ -194,7 +194,7 @@ public sealed class ConcurrentDownloadTests(ITestOutputHelper output) : IAsyncLi
             Policy = DownloadUrlPolicy.WithLoopback("Dathinel"),
         }, _http);
         return new PackageService(Locations, PackageService.LoadBundledCatalog(), downloader,
-            models: new ModelStore(Path.Combine(_folder.Path, "complementos", "modelos"), new FileDownloader(_http), DownloadUrlPolicy.WithLoopback("Dathinel")));
+            models: new ModelStore(Path.Combine(_folder.Path, "complementos", "modelos"), new FileDownloader(_http, SignedIndex.MaxEntrySize), DownloadUrlPolicy.WithLoopback("Dathinel")));
     }
 
     /// <summary>Un .paquete con el módulo eco bajo <paramref name="id"/>, sus modelos y un relleno sin comprimir.</summary>

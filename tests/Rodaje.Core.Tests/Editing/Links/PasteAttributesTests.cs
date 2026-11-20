@@ -81,7 +81,7 @@ public sealed class PasteAttributesTests
 
         // Copiado desde el audio, pegado eligiendo solo el video: el grupo entero entra.
         ClipAttributes copied = ClipAttributes.Capture(f.Sequence, "sa");
-        Assert.Equal(ClipAttributeKinds.All, copied.Available);
+        Assert.Equal(ClipAttributeKinds.Effects | ClipAttributeKinds.Transform | ClipAttributeKinds.Speed | ClipAttributeKinds.Volume, copied.Available);
         ClipAttributeEdits.Paste(f.Ctx, ["tv"], copied, ClipAttributeKinds.All);
 
         f.AssertValid();
@@ -173,7 +173,7 @@ public sealed class PasteAttributesTests
         f.AssertValid();
         Assert.Null(f.Clip("t").Speed);
         Assert.Contains(f.Clip("t").Effects, e => e.Type == BuiltInEffects.Transform);
-        Assert.Equal(ClipAttributeKinds.Effects | ClipAttributeKinds.Transform, ClipAttributes.Capture(f.Sequence, "t").Available);
+        Assert.Equal(ClipAttributeKinds.Effects | ClipAttributeKinds.Transform | ClipAttributeKinds.Text | ClipAttributeKinds.Shadow, ClipAttributes.Capture(f.Sequence, "t").Available);
     }
 
     [Fact]

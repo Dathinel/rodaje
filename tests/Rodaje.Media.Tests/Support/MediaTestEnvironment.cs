@@ -6,16 +6,18 @@ namespace Rodaje.Media.Tests.Support;
 /// <summary>La GPU compartida y las rutas de FFmpeg; los motivos para omitir pruebas están en <see cref="Skip"/>.</summary>
 internal static class MediaTestEnvironment
 {
-    // Solo con FFmpeg. El dispositivo existe aunque no ofrezca D3D11VA: sirve para subir cuadros decodificados por software.
+    // Solo con FFmpeg y en Windows (Direct3D 11). El dispositivo existe aunque no ofrezca D3D11VA: sirve para subir cuadros decodificados por software.
     private static readonly Lazy<GpuDevice?> SharedGpu = new(() =>
-        Skip.FfmpegLibraries is null ? GpuDevice.TryCreate(out _) : null);
+        Skip.FfmpegLibraries is null && OperatingSystem.IsWindows() ? GpuDevice.TryCreate(out _) : null);
 
     /// <summary>Dispositivo compartido entre pruebas (vive todo el proceso de pruebas).</summary>
     public static GpuDevice? Gpu => SharedGpu.Value;
 
-    public static string FfmpegExe => Path.Combine(FfmpegLibrary.Directory ?? "", "ffmpeg.exe");
+    public static string FfmpegExe =>
+        Path.Combine(FfmpegLocator.ExecutableDirectory(FfmpegLibrary.Directory ?? ""), FfmpegLocator.ExecutableName("ffmpeg"));
 
-    public static string FfprobeExe => Path.Combine(FfmpegLibrary.Directory ?? "", "ffprobe.exe");
+    public static string FfprobeExe =>
+        Path.Combine(FfmpegLocator.ExecutableDirectory(FfmpegLibrary.Directory ?? ""), FfmpegLocator.ExecutableName("ffprobe"));
 
     /// <summary><c>TestResults\media-cache</c> en la raíz del repositorio (la carpeta con Rodaje.slnx).</summary>
     public static string CacheDirectory

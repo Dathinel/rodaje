@@ -4,6 +4,7 @@ using Rodaje.Media.Gpu;
 using Rodaje.Playback.Composition;
 using Rodaje.Render.Effects;
 using TerraFX.Interop.DirectX;
+using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render;
 
@@ -27,13 +28,13 @@ internal readonly record struct ImageView(RenderTarget Target, int Width, int He
 internal readonly record struct SpatialStep(GpuEffectKind Kind, EffectValues Values, EffectDefinition Definition, int Index, int Region);
 
 /// <summary>Efectos por píxel de una capa: banderas de la variante, LUT y cuántos se aplican.</summary>
-internal readonly unsafe struct LayerPlan(int flags, ID3D11ShaderResourceView* lut, int perPixelCount, ID3D11ShaderResourceView* curves = null)
+internal readonly struct LayerPlan(int flags, GpuTexture? lut, int perPixelCount, GpuTexture? curves = null)
 {
-    public ID3D11ShaderResourceView* Curves { get; } = curves;
+    public GpuTexture? Curves { get; } = curves;
 
     public int Flags { get; } = flags;
 
-    public ID3D11ShaderResourceView* Lut { get; } = lut;
+    public GpuTexture? Lut { get; } = lut;
 
     public int PerPixelCount { get; } = perPixelCount;
 }
@@ -57,8 +58,8 @@ internal sealed unsafe partial class LayerRenderer
         ulong scoped = ScopedEffects(list);
         int flags = 0;
         int perPixel = 0;
-        ID3D11ShaderResourceView* lut = null;
-        ID3D11ShaderResourceView* curves = null;
+        GpuTexture? lut = null;
+        GpuTexture? curves = null;
         int advanced = 0;
         for (int i = 0; i < list.Count; i++)
         {
@@ -179,7 +180,7 @@ internal sealed unsafe partial class LayerRenderer
     /// (cada uno va fusionado una sola vez).
     /// </summary>
     private bool AddPerPixel(LayerEffect effect, GpuEffectKind kind, EffectDefinition definition, ref EffectConstants effects, ref int flags,
-        ref int advanced, ref ID3D11ShaderResourceView* lut, ref ID3D11ShaderResourceView* curves, ref FrameStats stats)
+        ref int advanced, ref GpuTexture? lut, ref GpuTexture? curves, ref FrameStats stats)
     {
         EffectValues values = effect.Values;
         switch (kind)
@@ -258,8 +259,8 @@ internal sealed unsafe partial class LayerRenderer
 
         EffectConstants constants = default;
         int flags = 0, advanced = 0;
-        ID3D11ShaderResourceView* lut = null;
-        ID3D11ShaderResourceView* curves = null;
+        GpuTexture? lut = null;
+        GpuTexture? curves = null;
         AddPerPixel(effect, gpu.Kind, definition, ref constants, ref flags, ref advanced, ref lut, ref curves, ref stats);
         if (advanced != 0)
         {
@@ -269,7 +270,7 @@ internal sealed unsafe partial class LayerRenderer
             constants.Qual3.Y = (advanced & 8) != 0 && ShowQualifierMask ? 1 : 0;
         }
 
-        ID3D11PixelShader* shader = _effects.TryGetShader(EffectShader.Graded, flags);
+        GpuShader? shader = _effects.TryGetShader(EffectShader.Graded, flags);
         RenderTarget? output = shader == null ? null : _pool.Rent(view.Width, view.Height, IntermediateFormat);
         if (output is null)
         {
@@ -279,7 +280,7 @@ internal sealed unsafe partial class LayerRenderer
         constants.Extra.W = 1;
         constants.MapA = view.Map;
         var result = new ImageView(output, view.Width, view.Height);
-        _quad.Bind(output.Rtv, view.Width, view.Height, shader, null);
+        _quad.Bind(output.Gpu, view.Width, view.Height, shader, GpuBlend.Opaque);
         BindInputs(null, lut, view.Target, null, null, curves);
         _effects.Set(constants);
         _quad.Draw(QuadConstants.FullTarget());
@@ -290,7 +291,7 @@ internal sealed unsafe partial class LayerRenderer
     /// <summary>Pixelar: bloques de <paramref name="block"/> píxeles del intermedio. Una vista nueva, o nula sin shader o memoria.</summary>
     private ImageView? Pixelate(ImageView source, float block)
     {
-        ID3D11PixelShader* shader = _effects.TryGetShader(EffectShader.Pixelate, 0);
+        GpuShader? shader = _effects.TryGetShader(EffectShader.Pixelate, 0);
         if (shader == null)
         {
             return null;
@@ -344,9 +345,10 @@ internal sealed unsafe partial class LayerRenderer
     {
         EffectValues copy = values;
         float Sum(int channel, int master) => Value(copy, definition, channel) + Value(copy, definition, master);
-        effects.Lift = new(Sum(0, 3), Sum(1, 3), Sum(2, 3), 0);
-        effects.GammaExp = new(MathF.Pow(2, -Sum(4, 7)), MathF.Pow(2, -Sum(5, 7)), MathF.Pow(2, -Sum(6, 7)), 0);
-        effects.Gain = new(1 + Sum(8, 11), 1 + Sum(9, 11), 1 + Sum(10, 11), 0);
+        // El desplazamiento (rueda cuarta) viaja en los .w libres de las tres constantes: rojo, verde y azul.
+        effects.Lift = new(Sum(0, 3), Sum(1, 3), Sum(2, 3), Sum(12, 15));
+        effects.GammaExp = new(MathF.Pow(2, -Sum(4, 7)), MathF.Pow(2, -Sum(5, 7)), MathF.Pow(2, -Sum(6, 7)), Sum(13, 15));
+        effects.Gain = new(1 + Sum(8, 11), 1 + Sum(9, 11), 1 + Sum(10, 11), Sum(14, 15));
     }
 
     /// <summary>
@@ -413,8 +415,8 @@ internal sealed unsafe partial class LayerRenderer
             return source;
         }
 
-        ID3D11PixelShader* down = _effects.TryGetShader(EffectShader.Downsample, 0);
-        ID3D11PixelShader* blur = _effects.TryGetShader(EffectShader.Blur, 0);
+        GpuShader? down = _effects.TryGetShader(EffectShader.Downsample, 0);
+        GpuShader? blur = _effects.TryGetShader(EffectShader.Blur, 0);
         if (down == null || blur == null)
         {
             return null;
@@ -473,7 +475,7 @@ internal sealed unsafe partial class LayerRenderer
     /// <summary>Máscara de enfoque. Devuelve una vista nueva, la misma si no cambia nada, o <c>null</c> si no se pudo.</summary>
     private ImageView? Sharpen(ImageView source, float amount, float sigma, float threshold = 0)
     {
-        ID3D11PixelShader* sharpen = _effects.TryGetShader(EffectShader.Sharpen, 0);
+        GpuShader? sharpen = _effects.TryGetShader(EffectShader.Sharpen, 0);
         if (sharpen == null)
         {
             return null;
@@ -520,9 +522,9 @@ internal sealed unsafe partial class LayerRenderer
     }
 
     /// <summary>Una pasada de pantalla completa de <paramref name="imageA"/> (y <paramref name="imageB"/>) a <paramref name="output"/>.</summary>
-    private void Pass(ID3D11PixelShader* shader, ImageView output, in EffectConstants constants, RenderTarget imageA, RenderTarget? imageB)
+    private void Pass(GpuShader? shader, ImageView output, in EffectConstants constants, RenderTarget imageA, RenderTarget? imageB)
     {
-        _quad.Bind(output.Target.Rtv, output.Width, output.Height, shader, null);
+        _quad.Bind(output.Target.Gpu, output.Width, output.Height, shader, GpuBlend.Opaque);
         BindInputs(null, null, imageA, imageB);
         _effects.Set(constants);
         _quad.Draw(QuadConstants.FullTarget());
@@ -556,7 +558,7 @@ internal sealed unsafe partial class LayerRenderer
 
         bool shaderBlend = EffectPipeline.IsShaderBlend(outgoing.Blend);
         int motion = transition.Shutter is { } shutterRange && shutterRange.To > shutterRange.From ? EffectShaders.Motion : 0;
-        ID3D11PixelShader* shader = _effects.TryGetShader(EffectShader.Transition, (shaderBlend ? EffectShaders.Blend : 0) | motion);
+        GpuShader? shader = _effects.TryGetShader(EffectShader.Transition, (shaderBlend ? EffectShaders.Blend : 0) | motion);
         RenderTarget? canvasA = shader == null ? null : _pool.Rent(destination.Width, destination.Height, IntermediateFormat, exact: true);
         RenderTarget? canvasB = canvasA is null ? null : _pool.Rent(destination.Width, destination.Height, IntermediateFormat, exact: true);
         if (canvasA is null || canvasB is null)
@@ -570,9 +572,8 @@ internal sealed unsafe partial class LayerRenderer
                     outgoing.Blend, ref stats);
         }
 
-        float* clear = stackalloc float[4];
-        _context->ClearRenderTargetView(canvasA.Rtv, clear);
-        _context->ClearRenderTargetView(canvasB.Rtv, clear);
+        _quad.CurrentFrame.Clear(canvasA.Gpu, GpuColor.TransparentBlack);
+        _quad.CurrentFrame.Clear(canvasB.Gpu, GpuColor.TransparentBlack);
         var sideA = new Destination(canvasA, destination.Width, destination.Height, destination.SequenceWidth, destination.SequenceHeight);
         var sideB = new Destination(canvasB, destination.Width, destination.Height, destination.SequenceWidth, destination.SequenceHeight);
         DrawSide(outgoing, outgoingPayload, geometry, sideA, ref stats);
@@ -591,7 +592,7 @@ internal sealed unsafe partial class LayerRenderer
         effects.Mix0 = new(MixCode(kind), progress, middle, samples);
         effects.Fx0 = transition.Shutter is { } open ? new(Shutter(open.From, progress), Shutter(open.To, progress), 0, 0) : default;
         effects.Canvas = new(destination.Width, destination.Height, 0, 0);
-        ID3D11ShaderResourceView* gradient = null;
+        GpuTexture? gradient = null;
         if (kind == GpuEffectKind.BlurDissolve)
         {
             float sigma = BlurSigma(Value(values, definition, 0) * middle) * destination.PixelScale;
@@ -631,13 +632,12 @@ internal sealed unsafe partial class LayerRenderer
             effects.BlendInfo.X = (float)blend;
             effects.MapA = viewA.Map;
             effects.MapB = viewB.Map;
-            _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, shader, _effects.BlendState(blend));
+            _quad.Bind(destination.Target.Gpu, destination.Width, destination.Height, shader, EffectPipeline.BlendState(blend));
             BindInputs(background, null, viewA.Target, viewB.Target);
-            _context->PSSetShaderResources(9, 1, &gradient);
+            _quad.SetInput(9, gradient);
             _effects.Set(effects);
             _quad.Draw(QuadConstants.FullTarget());
-            ID3D11ShaderResourceView* none = null;
-            _context->PSSetShaderResources(9, 1, &none);
+            _quad.SetInput(9, null);
             UnbindInputs();
             stats.EffectsApplied += 1 + (blend == BlendMode.Normal ? 0 : 1);
         }
@@ -657,7 +657,7 @@ internal sealed unsafe partial class LayerRenderer
         SourceGeometry sourceGeometry = GeometryOf(side, payload, geometry);
         if (side.Effects.Count == 0 && payload.Planes is { } planes)
         {
-            _quad.Bind(canvas.Target.Rtv, canvas.Width, canvas.Height, QuadPipeline.Shader.Layer);
+            _quad.Bind(canvas.Target.Gpu, canvas.Width, canvas.Height, QuadPipeline.Shader.Layer);
             DrawPlain(side, planes, sourceGeometry, canvas.SequenceWidth, canvas.SequenceHeight, canvas.PixelScale);
             return;
         }

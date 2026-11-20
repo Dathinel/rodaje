@@ -17,6 +17,12 @@ public sealed unsafe partial class ModuleJobObject : IDisposable
 
     public ModuleJobObject()
     {
+        // Fuera de Windows los módulos se cierran solos al morir el editor (UnixRuntime, PR_SET_PDEATHSIG).
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
         HANDLE job = CreateJobObjectW(null, null);
         if (job == HANDLE.NULL)
         {

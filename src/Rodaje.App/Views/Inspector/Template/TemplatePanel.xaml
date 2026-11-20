@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Pestaña Texto cuando lo seleccionado es una plantilla de movimiento (D-064): sus parámetros expuestos, «Actualizar a X»
+    y «Convertir en títulos». Las filas se arman en código (TemplatePanel.Rows.cs), una por parámetro.
+-->
+<UserControl
+    x:Class="Rodaje.App.Views.Inspector.Template.TemplatePanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+
+    <ScrollViewer Background="{StaticResource PanelBrush}" VerticalScrollBarVisibility="Auto">
+        <StackPanel Padding="0,0,0,12">
+            <StackPanel Padding="12,8,8,4" Spacing="2">
+                <TextBlock x:Name="ClipTitle" Style="{StaticResource BodyTextStyle}" />
+                <TextBlock x:Name="SourceText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
+            </StackPanel>
+
+            <StackPanel x:Name="UpdateBar" Padding="12,4,8,8" Spacing="4" Visibility="Collapsed">
+                <Button x:Name="UpdateButton" Click="OnUpdateClick"
+                        ToolTipService.ToolTip="Reaplica la versión instalada más nueva de esta plantilla y conserva los valores que sigan existiendo" />
+                <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
+                           Text="Hay una versión más nueva instalada. Tus valores se conservan si su campo sigue existiendo; los demás vuelven a su valor por defecto y se te dice cuáles." />
+            </StackPanel>
+
+            <StackPanel x:Name="Rows" />
+            <TextBlock x:Name="EmptyText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" Margin="12,4,12,4" Visibility="Collapsed"
+                       Text="Esta plantilla no expone ningún campo. Para cambiarla por dentro, conviértela en títulos." />
+
+            <StackPanel Padding="12,12,8,0" Spacing="4">
+                <Button x:Name="ConvertButton" Content="Convertir en títulos" Click="OnConvertClick"
+                        ToolTipService.ToolTip="Cambia la plantilla por un título por capa, en pistas libres, para editarlos por dentro" />
+                <TextBlock Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
+                           Text="Al convertirla deja de ser una plantilla: cada capa queda como un título corriente con su estilo y su animación." />
+            </StackPanel>
+        </StackPanel>
+    </ScrollViewer>
+</UserControl>

@@ -37,9 +37,15 @@ internal static class NoiseReductionDialog
             return;
         }
 
+        if (QuickTools.Locked(session.Sequence, clip.Id) is { } locked)
+        {
+            session.Notify(NotificationSeverity.Informational, Title, locked);
+            return;
+        }
+
         if (clip.Speed is { Freeze: true } || session.Project.FindMedia(clip.MediaId) is not { } media)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "Un cuadro congelado no tiene sonido que limpiar.");
+            session.Notify(NotificationSeverity.Informational, Title, "Un fotograma congelado no tiene sonido que limpiar.");
             return;
         }
 
@@ -53,7 +59,8 @@ internal static class NoiseReductionDialog
         session.Pause();
         var panel = new StackPanel { Spacing = 4, Width = AnalysisUi.PreviewWidth };
         var status = new TextBlock { Text = "Limpiando la voz…", TextWrapping = TextWrapping.Wrap };
-        var progress = new ProgressBar { Maximum = 1, Width = AnalysisUi.PreviewWidth };
+        var progress = new Views.Shared.OperationProgressView { Width = AnalysisUi.PreviewWidth, ShowMessage = false, ShowCancel = false };
+        var activity = new ModuleDialogActivity();
         panel.Children.Add(status);
         panel.Children.Add(progress);
         if (services.Modules is { } estimating)
@@ -130,8 +137,7 @@ internal static class NoiseReductionDialog
         void ShowActivity()
         {
             ModuleActivityView view = ModuleActivity.Describe(job, cancel.IsCancellationRequested, "Limpiando la voz");
-            progress.IsIndeterminate = view.IsIndeterminate;
-            progress.Value = view.Progress;
+            progress.Operation = activity.Current(job, cancel.IsCancellationRequested);
             scope?.Report(view.IsIndeterminate ? null : view.Progress, view.IsIndeterminate ? view.Text : "Limpiando la voz…");
             status.Text = view.Text;
         }
@@ -235,6 +241,7 @@ internal static class NoiseReductionDialog
             {
                 status.Text = ex is ModuleException error ? ModuleManager.Friendly(module, error) : "No se pudo limpiar: " + ex.Message;
                 progress.Visibility = Visibility.Collapsed;
+                dialog.IsPrimaryButtonEnabled = false;
                 timer.Stop();
             }
         }

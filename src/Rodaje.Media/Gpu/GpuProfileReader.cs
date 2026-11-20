@@ -14,6 +14,7 @@ namespace Rodaje.Media.Gpu;
 /// perfiles de decodificación que declara el principal. Lo guarda en <c>gpu-perfil.json</c> de la carpeta de datos con
 /// la clave de los adaptadores y sus controladores: si nada cambió, no vuelve a abrir la GPU para enumerar perfiles.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public static unsafe class GpuProfileReader
 {
     private const string CacheFileName = "gpu-perfil.json";

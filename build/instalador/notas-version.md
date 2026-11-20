@@ -1,5 +1,15 @@
 Rodaje {{VERSION}} ({{FECHA}}): editor de video nativo para Windows, compilado de antemano (Native AOT). No necesita .NET ni nada instalado aparte.
 
+## Novedades de la {{VERSION}}
+
+- **Editar por el texto:** el panel Transcripción muestra lo que se dice; borrar palabras o frases corta el video con ripple, Ctrl+X y Ctrl+V mueven frases, «Quitar muletillas…» y las pausas largas se limpian en un paso, y cada clip del mismo medio reutiliza la transcripción.
+- **Render en caché:** los tramos pesados se calculan solos mientras no editas y se reproducen como un solo clip; una franja sobre la regla dice qué va lento, justo o ya calculado, y se puede usar al exportar.
+- **Cuadros intermedios:** mezcla de cuadros y flujo óptico propio (sin descargar modelos) para la cámara lenta y para pasar de 24 a 30 cuadros.
+- **Plantillas de movimiento:** rótulos y títulos de varias capas con campos para rellenar en el inspector, que se guardan, exportan e importan como paquetes.
+- **Intercambio con otros editores:** Archivo › Importar y Exportar línea de tiempo en EDL, FCPXML y OpenTimelineIO, con aviso previo de lo que no llega igual; los medios guardan su código de tiempo y su carrete.
+- **HDR:** «Importar CinemaDNG…» ofrece un intermedio FFV1 de 16 bits en PQ BT.2020 que conserva las luces por encima del blanco.
+- **Por dentro:** capa de GPU común con los mismos píxeles, mapeo de rutas en Preferencias y SDK de .NET 10.0.403. Esta versión es solo para Windows.
+
 ## Qué trae
 
 - **Edición por capas** al cuadro exacto: cuchilla, ripple, roll, slip, slide y rango; edición de tres y cuatro puntos con insertar, sobrescribir, reemplazar, ajustar y superponer; grupos, colores de clip, búsqueda y cierre de huecos, aviso y arreglo de desincronía; multicámara y sincronía de audio externo por forma de onda. Todo se deshace con Ctrl+Z, con autoguardado y recuperación.

@@ -36,7 +36,7 @@ public sealed class SecondaryColorTests
     };
 
     /// <summary>Con Â«ver mÃ¡scaraÂ» la vista previa muestra el calificador en gris; se compara con la mÃ¡scara de la referencia.</summary>
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(MaskCases))]
     public void Qualifier_mask_matches_known_masks(double hue, double width, double softness, double satLow, double edge, bool invert)
     {
@@ -44,7 +44,7 @@ public sealed class SecondaryColorTests
         AssertPalette([Qualifier(q)], c => { double m = FxReference.QualifierMask(c, q); return new C3(m, m, m); }, showMask: true);
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(100, 30, -60, -0.5, 0.0)]
     [InlineData(25, 18, 10, 0.3, 0.4)]
     [InlineData(210, 25, 30, 0.6, -0.5)]
@@ -54,12 +54,13 @@ public sealed class SecondaryColorTests
         AssertPalette([Qualifier(q)], c => FxReference.Qualify(c, q));
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Export_never_shows_the_qualifier_mask()
     {
         var q = new FxReference.Qualifier(100, 30, 15, 0.15, 1, 0, 1, 0.1, -40, 0.2, 0, false);
-        using GpuDevice gpu = GpuDevice.Create();
-        using var compositor = new Compositor(gpu, Block * Palette.Length, Block) { ShowQualifierMask = true };
+        using TestGpu gpu = TestGpu.Create();
+        using var compositor = gpu.NewCompositor(Block * Palette.Length, Block);
+        compositor.ShowQualifierMask = true;
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         using CompositionFrame frame = Layers.Frame(Block * Palette.Length, Block, Layers.From(gpu, PaletteImage(), Bt709, new LayerLook([Qualifier(q)])));
         compositor.RenderStrict(frame);
@@ -70,7 +71,7 @@ public sealed class SecondaryColorTests
         }
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Hue_and_saturation_curves_match_the_reference()
     {
         const string hueHue = "0,0.5;0.3,0.42;0.6,0.55";
@@ -84,7 +85,7 @@ public sealed class SecondaryColorTests
             x => FxReference.HueCurves(x.Map(tone.Evaluate), a, b, c));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(0.9, 0.0, 0.0, 1.0)]
     [InlineData(-1.0, 0.0, 0.0, 1.0)]
     [InlineData(0.5, 0.7, -0.4, 0.6)]
@@ -109,12 +110,12 @@ public sealed class SecondaryColorTests
         Assert.Equal(Change(green, 0), Change(green, 1), 6);
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(0.7, 0.3, 0.4, 1.0, 0.5, 0.5)]
     [InlineData(0.9, 0.2, 0.3, 0.5, 0.3, 0.6)]
     public void Shaped_vignette_matches_the_reference(double amount, double size, double softness, double roundness, double cx, double cy)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvCode gray = ReferenceColor.Encode(180, 170, 160, Bt709, false);
         C3 basis = C3.From(ReferenceColor.Decode(gray, Bt709, false));
         LayerEffect vignette = Fx.Make(BuiltInEffects.Vignette, null, (V.Amount, amount), (V.Size, size), (V.Softness, softness),
@@ -150,9 +151,10 @@ public sealed class SecondaryColorTests
 
     private static void AssertPalette(IReadOnlyList<LayerEffect> effects, Func<C3, C3> reference, bool showMask = false)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         int width = Block * Palette.Length;
-        using var compositor = new Compositor(gpu, width, Block) { ShowQualifierMask = showMask };
+        using var compositor = gpu.NewCompositor(width, Block);
+        compositor.ShowQualifierMask = showMask;
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         using CompositionFrame frame = Layers.Frame(width, Block, Layers.From(gpu, PaletteImage(), Bt709, new LayerLook(effects)));
         CompositeResult result = compositor.Render(frame);

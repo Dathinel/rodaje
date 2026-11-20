@@ -3,6 +3,7 @@ using Rodaje.App.Services.Settings;
 using Rodaje.App.Tests.Support;
 using Rodaje.App.Views.Export;
 using Rodaje.Core.Model;
+using Rodaje.Core.Timing;
 using Rodaje.Export;
 
 namespace Rodaje.App.Tests.Export;
@@ -76,5 +77,38 @@ public class ExportDialogSwitchTests
         Assert.False(ComboChoices.NeedsRebuild(["MP4", "MOV"], ["MP4", "MOV"]));
         Assert.True(ComboChoices.NeedsRebuild(["MP4", "MOV"], ["MP4"]));
         Assert.True(ComboChoices.NeedsRebuild(["Toda la secuencia (0:10)"], ["Toda la secuencia (0:09)"]));
+    }
+
+    [Fact]
+    public void VariasVersiones_UnNombreUnaVez_YElOrigenSoloSiDifieren()
+    {
+        ExportPreset factory = ExportPresets.ProResMaster;
+        ExportPreset copy = factory with { Id = "pro/maestro", Origin = ExportPresetOrigin.Package };
+        ExportPreset other = copy with { Id = "pro/otro", Settings = factory.Settings with { Audio = null } };
+
+        Assert.Equal(new (ExportPreset, string?)[] { (factory, null), (ExportPresets.Gif, null) },
+            ExportPresetLibrary.DistinctByName([factory, copy, ExportPresets.Gif]));
+        Assert.Equal(new (ExportPreset, string?)[] { (factory, "de serie"), (other, "de un paquete") },
+            ExportPresetLibrary.DistinctByName([factory, other]));
+    }
+
+    [Fact]
+    public void LaNotaDelPreajuste_AvisaDelCambioDeCadencia()
+    {
+        using var dir = new TempDirectory();
+        Project vertical = ExportTestData.Project(1080, 1920);
+        vertical.Sequences[0].FrameRate = Rational.Ntsc24;
+        var model = new ExportDialogModel(new ExportPreferences { Folder = dir.Path }, vertical.Sequences[0], [], SimulatedEncoders.All, "Corto", null);
+        model.SelectPreset(ExportPresets.Vertical.Id);
+        Assert.Equal("«Vertical 9:16» se exporta a 30 fps (el proyecto va a 23,976).", model.PresetShapeNote);
+        model.SelectPreset(ExportPresets.YouTube1080p.Id);
+        Assert.Null(model.PresetShapeNote);
+
+        Project wide = ExportTestData.Project();
+        wide.Sequences[0].FrameRate = Rational.Ntsc24;
+        model = new ExportDialogModel(new ExportPreferences { Folder = dir.Path }, wide.Sequences[0], [], SimulatedEncoders.All, "Corto", null);
+        model.SelectPreset(ExportPresets.Vertical.Id);
+        Assert.Equal("«Vertical 9:16» es para 9:16 y el proyecto es 16:9: se exporta con la forma del proyecto, a 30 fps (el proyecto va a 23,976).",
+            model.PresetShapeNote);
     }
 }

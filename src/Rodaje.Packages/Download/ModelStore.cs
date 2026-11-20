@@ -72,9 +72,10 @@ public sealed partial class ModelStore(string folder, FileDownloader downloader,
     {
         ArgumentNullException.ThrowIfNull(model);
         string target = model.PathIn(moduleDirectory);
-        if (!SafePaths.IsInside(target, moduleDirectory))
+        // La ruta se valida aquí y no solo al leer el manifiesto: Windows abriría «red.onnx.» o «red.onnx:flujo» como otro archivo.
+        if (!SafePaths.TryNormalizeRelative(model.File, out _) || !SafePaths.IsInside(target, moduleDirectory))
         {
-            throw new PackageDownloadException($"El modelo «{model.Id}» apunta fuera de la carpeta del módulo.");
+            throw new PackageDownloadException($"El modelo «{model.Id}» apunta fuera de la carpeta del módulo o a una ruta no permitida.");
         }
 
         if (model.IsPresentIn(moduleDirectory))
@@ -130,15 +131,28 @@ public sealed partial class ModelStore(string folder, FileDownloader downloader,
             File.Delete(target);
         }
 
-        if (OperatingSystem.IsWindows() && CreateHardLink(target, source, 0))
+        if (OperatingSystem.IsWindows() ? CreateHardLink(target, source, 0) : Link(source, target) == 0)
         {
             return;
         }
 
         string temporary = target + FileDownloader.PartialSuffix;
-        File.Copy(source, temporary, overwrite: true);
-        File.Move(temporary, target, overwrite: true);
+        try
+        {
+            File.Copy(source, temporary, overwrite: true);
+            File.Move(temporary, target, overwrite: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Un resto junto al modelo cuenta como archivo sobrante y deja el módulo como no instalado.
+            File.Delete(temporary);
+            throw;
+        }
     }
+
+    // link(2) de Linux y macOS: mismo efecto que CreateHardLinkW; si falla (otro volumen), se copia.
+    [LibraryImport("libc", EntryPoint = "link", StringMarshalling = StringMarshalling.Utf8, SetLastError = true)]
+    private static partial int Link(string existing, string newPath);
 
     [LibraryImport("kernel32.dll", EntryPoint = "CreateHardLinkW", StringMarshalling = StringMarshalling.Utf16, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

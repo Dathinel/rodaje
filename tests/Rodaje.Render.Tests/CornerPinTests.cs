@@ -24,11 +24,11 @@ public sealed class CornerPinTests
 
     public static TheoryData<bool> Devices => new() { false, true };
 
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(Devices))]
     public void Coverage_area_and_center_match_the_quadrilateral(bool warp)
     {
-        using GpuDevice gpu = warp ? GpuDevice.CreateWarp() : GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create(warp);
         using Compositor compositor = TransitionTests.Ready(gpu);
         byte[] opaque = Render(compositor, Layers.From(gpu, Solid(), Bt709));
         int red = opaque[0];
@@ -59,11 +59,11 @@ public sealed class CornerPinTests
         Assert.InRange(centerError, 0, 0.05);
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(Devices))]
     public void The_image_follows_the_perspective_inside(bool warp)
     {
-        using GpuDevice gpu = warp ? GpuDevice.CreateWarp() : GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create(warp);
         using Compositor compositor = TransitionTests.Ready(gpu);
         byte[] flat = Render(compositor, Layers.From(gpu, Bands(), Bt709));
         byte[] pinned = Render(compositor, Layers.From(gpu, Bands(), Bt709, LayerTransform.Identity with { Pin = Screen }));
@@ -96,10 +96,10 @@ public sealed class CornerPinTests
         Assert.True(worst <= 3, $"Diferencia máxima {worst} códigos junto a los límites de banda ({gpu.AdapterName}).");
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Preview_and_export_compose_the_same_pinned_layer()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = TransitionTests.Ready(gpu);
         var transform = LayerTransform.Identity with { Pin = Screen, Scale = 0.8, RotationDegrees = 7 };
         byte[] preview;
@@ -117,10 +117,10 @@ public sealed class CornerPinTests
         Assert.Equal(preview, compositor.ReadbackRgba());
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_crossed_quadrilateral_is_ignored()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = TransitionTests.Ready(gpu);
         byte[] plain = Render(compositor, Layers.From(gpu, Bands(), Bt709));
         var crossed = new LayerCornerPin(Width, 0, -Width, 0, 0, 0, 0, 0);

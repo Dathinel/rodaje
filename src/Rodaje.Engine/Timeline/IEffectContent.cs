@@ -16,6 +16,12 @@ public interface IEffectContent : IEffectResources
     TransitionCurves? FindTransition(string reference);
 
     /// <summary>
+    /// Lo mismo para una transición de plantilla de movimiento con sus <paramref name="values"/> (JSON de un objeto id →
+    /// valor, la opción <see cref="BuiltInEffects.CommonOptions.TemplateValues"/>); sin valores, la de arriba.
+    /// </summary>
+    TransitionCurves? FindTransition(string reference, string? values) => FindTransition(reference);
+
+    /// <summary>
     /// Correcciones de <see cref="BuiltInEffects.Stabilize"/> para el análisis <paramref name="analysis"/> con esos ajustes,
     /// o <c>null</c> si el análisis no está en la caché (el clip se ve sin estabilizar). Se llama al armar el plan.
     /// </summary>

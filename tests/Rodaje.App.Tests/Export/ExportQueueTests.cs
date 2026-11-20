@@ -113,6 +113,21 @@ public class ExportQueueTests
     });
 
     [Fact]
+    public void DosALaMismaSalida_NoArrancanALaVez() => UiThread.Run(async () =>
+    {
+        using var list = new ExportJobList(SlowRunner(), SynchronizationContext.Current) { Concurrency = new ExportConcurrency(16, () => 8L << 30) };
+        ExportEntry first = list.Enqueue(Request("misma.mp4"));
+        ExportEntry second = list.Enqueue(Request("MISMA.mp4"));
+        Assert.NotNull(first.Job);
+        Assert.Null(second.Job);
+
+        list.Cancel(first);
+        await WaitAsync(() => second.Job is not null);
+        list.Cancel(second);
+        await WaitAsync(() => list.ActiveCount == 0);
+    });
+
+    [Fact]
     public void LaColaSeGuardaYSeRecuperaAlVolverAAbrir() => UiThread.Run(async () =>
     {
         using var dir = new TempDirectory();

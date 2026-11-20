@@ -62,9 +62,14 @@ public sealed class ThreadDumpTests
         try
         {
             string fake = Path.Combine(dir, "createdump");
-            File.Copy("/bin/sleep", fake); // Copia también el permiso de ejecución.
+            // Un guion y no una copia de sleep: si sleep es un binario múltiple (uutils), con otro nombre no arranca.
+            File.WriteAllText(fake, "#!/bin/sh\nwhile :; do sleep 1; done\n");
+            File.SetUnixFileMode(fake, UnixFileMode.UserRead | UnixFileMode.UserWrite | UnixFileMode.UserExecute);
             other = Process.Start(fake, "300");
             Assert.NotNull(other);
+            // Hasta el exec, /proc lo nombra como este proceso: la captura no lo vería como un createdump que ya estaba.
+            var started = Stopwatch.StartNew();
+            while (ReadComm(other.Id) != "createdump" && started.Elapsed < TimeSpan.FromSeconds(10)) Thread.Sleep(10);
 
             string text = ThreadDump.Capture(
                 () =>
@@ -101,6 +106,18 @@ public sealed class ThreadDumpTests
             }
 
             Directory.Delete(dir, recursive: true);
+        }
+    }
+
+    private static string? ReadComm(int pid)
+    {
+        try
+        {
+            return File.ReadAllText($"/proc/{pid}/comm").Trim();
+        }
+        catch (IOException)
+        {
+            return null;
         }
     }
 }

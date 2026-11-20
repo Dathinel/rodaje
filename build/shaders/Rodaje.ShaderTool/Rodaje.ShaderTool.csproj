@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <RootNamespace>Rodaje.ShaderTool</RootNamespace>
+    <AssemblyName>Rodaje.ShaderTool</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\Rodaje.Render\Rodaje.Render.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Direct3D.DXC" Version="1.9.2609.5" GeneratePathProperty="true" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="$(PkgMicrosoft_Direct3D_DXC)\build\native\bin\x64\dxc.exe;$(PkgMicrosoft_Direct3D_DXC)\build\native\bin\x64\dxcompiler.dll"
+          Link="%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+    <None Include="$(PkgMicrosoft_Direct3D_DXC)\build\native\bin\x64\dxc.exe;$(PkgMicrosoft_Direct3D_DXC)\build\native\bin\x64\dxcompiler.dll"
+          Link="dxc\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" Visible="false" />
+  </ItemGroup>
+
+</Project>

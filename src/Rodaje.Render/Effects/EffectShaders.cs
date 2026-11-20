@@ -64,7 +64,11 @@ internal enum FxOp
 /// <summary>Fuente HLSL de los efectos y la lista de variantes que se compilan por adelantado.</summary>
 /// <remarks>
 /// Todo en gamma, como la mezcla de capas (D-016). Las fórmulas son las mismas que las referencias de la CPU de las
-/// pruebas; si cambia una, cambia la otra.
+/// pruebas; si cambia una, cambia la otra. En una secuencia HDR (<c>hdr.w</c>, D-055) los mismos shaders reciben luz lineal
+/// BT.2020 con 1,0 = 203 nits: el color, la LUT, las ruedas, las curvas, la nitidez, el grano y el resplandor recortan solo
+/// por abajo (<c>Clip</c>) y el resplandor ya no pasa por gamma 2,2. Lo que sigue en [0, 1] por definición no cambia: índices de
+/// la LUT y de las curvas (lo que pasa de 203 nits toma el borde de la tabla), rampas y máscaras, y los modos de mezcla por
+/// shader (fórmulas de [0, 1]).
 /// </remarks>
 internal static class EffectShaders
 {
@@ -106,8 +110,15 @@ internal static class EffectShaders
     // fx0, fx1, fx2: PsFx (FxOp en fx0.x); en RegionMix, fx2 es el mapa de la máscara de efectos (t7).
     // Con ADVANCED: extra = croma, ruedas y curvas encendidos (0 o 1). key0 = Cb y Cr de la clave, tolerancia, suavidad;
     // key1 = derrame, recorte del borde (0–0,45), dirección unitaria de la clave en CbCr. lift, gain: por canal (ya sumado
-    // el general); gammaExp: exponente 2^−gamma por canal. Curvas: tabla de 1024 × 1 en t10 (canal y luego general).
-    private const string Source = RenderShaders.Prelude + """
+    // el general); gammaExp: exponente 2^−gamma por canal; lift.w, gammaExp.w y gain.w: el desplazamiento (rojo, verde y
+    // azul), que se suma antes que todo. Curvas: tabla de 1024 × 1 en t10 (canal y luego general).
+    internal const string Source = """
+        #if !defined(__HLSL_VERSION) || __HLSL_VERSION < 2021
+        #define select(c, a, b) ((c) ? (a) : (b))
+        #define and(a, b) ((a) && (b))
+        #endif
+
+        """ + RenderShaders.Prelude + """
         cbuffer Effects : register(b1)
         {
             float4 grade;
@@ -151,6 +162,12 @@ internal static class EffectShaders
         static const float3 LumaWeights = float3(0.2126, 0.7152, 0.0722);
         static const float3 MaskTint = float3(1.0, 0.22, 0.18);
 
+        // En una secuencia HDR la luz lineal pasa de 1,0 (203 nits): se recorta solo por abajo.
+        float3 Clip(float3 c)
+        {
+            return hdr.w > 0 ? max(c, 0.0) : saturate(c);
+        }
+
         float2 ToCbCr(float3 rgb, float y)
         {
             return float2((rgb.b - y) / 1.8556, (rgb.r - y) / 1.5748);
@@ -188,7 +205,7 @@ internal static class EffectShaders
             float high = smoothstep(0.5, 1.0, luma);
             float low = 1.0 - smoothstep(0.0, 0.5, luma);
             rgb += 0.25 * (tones.x * high + tones.y * low);
-            return saturate(rgb);
+            return Clip(rgb);
         }
 
         // Cerca de la línea de piel del vectorscopio (123° en CbCr), con algo de croma y sin llegar a lo muy saturado.
@@ -234,13 +251,25 @@ internal static class EffectShaders
             float y = dot(rgb, LumaWeights);
             float2 c = ToCbCr(rgb, y);
             c = float2(c.x * qual2.y - c.y * qual2.z, c.x * qual2.z + c.y * qual2.y) * qual2.w;
-            return lerp(rgb, saturate(FromYcc(y, c) * qual3.x), m);
+            return lerp(rgb, Clip(FromYcc(y, c) * qual3.x), m);
         }
 
+        // En una secuencia HDR la LUT y las curvas reciben la luz lineal codificada en PQ (BT.2020, 203 nits ≈ 0,58) y devuelven PQ:
+        // una LUT de HDR10 se aplica tal cual y lo que pasa de 203 nits ya no toma el borde de la tabla.
         float3 ApplyLut(float3 rgb)
         {
-            float3 graded = lut.SampleLevel(linearClamp, rgb * tones.z + tones.w, 0).rgb;
-            return saturate(lerp(rgb, graded, grade.w));
+            float3 graded;
+            [branch] if (hdr.w > 0)
+            {
+                float3 pq = LinearToPq(rgb);
+                graded = PqToLinear(lut.SampleLevel(linearClamp, pq * tones.z + tones.w, 0).rgb);
+            }
+            else
+            {
+                graded = lut.SampleLevel(linearClamp, rgb * tones.z + tones.w, 0).rgb;
+            }
+
+            return Clip(lerp(rgb, graded, grade.w));
         }
 
         static const float CurveSize = 1024.0;
@@ -260,19 +289,20 @@ internal static class EffectShaders
             float r = y + 1.5748 * c.y;
             float b = y + 1.8556 * c.x;
             float g = (y - 0.2126 * r - 0.0722 * b) / 0.7152;
-            return saturate(float3(r, g, b));
+            return Clip(float3(r, g, b));
         }
 
         float3 Wheels(float3 rgb)
         {
+            rgb = rgb + float3(lift.w, gammaExp.w, gain.w);
             rgb = rgb + lift.rgb * (1.0 - rgb);
             rgb = rgb * gain.rgb;
-            return saturate(pow(max(rgb, 0.0), gammaExp.rgb));
+            return Clip(pow(max(rgb, 0.0), gammaExp.rgb));
         }
 
         // Fila 0 (v = 0,25): curvas de tono por canal. Fila 1 (v = 0,75): tono contra tono (r), tono contra saturación (g)
         // y luma contra saturación (b), con 0,5 sin cambio.
-        float3 Curves(float3 rgb)
+        float3 CurvesCoded(float3 rgb)
         {
             float3 u = saturate(rgb) * ((CurveSize - 1.0) / CurveSize) + 0.5 / CurveSize;
             rgb = float3(
@@ -289,10 +319,27 @@ internal static class EffectShaders
                 float shift = (byHue.x - 0.5) * 6.28318531;
                 float2 c = ToCbCr(rgb, y);
                 c = float2(c.x * cos(shift) - c.y * sin(shift), c.x * sin(shift) + c.y * cos(shift)) * (4.0 * byHue.y * byLuma);
-                rgb = saturate(FromYcc(y, c));
+                rgb = Clip(FromYcc(y, c));
             }
 
             return rgb;
+        }
+
+        // Una sola salida: con un return dentro del [branch] fxc da X4000 («potentially uninitialized variable») y, con los
+        // avisos como errores, PsGraded no compila y el visor se queda sin títulos ni efectos.
+        float3 Curves(float3 rgb)
+        {
+            float3 graded;
+            [branch] if (hdr.w > 0)
+            {
+                graded = PqToLinear(CurvesCoded(LinearToPq(rgb)));
+            }
+            else
+            {
+                graded = CurvesCoded(rgb);
+            }
+
+            return graded;
         }
 
         // Con redondez 0 y el centro en el medio es la elipse del cuadro (d = 1 en las esquinas); con 1, un círculo en píxeles.
@@ -307,12 +354,12 @@ internal static class EffectShaders
 
         float3 SoftLightD(float3 cb)
         {
-            return cb <= 0.25 ? ((16.0 * cb - 12.0) * cb + 4.0) * cb : sqrt(cb);
+            return select(cb <= 0.25, ((16.0 * cb - 12.0) * cb + 4.0) * cb, sqrt(cb));
         }
 
         float3 HardLight(float3 cb, float3 cs)
         {
-            return cs <= 0.5 ? cb * 2.0 * cs : 1.0 - (1.0 - cb) * (1.0 - (2.0 * cs - 1.0));
+            return select(cs <= 0.5, cb * 2.0 * cs, 1.0 - (1.0 - cb) * (1.0 - (2.0 * cs - 1.0)));
         }
 
         float3 BlendColor(float3 cb, float3 cs)
@@ -320,14 +367,14 @@ internal static class EffectShaders
             switch ((int)blendInfo.x)
             {
                 case 4: return HardLight(cs, cb);
-                case 5: return cs <= 0.5 ? cb - (1.0 - 2.0 * cs) * cb * (1.0 - cb) : cb + (2.0 * cs - 1.0) * (SoftLightD(cb) - cb);
+                case 5: return select(cs <= 0.5, cb - (1.0 - 2.0 * cs) * cb * (1.0 - cb), cb + (2.0 * cs - 1.0) * (SoftLightD(cb) - cb));
                 case 6: return HardLight(cb, cs);
                 case 7: return min(cb, cs);
                 case 8: return max(cb, cs);
                 case 9: return abs(cb - cs);
                 case 10: return cb + cs - 2.0 * cb * cs;
-                case 11: return cb <= 0.0 ? 0.0 : (cs >= 1.0 ? 1.0 : min(1.0, cb / (1.0 - cs)));
-                case 12: return cb >= 1.0 ? 1.0 : (cs <= 0.0 ? 0.0 : 1.0 - min(1.0, (1.0 - cb) / cs));
+                case 11: return select(cb <= 0.0, (float3)0.0, select(cs >= 1.0, (float3)1.0, min(1.0, cb / (1.0 - cs))));
+                case 12: return select(cb >= 1.0, (float3)1.0, select(cs <= 0.0, (float3)0.0, 1.0 - min(1.0, (1.0 - cb) / cs)));
                 default: return cs;
             }
         }
@@ -369,6 +416,7 @@ internal static class EffectShaders
             else
             {
                 rgb = SampleRgb(i.uv);
+                sourceAlpha = SourceAlpha(i.uv);
             }
         #if ADVANCED
             [branch] if (extra.x > 0.5)
@@ -481,7 +529,7 @@ internal static class EffectShaders
                 float2 h = max(mix1.zw, 1e-6);
                 bool vertices = kind == 2 || kind >= 4;
                 float shifted = 1e4;
-                [branch] if (!vertices || all(l >= key1.xy - key0.w && l <= key1.zw + key0.w))
+                [branch] if (!vertices || all(and(l >= key1.xy - key0.w, l <= key1.zw + key0.w)))
                 {
                     float coarse = 0.0;
                     if (canvas.z > 1.5)
@@ -608,7 +656,7 @@ internal static class EffectShaders
             float4 blurred = SampleB(i.uv);
             float4 detail = original - blurred;
             float k = kernel.y > 0.0 ? smoothstep(kernel.y, 2.0 * kernel.y, abs(dot(detail.rgb, LumaWeights))) : 1.0;
-            return saturate(original + kernel.x * k * detail);
+            return float4(Clip(original.rgb + kernel.x * k * detail.rgb), saturate(original.a + kernel.x * k * detail.a));
         }
 
         float4 Unpremultiply(float4 c)
@@ -616,15 +664,15 @@ internal static class EffectShaders
             return float4(c.a > 0.0 ? c.rgb / c.a : 0.0, c.a);
         }
 
-        // Luz lineal aproximada con gamma 2,2 (lo óptico: resplandor y desenfoque de lente).
+        // Luz lineal aproximada con gamma 2,2 (lo óptico: resplandor y desenfoque de lente). En una secuencia HDR ya es lineal.
         float3 ToLinear(float3 c)
         {
-            return pow(max(c, 0.0), 2.2);
+            return hdr.w > 0 ? max(c, 0.0) : pow(max(c, 0.0), 2.2);
         }
 
         float3 ToGamma(float3 c)
         {
-            return pow(max(c, 0.0), 1.0 / 2.2);
+            return hdr.w > 0 ? max(c, 0.0) : pow(max(c, 0.0), 1.0 / 2.2);
         }
 
         uint Hash(uint x)
@@ -668,7 +716,7 @@ internal static class EffectShaders
             float y = dot(c.rgb, LumaWeights);
             float weight = lerp(1.0, 4.0 * y * (1.0 - y), fx1.x);
             float3 n = lerp(mono.xxx, colored, fx0.w);
-            return float4(saturate(c.rgb + fx0.y * 0.7 * weight * n) * c.a, c.a);
+            return float4(Clip(c.rgb + fx0.y * 0.7 * weight * n) * c.a, c.a);
         }
 
         // Bilateral de 5 × 5: fx0.y = fuerza, fx0.zw = paso de un píxel en uv, fx1.x = 1/(2σ²) espacial, fx1.y = 1/(2σ²) de luma.
@@ -716,7 +764,7 @@ internal static class EffectShaders
                 {
                     float4 c = Unpremultiply(SampleA(uv));
                     float3 halo = SampleB(uv).rgb;
-                    return float4(saturate(ToGamma(ToLinear(c.rgb) + fx0.y * halo)) * c.a, c.a);
+                    return float4(Clip(ToGamma(ToLinear(c.rgb) + fx0.y * halo)) * c.a, c.a);
                 }
                 case 4:
                 {
@@ -841,6 +889,12 @@ internal static class EffectShaders
                     // con fx2.z = un píxel de destino en u para suavizar el corte del barrido.
                     float4 c = imageA.SampleLevel(linearClamp, clamp(uv, fx1.xy, fx1.zw), fx0.y);
                     float inside = saturate((uv.x - fx2.x) / fx2.z + 0.5) * saturate((fx2.y - uv.x) / fx2.z + 0.5);
+                    // El atlas del título está en gamma sRGB; en una secuencia HDR entra como SDR a 203 nits (BT.709 lineal → BT.2020).
+                    [branch] if (hdr.w > 0 && c.a > 0)
+                    {
+                        float3 straight = c.rgb / c.a;
+                        c.rgb = mul(Bt709ToBt2020, float3(Bt709Linear(straight.r), Bt709Linear(straight.g), Bt709Linear(straight.b))) * c.a;
+                    }
                     return c * fx0.z * inside;
                 }
                 default:
@@ -863,7 +917,7 @@ internal static class EffectShaders
         {
             float2 m = abs(uv);
             m = m - 2.0 * floor(m * 0.5);
-            m = m > 1.0 ? 2.0 - m : m;
+            m = select(m > 1.0, 2.0 - m, m);
             return b ? SampleB(m) : SampleA(m);
         }
 

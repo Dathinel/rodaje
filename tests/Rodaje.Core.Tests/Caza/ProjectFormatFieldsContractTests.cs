@@ -10,6 +10,30 @@ namespace Rodaje.Core.Tests.Caza;
 /// <summary>Contrato del formato y comprobación de lectura y escritura.</summary>
 public sealed class ProjectFormatFieldsContractTests
 {
+    [Fact]
+    public void Loop_es_opcional_y_no_cambia_la_version_del_formato()
+    {
+        Project project = ValidProject();
+        var title = MakeTitle("loop", 40, 0, 3);
+        project.Sequences[0].VideoTracks[0].Clips.Add(title);
+        string before = ProjectSerializer.Serialize(project);
+        Assert.DoesNotContain("\"loop\":", before, StringComparison.Ordinal);
+        int version = JsonNode.Parse(before)!["schemaVersion"]!.GetValue<int>();
+        title.Generator!.Style!.Loop = new StyleLoop { Kind = TextLoopKind.Float };
+        JsonObject saved = Saved(project);
+        Assert.Equal(version, saved["schemaVersion"]!.GetValue<int>());
+        JsonObject loop = saved["sequences"]![0]!["videoTracks"]![0]!["clips"]!.AsArray()[^1]!["generator"]!["style"]!["loop"]!.AsObject();
+        Assert.Equal("float", loop["kind"]!.GetValue<string>());
+        Assert.Equal(0.5, loop["speed"]!.GetValue<double>());
+        loop.Remove("speed");
+        Assert.Equal(0.5, Read(saved).Sequences[0].VideoTracks[0].Clips[^1].Generator!.Style!.Loop!.Speed);
+        loop["kind"] = "unknown";
+        Rejected(saved);
+        loop["kind"] = "float";
+        loop["amount"] = 2.1;
+        Rejected(saved);
+    }
+
     private static JsonObject Root() => JsonNode.Parse(ProjectSerializer.Serialize(ValidProject()))!.AsObject();
 
     private static JsonObject Sequence(JsonObject root) => root["sequences"]![0]!.AsObject();
@@ -83,7 +107,7 @@ public sealed class ProjectFormatFieldsContractTests
     public void SchemaVersion_vale_13_y_va_primero()
     {
         JsonObject root = Root();
-        Assert.Equal(13, Project.CurrentSchemaVersion);
+        Assert.Equal(16, Project.CurrentSchemaVersion);
         Assert.Equal("schemaVersion", root.First().Key);
         Assert.Equal(13, (int)root["schemaVersion"]!);
         Assert.Equal(["schemaVersion", "id", "name", "media", "sequences"], root.Select(p => p.Key).Take(5));
@@ -767,7 +791,7 @@ public sealed class ProjectFormatFieldsContractTests
     [Fact]
     public void Formato323_SchemaVersion_hoy_vale_13()
     {
-        Assert.Equal(13, Project.CurrentSchemaVersion);
+        Assert.Equal(16, Project.CurrentSchemaVersion);
         Assert.Equal(13, (int)RoundTrip(Base())["schemaVersion"]!);
     }
 
@@ -1091,10 +1115,10 @@ public sealed class ProjectFormatFieldsContractTests
     public void Formato323_Ease_fuera_de_rango_se_rechaza(double x1, double y1, double x2, double y2)
     {
         JsonObject root = Base();
-        Clip(root)["effects"] = new JsonArray(Effect("rodaje.transform", JsonNode.Parse($$"""
+        Clip(root)["effects"] = new JsonArray(Effect("rodaje.transform", JsonNode.Parse(FormattableString.Invariant($$"""
             { "x": { "value": 0, "keyframes": [ { "time": 0, "value": 1, "interpolation": "bezier",
               "ease": { "x1": {{x1}}, "y1": {{y1}}, "x2": {{x2}}, "y2": {{y2}} } } ] } }
-            """)!.AsObject()));
+            """))!.AsObject()));
 
         Rejected(root);
     }

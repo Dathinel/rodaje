@@ -130,7 +130,10 @@ public sealed record ExportPlan
             ExportPixelFormat pixels = video.PixelFormatFor(vs.BitDepth, vs.Chroma, vs.Alpha)!.Value;
             (int width, int height) = vs.OutputSize(sequence.Width, sequence.Height);
             CheckOutputSize(vs, pixels, width, height);
-            format = new ExportVideoFormat(width, height, output, pixels, vs.Color ?? ExportColor.For(width, height, pixels));
+            // HDR solo en HEVC, AV1 y ProRes (los que llevan BT.2020 con PQ/HLG en el flujo); los demás sacan SDR.
+            bool hdrCodec = video.Codec is ExportCodec.Hevc or ExportCodec.Av1 or ExportCodec.ProRes;
+            format = new ExportVideoFormat(width, height, output, pixels,
+                vs.Color ?? ExportColor.For(width, height, pixels, hdrCodec ? sequence.ColorSpace : SequenceColorSpace.Sdr709));
             if (video.Codec == ExportCodec.Gif)
             {
                 filters = ["split[a][b];[a]palettegen=stats_mode=diff[p];[b][p]paletteuse=dither=bayer:bayer_scale=3"];

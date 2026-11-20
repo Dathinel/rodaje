@@ -33,7 +33,7 @@ public sealed class ImageColorTests
         { 0.05, -0.05, 0.2, -0.2, -0.15, 0.1 },
     };
 
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(WheelCases))]
     public void Wheels_match_the_reference(double lift, double liftRed, double gamma, double gammaBlue, double gain, double gainGreen)
     {
@@ -43,7 +43,18 @@ public sealed class ImageColorTests
             new C3(gain, gain + gainGreen, gain)));
     }
 
-    [GpuFact]
+    [EngineTheory]
+    [InlineData(0.1, 0, 0, 0)]
+    [InlineData(-0.15, 0.05, -0.05, 0)]
+    [InlineData(0.05, 0, 0.1, -0.1)]
+    public void Offset_wheel_adds_before_the_other_wheels(double offset, double offsetRed, double offsetBlue, double lift)
+    {
+        LayerEffect wheels = Fx.Make(BuiltInEffects.ColorWheels, null, (W.Offset, offset), (W.OffsetRed, offsetRed), (W.OffsetBlue, offsetBlue), (W.Lift, lift));
+        AssertPalette([wheels], c => EffectReference.Wheels(c, new C3(lift, lift, lift), new C3(0, 0, 0), new C3(0, 0, 0),
+            new C3(offset + offsetRed, offset, offset + offsetBlue)));
+    }
+
+    [EngineFact]
     public void Curves_match_the_reference_master_after_channel()
     {
         const string master = "0,0;0.25,0.18;0.75,0.85;1,1";
@@ -55,7 +66,7 @@ public sealed class ImageColorTests
             c => new C3(m.Evaluate(r.Evaluate(c.R)), m.Evaluate(c.G), m.Evaluate(b.Evaluate(c.B))));
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Green_screen_matches_the_reference_and_keeps_the_subject()
     {
         C3 key = Decode(Palette[0]);
@@ -71,7 +82,7 @@ public sealed class ImageColorTests
         Assert.True(gg < 170 && gg - Math.Max(gr, gb) < 20, $"El derrame verde sigue: ({gr}, {gg}, {gb}).");
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Blue_screen_with_cleanup_matches_the_reference()
     {
         C3 key = Decode(Palette[6]);
@@ -82,10 +93,10 @@ public sealed class ImageColorTests
         Assert.True(r > 150, "El rojo debe quedar opaco con una clave azul.");
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Key_combines_with_a_mask_and_the_preview_can_leave_it_out()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         C3 key = Decode(Palette[0]);
         LayerFrame Layer() => Layers.From(gpu, PaletteImage(), Bt709, new LayerLook([Key(key, 0.15, 0.1, 0, 0), Fx.Make(BuiltInEffects.Mask, null,
             (BuiltInEffects.MaskParameters.X, 0.25), (BuiltInEffects.MaskParameters.Width, 0.5), (BuiltInEffects.MaskParameters.Height, 1))]));
@@ -96,7 +107,8 @@ public sealed class ImageColorTests
         masked.AssertColor((5 * Block) + 32, 32, new Rgb(0, 0, 0), 1);
         Assert.True(masked.At((2 * Block) + 32, 32).R > 150, "Lo que la máscara deja ver y no es la clave queda.");
 
-        using var compositor = new Compositor(gpu, Block * Palette.Length, Block) { Bypass = PreviewBypass.Key };
+        using var compositor = gpu.NewCompositor(Block * Palette.Length, Block);
+        compositor.Bypass = PreviewBypass.Key;
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         using CompositionFrame frame = Layers.Frame(Block * Palette.Length, Block, [Layer()]);
         compositor.Render(frame);
@@ -104,14 +116,15 @@ public sealed class ImageColorTests
         image.AssertColor(32, 32, Decode(Palette[0]).To255());
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Compare_split_shows_the_left_without_color_and_export_ignores_it()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         int width = Block * Palette.Length;
         LayerFrame Layer() => Layers.From(gpu, PaletteImage(), Bt709, new LayerLook([Fx.Color((BuiltInEffects.ColorParameters.Exposure, 0.7)),
             Fx.Make(BuiltInEffects.ColorWheels, null, (W.Gain, -0.2))]));
-        using var compositor = new Compositor(gpu, width, Block) { CompareSplit = 0.5f };
+        using var compositor = gpu.NewCompositor(width, Block);
+        compositor.CompareSplit = 0.5f;
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         using (CompositionFrame frame = Layers.Frame(width, Block, [Layer()]))
         {
@@ -137,7 +150,7 @@ public sealed class ImageColorTests
             EffectReference.Wheels(EffectReference.Grade(first, 0.7, 0, 0, 0, 0, 0, 0), default, default, new C3(-0.2, -0.2, -0.2)).To255());
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(0, 0, 0.5, 0)]
     [InlineData(0.25, 0, 0.25, 0)]
     [InlineData(0.5, 0.25, 0, 0.25)]
@@ -145,7 +158,7 @@ public sealed class ImageColorTests
     {
         // 256×128: mitad izquierda roja, derecha azul, con una franja blanca arriba de 32 px.
         const int width = 256, height = 128;
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvCode red = Encode((200, 40, 30)), blue = Encode((30, 60, 210)), white = Encode((235, 235, 235));
         var source = YuvImage.Solid(width, height, false, red).Fill(width / 2, 0, width / 2, height, blue).Fill(0, 0, width, 32, white);
         var crop = new CropRect(left, top, right, bottom);
@@ -202,7 +215,7 @@ public sealed class ImageColorTests
 
     private static RgbaImage AssertPalette(IReadOnlyList<LayerEffect> effects, Func<C3, C3> reference)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerFrame layer = Layers.From(gpu, PaletteImage(), Bt709, new LayerLook(effects));
         RgbaImage image = EffectFidelityTests.Compose(gpu, Block * Palette.Length, Block, out CompositeResult result, null, layer);
         Assert.Equal(0, result.EffectsSkipped);

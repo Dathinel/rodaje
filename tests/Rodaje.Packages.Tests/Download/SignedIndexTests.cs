@@ -45,6 +45,16 @@ public sealed class SignedIndexTests : IDisposable
     }
 
     [Fact]
+    public void Reads_app_entries_that_rodaje_ignores()
+    {
+        SignedIndex index = Load(Index(Entry("subtitular", kind: "app", url: "https://github.com/Dathinel/subtitular/releases/download/v1.0.0/subtitular.zip")));
+
+        Assert.Equal(IndexEntryKind.App, Assert.Single(index.Entries).Kind);
+        Assert.NotNull(index.Latest("subtitular", PackageVersion.Parse("0.1.0"), IndexEntryKind.App));
+        Assert.Null(index.Latest("subtitular", PackageVersion.Parse("0.1.0"), IndexEntryKind.Content));
+    }
+
+    [Fact]
     public void Every_altered_byte_or_signature_is_rejected()
     {
         byte[] json = Index(Entry(), Entry("rodaje-transiciones"));

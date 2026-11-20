@@ -5,6 +5,7 @@ using Xunit.Abstractions;
 namespace Rodaje.Render.Tests.Export;
 
 /// <summary>Convertir en la GPU y comparar con <see cref="ExportReference"/>, en WARP o en la GPU de verdad.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal static class ExportCheck
 {
     public static int[][] ReadOne(ExportFrameConverter converter, long expectedIndex)

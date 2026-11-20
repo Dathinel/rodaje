@@ -1,0 +1,225 @@
+# Fase 0 de Linux y macOS (D-066): pruebas de concepto de experimentos/linux-fase0. No es parte de la CI del producto:
+# corre a mano o al subir a una rama linux/fase0*. Cada trabajo llama al ci.sh de su carpeta y sube su salida/.
+
+name: Fase 0 Linux y macOS
+
+on:
+  workflow_dispatch:
+  push:
+    branches: ['linux/fase0*']
+    paths: ['experimentos/linux-fase0/**', '.github/workflows/linux-fase0.yml']
+
+permissions:
+  contents: read
+
+concurrency:
+  group: fase0-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+
+jobs:
+  uno-linux:
+    name: (a) Uno AOT en Linux bajo Xvfb
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Paquetes
+        run: sudo apt-get update -q && sudo apt-get install -y -q xvfb xdotool imagemagick libfontconfig1 libgl1 libegl1 libx11-6 libxrandr2 libxi6 libxcursor1 fonts-dejavu-core
+      - name: Prueba
+        run: xvfb-run -a -s "-screen 0 1280x800x24" bash experimentos/linux-fase0/uno/ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-linux
+          path: |
+            experimentos/linux-fase0/uno/salida/*.json
+            experimentos/linux-fase0/uno/salida/*.txt
+            experimentos/linux-fase0/uno/salida/*.log
+            experimentos/linux-fase0/uno/salida/*.png
+
+  uno-mac:
+    name: (a) Uno AOT en macOS
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Prueba
+        run: bash experimentos/linux-fase0/uno/ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: uno-mac
+          path: |
+            experimentos/linux-fase0/uno/salida/*.json
+            experimentos/linux-fase0/uno/salida/*.txt
+            experimentos/linux-fase0/uno/salida/*.log
+
+  mac-vt:
+    name: (c) VideoToolbox a VkImage con MoltenVK
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Paquetes
+        run: brew install ffmpeg molten-vk vulkan-headers pkg-config
+      - name: Prueba
+        run: bash experimentos/linux-fase0/mac-vt/ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: mac-vt
+          path: |
+            experimentos/linux-fase0/mac-vt/salida/*.jsonl
+            experimentos/linux-fase0/mac-vt/salida/*.log
+
+  shaders-windows:
+    name: (d) DXC a SPIR-V y referencia WARP
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}\.entorno\nuget
+      DOTNET_ROOT: ${{ github.workspace }}\.entorno\dotnet
+      DOTNET_CLI_HOME: ${{ github.workspace }}\.entorno
+      DOTNET_MULTILEVEL_LOOKUP: '0'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Caché del SDK y FFmpeg
+        uses: actions/cache@v4
+        with:
+          path: |
+            .entorno/dotnet
+            .entorno/ffmpeg
+          key: entorno-windows-${{ hashFiles('build/preparar-entorno.ps1', 'global.json') }}
+      - name: Preparar el entorno
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1
+      - name: Compilar variantes y dibujar referencias
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File experimentos\linux-fase0\shaders\ci.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shaders-windows
+          path: |
+            experimentos/linux-fase0/shaders/salida/spirv
+            experimentos/linux-fase0/shaders/salida/ref
+
+  shaders-linux:
+    name: (d) SPIR-V en lavapipe frente a WARP
+    needs: shaders-windows
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      RODAJE_VK_GPU: llvmpipe
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Paquetes
+        run: sudo apt-get update -q && sudo apt-get install -y -q mesa-vulkan-drivers libvulkan1 vulkan-tools
+      - uses: actions/download-artifact@v4
+        with:
+          name: shaders-windows
+          path: experimentos/linux-fase0/shaders/salida
+      - name: Vulkan del corredor
+        run: vulkaninfo --summary | grep -E "deviceName|driverInfo|apiVersion" || true
+      # El criterio «todos los casos ≤ 1e-3 frente a WARP» no se cumple (docs/mac-y-linux-fase0.md, parte d): ci.sh sale
+      # con 1 por eso. El trabajo comprueba que la comparación corrió entera y que no empeora: 116 de 168 o más.
+      - name: Prueba
+        run: |
+          set +e
+          bash experimentos/linux-fase0/shaders/ci.sh
+          set -e
+          linea=$(grep -E "^[0-9]+ de [0-9]+ casos con error" experimentos/linux-fase0/shaders/salida/vulkan.txt)
+          echo "$linea" | tee -a "$GITHUB_STEP_SUMMARY"
+          [ "$(echo "$linea" | cut -d' ' -f1)" -ge 116 ]
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shaders-linux
+          path: |
+            experimentos/linux-fase0/shaders/salida/*.json
+            experimentos/linux-fase0/shaders/salida/*.txt
+            experimentos/linux-fase0/shaders/salida/*.log
+
+  eco:
+    name: (e) Eco de módulos en ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Prueba
+        run: bash experimentos/linux-fase0/eco/ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: eco-${{ matrix.os }}
+          path: experimentos/linux-fase0/eco/**/resultado.json
+
+  vulkan-video:
+    name: (b) hwaccel Vulkan de FFmpeg en lavapipe
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      RODAJE_VK_GPU: llvmpipe
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Paquetes
+        run: sudo apt-get update -q && sudo apt-get install -y -q mesa-vulkan-drivers libvulkan1 vulkan-tools
+      # El mismo FFmpeg LGPL que en Windows, de la misma receta (BtbN, rama n9.0).
+      - name: FFmpeg LGPL n9.0
+        run: |
+          curl -sSL -o "$RUNNER_TEMP/ffmpeg.tar.xz" https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-linux64-lgpl-shared-9.0.tar.xz
+          mkdir -p "$RUNNER_TEMP/ffmpeg"
+          tar -xJf "$RUNNER_TEMP/ffmpeg.tar.xz" -C "$RUNNER_TEMP/ffmpeg" --strip-components=1
+          echo "RODAJE_FFMPEG=$RUNNER_TEMP/ffmpeg" >> "$GITHUB_ENV"
+          echo "LD_LIBRARY_PATH=$RUNNER_TEMP/ffmpeg/lib" >> "$GITHUB_ENV"
+          "$RUNNER_TEMP/ffmpeg/bin/ffmpeg" -hide_banner -version | head -n 1
+      - name: Vulkan del corredor
+        run: |
+          vulkaninfo --summary | grep -E "deviceName|driverInfo|apiVersion" || true
+          vulkaninfo 2>/dev/null | grep -E "VK_KHR_video" || echo "lavapipe no anuncia VK_KHR_video_*"
+      - name: Prueba
+        run: bash experimentos/linux-fase0/vulkan-video/ci.sh
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: vulkan-video
+          path: |
+            experimentos/linux-fase0/vulkan-video/**/resultado.json
+            experimentos/linux-fase0/vulkan-video/**/*.log

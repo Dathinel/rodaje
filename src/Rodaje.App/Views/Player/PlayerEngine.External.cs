@@ -25,7 +25,7 @@ internal sealed partial class PlayerEngine
             _closeExternal = false;
         }
 
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>Cierra la salida a la otra pantalla. Desde cualquier hilo.</summary>
@@ -37,7 +37,7 @@ internal sealed partial class PlayerEngine
             _closeExternal = true;
         }
 
-        _wake.Set();
+        Wake();
     }
 
     private void ApplyExternal()
@@ -66,7 +66,7 @@ internal sealed partial class PlayerEngine
 
         if (_external is null)
         {
-            _external = new CompositionSwapChain(_gpu, size.Width, size.Height, size.ScaleX, size.ScaleY);
+            _external = new CompositionSwapChain(_gpu, size.Width, size.Height, size.ScaleX, size.ScaleY, UsesTenBits(), UsesScRgb());
             ExternalSwapChainCreated?.Invoke(_external.NativeSwapChain);
         }
         else

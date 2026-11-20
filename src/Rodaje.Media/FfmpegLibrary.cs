@@ -166,13 +166,14 @@ public static class FfmpegLibrary
     internal static unsafe string? CompanionLibraryProblem(string path)
     {
         EnsureInitialized();
-        string name = Path.GetFileNameWithoutExtension(path);
-        string[] parts = name.Split('-', 2);
-        if (parts.Length != 2 || !int.TryParse(parts[1], out int expectedMajor))
+        string? name = FfmpegLocator.VersionedName(Path.GetFileName(path));
+        if (name is null)
         {
-            return $"{name}.dll no tiene el nombre de una biblioteca de FFmpeg.";
+            return $"{Path.GetFileName(path)} no tiene el nombre de una biblioteca de FFmpeg.";
         }
 
+        string[] parts = name.Split('-', 2);
+        int expectedMajor = int.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
         string library = parts[0];
         nint handle;
         try
@@ -228,19 +229,12 @@ public static class FfmpegLibrary
 
     private static nint LoadFrom(string directory, string name)
     {
-        string file = name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? name : name + ".dll";
-        if (!file.Contains('-', StringComparison.Ordinal))
-        {
-            string prefix = Path.GetFileNameWithoutExtension(file) + "-";
-            string? versioned = FfmpegLocator.RequiredLibraries.FirstOrDefault(
-                l => l.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
-            if (versioned is not null)
-            {
-                file = versioned + ".dll";
-            }
-        }
-
-        string path = Path.Combine(directory, file);
+        // FFmpeg.AutoGen pide «avcodec», «avcodec-63» o «avcodec-63.dll»: se carga la de la serie fijada, con el nombre del sistema.
+        string bare = name.EndsWith(".dll", StringComparison.OrdinalIgnoreCase) ? name[..^4] : name;
+        string prefix = bare.Split('-')[0] + "-";
+        string versioned = FfmpegLocator.RequiredLibraries.FirstOrDefault(
+            l => l.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)) ?? bare;
+        string path = Path.Combine(directory, FfmpegLocator.LibraryFileName(versioned));
         if (!File.Exists(path))
         {
             throw new DllNotFoundException($"No existe {path}.");

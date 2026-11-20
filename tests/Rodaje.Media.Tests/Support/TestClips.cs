@@ -196,6 +196,12 @@ internal static class TestClips
                 $"h264_metadata=video_full_range_flag={(fullRange ? 1 : 0)}:matrix_coefficients={matrixCoefficients}:colour_primaries={matrixCoefficients}:transfer_characteristics={matrixCoefficients}"),
             temp)))).Value;
 
+    public static string TaggedHdr(int transfer) => Generated.GetOrAdd(
+        string.Create(CultureInfo.InvariantCulture, $"hdr-transfer-{transfer}.mp4"),
+        name => new Lazy<string>(() => Produce(name, temp => Try(MediaTestEnvironment.FfmpegExe, "-v", "error", "-y",
+            "-i", PathOf(H264), "-map", "0:v", "-c", "copy", "-bsf:v", string.Create(CultureInfo.InvariantCulture,
+                $"h264_metadata=matrix_coefficients=9:colour_primaries=9:transfer_characteristics={transfer}"), temp)))).Value;
+
     /// <summary>Video de tasa variable: cada quinto cuadro llega 10 ms tarde.</summary>
     public static string VariableFrameRate() => Generated.GetOrAdd("vfr-30.mp4", name => new Lazy<string>(() =>
         Produce(name, temp => EncodeVideo(temp, ClipCodec.H264, gop: 30, bFrames: 0,

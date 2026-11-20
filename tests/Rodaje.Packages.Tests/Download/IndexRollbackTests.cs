@@ -117,6 +117,21 @@ public sealed class IndexRollbackTests : IAsyncLifetime, IDisposable
     }
 
     [Fact]
+    public async Task Sin_poder_escribir_lo_visto_la_misma_sesion_sigue_rechazando_el_viejo_y_lo_avisa()
+    {
+        // Una carpeta con el nombre del archivo: escribir lo visto falla siempre.
+        Directory.CreateDirectory(Path.Combine(Downloads, "indice-visto.txt"));
+        using GitHubReleaseDownloader downloader = Downloader();
+
+        Publish("\"2026-10-12T12:00:00Z\"");
+        await downloader.GetIndexAsync(refresh: true);
+        Assert.Contains(downloader.IndexProblems, p => p.Contains("antirretroceso", StringComparison.Ordinal));
+
+        Publish("\"2026-10-01T00:00:00Z\"");
+        await Assert.ThrowsAsync<DownloadVerificationException>(() => downloader.GetIndexAsync(refresh: true));
+    }
+
+    [Fact]
     public async Task Una_firma_mala_no_cambia_lo_visto()
     {
         Publish("\"2026-10-12T12:00:00Z\"");

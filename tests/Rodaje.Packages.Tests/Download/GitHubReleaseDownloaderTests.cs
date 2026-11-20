@@ -54,7 +54,7 @@ public sealed class GitHubReleaseDownloaderTests : IAsyncLifetime, IDisposable
 
     private GitHubReleaseDownloader Downloader(string? publicKey = "") => new(Options(publicKey), _http)
     {
-        Files = new FileDownloader(_http) { RetryDelay = TimeSpan.FromMilliseconds(10) },
+        Files = new FileDownloader(_http, SignedIndex.MaxEntrySize) { RetryDelay = TimeSpan.FromMilliseconds(10) },
     };
 
     /// <summary>
@@ -197,7 +197,7 @@ public sealed class GitHubReleaseDownloaderTests : IAsyncLifetime, IDisposable
                 cutSignal.Release();
             }
         });
-        using (GitHubReleaseDownloader cut = new(Options(policy: DownloadUrlPolicy.WithLoopback()), _http) { Files = new FileDownloader(_http) { MaxAttempts = 1 } })
+        using (GitHubReleaseDownloader cut = new(Options(policy: DownloadUrlPolicy.WithLoopback()), _http) { Files = new FileDownloader(_http, SignedIndex.MaxEntrySize) { MaxAttempts = 1 } })
         {
             await cut.GetIndexAsync();
             await Assert.ThrowsAsync<PackageDownloadException>(() => cut.DownloadAsync(Filtros, halfway, default));

@@ -36,7 +36,7 @@ internal static partial class AcceptanceSupport
 
     public static FfmpegExecutable Ffmpeg => Rodaje.TestMedia.Skip.ProxyExecutable!;
 
-    public static string FfprobePath => Path.Combine(Path.GetDirectoryName(Ffmpeg.Path)!, "ffprobe.exe");
+    public static string FfprobePath => Path.Combine(Path.GetDirectoryName(Ffmpeg.Path)!, Rodaje.Media.FfmpegLocator.ExecutableName("ffprobe"));
 
     public static Task<IReadOnlyList<EncoderSpec>> ProbedEncoders => SharedEncoders.Value;
 

@@ -168,6 +168,12 @@ public sealed record VideoExportSettings
     /// <summary><c>null</c>: BT.709 limitado (BT.601 en SD, sRGB en imágenes), según <see cref="ExportColor.For"/>.</summary>
     public ExportColor? Color { get; init; }
 
+    /// <summary>
+    /// HDR10: medir MaxCLL y MaxFALL sobre la composición en una pasada previa (compone cada cuadro dos veces) en vez de
+    /// declarar los de <see cref="Color"/>. Solo actúa si la salida va en PQ desde una secuencia HDR.
+    /// </summary>
+    public bool MeasureLightLevels { get; init; }
+
     /// <summary><c>null</c>: la tasa de la secuencia.</summary>
     public Rational? FrameRate { get; init; }
 
@@ -272,6 +278,11 @@ public sealed record ExportSettings
     /// keyframes, el video se copia del original sin recodificar (<c>StreamCopyPlanner</c>).
     /// </summary>
     public bool SmartRender { get; init; } = true;
+
+    /// <summary>
+    /// Decodifica los fragmentos del render en caché para los cuadros equivalentes de la secuencia (D-060). Apagado por omisión.
+    /// </summary>
+    public bool UseRenderCache { get; init; }
 }
 
 /// <summary>Qué se hace con las pistas de subtítulos al exportar video.</summary>
@@ -301,6 +312,9 @@ public sealed record ExportRequest(Rodaje.Core.Model.Project Project, string Seq
 {
     /// <summary>Carpeta del proyecto, para resolver rutas relativas de medios.</summary>
     public string? ProjectDirectory { get; init; }
+
+    /// <summary>Pausa cooperativa entre cuadros; nula en una exportación normal.</summary>
+    public Running.ExportPauseToken? Pause { get; init; }
 
     /// <summary>
     /// «Exportar sin él» tras un <see cref="ExportErrorCode.ContentMissing"/> o <see cref="ExportErrorCode.EffectFailed"/>:

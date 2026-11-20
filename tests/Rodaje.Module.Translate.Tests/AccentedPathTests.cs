@@ -25,7 +25,7 @@ public sealed class AccentedPathTests : IDisposable
             File.Copy(ModelFactAttribute.ModelPath!, link);
         }
 
-        string exe = Environment.GetEnvironmentVariable("RODAJE_MODULO_TRADUCIR") is { Length: > 0 } e ? e : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Translate.exe");
+        string exe = Environment.GetEnvironmentVariable("RODAJE_MODULO_TRADUCIR") is { Length: > 0 } e ? e : Path.Combine(AppContext.BaseDirectory, "Rodaje.Module.Translate" + (OperatingSystem.IsWindows() ? ".exe" : ""));
         await using ModuleProcess module = await ModuleProcess.StartAsync(exe);
         byte[] input = Encoding.UTF8.GetBytes("""{"segments":[{"id":"c1","text":"Hola a todos."}]}""");
         SharedMemoryRegion inRegion = module.Client.CreateRegion(input.Length);

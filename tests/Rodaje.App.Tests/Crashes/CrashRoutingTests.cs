@@ -156,7 +156,8 @@ public class CrashRoutingTests
     public void HiloDeLaInterfaz_ConVentana_InformeRecuperadoAvisoUnaVezPorRafagaYSigue()
     {
         using var dir = new TempDirectory();
-        var reporter = new CrashReporter(dir.Path, Version, new SessionLog());
+        // Reloj fijo: las tres repeticiones caen en la misma ráfaga aunque escribir el informe tarde (15 s en la CI).
+        var reporter = new CrashReporter(dir.Path, Version, new SessionLog(), clock: () => new DateTime(2026, 10, 13, 10, 0, 0, DateTimeKind.Local));
         var shown = new List<string>();
         var context = new GuardedSynchronizationContext(new InlineContext(),
             ex => CrashRouting.OnDispatcherException(ex, shown.Add, reporter.Write));

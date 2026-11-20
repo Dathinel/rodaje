@@ -1,8 +1,10 @@
+using System.Runtime.Versioning;
 using Rodaje.Core.Timing;
 using Rodaje.Media.Gpu;
 using Rodaje.Media.Video;
 using Rodaje.Playback;
 using Rodaje.Playback.Composition;
+using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render.Tests.Support;
 
@@ -10,11 +12,38 @@ namespace Rodaje.Render.Tests.Support;
 internal static class Layers
 {
     /// <summary>Una capa con la imagen completa como parte visible.</summary>
+    public static LayerFrame From(TestGpu gpu, YuvImage image, VideoColor color, LayerTransform? transform = null, int track = 0) =>
+        From(gpu, [image], 0, image.Width, image.Height, color, transform ?? LayerTransform.Identity, track);
+
+    /// <summary>El camino D3D11, para las pruebas que ya tienen un <see cref="GpuDevice"/>.</summary>
+    [SupportedOSPlatform("windows7.0")]
     public static LayerFrame From(GpuDevice gpu, YuvImage image, VideoColor color, LayerTransform? transform = null, int track = 0) =>
         From(gpu, [image], 0, image.Width, image.Height, color, transform ?? LayerTransform.Identity, track);
 
-    /// <summary>Sube <paramref name="slices"/> como arreglo de texturas y hace una capa con la capa <paramref name="slice"/>.</summary>
-    public static unsafe LayerFrame From(GpuDevice gpu, IReadOnlyList<YuvImage> slices, int slice, int visibleWidth, int visibleHeight,
+    /// <summary>
+    /// Con D3D11 sube <paramref name="slices"/> como arreglo de texturas y hace una capa con la capa <paramref name="slice"/>.
+    /// Con Vulkan solo vale una imagen (los arreglos son solo D3D11VA): sube sus planos como <see cref="GpuTextureSurface"/>.
+    /// </summary>
+    public static LayerFrame From(TestGpu gpu, IReadOnlyList<YuvImage> slices, int slice, int visibleWidth, int visibleHeight,
+        VideoColor color, LayerTransform transform, int track = 0)
+    {
+        if (TestGpu.IsVulkan || !OperatingSystem.IsWindowsVersionAtLeast(7))
+        {
+            if (slices.Count != 1)
+            {
+                throw new InvalidOperationException("Los arreglos de texturas del decodificador solo existen en D3D11VA.");
+            }
+
+            return FromSurface(gpu.Gpu, YuvImage.CreateSurface(gpu.Gpu, slices[0], color, visibleWidth, visibleHeight),
+                transform, track);
+        }
+
+        return From(gpu.Device, slices, slice, visibleWidth, visibleHeight, color, transform, track);
+    }
+
+    /// <summary>El camino D3D11 de arriba, para las pruebas que ya tienen un <see cref="GpuDevice"/>.</summary>
+    [SupportedOSPlatform("windows7.0")]
+    public static LayerFrame From(GpuDevice gpu, IReadOnlyList<YuvImage> slices, int slice, int visibleWidth, int visibleHeight,
         VideoColor color, LayerTransform transform, int track = 0)
     {
         nint texture = YuvImage.CreateTexture(gpu, slices);
@@ -28,7 +57,8 @@ internal static class Layers
         }
     }
 
-    /// <summary>Capa sobre una textura existente; toma su propia referencia.</summary>
+    /// <summary>Capa sobre una textura D3D11 existente; toma su propia referencia.</summary>
+    [SupportedOSPlatform("windows7.0")]
     public static LayerFrame FromTexture(GpuDevice gpu, nint texture, int slice, int visibleWidth, int visibleHeight,
         VideoColor color, LayerTransform transform, int track = 0, LayerLook? look = null, Time? pts = null, Time? duration = null)
     {
@@ -42,14 +72,34 @@ internal static class Layers
         };
     }
 
+    /// <summary>Capa sobre una superficie de un <see cref="IGpu"/>; toma la referencia (la libera el cuadro).</summary>
+    public static LayerFrame FromSurface(IGpu gpu, GpuTextureSurface surface, LayerTransform transform, int track = 0,
+        LayerLook? look = null, Time? pts = null, Time? duration = null)
+    {
+        var frame = new DecodedFrame(0, pts ?? Time.Zero, duration ?? Time.FromTicks(1), surface, 0);
+        return new LayerFrame(track, $"clip-{track}", frame, transform)
+        {
+            Effects = look?.Effects ?? [],
+            Blend = look?.Blend ?? BlendMode.Normal,
+            Transition = look?.Transition,
+        };
+    }
+
     /// <summary>Una capa con efectos, mezcla o transición; <paramref name="pts"/> y <paramref name="duration"/> son los del cuadro del origen.</summary>
-    public static LayerFrame From(GpuDevice gpu, YuvImage image, VideoColor color, LayerLook look, LayerTransform? transform = null, int track = 0,
+    public static LayerFrame From(TestGpu gpu, YuvImage image, VideoColor color, LayerLook look, LayerTransform? transform = null, int track = 0,
         Time? pts = null, Time? duration = null)
     {
-        nint texture = YuvImage.CreateTexture(gpu, [image]);
+        if (TestGpu.IsVulkan || !OperatingSystem.IsWindowsVersionAtLeast(7))
+        {
+            return FromSurface(gpu.Gpu, YuvImage.CreateSurface(gpu.Gpu, image, color, image.Width, image.Height),
+                transform ?? LayerTransform.Identity, track, look, pts, duration);
+        }
+
+        nint texture = YuvImage.CreateTexture(gpu.Device, [image]);
         try
         {
-            return FromTexture(gpu, texture, 0, image.Width, image.Height, color, transform ?? LayerTransform.Identity, track, look, pts, duration);
+            return FromTexture(gpu.Device, texture, 0, image.Width, image.Height, color, transform ?? LayerTransform.Identity,
+                track, look, pts, duration);
         }
         finally
         {
@@ -57,6 +107,24 @@ internal static class Layers
         }
     }
 
+    /// <summary>El camino D3D11 de la sobrecarga con <see cref="LayerLook"/>.</summary>
+    [SupportedOSPlatform("windows7.0")]
+    public static LayerFrame From(GpuDevice gpu, YuvImage image, VideoColor color, LayerLook look, LayerTransform? transform = null,
+        int track = 0, Time? pts = null, Time? duration = null)
+    {
+        nint texture = YuvImage.CreateTexture(gpu, [image]);
+        try
+        {
+            return FromTexture(gpu, texture, 0, image.Width, image.Height, color, transform ?? LayerTransform.Identity,
+                track, look, pts, duration);
+        }
+        finally
+        {
+            Release(texture);
+        }
+    }
+
+    [SupportedOSPlatform("windows7.0")]
     public static unsafe void Release(nint texture) => ((TerraFX.Interop.Windows.IUnknown*)texture)->Release();
 
     public static CompositionFrame Frame(int width, int height, params LayerFrame[] layers) =>

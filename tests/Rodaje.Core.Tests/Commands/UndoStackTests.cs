@@ -188,6 +188,60 @@ public class UndoStackTests
         Assert.Equal(["apply a", "apply b", "revert b", "revert a", "apply a", "apply b"], log.Entries);
     }
 
+    /// <summary>
+    /// Cada paso comparte con la instantánea del anterior las pistas que no cambian: uno que falla a medias o que toca una
+    /// pista bloqueada deja la secuencia como tras el paso anterior (no como al empezar el gesto), y el gesto es un paso.
+    /// </summary>
+    [Fact]
+    public void Group_UnPasoQueFallaVuelveAlAnteriorYElGestoSeDeshaceEntero()
+    {
+        (UndoStack stack, Project project) = NewStack();
+        string start = ProjectDump.Of(project);
+        static SequenceEditCommand Move(double at, string? locked = null) => new("Mover clip", SequenceId, ctx =>
+        {
+            ctx.Sequence.GetClip("clip-1").Clip.Start = S(at);
+            if (locked is not null)
+            {
+                ctx.Sequence.GetClip(locked).Clip.Start = S(30);
+            }
+        }, mergeKey: "arrastre");
+
+        stack.BeginGroup("Mover clip");
+        stack.Execute(Move(6));
+        stack.Execute(Move(7));
+        string second = ProjectDump.Of(project);
+        Assert.Throws<EditException>(() => stack.Execute(new SequenceEditCommand("Mover clip", SequenceId, ctx =>
+        {
+            ctx.Sequence.GetClip("clip-1").Clip.Start = S(8);
+            throw new EditException("No cabe.");
+        }, mergeKey: "arrastre")));
+        Assert.Equal(second, ProjectDump.Of(project));
+        Assert.Throws<EditException>(() => stack.Execute(Move(9, locked: "clip-3")));
+        Assert.Equal(second, ProjectDump.Of(project));
+        stack.Execute(Move(10));
+        string end = ProjectDump.Of(project);
+        stack.EndGroup();
+
+        Assert.Equal(1, stack.Count);
+        stack.Undo();
+        Assert.Equal(start, ProjectDump.Of(project));
+        stack.Redo();
+        Assert.Equal(end, ProjectDump.Of(project));
+
+        // Tras deshacer, la instantánea del último paso ya no es el estado actual: un paso que falla vuelve a lo deshecho.
+        stack.Undo();
+        Assert.Throws<EditException>(() => stack.Execute(Move(11, locked: "clip-3")));
+        Assert.Equal(start, ProjectDump.Of(project));
+
+        stack.BeginGroup("Mover clip");
+        stack.Execute(Move(12));
+        stack.Execute(Move(13));
+        stack.CancelGroup();
+        Assert.Equal(start, ProjectDump.Of(project));
+        Assert.Throws<EditException>(() => stack.Execute(Move(14, locked: "clip-3")));
+        Assert.Equal(start, ProjectDump.Of(project));
+    }
+
     [Fact]
     public void Group_FundeDentroPeroNoConElAnterior()
     {

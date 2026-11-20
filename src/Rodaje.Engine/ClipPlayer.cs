@@ -62,9 +62,10 @@ public sealed class ClipPlayer : IDisposable
             Info = _video.Info;
             Video = _video.Stream;
             Time oneFrame = Time.FromFrames(1, Video.FrameRate);
-            Timing = new ClipTiming(Time.Zero, Time.Zero, Time.Max(Video.Duration, oneFrame), Video.FrameRate);
+            Timing = new ClipTiming(Time.Zero, Time.Zero, Info.IsStillImage ? Rodaje.Core.Model.MediaRef.DefaultStillImageDuration
+                : Time.Max(Video.Duration, oneFrame), Video.FrameRate, Info.IsStillImage);
 
-            _gpuPayloads = options.Device is { IsDisposed: false };
+            _gpuPayloads = OperatingSystem.IsWindowsVersionAtLeast(7) && options.Device is { IsDisposed: false };
             (_audioSource, _output, AudioStatus) = OpenAudio(path, Info.HasAudio, options, backend, created);
             _clock = _output?.Clock ?? new SystemClock();
             _hasDevice = _output?.HasDevice ?? false;

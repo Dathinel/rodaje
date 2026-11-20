@@ -83,8 +83,14 @@ internal sealed class EditorServices(
     /// <summary>Proxies automáticos al importar; nulo si la ventana no lo creó.</summary>
     public AutoProxyService? AutoProxies { get; init; }
 
+    /// <summary>El render en caché (D-060): franja, cálculo de fondo y la casilla de exportar; nulo si la ventana no lo creó.</summary>
+    public Services.RenderCache.RenderCacheHost? RenderCache { get; init; }
+
     /// <summary>Medios nuevos de las carpetas vigiladas; nulo si la ventana no lo creó.</summary>
     public WatchedFolderInbox? WatchedFolders { get; init; }
+
+    /// <summary>La sala de colaboración (invitar, unirse, aprobar); nula si la ventana no la creó.</summary>
+    public Services.Collab.CollabHost? Collab { get; init; }
 
     /// <summary>Cambió la calidad de la vista previa (desde el reproductor o desde el menú Ver).</summary>
     public event EventHandler? PreviewQualityChanged;

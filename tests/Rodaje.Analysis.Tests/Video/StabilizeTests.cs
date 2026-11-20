@@ -92,6 +92,87 @@ public sealed class StabilizeTests(ITestOutputHelper output)
         Assert.True(worst < 1.5, $"{worst:F3} px");
     }
 
+    /// <summary>Clip más corto que el núcleo (radio 90): los extremos se reflejan más de una vez; con 3 cuadros, 23 veces por lado.</summary>
+    [Theory]
+    [InlineData(60)]
+    [InlineData(20)]
+    [InlineData(3)]
+    public void A_steady_pan_shorter_than_the_kernel_is_left_alone(int frames)
+    {
+        Similarity[] motions = [.. Enumerable.Repeat(new Similarity(1, 0, 0.005, -0.002), frames)];
+        StabilizationResult result = CameraPath.Stabilize(motions, 30, 16 / 9.0, new StabilizeOptions(1));
+        output.WriteLine($"panorámica de {frames} cuadros, núcleo de 181: temblor {result.ShakeBefore:E2} → {result.ShakeAfter:E2}, recorte ×{result.Zoom:R}");
+        Assert.True(result.ShakeAfter < 1e-12, $"{result.ShakeAfter:E2}");
+        Assert.Equal(1, result.Zoom, 9);
+        Assert.All(result.Corrections, c =>
+        {
+            Assert.Equal(1, c.A, 9);
+            Assert.Equal(0, c.B, 9);
+            Assert.Equal(0, c.X, 9);
+            Assert.Equal(0, c.Y, 9);
+        });
+    }
+
+    [Theory]
+    [InlineData(3, 12)]
+    [InlineData(20, 13)]
+    [InlineData(45, 14)]
+    public void A_shaky_clip_shorter_than_the_kernel_gets_steadier(int frames, int seed)
+    {
+        Similarity[] camera = ShakyScene.Camera(frames, seed);
+        Similarity[] motions = [.. camera.Select((c, k) => k == 0 ? Similarity.Identity : c.After(camera[k - 1].Inverse()))];
+        StabilizationResult result = CameraPath.Stabilize(motions, 30, 16 / 9.0, new StabilizeOptions(1));
+        output.WriteLine($"{frames} cuadros, semilla {seed}: temblor {result.ShakeBefore:E3} → {result.ShakeAfter:E3}, recorte ×{result.Zoom:F3}");
+        Assert.All(result.Corrections, c => Assert.True(c.IsFinite, $"{c}"));
+        Assert.True(result.ShakeAfter < result.ShakeBefore, $"{result.ShakeAfter:E3} ≥ {result.ShakeBefore:E3}");
+        Assert.InRange(result.Zoom, 1, 1.5);
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.NegativeInfinity)]
+    [InlineData(-1.0)]
+    [InlineData(-0.0)]
+    public void An_intensity_that_is_not_above_zero_does_not_correct(double intensity)
+    {
+        Similarity[] camera = ShakyScene.Camera(60, 15);
+        Similarity[] motions = [.. camera.Select((c, k) => k == 0 ? Similarity.Identity : c.After(camera[k - 1].Inverse()))];
+        StabilizationResult result = CameraPath.Stabilize(motions, 30, 16 / 9.0, new StabilizeOptions(intensity));
+        Assert.All(result.Corrections, c => Assert.Equal(Similarity.Identity, c));
+        Assert.Equal(1, result.Zoom);
+        Assert.Equal(result.ShakeBefore, result.ShakeAfter);
+    }
+
+    [Theory]
+    [InlineData(1.5)]
+    [InlineData(double.PositiveInfinity)]
+    public void An_intensity_above_one_corrects_like_one(double intensity)
+    {
+        Similarity[] camera = ShakyScene.Camera(120, 16);
+        Similarity[] motions = [.. camera.Select((c, k) => k == 0 ? Similarity.Identity : c.After(camera[k - 1].Inverse()))];
+        StabilizationResult expected = CameraPath.Stabilize(motions, 30, 16 / 9.0, new StabilizeOptions(1));
+        StabilizationResult result = CameraPath.Stabilize(motions, 30, 16 / 9.0, new StabilizeOptions(intensity));
+        Assert.Equal(expected.Corrections, result.Corrections);
+        Assert.Equal(expected.Zoom, result.Zoom);
+    }
+
+    [Theory]
+    [InlineData(double.NaN)]
+    [InlineData(double.PositiveInfinity)]
+    [InlineData(double.NegativeInfinity)]
+    [InlineData(0.5)]
+    [InlineData(-1.0)]
+    public void A_max_zoom_that_is_not_a_finite_number_of_one_or_more_does_not_zoom(double maxZoom)
+    {
+        Similarity[] camera = ShakyScene.Camera(120, 17);
+        Similarity[] motions = [.. camera.Select((c, k) => k == 0 ? Similarity.Identity : c.After(camera[k - 1].Inverse()))];
+        // Un salto de tres altos de imagen: ningún acercamiento lo tapa y la respuesta es el tope.
+        motions[40] = new Similarity(1, 0, 3, 0);
+        StabilizationResult result = CameraPath.Stabilize(motions, 30, 16 / 9.0, new StabilizeOptions(1, MaxZoom: maxZoom));
+        Assert.All(result.Corrections, c => Assert.True(c.IsFinite, $"{c}"));
+        Assert.Equal(1, result.Zoom);
+    }
+
     [Fact]
     public void Zero_intensity_does_not_correct()
     {

@@ -31,7 +31,7 @@ public sealed class GplAddOnExportTests(ITestOutputHelper output)
         using var scratch = new ExportScratch();
         string folder = scratch.Combine("complemento");
         ZipFile.ExtractToDirectory(package, folder);
-        FfmpegExecutable gpl = FfmpegExecutable.OpenGplAddOn(Path.Combine(folder, "bin", "ffmpeg.exe"));
+        FfmpegExecutable gpl = FfmpegExecutable.OpenGplAddOn(Path.Combine(folder, "bin", Rodaje.Media.FfmpegLocator.ExecutableName("ffmpeg")));
 
         EncoderSpec spec = CpuExportArguments.Spec(video);
         Assert.Equal(EncoderLicense.GplAddOn, spec.License);

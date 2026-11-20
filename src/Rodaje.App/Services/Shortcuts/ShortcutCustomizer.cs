@@ -1,47 +1,5 @@
 namespace Rodaje.App.Services.Shortcuts;
 
-/// <summary>Qué hacer con la acción que ya tenía la combinación.</summary>
-public enum ConflictChoice
-{
-    /// <summary>Se queda con la combinación que deja la otra acción: se intercambian.</summary>
-    Swap,
-
-    /// <summary>La pierde y queda sin esa combinación.</summary>
-    Take,
-}
-
-/// <summary>
-/// Un cambio de atajos hecho desde la página, con el aviso que se le muestra a la persona y lo necesario para
-/// deshacerlo (<see cref="ShortcutCustomizer.Undo"/>).
-/// </summary>
-public sealed class ShortcutChange
-{
-    internal ShortcutChange(string message, ShortcutPreset preset, ShortcutSnapshot? before, string? warning = null, bool allPresets = false)
-    {
-        Message = message;
-        Preset = preset;
-        Before = before;
-        Warning = warning;
-        AllPresets = allPresets;
-    }
-
-    /// <summary>El aviso, en español: «"S" era de "Cortar en el cursor": se intercambiaron».</summary>
-    public string Message { get; }
-
-    /// <summary>Una advertencia que no impidió el cambio (Ctrl+Alt es AltGr en los teclados en español).</summary>
-    public string? Warning { get; }
-
-    /// <summary>Cambió algo y se puede deshacer.</summary>
-    public bool Changed => Before is not null;
-
-    public ShortcutPreset Preset { get; }
-
-    internal ShortcutSnapshot? Before { get; }
-
-    /// <summary>Tocó todos los estilos (importar): deshacerlo los devuelve todos.</summary>
-    internal bool AllPresets { get; }
-}
-
 /// <summary>
 /// Las operaciones de la página de atajos sobre <see cref="ShortcutRegistry"/> y su ratón: asignar (con intercambio o
 /// quitándosela a la acción que la tenía), quitar, restablecer una tecla, un botón, una zona o todo el estilo, e

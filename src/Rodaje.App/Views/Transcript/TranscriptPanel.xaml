@@ -1,0 +1,52 @@
+<UserControl
+    x:Class="Rodaje.App.Views.Transcript.TranscriptPanel"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    IsTabStop="True">
+    <Grid Background="{StaticResource PanelBrush}" Padding="8" RowSpacing="8">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+        <Grid ColumnSpacing="4">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
+            </Grid.ColumnDefinitions>
+            <TextBox x:Name="SearchBox" PlaceholderText="Buscar en la transcripción" TextChanged="OnSearchChanged" KeyDown="OnSearchKeyDown" />
+            <Button Grid.Column="1" Content="↑" AutomationProperties.Name="Resultado anterior" Click="OnPreviousClick" />
+            <Button Grid.Column="2" Content="↓" AutomationProperties.Name="Resultado siguiente" Click="OnNextClick" />
+        </Grid>
+        <ComboBox x:Name="GuideTrack" Grid.Row="1" Header="Pista guía" HorizontalAlignment="Stretch" SelectionChanged="OnGuideChanged" Visibility="Collapsed" />
+        <StackPanel Grid.Row="2" Spacing="4">
+            <StackPanel Orientation="Horizontal" Spacing="4">
+                <Button Content="Quitar muletillas…" Click="OnFillersClick" />
+                <Button Content="Quitar pausas…" Click="OnPausesClick" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button Content="Hablantes…" Click="OnSpeakersClick" />
+                <ToggleSwitch x:Name="ShowRemovedToggle" Header="Mostrar lo quitado" Toggled="OnShowRemovedToggled" />
+            </StackPanel>
+            <TextBlock x:Name="SummaryText" FontSize="12" />
+        </StackPanel>
+        <TextBlock x:Name="EmptyText" Grid.Row="3" Text="Transcribe el medio desde «Subtítulos automáticos» del menú del clip." TextWrapping="Wrap" />
+        <ScrollViewer x:Name="Scroller" Grid.Row="3" HorizontalScrollBarVisibility="Disabled" VerticalScrollBarVisibility="Auto">
+            <ItemsRepeater x:Name="ParagraphList" ElementPrepared="OnParagraphPrepared" ElementClearing="OnParagraphClearing">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="12" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate>
+                        <Grid>
+                            <Canvas IsHitTestVisible="False" />
+                            <TextBlock TextWrapping="Wrap" IsTextSelectionEnabled="False" Tapped="OnWordTapped" DoubleTapped="OnWordDoubleTapped" RightTapped="OnWordRightTapped" SizeChanged="OnParagraphSizeChanged" />
+                        </Grid>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </ScrollViewer>
+    </Grid>
+</UserControl>

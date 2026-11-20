@@ -6,11 +6,11 @@ using Windows.UI;
 
 namespace Rodaje.App.Views.Timeline;
 
-/// <summary>Los pinceles del tema que usa la línea de tiempo (Palette.xaml), leídos una vez.</summary>
+/// <summary>Los pinceles del tema que usa la línea de tiempo (Palette.xaml); los derivados se recalculan al cambiar de tema.</summary>
 internal sealed class TimelineBrushes
 {
-    private readonly Color _frame;
-    private readonly Color _frameGap;
+    private Color _frame;
+    private Color _frameGap;
 
     public TimelineBrushes()
     {
@@ -25,6 +25,8 @@ internal sealed class TimelineBrushes
         TextDisabled = Get("TextDisabledBrush");
         Accent = Get("AccentBrush");
         AccentSubtle = Get("AccentSubtleBrush");
+        VideoTrack = Get("VideoTrackBrush");
+        AudioTrack = Get("AudioTrackBrush");
         Keyframe = Get("KeyframeBrush");
         VideoClip = Get("VideoClipBrush");
         VideoClipEdge = Get("VideoClipEdgeBrush");
@@ -36,18 +38,25 @@ internal sealed class TimelineBrushes
         Transparent = Get("TransparentBrush");
         Danger = Get("DangerBrush");
 
+        Refresh();
+        Theme.ThemeResources.ThemeChanged += (_, _) => Refresh();
+    }
+
+    /// <summary>Vuelve a derivar los translúcidos (onda, banda del nombre, región, fantasma…) de los pinceles de la paleta.</summary>
+    private void Refresh()
+    {
         Color edge = Color(VideoClipEdge);
         Color body = Color(VideoClip);
         _frame = WithAlpha(edge, 0x58);
         _frameGap = WithAlpha(body, 0xFF);
-        Waveform = new SolidColorBrush(WithAlpha(Color(AudioClipEdge), 0xC0));
-        NameBand = new SolidColorBrush(WithAlpha(Color(Background), 0x90));
-        Region = new SolidColorBrush(WithAlpha(Color(Accent), 0x14));
-        RegionRuler = new SolidColorBrush(WithAlpha(Color(Accent), 0x40));
-        MarkerLine = new SolidColorBrush(WithAlpha(Color(Keyframe), 0x60));
-        TimeRange = new SolidColorBrush(WithAlpha(Color(Text), 0x14));
-        Ghost = new SolidColorBrush(WithAlpha(Color(Accent), 0x50));
-        MainLane = new SolidColorBrush(WithAlpha(Color(Accent), 0x1A));
+        Waveform.Color = WithAlpha(Color(AudioClipEdge), 0xC0);
+        NameBand.Color = WithAlpha(Color(Background), 0x90);
+        Region.Color = WithAlpha(Color(Accent), 0x14);
+        RegionRuler.Color = WithAlpha(Color(Accent), 0x40);
+        MarkerLine.Color = WithAlpha(Color(Keyframe), 0x60);
+        TimeRange.Color = WithAlpha(Color(Text), 0x14);
+        Ghost.Color = WithAlpha(Color(Accent), 0x50);
+        MainLane.Color = WithAlpha(Color(Accent), 0x1A);
     }
 
     public Brush Background { get; }
@@ -71,6 +80,12 @@ internal sealed class TimelineBrushes
     public Brush Accent { get; }
 
     public Brush AccentSubtle { get; }
+
+    /// <summary>Fondo de las filas y cabeceras de las pistas de video (de fábrica, el de los paneles).</summary>
+    public Brush VideoTrack { get; }
+
+    /// <summary>Fondo de las filas y cabeceras de las pistas de audio (de fábrica, el de los paneles).</summary>
+    public Brush AudioTrack { get; }
 
     public Brush Keyframe { get; }
 
@@ -113,23 +128,25 @@ internal sealed class TimelineBrushes
         },
     };
 
-    public Brush Waveform { get; }
+    public SolidColorBrush Waveform { get; } = new();
 
-    public Brush NameBand { get; }
+    public SolidColorBrush NameBand { get; } = new();
 
-    public Brush Region { get; }
+    public SolidColorBrush Region { get; } = new();
 
-    public Brush RegionRuler { get; }
+    public SolidColorBrush RegionRuler { get; } = new();
 
-    public Brush MarkerLine { get; }
+    public SolidColorBrush MarkerLine { get; } = new();
 
-    public Brush TimeRange { get; }
+    public SolidColorBrush TimeRange { get; } = new();
 
-    public Brush Ghost { get; }
+    public SolidColorBrush Ghost { get; } = new();
 
-    public Brush MainLane { get; }
+    public SolidColorBrush MainLane { get; } = new();
 
     public Brush ClipFill(TrackKind kind) => kind == TrackKind.Audio ? AudioClip : VideoClip;
+
+    public Brush TrackFill(TrackKind kind) => kind == TrackKind.Audio ? AudioTrack : VideoTrack;
 
     public Brush ClipEdge(TrackKind kind) => kind == TrackKind.Audio ? AudioClipEdge : VideoClipEdge;
 

@@ -3,8 +3,6 @@ namespace Rodaje.App.Services.Settings;
 /// <summary>Flujo de trabajo: proxies al importar, espacios de trabajo, carpetas vigiladas y el recorrido inicial.</summary>
 public sealed partial class AppSettings
 {
-    public const double DefaultTimelineHeight = 300;
-
     /// <summary>Generar en segundo plano el proxy de los videos pesados al importarlos (<see cref="Media.AutoProxyRule"/>).</summary>
     public bool AutoProxies { get; set; } = true;
 
@@ -32,8 +30,28 @@ public sealed partial class AppSettings
     /// <summary>Pistas ya mostradas (<see cref="Onboarding.OnboardingGuide.Hints"/>).</summary>
     public List<string> HintsShown { get; set; } = [];
 
+    /// <summary>Qué calcula el render en caché por su cuenta (Preferencias › Rendimiento, D-060).</summary>
+    public RenderCache.RenderCacheMode RenderCacheMode { get; set; } = RenderCache.RenderCacheMode.Smart;
+
+    /// <summary>Carpeta del render en caché; nula, la de siempre (<c>RODAJE_RENDER</c> o <c>%LOCALAPPDATA%\Rodaje\render</c>).</summary>
+    public string? RenderCacheFolder { get; set; }
+
+    /// <summary>Tope del render en caché en GB; nulo, el automático (el menor entre 50 GB y el 10 % del disco libre, mínimo 5).</summary>
+    public double? RenderCacheCapGb { get; set; }
+
     private void NormalizeWorkflow()
     {
+        if (!Enum.IsDefined(RenderCacheMode))
+        {
+            RenderCacheMode = RenderCache.RenderCacheMode.Smart;
+        }
+
+        RenderCacheFolder = string.IsNullOrWhiteSpace(RenderCacheFolder) ? null : RenderCacheFolder.Trim();
+        if (RenderCacheCapGb is not (>= 1 and <= 100_000))
+        {
+            RenderCacheCapGb = null;
+        }
+
         HintsShown = [.. (HintsShown ?? []).Where(h => !string.IsNullOrWhiteSpace(h)).Distinct()];
         WatchedFolders = [.. (WatchedFolders ?? []).Where(f => f is not null && !string.IsNullOrWhiteSpace(f.Path))
             .DistinctBy(f => f.Path, StringComparer.OrdinalIgnoreCase)];

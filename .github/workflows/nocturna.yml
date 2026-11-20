@@ -39,6 +39,8 @@ jobs:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: ./.github/actions/preparar-linux
 
@@ -84,6 +86,8 @@ jobs:
       DOTNET_CLI_FORCE_UTF8_ENCODING: '1'
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: ./.github/actions/preparar-windows
 

@@ -70,7 +70,15 @@ internal sealed class GeneratedClipPlan
 
     public EffectPlan? Effects { get; }
 
+    /// <summary>Lo que el título entero dura antes de este trozo (<see cref="GeneratorEdges.Before"/>): origen de la fase del bucle.</summary>
+    internal long LoopLeadTicks { get; init; }
+
     public TitleAnimation? Animation { get; }
+
+    /// <summary>Posición de una capa de plantilla (D-064) en píxeles de la secuencia, sumada a la del clip.</summary>
+    public double OffsetX { get; init; }
+
+    public double OffsetY { get; init; }
 
     public bool Covers(Time timeline) => timeline >= Start && timeline < End;
 
@@ -81,7 +89,19 @@ internal sealed class GeneratedClipPlan
     public LayerTransform TransformAt(Time timeline)
     {
         LayerTransform clip = EffectPlan.Transform(Effects, TimeMap.EffectTime(timeline));
-        return Animation is { } animation ? animation.Apply(clip, timeline - Start) : clip;
+        clip = clip with { X = clip.X + OffsetX, Y = clip.Y + OffsetY };
+        LayerTransform animated = Animation is { } animation ? animation.Apply(clip, timeline - Start) : clip;
+
+        // El bucle va por fuera de la entrada y la salida (como al convertirlas en keyframes, que pasan al efecto del clip) y
+        // su fase cuenta desde el inicio del título entero: un trozo cortado sigue donde iba, sin reiniciarse.
+        if (Content.Style.Loop is { } loop)
+        {
+            UnitPose delta = TextLoops.Delta(loop, Time.FromTicks((timeline - Start).Ticks + LoopLeadTicks).ToSeconds());
+            animated = TitleAnimation.Compose(animated, delta.X * Content.UnitScale, delta.Y * Content.UnitScale,
+                delta.Scale, delta.Rotation, delta.Opacity);
+        }
+
+        return animated;
     }
 
     /// <summary>
@@ -146,53 +166,106 @@ internal sealed class GeneratedClipPlan
     /// El plan de un clip con generador, o nulo si no se dibuja (tipo desconocido). El estilo y la caja se copian: el plan
     /// no cambia si el modelo cambia después.
     /// </summary>
-    public static GeneratedClipPlan? From(Clip clip, int sequenceWidth, int sequenceHeight)
+    public static GeneratedClipPlan? From(Clip clip, int sequenceWidth, int sequenceHeight) =>
+        clip.Generator is { Kind: GeneratorKinds.Text } generator
+            ? Build(clip.Id, clip.TimeMap, clip.Duration, EffectPlan.From(clip.Effects), generator.Style, generator.Edges, generator.Box,
+                generator.Text, generator.Spans, generator.Words, sequenceWidth, sequenceHeight)
+            : null;
+
+    /// <summary>
+    /// Las capas de un clip de plantilla de movimiento (D-064), de abajo arriba: cada una un título con su ventana dentro del
+    /// clip (<see cref="TemplateLayer.Start"/> tras el borde izquierdo hasta <see cref="TemplateLayer.End"/> antes del
+    /// derecho, contando lo que el clip tenía antes de dividirse), su posición sumada a la del clip y los efectos del clip.
+    /// </summary>
+    public static IReadOnlyList<GeneratedClipPlan?> Layers(Clip clip, int sequenceWidth, int sequenceHeight)
     {
-        if (clip.Generator is not { Kind: GeneratorKinds.Text } generator)
+        if (clip.Generator is not { Kind: GeneratorKinds.Template, Template: { } template } generator)
         {
-            return null;
+            return [];
         }
 
-        TextStyle style = generator.Style?.Clone() ?? new TextStyle();
+        EffectPlan? effects = EffectPlan.From(clip.Effects);
+        GeneratorEdges edges = generator.Edges;
+        var plans = new GeneratedClipPlan?[template.Layers.Count];
+        for (int i = 0; i < plans.Length; i++)
+        {
+            TemplateLayer layer = template.Layers[i];
+            Time before = Time.FromSeconds(layer.Start) - edges.Before;
+            Time after = Time.FromSeconds(layer.End) - edges.After;
+            var window = new Clip
+            {
+                Id = clip.Id,
+                Start = clip.Start + Time.Max(Time.Zero, before),
+                SourceIn = clip.SourceIn + Time.Max(Time.Zero, before),
+                SourceOut = clip.SourceOut - Time.Max(Time.Zero, after),
+            };
+            if (window.Duration <= Time.Zero)
+            {
+                continue;
+            }
+
+            var layerEdges = new GeneratorEdges { In = edges.In, Out = edges.Out, Before = Time.Max(Time.Zero, -before), After = Time.Max(Time.Zero, -after) };
+            double unit = GeneratedContent.UnitScaleFor(layer.Style.Reference, sequenceWidth, sequenceHeight);
+            plans[i] = Build(clip.Id, window.TimeMap, window.Duration, effects, layer.Style, layerEdges, layer.Box, layer.Text, null, null,
+                sequenceWidth, sequenceHeight) is { } plan
+                ? new GeneratedClipPlan(plan, layer.X * unit, layer.Y * unit)
+                : null;
+        }
+
+        return plans;
+    }
+
+    private GeneratedClipPlan(GeneratedClipPlan source, double offsetX, double offsetY)
+        : this(source.ClipId, source.TimeMap, source.Content, source.Effects, source.Animation)
+    {
+        OffsetX = offsetX;
+        OffsetY = offsetY;
+        LoopLeadTicks = source.LoopLeadTicks;
+    }
+
+    private static GeneratedClipPlan Build(string clipId, ClipTimeMap map, Time duration, EffectPlan? effects, TextStyle? source, GeneratorEdges edges,
+        TextFrame? frame, string text, List<TextSpan>? textSpans, List<GeneratorWord>? spokenWords, int sequenceWidth, int sequenceHeight)
+    {
+        TextStyle style = source?.Clone() ?? new TextStyle();
 
         // Un borde sin animación no la necesita en la textura ni en la clave de la caché.
-        style.In = generator.Edges.In ? style.In : null;
-        style.Out = generator.Edges.Out ? style.Out : null;
+        style.In = edges.In ? style.In : null;
+        style.Out = edges.Out ? style.Out : null;
         double unit = GeneratedContent.UnitScaleFor(style.Reference, sequenceWidth, sequenceHeight);
-        double box = generator.Box switch
+        double box = frame switch
         {
-            { WidthFraction: > 0 and <= 1 } frame => frame.WidthFraction.Value * sequenceWidth,
-            { Width: > 0 } frame => frame.Width.Value * unit,
+            { WidthFraction: > 0 and <= 1 } f => f.WidthFraction.Value * sequenceWidth,
+            { Width: > 0 } f => f.Width.Value * unit,
             _ => 0,
         };
 
-        EffectPlan? effects = EffectPlan.From(clip.Effects);
-        TitleAnimation? animation = TitleAnimation.From(style, generator.Edges, clip.Duration, unit);
+        TitleAnimation? animation = TitleAnimation.From(style, edges, duration, unit);
         double unitScale = Math.Max(TextAnimator.From(style.In)?.MaxScale ?? 1, TextAnimator.From(style.Out)?.MaxScale ?? 1);
-        double scale = Math.Clamp(EffectPlan.MaxScale(effects) * (animation?.MaxScale ?? 1) * unitScale, MinRasterScale, MaxRasterScale);
-        IReadOnlyList<WordRange>? ranges = style.Highlight is not null && generator.Words is { Count: > 0 } spoken
-            ? SubtitleEdits.WordRanges(generator.Text, spoken)
+        double loopScale = style.Loop is { Kind: TextLoopKind.Pulse } loop ? 1 + 0.06 * loop.Amount : 1;
+        double scale = Math.Clamp(EffectPlan.MaxScale(effects) * (animation?.MaxScale ?? 1) * unitScale * loopScale, MinRasterScale, MaxRasterScale);
+        IReadOnlyList<WordRange>? ranges = style.Highlight is not null && spokenWords is { Count: > 0 } spoken
+            ? SubtitleEdits.WordRanges(text, spoken)
             : null;
         var extras = new TextExtras(
-            generator.Spans is { Count: > 0 } spans ? [.. spans] : null,
-            generator.Box?.HeightFraction is > 0 and <= 1 ? generator.Box.HeightFraction.Value * sequenceHeight : 0,
+            textSpans is { Count: > 0 } spans ? [.. spans] : null,
+            frame?.HeightFraction is > 0 and <= 1 ? frame.HeightFraction.Value * sequenceHeight : 0,
             ranges?.Select(r => r.Found ? (r.Start, r.Length) : (-1, 0)).ToArray());
-        var content = new GeneratedContent(generator.Kind, generator.Text, style, box, sequenceWidth, sequenceHeight, scale, extras: extras) { ClipId = clip.Id };
+        var content = new GeneratedContent(GeneratorKinds.Text, text, style, box, sequenceWidth, sequenceHeight, scale, extras: extras) { ClipId = clipId };
         List<(Time Start, GeneratedContent Content)>? words = null;
-        if (!content.UsesUnits && ranges is not null && generator.Words is { Count: > 0 } list)
+        if (!content.UsesUnits && ranges is not null && spokenWords is { Count: > 0 } list)
         {
             // Una textura por palabra: un subtítulo lleva pocas y se preparan por adelantado como cualquier título.
             words = new List<(Time, GeneratedContent)>(list.Count);
             for (int i = 0; i < list.Count; i++)
             {
                 GeneratedContent shown = ranges[i].Found
-                    ? new GeneratedContent(generator.Kind, generator.Text, style, box, sequenceWidth, sequenceHeight, scale, ranges[i].Start, ranges[i].Length, extras) { ClipId = clip.Id }
+                    ? new GeneratedContent(GeneratorKinds.Text, text, style, box, sequenceWidth, sequenceHeight, scale, ranges[i].Start, ranges[i].Length, extras) { ClipId = clipId }
                     : content;
                 words.Add((list[i].Start, shown));
             }
         }
 
-        return new GeneratedClipPlan(clip.Id, clip.TimeMap, content, effects, animation, words, generator.Words);
+        return new GeneratedClipPlan(clipId, map, content, effects, animation, words, spokenWords) { LoopLeadTicks = Math.Max(0, edges.Before.Ticks) };
 
     }
 
@@ -334,7 +407,7 @@ internal sealed class TitleAnimation
     {
         (double x, double y, double s, double r, double o) = TitleMotion.Compose(
             clip.X, clip.Y, clip.Scale, clip.RotationDegrees, clip.Opacity, dx, dy, scale, rotation, opacity);
-        return new LayerTransform(x, y, s, r, o);
+        return clip with { X = x, Y = y, Scale = s, RotationDegrees = r, Opacity = o };
     }
 
     private static Curve?[]? Curves(StyleAnimation? animation)

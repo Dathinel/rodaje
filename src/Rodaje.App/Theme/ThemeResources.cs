@@ -6,7 +6,7 @@ using Windows.UI.ViewManagement;
 namespace Rodaje.App.Theme;
 
 /// <summary>Las claves de Palette.xaml y Typography.xaml desde el código, y la paleta en el contraste alto de Windows.</summary>
-internal static class ThemeResources
+internal static partial class ThemeResources
 {
     public static Brush Brush(string key) => (Brush)Application.Current.Resources[key];
 
@@ -45,7 +45,7 @@ internal static class ThemeResources
 
         Set(Get(UIElementType.Window, 0x000000),
             "BackgroundBrush", "BarBrush", "PanelBrush", "ControlBrush", "ControlHoverBrush", "ControlPressedBrush",
-            "AccentSubtleBrush", "VideoClipBrush", "TextClipBrush", "AudioClipBrush");
+            "AccentSubtleBrush", "VideoTrackBrush", "AudioTrackBrush", "VideoClipBrush", "TextClipBrush", "AudioClipBrush");
         Set(Get(UIElementType.WindowText, 0xFFFFFF),
             "StrokeBrush", "ControlBorderBrush", "TextBrush", "TextMutedBrush", "VideoClipEdgeBrush", "TextClipEdgeBrush", "AudioClipEdgeBrush");
         Set(Get(UIElementType.GrayText, 0xA6A6A6), "TextDisabledBrush");

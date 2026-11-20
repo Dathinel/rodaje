@@ -163,6 +163,16 @@ internal sealed partial class TimelineScheduler
             media.Layers++;
             media.Priority = Math.Max(media.Priority, priority);
             media.Windows.Add(new Window(due, due + 1, Due: true, clip, Priority: priority, Approximate: approximate));
+            FrameSample sample = clip.SampleAt(time);
+            if (sample.T > 0)
+            {
+                if (due != sample.A)
+                {
+                    media.Windows.Add(new Window(sample.A, sample.A + 1, Due: true, clip, Priority: priority));
+                }
+
+                media.Windows.Add(new Window(sample.B, sample.B + 1, Due: true, clip, Priority: priority));
+            }
             if (!clip.Forward)
             {
                 // En reversa lo que viene está debajo: hasta el keyframe del GOP siguiente al de lo adelantado (dos GOP),
@@ -277,7 +287,7 @@ internal sealed partial class TimelineScheduler
     /// </summary>
     private bool CoversFrame(VideoLayerPlan layer, Time time)
     {
-        if (layer.ClipAt(time) is not { } clip || clip.Outgoing?.Covers(time) == true
+        if (layer.ClipAt(time) is not { } clip || clip.IsStillImage || clip.Outgoing?.Covers(time) == true
             || layer.Companion?.ClipAt(time) is not null || clip.DisplayWidth <= 0 || clip.DisplayHeight <= 0
             || (long)clip.DisplayWidth * _plan.Height != (long)clip.DisplayHeight * _plan.Width)
         {
@@ -678,7 +688,7 @@ internal sealed partial class TimelineScheduler
     {
         if (!_media.TryGetValue(clip.Source, out MediaState? media))
         {
-            media = new MediaState(_nextId++, clip.Source, clip.FrameRate, clip.DisplayWidth, clip.DisplayHeight);
+            media = new MediaState(_nextId++, clip.Source, clip.FrameRate, clip.DisplayWidth, clip.DisplayHeight) { IsStillImage = clip.IsStillImage };
             (media.PlaybackRate, media.Reverse) = _rates.GetValueOrDefault(clip.Source, (1, false));
             _media.Add(clip.Source, media);
             _mediaById.Add(media.Id, media);

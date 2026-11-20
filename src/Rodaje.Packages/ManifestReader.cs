@@ -172,6 +172,7 @@ public static class ManifestReader
             errors.Add($"El programa «{app}» de apps no es un identificador válido.");
         }
 
+        string? platform = Platform(root, format, kind, errors);
         List<PackageItem> items = Items(root, directory, errors, warnings);
         ModuleInfo? module = null;
         if (kind == PackageKind.Module)
@@ -207,6 +208,9 @@ public static class ManifestReader
             Apps = apps,
             Items = items,
             Module = module,
+            Platform = platform,
+            DeclaresModuleEntry = root.TryGetProperty("module", out JsonElement executable)
+                && executable.ValueKind == JsonValueKind.Object && executable.TryGetProperty("entry", out _),
         };
     }
 
@@ -367,6 +371,29 @@ public static class ManifestReader
         }
 
         return files;
+    }
+
+    /// <summary>
+    /// <c>platform</c> (formato 2): el RID del módulo. Va solo con el formato 2 o más, para que un editor que solo entiende
+    /// el 1 rechace el paquete entero en vez de instalar un ejecutable de otro sistema; y un módulo del formato 2 lo lleva siempre.
+    /// </summary>
+    private static string? Platform(JsonElement root, int format, PackageKind kind, List<string> errors)
+    {
+        string? platform = OptionalText(root, "platform", errors);
+        if (platform is not null && format < PackageManifest.PlatformFormatVersion)
+        {
+            errors.Add($"«platform» necesita «formatVersion» {PackageManifest.PlatformFormatVersion} o más.");
+        }
+        else if (platform is not null && !PackageManifest.KnownPlatforms.Contains(platform, StringComparer.Ordinal))
+        {
+            errors.Add($"«platform» «{platform}» no se conoce: usa {string.Join(", ", PackageManifest.KnownPlatforms)}.");
+        }
+        else if (platform is null && kind == PackageKind.Module && format >= PackageManifest.PlatformFormatVersion)
+        {
+            errors.Add($"Un módulo con «formatVersion» {format} lleva «platform» ({string.Join(", ", PackageManifest.KnownPlatforms)}).");
+        }
+
+        return platform;
     }
 
     private static ModuleInfo? Module(JsonElement root, string? directory, List<string> errors)
@@ -543,6 +570,7 @@ public static class ManifestReader
         "filter" => ItemKind.Filter,
         "lut" => ItemKind.Lut,
         "template" => ItemKind.Template,
+        "motion-template" => ItemKind.MotionTemplate,
         "sound" => ItemKind.Sound,
         "font" => ItemKind.Font,
         "safe-zones" => ItemKind.SafeZones,
@@ -558,6 +586,7 @@ public static class ManifestReader
         ItemKind.Filter => "filter",
         ItemKind.Lut => "lut",
         ItemKind.Template => "template",
+        ItemKind.MotionTemplate => "motion-template",
         ItemKind.Sound => "sound",
         ItemKind.Font => "font",
         ItemKind.SafeZones => "safe-zones",

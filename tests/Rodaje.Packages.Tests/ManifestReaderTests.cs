@@ -46,6 +46,7 @@ public sealed class ManifestReaderTests
     [InlineData("filter", ItemKind.Filter)]
     [InlineData("lut", ItemKind.Lut)]
     [InlineData("template", ItemKind.Template)]
+    [InlineData("motion-template", ItemKind.MotionTemplate)]
     [InlineData("sound", ItemKind.Sound)]
     [InlineData("font", ItemKind.Font)]
     [InlineData("safe-zones", ItemKind.SafeZones)]
@@ -54,6 +55,18 @@ public sealed class ManifestReaderTests
     {
         Assert.Equal(kind, ManifestReader.ParseItemKind(text));
         Assert.Equal(text, ManifestReader.FormatItemKind(kind));
+    }
+
+    [Fact]
+    public void Motion_template_y_template_de_proyecto_son_tipos_distintos()
+    {
+        ManifestResult result = ManifestReader.Read(Samples.Manifest(items: """
+            [{ "id": "rotulo", "kind": "motion-template", "name": "Rótulo", "file": "rotulo.json" },
+             { "id": "proyecto", "kind": "template", "name": "Proyecto", "file": "proyecto.rodaje" }]
+            """));
+        Assert.True(result.IsValid, string.Join(" ", result.Errors));
+        Assert.Empty(result.Warnings);
+        Assert.Equal([ItemKind.MotionTemplate, ItemKind.Template], result.Manifest!.Items.Select(i => i.Kind));
     }
 
     [Theory]
@@ -92,7 +105,7 @@ public sealed class ManifestReaderTests
     [Fact]
     public void A_newer_format_asks_to_update_the_program()
     {
-        ManifestResult result = ManifestReader.Read(Samples.Manifest().Replace("\"formatVersion\": 1", "\"formatVersion\": 2", StringComparison.Ordinal));
+        ManifestResult result = ManifestReader.Read(Samples.Manifest().Replace("\"formatVersion\": 1", "\"formatVersion\": 3", StringComparison.Ordinal));
 
         Assert.False(result.IsValid);
         Assert.Contains("actualiza el programa", Assert.Single(result.Errors), StringComparison.Ordinal);

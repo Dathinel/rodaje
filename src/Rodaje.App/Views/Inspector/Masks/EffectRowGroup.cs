@@ -13,7 +13,7 @@ namespace Rodaje.App.Views.Inspector.Masks;
 /// con keyframes, navegación, interpolación y restablecer. Quien la usa dice qué efecto se edita con <see cref="Target"/>.
 /// </summary>
 internal sealed class EffectRowGroup(Panel host, ClipPropertyEditor editor, Func<(Clip Clip, string Type, string EffectId)?> target,
-    Func<XamlRoot?> root, Action changed)
+    Func<XamlRoot?> root, Action changed, Func<IReadOnlyList<(Clip Clip, string? EffectId)>>? targets = null)
 {
     private readonly List<ParameterRow> _rows = [];
     private ParameterRow? _dragRow;
@@ -62,15 +62,17 @@ internal sealed class EffectRowGroup(Panel host, ClipPropertyEditor editor, Func
     }
 
     /// <summary>Muestra los valores en el cursor; devuelve cuántos keyframes tienen las filas.</summary>
-    public int Show(Clip clip, string effectId)
+    public int Show(Clip clip, string effectId, IReadOnlyList<(Clip Clip, string? EffectId)>? editingTargets = null)
     {
         bool inside = editor.IsPlayheadInside(clip);
         int keyframes = 0;
+        bool multi = editingTargets is { Count: > 1 };
         foreach (ParameterRow row in _rows)
         {
             ParameterState state = editor.Read(clip, _type!, row.Spec.Name, row.Spec.DefaultValue, effectId);
             keyframes += state.KeyframeCount;
-            row.Show(state, inside);
+            bool mixed = multi && editor.IsMixed(editingTargets!, _type!, row.Spec.Name, row.Spec.DefaultValue);
+            row.Show(state, inside, mixed);
         }
 
         return keyframes;
@@ -94,7 +96,15 @@ internal sealed class EffectRowGroup(Panel host, ClipPropertyEditor editor, Func
         if (!ReferenceEquals(_dragRow, row) || !editor.IsDragging)
         {
             _dragRow = row;
-            editor.BeginChange(t.Clip, t.Type, row.Spec.Name, row.Spec.Description, t.EffectId);
+            var list = targets?.Invoke();
+            if (list is { Count: > 1 })
+            {
+                editor.BeginChange(list, t.Type, row.Spec.Name, row.Spec.Description);
+            }
+            else
+            {
+                editor.BeginChange(t.Clip, t.Type, row.Spec.Name, row.Spec.Description, t.EffectId);
+            }
         }
 
         editor.Change(value);
@@ -116,7 +126,15 @@ internal sealed class EffectRowGroup(Panel host, ClipPropertyEditor editor, Func
     {
         if (sender is ParameterRow row && target() is { } t)
         {
-            editor.SetValue(t.Clip, t.Type, row.Spec.Name, value, row.Spec.Description, t.EffectId);
+            var list = targets?.Invoke();
+            if (list is { Count: > 1 })
+            {
+                editor.SetValue(list, t.Type, row.Spec.Name, value, row.Spec.Description);
+            }
+            else
+            {
+                editor.SetValue(t.Clip, t.Type, row.Spec.Name, value, row.Spec.Description, t.EffectId);
+            }
         }
     }
 
@@ -151,8 +169,17 @@ internal sealed class EffectRowGroup(Panel host, ClipPropertyEditor editor, Func
         if (sender is ParameterRow row && target() is { } t)
         {
             _dragRow = null;
-            await editor.ResetAsync(t.Clip, t.Type, [(row.Spec.Name, row.Spec.DefaultValue)], row.Spec.ResetDescription,
-                KeyframeDialog.ForReset(root(), row.Spec.Label), t.EffectId);
+            var list = targets?.Invoke();
+            if (list is { Count: > 1 })
+            {
+                await editor.ResetAsync(list, t.Type, [(row.Spec.Name, row.Spec.DefaultValue)], row.Spec.ResetDescription,
+                    KeyframeDialog.ForReset(root(), row.Spec.Label));
+            }
+            else
+            {
+                await editor.ResetAsync(t.Clip, t.Type, [(row.Spec.Name, row.Spec.DefaultValue)], row.Spec.ResetDescription,
+                    KeyframeDialog.ForReset(root(), row.Spec.Label), t.EffectId);
+            }
         }
     }
 

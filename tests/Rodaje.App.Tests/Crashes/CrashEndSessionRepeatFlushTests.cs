@@ -40,6 +40,7 @@ public class CrashEndSessionRepeatFlushTests
     }
 
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public async Task EndSession_LaSegundaVez_ConElCerrojoTomado_NoEsperaNiAnota()
     {
         using var dir = new TempDirectory();

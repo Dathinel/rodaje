@@ -111,13 +111,16 @@ public sealed class LongPathManifestTests
     private static List<string> ExecutableProjects(string root)
     {
         var projects = new List<string>();
-        foreach (string folder in new[] { "src", "modules" })
+        // El eco de módulos vive en el submódulo externo/sala; sigue siendo un ejecutable que publicamos.
+        foreach (string folder in new[] { "src", "modules", "externo/sala/modules" })
         {
             foreach (string project in Directory.EnumerateFiles(Path.Combine(root, folder), "*.csproj", SearchOption.AllDirectories))
             {
                 string? outputType = Property(project, "OutputType");
-                if (string.Equals(outputType, "Exe", StringComparison.OrdinalIgnoreCase)
-                    || string.Equals(outputType, "WinExe", StringComparison.OrdinalIgnoreCase))
+                // La app de Linux (Uno, net10.0-desktop) no lleva manifiesto de Windows.
+                bool unixOnly = Property(project, "TargetFramework") is { } tfm && tfm.EndsWith("-desktop", StringComparison.Ordinal);
+                if (!unixOnly && (string.Equals(outputType, "Exe", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(outputType, "WinExe", StringComparison.OrdinalIgnoreCase)))
                 {
                     projects.Add(project);
                 }

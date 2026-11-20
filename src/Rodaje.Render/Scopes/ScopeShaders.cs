@@ -14,11 +14,14 @@ internal static class ScopeShaders
 
     // source: ancho y alto de la imagen que se lee, paso del submuestreo y columnas de la forma de onda.
     // look: x = monitor (ScopeKind), y = ganancia del trazo, z = píxeles por columna de la forma de onda, w = píxeles en total.
+    // space: x > 0 si la composición es luz lineal BT.2020 de una secuencia HDR (1,0 = 203 nits): se recorta a SDR BT.709 como
+    // PresentHdr (D-055), así los monitores miden lo que se ve y lo que sale en una exportación SDR.
     private const string Source = """
         cbuffer Scope : register(b0)
         {
             uint4 source;
             float4 look;
+            float4 space;
         };
 
         static const uint Columns = 512;
@@ -46,6 +49,26 @@ internal static class ScopeShaders
             return counts.Load(index * 4);
         }
 
+        float Bt709(float x)
+        {
+            return x < 0.018 ? 4.5 * x : 1.099 * pow(x, 0.45) - 0.099;
+        }
+
+        float3 Read(uint2 pixel)
+        {
+            float3 rgb = image.Load(int3(pixel, 0)).rgb;
+            [branch] if (space.x > 0)
+            {
+                float3 light = saturate(mul(float3x3(
+                    1.660491, -0.587641, -0.072850,
+                    -0.124550, 1.132900, -0.008350,
+                    -0.018151, -0.100579, 1.118730), rgb));
+                rgb = float3(Bt709(light.r), Bt709(light.g), Bt709(light.b));
+            }
+
+            return saturate(rgb);
+        }
+
         [numthreads(16, 16, 1)]
         void CsAccumulate(uint3 id : SV_DispatchThreadID, uint lane : SV_GroupIndex)
         {
@@ -58,7 +81,7 @@ internal static class ScopeShaders
             uint2 pixel = id.xy * source.z;
             if (pixel.x < source.x && pixel.y < source.y)
             {
-                float3 rgb = saturate(image.Load(int3(pixel, 0)).rgb);
+                float3 rgb = Read(pixel);
                 float y = dot(rgb, LumaWeights);
                 uint4 level = (uint4)round(saturate(float4(rgb, y)) * 255.0);
                 uint column = min(pixel.x * Columns / source.x, Columns - 1);

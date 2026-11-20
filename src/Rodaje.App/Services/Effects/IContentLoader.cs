@@ -18,9 +18,15 @@ public interface IContentLoader
 
     TransitionPreset? LoadTransition(string reference);
 
+    /// <summary>Una transición, o la de una plantilla de movimiento instanciada con <paramref name="values"/> (D-064).</summary>
+    TransitionPreset? LoadTransition(string reference, string? values) => LoadTransition(reference);
+
     FilterPreset? LoadFilter(string reference);
 
     EffectPreset? LoadEffect(string reference);
+
+    /// <summary>Un efecto, o el de una plantilla de movimiento instanciada con <paramref name="values"/>.</summary>
+    EffectPreset? LoadEffect(string reference, string? values) => LoadEffect(reference);
 
     /// <summary>Un estilo de título; se copia al clip al aplicarlo (D-029), el motor nunca lo busca.</summary>
     TextStylePreset? LoadTextStyle(string reference);
@@ -50,7 +56,13 @@ public sealed class InstalledContentLoader(Func<PackageScan> installed) : IConte
         }
     }
 
-    public TransitionPreset? LoadTransition(string reference) => Read(reference, ItemKind.Transition, ContentReaders.ReadTransition);
+    public TransitionPreset? LoadTransition(string reference) => LoadTransition(reference, null);
+
+    public TransitionPreset? LoadTransition(string reference, string? values) =>
+        Read(reference, ItemKind.Transition, ContentReaders.ReadTransition)
+        ?? (Read(reference, ItemKind.MotionTemplate, ContentReaders.ReadTemplate) is { Kind: TemplateKind.Transition } template
+            ? TemplateInstantiator.Instantiate(template, values).Transition
+            : null);
 
     /// <summary>Un filtro, con sus opciones <c>./elemento</c> (la LUT de su paquete) ya como referencias completas.</summary>
     public FilterPreset? LoadFilter(string reference) =>
@@ -59,8 +71,13 @@ public sealed class InstalledContentLoader(Func<PackageScan> installed) : IConte
             : null;
 
     /// <summary>Un efecto animado, con sus opciones <c>./elemento</c> ya como referencias completas.</summary>
-    public EffectPreset? LoadEffect(string reference) =>
-        Read(reference, ItemKind.Effect, ContentReaders.ReadEffect) is { } effect && Owner(reference) is { } owner
+    public EffectPreset? LoadEffect(string reference) => LoadEffect(reference, null);
+
+    public EffectPreset? LoadEffect(string reference, string? values) =>
+        (Read(reference, ItemKind.Effect, ContentReaders.ReadEffect)
+            ?? (Read(reference, ItemKind.MotionTemplate, ContentReaders.ReadTemplate) is { Kind: TemplateKind.Effect } template
+                ? TemplateInstantiator.Instantiate(template, values).Effect
+                : null)) is { } effect && Owner(reference) is { } owner
             ? effect with { Effects = PackageContentStore.ResolveLocalReferences(effect.Effects, owner) }
             : null;
 

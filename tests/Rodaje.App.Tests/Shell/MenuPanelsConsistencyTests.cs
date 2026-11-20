@@ -12,7 +12,7 @@ public sealed class MenuPanelsConsistencyTests
         XElement menu = XDocument.Load(Path.Combine(root, "src", "Rodaje.App", "Shell", "TitleBar.xaml"))
             .Descendants(xaml + "MenuBar").Single();
         XElement panels = menu.Descendants(xaml + "MenuFlyoutSubItem").Single(e => (string?)e.Attribute("Text") == "Paneles");
-        string[] expected = ["inspector:Properties", "inspector:Text", "inspector:Speed", "inspector:Filters", "inspector:Masks", "inspector:Tracking", "inspector:Dynamics", "inspector:Transition", "inspector:History", "inspector:Jobs"];
+        string[] expected = ["inspector:Properties", "inspector:Text", "inspector:Speed", "inspector:Filters", "inspector:Masks", "inspector:Graph", "inspector:Tracking", "inspector:Dynamics", "inspector:Transition", "inspector:History", "inspector:Jobs"];
 
         Assert.Equal(expected, panels.Elements(xaml + "MenuFlyoutItem").Select(e => (string?)e.Attribute("Tag")));
         string inspector = File.ReadAllText(Path.Combine(root, "src", "Rodaje.App", "Views", "Inspector", "InspectorView.xaml.cs"));

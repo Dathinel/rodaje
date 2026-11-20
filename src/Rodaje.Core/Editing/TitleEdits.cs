@@ -94,6 +94,22 @@ public static class TitleEdits
         ctx.EnsureValid();
     }
 
+    /// <summary>Sustituye la copia del estilo en varios clips (D-029).</summary>
+    public static void SetStyles(EditContext ctx, IEnumerable<(string ClipId, TextStyle Style)> targets)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(targets);
+        foreach ((string clipId, TextStyle style) in targets)
+        {
+            if (ctx.Sequence.FindClip(clipId) is { Clip.Generator: { } generator })
+            {
+                generator.Style = style.Clone();
+            }
+        }
+
+        ctx.EnsureValid();
+    }
+
     public static void SetEdges(EditContext ctx, string clipId, bool? animateIn, bool? animateOut)
     {
         GeneratorEdges edges = Generator(ctx, clipId).Edges;

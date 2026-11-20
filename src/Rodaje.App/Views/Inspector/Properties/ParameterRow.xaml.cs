@@ -50,6 +50,7 @@ internal sealed partial class ParameterRow : UserControl
         ValueSlider.AddHandler(PointerReleasedEvent, new PointerEventHandler((_, _) => EndPointer()), true);
         ValueSlider.AddHandler(PointerCaptureLostEvent, new PointerEventHandler((_, _) => EndPointer()), true);
         ValueSlider.LostFocus += (_, _) => FinishChange();
+        NumberBoxCommit.CommitBeforeFocusLeaves(ValueBox);
         AttachScrub();
         SizeChanged += (_, e) => ApplyLayout(e.NewSize.Width);
         ApplyLayout(0);
@@ -112,7 +113,9 @@ internal sealed partial class ParameterRow : UserControl
 
     /// <param name="state">Estado en el cursor.</param>
     /// <param name="playheadInside">El cursor está dentro del clip: solo ahí se ponen keyframes.</param>
-    public void Show(ParameterState state, bool playheadInside)
+    /// <param name="mixed">Varios clips con valores distintos: el número queda en «—» hasta que se toca.</param>
+    /// <param name="canReset">Con varios clips, si alguno se puede restablecer; sin él, lo dice <paramref name="state"/>.</param>
+    public void Show(ParameterState state, bool playheadInside, bool mixed = false, bool? canReset = null)
     {
         ArgumentNullException.ThrowIfNull(state);
         ParameterSpec spec = Spec;
@@ -125,8 +128,10 @@ internal sealed partial class ParameterRow : UserControl
 
         if (ValueBox.FocusState == FocusState.Unfocused)
         {
-            ValueBox.Value = spec.ToBox(state.Value);
+            ValueBox.Value = mixed ? double.NaN : spec.ToBox(state.Value);
         }
+
+        ValueBox.PlaceholderText = mixed ? "—" : "";
 
         bool editable = !state.IsAnimated || playheadInside;
         ValueSlider.IsEnabled = editable;
@@ -144,7 +149,7 @@ internal sealed partial class ParameterRow : UserControl
         KeyframeButton.IsEnabled = playheadInside;
         PreviousButton.IsEnabled = state.Previous is not null;
         NextButton.IsEnabled = state.Next is not null;
-        ResetButton.IsEnabled = !state.IsDefault(spec.DefaultValue);
+        ResetButton.IsEnabled = canReset ?? !state.IsDefault(spec.DefaultValue);
         ResetItem.IsEnabled = ResetButton.IsEnabled;
         ClearKeyframesItem.IsEnabled = state.IsAnimated;
         KeyframeStrip.Visibility = state.IsAnimated && spec.Animatable ? Visibility.Visible : Visibility.Collapsed;
@@ -315,7 +320,15 @@ internal sealed partial class ParameterRow : UserControl
             return;
         }
 
-        Committed?.Invoke(this, _spec.ToModel(args.NewValue));
+        double model = _spec.ToModel(args.NewValue);
+        Committed?.Invoke(this, model);
+        double shown = _spec.ToBox(model);
+        if (shown != args.NewValue)
+        {
+            _updating = true;
+            ValueBox.Value = shown;
+            _updating = false;
+        }
     }
 
     private void OnKeyframeClick(object sender, RoutedEventArgs e)

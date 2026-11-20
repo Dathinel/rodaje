@@ -48,12 +48,18 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
     private readonly VideoDecoderOptions _options;
     private readonly GpuDevice? _device;
+
+    // GpuDevice solo existe en Windows: con dispositivo, el analizador de plataforma puede dar Windows por hecho.
+    [System.Runtime.Versioning.SupportedOSPlatformGuard("windows7.0")]
+    private bool HasDevice => _device is not null;
     private readonly int _streamIndex;
     private readonly AVRational _timeBase;
     private readonly long _originTs;
     private readonly long _frameDurationTs;
     private readonly AVColorSpace _streamColorSpace;
     private readonly AVColorRange _streamColorRange;
+    private readonly AVColorTransferCharacteristic _streamTransfer;
+    private readonly AVColorPrimaries _streamPrimaries;
     private GCHandle _self;
     private AVFormatContext* _format;
     private AVCodecContext* _codec;
@@ -62,6 +68,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
     private AVFrame* _held;
     private AVFrame* _pending;
     private FrameUploader? _uploader;
+    private DecodedFrame? _stillFrame;
     private DecoderSurfacePool? _surfacePool;
 
     private bool _hasHeld;
@@ -115,16 +122,18 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
             _timeBase = stream->time_base;
             _streamColorSpace = stream->codecpar->color_space;
             _streamColorRange = stream->codecpar->color_range;
+            _streamTransfer = stream->codecpar->color_trc;
+            _streamPrimaries = stream->codecpar->color_primaries;
             FrameRate = Stream.FrameRate;
             _originTs = Av.FromTime(Stream.StartTime, _timeBase);
             _frameDurationTs = Math.Max(1, (long)Av.RoundDiv((Int128)FrameRate.Den * _timeBase.den, (Int128)FrameRate.Num * _timeBase.num));
-            _device = options.Device is { IsDisposed: false } device ? device : null;
+            _device = OperatingSystem.IsWindowsVersionAtLeast(7) && options.Device is { IsDisposed: false } device ? device : null;
             OpenCodec(stream);
             _packet = ffmpeg.av_packet_alloc();
             _frame = ffmpeg.av_frame_alloc();
             _held = ffmpeg.av_frame_alloc();
             _pending = ffmpeg.av_frame_alloc();
-            if (_device is not null)
+            if (HasDevice)
             {
                 _uploader = new FrameUploader();
             }
@@ -198,6 +207,15 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
         try
         {
+            if (Info.IsStillImage)
+            {
+                frameIndex = 0;
+                if (_stillFrame is { } cached && cached.TryRetain())
+                {
+                    return cached;
+                }
+            }
+
             if (_codec == null)
             {
                 ReopenCodec();
@@ -207,7 +225,11 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
             {
                 // Se reabre en el próximo ResetDecoder; forzar la búsqueda lo provoca ya.
                 _forceSoftware = true;
-                _device?.RememberHardwareRefusal(StreamKey);
+                if (HasDevice)
+                {
+                    _device!.RememberHardwareRefusal(StreamKey);
+                }
+
                 _positionValid = false;
             }
 
@@ -271,6 +293,8 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
     public void Dispose()
     {
+        _stillFrame?.Dispose();
+        _stillFrame = null;
         if (_format == null)
         {
             return;
@@ -292,7 +316,11 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         AVFormatContext* format = _format;
         ffmpeg.avformat_close_input(&format);
         _format = null;
-        _uploader?.Dispose();
+        if (HasDevice)
+        {
+            _uploader?.Dispose();
+        }
+
         _uploader = null;
         _surfacePool?.Close();
         if (_self.IsAllocated)
@@ -314,7 +342,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         _codec = ffmpeg.avcodec_alloc_context3(codec);
         Av.Check(ffmpeg.avcodec_parameters_to_context(_codec, stream->codecpar), "avcodec_parameters_to_context");
         _codec->pkt_timebase = _timeBase;
-        if (!_forceSoftware && _options.AllowHardwareDecoding && _device is { SupportsHardwareDecoding: true } && WantsHardware(codec))
+        if (!_forceSoftware && _options.AllowHardwareDecoding && HasDevice && _device!.SupportsHardwareDecoding && WantsHardware(codec))
         {
             _self = GCHandle.Alloc(this);
             _codec->opaque = (void*)GCHandle.ToIntPtr(_self);
@@ -343,6 +371,7 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
     // Con D3D11VA el decodificador va con un solo hilo; si el hardware no puede con el flujo, se decide aquí y el
     // software arranca con todos los hilos en lugar de heredar ese único hilo.
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     private bool WantsHardware(AVCodec* codec)
     {
         if (_device!.HardwareRefused(StreamKey))
@@ -993,19 +1022,19 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
         IDisposable payload;
         long sizeBytes;
-        VideoColor color = VideoColor.Resolve(clone, _streamColorSpace, _streamColorRange);
+        VideoColor color = VideoColor.Resolve(clone, _streamColorSpace, _streamColorRange, _streamTransfer, _streamPrimaries);
         try
         {
-            if ((AVPixelFormat)clone->format == AVPixelFormat.AV_PIX_FMT_D3D11 && _device is not null)
+            if ((AVPixelFormat)clone->format == AVPixelFormat.AV_PIX_FMT_D3D11 && HasDevice)
             {
-                D3D11TexturePayload texture = D3D11TexturePayload.FromDecoderFrame(_device, clone, color, _surfacePool);
+                D3D11TexturePayload texture = D3D11TexturePayload.FromDecoderFrame(_device!, clone, color, _surfacePool);
                 clone = null;
                 payload = texture;
                 sizeBytes = TextureBytes(texture);
             }
-            else if (_device is not null && _uploader is not null && FrameUploader.CanUpload(_device, clone))
+            else if (HasDevice && _uploader is not null && (Info.IsStillImage || FrameUploader.CanUpload(_device!, clone)))
             {
-                D3D11TexturePayload texture = _uploader.Upload(_device, clone, color);
+                D3D11TexturePayload texture = Info.IsStillImage ? _uploader.UploadImage(_device!, clone) : _uploader.Upload(_device!, clone, color);
                 payload = texture;
                 sizeBytes = TextureBytes(texture);
             }
@@ -1029,11 +1058,25 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
 
         Time pts = Time.FromFrames(frameIndex, FrameRate);
         Time next = Time.FromFrames(frameIndex + 1, FrameRate);
-        return new DecodedFrame(frameIndex, pts, next - pts, payload, sizeBytes);
+        var result = new DecodedFrame(frameIndex, pts, next - pts, payload, sizeBytes);
+        if (Info.IsStillImage)
+        {
+            result.TryRetain();
+            _stillFrame = result;
+        }
+
+        return result;
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     private static long TextureBytes(D3D11TexturePayload texture) =>
-        (long)texture.CodedWidth * texture.CodedHeight * (texture.PixelFormat == FramePixelFormat.P010 ? 2 : 1) * 3 / 2;
+        (long)texture.CodedWidth * texture.CodedHeight * (texture.PixelFormat switch
+        {
+            FramePixelFormat.Rgba16 => 16,
+            FramePixelFormat.Bgra8 => 8,
+            FramePixelFormat.P010 or FramePixelFormat.P016 => 6,
+            _ => 3,
+        }) / 2;
 }
 
 /// <summary>Contadores acumulados de un <see cref="VideoDecoder"/>.</summary>

@@ -13,7 +13,11 @@
             <RowDefinition x:Name="TransportRow" Height="44" />
         </Grid.RowDefinitions>
 
-        <Grid x:Name="Header" Style="{StaticResource PanelHeaderStyle}" Padding="12,0,8,0">
+        <Grid x:Name="Header" Style="{StaticResource PanelHeaderStyle}" Height="Auto" Padding="12,4,8,4">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
                 <TextBlock Text="Reproductor" Style="{StaticResource PanelTitleTextStyle}" />
                 <DropDownButton x:Name="FormatButton" MinHeight="26" Padding="8,0" Margin="4,0,0,0" FontSize="{StaticResource BodyFontSize}"
@@ -30,7 +34,13 @@
                         ToolTipService.ToolTip="La vista previa usa un proxy: una copia liviana del medio. La exportación usa siempre los originales.">
                     <TextBlock Text="Proxy" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" />
                 </Border>
+                <Border x:Name="HdrBadge" Visibility="Collapsed" Background="{StaticResource ControlBrush}" BorderBrush="{StaticResource StrokeBrush}"
+                        BorderThickness="1" CornerRadius="{StaticResource ControlCornerRadius}" Padding="8,1">
+                    <TextBlock x:Name="HdrText" Style="{StaticResource CaptionTextStyle}" Foreground="{StaticResource TextBrush}" />
+                </Border>
             </StackPanel>
+            <ScrollViewer Grid.Row="1" HorizontalScrollBarVisibility="Auto" HorizontalScrollMode="Enabled"
+                          VerticalScrollBarVisibility="Disabled" VerticalScrollMode="Disabled" ZoomMode="Disabled">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="2" VerticalAlignment="Center">
                 <DropDownButton x:Name="QualityButton" Content="Auto" MinHeight="26" Padding="8,0" FontSize="{StaticResource BodyFontSize}"
                                 ToolTipService.ToolTip="Calidad de la vista previa. Auto baja la resolución al reproducir si la GPU no llega y vuelve a completa en pausa; la exportación usa siempre la completa.">
@@ -66,8 +76,11 @@
                 <ToggleButton x:Name="ScopesButton" Style="{StaticResource ToolToggleButtonStyle}" Content="&#xE9D2;"
                               FontFamily="{StaticResource IconFontFamily}" Click="OnScopesClick" AutomationProperties.Name="Monitores de imagen"
                               ToolTipService.ToolTip="Monitores de imagen: forma de onda, desfile RGB, vectorscopio e histograma" />
+                <Button x:Name="CaptureButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE722;" Click="OnCaptureClick"
+                        AutomationProperties.Name="Capturar fotograma" />
                 <Button x:Name="FullScreenButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE740;" Click="OnFullScreenClick" />
             </StackPanel>
+            </ScrollViewer>
         </Grid>
 
         <Grid x:Name="ViewerArea" Grid.Row="1" Background="{StaticResource ViewerSurroundBrush}">

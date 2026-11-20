@@ -42,9 +42,11 @@ public sealed unsafe class TitleTexture
     public TitleUnitSet? Units { get; init; }
 
     /// <summary><c>ID3D11ShaderResourceView*</c> de la textura; vale mientras el rasterizador la tenga en caché.</summary>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public nint ShaderResourceView => (nint)Target.Srv;
 
     internal RenderTarget Target { get; }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     internal ID3D11Texture2D* Texture => Target.Texture;
 }

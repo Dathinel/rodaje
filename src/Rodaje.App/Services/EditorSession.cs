@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -17,6 +18,9 @@ public enum EditKind
 
     /// <summary>Se pasó a ver otra secuencia (entrar o salir de un clip compuesto); el proyecto no cambió.</summary>
     SequenceChanged,
+
+    /// <summary>Un cambio de otra persona en una sala de colaboración, aplicado sin pasar por el historial.</summary>
+    External,
 }
 
 public sealed class ProjectEditedEventArgs(EditKind kind, ICommand? command) : EventArgs
@@ -64,7 +68,16 @@ public sealed partial class EditorSession : ObservableObject
     // Cuántas veces cambió el historial: dice si una excepción llegó antes o después de aplicar la edición.
     private long _historyChanges;
 
-    public EditorSession(IPlaybackEngine playback, IMediaProber prober, IEditorDialogs dialogs, IIdGenerator? ids = null, NewProjectTracks? newProjectTracks = null)
+    // El último aviso y si quedó retraído por caducar: con IsStale se reevalúa tras cada edición y al cambiar de proyecto.
+    private EditorNotification? _notice;
+    private bool _noticeStale;
+
+    // Durante un gesto el reproductor recibe como mucho una copia por cuadro: ya salió la de este cuadro, y hay cambios
+    // que todavía no tiene.
+    private bool _playbackFrame;
+    private bool _playbackStale;
+
+    public EditorSession(IPlaybackEngine playback, IMediaProber prober, IEditorDialogs dialogs, IIdGenerator? ids = null, NewProjectTracks? newProjectTracks = null, Settings.NewProjectFormat? newProjectFormat = null)
     {
         ArgumentNullException.ThrowIfNull(playback);
         ArgumentNullException.ThrowIfNull(prober);
@@ -74,6 +87,7 @@ public sealed partial class EditorSession : ObservableObject
         _dialogs = dialogs;
         _ids = ids ?? GuidIdGenerator.Instance;
         NewProjectTracks = newProjectTracks ?? NewProjectTracks.Default;
+        NewProjectFormat = newProjectFormat;
         _threadId = Environment.CurrentManagedThreadId;
         Project project = CreateEmptyProject();
         Project = project;
@@ -103,6 +117,12 @@ public sealed partial class EditorSession : ObservableObject
 
     /// <summary>Un aviso para la persona (errores al abrir, guardar, importar o editar).</summary>
     public event EventHandler<EditorNotification>? Notified;
+
+    /// <summary>
+    /// El último aviso con <see cref="EditorNotification.IsStale"/> dejó de valer (lo que anunciaba ya no es así tras la
+    /// edición o al abrir otro proyecto): la ventana lo cierra. Si vuelve a valer se repone por <see cref="Notified"/>.
+    /// </summary>
+    public event EventHandler<EditorNotification>? NotificationRetracted;
 
     public Project Project { get; private set; }
 
@@ -137,16 +157,57 @@ public sealed partial class EditorSession : ObservableObject
     /// <summary>Texto corto para la barra de título.</summary>
     public string SaveStateText => IsDirty ? "Sin guardar" : FilePath is null ? "Nuevo" : "Guardado";
 
+    /// <summary>
+    /// Cuándo se escribió por última vez el archivo del proyecto: al guardar, ahora; al abrir, la fecha del archivo.
+    /// <c>null</c> si el proyecto nunca se guardó. La barra de estado lo muestra como «Guardado hace N min».
+    /// </summary>
+    public DateTimeOffset? LastSavedAt { get; private set; }
+
+    private static DateTimeOffset? LastWriteOf(string? path)
+    {
+        if (path is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return File.Exists(path) ? new DateTimeOffset(File.GetLastWriteTimeUtc(path), TimeSpan.Zero) : null;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return null;
+        }
+    }
+
     /// <summary>Hay una apertura, un guardado o una importación en curso.</summary>
     public bool IsBusy => _busy > 0;
 
-    public bool CanUndo => History.CanUndo;
+    /// <summary>
+    /// En una sala de colaboración, deshacer y rehacer son solo de lo propio (parches inversos) y sustituyen al historial de
+    /// siempre, que restauraría la secuencia entera y borraría lo de los demás. <c>null</c> fuera de una sala.
+    /// </summary>
+    public ICollabHistory? CollabHistory { get; set; }
 
-    public bool CanRedo => History.CanRedo;
+    /// <summary>
+    /// Donde la sesión anuncia lo que tarda (abrir un proyecto, importar medios) para que la barra de avisos lo muestre con
+    /// su avance; nulo en las pruebas y mientras la ventana no lo puso.
+    /// </summary>
+    internal LongActions.LongActionService? ProgressHost { get; set; }
 
-    public string? UndoDescription => History.UndoDescription;
+    /// <summary>
+    /// Se llama antes de cambiar de proyecto (nuevo o abrir otro): <c>false</c> si la persona decide no hacerlo (por ejemplo,
+    /// porque iba a dejar una sala de colaboración). <c>null</c> fuera de una sala.
+    /// </summary>
+    public Func<Task<bool>>? BeforeProjectReplaced { get; set; }
 
-    public string? RedoDescription => History.RedoDescription;
+    public bool CanUndo => CollabHistory?.CanUndo ?? History.CanUndo;
+
+    public bool CanRedo => CollabHistory?.CanRedo ?? History.CanRedo;
+
+    public string? UndoDescription => CollabHistory is { } c ? c.UndoDescription : History.UndoDescription;
+
+    public string? RedoDescription => CollabHistory is { } c ? c.RedoDescription : History.RedoDescription;
 
     public bool IsInGesture => History.IsInGroup;
 
@@ -203,7 +264,7 @@ public sealed partial class EditorSession : ObservableObject
         }
         catch (EditException ex) when (_historyChanges == changes)
         {
-            Notify(NotificationSeverity.Warning, "No se pudo hacer", ex.Message);
+            Notify(NotificationSeverity.Warning, "No se pudo hacer", ClipLabels.NameClipsIn(Project, ex.Message));
             return false;
         }
 
@@ -234,6 +295,11 @@ public sealed partial class EditorSession : ObservableObject
     public bool Undo()
     {
         VerifyAccess();
+        if (CollabHistory is { } collab)
+        {
+            return collab.Undo();
+        }
+
         if (!History.CanUndo)
         {
             return false;
@@ -247,6 +313,11 @@ public sealed partial class EditorSession : ObservableObject
     public bool Redo()
     {
         VerifyAccess();
+        if (CollabHistory is { } collab)
+        {
+            return collab.Redo();
+        }
+
         if (!History.CanRedo)
         {
             return false;
@@ -261,8 +332,13 @@ public sealed partial class EditorSession : ObservableObject
     public bool JumpToHistory(int position)
     {
         VerifyAccess();
-        if (History.IsInGroup)
+        if (History.IsInGroup || CollabHistory is not null)
         {
+            if (CollabHistory is not null)
+            {
+                Notify(NotificationSeverity.Informational, "Mientras colaboras", "El historial es solo de tus cambios: usa Deshacer y Rehacer. Para volver atrás en un salto, sal de la sala.");
+            }
+
             return false;
         }
 
@@ -311,6 +387,10 @@ public sealed partial class EditorSession : ObservableObject
         }
 
         History.BreakMerge();
+        if (_playbackStale)
+        {
+            ReloadPlayback();
+        }
     }
 
     /// <summary>Revierte todo lo del gesto abierto (por ejemplo, Esc mientras se arrastra).</summary>
@@ -329,12 +409,14 @@ public sealed partial class EditorSession : ObservableObject
     {
         VerifyAccess();
         ArgumentNullException.ThrowIfNull(clipIds);
+        _wordSelection = null;
         SetSelection([.. clipIds.Distinct(StringComparer.Ordinal)]);
     }
 
     public void ToggleSelection(string clipId)
     {
         VerifyAccess();
+        _wordSelection = null;
         List<string> next = [.. _selection];
         if (!next.Remove(clipId))
         {
@@ -347,6 +429,7 @@ public sealed partial class EditorSession : ObservableObject
     public void ClearSelection()
     {
         VerifyAccess();
+        _wordSelection = null;
         SetSelection([]);
     }
 
@@ -363,6 +446,21 @@ public sealed partial class EditorSession : ObservableObject
     {
         Time end = PlaybackDuration;
         _playback.Seek(position < Time.Zero ? Time.Zero : position > end ? end : position);
+    }
+
+    /// <summary>
+    /// «Ir a tiempo»: lleva el cursor a lo escrito (<see cref="TimeInput"/>), con los saltos relativos desde la posición
+    /// del programa. <c>false</c> si el texto no es un tiempo; entonces no se mueve.
+    /// </summary>
+    public bool GoToTime(string? text)
+    {
+        if (!TimeInput.TryParse(text, Sequence.FrameRate, ProgramPosition, out Time target))
+        {
+            return false;
+        }
+
+        Seek(target);
+        return true;
     }
 
     public void SeekToStart() => Seek(Time.Zero);
@@ -402,9 +500,40 @@ public sealed partial class EditorSession : ObservableObject
         TransportChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Muestra un aviso en la ventana, con un botón si se da <paramref name="action"/>.</summary>
-    public void Notify(NotificationSeverity severity, string title, string message, NotificationAction? action = null) =>
-        Notified?.Invoke(this, new EditorNotification(severity, title, message, action));
+    /// <summary>
+    /// Muestra un aviso en la ventana, con botones opcionales si se dan <paramref name="action"/> y
+    /// <paramref name="secondaryAction"/>. Con <paramref name="isStale"/> el aviso caduca solo cuando deja de valer.
+    /// </summary>
+    public void Notify(NotificationSeverity severity, string title, string message, NotificationAction? action = null,
+        NotificationAction? secondaryAction = null, Func<bool>? isStale = null)
+    {
+        _notice = new EditorNotification(severity, title, message, action, secondaryAction, isStale);
+        _noticeStale = false;
+        Notified?.Invoke(this, _notice);
+    }
+
+    /// <summary>Reevalúa la caducidad del último aviso: lo retrae al dejar de valer y lo repone al volver a valer.</summary>
+    private void RefreshNotice()
+    {
+        if (_notice?.IsStale is not { } isStale)
+        {
+            return;
+        }
+
+        if (isStale())
+        {
+            if (!_noticeStale)
+            {
+                _noticeStale = true;
+                NotificationRetracted?.Invoke(this, _notice);
+            }
+        }
+        else if (_noticeStale)
+        {
+            _noticeStale = false;
+            Notified?.Invoke(this, _notice);
+        }
+    }
 
     /// <summary>Falla si se llama fuera del hilo que creó la sesión (el de la interfaz).</summary>
     public void VerifyAccess()
@@ -421,7 +550,58 @@ public sealed partial class EditorSession : ObservableObject
     /// <summary>La copia del proyecto que recibe el reproductor.</summary>
     private Project PlaybackProject() => IsSourceActive && SourceMedia is { } media ? SourceProject(media) : WithPreviewOff(Project.Clone());
 
-    private Project CreateEmptyProject() => NewProjectTracks.CreateProject(UntitledName, _ids);
+    /// <summary>
+    /// Programa una acción para el próximo cuadro de la interfaz. Con él, los pasos de un gesto llegan al reproductor como
+    /// mucho una vez por cuadro (el primero enseguida); sin él, cada uno enseguida.
+    /// </summary>
+    public Action<Action>? NextFrame { get; init; }
+
+    private void ReloadPlayback()
+    {
+        if (History.IsInGroup && NextFrame is { } nextFrame)
+        {
+            if (_playbackFrame)
+            {
+                _playbackStale = true;
+                return;
+            }
+
+            _playbackFrame = true;
+            nextFrame(OnPlaybackFrame);
+        }
+
+        _playbackStale = false;
+        _playback.Reload(PlaybackProject());
+    }
+
+    private void OnPlaybackFrame()
+    {
+        _playbackFrame = false;
+        if (_playbackStale)
+        {
+            ReloadPlayback();
+        }
+    }
+
+    /// <summary>Formato de los proyectos nuevos (Preferencias › Personalización); nulo deja 1080p a 30.</summary>
+    public Settings.NewProjectFormat? NewProjectFormat { get; set; }
+
+    private Project CreateEmptyProject()
+    {
+        Project project = NewProjectTracks.CreateProject(UntitledName, _ids);
+        if (NewProjectFormat is { } format)
+        {
+            Sequence sequence = project.Sequences[0];
+            (sequence.Width, sequence.Height, sequence.FrameRate) = (format.Width, format.Height, format.FrameRate);
+            // Un formato elegido en Preferencias se respeta como el de una plantilla: el primer video no lo pisa.
+            if (format != Settings.NewProjectFormat.Factory)
+            {
+                _templateProject = project;
+            }
+        }
+
+        return project;
+    }
 
     /// <summary>
     /// Cambia de proyecto: historial nuevo, selección vacía y el reproductor desde el principio. Con
@@ -447,7 +627,9 @@ public sealed partial class EditorSession : ObservableObject
         _selectedTransition = null;
         _editVersion++;
         FilePath = filePath;
+        LastSavedAt = LastWriteOf(filePath);
         _previewOff.Clear();
+        _playbackStale = false;
         _playback.Load(project.Clone(), sequenceId);
         RaiseHistoryProperties();
         OnPropertyChanged(nameof(Project));
@@ -455,6 +637,7 @@ public sealed partial class EditorSession : ObservableObject
         ProjectOpened?.Invoke(this, EventArgs.Empty);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         HistoryChanged?.Invoke(this, EventArgs.Empty);
+        RefreshNotice();
     }
 
     /// <summary>
@@ -490,11 +673,12 @@ public sealed partial class EditorSession : ObservableObject
 
         if (LeaveRemovedSequences() | lostSource)
         {
+            _playbackStale = false;
             _playback.Load(PlaybackProject(), PlaybackSequenceId);
         }
         else
         {
-            _playback.Reload(PlaybackProject());
+            ReloadPlayback();
         }
 
         try
@@ -505,7 +689,14 @@ public sealed partial class EditorSession : ObservableObject
         finally
         {
             var args = new ProjectEditedEventArgs(kind, command);
-            RaiseEach(ProjectEdited, handler => ((EventHandler<ProjectEditedEventArgs>)handler)(this, args));
+            try
+            {
+                RaiseEach(ProjectEdited, handler => ((EventHandler<ProjectEditedEventArgs>)handler)(this, args));
+            }
+            finally
+            {
+                RefreshNotice();
+            }
         }
     }
 
@@ -566,6 +757,23 @@ public sealed partial class EditorSession : ObservableObject
         _selection = selection;
         OnPropertyChanged(nameof(SelectedClipIds));
         SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Aplica un cambio que viene de fuera del historial (un parche de otra persona en una sala): lo hace <paramref name="mutate"/>
+    /// sobre el proyecto, queda con cambios sin guardar y el reproductor y las vistas se ponen al día como tras cualquier edición.
+    /// </summary>
+    internal void ApplyExternalChange(Action mutate)
+    {
+        VerifyAccess();
+        ArgumentNullException.ThrowIfNull(mutate);
+        mutate();
+        if (!History.IsInGroup)
+        {
+            History.MarkDirty();
+        }
+
+        AfterEdit(EditKind.External, null);
     }
 
     private void OnHistoryChanged(object? sender, EventArgs e)

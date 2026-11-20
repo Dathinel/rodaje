@@ -1,10 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <NoWarn>$(NoWarn);CA1707;CA1515;CA1861</NoWarn>
+    <!-- CA1416: las pruebas que tocan D3D11 llevan [GpuFact]/[ExportFact], que las omiten fuera de Windows (D-066, fase 4). -->
+    <NoWarn>$(NoWarn);CA1707;CA1515;CA1861;CA1416</NoWarn>
     <!-- La cobertura mide solo Rodaje.Export; ver coverlet.runsettings -->
     <RunSettingsFilePath>$(MSBuildThisFileDirectory)coverlet.runsettings</RunSettingsFilePath>
   </PropertyGroup>
@@ -16,11 +17,13 @@
   <ItemGroup>
     <!-- La espera de la limpieza pendiente tras cancelar, la misma que prueba Rodaje.Media.Tests con el ffmpeg falso -->
     <Compile Include="..\Rodaje.Media.Tests\Export\CanceledSinkCleanup.cs" Link="Cpu\CanceledSinkCleanup.cs" />
+    <Compile Include="..\Rodaje.Media.Tests\Export\FakeFfmpeg.cs" Link="Support\FakeFfmpeg.cs" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Export\Rodaje.Export.csproj" />
     <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
+    <ProjectReference Include="..\Rodaje.FakeFfmpeg\Rodaje.FakeFfmpeg.csproj" />
   </ItemGroup>
 
   <ItemGroup>

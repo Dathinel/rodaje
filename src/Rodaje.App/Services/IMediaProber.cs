@@ -21,7 +21,7 @@ public interface IMediaProber
 /// </summary>
 public sealed class PrefetchingProber(IMediaProber inner) : IMediaProber
 {
-    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Task<MediaProbeResult>> _pending =
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, Lazy<Task<MediaProbeResult>>> _pending =
         new(StringComparer.OrdinalIgnoreCase);
 
     public void Prefetch(IEnumerable<string> paths)
@@ -30,12 +30,17 @@ public sealed class PrefetchingProber(IMediaProber inner) : IMediaProber
         foreach (string path in paths)
         {
             string full = System.IO.Path.GetFullPath(path);
-            _pending.TryAdd(full, Task.Run(() => inner.Probe(full)));
+            var pending = new Lazy<Task<MediaProbeResult>>(() => Task.Run(() => inner.Probe(full)));
+            if (_pending.TryAdd(full, pending))
+            {
+                // Probe puede consumir la entrada antes de llegar aquí: Lazy inicia la tarea una sola vez.
+                _ = pending.Value;
+            }
         }
     }
 
     public MediaProbeResult Probe(string path) =>
-        _pending.TryRemove(path, out Task<MediaProbeResult>? early) ? early.GetAwaiter().GetResult() : inner.Probe(path);
+        _pending.TryRemove(path, out Lazy<Task<MediaProbeResult>>? early) ? early.Value.GetAwaiter().GetResult() : inner.Probe(path);
 }
 
 /// <summary>Lectura real con FFmpeg.</summary>

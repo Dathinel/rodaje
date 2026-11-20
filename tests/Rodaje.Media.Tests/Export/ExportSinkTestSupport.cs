@@ -131,9 +131,9 @@ internal sealed class ExportScratch : IDisposable
 
     public string Combine(string name) => Path.Combine(Directory, name);
 
-    /// <summary>Archivos que quedan en la carpeta (para comprobar que no quedan temporales).</summary>
+    /// <summary>Archivos que quedan en la carpeta, ordenados (el orden de enumeración de ext4 depende de cada sistema de archivos; para comprobar que no quedan temporales).</summary>
     public string[] Leftovers(params string[] except) =>
-        [.. System.IO.Directory.EnumerateFileSystemEntries(Directory).Where(p => !except.Contains(p, StringComparer.OrdinalIgnoreCase))];
+        [.. System.IO.Directory.EnumerateFileSystemEntries(Directory).Where(p => !except.Contains(p, StringComparer.OrdinalIgnoreCase)).Order(StringComparer.OrdinalIgnoreCase)];
 
     /// <summary>WAV float de un tono de 440 Hz a <paramref name="amplitude"/>.</summary>
     public string Tone(string name, double seconds, ExportAudioFormat? format = null, double amplitude = 0.25)

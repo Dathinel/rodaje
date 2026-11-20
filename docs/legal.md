@@ -43,6 +43,19 @@ Las DLL, `ffmpeg.exe` y `ffprobe.exe` son una compilación propia: `build\compil
 - **Código fuente de FFmpeg:** commit `2a571b606854520cf89804d8030c8b328e621689` de la rama `release/9.0` (https://github.com/FFmpeg/FFmpeg/commit/2a571b606854520cf89804d8030c8b328e621689).
 - **Scripts de compilación:** commit `6c9aec5fc9a72ec3abedd1fa84db141fa18cf52b` de BtbN/FFmpeg-Builds, con los cambios que aplica `build\compilar-ffmpeg-lgpl.sh` (etapas quitadas, imagen `base-win64` y FFmpeg fijados, `--extra-version=rodaje`, menos trabajos en paralelo).
 - **Fuente correspondiente:** `rodaje-ffmpeg-lgpl-fuente.tar` (2,1 GB, SHA-256 `81dd3e47394d3cacf597e7bdf8dbf4698b48bed07da3a444c704ca69354726ba`): el tarball de cada etapa tal como lo montó el Dockerfile generado, FFmpeg, los scripts de BtbN y los propios, con huellas. Se publica junto al zip.
+
+### Linux x64 y macOS arm64 (D-066)
+
+El mismo FFmpeg (`2a571b6`, `--extra-version=rodaje`, LGPL v3) compilado en GitHub Actions por `.github/workflows/ffmpeg-lgpl.yml`; detalle de la receta en [ffmpeg-lgpl-unix.md](ffmpeg-lgpl-unix.md). Los paquetes llevan `bin/ffmpeg`, `bin/ffprobe` (sin `ffplay`), `lib/` con las siete bibliotecas compartidas, `configure.txt`, `auditoria.txt` y los avisos de licencia. **Publicados** en la release `ffmpeg-n9.0.2-17-g2a571b6068-rodaje1` (16-nov-2026, aprobado por Daniel) junto a su fuente correspondiente, sus `.sha256`, `configure-*.txt` y `auditoria-*.txt`; `preparar-entorno.ps1` los baja de ahí y comprueba la huella.
+
+| | Linux x64 (`linux64-lgpl-shared`) | macOS arm64 (`macarm64-lgpl-shared`) |
+|---|---|---|
+| Receta | `build/compilar-ffmpeg-lgpl-linux.sh`: la variante de BtbN de Windows con las **mismas exclusiones** (chromaprint, libzvbi, plugins GPL de lcms2), imagen `base-linux64` fijada por huella, RPATH `$ORIGIN` | `build/compilar-ffmpeg-lgpl-mac.sh`: FFmpeg y ocho bibliotecas no GPL compiladas desde tarballs fijados por SHA-256 (`build/ffmpeg-lgpl-fuentes.txt`): OpenH264, dav1d, libvpx, Opus, LAME, SVT-AV1, Kvazaar y libwebp, estáticas; VideoToolbox, AudioToolbox y zlib del sistema; `--disable-autodetect` |
+| Paquete y SHA-256 | `ffmpeg-n9.0.2-17-g2a571b6068-rodaje1-linux64-lgpl-shared-9.0.tar.xz` (52 MB), `4610084100dcf301ddda208a95e65171aec6e696bc027c54fceed397ddc9405f` | `ffmpeg-n9.0.2-17-g2a571b6068-rodaje1-macarm64-lgpl-shared-9.0.tar.xz`, `f041be2416542d7882b6db31d040ca97d2f999508722340aafb2a3c9d1f7050f` |
+| Fuente correspondiente | `rodaje-ffmpeg-lgpl-fuente-linux-x64.tar.xz` (2,0 GB), `907740882e376094da89af572a063cb4a97e78c2ec59e675f74171039ee56d01`: FFmpeg, BtbN, el árbol de cada etapa tal como lo montó el Dockerfile generado, la imagen fijada y la receta | `rodaje-ffmpeg-lgpl-fuente-osx-arm64.tar.xz` (103 MB), `08e2331f768e6e66f88e17c403ef8b9f784b45e6b7062dd1f73fbb614b6a399b`: los nueve tarballs, la receta, las versiones de las herramientas y `config.log` |
+| Auditoría (`build/auditar-ffmpeg.sh`) | 9 binarios; solo las bibliotecas propias, glibc (`libc`, `libm`, `libmvec`, `libpthread`, `libdl`, `librt`, `ld-linux`) y `libgcc_s` del sistema; RPATH `$ORIGIN`; `-L` LGPL v3; `-buildconf` sin `gpl`, `nonfree`, chromaprint, libzvbi, x264 ni x265 | 9 binarios; solo `@rpath` propios, `/usr/lib/libSystem`, `/usr/lib/libz`, `/usr/lib/libc++` y frameworks del sistema (AudioToolbox, CoreAudio, VideoToolbox, CoreMedia, CoreVideo, CoreFoundation, CoreServices); `-L` LGPL v3; `-buildconf` sin `gpl`, `nonfree` ni bibliotecas GPL |
+
+La auditoría rechaza el paquete si una biblioteca o un ejecutable depende de algo fuera de una lista cerrada (en Linux, glibc y el runtime de GCC del sistema, que no viajan en el paquete), si una ruta de carga no es relativa, si `-L` no dice LGPL v3 o si `-buildconf` activa algo GPL o no libre. El runtime de GCC (`libgcc_s`) y `libc++` de Apple son bibliotecas del sistema: no se distribuyen.
 ### `ffmpeg.exe` para proxies y exportación
 
 La distribución lleva el `ffmpeg.exe` de la misma compilación en `ffmpeg\`, junto a las DLL, más `avfilter-12.dll` y `avdevice-63.dll`, que solo él importa (`ffprobe.exe` y `ffplay.exe` no se copian). Rodaje lo ejecuta como proceso aparte para los proxies y la exportación: argumentos con `ProcessStartInfo.ArgumentList`, cuadros por la entrada estándar y avance por `-progress`. Ejecutar un programa LGPL como proceso separado no lo enlaza con Rodaje; las obligaciones son las mismas que para las DLL: sin modificar ni renombrar, con su licencia, su fuente y su línea de configure.
@@ -112,6 +125,12 @@ Las licencias de software no resuelven las patentes. Rodaje reduce la exposició
 - **ProRes, DNxHR, CineForm:** los codificadores son implementaciones propias de FFmpeg; sin verificar si Apple, Avid o GoPro exigen licencia de patentes. Sus nombres se usan solo para describir el formato.
 
 El autor no distribuye Rodaje comercialmente. La GPLv3 permite que terceros lo vendan, y la exposición a patentes de cada distribuidor es suya (Sección 11). Antes de una distribución comercial hay que consultarlo con alguien de propiedad intelectual.
+
+## Maquetación de títulos en Linux y macOS (D-066, fase 5)
+
+`src/Rodaje.Text` usa HarfBuzzSharp 14.4.0.100 (MIT) y HarfBuzz («Old MIT»). `Rodaje.Render` usa su maquetación y SkiaSharp 4.156.0 con SkiaSharp.NativeAssets.Linux 4.156.0 para dibujar los títulos del motor Vulkan. **Decisión aceptada por Daniel el 17-nov-2026:** FreeType se toma con la **FTL**; el código GIF, bajo **MPL 1.1/LGPL 2.1**, sin elegir la GPL 2.0; se acepta el **DNG SDK de Adobe con su cláusula de indemnización** (sección 5 del acuerdo incluido). ICU, libjpeg-turbo, libpng y libwebp se toman con sus licencias permisivas. La decisión sustituye la pregunta pendiente sobre Skia; no modifica los términos de cada componente.
+
+Se leyó el `THIRD-PARTY-NOTICES.txt` de SkiaSharp.NativeAssets.Linux **4.156.0** y se conserva [íntegro, sin traducción](licencias/SkiaSharp-4.156.0-NOTICES.txt). Enumera ANGLE (BSD), HarfBuzz (Old MIT), Skia (BSD), etc1 (Apache-2.0), gif, libpng, DNG SDK, expat (MIT), freetype, ICU (licencias ICU/Unicode y avisos de datos), imgui (MIT), jsoncpp (MIT/dominio público), libjpeg-turbo (IJG, BSD y zlib), libwebp (BSD), piex y sfntly (Apache-2.0), sdl (zlib), SPIR-V Headers (MIT), SPIR-V Tools (Apache-2.0) y zlib. Es el aviso común de SkiaSharp/HarfBuzzSharp, no un inventario de símbolos por plataforma; se conserva completo sin afirmar que ANGLE, SDL u otros auxiliares estén enlazados en cada binario. La distribución debe conservar estos avisos, acreditar FreeType como pide la FTL, conservar la atribución DNG de Adobe y cumplir las obligaciones de fuente/reemplazo de la alternativa GIF elegida.
 
 ## Compatibilidad con la GPLv3
 
@@ -191,7 +210,7 @@ Rodaje no envía telemetría ni datos de uso. La red solo se usa para descargar 
 
 ## Avisos de terceros
 
-`THIRD-PARTY-NOTICES.txt` contiene los avisos de los componentes que viajan con el programa; `build\app.ps1` lo copia junto a `Rodaje.exe` y debe acompañar siempre al ejecutable. Hoy está incompleto (ver pendientes). `LICENCIAS.md` es la vista para desarrolladores e incluye también lo que solo se usa para compilar o probar.
+`THIRD-PARTY-NOTICES.txt` contiene los avisos de los componentes que viajan con el programa; `build\app.ps1` lo copia junto a `Rodaje.exe` y debe acompañar siempre al ejecutable. Hoy está incompleto (ver pendientes). `LICENCIAS.md` es la vista para desarrolladores e incluye también lo que solo se usa para compilar o probar. Las herramientas usadas exclusivamente al compilar (como `Microsoft.Direct3D.DXC` 1.9.2609.5 bajo licencia LLVM/NCSA, usado por la herramienta de shaders para emitir SPIR-V) no se distribuyen con el programa.
 
 ## Lista de comprobación antes de distribuir
 

@@ -24,7 +24,6 @@ internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore setti
             SecondaryButtonText = "No guardar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
         return await DialogGate.ShowAsync(dialog) switch
         {
@@ -50,7 +49,6 @@ internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore setti
             PrimaryButtonText = confirmText,
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
         };
         return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
     }

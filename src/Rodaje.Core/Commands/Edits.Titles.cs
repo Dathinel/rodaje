@@ -40,6 +40,31 @@ public static partial class Edits
             ids);
     }
 
+    /// <summary>
+    /// Cambia los valores de una plantilla de movimiento con sus capas ya instanciadas (D-064): un paso. Con
+    /// <paramref name="mergeKey"/> (teclear, un deslizador) los pasos seguidos se funden.
+    /// </summary>
+    public static SequenceEditCommand SetTemplateValues(string sequenceId, string clipId, Dictionary<string, System.Text.Json.JsonElement> values,
+        List<TemplateLayer> layers, IIdGenerator? ids = null, string? mergeKey = null)
+    {
+        var valuesCopy = new Dictionary<string, System.Text.Json.JsonElement>(values);
+        List<TemplateLayer> layersCopy = layers.ConvertAll(l => l.Clone());
+        return new("Cambiar la plantilla", sequenceId, ctx => TemplateEdits.SetValues(ctx, clipId, valuesCopy, layersCopy), ids,
+            mergeKey is null ? null : $"template-values:{clipId}:{mergeKey}");
+    }
+
+    /// <summary>«Actualizar a X»: cambia la plantilla del clip por una versión más nueva ya instanciada (D-064): un paso.</summary>
+    public static SequenceEditCommand ReplaceTemplate(string sequenceId, string clipId, GeneratorTemplate template, IIdGenerator? ids = null)
+    {
+        GeneratorTemplate copy = template.Clone();
+        return new("Actualizar la plantilla", sequenceId, ctx => TemplateEdits.Replace(ctx, clipId, copy), ids);
+    }
+
+    /// <summary>«Convertir en títulos»: un título por capa de la plantilla (D-064).</summary>
+    /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: los títulos de abajo arriba y las pistas creadas.</remarks>
+    public static SequenceEditCommand ConvertTemplateToTitles(string sequenceId, string clipId, IIdGenerator? ids = null) =>
+        new("Convertir en títulos", sequenceId, ctx => TemplateEdits.ConvertToTitles(ctx, clipId), ids);
+
     /// <summary>Cambia el texto. Se funde por clip: una tanda de tecleo es un paso hasta el siguiente <c>BreakMerge</c>.</summary>
     public static SequenceEditCommand SetTitleText(string sequenceId, string clipId, string text, IIdGenerator? ids = null) =>
         new("Escribir texto", sequenceId, ctx => TitleEdits.SetText(ctx, clipId, text), ids, $"title-text:{clipId}");
@@ -65,6 +90,23 @@ public static partial class Edits
             ctx => TitleEdits.SetStyle(ctx, clipId, copy),
             ids,
             mergeKey is null ? null : $"title-style:{clipId}:{mergeKey}");
+    }
+
+    /// <summary>Sustituye la copia del estilo en varios clips en un único paso de deshacer.</summary>
+    public static SequenceEditCommand SetTitleStyles(
+        string sequenceId,
+        IEnumerable<(string ClipId, TextStyle Style)> targets,
+        string? mergeKey = null,
+        IIdGenerator? ids = null)
+    {
+        ArgumentNullException.ThrowIfNull(targets);
+        (string ClipId, TextStyle Style)[] list = targets.Select(t => (t.ClipId, t.Style.Clone())).ToArray();
+        return new(
+            "Cambiar estilo del texto",
+            sequenceId,
+            ctx => TitleEdits.SetStyles(ctx, list),
+            ids,
+            mergeKey is null ? null : $"title-styles:{mergeKey}");
     }
 
     public static SequenceEditCommand SetTitleEdges(string sequenceId, string clipId, bool? animateIn, bool? animateOut, IIdGenerator? ids = null) =>

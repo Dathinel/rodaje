@@ -1,4 +1,4 @@
-# Formato `.paquete` (`formatVersion` 1)
+# Formato `.paquete` (`formatVersion` 1 y 2)
 
 Un paquete es la forma en que llega a Rodaje todo lo que no es código del motor: transiciones, estilos de texto, efectos armados con las primitivas, filtros, LUT, plantillas y sonidos. También describe los módulos de IA, que son programas aparte. La [arquitectura](arquitectura/README.md#núcleo-contenido-e-ia) fija las reglas de fondo: un paquete de contenido **nunca trae código**, cada paquete vive en su propio repositorio de GitHub y el formato se comparte con otros programas de Dathinel. Por eso la lógica está en `src/Rodaje.Packages`, una biblioteca sin dependencias ni WinUI que puede salir tal cual a su propio repositorio cuando otro programa la necesite.
 
@@ -48,9 +48,10 @@ rodaje-transiciones.paquete
 | `repository` | No | Repositorio de origen: solo `https`, sin usuario ni contraseña y con el dominio en ASCII (se rechazan los dominios internacionales, también escritos como `xn--`, porque permiten imitar a otro con letras parecidas). |
 | `apps` | Sí | Programas en los que funciona, por su id (`rodaje`, `editor-audio`…). El instalador de cada programa rechaza lo que no lo nombra. |
 | `items` | No | Elementos, cada uno con `id` (único en el paquete), `kind`, `name` y, si los necesita, `file`, `description`, `license` (cuando no es la del paquete) y `preview`. |
+| `platform` | Solo en el formato 2 | RID del sistema para el que se compiló el módulo: `win-x64`, `linux-x64` u `osx-arm64` (D-066). Un módulo del formato 2 lo lleva siempre; en el formato 1 está prohibido, para que un editor que solo entiende el 1 rechace el paquete entero en vez de instalar un ejecutable de otro sistema. El instalador rechaza un módulo de otro sistema. Los módulos de Windows y el contenido siguen en el formato 1, sin plataforma, y los editores ya publicados los instalan igual. |
 | `module` | Solo en módulos | `entry` (ejecutable relativo), `protocol` (versión del protocolo de módulos) y `functions` (lo que ofrece); opcionales `vramMb`, `runtime` y `models` ([Módulos de IA](#módulos-de-ia)). |
 
-Los tipos de elemento son `transition`, `text-style`, `effect`, `filter`, `lut`, `template`, `sound`, `font`, `safe-zones` y `export-preset`. La biblioteca los reparte por categoría: Texto muestra `text-style`; Efectos, `effect`; Transiciones, `transition`; Filtros, `filter` y `lut`; Audio, `sound`. Las plantillas se ven en la página de complementos hasta que exista su panel; las zonas (`safe-zones`), en el botón de zonas seguras del visor; los preajustes de exportación (`export-preset`), en el diálogo de exportar. El contenido de los archivos `lut`, `filter`, `effect`, `transition`, `text-style`, `safe-zones`, `sound` y `export-preset` está en [Contenido de los elementos](#contenido-de-los-elementos); de `template` el formato solo garantiza que el archivo existe y está dentro del paquete.
+Los tipos de elemento son `transition`, `text-style`, `effect`, `filter`, `lut`, `template`, `motion-template`, `sound`, `font`, `safe-zones` y `export-preset`. La biblioteca los reparte por categoría: Texto muestra `text-style`; Efectos, `effect`; Transiciones, `transition`; Filtros, `filter` y `lut`; Audio, `sound`. Las plantillas de proyecto (`template`) se ven en la página de complementos, y las de movimiento (`motion-template`) también hasta que exista su categoría «Plantillas» en la biblioteca; las zonas (`safe-zones`), en el botón de zonas seguras del visor; los preajustes de exportación (`export-preset`), en el diálogo de exportar. El contenido de los archivos `lut`, `filter`, `effect`, `transition`, `text-style`, `safe-zones`, `sound`, `export-preset` y `motion-template` está en [Contenido de los elementos](#contenido-de-los-elementos); de `template` el formato solo garantiza que el archivo existe y está dentro del paquete.
 
 **Fuentes (`font`, D-029).** Una familia por elemento, con sus archivos sin modificar en `files` (o uno en `file`): de 1 a 32 `.ttf`, `.otf`, `.ttc` u `.otc`, cada uno de hasta 20 MB y la familia de hasta 100 MB. `license` es obligatoria (por ejemplo `OFL-1.1`): una fuente de terceros no tiene la licencia del paquete. Rodaje solo registra en su colección privada de DirectWrite (no en Windows) los archivos que un elemento `font` declara, nunca otros archivos del paquete ni fuentes sueltas de un proyecto; un archivo que DirectWrite rechaza deja esa familia con su respaldo. Al instalar se avisa de cuánto ocupan. Un estilo apunta a la familia con `font.family` y a su elemento con `font.source`.
 
@@ -228,6 +229,38 @@ En la biblioteca (Audio) un sonido se escucha antes («Escuchar» en su menú), 
 **Entrelazado.** Con `tff` o `bff` la exportación compone a la tasa de campos (50 o 59,94 por segundo) y FFmpeg teje cada par con filtros LGPL: `setfield`, `separatefields`, `select` (el primer campo del cuadro par y el segundo del impar) y `weave`, con `-flags +ildct`. Solo ProRes lo codifica (DNxHR es progresivo) y nunca se usa la copia directa.
 
 **Video 360.** Con `equirectangular` (MP4 o MOV y salida 2:1), después de FFmpeg `SphericalMetadata` añade `st3d` (mono) y `sv3d` (`svhd`, `proj` con `prhd` y `equi`) al final de la entrada de muestra del video, corrige el tamaño de sus contenedores y, si el `moov` va antes de los datos, los desplazamientos de `stco`/`co64`. ffprobe lo lee como «Spherical Mapping: equirectangular».
+
+### `motion-template`: `rodaje.template` v1
+
+Una plantilla de movimiento (D-064): un título de varias capas, una transición o un efecto con **parámetros con nombre** que quien edita cambia en el inspector sin ver capas ni keyframes. No trae nada nuevo que dibujar: es el contenido de siempre (`body`) más los huecos (`parameters`) que apuntan dentro de él. `template` es otro tipo (plantillas de proyecto) y no se mezcla con este.
+
+```json
+{ "format": "rodaje.template", "version": 1, "name": "Rótulo inferior Barra", "kind": "title",
+  "reference": { "width": 1920, "height": 1080 }, "durationSeconds": 5, "minSeconds": 1.5,
+  "body": { "layers": [
+    { "id": "nombre", "text": "Nombre Apellido", "start": 0, "x": -560, "y": 380, "box": { "widthFraction": 0.5 },
+      "style": { "format": "rodaje.textstyle", "version": 2, "name": "n", "font": { "family": "Inter", "weight": 700 }, "size": 64,
+                 "background": { "color": "#E63946", "padding": [24, 10] } } },
+    { "id": "cargo", "text": "Cargo", "start": 0.2, "x": -560, "y": 450,
+      "style": { "format": "rodaje.textstyle", "version": 2, "name": "c", "font": { "family": "Inter", "weight": 400 }, "size": 40 } } ] },
+  "parameters": [
+    { "id": "nombre", "label": "Nombre", "type": "text", "targets": ["layers/nombre/text"] },
+    { "id": "cargo", "label": "Cargo", "type": "text", "targets": ["layers/cargo/text"] },
+    { "id": "acento", "label": "Color de acento", "type": "color", "targets": ["layers/nombre/style/background/color"] },
+    { "id": "fuente", "label": "Fuente", "type": "font", "targets": ["layers/nombre/style/font", "layers/cargo/style/font"] } ] }
+```
+
+| Campo | Regla |
+|---|---|
+| `kind` | `title` (títulos y rótulos de varias capas), `transition` o `effect` |
+| `body` | En `title`, `layers`: de 1 a 16 capas de texto con `id` único, `text` (las reglas del título: hasta 10 000 caracteres y 200 líneas), `style` (un `rodaje.textstyle` completo), `x`, `y` (píxeles de la `reference` de ese estilo, desde el centro) y, opcionales, `start` y `end` (desfase en segundos desde el inicio y antes del final, ≥ 0, 0 por omisión; su suma, menor que `durationSeconds`) y `box`; la capa de abajo va primera. En `transition`, un `rodaje.preset` v2; en `effect`, un `rodaje.effect` v1 |
+| `reference` | Como en las reglas comunes: la de la plantilla para la miniatura; cada capa se escala con la de su estilo, `min(ancho/refAncho, alto/refAlto)`, como un título |
+| `durationSeconds`, `minSeconds` | Solo cuentan en `title`: duración al insertarla (mayor que 0 y hasta 600 s) y la mínima que admite el recorte (de 0 a `durationSeconds`), que conviene que cubra las entradas, salidas y desfases de las capas. En `transition` y `effect` manda la duración de su `body` |
+| `parameters` | Hasta 32, con `id` único, `label` (hasta 80 caracteres) y `type`: `text` (hasta 10 000 caracteres, con las reglas del texto de un título), `color` (`#RRGGBB[AA]`), `font` (el objeto `font` de un estilo), `number` (con `min` y `max` obligatorios y `step` opcional), `bool` o `choice` (de 1 a 16 `options` con `label` y `value`). Un tipo desconocido rechaza el archivo. La duración no es un parámetro: es la del clip |
+| `targets` | De 1 a 16 rutas por parámetro, con `/` sobre `body`; en `title`, el segmento tras `layers` es el `id` de la capa, no un índice; en las demás listas (las `curves` de un efecto) el segmento es el índice. Una ruta que no existe o cuyo valor no casa con el tipo del parámetro rechaza el archivo al leerlo, no al aplicarlo |
+| Tamaño | Hasta 256 KB (un título lleva sus estilos completos) |
+
+Instanciar (`TemplateInstantiator.Instantiate(documento, valores)`) copia `body`, escribe cada valor en todos sus destinos (lo que falta queda con lo que trae `body`, que es el valor por defecto) y vuelve a pasar el resultado por el lector de su tipo: el de estilos capa a capa, `ReadTransition` o `ReadEffect`. Así un valor fuera de rango se rechaza con el mismo mensaje que en un estilo, una transición o un efecto sueltos. Un valor de un `id` que no está en `parameters` se ignora. Rodaje genera la miniatura animada de la plantilla con sus valores por defecto: el paquete no la trae (el `preview` del elemento, si lo hay, solo se muestra mientras se genera).
 
 ### `PackageContentStore`
 

@@ -1,9 +1,11 @@
 using Rodaje.Core.Model;
+using Rodaje.Engine.RenderCache;
 using Rodaje.Engine.Timeline;
 using Rodaje.Export.Encoders;
 using Rodaje.Media.Export;
 using Rodaje.Media.Gpu;
 using Rodaje.Media.Proxies;
+using Rodaje.Media.RenderCache;
 using Rodaje.Playback.Composition;
 
 namespace Rodaje.Export.Running;
@@ -44,6 +46,26 @@ public sealed record ExportRunnerOptions
 
     /// <summary>El dispositivo propio de la exportación; por omisión, uno nuevo en la GPU por defecto.</summary>
     public Func<GpuDevice>? CreateDevice { get; init; }
+
+    /// <summary>Otro motor que D3D11 (Vulkan), que la exportación cierra al terminar; fuera de Windows, por omisión, un <c>VulkanGpu</c> nuevo.</summary>
+    public Func<Rodaje.Render.Gpu.IGpu>? CreateGpu { get; init; }
+
+    /// <summary>Dispositivo compartido de fondo, antes que CreateDevice; su propietario lo cierra tras el último trabajo.</summary>
+    public ExportDevicePool? DevicePool { get; init; }
+
+    /// <summary>Almacén del render en caché; sin él (o sin <see cref="RecipeBuilder"/>) la exportación no lo usa.</summary>
+    public IRenderCacheStore? RenderCache { get; init; }
+
+    /// <summary>Las huellas de la secuencia que se exporta, calculadas igual que las de los fragmentos (las da la app).</summary>
+    public Func<ExportRequest, RecipeBuilder>? RecipeBuilder { get; init; }
+
+    /// <summary>Tope de hilos del codificador de video; nulo deja que FFmpeg decida.</summary>
+    public int? VideoThreads { get; init; }
+
+    /// <summary>Mediciones opcionales por fase; se llama desde el hilo que realiza el trabajo.</summary>
+    public Action<string, TimeSpan>? Measure { get; init; }
+
+    internal bool VerifyMovPackets { get; init; }
 }
 
 /// <summary>
@@ -57,6 +79,11 @@ public sealed class ExportRunner
     public ExportRunner(ExportRunnerOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
+        if (options.VideoThreads is { } threads)
+        {
+            ArgumentOutOfRangeException.ThrowIfNegativeOrZero(threads);
+        }
+
         Options = options;
     }
 

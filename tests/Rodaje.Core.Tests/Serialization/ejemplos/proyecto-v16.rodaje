@@ -1,0 +1,396 @@
+{
+  "schemaVersion": 16,
+  "id": "p1",
+  "name": "Proyecto de prueba",
+  "media": [
+    {
+      "id": "m1",
+      "path": "toma 1.mp4",
+      "name": "toma 1",
+      "duration": 42336000000,
+      "hasVideo": true,
+      "hasAudio": true,
+      "frameRate": {
+        "num": 30,
+        "den": 1
+      },
+      "width": 1920,
+      "height": 1080,
+      "sampleRate": 48000,
+      "audioChannels": 2
+    },
+    {
+      "id": "m2",
+      "path": "música.wav",
+      "name": "música",
+      "duration": 21168000000,
+      "hasVideo": false,
+      "hasAudio": true,
+      "frameRate": null,
+      "width": 0,
+      "height": 0,
+      "sampleRate": 44100,
+      "audioChannels": 2
+    }
+  ],
+  "sequences": [
+    {
+      "id": "s1",
+      "name": "Principal",
+      "frameRate": {
+        "num": 30,
+        "den": 1
+      },
+      "width": 1920,
+      "height": 1080,
+      "sampleRate": 48000,
+      "videoTracks": [
+        {
+          "id": "v1",
+          "kind": "video",
+          "name": "V1",
+          "muted": false,
+          "locked": false,
+          "hidden": false,
+          "clips": [
+            {
+              "id": "c1",
+              "mediaId": "m1",
+              "sourceIn": 0,
+              "sourceOut": 7056000000,
+              "start": 0,
+              "linkId": "L1",
+              "enabled": true,
+              "effects": [
+                {
+                  "id": "fx1",
+                  "type": "rodaje.transform",
+                  "enabled": true,
+                  "parameters": {
+                    "opacity": {
+                      "value": 1,
+                      "keyframes": [
+                        {
+                          "time": 0,
+                          "value": 0,
+                          "interpolation": "linear"
+                        },
+                        {
+                          "time": 705600000,
+                          "value": 1,
+                          "interpolation": "easeOut"
+                        }
+                      ]
+                    },
+                    "scale": {
+                      "value": 1,
+                      "keyframes": []
+                    }
+                  },
+                  "options": {}
+                }
+              ]
+            },
+            {
+              "id": "c2",
+              "mediaId": "m1",
+              "sourceIn": 14112000000,
+              "sourceOut": 17640000000,
+              "start": 8467200000,
+              "linkId": null,
+              "enabled": true,
+              "effects": []
+            }
+          ],
+          "effects": [],
+          "transitions": []
+        },
+        {
+          "id": "v2",
+          "kind": "video",
+          "name": "V2",
+          "muted": false,
+          "locked": false,
+          "hidden": false,
+          "clips": [
+            {
+              "id": "c3",
+              "mediaId": "m1",
+              "sourceIn": 21168000000,
+              "sourceOut": 23284800000,
+              "start": 1411200000,
+              "linkId": null,
+              "enabled": true,
+              "effects": []
+            },
+            {
+              "id": "t1",
+              "sourceIn": 0,
+              "sourceOut": 3528000000,
+              "start": 28224000000,
+              "linkId": null,
+              "enabled": true,
+              "generator": {
+                "kind": "template",
+                "text": "",
+                "edges": {
+                  "in": true,
+                  "out": true
+                },
+                "template": {
+                  "source": "rodaje-plantillas@1.0.0/barra",
+                  "name": "Barra",
+                  "minSeconds": 1.5,
+                  "document": "{\"format\":\"rodaje.template\",\"version\":1}",
+                  "values": {
+                    "nombre": "Ana Ruiz"
+                  },
+                  "layers": [
+                    {
+                      "id": "nombre",
+                      "text": "Ana Ruiz",
+                      "style": {
+                        "source": "rodaje-titulos@1.0.0/clasico",
+                        "name": "Clásico",
+                        "font": {
+                          "family": "Inter",
+                          "weight": 700,
+                          "italic": false,
+                          "source": "rodaje-fuentes@1.0.0/inter",
+                          "fallback": [
+                            "Segoe UI",
+                            "Arial"
+                          ]
+                        },
+                        "size": 96,
+                        "reference": {
+                          "width": 1920,
+                          "height": 1080
+                        },
+                        "lineHeight": 1.2,
+                        "letterSpacing": 0,
+                        "align": "center",
+                        "fill": {
+                          "color": "#FFFFFF"
+                        },
+                        "stroke": {
+                          "color": "#000000",
+                          "width": 6,
+                          "join": "round"
+                        },
+                        "shadow": {
+                          "color": "#00000099",
+                          "dx": 4,
+                          "dy": 6,
+                          "blur": 8
+                        },
+                        "background": {
+                          "color": "#00000080",
+                          "padding": [
+                            24,
+                            12
+                          ],
+                          "radius": 12
+                        },
+                        "in": {
+                          "durationSeconds": 0.4,
+                          "curves": {
+                            "opacity": [
+                              {
+                                "t": 0,
+                                "value": 0,
+                                "interp": "linear"
+                              },
+                              {
+                                "t": 0.4,
+                                "value": 1,
+                                "interp": "easeOut"
+                              }
+                            ],
+                            "y": [
+                              {
+                                "t": 0,
+                                "value": 40,
+                                "interp": "linear"
+                              },
+                              {
+                                "t": 0.4,
+                                "value": 0,
+                                "interp": "linear"
+                              }
+                            ]
+                          }
+                        },
+                        "out": {
+                          "durationSeconds": 0.3,
+                          "curves": {
+                            "opacity": [
+                              {
+                                "t": 0,
+                                "value": 1,
+                                "interp": "linear"
+                              },
+                              {
+                                "t": 0.3,
+                                "value": 0,
+                                "interp": "linear"
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "box": {
+                        "widthFraction": 0.5
+                      },
+                      "x": -560,
+                      "y": 380,
+                      "start": 0,
+                      "end": 0
+                    },
+                    {
+                      "id": "cargo",
+                      "text": "Directora",
+                      "style": {
+                        "source": "rodaje-titulos@1.0.0/clasico",
+                        "name": "Clásico",
+                        "font": {
+                          "family": "Inter",
+                          "weight": 700,
+                          "italic": false,
+                          "source": "rodaje-fuentes@1.0.0/inter",
+                          "fallback": [
+                            "Segoe UI",
+                            "Arial"
+                          ]
+                        },
+                        "size": 96,
+                        "reference": {
+                          "width": 1920,
+                          "height": 1080
+                        },
+                        "lineHeight": 1.2,
+                        "letterSpacing": 0,
+                        "align": "center",
+                        "fill": {
+                          "color": "#FFFFFF"
+                        },
+                        "stroke": {
+                          "color": "#000000",
+                          "width": 6,
+                          "join": "round"
+                        },
+                        "shadow": {
+                          "color": "#00000099",
+                          "dx": 4,
+                          "dy": 6,
+                          "blur": 8
+                        },
+                        "background": {
+                          "color": "#00000080",
+                          "padding": [
+                            24,
+                            12
+                          ],
+                          "radius": 12
+                        },
+                        "in": {
+                          "durationSeconds": 0.4,
+                          "curves": {
+                            "opacity": [
+                              {
+                                "t": 0,
+                                "value": 0,
+                                "interp": "linear"
+                              },
+                              {
+                                "t": 0.4,
+                                "value": 1,
+                                "interp": "easeOut"
+                              }
+                            ],
+                            "y": [
+                              {
+                                "t": 0,
+                                "value": 40,
+                                "interp": "linear"
+                              },
+                              {
+                                "t": 0.4,
+                                "value": 0,
+                                "interp": "linear"
+                              }
+                            ]
+                          }
+                        },
+                        "out": {
+                          "durationSeconds": 0.3,
+                          "curves": {
+                            "opacity": [
+                              {
+                                "t": 0,
+                                "value": 1,
+                                "interp": "linear"
+                              },
+                              {
+                                "t": 0.3,
+                                "value": 0,
+                                "interp": "linear"
+                              }
+                            ]
+                          }
+                        }
+                      },
+                      "x": -560,
+                      "y": 450,
+                      "start": 0.2,
+                      "end": 0.1
+                    }
+                  ]
+                }
+              },
+              "effects": []
+            }
+          ],
+          "effects": [],
+          "transitions": []
+        }
+      ],
+      "audioTracks": [
+        {
+          "id": "a1",
+          "kind": "audio",
+          "name": "A1",
+          "muted": false,
+          "locked": false,
+          "hidden": false,
+          "clips": [
+            {
+              "id": "c4",
+              "mediaId": "m1",
+              "sourceIn": 0,
+              "sourceOut": 7056000000,
+              "start": 0,
+              "linkId": "L1",
+              "enabled": true,
+              "effects": []
+            },
+            {
+              "id": "c5",
+              "mediaId": "m2",
+              "sourceIn": 0,
+              "sourceOut": 21168000000,
+              "start": 7056000000,
+              "linkId": null,
+              "enabled": true,
+              "effects": []
+            }
+          ],
+          "effects": [],
+          "transitions": []
+        }
+      ],
+      "markers": [],
+      "regions": []
+    }
+  ]
+}

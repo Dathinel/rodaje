@@ -10,7 +10,9 @@ using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Views.Export;
 using Rodaje.App.Views.Inspector;
+using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Views.Player;
+using Rodaje.App.Views.Preferences;
 using Rodaje.App.Views.Shortcuts;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Model;
@@ -33,71 +35,18 @@ internal static partial class SelfTestRun
 {
     private const string CapturesVariable = "RODAJE_AUTOPRUEBA_CAPTURAS";
 
-    public static async Task RunAsync(MainWindow window, PlayerEngine engine, Metrics metrics)
+    /// <summary>Las cifras que anotan los pasos («autoprueba: …») quedan en <c>autoprueba.txt</c>, en la carpeta de datos de la corrida.</summary>
+    private static void WriteReport(Metrics metrics)
     {
-        int code = 1;
         try
         {
-            await CaptureAsync(window, "inicio");
-            SelectFirstClip(window);
-            foreach (InspectorView.Tab tab in Enum.GetValues<InspectorView.Tab>())
-            {
-                window.InspectorPane.Show(tab);
-                await Task.Delay(250);
-                await CaptureAsync(window, "inspector-" + tab.ToString().ToLowerInvariant());
-            }
-
-            await ToolsAsync(window);
-            await ShortcutsAsync(window);
-            await ShowCurveAsync(window);
-            await ToggleReverseAsync(window);
-            await TitleAsync(window, engine);
-            await ImageAsync(window, engine);
-            await MasksAsync(window, engine);
-            await TrackingAsync(window, engine);
-            await TransitionsAsync(window, engine);
-            await TransformAsync(window, engine);
-            await ColorAsync(window, engine);
-            await MixerAsync(window);
-            await ShowExportAsync(window);
-            await PluginsAsync(window);
-            await ModuleAsync(window);
-            await FormatAsync(window, engine);
-            window.InspectorPane.Show(InspectorView.Tab.Properties);
-            await LayoutAsync(window);
-            if (window.Session.Sequence.Duration.Ticks > 0)
-            {
-                window.Session.Play();
-                for (int i = 0; i < 100 && !metrics.HasMilestone("primer_cuadro") && engine.FailureMessage is null; i++)
-                {
-                    await Task.Delay(100);
-                }
-
-                await Task.Delay(1000);
-                window.Session.Pause();
-            }
-
-            code = engine.FailureMessage is null && (window.Session.Sequence.Duration.Ticks == 0 || metrics.HasMilestone("primer_cuadro")) ? 0 : 1;
-            if (code != 0)
-            {
-                Program.WriteCrash("autoprueba: " + (engine.FailureMessage ?? "no llegó el primer cuadro en 10 s"));
-            }
-            else if (!IsUpstreamCreditShown(window))
-            {
-                Program.WriteCrash("autoprueba: el crédito upstream de la barra de título no se ve (LICENSE, término adicional 1)");
-                code = 1;
-            }
+            Directory.CreateDirectory(AppDataPaths.Root);
+            File.WriteAllText(Path.Combine(AppDataPaths.Root, "autoprueba.txt"), metrics.Report([]), new System.Text.UTF8Encoding(false));
         }
-#pragma warning disable CA1031 // La autoprueba informa cualquier fallo con el código de salida.
-        catch (Exception ex)
-#pragma warning restore CA1031
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            Program.WriteCrash("autoprueba: " + ex);
-            code = 2;
+            // El informe es para leer cifras: sin él la autoprueba vale igual.
         }
-
-        Program.ExitCode = code;
-        window.Close();
     }
 
     private static bool IsUpstreamCreditShown(MainWindow window) =>
@@ -190,6 +139,7 @@ internal static partial class SelfTestRun
     {
         EditorSession session = window.Session;
         int steps = session.History.Count;
+        FrameCapture bare = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
         if (!session.AddTitleAtPlayhead() || session.SelectedTitle is not { } title)
         {
             throw new InvalidOperationException("La autoprueba no pudo crear un título.");
@@ -210,7 +160,7 @@ internal static partial class SelfTestRun
         await Task.Delay(250);
         TitleBox box = await WaitForTitleAsync(engine, id, b => b.Width > 0, "El título no se dibujó en el visor en 5 s.");
         await CaptureAsync(window, "texto");
-        FrameCapture withTitle = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        (FrameCapture withTitle, _) = await CaptureChangedAsync(engine, bare, box, session.Sequence);
         await SaveFrameAsync(withTitle, "texto-visor");
         await DragTitleAsync(window, engine, box);
         await ProTitleAsync(window, engine, editor, id, withTitle);
@@ -240,8 +190,7 @@ internal static partial class SelfTestRun
 
         SelectFirstClip(window);
         await Task.Delay(250);
-        FrameCapture without = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
-        int changed = ChangedPixels(withTitle, without, box, session.Sequence.Width, session.Sequence.Height);
+        (_, int changed) = await CaptureChangedAsync(engine, withTitle, box, session.Sequence);
         Program.Metrics.Note($"autoprueba: el título cambia {changed} píxeles del visor");
         if (changed < 500)
         {
@@ -273,18 +222,48 @@ internal static partial class SelfTestRun
         await Task.Delay(400);
         TitleBox box = await WaitForTitleAsync(engine, id, b => b.Width > 0, "El título en arco no se dibujó en 5 s.");
         await CaptureAsync(window, "texto-pro");
-        FrameCapture pro = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        (FrameCapture pro, int changed) = await CaptureChangedAsync(engine, plain, box, session.Sequence);
         await SaveFrameAsync(pro, "texto-pro-visor");
-        int changed = ChangedPixels(plain, pro, box, session.Sequence.Width, session.Sequence.Height);
         Program.Metrics.Note($"autoprueba: el título profesional cambia {changed} píxeles respecto del simple");
         if (changed < 500)
         {
-            throw new InvalidOperationException($"El título profesional se ve igual que el simple ({changed} píxeles distintos).");
+            throw new InvalidOperationException($"El título profesional se ve igual que el simple ({changed} píxeles distintos; {Viewer(engine, pro, box)}).");
         }
 
         session.Undo();
         session.Undo();
         await Task.Delay(200);
+    }
+
+    /// <summary>Lo que explica una captura sin cambios: shaders de efectos, capas saltadas, tamaño del cuadro y caja del título.</summary>
+    private static string Viewer(PlayerEngine engine, FrameCapture frame, TitleBox box)
+    {
+        PlayerEngine.EffectTotals totals = engine.Effects;
+        return $"shaders de efectos: {engine.ShaderFailure ?? "bien"}; cuadros {totals.Frames}, efectos saltados {totals.Skipped}, contenido que faltó {totals.Missing}; "
+            + $"captura {frame.Width}×{frame.Height}; caja {box.Width:0}×{box.Height:0} en ({box.Transform.X:0}, {box.Transform.Y:0}); scRGB {engine.ViewerIsScRgb}";
+    }
+
+    /// <summary>
+    /// Con la caché de sombreadores vacía (primer arranque, CI) el cuadro nuevo tarda en llegar: se reintenta hasta 10 s. Si los
+    /// shaders de efectos no compilaron, ningún título se dibuja y se dice eso en vez de «no cambia».
+    /// </summary>
+    private static async Task<(FrameCapture Frame, int Changed)> CaptureChangedAsync(PlayerEngine engine, FrameCapture reference, TitleBox box, Sequence sequence)
+    {
+        FrameCapture frame = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        int changed = ChangedPixels(reference, frame, box, sequence.Width, sequence.Height);
+        for (int i = 0; i < 40 && changed < 500; i++)
+        {
+            if (engine.ShaderFailure is { } failure)
+            {
+                throw new InvalidOperationException("Los shaders de efectos no compilaron y el visor no dibuja títulos: " + failure);
+            }
+
+            await Task.Delay(250);
+            frame = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
+            changed = ChangedPixels(reference, frame, box, sequence.Width, sequence.Height);
+        }
+
+        return (frame, changed);
     }
 
     private static async Task<TitleBox> WaitForTitleAsync(PlayerEngine engine, string id, Func<TitleBox, bool> condition, string failure)
@@ -513,7 +492,7 @@ internal static partial class SelfTestRun
         await Task.Delay(200);
         if (player.PlacementInWindow() is { } hinted)
         {
-            double scale = window.Content.XamlRoot.RasterizationScale;
+            double scale = window.Content!.XamlRoot!.RasterizationScale;
             PanelRectCheck(hinted.Status, r, scale, name);
         }
 
@@ -880,7 +859,7 @@ internal static partial class SelfTestRun
         bool maximized = presenter?.State == Microsoft.UI.Windowing.OverlappedPresenterState.Maximized;
         presenter?.Restore();
         Windows.Graphics.SizeInt32 before = window.AppWindow.Size;
-        double scale = window.Content.XamlRoot.RasterizationScale;
+        double scale = window.Content!.XamlRoot!.RasterizationScale;
         window.AppWindow.Resize(new Windows.Graphics.SizeInt32((int)(1280 * scale), (int)(720 * scale)));
         await Task.Delay(500);
         await CaptureAsync(window, "ventana-1280x720");
@@ -894,12 +873,62 @@ internal static partial class SelfTestRun
     }
 
     /// <summary>
+    /// Preferencias: la pestaña Personalización con el tema Claro en vista previa (los pinceles se recoloran en caliente) y
+    /// la de Temas; al cerrar vuelve al tema de los ajustes.
+    /// </summary>
+    private static async Task PreferencesAsync(MainWindow window)
+    {
+        var view = new PreferencesView();
+        view.Attach(window.Settings, window.Router.Registry, new Services.Settings.WorkspaceProfile());
+        var dialog = new ContentDialog { XamlRoot = window.XamlRoot, Title = "Preferencias", Content = view, PrimaryButtonText = "Guardar", CloseButtonText = "Cancelar" };
+        var showing = dialog.ShowAsync();
+        await Task.Delay(400);
+        view.ShowForSelfTest(3, Services.Settings.Themes.LightName);
+        await Task.Delay(400);
+        if (Theme.ThemeResources.Current.Name != Services.Settings.Themes.LightName)
+        {
+            throw new InvalidOperationException("La vista previa del tema Claro no se aplicó.");
+        }
+
+        if (((FrameworkElement)window.Content!).ActualTheme != ElementTheme.Light || dialog.ActualTheme != ElementTheme.Light)
+        {
+            throw new InvalidOperationException("Con el tema Claro, la ventana o el diálogo siguen con los controles de WinUI en oscuro.");
+        }
+
+        await CaptureElementAsync(view, "preferencias-personalizacion");
+        await CaptureAsync(window, "tema-claro");
+        view.ShowForSelfTest(4, null);
+        await Task.Delay(400);
+        await CaptureElementAsync(view, "preferencias-temas");
+        view.Discard();
+        dialog.Hide();
+        await showing;
+        if (!string.Equals(Theme.ThemeResources.Current.Name, window.Settings.Theme, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("Cancelar Preferencias no devolvió el tema de los ajustes.");
+        }
+
+        if (((FrameworkElement)window.Content!).ActualTheme != Theme.ThemeResources.RequestedTheme)
+        {
+            throw new InvalidOperationException("Cancelar Preferencias no devolvió el tema de WinUI de los ajustes.");
+        }
+    }
+
+    /// <summary>
     /// Con <c>RODAJE_AUTOPRUEBA_CAPTURAS=carpeta</c> guarda allí la ventana en PNG (dibujada por XAML, no la pantalla), como
     /// evidencia de cómo se ve con el exe de AOT. Sin la variable no hace nada.
     /// </summary>
     private static async Task CaptureAsync(MainWindow window, string name)
     {
-        if (Environment.GetEnvironmentVariable(CapturesVariable) is not { Length: > 0 } folder || window.Content is not UIElement root)
+        if (window.Content is UIElement root)
+        {
+            await CaptureElementAsync(root, name);
+        }
+    }
+
+    private static async Task CaptureElementAsync(UIElement root, string name)
+    {
+        if (Environment.GetEnvironmentVariable(CapturesVariable) is not { Length: > 0 } folder)
         {
             return;
         }

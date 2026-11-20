@@ -12,8 +12,6 @@ using Rodaje.Media;
 using Rodaje.Media.Gpu;
 using Rodaje.Playback.Composition;
 using Rodaje.Render;
-using TerraFX.Interop.Windows;
-using static TerraFX.Interop.Windows.Windows;
 
 namespace Rodaje.App.Views.Player;
 
@@ -23,7 +21,8 @@ namespace Rodaje.App.Views.Player;
 /// </summary>
 /// <remarks>
 /// Reproduciendo, el hilo espera el objeto de latencia de la cadena (uno por refresco) y luego hace Tick, compone y
-/// presenta. En pausa duerme hasta una orden o 15 ms, y solo pinta si cambió el cuadro (por ejemplo, tras un seek).
+/// presenta. En pausa duerme hasta una orden, un cuadro entregado o un título listo (con un tope de seguridad para lo
+/// periódico del planificador), y solo pinta si cambió el cuadro (por ejemplo, tras un seek).
 /// Los proyectos que llegan con <see cref="Load"/> y <see cref="Reload"/> son copias: este hilo es el único que las lee.
 /// <para>
 /// Medidores: en cada vuelta este hilo publica la posición del reloj (la muestra que suena) con su marca de tiempo, y
@@ -51,6 +50,15 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private readonly Metrics _metrics;
     private readonly ConcurrentQueue<Command> _commands = new();
     private readonly AutoResetEvent _wake = new(false);
+
+    /// <summary>
+    /// Tope de la espera en pausa: todo lo que cambia la composición despierta al hilo (órdenes, cuadros, títulos); lo
+    /// periódico (cerrar decodificadores ociosos, expirar el pre-calentado) espera a lo sumo esto.
+    /// </summary>
+    private const int IdleWaitMs = 250;
+
+    /// <summary>En pausa con una medición de monitor sin recoger: nada avisa cuando la GPU la termina, así que se mira pronto.</summary>
+    private const int ScopeWaitMs = 15;
     private readonly Thread _thread;
     private readonly Lock _pendingLock = new();
     private volatile bool _stop;
@@ -61,15 +69,30 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private Project? _pendingReload;
     private long _pendingReloadAt;
 
+    // D3D11: en Linux (PlayerEngine.Desktop.cs) quedan en null y lo que depende de ellos no se hace.
+#pragma warning disable CS0649
     private GpuDevice? _gpu;
     private TimelineSession? _session;
     private Compositor? _compositor;
-    /// <summary>El gris de alrededor del lienzo, igual que <c>ViewerSurroundColor</c> de <c>Palette.xaml</c> (#242424).</summary>
-    private static readonly (float R, float G, float B) SurroundColor = (0x24 / 255f, 0x24 / 255f, 0x24 / 255f);
+    /// <summary>El gris de alrededor del lienzo, el <c>ViewerSurroundBrush</c> del tema (#242424 en grafito; <see cref="SetSurround"/>).</summary>
+    private (float R, float G, float B) _surround = (0x24 / 255f, 0x24 / 255f, 0x24 / 255f);
 
     private Presenter? _presenter;
+
+    /// <summary>Cambia el color de alrededor del lienzo (al cambiar de tema); llega al siguiente cuadro.</summary>
+    public void SetSurround(uint argb)
+    {
+        _surround = (((argb >> 16) & 0xFF) / 255f, ((argb >> 8) & 0xFF) / 255f, (argb & 0xFF) / 255f);
+        if (_presenter is { } presenter)
+        {
+            presenter.Surround = _surround;
+        }
+    }
     private CompositionSwapChain? _swapChain;
+    private TenBitViewer _tenBitViewer;
+    private HdrViewer _hdrViewer;
     private GpuTimer? _gpuTimer;
+#pragma warning restore CS0649
     private PreviewProxies? _proxies;
     private ProxyUsage _proxyUsage = ProxyUsage.Auto;
     private IEffectContent? _content;
@@ -96,6 +119,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private int _previewDowngrades;
     private long _editMark;
     private EffectTotals _effectTotals;
+    private string? _shaderFailure;
     private long _editMarkTaken;
     private long _editAppliedAt;
     private double _lastWaitMs;
@@ -120,7 +144,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         _enableAudio = enableAudio;
         _proxyUsage = proxyUsage;
         _metrics = metrics;
-        _contentRefresh = new ContentRefresh(() => _wake.Set());
+        _contentRefresh = new ContentRefresh(() => Wake());
         _thread = new Thread(Run) { Name = "Rodaje render", IsBackground = true, Priority = ThreadPriority.AboveNormal };
     }
 
@@ -146,15 +170,17 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     /// <summary>El error que detuvo el motor, por si llegó antes de que alguien escuchara <see cref="Failed"/>.</summary>
     public string? FailureMessage { get; private set; }
 
+    /// <summary>
+    /// Por qué no compilaron los shaders de efectos del compositor (nulo mientras compilan o si compilaron): sin ellos los
+    /// títulos y los efectos no se dibujan y el visor sigue andando como si nada. Lo mira la autoprueba.
+    /// </summary>
+    public string? ShaderFailure => Volatile.Read(ref _shaderFailure);
+
     /// <summary>Los proxies de la vista previa, cuando el hilo de render ya los creó; para la pestaña Trabajos.</summary>
     public Rodaje.Media.Proxies.MediaSourceResolver? ProxyResolver => Volatile.Read(ref _proxies)?.Resolver;
 
     /// <summary>VRAM dedicada de la GPU del reproductor; 0 mientras no abrió (la usa el presupuesto de los módulos).</summary>
     public long DedicatedVideoMemory => Volatile.Read(ref _gpu)?.DedicatedVideoMemory ?? 0;
-
-    public int SwapChainWidth => _swapChain?.Width ?? 0;
-
-    public int SwapChainHeight => _swapChain?.Height ?? 0;
 
     public void Start() => _thread.Start();
 
@@ -166,7 +192,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _pendingSize = new SizeRequest(width, height, scaleX, scaleY, Stopwatch.GetTimestamp());
         }
 
-        _wake.Set();
+        Wake();
     }
 
     public void Load(Project project, string sequenceId)
@@ -179,7 +205,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _pendingReload = null;
         }
 
-        _wake.Set();
+        Wake();
     }
 
     public void Reload(Project project)
@@ -192,7 +218,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _pendingReloadAt = Stopwatch.GetTimestamp();
         }
 
-        _wake.Set();
+        Wake();
     }
 
     public void Play() => Post(new Command(CommandKind.Play));
@@ -212,6 +238,41 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
     /// <summary>Resolución de la vista previa: Auto, completa, mitad o cuarto.</summary>
     public void SetPreviewQuality(PreviewQuality quality) => Post(new Command(CommandKind.Quality, Quality: quality));
+
+    /// <summary>Visor de 10 bits. Si la cadena de intercambio ya existe y cambia su formato, el hilo de render la vuelve a crear.</summary>
+    public TenBitViewer TenBitViewer
+    {
+        get => _tenBitViewer;
+        set
+        {
+            _tenBitViewer = value;
+            Post(new Command(CommandKind.ViewerFormat));
+        }
+    }
+
+    private bool UsesTenBits() => _gpu is not null && ViewerBitDepth.UsesTenBits(TenBitViewer, _gpu.MaxOutputBitsPerColor());
+
+    /// <summary>Visor HDR (scRGB); como <see cref="TenBitViewer"/>, cambiarlo con la cadena creada la vuelve a crear.</summary>
+    public HdrViewer HdrViewer
+    {
+        get => _hdrViewer;
+        set
+        {
+            _hdrViewer = value;
+            Post(new Command(CommandKind.ViewerFormat));
+        }
+    }
+
+    /// <summary>Si la cadena del visor es scRGB: una secuencia HDR se ve en HDR. Si no, se ve en SDR recortando lo que pasa de 203 nits.</summary>
+    public bool ViewerIsScRgb { get; private set; }
+
+    /// <summary>La ventana que aloja el visor, para saber si su monitor está en HDR (<see cref="DisplayHdr"/>); 0 mira todos los monitores.</summary>
+    public nint WindowHandle { get; set; }
+
+    // El monitor de la ventana por DisplayConfig; si no contesta, DXGI dice si algún monitor del adaptador está en HDR (y si
+    // ninguno lo está, queda sin saber: «Siempre» todavía puede forzar la cadena scRGB).
+    private bool UsesScRgb() => _gpu is not null
+        && ViewerBitDepth.UsesScRgb(HdrViewer, DisplayHdr.IsWindowMonitorInHdr(WindowHandle) ?? (CompositionSwapChain.HasHdrOutput(_gpu) ? true : (bool?)null));
 
     /// <summary>Efectos dibujados, saltados y contenido que faltó desde que se abrió el reproductor (para medir).</summary>
     public EffectTotals Effects
@@ -268,7 +329,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     public void MonitorDynamics(DynamicsMonitor? monitor)
     {
         Volatile.Write(ref _dynamicsMonitor, monitor);
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>
@@ -278,7 +339,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     public void BypassInserts(IReadOnlySet<string>? inserts)
     {
         Volatile.Write(ref _bypassedInserts, inserts);
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>
@@ -404,12 +465,16 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
     public void Dispose()
     {
-        if (_disposed)
+        lock (_pendingLock)
         {
-            return;
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
         }
 
-        _disposed = true;
         _stop = true;
         _wake.Set();
         if (_thread.IsAlive && !_thread.Join(TimeSpan.FromSeconds(3)))
@@ -417,13 +482,32 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _metrics.Note("el hilo de render no terminó en 3 s");
         }
 
-        _wake.Dispose();
+        // Con el hilo todavía vivo no se cierra el evento que espera: el proceso termina de todos modos.
+        if (!_thread.IsAlive)
+        {
+            lock (_pendingLock)
+            {
+                _wake.Dispose();
+            }
+        }
+    }
+
+    /// <summary>Despierta al hilo de render; tras liberar el motor no hace nada (un refresco de paquetes puede llegar después de cerrar).</summary>
+    private void Wake()
+    {
+        lock (_pendingLock)
+        {
+            if (!_disposed)
+            {
+                _wake.Set();
+            }
+        }
     }
 
     private void Post(Command command)
     {
         _commands.Enqueue(command);
-        _wake.Set();
+        Wake();
     }
 
     private void Run()
@@ -446,10 +530,10 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                     _dirty = true;
                 }
 
-                if (_session is null || _swapChain is null)
+                if (_session is null || !HasViewer)
                 {
                     PublishSnapshot();
-                    _wake.WaitOne(15);
+                    _wake.WaitOne(IdleWaitMs);
                     continue;
                 }
 
@@ -458,7 +542,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 {
                     // Uno por refresco: la cadena tiene latencia máxima 1, así que esto marca el ritmo del vsync.
                     long waitStart = Stopwatch.GetTimestamp();
-                    _ = WaitForSingleObjectEx((HANDLE)_swapChain.FrameWaitHandle, 100, true);
+                    WaitForRefresh();
                     _lastWaitMs = Stopwatch.GetElapsedTime(waitStart).TotalMilliseconds;
 
                     // Una edición que llegó durante la espera entra en este mismo cuadro y no en el siguiente.
@@ -472,7 +556,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 }
                 else
                 {
-                    _wake.WaitOne(15);
+                    _wake.WaitOne(_scopes is { HasPending: true } ? ScopeWaitMs : IdleWaitMs);
                     using CompositionFrame frame = _session.Tick();
                     if (Signature(frame) != _lastSignature)
                     {
@@ -507,10 +591,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         _metrics.Milestone("ffmpeg_lista");
 
-        _gpu = GpuDevice.TryCreate(out string? gpuFailure) ?? throw new InvalidOperationException("Hace falta una GPU con Direct3D 11. " + gpuFailure);
-        DeviceDescription = _gpu.ToString();
-        _presenter = new Presenter(_gpu) { Surround = SurroundColor };
-        _gpuTimer = new GpuTimer(_gpu);
+        OpenGpu();
         CreateTitles();
         _metrics.Milestone("gpu_lista");
     }
@@ -530,7 +611,11 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         _external?.Dispose();
         _proxies?.Dispose();
         _gpu?.Dispose();
+        CloseGpu();
     }
+
+    /// <summary>Lo que el visor de cada sistema abre aparte del dispositivo de D3D11 (en Linux, el de Vulkan).</summary>
+    partial void CloseGpu();
 
     private void CloseSession()
     {
@@ -558,23 +643,12 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _pendingSize = null;
         }
 
-        if (request is not { } size || _gpu is null)
+        if (request is not { } size || !GpuOpened)
         {
             return;
         }
 
-        if (_swapChain is null)
-        {
-            _swapChain = new CompositionSwapChain(_gpu, size.Width, size.Height, size.ScaleX, size.ScaleY);
-            _metrics.Milestone("cadena_creada");
-            SwapChainCreated?.Invoke(_swapChain.NativeSwapChain);
-        }
-        else
-        {
-            _swapChain.Resize(size.Width, size.Height, size.ScaleX, size.ScaleY);
-            _resizeSince = size.RequestedAt;
-        }
-
+        ApplyViewerSize(size);
         EnsureCompositor();
         _dirty = true;
     }
@@ -617,6 +691,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             }
 
             UpdateMissingFonts();
+            RaisePlanChanged(opened: false);
             if (_editMarkTaken != 0)
             {
                 _editAppliedAt = Stopwatch.GetTimestamp();
@@ -630,6 +705,8 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _dirty = true;
             _reloadSince = reloadAt;
         }
+
+        ApplyPendingCoverage();
     }
 
     private bool IsScrubbing => _shuttleRate is not (0 or 1);
@@ -640,7 +717,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         _framesDropped = 0;
         _usesProxy = false;
         _shuttleRate = 0;
-        if (_project is null || _sequenceId is null || _gpu is null)
+        if (_project is null || _sequenceId is null || !GpuOpened)
         {
             return;
         }
@@ -669,12 +746,18 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             return;
         }
 
-        _session.DecodeFailed += (_, e) => _metrics.Note($"decodificación falló en {Path.GetFileName(e.Path)} cuadro {e.FrameIndex}: {e.Error.Message}");
+        _session.DecodeFailed += (_, e) =>
+        {
+            _metrics.Note($"decodificación falló en {Path.GetFileName(e.Path)} cuadro {e.FrameIndex}: {e.Error.Message}");
+            SourceFailed?.Invoke(e.Path);
+        };
+        _session.FrameDelivered += (_, _) => Wake();
         _metrics.Milestone("sesion_abierta");
         _lastSignature = 0;
         UpdateMissingFonts();
         EnsureCompositor();
         _dirty = true;
+        RaisePlanChanged(opened: true);
     }
 
     private void ProcessCommands()
@@ -721,6 +804,26 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
                 _quality.Quality = command.Quality;
                 EnsureCompositor();
                 _dirty = true;
+                continue;
+            }
+
+            if (command.Kind == CommandKind.ViewerFormat)
+            {
+                // scRGB manda; si no, 10 bits cuando toca; si no, 8 bits: la misma elección que al crear la cadena.
+                bool scRgb = UsesScRgb();
+                bool tenBits = UsesTenBits() && !scRgb;
+                if (_swapChain is { } old && _gpu is { } gpu && (old.ScRgb != scRgb || old.TenBits != tenBits))
+                {
+                    old.Dispose();
+                    _swapChain = null;
+                    _swapChain = new CompositionSwapChain(gpu, old.Width, old.Height, old.ScaleX, old.ScaleY, tenBits, scRgb);
+                    ViewerIsScRgb = _swapChain.ScRgb;
+                    _metrics.Note(_swapChain.ScRgb ? "visor HDR (scRGB R16G16B16A16_FLOAT)"
+                        : _swapChain.TenBits ? "visor de 10 bits (R10G10B10A2)" : "visor de 8 bits (B8G8R8A8)");
+                    SwapChainCreated?.Invoke(_swapChain.NativeSwapChain);
+                    _dirty = true;
+                }
+
                 continue;
             }
 
@@ -817,14 +920,14 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     /// </summary>
     private void EnsureCompositor()
     {
-        if (_session is null || _swapChain is null || _gpu is null)
+        if (_session is null || !HasViewer || !GpuOpened)
         {
             return;
         }
 
         int width = _session.Width;
         int height = _session.Height;
-        bool halve = _zoom > 0 ? _zoom <= 0.5 : _swapChain.Width * 2 <= width && _swapChain.Height * 2 <= height;
+        bool halve = _zoom > 0 ? _zoom <= 0.5 : SwapChainWidth * 2 <= width && SwapChainHeight * 2 <= height;
         int divisor = Math.Max(halve ? 2 : 1, _quality.Divisor);
         _previewDivisor = _quality.Divisor;
         width = Math.Max(1, width / divisor);
@@ -832,12 +935,22 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
 
         if (_compositor is { } current && current.Width == width && current.Height == height)
         {
+            current.ColorSpace = _session.ColorSpace;
             return;
         }
 
         _compositor?.Dispose();
         _compositor = null;
-        _compositor = new Compositor(_gpu, width, height) { Resources = _content, Titles = _titles };
+        _compositor = CreateCompositor(width, height);
+        _compositor.Resources = _content;
+        _compositor.Titles = _titles;
+        _compositor.ColorSpace = _session.ColorSpace;
+        _compositor.ShadersReady.ContinueWith(ready =>
+        {
+            string message = ready.Exception?.GetBaseException().Message ?? "error desconocido";
+            Volatile.Write(ref _shaderFailure, message);
+            _metrics.Note("shaders de efectos: " + message);
+        }, CancellationToken.None, TaskContinuationOptions.OnlyOnFaulted | TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
     }
 
     /// <summary>Una LUT terminó de cargar o cambiaron los paquetes: en pausa también hay que volver a componer.</summary>
@@ -875,7 +988,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         if (_compositor is not null)
         {
             TimeSpan interval = _quality.Quality == PreviewQuality.Auto && _session.IsPlaying ? AutoGpuSampleInterval : GpuSampleInterval;
-            bool measure = !_gpuPending && Stopwatch.GetElapsedTime(_lastGpuBegin) >= interval;
+            bool measure = _gpuTimer is not null && !_gpuPending && Stopwatch.GetElapsedTime(_lastGpuBegin) >= interval;
             if (measure)
             {
                 _lastGpuBegin = Stopwatch.GetTimestamp();
@@ -886,7 +999,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             CompositeResult result = _compositor.Render(frame, Geometry);
             drawn = result.LayersDrawn;
             PublishTitleBoxes(frame);
-            CompleteCapture();
+            CompleteCapture(frame, result);
             SubmitScope(_compositor);
             lock (_meterLock)
             {
@@ -900,9 +1013,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         }
 
         _lastSignature = Signature(frame);
-        // La misma cuenta que el contorno y las guías del visor (ViewerGeometry), con la forma de la secuencia y no la de la composición.
-        PixelRect placement = ViewerGeometry.Image(_swapChain!.Width, _swapChain.Height, _session.Width, _session.Height, _zoom);
-        _swapChain!.Render(_presenter!, _compositor, placement);
+        PresentViewer();
         PresentExternal();
         long presented = Stopwatch.GetTimestamp();
         _metrics.Presented(_session.IsPlaying && !_session.IsSeekPending, Stopwatch.GetElapsedTime(start, presented).TotalMilliseconds);
@@ -965,7 +1076,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     {
         if (_session is not { } s)
         {
-            PlaybackSnapshot empty = PlaybackSnapshot.Empty with { Status = _gpu is null ? "Preparando el reproductor…" : "Sin secuencia" };
+            PlaybackSnapshot empty = PlaybackSnapshot.Empty with { Status = !GpuOpened ? "Preparando el reproductor…" : "Sin secuencia" };
             if (!empty.Equals(_snapshot))
             {
                 _snapshot = empty;
@@ -1027,21 +1138,6 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         }
     }
 
-    private static int Signature(CompositionFrame frame)
-    {
-        var hash = new HashCode();
-        hash.Add(frame.Layers.Count);
-        foreach (LayerFrame layer in frame.Layers)
-        {
-            hash.Add(layer.TrackIndex);
-            hash.Add(layer.ClipId);
-            hash.Add(layer.Frame.Index);
-            hash.Add(layer.Transform);
-        }
-
-        return hash.ToHashCode();
-    }
-
     private enum CommandKind
     {
         TogglePlay,
@@ -1054,6 +1150,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         Zoom,
         Quality,
         Content,
+        ViewerFormat,
     }
 
     private readonly record struct Command(

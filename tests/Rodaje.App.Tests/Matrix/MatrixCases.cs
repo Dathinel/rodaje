@@ -175,13 +175,13 @@ internal static class MatrixCases
         new("opus-ogg", "Ogg", "—", "Opus estéreo 48 kHz", ".opus") { Kind = MatrixKind.AudioOnly, Audio = Opus },
         new("ac3-51", "AC-3", "—", "AC-3 5.1 48 kHz", ".ac3") { Kind = MatrixKind.AudioOnly, Audio = ["-c:a", "ac3", "-b:a", "448k", "-ar", "48000", "-ac", "6"], Requires = "ac3" },
 
-        // Imágenes: hoy no entran como clip y deben rechazarse con un motivo claro.
-        new("imagen-png", "PNG", "PNG RGB", "—", ".png") { Kind = MatrixKind.Image, Video = ["-c:v", "png", "-pix_fmt", "rgb24"], ExpectedProblem = "imagen fija" },
-        new("imagen-jpeg", "JPEG", "JPEG", "—", ".jpg") { Kind = MatrixKind.Image, Video = ["-c:v", "mjpeg", "-q:v", "2", "-pix_fmt", "yuvj420p"], ExpectedProblem = "imagen fija" },
-        new("imagen-webp", "WebP", "WebP", "—", ".webp") { Kind = MatrixKind.Image, Video = ["-c:v", "libwebp", "-quality", "90"], Requires = "libwebp", ExpectedProblem = "imagen fija" },
+        // Imágenes: un cuadro reutilizado durante toda la duración del clip.
+        new("imagen-png", "PNG", "PNG RGB", "—", ".png") { Kind = MatrixKind.Image, Video = ["-c:v", "png", "-pix_fmt", "rgb24"] },
+        new("imagen-jpeg", "JPEG", "JPEG", "—", ".jpg") { Kind = MatrixKind.Image, Video = ["-c:v", "mjpeg", "-q:v", "2", "-pix_fmt", "yuvj420p"] },
+        new("imagen-webp", "WebP", "WebP", "—", ".webp") { Kind = MatrixKind.Image, Video = ["-c:v", "libwebp", "-quality", "90"], Requires = "libwebp" },
         new("secuencia-png", "PNG numeradas", "Secuencia de 30 PNG", "—", ".png")
         {
-            Kind = MatrixKind.ImageSequence, Seconds = 1, Video = ["-c:v", "png", "-pix_fmt", "rgb24"], ExpectedProblem = "imagen fija",
+            Kind = MatrixKind.ImageSequence, Seconds = 1, Video = ["-c:v", "png", "-pix_fmt", "rgb24"],
         },
     ];
 

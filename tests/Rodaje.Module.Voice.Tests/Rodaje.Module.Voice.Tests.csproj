@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <NoWarn>$(NoWarn);CA1707;CA1515;CA1716;CA1861;CA2007;CA1849</NoWarn>
+    <NoWarn>$(NoWarn);CA1416;CA1707;CA1515;CA1716;CA1861;CA2007;CA1849</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <ProjectReference Include="..\..\externo\sala\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
     <ProjectReference Include="..\..\modules\Rodaje.Module.Voice\Rodaje.Module.Voice.csproj" />
     <!-- Solo para que Rodaje.Module.Subtitles.exe quede junto a las pruebas (inteligibilidad). -->
     <ProjectReference Include="..\..\modules\Rodaje.Module.Subtitles\Rodaje.Module.Subtitles.csproj" />

@@ -16,6 +16,9 @@ public interface ISpeedCommands
     /// <summary>Velocidad constante <paramref name="rate"/>; a 1× sin curva ni reversa el clip vuelve a no tener velocidad.</summary>
     ICommand SetSpeed(string sequenceId, string clipId, Rational rate, RippleScope scope);
 
+    /// <summary>Velocidad constante sobre varios clips.</summary>
+    ICommand SetSpeed(string sequenceId, IReadOnlyList<string> clipIds, Rational rate, RippleScope scope);
+
     /// <summary>La velocidad constante que deja el clip con la duración <paramref name="duration"/> en la pista.</summary>
     ICommand RateStretch(string sequenceId, string clipId, Time duration, RippleScope scope);
 
@@ -33,6 +36,9 @@ public interface ISpeedCommands
 
     /// <summary>La curva de un preajuste propio (<see cref="SpeedPresets"/>).</summary>
     ICommand ApplySpeedPreset(string sequenceId, string clipId, SpeedPreset preset, RippleScope scope);
+
+    /// <summary>Modo de interpolación de cuadros intermedios sobre varios clips.</summary>
+    ICommand SetFrameSampling(string sequenceId, IReadOnlyList<string> clipIds, FrameSampling sampling);
 }
 
 public static class SpeedCommands
@@ -44,6 +50,11 @@ public static class SpeedCommands
     {
         public ICommand SetSpeed(string sequenceId, string clipId, Rational rate, RippleScope scope) =>
             Edits.SetSpeed(sequenceId, clipId, rate, scope);
+
+        public ICommand SetSpeed(string sequenceId, IReadOnlyList<string> clipIds, Rational rate, RippleScope scope) =>
+            clipIds.Count == 1
+                ? Edits.SetSpeed(sequenceId, clipIds[0], rate, scope)
+                : Edits.SetSpeedOnClips(sequenceId, clipIds, rate, scope);
 
         // La duración pasa a cuánto se mueve el final al aplicarse, con el clip de ese momento.
         public ICommand RateStretch(string sequenceId, string clipId, Time duration, RippleScope scope) =>
@@ -67,5 +78,8 @@ public static class SpeedCommands
 
         public ICommand ApplySpeedPreset(string sequenceId, string clipId, SpeedPreset preset, RippleScope scope) =>
             Edits.ApplySpeedPreset(sequenceId, clipId, preset, scope);
+
+        public ICommand SetFrameSampling(string sequenceId, IReadOnlyList<string> clipIds, FrameSampling sampling) =>
+            Edits.SetFrameSampling(sequenceId, clipIds, sampling);
     }
 }

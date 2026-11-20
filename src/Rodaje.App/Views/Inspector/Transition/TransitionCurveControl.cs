@@ -29,8 +29,8 @@ internal sealed partial class TransitionCurveControl : Grid
     private readonly Line _linear = new() { StrokeThickness = 1, StrokeDashArray = [3, 3] };
     private readonly Polyline _curve = new() { StrokeThickness = 2, StrokeLineJoin = PenLineJoin.Round };
     private readonly Path _arms = new() { StrokeThickness = 1 };
-    private readonly Ellipse _first = Handle();
-    private readonly Ellipse _second = Handle();
+    private readonly Ellipse _first = NewHandle();
+    private readonly Ellipse _second = NewHandle();
     private readonly Ellipse _dot = new() { Width = 7, Height = 7, IsHitTestVisible = false };
     private readonly TextBlock _hint = new() { FontSize = ThemeResources.Size("MicroFontSize"), IsHitTestVisible = false, Margin = new Thickness(6, 2, 0, 0) };
     private Interpolation? _kind;
@@ -95,7 +95,7 @@ internal sealed partial class TransitionCurveControl : Grid
         PlaceDot();
     }
 
-    private static Ellipse Handle() => new()
+    private static Ellipse NewHandle() => new()
     {
         Width = HandleRadius * 2,
         Height = HandleRadius * 2,

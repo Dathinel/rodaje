@@ -76,7 +76,9 @@ internal static class Voices
             if (d.Name == "worktrees" && d.Parent?.Name == ".claude" && d.Parent.Parent is { } repo)
                 candidates.Add(Path.Combine(repo.FullName, ".entorno", "modelos", "voz"));
         }
-        return candidates.FirstOrDefault(c => File.Exists(Path.Combine(c, ModelFile)));
+        string? root = candidates.FirstOrDefault(c => File.Exists(Path.Combine(c, ModelFile)));
+        if (root is not null) Shared.ModelFiles.Verify(Path.Combine(root, ModelFile), ModelFile);
+        return root;
     }
 
     public static IEnumerable<VoiceInfo> Installed(string? root) =>

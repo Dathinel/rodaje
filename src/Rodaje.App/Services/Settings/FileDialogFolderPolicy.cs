@@ -19,7 +19,7 @@ public static class FileDialogFolderPolicy
 
         string? remembered = kind switch
         {
-            SaveDialogKind.Project => settings.LastProjectSaveFolder,
+            SaveDialogKind.Project => Existing(settings.DefaultProjectFolder) ?? settings.LastProjectSaveFolder,
             SaveDialogKind.Export => settings.Export.Folder,
             SaveDialogKind.Still => settings.LastStillExportFolder,
             SaveDialogKind.ExportPreset => settings.LastExportPresetFolder,

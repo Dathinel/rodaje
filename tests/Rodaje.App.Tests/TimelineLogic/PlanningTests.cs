@@ -81,6 +81,23 @@ public class PlanningTests
     });
 
     [Fact]
+    public void SoltarVariasFichas_EntranUnaTrasOtraEnUnPaso() => UiThread.Run(async () =>
+    {
+        EditorSession session = await TwoClips();
+        Track main = session.MainTrack!;
+        string text = MediaDrop.Format(Media(session, "n").Id) + "\n" + MediaDrop.Format(Media(session, "muda").Id, (S(1), S(3)));
+        Assert.Equal(Media(session, "n").Id, MediaDrop.Parse(text)!.Value.MediaId);
+
+        List<string> created = TimelinePlanning.DropMedia(session, MediaDrop.ParseAll(text), Row(session, main), S(19), false, Options(session), null);
+
+        Assert.Equal(2, created.Count);
+        Assert.Equal("a@0-10 b@10-20 n@20-26 muda@26-28", Layout(session, main));
+        Assert.Equal("Añadir medios", session.UndoDescription);
+        session.Undo();
+        Assert.Equal("a@0-10 b@10-20", Layout(session, main));
+    });
+
+    [Fact]
     public void SoltarConAjuste_SePegaAlBordeCercano() => UiThread.Run(async () =>
     {
         EditorSession session = await TwoClips();
