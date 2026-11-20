@@ -239,6 +239,20 @@ internal sealed partial class MainWindow : Window, IShellHost
         Program.Metrics.Milestone("vistas_unidas");
 
         session.Notified += (_, n) => ShowNotification(n);
+        // Un aviso que caducó («Faltan medios» tras deshacer la importación o al abrir otro proyecto) se cierra aunque
+        // tenga acción; si la sesión lo repone llega por Notified como uno nuevo.
+        session.NotificationRetracted += (_, _) =>
+        {
+            if (_showingProgress || !Notification.IsOpen)
+            {
+                return;
+            }
+
+            _notificationAction = null;
+            _notificationSecondaryAction = null;
+            _notificationTimer.Stop();
+            Notification.IsOpen = false;
+        };
         session.ProjectOpened += (_, _) => RememberProject();
         session.ProjectOpened += (_, _) =>
         {

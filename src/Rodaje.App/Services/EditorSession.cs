@@ -65,6 +65,10 @@ public sealed partial class EditorSession : ObservableObject
     // Cuántas veces cambió el historial: dice si una excepción llegó antes o después de aplicar la edición.
     private long _historyChanges;
 
+    // El último aviso y si quedó retraído por caducar: con IsStale se reevalúa tras cada edición y al cambiar de proyecto.
+    private EditorNotification? _notice;
+    private bool _noticeStale;
+
     // Durante un gesto el reproductor recibe como mucho una copia por cuadro: ya salió la de este cuadro, y hay cambios
     // que todavía no tiene.
     private bool _playbackFrame;
@@ -110,6 +114,12 @@ public sealed partial class EditorSession : ObservableObject
 
     /// <summary>Un aviso para la persona (errores al abrir, guardar, importar o editar).</summary>
     public event EventHandler<EditorNotification>? Notified;
+
+    /// <summary>
+    /// El último aviso con <see cref="EditorNotification.IsStale"/> dejó de valer (lo que anunciaba ya no es así tras la
+    /// edición o al abrir otro proyecto): la ventana lo cierra. Si vuelve a valer se repone por <see cref="Notified"/>.
+    /// </summary>
+    public event EventHandler<EditorNotification>? NotificationRetracted;
 
     public Project Project { get; private set; }
 
@@ -454,9 +464,40 @@ public sealed partial class EditorSession : ObservableObject
         TransportChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Muestra un aviso en la ventana, con botones opcionales si se dan <paramref name="action"/> y <paramref name="secondaryAction"/>.</summary>
-    public void Notify(NotificationSeverity severity, string title, string message, NotificationAction? action = null, NotificationAction? secondaryAction = null) =>
-        Notified?.Invoke(this, new EditorNotification(severity, title, message, action, secondaryAction));
+    /// <summary>
+    /// Muestra un aviso en la ventana, con botones opcionales si se dan <paramref name="action"/> y
+    /// <paramref name="secondaryAction"/>. Con <paramref name="isStale"/> el aviso caduca solo cuando deja de valer.
+    /// </summary>
+    public void Notify(NotificationSeverity severity, string title, string message, NotificationAction? action = null,
+        NotificationAction? secondaryAction = null, Func<bool>? isStale = null)
+    {
+        _notice = new EditorNotification(severity, title, message, action, secondaryAction, isStale);
+        _noticeStale = false;
+        Notified?.Invoke(this, _notice);
+    }
+
+    /// <summary>Reevalúa la caducidad del último aviso: lo retrae al dejar de valer y lo repone al volver a valer.</summary>
+    private void RefreshNotice()
+    {
+        if (_notice?.IsStale is not { } isStale)
+        {
+            return;
+        }
+
+        if (isStale())
+        {
+            if (!_noticeStale)
+            {
+                _noticeStale = true;
+                NotificationRetracted?.Invoke(this, _notice);
+            }
+        }
+        else if (_noticeStale)
+        {
+            _noticeStale = false;
+            Notified?.Invoke(this, _notice);
+        }
+    }
 
     /// <summary>Falla si se llama fuera del hilo que creó la sesión (el de la interfaz).</summary>
     public void VerifyAccess()
@@ -560,6 +601,7 @@ public sealed partial class EditorSession : ObservableObject
         ProjectOpened?.Invoke(this, EventArgs.Empty);
         SelectionChanged?.Invoke(this, EventArgs.Empty);
         HistoryChanged?.Invoke(this, EventArgs.Empty);
+        RefreshNotice();
     }
 
     /// <summary>
@@ -611,7 +653,14 @@ public sealed partial class EditorSession : ObservableObject
         finally
         {
             var args = new ProjectEditedEventArgs(kind, command);
-            RaiseEach(ProjectEdited, handler => ((EventHandler<ProjectEditedEventArgs>)handler)(this, args));
+            try
+            {
+                RaiseEach(ProjectEdited, handler => ((EventHandler<ProjectEditedEventArgs>)handler)(this, args));
+            }
+            finally
+            {
+                RefreshNotice();
+            }
         }
     }
 
