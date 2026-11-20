@@ -476,6 +476,13 @@ Al guardar, la lista `words` de cada transcripción va en una sola línea (inden
 - `timecode` (medio): el TC del primer cuadro del archivo, tal como lo da FFmpeg (`timecode` del flujo de video, de la pista `tmcd` de un MOV o del contenedor MXF). Se valida igual, a la tasa del medio; un medio sin tasa (solo audio) solo se comprueba por la forma.
 - `reel` (medio): carrete o nombre de cinta (`reel_name`), de 1 a 256 caracteres sin caracteres de control.
 
+**Identidad de contenido (D-067).** Dos textos opcionales del medio, que no se escriben si son nulos y no llevan ruta ni fecha:
+
+- `contentKey`: `<tamaño>:<SHA-256>` en mayúsculas del primer y del último MiB del archivo (entero si pesa hasta 2 MiB). Es una muestra para encontrar candidatos sin leer todo el archivo.
+- `contentHash`: SHA-256 del archivo entero, 64 dígitos hexadecimales en mayúsculas. Un medio solo cuenta como «el mismo» en otro equipo cuando coincide.
+
+Quien guarda no los calcula: los pone la colaboración, en segundo plano. Un Rodaje 1.0.3 o anterior rechaza el archivo con el aviso de siempre (formato más nuevo) en cuanto uno de los dos existe; sin ellos el archivo sigue siendo el 13, 14 o 15 de antes, byte a byte.
+
 Un medio importado de una EDL cuyo archivo aún no se encontró se guarda **provisional**: ancho, alto, frecuencia de muestreo y canales a cero, y la duración que usan sus clips. Sus clips están en el TC del evento (como si el medio empezara en `00:00:00:00`); al reenlazarlo con el archivo de verdad se corren a `TC del clip − TC inicial del archivo`, en el mismo paso del historial.
 
 #### Plantillas de movimiento (D-064)

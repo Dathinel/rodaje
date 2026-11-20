@@ -44,6 +44,16 @@ public static partial class ModelValidator
                 errors.Add($"El medio «{media.Id}» tiene un carrete vacío, de más de {MaxReelLength} caracteres o con caracteres de control.");
             }
 
+            if (media.ContentKey is not null && !Collab.ContentKey.IsValid(media.ContentKey))
+            {
+                errors.Add($"El medio «{media.Id}» tiene una huella de contenido (contentKey) con un formato que no es «tamaño:SHA-256».");
+            }
+
+            if (media.ContentHash is not null && !Collab.ContentHash.IsValid(media.ContentHash))
+            {
+                errors.Add($"El medio «{media.Id}» tiene un hash de contenido (contentHash) que no es un SHA-256 de 64 dígitos hexadecimales.");
+            }
+
             // Una ruta más larga de lo que admite Windows no se rechaza (la v1.0.0 la guardaba): el medio queda sin archivo.
             if (!IsUsablePath(media.Path))
             {
