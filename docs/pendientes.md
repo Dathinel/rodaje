@@ -12,6 +12,7 @@ Lo que queda abierto en Rodaje, por prioridad. Cada punto se quita al cerrarlo y
 
 ### Prioridad media
 
+- **Investigar el arranque tras B2 a B13 (1.0.5).** La ventana lista pasa de 709 a 788 ms en caliente (+11 %) y de 1092 a 1161 ms en frío frente a la 1.0.3; con 3 capas el proceso gasta un 22 % más de CPU (144 % frente a 118 %). Aceptado para la 1.0.4 (sigue por debajo de 1 s). Perfilar con `build\medir-arranque.ps1` y las marcas de `--arranque` qué suman colaboración, SDK 10.0.403, plantillas y módulos (`docs/publicar-1.0.4.md`, «Cifras de la verificación»).
 4. **Envío de trabajo a la GPU subió un 21 % con 8 capas.** La fase 3 de `IGpu` incrementó los milisegundos de despacho en GPU frente a la 1.0.3; aceptado para la 1.0.4 pero sin afinar (`docs/hoja-de-ruta.md` B5, `docs/mac-y-linux-fase3.md`).
 5. **Duplicación en interpoladores y rasterizadores.** Duplicación de lógica entre `FrameInterpolator` y `SurfaceInterpolator`, y duplicación de trazado de segmentos y arcos entre los rasterizadores de `IGpu` (`docs/hoja-de-ruta.md` B3, `docs/mac-y-linux-fase5-7.md`, `src/Rodaje.Render/Interpolation/`).
 6. **Preguntas de Daniel sobre HDR y cifras del RTX 3050.** Falta confirmar qué material real y qué diferencia frente a AHD se aceptan (D-059), y faltan las cifras de milisegundos por fotograma del RTX 3050 (`docs/hdr.md`, `docs/decisiones.md` D-059, `CLAUDE.md`).
