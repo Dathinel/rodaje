@@ -91,10 +91,10 @@ internal sealed class Replica : IAsyncDisposable
         Presence = new CollabPresence(Room);
     }
 
-    public void Attach(Project live)
+    public void Attach(Project live, Func<bool>? isBusy = null)
     {
         Live = live;
-        Engine = new CollabEngine(live, Room, Presence, Ui.Post, () => Interlocked.Increment(ref Refreshes), (text, problem) => Notices.Enqueue(text));
+        Engine = new CollabEngine(live, Room, Presence, Ui.Post, () => Interlocked.Increment(ref Refreshes), (text, problem) => Notices.Enqueue(text), isBusy);
         Engine.Desynced += Desyncs.Enqueue;
         _late.Target = Engine;
     }

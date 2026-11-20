@@ -20,6 +20,9 @@ public static class ProjectWire
     /// <summary>Tamaño máximo del texto de una copia inicial (64 MiB, el límite del diseño).</summary>
     public const int MaxBytes = 64 << 20;
 
+    /// <summary>Elementos compartidos como máximo en una copia inicial: cada uno llega como un cambio del parche.</summary>
+    public const int MaxElements = 100_000;
+
     private static WireLimits InitialLimits { get; } = new() { MaxPatchBytes = MaxBytes, MaxOps = 1_000_000 };
 
     /// <summary>
@@ -54,7 +57,10 @@ public static class ProjectWire
     /// Lee la copia inicial que llegó del anfitrión y arma el proyecto (sin nombre y con los medios sin ruta). Nunca lanza: un
     /// texto hostil, demasiado grande o que dejaría el proyecto inválido devuelve el rechazo.
     /// </summary>
-    public static ProjectParseResult TryParse(string json, IBlobMap? blobs = null)
+    /// <param name="json">El texto de la copia inicial.</param>
+    /// <param name="blobs">Dónde están los archivos por huella que el parche referencia.</param>
+    /// <param name="maxElements">Tope de elementos de la copia (los cambios del parche): las pruebas lo bajan para provocar el rechazo.</param>
+    public static ProjectParseResult TryParse(string json, IBlobMap? blobs = null, int maxElements = MaxElements)
     {
         if (json is null || Encoding.UTF8.GetByteCount(json) > MaxBytes)
         {
@@ -89,6 +95,11 @@ public static class ProjectWire
             if (parsed.Patch is null)
             {
                 return new ProjectParseResult(null, null, parsed.Rejection);
+            }
+
+            if (parsed.Patch.Ops.Count > maxElements)
+            {
+                return Rejected(PatchRejectionReason.TooLarge, $"La copia inicial del proyecto trae más de {maxElements} elementos.");
             }
 
             var project = new Project { Id = projectId };

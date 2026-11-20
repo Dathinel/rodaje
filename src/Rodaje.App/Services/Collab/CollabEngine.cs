@@ -1,4 +1,5 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Threading.Channels;
 using Dathinel.Sala;
 using Rodaje.Core.Collab;
@@ -26,6 +27,9 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
     private sealed class Pending(Patch patch, SharedState before, SharedState after, string description, bool isUndo, bool isRedo)
     {
         public Patch Patch { get; set; } = patch;
+
+        /// <summary>El parche tal como se mandó: con él se comprueba que la confirmación trae exactamente lo enviado.</summary>
+        public string Canonical { get; set; } = PatchWire.ToJson(patch);
 
         public SharedState Before { get; set; } = before;
 
@@ -66,6 +70,11 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
     private ElementVersions _mirrorVersions = new();
     private long _seq;
     private bool _started;
+    private long _generation;   // sube cuando lo confirmado pisa los pendientes: los envíos a la espera se invalidan
+    private readonly Queue<string> _seenPatchIds = new();
+    private readonly HashSet<string> _seenSet = new(StringComparer.Ordinal);
+    private const int MaxSeenPatchIds = 4096;
+    private int _sendAttempts;   // cuántas veces se llamó a Sala para mandar (lo miran las pruebas)
 
     // El mundo vivo: solo desde ui.
     private ElementVersions _liveVersions = new();
@@ -82,6 +91,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         _live = live;
         _room = room;
         _presence = presence;
+        EnsureReservations = presence.EnsureAsync;
         _ui = ui;
         _liveChanged = liveChanged;
         _notice = notice;
@@ -90,6 +100,15 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
 
     /// <summary>Lo confirmado y lo vivo dejaron de coincidir y no hay arreglo seguro: la persona tiene que volver a entrar.</summary>
     public event Action<string>? Desynced;
+
+    /// <summary>Cambios ajenos retenidos mientras hay un gesto abierto (solo para las pruebas).</summary>
+    internal int DeferredCount => _deferred.Count;
+
+    /// <summary>Cómo se piden las reservas antes de mandar; las pruebas la cambian para retener un envío a la espera.</summary>
+    internal Func<IEnumerable<string>, CancellationToken, Task<ReservationBlock?>> EnsureReservations { get; set; }
+
+    /// <summary>Envíos intentados hacia la sala (solo para las pruebas).</summary>
+    internal int SendAttempts => _sendAttempts;
 
     public bool CanUndo => _history.CanUndo;
 
@@ -272,9 +291,11 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
     private async Task SendOneAsync(Pending pending)
     {
         bool dropped;
+        long generation;
         lock (_m)
         {
             dropped = !_pending.Contains(pending);
+            generation = _generation;
         }
 
         if (dropped)
@@ -287,7 +308,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
 
         try
         {
-            ReservationBlock? blocked = await _presence.EnsureAsync(pending.Keys, _stop.Token).ConfigureAwait(false);
+            ReservationBlock? blocked = await EnsureReservations(pending.Keys, _stop.Token).ConfigureAwait(false);
             if (blocked is not null)
             {
                 pending.Sent.TrySetResult(Guid.Empty);
@@ -295,7 +316,22 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
                 return;
             }
 
-            using JsonDocument doc = JsonDocument.Parse(PatchWire.ToJson(pending.Patch));
+            lock (_m)
+            {
+                // Mientras esperaba la reserva, lo confirmado pudo pisar este cambio (rechazo de otro pendiente):
+                // entonces ya no se manda, sea lo que sea que quede en la lista de pendientes.
+                dropped = generation != _generation || !_pending.Contains(pending);
+            }
+
+            if (dropped)
+            {
+                pending.Sent.TrySetResult(Guid.Empty);
+                _presence.Done(pending.Keys);
+                return;
+            }
+
+            using JsonDocument doc = JsonDocument.Parse(pending.Canonical);
+            Interlocked.Increment(ref _sendAttempts);
             Guid id = await _room.SendAsync(doc.RootElement, pending.Keys, _stop.Token).ConfigureAwait(false);
             pending.Sent.TrySetResult(id);
         }
@@ -331,6 +367,11 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
                 return ValueTask.FromResult(Veredicto.No("no-valido", "La sala todavía no está lista."));
             }
 
+            if (_seenSet.Contains(patch.Id))
+            {
+                return ValueTask.FromResult(Veredicto.No("duplicado", "Ese cambio ya entró en la sala."));
+            }
+
             required = PatchReservations.Required(patch, _mirror);
             candidate = _mirror.Clone();
             versions = _mirrorVersions.Clone();
@@ -348,6 +389,17 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         PatchResult result = PatchApply.TryApply(candidate, versions, patch);
         if (result.IsAccepted)
         {
+            lock (_m)
+            {
+                // Un identificador aceptado no vuelve a entrar; la ventana es acotada y la sala es corta.
+                _seenSet.Add(patch.Id);
+                _seenPatchIds.Enqueue(patch.Id);
+                while (_seenPatchIds.Count > MaxSeenPatchIds)
+                {
+                    _seenSet.Remove(_seenPatchIds.Dequeue());
+                }
+            }
+
             return ValueTask.FromResult(Veredicto.Si);
         }
 
@@ -387,17 +439,29 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
                 else
                 {
                     patch = parsed.Patch;
-                    PatchResult result = PatchApply.TryApply(_mirror, _mirrorVersions, patch);
-                    if (!result.IsAccepted)
+                    Pending? candidate = _pending.FirstOrDefault(p => p.Patch.Id == patch.Id);
+                    if (candidate is not null
+                        && (ordered.Autor != _room.State.MyKey
+                            || (candidate.Sent.Task.IsCompletedSuccessfully && candidate.Sent.Task.Result != ordered.Id)
+                            || !SamePayload(candidate.Canonical, ordered.Datos)))
                     {
-                        desync = result.Rejection!.Message;
+                        // El mismo Patch.Id pero otro autor, otro id de carga u otro contenido no es la confirmación de tu cambio.
+                        desync = "La sala confirmó un cambio tuyo con contenido distinto del que mandaste. Tu copia ya no se puede fiar.";
                     }
                     else
                     {
-                        _seq = ordered.Seq;
-                        if (_pending.FirstOrDefault(p => p.Patch.Id == patch.Id) is { } own)
+                        PatchResult result = PatchApply.TryApply(_mirror, _mirrorVersions, patch);
+                        if (!result.IsAccepted)
                         {
-                            own.Confirmed = true;
+                            desync = result.Rejection!.Message;
+                        }
+                        else
+                        {
+                            _seq = ordered.Seq;
+                            if (candidate is not null)
+                            {
+                                candidate.Confirmed = true;
+                            }
                         }
                     }
                 }
@@ -412,6 +476,19 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
 
         Patch ordered1 = patch;
         _ = _ui(() => ApplyToLive(ordered1));
+    }
+
+    /// <summary>La carga confirmada es exactamente la que se mandó, comparando el JSON por contenido (el transporte puede cambiar su formato).</summary>
+    private static bool SamePayload(string canonical, JsonElement received)
+    {
+        try
+        {
+            return JsonNode.DeepEquals(JsonNode.Parse(canonical), JsonNode.Parse(received.GetRawText()));
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 
     /// <summary>El anfitrión no aceptó un paso propio: lo vivo vuelve a lo confirmado y se dice por qué.</summary>
@@ -484,6 +561,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
                 _history.Record(own.Before, own.After, own.Description);
             }
 
+            ReconcileLiveOrders();
             return;
         }
 
@@ -539,7 +617,53 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         }
 
         _baseline = SharedState.Capture(_live);
+        ReconcileLiveOrders();
         _liveChanged();
+    }
+
+    /// <summary>
+    /// Las altas y bajas simultáneas no piden reservas: lo vivo puede quedar con la misma lista de elementos en otro orden
+    /// del confirmado (el propio por delante y lo ajeno aplicado detrás). Tras cada aplicación ordenada se reconstruye lo
+    /// esperado (confirmado + pendientes) y, si solo difiere el orden de las listas, se realinea con el canónico. Si el
+    /// desajuste no se puede reparar, la copia no es segura.
+    /// </summary>
+    private void ReconcileLiveOrders()
+    {
+        SharedState wanted;
+        lock (_m)
+        {
+            Project target = _mirror.Clone();
+            ElementVersions versions = _mirrorVersions.Clone();
+            foreach (Pending p in _pending)
+            {
+                _ = PatchApply.TryApply(target, versions, p.Patch);
+            }
+
+            wanted = SharedState.Capture(target);
+        }
+
+        SharedState current = SharedState.Capture(_live);
+        if (wanted.Hash == current.Hash)
+        {
+            return;
+        }
+
+        Patch? fix = PatchDiff.Create(current, wanted, _liveVersions, Header("Reordenar como la sala"));
+        if (fix is null || fix.Ops.Count > 0 || fix.Orders.Count == 0)
+        {
+            // Nada que hacer o un desajuste de contenido: este último lo resuelve el veredicto de su pendiente.
+            return;
+        }
+
+        // Solo se realinea el orden: no es un paso propio, así que se aplica sin avanzar las versiones de lo vivo.
+        if (PatchApply.TryApply(_live, _liveVersions.Clone(), fix).IsAccepted)
+        {
+            _baseline = SharedState.Capture(_live);
+        }
+        else
+        {
+            Desynced?.Invoke("No se pudo reordenar tu copia como la sala.");
+        }
     }
 
     private void Revert(Pending pending, string text)
@@ -608,6 +732,12 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         }
 
         next.Patch = patch;
+        if (!next.Sent.Task.IsCompleted)
+        {
+            // Lo que aún no salió sale ya con las versiones nuevas; lo que sí salió se comprueba contra lo que se mandó.
+            next.Canonical = PatchWire.ToJson(patch);
+        }
+
         next.Before = before;
         next.After = SharedState.Capture(_live);
         next.Keys = PatchReservations.Required(patch, _live);
@@ -620,6 +750,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         lock (_m)
         {
             _pending.Clear();
+            _generation++;   // los envíos que esperaban una reserva ya no salen (revisión B12, hallazgo 6)
         }
 
         if (ResetToConfirmed())

@@ -59,6 +59,7 @@ public static class PatchWire
             {
                 writer.WriteStartObject();
                 writer.WriteString("container", order.Container);
+                writer.WriteNumber("v", order.BaseVersion);
                 writer.WriteStartArray("ids");
                 foreach (string id in order.Ids)
                 {
@@ -150,7 +151,7 @@ public static class PatchWire
             {
                 foreach (JsonElement order in orderList.EnumerateArray())
                 {
-                    orders.Add(new PatchOrder(order.GetProperty("container").GetString()!, [.. order.GetProperty("ids").EnumerateArray().Select(i => i.GetString()!)]));
+                    orders.Add(new PatchOrder(order.GetProperty("container").GetString()!, [.. order.GetProperty("ids").EnumerateArray().Select(i => i.GetString()!)], order.GetProperty("v").GetInt32()));
                 }
             }
 
