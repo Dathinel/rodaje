@@ -496,7 +496,8 @@ public static class EffectEdits
     private static void Upsert(Parameter parameter, Time at, double value, Interpolation? interpolation)
     {
         List<Keyframe> keys = parameter.Keyframes;
-        int index = keys.FindIndex(k => k.Time >= at);
+        int index = Parameter.FirstAfter(keys, at);
+        index = index > 0 && keys[index - 1].Time == at ? index - 1 : (index < keys.Count ? index : -1);
         if (index >= 0 && keys[index].Time == at)
         {
             // Cambiar el valor conserva la curva Bézier y las tangentes del keyframe.
@@ -572,7 +573,7 @@ public static class EffectEdits
 
     private static int IndexAt(Parameter parameter, Time at, string name)
     {
-        int index = parameter.Keyframes.FindIndex(k => k.Time == at);
+        int index = Parameter.IndexAt(parameter.Keyframes, at);
         return index >= 0 ? index : throw new EditException($"«{name}» no tiene un keyframe en {at}.");
     }
 

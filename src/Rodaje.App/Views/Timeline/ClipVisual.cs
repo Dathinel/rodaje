@@ -665,14 +665,17 @@ internal sealed class ClipVisual
         const double r = 5;
         double y = d.Height - r - 3;
         var group = new GeometryGroup();
+        double lastX = double.NegativeInfinity;
         foreach (Time time in times)
         {
             double x = LocalX(d, time);
-            if (x < -r || x > d.Width + r)
+            // Un rombo cada r píxeles como mucho: con miles de keyframes se pisarían y cada uno es un objeto de composición.
+            if (x < -r || x > d.Width + r || x - lastX < r)
             {
                 continue;
             }
 
+            lastX = x;
             var segment = new PolyLineSegment();
             segment.Points.Add(new Point(x + r, y));
             segment.Points.Add(new Point(x, y + r));

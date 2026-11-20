@@ -264,7 +264,7 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
 
         _empty.Visibility = Visibility.Collapsed;
         (Parameter? partner, bool partnerIsY) = Partner();
-        IReadOnlyList<GraphPoint> points = KeyframeGraph.Sample(parameter, _mode, partner, partnerIsY);
+        IReadOnlyList<GraphPoint> points = KeyframeGraph.Sample(parameter, _mode, partner, partnerIsY, (int)(PlotWidth * 2));
         List<Keyframe> keys = parameter.Keyframes;
         KeyframeGraphGeometry geometry = _drag?.Geometry ?? Geometry(parameter);
         double low = geometry.Low;
@@ -319,11 +319,21 @@ internal sealed partial class KeyframeGraphControl : Grid, IFocusedShortcutTarge
         _curve.Points = line;
         Time origin = keys[0].Time;
         var diamonds = new GeometryGroup();
+        double lastX = double.NegativeInfinity;
         for (int i = 0; i < keys.Count; i++)
         {
+            double kx = X((keys[i].Time - origin).ToSeconds());
+            bool selected = _selection.Contains(keys[i].Time);
+            if (!selected && kx - lastX < KeyRadius)
+            {
+                // Con miles de keyframes los rombos se pisan: uno por cada KeyRadius píxeles basta para verlos.
+                continue;
+            }
+
+            lastX = kx;
             double value = _mode == GraphMode.Value ? KeyframeGraph.ValueAt(parameter, partner, partnerIsY, keys[i].Time) : 0;
             double y = _mode == GraphMode.Value ? Y(value) : Pad + PlotHeight;
-            diamonds.Children.Add(Diamond(X((keys[i].Time - origin).ToSeconds()), y, _selection.Contains(keys[i].Time) ? KeyRadius + 2 : KeyRadius));
+            diamonds.Children.Add(Diamond(kx, y, selected ? KeyRadius + 2 : KeyRadius));
         }
 
         _keys.Data = diamonds;
