@@ -95,7 +95,9 @@ internal static class MediaSearchDialog
 
             try
             {
-                MediaMatchReport report = await Task.Run(() => matcher.SearchAsync(wanted, where, new Progress<int>(n => summary.Text = $"Buscando… {n} archivos"), cancel.Token));
+                // El avance se crea aquí, en el hilo de la interfaz: dentro de Task.Run avisaría desde un hilo de trabajo.
+                var scanned = new Progress<int>(n => summary.Text = $"Buscando… {n} archivos");
+                MediaMatchReport report = await Task.Run(() => matcher.SearchAsync(wanted, where, scanned, cancel.Token));
                 foreach ((string id, string path) in report.Found)
                 {
                     found[id] = path;
@@ -126,9 +128,13 @@ internal static class MediaSearchDialog
 
         choose.Click += (_, _) =>
         {
-            if (FolderDialog.Pick(hwnd, "Carpeta donde buscar tus videos y audios", folders.Count > 0 ? folders[^1] : null) is { } picked && !folders.Contains(picked))
+            if (FolderDialog.Pick(hwnd, "Carpeta donde buscar tus videos y audios", folders.Count > 0 ? folders[^1] : null) is { } picked)
             {
-                folders.Add(picked);
+                if (!folders.Contains(picked))
+                {
+                    folders.Add(picked);
+                }
+
                 UiTask.Run(SearchAsync([picked]));
             }
         };

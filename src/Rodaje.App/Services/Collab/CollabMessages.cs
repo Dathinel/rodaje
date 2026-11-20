@@ -48,6 +48,7 @@ public static class CollabMessages
         "revocado" => "Tu acceso a la sala se anuló. Tu copia del proyecto sigue en este equipo.",
         "anfitrion-cerro" => "Quien hospeda la sala la cerró. Tu copia del proyecto sigue en este equipo.",
         "red" => "Se perdió la conexión con la sala y no se pudo recuperar. Tu copia del proyecto sigue en este equipo. Pide una invitación nueva para volver.",
+        "desfasada" => "Estuviste desconectado demasiado tiempo y la sala siguió sin ti. Tu copia del proyecto sigue en este equipo. Pide una invitación nueva para volver a entrar.",
         "traspaso" => "La sala cambió de anfitrión y no se pudo seguir. Pide una invitación nueva para volver.",
         _ => "La sala terminó. Tu copia del proyecto sigue en este equipo.",
     };
