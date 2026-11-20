@@ -31,6 +31,8 @@ internal sealed partial class PluginRow(PluginEntry entry, IPackageDownloader do
 
     public string DownloadText => Download.Text;
 
+    public string DownloadDetail => Download.Detail;
+
     public Visibility DownloadActiveVisibility => Download.ActiveVisibility;
 
     public Visibility DownloadIdleVisibility => Download.IdleVisibility;

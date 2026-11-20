@@ -42,6 +42,45 @@ public class LongActionServiceTests
     });
 
     [Fact]
+    public void UnaAccionRapida_NoSale_HastaQuePasaSuEspera() => UiThread.Run(async () =>
+    {
+        var service = new LongActionService(NewSession());
+        using LongActionScope scope = service.TryBegin("abrir", "Abriendo", showAfter: TimeSpan.FromMilliseconds(200))!;
+
+        Assert.Null(service.Current);
+        Assert.True(service.NextReveal > TimeSpan.Zero);
+        Assert.True(service.IsRunning("abrir"));
+
+        await Task.Delay(300);
+        Assert.Equal("Abriendo", service.Current!.Title);
+        Assert.Null(service.NextReveal);
+    });
+
+    [Fact]
+    public void ElAvanceCompletoLlegaAlModeloComun_YCancelarLoPoneEnCancelando()
+    {
+        var service = new LongActionService(NewSession());
+        LongActionScope scope = service.TryBegin("a", "A", "Empieza", canCancel: true)!;
+        Assert.Same(scope.Operation, service.Current!.Operation);
+
+        scope.Report(0.423, "Analizando…"); // por debajo del paso de la barra de avisos, pero sí es avance
+        scope.Operation.SetPhase(2, 4, "Analizar");
+        Rodaje.App.Services.Operations.OperationSnapshot s = scope.Operation.Snapshot();
+        Assert.Equal("42 %", s.PercentText);
+        Assert.Equal("Paso 2 de 4: Analizar · Analizando…", s.Text);
+        Assert.True(s.CanCancel);
+
+        Assert.True(service.Cancel("a"));
+        s = scope.Operation.Snapshot();
+        Assert.True(s.IsCancelling);
+        Assert.False(s.CanCancel);
+        Assert.Null(s.Fraction);
+
+        scope.Dispose();
+        Assert.True(scope.Operation.Snapshot().IsFinished);
+    }
+
+    [Fact]
     public void ElAvanceSeRecortaYNoDespiertaPorMenosDeMedioPunto()
     {
         var service = new LongActionService(NewSession());

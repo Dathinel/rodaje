@@ -37,12 +37,8 @@
             </InfoBar.ActionButton>
             <StackPanel Orientation="Horizontal" Spacing="8">
                 <Button x:Name="NotificationSecondaryButton" Visibility="Collapsed" Click="OnNotificationSecondaryButtonClick" />
-                <!-- Una acción larga en marcha (LongActionService): avance con porcentaje, o indeterminado si no se sabe. -->
-                <StackPanel x:Name="NotificationProgress" Orientation="Horizontal" Spacing="8" Margin="0,0,0,12" Visibility="Collapsed">
-                    <ProgressBar x:Name="NotificationProgressBar" Width="280" Maximum="1" VerticalAlignment="Center"
-                                 AutomationProperties.Name="Avance" />
-                    <TextBlock x:Name="NotificationProgressText" Style="{StaticResource CaptionTextStyle}" VerticalAlignment="Center" />
-                </StackPanel>
+                <!-- Una acción larga en marcha (LongActionService): OperationProgressView, que se añade en el constructor. -->
+                <StackPanel x:Name="NotificationProgress" Orientation="Horizontal" Margin="0,0,0,12" Visibility="Collapsed" />
             </StackPanel>
         </InfoBar>
 
@@ -85,12 +81,14 @@
                     </Button.Flyout>
                 </Button>
                 <Button x:Name="JobsButton" ToolTipService.ToolTip="Trabajos en segundo plano">
-                    <StackPanel Orientation="Horizontal" Spacing="8">
-                        <Grid Width="16" Height="16">
+                    <StackPanel Spacing="3">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
                             <FontIcon Glyph="&#xE9F5;" FontSize="{StaticResource IconFontSize}" />
-                            <ProgressRing x:Name="JobsProgress" Width="16" Height="16" IsActive="False" Visibility="Collapsed" />
-                        </Grid>
-                        <TextBlock x:Name="JobsButtonText" Text="Trabajos" />
+                            <TextBlock x:Name="JobsButtonText" Text="Trabajos" />
+                        </StackPanel>
+                        <!-- Barra fina bajo el nombre mientras hay trabajos: con porcentaje si es uno solo y lo conoce; si no, en movimiento. -->
+                        <ProgressBar x:Name="JobsProgress" Height="3" MinHeight="3" Maximum="1" Visibility="Collapsed"
+                                     AutomationProperties.Name="Avance de los trabajos" />
                     </StackPanel>
                     <Button.Flyout>
                         <Flyout Placement="Top">

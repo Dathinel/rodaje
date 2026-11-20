@@ -4,6 +4,8 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
+using Rodaje.App.Services.Modules;
+using Rodaje.App.Services.Operations;
 using Rodaje.App.Services.Voice;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
@@ -69,13 +71,13 @@ internal static class VoiceDialog
         Slider commaPause = AnalysisUi.Slider(panel, "Pausa en comas", 0, 1, start.CommaPause, 0.05, AnalysisUi.Sec, () => { });
 
         var listen = new Button { Content = "Escuchar", IsEnabled = false };
-        var busy = new ProgressRing { IsActive = false, Width = 20, Height = 20 };
+        var busy = new OperationProgressView { Width = AnalysisUi.PreviewWidth - 20, ShowMessage = false, ShowCancel = false };
         var status = new TextBlock { Text = "Cargando las voces…", TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Width = 330 };
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
         row.Children.Add(listen);
-        row.Children.Add(busy);
         row.Children.Add(status);
         panel.Children.Add(row);
+        panel.Children.Add(busy);
         var advice = new Shared.AiAdvicePanel();
         panel.Children.Add(advice.Panel);
         if (synth is ModuleVoiceSynthesizer estimating)
@@ -131,6 +133,20 @@ internal static class VoiceDialog
             voice.SelectedIndex = choices.Length == 0 ? -1 : Math.Max(0, Array.FindIndex(choices, c => c.Voice.Id == wanted));
         }
 
+        // Hasta que el trabajo de módulo exista (o si no lo hay), un avance propio con lo que lleva; luego, el del trabajo.
+        void ShowBusy(string message)
+        {
+            var own = new OperationProgress();
+            own.Report(null, message);
+            busy.Operation = own;
+        }
+
+        void Adopt(ModuleJob job)
+        {
+            busy.Operation = job.Operation;
+            scope?.Follow(job.Operation);
+        }
+
         Task<SynthesizedVoice?> Generate() => work.Track(GenerateAsync());
 
         async Task<SynthesizedVoice?> GenerateAsync()
@@ -142,13 +158,19 @@ internal static class VoiceDialog
             }
 
             generating = true;
-            busy.IsActive = true;
+            ShowBusy("Generando la voz…");
             status.Text = "Generando la voz…";
             scope?.Report(null, "Generando la voz…");
             Refresh();
             try
             {
-                SynthesizedVoice v = await synth.SynthesizeAsync(wanted, "Texto a voz", work.Token);
+                Task<SynthesizedVoice> call;
+                using (services.Modules?.Jobs.CaptureNext(Adopt))
+                {
+                    call = synth.SynthesizeAsync(wanted, "Texto a voz", work.Token);
+                }
+
+                SynthesizedVoice v = await call;
                 made = (wanted, v);
                 status.Text = Fmt($"Listo: {v.Seconds:0.0} s de audio.");
                 return v;
@@ -173,7 +195,7 @@ internal static class VoiceDialog
             finally
             {
                 generating = false;
-                busy.IsActive = false;
+                busy.Operation = null;
                 Refresh();
             }
         }
@@ -279,14 +301,17 @@ internal static class VoiceDialog
         // Leer las voces arranca el módulo (hasta 30 s en frío): el círculo se mueve mientras tanto.
         async Task LoadVoices()
         {
-            busy.IsActive = true;
+            ShowBusy("Cargando las voces…");
             try
             {
                 await ReadVoices();
             }
             finally
             {
-                busy.IsActive = generating;
+                if (!generating)
+                {
+                    busy.Operation = null;
+                }
             }
         }
 
@@ -294,7 +319,13 @@ internal static class VoiceDialog
         {
             try
             {
-                catalog = await synth.GetVoicesAsync(work.Token);
+                Task<VoiceCatalog> call;
+                using (services.Modules?.Jobs.CaptureNext(Adopt))
+                {
+                    call = synth.GetVoicesAsync(work.Token);
+                }
+
+                catalog = await call;
             }
             catch (OperationCanceledException)
             {

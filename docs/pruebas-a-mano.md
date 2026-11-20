@@ -206,3 +206,17 @@ En el PC de siempre con Ubuntu 24.04 desde el USB (sesión X11 o Wayland con XWa
 8. **Exportar**: exporta 10 s a ProRes y a H.264 (si la lista ofrece h264_nvenc o h264_vaapi). Abre el archivo con el reproductor del sistema.
 9. **Teclado**: en un teclado español, mira cómo se llaman en Atajos las teclas de signos ( '  y  ¡ ): en Linux salen con el nombre de la tecla de EE. UU. (pendiente).
 10. **Audio**: reproduce con sonido (PipeWire); di si se oye sincronizado con la imagen.
+## Progreso visible en toda operación larga (B9b)
+
+Para la vuelta de repaso con ratón (B9). Criterio común: nada se queda con solo una rueda; cada operación larga muestra una **barra** (con porcentaje o en movimiento), el texto de fase o etapa, «quedan unos N s» cuando hay porcentaje y, si pasan 5 s sin avance, «Sigue trabajando; último avance hace N s». Revisa también el tema **claro**, **oscuro** y **alto contraste** (Preferencias › Apariencia) y que la barra no parpadee ni tape el recorrido del cursor en la línea de tiempo.
+
+1. **Barra de avisos (acción larga)**: selecciona un clip y lanza «Color automático» (barra de herramientas). Debe salir al instante la barra con porcentaje, «Cancelar» y debajo «quedan unos N s» si dura más de 3 s. Pulsa Cancelar: dice «Cancelando…» y la barra se mueve sin botón hasta que termina.
+2. **Abrir un proyecto**: abre uno grande (cientos de clips) con Ctrl+O. Si tarda más de medio segundo, aparece «Abriendo el proyecto» con «Paso 1 de 2: Leyendo el archivo». Uno pequeño **no** debe hacer aparecer la barra (sin parpadeo).
+3. **Importar muchos medios**: arrastra 30 videos a la biblioteca: «Importando medios», «Leyendo los medios: 12 de 30», porcentaje, «Cancelar». Cancela a la mitad: «Importación cancelada», y no se añade ninguno.
+4. **Exportar**: Trabajos › Exportaciones: la tarjeta muestra la barra con porcentaje, «238 fps» y «quedan unos N s»; en «Preparando», «Midiendo la sonoridad» o «Cerrando el archivo» la barra se mueve y dice cuánto lleva. Con 2 pasadas: «Paso 1 de 2: Exportando».
+5. **Render en caché**: Secuencia › Calcular de entrada a salida (Ctrl+Mayús+R): en Trabajos, fila «Render en caché» con barra, porcentaje y tiempo restante.
+6. **Módulos de IA**: subtítulos automáticos, reducir ruido, quitar fondo, reencuadre: en el diálogo, «Iniciando el módulo…» con la barra en movimiento y lo que lleva; luego etapa, porcentaje y tiempo restante. En **Traducir pista**, **Texto a voz** (también al cargar las voces) y **Reenlazar medios › Buscar en carpeta** ya no hay rueda: hay barra. Importar CinemaDNG: la barra de avisos tiene porcentaje (antes quedaba en movimiento).
+7. **Descargar un módulo o sus modelos** (Complementos): barra con porcentaje y, debajo, «quedan unos N s». Corta la red unos segundos: debe salir «Sigue trabajando; último avance hace N s».
+8. **Proxies**: Trabajos › Proxies: cada proxy activo con barra y tiempo restante; los que esperan dicen «En cola» sin «Sigue trabajando».
+9. **Intercambio**: Archivo › Importar línea de tiempo… de un `.otio` o `.fcpxml` con muchos medios: porcentaje de medios sondeados y Cancelar.
+10. **Botón «Trabajos»**: con algo en marcha, la barra fina bajo su nombre (no hay rueda).
