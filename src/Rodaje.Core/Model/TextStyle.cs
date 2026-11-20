@@ -149,6 +149,10 @@ public sealed class TextStyle
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
     public StyleAnimation? Out { get; set; }
 
+    /// <summary>Movimiento continuo del bloque entero; nulo = sin bucle.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public StyleLoop? Loop { get; set; }
+
     public TextStyle Clone() => new()
     {
         Source = Source,
@@ -170,6 +174,7 @@ public sealed class TextStyle
         Highlight = Highlight is null ? null : new StyleHighlight { Color = Highlight.Color, Mode = Highlight.Mode },
         In = In?.Clone(),
         Out = Out?.Clone(),
+        Loop = Loop?.Clone(),
     };
 
     public bool ContentEquals(TextStyle other)
@@ -194,7 +199,8 @@ public sealed class TextStyle
             && Same(Path, other.Path, (a, b) => a.Kind == b.Kind && a.Bend.Equals(b.Bend))
             && Same(Highlight, other.Highlight, (a, b) => a.Color == b.Color && a.Mode == b.Mode)
             && Same(In, other.In, (a, b) => a.ContentEquals(b))
-            && Same(Out, other.Out, (a, b) => a.ContentEquals(b));
+            && Same(Out, other.Out, (a, b) => a.ContentEquals(b))
+            && Same(Loop, other.Loop, (a, b) => a.ContentEquals(b));
     }
 
     /// <summary>Todos los bordes, el principal primero.</summary>
@@ -461,3 +467,46 @@ public sealed class StyleAnimation
 
 /// <summary>Punto de una curva del estilo: <see cref="T"/> en segundos desde el borde y la interpolación hasta el siguiente.</summary>
 public sealed record StyleKey(double T, double Value, Interpolation Interp = Interpolation.Linear);
+
+public enum TextLoopKind
+{
+    Wobble,
+    Shake,
+    Pulse,
+    [System.Diagnostics.CodeAnalysis.SuppressMessage("Naming", "CA1720:Identifier contains type name", Justification = "Nombre del movimiento Flotar en el contrato del formato.")]
+    Float,
+}
+
+/// <summary>Movimiento continuo en píxeles de la referencia, grados y escala multiplicativa.</summary>
+public sealed class StyleLoop
+{
+    public const double MinAmount = 0.1;
+    public const double MaxAmount = 2;
+    public const double MinSpeed = 0.1;
+    public const double MaxSpeed = 20;
+
+    private double? _speed;
+
+    public TextLoopKind Kind { get; set; }
+
+    public double Amount { get; set; } = 1;
+
+    /// <summary>Hz, de 0,1 a 20; si falta, la velocidad propia de la clase.</summary>
+    public double Speed
+    {
+        get => _speed ?? DefaultSpeed(Kind);
+        set => _speed = value;
+    }
+
+    public static double DefaultSpeed(TextLoopKind kind) => kind switch
+    {
+        TextLoopKind.Shake => 6,
+        TextLoopKind.Pulse => 1.2,
+        TextLoopKind.Float => 0.5,
+        _ => 0.8,
+    };
+
+    public StyleLoop Clone() => new() { Kind = Kind, Amount = Amount, _speed = _speed };
+
+    public bool ContentEquals(StyleLoop other) => Kind == other.Kind && Amount.Equals(other.Amount) && Speed.Equals(other.Speed);
+}

@@ -187,6 +187,13 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
         return ExecuteOnTargets(Targets(), clip => Edits.SetTitleBox(Session.SequenceId, clip.Id, change(clip.Generator!.Box)));
     }
 
+    /// <summary>Elige un bucle con la velocidad propia de su clase; «Ninguno» quita el campo opcional.</summary>
+    public static void SetLoop(TextStyle style, TextLoopKind? kind)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+        style.Loop = kind is { } value ? new StyleLoop { Kind = value, Amount = style.Loop?.Amount ?? 1 } : null;
+    }
+
     /// <summary>Un cambio suelto (un desplegable, una casilla): un paso propio del historial.</summary>
     public bool CommitStyle(string field, Action<TextStyle> change)
     {

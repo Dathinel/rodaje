@@ -87,6 +87,13 @@ internal sealed class GeneratedClipPlan
     {
         LayerTransform clip = EffectPlan.Transform(Effects, TimeMap.EffectTime(timeline));
         clip = clip with { X = clip.X + OffsetX, Y = clip.Y + OffsetY };
+        if (Content.Style.Loop is { } loop)
+        {
+            UnitPose delta = TextLoops.Delta(loop, (timeline - Start).ToSeconds());
+            clip = TitleAnimation.Compose(clip, delta.X * Content.UnitScale, delta.Y * Content.UnitScale,
+                delta.Scale, delta.Rotation, delta.Opacity);
+        }
+
         return Animation is { } animation ? animation.Apply(clip, timeline - Start) : clip;
     }
 
@@ -226,7 +233,8 @@ internal sealed class GeneratedClipPlan
 
         TitleAnimation? animation = TitleAnimation.From(style, edges, duration, unit);
         double unitScale = Math.Max(TextAnimator.From(style.In)?.MaxScale ?? 1, TextAnimator.From(style.Out)?.MaxScale ?? 1);
-        double scale = Math.Clamp(EffectPlan.MaxScale(effects) * (animation?.MaxScale ?? 1) * unitScale, MinRasterScale, MaxRasterScale);
+        double loopScale = style.Loop is { Kind: TextLoopKind.Pulse } loop ? 1 + 0.06 * loop.Amount : 1;
+        double scale = Math.Clamp(EffectPlan.MaxScale(effects) * (animation?.MaxScale ?? 1) * unitScale * loopScale, MinRasterScale, MaxRasterScale);
         IReadOnlyList<WordRange>? ranges = style.Highlight is not null && spokenWords is { Count: > 0 } spoken
             ? SubtitleEdits.WordRanges(text, spoken)
             : null;
@@ -391,7 +399,7 @@ internal sealed class TitleAnimation
     {
         (double x, double y, double s, double r, double o) = TitleMotion.Compose(
             clip.X, clip.Y, clip.Scale, clip.RotationDegrees, clip.Opacity, dx, dy, scale, rotation, opacity);
-        return new LayerTransform(x, y, s, r, o);
+        return clip with { X = x, Y = y, Scale = s, RotationDegrees = r, Opacity = o };
     }
 
     private static Curve?[]? Curves(StyleAnimation? animation)

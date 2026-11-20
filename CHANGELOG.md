@@ -29,6 +29,8 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 - **HDR de 12 bits:** el proxy de un intermedio FFV1 PQ en un MKV corto y el color en BT.2020 pasan la revisión independiente.
 - **Autoprueba:** los pasos «Antes/después» y «Waveform» son estables.
 
+- **Movimiento continuo de texto:** Inspector › Texto › Animación › «Movimiento continuo» (Tambaleo, Temblor, Pulso, Flotar) con Cantidad y Velocidad; es una animación en bucle del estilo (un campo `loop`, sin keyframes), igual de barata que un keyframe e idéntica al exportar.
+
 ### Cambiado
 
 - **Muchos keyframes:** evaluar y buscar un keyframe es por bisección (antes lineal), la gráfica del inspector se muestrea por los píxeles que tiene (antes 48 muestras por tramo: unos 60.000 puntos con 1250 keyframes en un parámetro) y ni ella ni la línea de tiempo dibujan rombos que se pisan; un vaciado de búfer de audio entra y sale del silencio con un fundido de 2,7 ms en vez de un escalón (chasquido). Cifras en `docs/rendimiento-keyframes.md`.

@@ -68,3 +68,5 @@ Los paquetes pueden traer estilos de texto (categoría Texto de la biblioteca) y
 ## Cuánto cuesta
 
 Un título animado por letra se dibuja una sola vez, letra por letra, y después solo se mueve: tres líneas con borde y sombra, animadas por letra, se componen en menos de medio milisegundo por cuadro tanto en 1080p como en 4K (RTX 3050 de portátil). La primera vez que aparece tarda de 30 ms (1080p) a 120 ms (4K) en prepararse, en segundo plano.
+
+**Movimiento continuo.** En Texto › Animación, elige Ninguno, Tambaleo, Temblor, Pulso o Flotar para mover el título entero durante todo el clip. Cantidad controla la intensidad (de 0,1 a 2) y Velocidad los ciclos por segundo (de 0,1 a 20 Hz). Cada movimiento empieza con su velocidad propia: 0,8, 6, 1,2 y 0,5 Hz, respectivamente. Funciona junto a la entrada y la salida, sin crear keyframes, y se ve igual al exportar. Arrastrar un control se deshace en un solo paso; Ninguno elimina el movimiento continuo.

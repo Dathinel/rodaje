@@ -237,6 +237,13 @@ public static partial class ModelValidator
             }
         }
 
+        if (style.Loop is { } loop)
+        {
+            Check(Enum.IsDefined(loop.Kind), "un movimiento continuo desconocido");
+            Check(InRange(loop.Amount, StyleLoop.MinAmount, StyleLoop.MaxAmount), "una cantidad de movimiento continuo fuera de 0,1 a 2");
+            Check(InRange(loop.Speed, StyleLoop.MinSpeed, StyleLoop.MaxSpeed), "una velocidad de movimiento continuo fuera de 0,1 a 20 Hz");
+        }
+
         Check(style.Source is null || OptionDefinition.IsWellFormedReference(style.Source), "un origen que no es una referencia de paquete");
         Check(style.Name is null || IsDisplayText(style.Name, MaxNameLength), "un nombre no válido");
 
