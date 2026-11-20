@@ -1,8 +1,8 @@
 # Protocolo de módulos v1: guía para terceros
 
-Cómo escribir un módulo que Rodaje pueda abrir: un programa aparte que habla con el editor por una tubería con mensajes JSON y recibe cuadros y audio por memoria compartida. Describe la versión 1 del protocolo tal como está en el código de `src/Rodaje.Modules.Protocol/` (decisión D-031); cada dato cita el archivo de donde sale.
+Cómo escribir un módulo que Rodaje pueda abrir: un programa aparte que habla con el editor por una tubería con mensajes JSON y recibe cuadros y audio por memoria compartida. Describe la versión 1 del protocolo tal como está en el código de `externo/sala/src/Rodaje.Modules.Protocol/` (decisión D-031; el protocolo vive en el submódulo `externo/sala`, repositorio `Dathinel/sala`, desde la integración del 18-nov); cada dato cita el archivo de donde sale.
 
-**Qué hay.** El protocolo, el anfitrión para módulos en C# (`ModuleHost`) y el módulo de ejemplo (`modules/Rodaje.Module.Echo/`) tienen pruebas en `tests/Rodaje.Modules.Protocol.Tests/`. La app abre los módulos con el `ModuleManager` (`src/Rodaje.App/Services/Modules/`): los busca en disco (`ModuleCatalog`), abre un proceso por módulo con la primera llamada, lo vigila y lo cierra; sus reglas están en [Límites](#límites). Los módulos de Rodaje (audio, subtítulos, traducción, voz, visión y RAW) usan este mismo protocolo.
+**Qué hay.** El protocolo, el anfitrión para módulos en C# (`ModuleHost`) y el módulo de ejemplo (`externo/sala/modules/Rodaje.Module.Echo/`) tienen pruebas en `externo/sala/tests/Rodaje.Modules.Protocol.Tests/`. La app abre los módulos con el `ModuleManager` (`src/Rodaje.App/Services/Modules/`): los busca en disco (`ModuleCatalog`), abre un proceso por módulo con la primera llamada, lo vigila y lo cierra; sus reglas están en [Límites](#límites). Los módulos de Rodaje (audio, subtítulos, traducción, voz, visión y RAW) usan este mismo protocolo.
 
 **Ejemplos JSON.** Todos los mensajes de esta guía son marcos reales: salen de conectar el `ModuleClient` (el lado del editor) con un `ModuleHost` que registra las funciones del módulo de eco, con el serializador del protocolo, y copiar lo que pasó por el cable. Solo cambian los valores de ejemplo (`appVersion`, `culture`, parámetros). El serializador de .NET escribe las letras no ASCII como escapes (`"parámetros"`); en esta guía se muestran así, tal cual salen. Las dos formas son JSON válido y el lector acepta cualquiera.
 
@@ -82,7 +82,7 @@ Fuente: `HelloMessage` en `Messages.cs` y `ModuleClientOptions` en `ModuleClient
 
 ### `welcome` (módulo → editor)
 
-El módulo elige **la mayor versión común**: `min(maxProtocol del módulo, maxProtocol del editor)`, y la acepta si es al menos `max(minProtocol del módulo, minProtocol del editor)` (`ModuleHost.HandshakeAsync`). Contesta con esa versión y con la descripción de lo que ofrece. Este es el `welcome` real del módulo de eco (`modules/Rodaje.Module.Echo/Program.cs`):
+El módulo elige **la mayor versión común**: `min(maxProtocol del módulo, maxProtocol del editor)`, y la acepta si es al menos `max(minProtocol del módulo, minProtocol del editor)` (`ModuleHost.HandshakeAsync`). Contesta con esa versión y con la descripción de lo que ofrece. Este es el `welcome` real del módulo de eco (`externo/sala/modules/Rodaje.Module.Echo/Program.cs`):
 
 ```json
 {"type":"welcome","protocol":1,"module":{"id":"rodaje-eco","version":"0.1.0","name":"Eco","functions":[{"id":"eco","name":"Devolver los parámetros","cancellable":true,"reportsProgress":false},{"id":"contar","name":"Contar con avance","cancellable":true,"reportsProgress":true},{"id":"copiar","name":"Copiar el primer búfer en el segundo","cancellable":true,"reportsProgress":false,"inputs":["video"],"outputs":["video"]},{"id":"morir","name":"Terminar el proceso a mitad de una llamada","cancellable":false,"reportsProgress":false},{"id":"colgar","name":"Ignorar la cancelación","cancellable":false,"reportsProgress":false},{"id":"fallar","name":"Lanzar una excepción","cancellable":true,"reportsProgress":false}],"device":"cpu"}}
@@ -477,7 +477,7 @@ Un módulo de otro autor puede leer los mismos campos si le sirven; si no, basta
 
 ### En C#, con el anfitrión de Rodaje
 
-La forma más corta: referenciar `Rodaje.Modules.Protocol`, describir el módulo con `ModuleInfo`, registrar cada función en un `ModuleHost` y llamar a `RunAsync(args)`. El anfitrión hace el saludo, la versión, el marco, la validación, el paralelismo, el límite del avance, la cancelación y la conversión de excepciones en `error`. Plantilla completa: `modules/Rodaje.Module.Echo/`.
+La forma más corta: referenciar `Rodaje.Modules.Protocol`, describir el módulo con `ModuleInfo`, registrar cada función en un `ModuleHost` y llamar a `RunAsync(args)`. El anfitrión hace el saludo, la versión, el marco, la validación, el paralelismo, el límite del avance, la cancelación y la conversión de excepciones en `error`. Plantilla completa: `externo/sala/modules/Rodaje.Module.Echo/`.
 
 `Program.cs`:
 
@@ -537,7 +537,7 @@ return await host.RunAsync(args).ConfigureAwait(false);
     <InvariantGlobalization>true</InvariantGlobalization>
   </PropertyGroup>
   <ItemGroup>
-    <ProjectReference Include="..\rodaje\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <ProjectReference Include="..\rodaje\externo\sala\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
   </ItemGroup>
 </Project>
 ```
@@ -674,5 +674,5 @@ Es decir: un módulo que habla con Rodaje por este protocolo puede llevar **su p
 
 Lo que esta guía **no** resuelve, y queda para el autor y el abogado ([legal.md](legal.md)):
 
-- Si un módulo que **incluye** la biblioteca `Rodaje.Modules.Protocol` (código de este repositorio, bajo la misma licencia) cuenta como «conectarse a través de las interfaces públicas» o necesita otro permiso. Un módulo que implementa el protocolo por su cuenta, como el ejemplo en Python, solo se comunica por IPC. La licencia con que saldrá la biblioteca en su propio repositorio no está decidida.
+- Si un módulo que **incluye** la biblioteca `Rodaje.Modules.Protocol` cuenta como «conectarse a través de las interfaces públicas» o necesita otro permiso. La biblioteca vive ahora en el repositorio `Dathinel/sala` con licencia MIT (D-067 §10.1), así que incluirla no arrastra la GPLv3 de Rodaje. Un módulo que implementa el protocolo por su cuenta, como el ejemplo en Python, solo se comunica por IPC.
 - Las licencias de los modelos, voces y bibliotecas que use tu módulo son aparte y las cumples tú.

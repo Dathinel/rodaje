@@ -67,6 +67,12 @@ public static class ModuleCatalog
         if (FindDevelopmentModules(baseDirectory) is { } dev)
         {
             roots.Add(new ModuleRoot(dev, ModuleOrigin.Development));
+            // El módulo eco vive en el submódulo externo/sala (bloque de integración de D-066).
+            string sala = Path.Combine(Path.GetDirectoryName(dev)!, "externo", "sala", "modules");
+            if (Directory.Exists(sala))
+            {
+                roots.Add(new ModuleRoot(sala, ModuleOrigin.Development));
+            }
         }
 
         return roots;

@@ -49,7 +49,7 @@ Componentes incluidos:
 ===============================================================================
 1. .NET Runtime y compilador Native AOT, serie 10.0
    (paquetes Microsoft.NETCore.App.Runtime.win-x64 y
-   Microsoft.DotNet.ILCompiler 10.0.12, compilados con el SDK 10.0.401)
+   Microsoft.DotNet.ILCompiler 10.0.14, compilados con el SDK 10.0.403)
    https://github.com/dotnet/runtime
    Licencia: MIT
 ===============================================================================
@@ -24271,7 +24271,7 @@ licencia es la de rav1e, ya incluida en los avisos. Solo lo activa la feature «
 
 ===============================================================================
 8. Avisos de terceros del runtime de .NET 10
-   ThirdPartyNotices.txt del SDK 10.0.401 (.entorno\dotnet), literal
+   ThirdPartyNotices.txt del SDK 10.0.403 (el mismo texto que el del 10.0.401) (.entorno\dotnet), literal
 ===============================================================================
 
 .NET Runtime uses third-party libraries or other resources that may be

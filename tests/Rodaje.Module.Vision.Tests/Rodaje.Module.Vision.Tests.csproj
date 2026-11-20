@@ -16,7 +16,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\modules\Rodaje.Module.Vision\Rodaje.Module.Vision.csproj" />
-    <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <ProjectReference Include="..\..\externo\sala\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
   </ItemGroup>
 
   <ItemGroup>

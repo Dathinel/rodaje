@@ -12,7 +12,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\modules\Rodaje.Module.Raw\Rodaje.Module.Raw.csproj" />
-    <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <ProjectReference Include="..\..\externo\sala\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
     <!-- SyntheticDng: cuadros CinemaDNG sintéticos. -->
     <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
   </ItemGroup>

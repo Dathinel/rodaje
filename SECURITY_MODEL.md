@@ -9,7 +9,7 @@ Complementa a `SECURITY.md` (qué es un problema de seguridad y cómo reportarlo
 - **Rodaje** (`Dathinel/rodaje`): editor de video nativo para Windows (.NET 10, Native AOT, WinUI 3). Se instala por usuario, sin permisos de administrador (`%LOCALAPPDATA%\Rodaje`). Lee medios con FFmpeg LGPL (DLL distribuidas), proyectos `.rodaje` (JSON, `src/Rodaje.Core/Serialization`, esquemas en `schema/`), LUT `.cube`, subtítulos y RAW/CinemaDNG.
 - **Complementos**: los `.paquete` son zip con `paquete.json` (`src/Rodaje.Packages`). Los de contenido no traen código (`rodaje-transiciones`, `-filtros`, `-fuentes`, `-titulos`, `-zonas`, `-camaras`, `-sonidos`, `-preajustes-pro`, `-360`). Los módulos sí traen un ejecutable (`module.entry`).
 - **Catálogo firmado** (`Dathinel/rodaje-catalogo`): `indice.json` + `indice.json.sig` (ECDSA P-256). La clave pública va en el exe (`src/Rodaje.App/Services/Packages/clave-catalogo.txt`) y la privada solo en el equipo de Daniel, fuera de los repositorios. Las descargas solo vienen de `github.com/Dathinel/*/releases` o de `huggingface.co/<repo>/resolve/<commit>`, se comprueban por SHA-256 y tamaño (`src/Rodaje.Packages/Download`). El índice no puede ser más viejo que el último visto.
-- **Módulos de IA** (`modulo-*`, `rodaje/modules`, `rodaje-codificadores-gpl`): procesos aparte que Rodaje abre y con los que habla por una tubería con nombre `CurrentUserOnly` (JSON enmarcado, 1 MiB máx.) y memoria compartida (`src/Rodaje.Modules.Protocol`, `docs/protocolo-modulos.md`). Lo que devuelven es una propuesta que se aplica como un paso del historial.
+- **Módulos de IA** (`modulo-*`, `rodaje/modules`, `rodaje-codificadores-gpl`): procesos aparte que Rodaje abre y con los que habla por una tubería con nombre `CurrentUserOnly` (JSON enmarcado, 1 MiB máx.) y memoria compartida (protocolo en el submódulo `externo/sala` — `src/Rodaje.Modules.Protocol` del repositorio `Dathinel/sala` — `docs/protocolo-modulos.md`). Lo que devuelven es una propuesta que se aplica como un paso del historial.
 - **Herramientas de IA** (`lanzador`, `subtitular`, `rastrear`): apps WinUI 3 + CLI. El Lanzador baja e instala Subtitular y Rastrear desde el catálogo firmado (`Lanzador.Core/Instalador.cs`) en `%LOCALAPPDATA%\Dathinel`. Las tres buscan actualizaciones en la API pública de GitHub y reutilizan los módulos de Rodaje.
 - **Sensores-Teoria**: prácticas de la materia (ESP32, Python, visión). `_lanzador/lanzador.py` levanta un servidor HTTP en 127.0.0.1 y ejecuta procesos locales.
 - **Proceso y build**: `rodaje-proceso` (notas privadas, scripts de agentes y de la nube), `build/*.ps1` y `generar.ps1`/`empaquetar.ps1` de cada repo, y los workflows `.github/workflows` (CI, nocturna, release en borrador con `contents: write`).
@@ -20,9 +20,9 @@ Límites de confianza: (1) archivo externo → proceso del editor o herramienta;
 
 | Componente | Código que cubre |
 |---|---|
-| Editor | `rodaje/src` salvo `Rodaje.Packages` y `Rodaje.Modules.Protocol`: Core, Media, Render, Engine, Export, Audio, Analysis, Playback, App, Launcher; `rodaje/schema` |
+| Editor | `rodaje/src` salvo `Rodaje.Packages`: Core, Media, Render, Engine, Export, Audio, Analysis, Playback, App, Launcher; `rodaje/schema` |
 | Paquetes y catálogo | `rodaje/src/Rodaje.Packages`, `rodaje/src/Rodaje.App/Services/Packages`, `Services/Updates`, `rodaje-catalogo` y el contenido de los nueve repos `rodaje-*` de contenido |
-| Módulos de IA | `rodaje/src/Rodaje.Modules.Protocol`, `rodaje/src/Rodaje.App/Services/Modules`, `rodaje/modules`, `modulo-*`, `rodaje-codificadores-gpl` |
+| Módulos de IA | `sala/src/Rodaje.Modules.Protocol` (submódulo `rodaje/externo/sala`), `rodaje/src/Rodaje.App/Services/Modules`, `rodaje/modules`, `modulo-*`, `rodaje-codificadores-gpl` |
 | Herramientas de IA | `lanzador`, `subtitular`, `rastrear` (sus `src/`) |
 | Build y publicación | `.github/workflows` y `.github/actions` de cada repo, `build/*.ps1`, `generar.ps1`/`empaquetar.ps1`/`probar.ps1` de los repos de contenido, `rodaje-proceso`, `Dathinel/Dathinel` |
 | Sensores-Teoria | `Dathinel/Sensores-Teoria` entero |

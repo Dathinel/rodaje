@@ -99,7 +99,7 @@
       "rodaje.testserver": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Packages": "[1.0.0, )"
+          "Rodaje.Packages": "[1.0.3, )"
         }
       }
     }

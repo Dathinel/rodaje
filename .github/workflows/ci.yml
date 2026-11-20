@@ -34,6 +34,8 @@ jobs:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: ./.github/actions/preparar-linux
 
@@ -127,6 +129,8 @@ jobs:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: ./.github/actions/preparar-linux
 
@@ -167,6 +171,8 @@ jobs:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: ./.github/actions/preparar-linux
 
@@ -222,6 +228,8 @@ jobs:
       DOTNET_CLI_FORCE_UTF8_ENCODING: '1'
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: ./.github/actions/preparar-windows
 
@@ -237,7 +245,7 @@ jobs:
           $reloj = [System.Diagnostics.Stopwatch]::StartNew()
           powershell -NoProfile -ExecutionPolicy Bypass -File build\app.ps1 -SoloPublicar
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & build\dotnet-local.cmd publish modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj -c Release -o modules\Rodaje.Module.Echo\bin\aot -m:4 --nologo
+          & build\dotnet-local.cmd publish externo\sala\modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj -c Release -o externo\sala\modules\Rodaje.Module.Echo\bin\aot -m:4 --nologo
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           "Publicación AOT: $($reloj.Elapsed.TotalSeconds.ToString('F1')) s" >> $env:GITHUB_STEP_SUMMARY
 
@@ -304,6 +312,8 @@ jobs:
       RODAJE_REFERENCIAS_WARP: ${{ github.workspace }}\TestResults\referencias-warp
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: ./.github/actions/preparar-windows
       - name: Compilar pruebas Vulkan
         shell: pwsh
@@ -340,6 +350,8 @@ jobs:
       RODAJE_VK_VALIDACION_INFORME: ${{ github.workspace }}/TestResults/validacion-vulkan.txt
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: ./.github/actions/preparar-linux
       - name: Instalar lavapipe y las capas de validación
         run: |
@@ -387,6 +399,8 @@ jobs:
       RODAJE_VK_INFORME: ${{ github.workspace }}/TestResults/vulkan-warp.json
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - uses: ./.github/actions/preparar-linux
       - name: Instalar lavapipe
         run: |

@@ -17,9 +17,9 @@
 
   <ItemGroup>
     <!-- Marco y mensajes del protocolo v1, enlazados tal cual (los mismos bytes por el cable que en Windows). -->
-    <Compile Include="..\..\..\src\Rodaje.Modules.Protocol\MessageChannel.cs" Link="Protocolo\MessageChannel.cs" />
-    <Compile Include="..\..\..\src\Rodaje.Modules.Protocol\Messages.cs" Link="Protocolo\Messages.cs" />
-    <Compile Include="..\..\..\src\Rodaje.Modules.Protocol\ModuleExceptions.cs" Link="Protocolo\ModuleExceptions.cs" />
+    <Compile Include="..\..\..\externo\sala\src\Rodaje.Modules.Protocol\MessageChannel.cs" Link="Protocolo\MessageChannel.cs" />
+    <Compile Include="..\..\..\externo\sala\src\Rodaje.Modules.Protocol\Messages.cs" Link="Protocolo\Messages.cs" />
+    <Compile Include="..\..\..\externo\sala\src\Rodaje.Modules.Protocol\ModuleExceptions.cs" Link="Protocolo\ModuleExceptions.cs" />
   </ItemGroup>
 
 </Project>

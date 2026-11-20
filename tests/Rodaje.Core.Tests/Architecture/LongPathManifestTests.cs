@@ -111,7 +111,8 @@ public sealed class LongPathManifestTests
     private static List<string> ExecutableProjects(string root)
     {
         var projects = new List<string>();
-        foreach (string folder in new[] { "src", "modules" })
+        // El eco de módulos vive en el submódulo externo/sala; sigue siendo un ejecutable que publicamos.
+        foreach (string folder in new[] { "src", "modules", "externo/sala/modules" })
         {
             foreach (string project in Directory.EnumerateFiles(Path.Combine(root, folder), "*.csproj", SearchOption.AllDirectories))
             {

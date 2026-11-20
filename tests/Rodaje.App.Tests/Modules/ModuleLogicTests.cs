@@ -35,7 +35,8 @@ public sealed class ModuleLogicTests
     {
         string? dev = ModuleCatalog.FindDevelopmentModules(AppContext.BaseDirectory);
         Assert.NotNull(dev);
-        ModuleDescriptor eco = Assert.Single(ModuleCatalog.Scan([new ModuleRoot(dev, ModuleOrigin.Development)]), m => m.Id == "rodaje-eco");
+        // El eco vive en el submódulo externo/sala: DefaultRoots añade externo/sala/modules como raíz de desarrollo.
+        ModuleDescriptor eco = Assert.Single(ModuleCatalog.Scan(ModuleCatalog.DefaultRoots().Where(r => r.Origin == ModuleOrigin.Development)), m => m.Id == "rodaje-eco");
         Assert.True(File.Exists(eco.EntryPath));
         Assert.False(eco.UsesGpu);
     }
