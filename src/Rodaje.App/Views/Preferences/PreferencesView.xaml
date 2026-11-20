@@ -25,7 +25,7 @@
                 <TextBlock Text="Una fila por línea, «origen | destino». Al abrir un proyecto hecho en otro equipo o sistema, los medios guardados bajo el origen se buscan bajo el destino." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
             </StackPanel></ScrollViewer>
         </TabViewItem>
-        <TabViewItem Header="Rendimiento" IsClosable="False"><StackPanel Spacing="16" Padding="12">
+        <TabViewItem Header="Rendimiento" IsClosable="False"><ScrollViewer><StackPanel Spacing="16" Padding="12">
             <ComboBox x:Name="ProxyUsageBox" Header="Proxies en la vista previa" />
             <CheckBox x:Name="AutoProxiesBox" Content="Generar proxies al importar videos pesados" />
             <ComboBox x:Name="PreviewQualityBox" Header="Calidad de la vista previa" />
@@ -40,7 +40,7 @@
                 <TextBlock x:Name="RenderCacheClearText" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" />
             </StackPanel>
             <TextBlock Text="Los tramos pesados se calculan a ProRes 422 HQ tras 3 s sin editar ni reproducir y se ven como un solo clip; la franja sobre la regla dice qué está en caché. Se puede borrar sin perder trabajo." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
-        </StackPanel></TabViewItem>
+        </StackPanel></ScrollViewer></TabViewItem>
         <TabViewItem Header="Teclado" IsClosable="False"><StackPanel Padding="12"><ComboBox x:Name="ShortcutPresetBox" Header="Estilo de teclado" /></StackPanel></TabViewItem>
         <TabViewItem Header="Personalización" IsClosable="False">
             <ScrollViewer><StackPanel Spacing="12" Padding="12">
