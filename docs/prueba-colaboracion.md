@@ -49,6 +49,18 @@ La primera vez que alguien hospeda una sala o se une a una, Windows puede mostra
 | 11. Conexión solo por relé | En **Preferencias › Colaboración** `[confirmar con la pantalla]`, se activa la opción **«Solo por relé»** y se repiten los pasos 5 y 6. | La conexión pasa siempre por el servidor intermediario, así que la otra persona no ve tu dirección IP. La latencia suele aumentar; anotar el nuevo valor medido. |
 | 12. Cierre y reapertura | El invitado sale de la sala colaborativa; Daniel cierra la sala en el anfitrión. Daniel guarda el proyecto, cierra Rodaje y vuelve a abrir el archivo en su equipo. | El proyecto se abre con total normalidad y conserva tanto los cambios hechos por Daniel como los realizados por el invitado. |
 
+### 5b. Comprobaciones de seguridad (sin ser técnico)
+
+Se hacen en la misma sesión, antes del paso 12. Detalle y más casos en `docs/pruebas-a-mano.md` («Colaboración: seguridad»).
+
+| Comprobación | Qué hacer | Qué debería pasar |
+|---|---|---|
+| S1. Sin aprobar no se ve nada | El invitado abre el enlace y **no** se le acepta todavía. | Mientras Daniel no pulse Editar o Solo mirar, el invitado no ve proyecto, medios ni línea de tiempo. Si Daniel pulsa Rechazar, el invitado ve que no entró. |
+| S2. Enlace de un solo uso | Una tercera persona (o el mismo invitado desde otra ventana) abre el mismo enlace después de haber entrado. | No entra sola: no ve nada o queda esperando a que Daniel la apruebe. |
+| S3. Solo mirar | Daniel cambia al invitado a «Solo mirar» e intenta mover un clip. | El invitado no puede editar, y en el equipo de Daniel no cambia nada. |
+| S4. Expulsar corta | Daniel expulsa al invitado. | El invitado pierde la conexión al instante, no recibe más cambios y el mismo enlace no le deja volver a entrar. |
+| S5. Sin rutas ajenas | El invitado mira medios, avisos y mensajes. | No aparece ninguna ruta de carpetas del PC de Daniel, solo nombres de medios. |
+
 ## 6. Qué anotar siempre
 
 Copia esta plantilla en un bloc de notas y ve completándola a lo largo de la prueba:
