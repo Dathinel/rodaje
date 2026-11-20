@@ -121,11 +121,19 @@ internal static class CinemaDngDialog
         CinemaDngResult result;
         try
         {
-            result = await CinemaDngImport.RunAsync(services.Modules, module, ffmpeg, sequence, options,
-                saveIn.Folder, $"CinemaDNG «{sequence.Name}»", () => gpu, scope.Token);
+            Task<CinemaDngResult> run;
+            // La barra de avisos dibuja el avance del trabajo de módulo (revelado por lotes, tiempo restante, último avance).
+            using (ModuleJobList.CaptureNext(job => scope.Follow(job.Operation)))
+            {
+                run = CinemaDngImport.RunAsync(services.Modules, module, ffmpeg, sequence, options,
+                    saveIn.Folder, $"CinemaDNG «{sequence.Name}»", () => gpu, scope.Token);
+            }
+
+            result = await run;
         }
         catch (OperationCanceledException)
         {
+            session.Notify(NotificationSeverity.Informational, Title, "Cancelado: no se importó nada.");
             return;
         }
         catch (ModuleException)

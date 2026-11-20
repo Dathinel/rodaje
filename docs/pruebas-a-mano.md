@@ -229,3 +229,36 @@ odaje sin argumentos dos veces seguidas y cronometra desde el doble clic hasta p
 8. **Exportar**: exporta 10 s a ProRes y a H.264 (si la lista ofrece h264_nvenc o h264_vaapi). Abre el archivo con el reproductor del sistema.
 9. **Teclado**: en un teclado español, mira cómo se llaman en Atajos las teclas de signos ( '  y  ¡ ): en Linux salen con el nombre de la tecla de EE. UU. (pendiente).
 10. **Audio**: reproduce con sonido (PipeWire); di si se oye sincronizado con la imagen.
+
+## Progreso visible en toda operación larga (B9b)
+
+Para la vuelta de repaso con ratón (B9). Criterio común: nada se queda con solo una rueda; cada operación larga muestra una **barra** (con porcentaje o en movimiento), el texto de fase o etapa, «quedan unos N s» cuando hay porcentaje y, si pasan 5 s sin avance, «Sigue trabajando; último avance hace N s». Revisa también el tema **claro**, **oscuro** y **alto contraste** (Preferencias › Apariencia) y que la barra no parpadee ni tape el recorrido del cursor en la línea de tiempo.
+
+1. **Barra de avisos (acción larga)**: selecciona un clip y lanza «Color automático» (barra de herramientas). Debe salir al instante la barra con porcentaje, «Cancelar» y debajo «quedan unos N s» si dura más de 3 s. Pulsa Cancelar: dice «Cancelando…» y la barra se mueve sin botón hasta que termina.
+2. **Abrir un proyecto**: abre uno grande (cientos de clips) con Ctrl+O. Si tarda más de medio segundo, aparece «Abriendo el proyecto» con «Paso 1 de 2: Leyendo el archivo». Uno pequeño **no** debe hacer aparecer la barra (sin parpadeo).
+3. **Importar muchos medios**: arrastra 30 videos a la biblioteca: «Importando medios», «Leyendo los medios: 12 de 30», porcentaje, «Cancelar». Cancela a la mitad: «Importación cancelada», y no se añade ninguno.
+4. **Exportar**: Trabajos › Exportaciones: la tarjeta muestra la barra con porcentaje, «238 fps» y «quedan unos N s»; en «Preparando», «Midiendo la sonoridad» o «Cerrando el archivo» la barra se mueve y dice cuánto lleva. Con 2 pasadas: «Paso 1 de 2: Exportando».
+5. **Render en caché**: Secuencia › Calcular de entrada a salida (Ctrl+Mayús+R): en Trabajos, fila «Render en caché» con barra, porcentaje y tiempo restante.
+6. **Módulos de IA**: subtítulos automáticos, reducir ruido, quitar fondo, reencuadre: en el diálogo, «Iniciando el módulo…» con la barra en movimiento y lo que lleva; luego etapa, porcentaje y tiempo restante. En **Traducir pista**, **Texto a voz** (también al cargar las voces) y **Reenlazar medios › Buscar en carpeta** ya no hay rueda: hay barra. Importar CinemaDNG: la barra de avisos tiene porcentaje (antes quedaba en movimiento).
+7. **Descargar un módulo o sus modelos** (Complementos): barra con porcentaje y, debajo, «quedan unos N s». Corta la red unos segundos: debe salir «Sigue trabajando; último avance hace N s».
+8. **Proxies**: Trabajos › Proxies: cada proxy activo con barra y tiempo restante; los que esperan dicen «En cola» sin «Sigue trabajando».
+9. **Intercambio**: Archivo › Importar línea de tiempo… de un `.otio` o `.fcpxml` con muchos medios: porcentaje de medios sondeados y Cancelar.
+10. **Botón «Trabajos»**: con algo en marcha, la barra fina bajo su nombre (no hay rueda).
+
+
+## Colaboración: seguridad (D-067, B12)
+
+Sin saber nada técnico: dos equipos, el anfitrión (A) y un invitado (B). Cada punto dice qué hacer y qué no debe pasar. Las pruebas automáticas atacan con mensajes rotos (`PatchHostileTests` aquí y la batería de `Dathinel/sala`); esto es lo que solo se ve con la pantalla.
+
+1. **Sin aprobar no se ve nada.** B abre el enlace de A y espera. En B no debe aparecer el proyecto, ni nombres de medios, ni la línea de tiempo; en A sale «B quiere entrar». Si A pulsa **Rechazar**, B ve que no entró y no recibe nada.
+2. **Enlace de un solo uso.** Tras entrar B, un tercer equipo (C) abre el mismo enlace: no entra o queda esperando la aprobación de A, nunca entra solo.
+3. **Enlace caducado o anulado.** A anula el enlace (o espera a que caduque) y B, sin haber entrado, lo abre: no entra y el mensaje dice por qué.
+4. **Solo mirar.** A admite a B como «Solo mirar». B no puede mover un clip, cortar, borrar ni añadir un marcador: el gesto no empieza o se deshace, y en A no cambia nada.
+5. **Pista de otra persona.** A tiene reservada la pista A2 (la está editando). B intenta tocarla: se lo impide con el aviso «A2 la tiene …» y A2 no cambia.
+6. **Expulsar corta.** A expulsa a B. B pierde la conexión al momento, deja de ver los cambios y no puede volver a entrar con el mismo enlace.
+7. **Cerrar la sala corta.** A cierra la sala: B ve «La sala se cerró» y su copia queda como estaba, sin errores ni cierres inesperados.
+8. **Versiones distintas.** Con una versión de Rodaje distinta en B, no entra y el mensaje dice cuál falta; A no se entera de nada más.
+9. **El anfitrión no pierde nada.** Mientras B hace cien cambios muy rápido (arrastra clips sin parar), A sigue editando con normalidad y no se cierra ni se congela.
+10. **Sin rutas ajenas.** B no debe ver en ninguna parte la ruta de las carpetas de A (nombres de usuario, «D:\…»): solo nombres de medios. Y al guardar el proyecto de B, sus medios apuntan a donde B los tiene, no a donde los tiene A.
+11. **Sin medio.** B no tiene un medio de A: aparece «sin conexión» (no un error ni un cierre) y se puede seguir editando lo demás.
+12. **Cortafuegos.** La primera vez, Windows pregunta por el cortafuegos al abrir la sala: la pantalla de Rodaje lo explica antes de que salga.

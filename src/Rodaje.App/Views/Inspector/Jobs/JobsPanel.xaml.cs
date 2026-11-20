@@ -19,6 +19,8 @@ internal sealed partial class JobItem(JobRow row)
 
     public double Percent { get; } = row.Progress * 100;
 
+    public Rodaje.App.Services.Operations.OperationProgress? Operation { get; } = row.Operation;
+
     public Visibility ActiveVisibility { get; } = row.IsActive ? Visibility.Visible : Visibility.Collapsed;
 
     public double ErrorOpacity { get; } = row.IsError ? 1 : 0;
@@ -72,6 +74,18 @@ internal sealed partial class JobsPanel : UserControl, IEditorView
         };
         Show();
         Bindings.Update();
+    }
+
+    private void OnContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
+    {
+        if (!ReferenceEquals(sender, List) || args.ItemContainer.ContentTemplateRoot is not FrameworkElement root || root.FindName("ProgressSlot") is not Border slot)
+        {
+            return;
+        }
+
+        slot.Child = !args.InRecycleQueue && args.Item is JobItem { Operation: { } operation }
+            ? new Shared.OperationProgressView { Operation = operation, ShowPercent = false, ShowMessage = false, ShowCancel = false }
+            : null;
     }
 
     private void Connect(EditorServices services)

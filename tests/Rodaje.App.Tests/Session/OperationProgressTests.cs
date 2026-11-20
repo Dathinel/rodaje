@@ -1,4 +1,7 @@
-using Rodaje.App.Services.Progress;
+using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.Modules;
+using Rodaje.App.Services.Operations;
+using Rodaje.Media.Proxies;
 
 namespace Rodaje.App.Tests.Session;
 
@@ -238,5 +241,92 @@ public class OperationProgressTests
         })));
 
         Assert.NotNull(p.Snapshot().Fraction);
+    }
+
+    [Fact]
+    public void TrabajoDeModulo_LlevaSuAvanceAlModeloComun()
+    {
+        var list = new ModuleJobList(null);
+        ModuleJob job = list.Add("Subtítulos", "Subtítulos");
+        Assert.True(job.Operation.Snapshot().CanCancel);
+
+        job.SetRunning();
+        job.Report(0.4, "Transcribiendo");
+        OperationSnapshot s = job.Operation.Snapshot();
+        Assert.Equal("40 %", s.PercentText);
+        Assert.Equal("Transcribiendo", s.Message);
+
+        job.Cancel();
+        s = job.Operation.Snapshot();
+        Assert.True(s.IsCancelling);
+        Assert.Equal("Cancelando…", s.Text);
+
+        job.Finish(ModuleJobState.Cancelled);
+        Assert.True(job.Operation.Snapshot().IsFinished);
+    }
+
+    [Fact]
+    public void CaptureNext_EntregaElSiguienteTrabajoDeEsteHiloYSoloUno()
+    {
+        var list = new ModuleJobList(null);
+        var captured = new List<ModuleJob>();
+        ModuleJob first;
+        using (ModuleJobList.CaptureNext(captured.Add))
+        {
+            first = list.Add("Uno", "M");
+            list.Add("Dos", "M");
+        }
+
+        list.Add("Tres", "M");
+        Assert.Same(first, Assert.Single(captured));
+
+        using (ModuleJobList.CaptureNext(captured.Add))
+        {
+        }
+
+        list.Add("Cuatro", "M");
+        Assert.Single(captured);
+    }
+
+    [Fact]
+    public void FilaDeProxy_LlevaSuAvance_YEnColaNoDiceSigueTrabajando()
+    {
+        var jobs = new ProxyJobList();
+        jobs.Apply(new ProxyStatus("a.mp4", ProxyState.Queued));
+        OperationSnapshot queued = jobs.Rows[0].Operation!.Snapshot();
+        Assert.Equal("En cola", queued.Message);
+
+        jobs.Apply(new ProxyStatus("a.mp4", ProxyState.Generating, Progress: 0.42));
+        OperationSnapshot generating = jobs.Rows[0].Operation!.Snapshot();
+        Assert.Equal(0.42, generating.Fraction!.Value, 6);
+
+        jobs.Apply(new ProxyStatus("a.mp4", ProxyState.Ready));
+        Assert.Null(jobs.Rows[0].Operation);
+    }
+
+    [Fact]
+    public void TiempoRestante_DeMasDeUnDia_NoSeMuestra()
+    {
+        var clock = new ManualClock();
+        var p = new OperationProgress(clock);
+        clock.Advance(100000);
+        p.Report(0.02); // 2 % en más de un día: faltarían semanas
+
+        Assert.Null(p.Snapshot().Remaining);
+    }
+
+    [Fact]
+    public void EnEspera_NoSeDiceSigueTrabajando()
+    {
+        var clock = new ManualClock();
+        var p = new OperationProgress(clock);
+        p.Report(null, "En cola");
+        p.SetWaiting(true);
+        clock.Advance(60);
+        Assert.False(p.Snapshot().IsStalled);
+
+        p.Report(0.1, "Empezó");
+        clock.Advance(6);
+        Assert.True(p.Snapshot().IsStalled);
     }
 }

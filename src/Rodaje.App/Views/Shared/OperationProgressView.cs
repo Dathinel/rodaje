@@ -2,7 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Automation;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
-using Rodaje.App.Services.Progress;
+using Rodaje.App.Services.Operations;
 
 namespace Rodaje.App.Views.Shared;
 
@@ -22,6 +22,7 @@ internal sealed partial class OperationProgressView : UserControl
     private readonly Button _cancel = new() { Content = "Cancelar", VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBlock _text = new() { TextWrapping = TextWrapping.Wrap };
     private readonly TextBlock _stalled = new() { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
+    private readonly StackPanel _root;
     private readonly DispatcherTimer _timer = new() { Interval = PollInterval };
     private OperationProgress? _operation;
 
@@ -50,13 +51,16 @@ internal sealed partial class OperationProgressView : UserControl
         AutomationProperties.SetName(_bar, "Progreso de la operación");
         AutomationProperties.SetName(_cancel, "Cancelar la operación");
 
-        Content = new StackPanel { Spacing = 4, Children = { row, _text, _stalled } };
-        Visibility = Visibility.Collapsed;
+        _root = new StackPanel { Spacing = 4, Visibility = Visibility.Collapsed, Children = { row, _text, _stalled } };
+        Content = _root;
         _timer.Tick += (_, _) => Refresh();
         Loaded += (_, _) =>
         {
             Refresh();
-            _timer.Start();
+            if (_operation is not null)
+            {
+                _timer.Start();
+            }
         };
         Unloaded += (_, _) => _timer.Stop();
     }
@@ -67,8 +71,22 @@ internal sealed partial class OperationProgressView : UserControl
         get => _operation;
         set
         {
-            _operation = value;
-            _cancel.IsEnabled = true;
+            if (!ReferenceEquals(_operation, value))
+            {
+                _operation = value;
+                _cancel.IsEnabled = true;
+            }
+
+            // Sin avance que dibujar no hay por qué despertar cuatro veces por segundo.
+            if (value is null)
+            {
+                _timer.Stop();
+            }
+            else if (IsLoaded)
+            {
+                _timer.Start();
+            }
+
             Refresh();
         }
     }
@@ -79,20 +97,24 @@ internal sealed partial class OperationProgressView : UserControl
     /// <summary>Falso donde el mensaje ya se muestra aparte (por ejemplo, el título de la barra de avisos).</summary>
     public bool ShowMessage { get; set; } = true;
 
+    /// <summary>Falso donde el porcentaje ya está en un texto vecino.</summary>
+    public bool ShowPercent { get; set; } = true;
+
     /// <summary>Falso donde otro control ya ofrece «Cancelar» (por ejemplo, el botón de la barra de avisos).</summary>
     public bool ShowCancel { get; set; } = true;
 
     /// <summary>Vuelve a leer el avance y toca solo lo que cambió.</summary>
     public void Refresh()
     {
+        // La visibilidad de la vista es de quien la usa (un diálogo la oculta al terminar); esta solo se vacía.
         if (_operation is null)
         {
-            Visibility = Visibility.Collapsed;
+            _root.Visibility = Visibility.Collapsed;
             return;
         }
 
         OperationSnapshot s = _operation.Snapshot();
-        Visibility = Visibility.Visible;
+        _root.Visibility = Visibility.Visible;
         bool indeterminate = s.Fraction is null && !s.IsFinished;
         if (_bar.IsIndeterminate != indeterminate)
         {
@@ -105,7 +127,7 @@ internal sealed partial class OperationProgressView : UserControl
             _bar.Value = value;
         }
 
-        Set(_percent, s.PercentText);
+        Set(_percent, ShowPercent ? s.PercentText : "");
         Set(_text, s.TextFor(ShowMessage));
         Set(_stalled, s.StalledText);
         _stalled.Visibility = s.StalledText.Length > 0 ? Visibility.Visible : Visibility.Collapsed;

@@ -1,6 +1,6 @@
 using Rodaje.App.Services.Format;
 
-namespace Rodaje.App.Services.Progress;
+namespace Rodaje.App.Services.Operations;
 
 /// <summary>
 /// Lo que la interfaz dibuja de una operación larga en un instante: nunca una rueda, siempre algo que diga si avanza.
@@ -139,6 +139,7 @@ public sealed class OperationProgress
 
     private const double MinFractionForEstimate = 0.02;
     private const double Smoothing = 0.3;
+    private const double MaxEstimateSeconds = 24 * 3600;
     private const double MinSampleSeconds = 0.5;
 
     private readonly TimeProvider _clock;
@@ -154,6 +155,7 @@ public sealed class OperationProgress
     private long _sampleTime;
     private double _sampleFraction;
     private double _rate;
+    private bool _waiting;
     private bool _canCancel;
     private bool _cancelling;
     private bool _finished;
@@ -216,6 +218,7 @@ public sealed class OperationProgress
             if (advanced)
             {
                 _lastAdvance = now;
+                _waiting = false;
             }
         }
     }
@@ -255,6 +258,18 @@ public sealed class OperationProgress
         }
     }
 
+    /// <summary>
+    /// Espera su turno (una cola): no ha empezado, así que no se dice «Sigue trabajando» por mucho que dure. Vuelve a
+    /// <c>false</c> con el primer avance.
+    /// </summary>
+    public void SetWaiting(bool waiting)
+    {
+        lock (_lock)
+        {
+            _waiting = waiting;
+        }
+    }
+
     /// <summary>Si «Cancelar» se ofrece desde ahora.</summary>
     public void SetCancellable(bool canCancel)
     {
@@ -288,15 +303,25 @@ public sealed class OperationProgress
         }
     }
 
+    /// <summary>Salta (en el hilo que llama) cuando la operación termina; lo usa quien seguía este avance para volver al suyo.</summary>
+    public event Action? Completed;
+
     /// <summary>Terminó: la barra se llena y deja de decir «sin avance».</summary>
     public void Complete()
     {
         lock (_lock)
         {
+            if (_finished)
+            {
+                return;
+            }
+
             _finished = true;
             _canCancel = false;
             _fraction = 1;
         }
+
+        Completed?.Invoke();
     }
 
     /// <summary>Para pasar a lo que ya informa con <see cref="IProgress{T}"/> (una descarga, un recorrido de archivos).</summary>
@@ -310,7 +335,7 @@ public sealed class OperationProgress
         {
             TimeSpan elapsed = _clock.GetElapsedTime(_start, now);
             TimeSpan since = _clock.GetElapsedTime(_lastAdvance, now);
-            bool stalled = !_finished && !_cancelling && since >= _stallAfter;
+            bool stalled = !_finished && !_cancelling && !_waiting && since >= _stallAfter;
             return new OperationSnapshot(
                 _fraction, _phase, _phaseCount, _phaseText, _message, elapsed, since,
                 stalled || _finished || _cancelling ? null : Estimate(elapsed),
@@ -326,7 +351,8 @@ public sealed class OperationProgress
         }
 
         double rate = _rate > 0 ? _rate : f / Math.Max(elapsed.TotalSeconds, 0.001);
-        return rate > 0 && double.IsFinite(rate) ? TimeSpan.FromSeconds((1 - f) / rate) : null;
+        // Más de un día es ruido de un ritmo diminuto pasajero: mejor no decir nada.
+        return rate > 0 && double.IsFinite(rate) && (1 - f) / rate <= MaxEstimateSeconds ? TimeSpan.FromSeconds((1 - f) / rate) : null;
     }
 
     private sealed class Adapter(OperationProgress owner) : IProgress<double>

@@ -35,6 +35,7 @@ ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 MinVersion=10.0.19041
 LicenseFile={#Licencia}
+InfoAfterFile=aviso-red.txt
 ChangesAssociations=yes
 CloseApplications=yes
 RestartApplications=no

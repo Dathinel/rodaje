@@ -1,4 +1,5 @@
 using System.Globalization;
+using Rodaje.App.Services.Operations;
 using Rodaje.Media.Proxies;
 
 namespace Rodaje.App.Services.Inspector;
@@ -10,7 +11,8 @@ namespace Rodaje.App.Services.Inspector;
 /// <param name="Progress">Avance de 0 a 1.</param>
 /// <param name="IsActive">En cola o generándose: se puede cancelar.</param>
 /// <param name="IsError">Terminó con un error.</param>
-public sealed record JobRow(string SourcePath, string Title, string Status, double Progress, bool IsActive, bool IsError);
+/// <param name="Operation">El avance de una fila activa (porcentaje, tiempo restante, último avance) para la vista común.</param>
+public sealed record JobRow(string SourcePath, string Title, string Status, double Progress, bool IsActive, bool IsError, OperationProgress? Operation = null);
 
 /// <summary>
 /// Los trabajos de proxies a partir de los estados que publica <see cref="MediaSourceResolver"/>: aparece una fila
@@ -19,6 +21,7 @@ public sealed record JobRow(string SourcePath, string Title, string Status, doub
 public sealed class ProxyJobList
 {
     private readonly List<JobRow> _rows = [];
+    private readonly Dictionary<string, OperationProgress> _operations = new(StringComparer.OrdinalIgnoreCase);
 
     public IReadOnlyList<JobRow> Rows => _rows;
 
@@ -32,8 +35,8 @@ public sealed class ProxyJobList
         bool tracked = index >= 0;
         JobRow? row = status.State switch
         {
-            ProxyState.Queued => Row(status, "En cola", 0, active: true),
-            ProxyState.Generating => Row(status, GeneratingText(status), status.Progress, active: true),
+            ProxyState.Queued => Row(status, "En cola", 0, active: true, operation: Operation(status, null, "En cola")),
+            ProxyState.Generating => Row(status, GeneratingText(status), status.Progress, active: true, operation: Operation(status, status.Progress, null)),
             ProxyState.Failed => Row(status, "Falló: " + (status.Message ?? "error desconocido"), 0, error: true),
             ProxyState.Ready when tracked => Row(status, "Listo", 1),
             ProxyState.Unavailable when tracked => Row(status, status.Message ?? "No se pueden generar proxies", 0, error: true),
@@ -59,10 +62,32 @@ public sealed class ProxyJobList
     }
 
     /// <summary>Quita las filas terminadas; <c>true</c> si quitó alguna.</summary>
-    public bool ClearFinished() => _rows.RemoveAll(r => !r.IsActive) > 0;
+    public bool ClearFinished()
+    {
+        foreach (JobRow row in _rows.Where(r => !r.IsActive))
+        {
+            _operations.Remove(row.SourcePath);
+        }
 
-    private static JobRow Row(ProxyStatus status, string text, double progress, bool active = false, bool error = false) =>
-        new(status.SourcePath, Path.GetFileName(status.SourcePath), text, Math.Clamp(progress, 0, 1), active, error);
+        return _rows.RemoveAll(r => !r.IsActive) > 0;
+    }
+
+    private static JobRow Row(ProxyStatus status, string text, double progress, bool active = false, bool error = false, OperationProgress? operation = null) =>
+        new(status.SourcePath, Path.GetFileName(status.SourcePath), text, Math.Clamp(progress, 0, 1), active, error, operation);
+
+    private OperationProgress Operation(ProxyStatus status, double? fraction, string? message)
+    {
+        bool queued = status.State == ProxyState.Queued;
+        if (!_operations.TryGetValue(status.SourcePath, out OperationProgress? operation))
+        {
+            operation = new OperationProgress();
+            _operations[status.SourcePath] = operation;
+        }
+
+        operation.Report(fraction, message);
+        operation.SetWaiting(queued);
+        return operation;
+    }
 
     private static string GeneratingText(ProxyStatus status)
     {
