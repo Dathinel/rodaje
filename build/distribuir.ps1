@@ -16,7 +16,7 @@
 # Al final prueba el instalador (build\probar-instalador.ps1). No sube nada.
 # Uso:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File build\distribuir.ps1 [-SoloIndice] [-SinPublicar] [-SinCompleta]
-#       [-SinModulos] [-SinInstalador] [-SinComprobar]
+#       [-SinModulos] [-SinInstalador] [-SinRed] [-SinComprobar]
 #       [-Complementos <carpeta con <repo>\dist\*.paquete>] [-Paquetes a.paquete,b.paquete] [-Modelos <caché de modelos>]
 #       [-Excluir modelo-x,...] [-Version 1.0.0] [-Salida dist\distribucion]
 [CmdletBinding()]
@@ -32,6 +32,7 @@ param(
     [switch]$SinCompleta,
     [switch]$SinModulos,
     [switch]$SinInstalador,
+    [switch]$SinRed,
     [switch]$SinComprobar
 )
 
@@ -64,6 +65,12 @@ if (-not $SoloIndice) {
     }
     if (Firmar-Codigo @((Join-Path $App 'Rodaje.exe'), (Join-Path $App 'app\Rodaje.exe'))) { Bien 'Rodaje.exe y app\Rodaje.exe firmados.' }
     else { Aviso 'Sin RODAJE_CERTIFICADO: los exe van sin firmar.' }
+    # dathinel-red (colaboración) va en app\modulos\red de todas las versiones: portable, completa e instalador.
+    if (-not $SinRed) {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'red.ps1') -Destino (Join-Path $App 'app') $(if ($SinComprobar) { '-SinComprobar' })
+        if ($LASTEXITCODE -ne 0) { throw 'No se pudo preparar dathinel-red (build\red.ps1).' }
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $App 'app\modulos\red\dathinel-red.exe'))) { throw 'Falta app\modulos\red\dathinel-red.exe: sin él la colaboración no funciona (quita -SinRed).' }
 }
 
 # Todas las versiones de cada dist\: el índice nombra todo lo publicado; la completa toma la más nueva de cada id.
