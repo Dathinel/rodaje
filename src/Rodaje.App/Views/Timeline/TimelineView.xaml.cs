@@ -100,6 +100,8 @@ internal sealed partial class TimelineView : UserControl, IEditorView
 
     internal TimelineRenderer? Renderer => _renderer;
 
+    private Collab.PeerLayer? _peerLayer;
+
     /// <summary>El desplegable de herramientas rápidas de la barra, para la autoprueba.</summary>
     internal Tools.ToolsBar QuickToolsMenu => QuickToolsBar;
 
@@ -120,6 +122,11 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         var brushes = new TimelineBrushes();
         _renderer = new TimelineRenderer(brushes, RowsCanvas, ClipsCanvas, OverlayCanvas, RulerCanvas, PlayheadLayer);
         _headers = new TrackHeaders(HeadersCanvas, brushes, (Style)Application.Current.Resources["ToolToggleButtonStyle"]);
+        if (services.Collab is { } collab)
+        {
+            _peerLayer = new Collab.PeerLayer(CollabLayer, collab.Presence, services.Session, _renderer, DispatcherQueue);
+        }
+
         _headers.Toggled += OnTrackToggled;
         _headers.GainChanging += OnTrackGainChanging;
         _headers.GainCommitted += OnTrackGainCommitted;

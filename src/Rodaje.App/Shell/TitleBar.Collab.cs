@@ -56,7 +56,7 @@ internal sealed partial class TitleBar
             RoomPhase.Starting => "Sala · abriendo…",
             _ => state.Requests.Count > 0
                 ? $"Sala · {state.Requests.Count} {(state.Requests.Count == 1 ? "espera" : "esperan")}"
-                : $"Sala · {Math.Max(state.Members.Count, 1)}",
+                : $"Sala · {Math.Max(state.OnlineCount, 1)}",
         };
         CollabButton.Style = state.Requests.Count > 0 ? ThemeResourcesStyle("AccentButtonStyle") : null;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(CollabButton, "Panel de la sala");
