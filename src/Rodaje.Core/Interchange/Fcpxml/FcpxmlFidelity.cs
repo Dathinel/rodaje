@@ -67,7 +67,7 @@ internal static class FcpxmlFidelity
                 Name = region.Name,
                 Time = region.Start,
             });
-            report.Add(IssueSeverity.Approximate, IssueKind.Marker, $"Región «{region.Name}» convertida en marcador al inicio.");
+            report.Add(IssueSeverity.Approximate, IssueKind.Marker, $"Región «{region.Name}» convertida en marcador al inicio.", time: region.Start);
         }
 
         sequence.Regions.Clear();
@@ -154,7 +154,7 @@ internal static class FcpxmlFidelity
                     Name = clip.Generator.Text,
                     Time = clip.Start,
                 });
-                report.Add(IssueSeverity.Lost, IssueKind.Title, "El título se convierte en un hueco con un marcador.", clipId: clip.Id);
+                report.Add(IssueSeverity.Lost, IssueKind.Title, "El título se convierte en un hueco con un marcador.", clipId: clip.Id, time: clip.Start);
                 continue;
             }
 
@@ -197,19 +197,19 @@ internal static class FcpxmlFidelity
         if (clip.Color is not null)
         {
             clip.Color = null;
-            report.Add(IssueSeverity.Lost, IssueKind.Color, "El color del clip se pierde en FCPXML.", clipId: clip.Id);
+            report.Add(IssueSeverity.Lost, IssueKind.Color, "El color del clip se pierde en FCPXML.", clipId: clip.Id, time: clip.Start);
         }
 
         if (clip.GroupId is not null)
         {
             clip.GroupId = null;
-            report.Add(IssueSeverity.Lost, IssueKind.Effect, "El grupo del clip se pierde en FCPXML.", clipId: clip.Id);
+            report.Add(IssueSeverity.Lost, IssueKind.Effect, "El grupo del clip se pierde en FCPXML.", clipId: clip.Id, time: clip.Start);
         }
 
         if (clip.LinkId is not null)
         {
             clip.LinkId = null;
-            report.Add(IssueSeverity.Approximate, IssueKind.Effect, "El enlace del clip se pierde en FCPXML.", clipId: clip.Id);
+            report.Add(IssueSeverity.Approximate, IssueKind.Effect, "El enlace del clip se pierde en FCPXML.", clipId: clip.Id, time: clip.Start);
         }
 
         if (clip.Speed is not null)
@@ -231,7 +231,7 @@ internal static class FcpxmlFidelity
             // Desactivado no cambia la imagen ni el sonido: FCPXML no tiene cómo llevarlo apagado.
             if (!effect.Enabled)
             {
-                report.Add(IssueSeverity.Lost, IssueKind.Effect, $"El efecto desactivado «{effect.Type}» no se lleva a FCPXML.", clipId: clip.Id);
+                report.Add(IssueSeverity.Lost, IssueKind.Effect, $"El efecto desactivado «{effect.Type}» no se lleva a FCPXML.", clipId: clip.Id, time: clip.Start);
                 continue;
             }
 
@@ -285,7 +285,7 @@ internal static class FcpxmlFidelity
                 copy.Parameters[BuiltInEffects.TransformParameters.Opacity] = new Parameter { Value = opacity };
 
                 keptEffects.Add(copy);
-                report.Add(IssueSeverity.Approximate, IssueKind.Transform, "Transformación aproximada en FCPXML.", clipId: clip.Id);
+                report.Add(IssueSeverity.Approximate, IssueKind.Transform, "Transformación aproximada en FCPXML.", clipId: clip.Id, time: clip.Start);
             }
             else if (effect.Type == BuiltInEffects.Audio)
             {
@@ -295,7 +295,7 @@ internal static class FcpxmlFidelity
                 copy.Parameters.Clear();
                 copy.Parameters[BuiltInEffects.AudioParameters.GainDb] = new Parameter { Value = gainDb };
                 keptEffects.Add(copy);
-                report.Add(IssueSeverity.Approximate, IssueKind.Audio, "Ajuste de volumen aproximado en FCPXML.", clipId: clip.Id);
+                report.Add(IssueSeverity.Approximate, IssueKind.Audio, "Ajuste de volumen aproximado en FCPXML.", clipId: clip.Id, time: clip.Start);
             }
             else if (effect.Type == BuiltInEffects.Crop)
             {
@@ -304,11 +304,11 @@ internal static class FcpxmlFidelity
                 copy.Parameters = new[] { BuiltInEffects.CropParameters.Left, BuiltInEffects.CropParameters.Top, BuiltInEffects.CropParameters.Right, BuiltInEffects.CropParameters.Bottom }
                     .ToDictionary(name => name, name => new Parameter { Value = copy.Parameters.GetValueOrDefault(name)?.Value ?? 0 }, StringComparer.Ordinal);
                 keptEffects.Add(copy);
-                report.Add(IssueSeverity.Approximate, IssueKind.Transform, "Recorte aproximado en FCPXML.", clipId: clip.Id);
+                report.Add(IssueSeverity.Approximate, IssueKind.Transform, "Recorte aproximado en FCPXML.", clipId: clip.Id, time: clip.Start);
             }
             else
             {
-                report.Add(IssueSeverity.Lost, IssueKind.Effect, $"Efecto «{effect.Type}» no admitido en FCPXML.", clipId: clip.Id);
+                report.Add(IssueSeverity.Lost, IssueKind.Effect, $"Efecto «{effect.Type}» no admitido en FCPXML.", clipId: clip.Id, time: clip.Start);
             }
         }
 
