@@ -44,14 +44,14 @@ public sealed class CollabRecoveryTests
         a.BeforeValidation(async ct => { validating.TrySetResult(); await release.Task.WaitAsync(ct); });
         await b.Edit(p => p.Sequences[0].Markers.Add(new Marker { Id = "durante-traspaso", Name = "En espera", Time = Time.FromSeconds(2) }));
         await validating.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        JournalEntry pending = Assert.Single(new CollabJournal(b.Room.RoomFolder).Load(() => Assert.Fail("registro válido"))!.Entries.Where(e => e.Kind == "pending"));
+        JournalEntry pending = Assert.Single(new CollabJournal(b.Room.RoomFolder).Load(() => Assert.Fail("registro válido"))!.Entries, e => e.Kind == "pending");
         Task handover = a.Room.HandOverAsync(b.Room.State.MyKey);
         release.TrySetResult();
         await handover.WaitAsync(TimeSpan.FromSeconds(30));
         await CollabHarness.Until(() => b.Room.State.IsHost && a.Engine.CaptureForGuest() == b.Engine.CaptureForGuest()
             && b.Engine.CaptureForGuest().Seq == 1, "el pendiente confirmado tras pasar el mando");
         await CollabHarness.Until(() => new CollabJournal(b.Room.RoomFolder).Load(() => { })?.Accepted.Contains(pending.Patch.Id) == true, "el mismo id confirmado");
-        Assert.Single(b.Live.Sequences[0].Markers.Where(m => m.Id == "durante-traspaso"));
+        Assert.Single(b.Live.Sequences[0].Markers, m => m.Id == "durante-traspaso");
         Assert.Empty(a.Desyncs);
         Assert.Empty(b.Desyncs);
     }
@@ -101,7 +101,7 @@ public sealed class CollabRecoveryTests
         await validating.Task.WaitAsync(TimeSpan.FromSeconds(10));
         CollabJournal journal = new(b.Room.RoomFolder);
         JournalState saved = journal.Load(() => Assert.Fail("registro inválido"))!;
-        JournalEntry pending = Assert.Single(saved.Entries.Where(e => e.Kind == "pending"));
+        JournalEntry pending = Assert.Single(saved.Entries, e => e.Kind == "pending");
         Assert.Equal(0, saved.Seq);
         Assert.DoesNotContain(b.Room.State.MyKey, File.ReadAllText(Path.Combine(b.Room.RoomFolder, "registro.jsonl"), Encoding.UTF8), StringComparison.Ordinal);
 
@@ -114,11 +114,11 @@ public sealed class CollabRecoveryTests
         });
         release.TrySetResult();
         await CollabHarness.Until(() => b.Engine.CaptureForGuest().Seq >= 1 && a.Engine.CaptureForGuest() == b.Engine.CaptureForGuest(), "el pendiente vuelve y se deduplica");
-        Assert.Single(b.Live.Sequences[0].Markers.Where(m => m.Id == "reinicio"));
+        Assert.Single(b.Live.Sequences[0].Markers, m => m.Id == "reinicio");
         await CollabHarness.Until(() => journal.Load(() => { })?.Entries.All(e => e.Kind != "pending") == true, "el pendiente retirado del registro");
         JournalState settled = journal.Load(() => Assert.Fail("registro inválido"))!;
         Assert.Contains(pending.Patch.Id, settled.Accepted);
-        Assert.Empty(settled.Entries.Where(e => e.Kind == "pending"));
+        Assert.DoesNotContain(settled.Entries, e => e.Kind == "pending");
         Assert.Empty(b.Desyncs);
     }
 
@@ -182,7 +182,7 @@ public sealed class CollabRecoveryTests
         await b.Ui.Post(() => b.Engine.DiscardUnsettled(item.Id));
         Assert.Equal(before, b.HashOnUi());
         Assert.Empty(b.Engine.Unsettled.Items);
-        Assert.Empty(new CollabJournal(b.Room.RoomFolder).Load(() => Assert.Fail("registro válido"))!.Entries.Where(e => e.Kind == "unsettled"));
+        Assert.DoesNotContain(new CollabJournal(b.Room.RoomFolder).Load(() => Assert.Fail("registro válido"))!.Entries, e => e.Kind == "unsettled");
     }
 
     [Fact]
@@ -200,7 +200,7 @@ public sealed class CollabRecoveryTests
         Assert.NotEqual(original.Id, copy.Id);
         Assert.DoesNotContain(copy.Ops, o => original.Ops.Any(old => old.Id == o.Id));
         Assert.True(PatchApply.TryApply(project, new ElementVersions(), copy).IsAccepted);
-        Track recovered = Assert.Single(project.Sequences[0].VideoTracks.Where(t => t.Name == "Cambios recuperados"));
+        Track recovered = Assert.Single(project.Sequences[0].VideoTracks, t => t.Name == "Cambios recuperados");
         Assert.Single(recovered.Clips);
         Assert.NotEqual(track.Id, recovered.Id);
     }
@@ -223,7 +223,7 @@ public sealed class CollabRecoveryTests
         Assert.DoesNotContain(item.Patch.Ops, op => op.Id == "comun");
         Assert.Equal(before, b.HashOnUi());
         JournalState saved = new CollabJournal(b.Room.RoomFolder).Load(() => Assert.Fail("registro válido"))!;
-        Assert.Equal(item.Id, Assert.Single(saved.Entries.Where(e => e.Kind == "unsettled")).Patch.Id);
+        Assert.Equal(item.Id, Assert.Single(saved.Entries, e => e.Kind == "unsettled").Patch.Id);
         bool kept = true;
         await b.Ui.Post(() => kept = b.Engine.KeepUnsettled(item.Id));
         Assert.False(kept); // Hace falta entrar en la sala ganadora antes de conservarlo.
@@ -242,7 +242,7 @@ public sealed class CollabRecoveryTests
         await CollabHarness.Until(() => b.Engine.Unsettled.Items.Count == 1, "el autor recibe su cambio separado");
         Assert.Empty(a.Engine.Unsettled.Items);
         Assert.Contains(Assert.Single(b.Engine.Unsettled.Items).Patch.Ops, op => op.Id == "de-b");
-        Assert.Single(new CollabJournal(b.Room.RoomFolder).Load(() => Assert.Fail("registro válido"))!.Entries.Where(e => e.Kind == "unsettled"));
+        Assert.Single(new CollabJournal(b.Room.RoomFolder).Load(() => Assert.Fail("registro válido"))!.Entries, e => e.Kind == "unsettled");
     }
 
     [Fact]

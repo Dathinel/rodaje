@@ -68,7 +68,7 @@ internal sealed class CollabJournal(string folder)
             }
             return new JournalState(seq, snapshot, separation, accepted, entries);
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or JsonException or InvalidOperationException
+        catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException
             or KeyNotFoundException or FormatException or ArgumentException or OverflowException)
         {
             warn();
