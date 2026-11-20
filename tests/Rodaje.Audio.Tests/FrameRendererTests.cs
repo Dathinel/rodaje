@@ -76,7 +76,8 @@ public class FrameRendererTests
         int produced = renderer.Render(device, 1_000, 2);
 
         Assert.Equal(1_000, produced);
-        Assert.Equal(CountingSource.Left(699), device[699 * 2]);
+        Assert.Equal(CountingSource.Left(100), device[100 * 2]);
+        Assert.Equal(0f, device[699 * 2]);
         Assert.All(device[(700 * 2)..], s => Assert.Equal(0f, s));
         Assert.Equal(1, renderer.Underruns);
         Assert.Equal(300, renderer.UnderrunFrames);
@@ -85,6 +86,34 @@ public class FrameRendererTests
         Assert.Equal(2, renderer.Underruns);
         Assert.Equal(800, renderer.UnderrunFrames);
         Assert.Equal(1_500, renderer.Written);
+    }
+
+    [Theory]
+    [InlineData(256)]
+    [InlineData(0)]
+    public void UnVaciadoDeBufferNoEsUnEscalon(int framesBeforeGap)
+    {
+        // Señal fuerte (0,5 constante) que se corta y vuelve: ningún salto entre muestras seguidas pasa de lo que da el fundido.
+        var source = new GappySource { Available = true };
+        var renderer = new FrameRenderer(source, historyFrames: 4_096, rampFrames: 480, volume: 1f);
+        float[] a = new float[(256 + 400 + 256) * 2];
+        renderer.Render(a.AsSpan(0, 256 * 2), 256, 2);
+        source.Available = false;
+        source.PartialFrames = framesBeforeGap;
+        renderer.Render(a.AsSpan(256 * 2, 400 * 2), 400, 2);
+        source.Available = true;
+        source.PartialFrames = 0;
+        renderer.Render(a.AsSpan(656 * 2, 256 * 2), 256, 2);
+
+        float maxStep = 0;
+        for (int f = 1; f < a.Length / 2; f++)
+        {
+            maxStep = Math.Max(maxStep, Math.Abs(a[f * 2] - a[(f - 1) * 2]));
+        }
+
+        Assert.True(maxStep <= 0.5f / 100, $"salto de {maxStep}");
+        Assert.Equal(0f, a[(256 + 300) * 2]);
+        Assert.Equal(0.5f, a[^2]);
     }
 
     [Fact]
@@ -277,6 +306,25 @@ public class FrameRendererTests
             }
 
             SeekedTo = position;
+        }
+    }
+
+    private sealed class GappySource : IAudioSampleSource
+    {
+        public bool Available { get; set; }
+
+        public int PartialFrames { get; set; }
+
+        public int Read(Span<float> interleaved)
+        {
+            int n = Available ? interleaved.Length / 2 : Math.Min(PartialFrames, interleaved.Length / 2);
+            interleaved[..(n * 2)].Fill(0.5f);
+            PartialFrames = 0;
+            return n;
+        }
+
+        public void Seek(Time position)
+        {
         }
     }
 
