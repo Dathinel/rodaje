@@ -1073,7 +1073,7 @@ internal sealed partial class ExportView : UserControl
         try
         {
             string fileName = await ExportShareGuest.RequestAsync(collab.Room, sequenceId, suggestedName, settings, range,
-                scope?.Progress, scope?.Token ?? CancellationToken.None);
+                scope?.Operation, scope?.Token ?? CancellationToken.None);
             session.Notify(NotificationSeverity.Success, "Exportado en el anfitrión",
                 $"«{fileName}» quedó en el equipo de quien hospeda la sala. El archivo está allí: pídeselo si lo necesitas.");
         }
