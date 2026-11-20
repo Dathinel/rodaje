@@ -397,6 +397,8 @@ public sealed class RoomService : IAsyncDisposable
             Notify("Se restableció la conexión.", false);
         });
         s.Cerrada += motivo => OnSala(s, () => _ = EndAsync(s, CollabMessages.ForClosed(motivo)));
+        // Estuvo fuera tanto que la sala ya no guarda lo que se perdió: hace falta una copia nueva del proyecto.
+        s.Desfasada += _ => OnSala(s, () => _ = EndAsync(s, CollabMessages.ForClosed("desfasada")));
         s.Superada += (_, _) => OnSala(s, () => _ = EndAsync(s, CollabMessages.ForClosed("traspaso")));
     }
 
