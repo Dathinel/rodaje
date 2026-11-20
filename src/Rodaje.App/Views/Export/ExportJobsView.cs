@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Operations;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
@@ -225,7 +226,8 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         private readonly TextBlock _title = new() { TextTrimming = TextTrimming.CharacterEllipsis };
         private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBlock _error = new() { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
-        private readonly ProgressBar _bar = new() { Maximum = 1, Margin = new Thickness(0, 4, 0, 0) };
+        private readonly Shared.OperationProgressView _progress = new() { ShowCancel = false, Margin = new Thickness(0, 4, 0, 0) };
+        private readonly OperationProgress _operation = new();
         private readonly Button _cancel = new() { Content = "", FontSize = ThemeResources.Size("CaptionFontSize") };
         private readonly StackPanel _actions = new() { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 6, 0, 0) };
         private BgraImage? _shownThumbnail;
@@ -254,7 +256,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
             var text = new StackPanel { Spacing = 2 };
             text.Children.Add(_title);
             text.Children.Add(_status);
-            text.Children.Add(_bar);
+            text.Children.Add(_progress);
             text.Children.Add(_error);
             text.Children.Add(_actions);
 
@@ -281,13 +283,19 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         {
             ExportProgress progress = _entry.Progress;
             int position = _entry.Job is null ? _owner._jobs?.QueuePosition(_entry) ?? 0 : 0;
-            _status.Text = position > 0
-                ? $"En cola · {position}.º" + (_owner._jobs?.IsPaused == true ? " · la cola está en pausa" : "")
-                : ExportText.Status(progress) + (progress.State == ExportJobState.Completed && _entry.Job?.MeasuredNote is { } note ? $" · {note}" : "");
-            _bar.Value = progress.Fraction;
-            _bar.IsIndeterminate = progress.State is ExportJobState.Preparing or ExportJobState.MeasuringLoudness or ExportJobState.MixingAudio
-                or ExportJobState.Finalizing;
-            _bar.Visibility = progress.State.IsFinished() ? Visibility.Collapsed : Visibility.Visible;
+            // En marcha, la vista común dice fase, porcentaje, fps, tiempo restante y «último avance»; el resto, su estado en texto.
+            bool running = position == 0 && progress.State != ExportJobState.Queued && !progress.State.IsFinished();
+            if (running)
+            {
+                Feed(progress);
+            }
+
+            _progress.Operation = running ? _operation : null;
+            _status.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
+            _status.Text = running ? ""
+                : position > 0
+                    ? $"En cola · {position}.º" + (_owner._jobs?.IsPaused == true ? " · la cola está en pausa" : "")
+                    : ExportText.Status(progress) + (progress.State == ExportJobState.Completed && _entry.Job?.MeasuredNote is { } note ? $" · {note}" : "");
             _cancel.Visibility = progress.State.IsFinished() ? Visibility.Collapsed : Visibility.Visible;
             if (_entry.Thumbnail is { } thumbnail && !ReferenceEquals(thumbnail, _shownThumbnail))
             {
@@ -300,6 +308,23 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
                 _shownState = progress.State;
                 _shownPosition = position;
                 ShowActions(progress.State);
+            }
+        }
+
+        private void Feed(ExportProgress progress)
+        {
+            if (progress.State == ExportJobState.Encoding)
+            {
+                if (progress.PassCount > 1)
+                {
+                    _operation.SetPhase(progress.Pass, progress.PassCount, "Exportando");
+                }
+
+                _operation.Report(progress.Fraction, ExportText.Number(progress.FramesPerSecond, 0) + " fps");
+            }
+            else
+            {
+                _operation.Report(null, ExportText.State(progress));
             }
         }
 

@@ -1,11 +1,13 @@
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
+using Rodaje.App.Services.Operations;
 
 namespace Rodaje.App.Services.LongActions;
 
 /// <summary>Una acción larga en marcha, tal como se muestra en su botón y en la barra de avisos.</summary>
 /// <param name="Progress">De 0 a 1, o nulo si no se sabe cuánto falta (barra indeterminada).</param>
-public sealed record LongActionStatus(string ActionId, string Title, string Message, double? Progress, bool CanCancel)
+/// <param name="Operation">El avance completo (fases, tiempo restante, último avance) que dibuja <c>OperationProgressView</c>.</param>
+public sealed record LongActionStatus(string ActionId, string Title, string Message, double? Progress, bool CanCancel, OperationProgress? Operation = null)
 {
     /// <summary>«42 %», o vacío si el avance no se conoce.</summary>
     public string ProgressText => Progress is { } p ? string.Create(SpanishNumbers.Format, $"{Math.Floor(p * 100):0} %") : "";
@@ -23,6 +25,9 @@ public sealed partial class LongActionService
     private readonly Lock _lock = new();
     private readonly List<LongActionScope> _running = [];
     private readonly Action<Exception> _reportFailure;
+
+    /// <summary>Lo que espera una operación que puede durar un instante (abrir, importar) antes de salir en la barra de avisos.</summary>
+    public static readonly TimeSpan QuickOperationDelay = TimeSpan.FromMilliseconds(600);
 
     /// <param name="reportFailure">
     /// Quién lleva al informe la excepción de una acción que falla; por omisión, <see cref="UiTask.Report"/> sin aviso
@@ -50,14 +55,39 @@ public sealed partial class LongActionService
         }
     }
 
-    /// <summary>La última que empezó y sigue en marcha: la que muestra la barra de avisos.</summary>
+    /// <summary>
+    /// La última que empezó y sigue en marcha: la que muestra la barra de avisos. Las que pidieron esperar
+    /// (<c>showAfter</c>: abrir, importar) no cuentan hasta que pasa ese tiempo, para que lo que dura un instante no
+    /// parpadee.
+    /// </summary>
     public LongActionStatus? Current
     {
         get
         {
             lock (_lock)
             {
-                return _running.Count == 0 ? null : _running[^1].Status;
+                return _running.FindLast(s => s.IsRevealed)?.Status;
+            }
+        }
+    }
+
+    /// <summary>Cuánto falta para que la primera acción que pidió esperar entre en <see cref="Current"/>; nulo si no hay.</summary>
+    public TimeSpan? NextReveal
+    {
+        get
+        {
+            lock (_lock)
+            {
+                TimeSpan? next = null;
+                foreach (LongActionScope s in _running)
+                {
+                    if (!s.IsRevealed && s.TimeToReveal is { } t && (next is null || t < next))
+                    {
+                        next = t;
+                    }
+                }
+
+                return next;
             }
         }
     }
@@ -71,7 +101,7 @@ public sealed partial class LongActionService
     }
 
     /// <summary>Marca la acción en marcha; nulo si ya lo estaba (el segundo clic no hace nada).</summary>
-    public LongActionScope? TryBegin(string actionId, string title, string message = "", bool canCancel = false)
+    public LongActionScope? TryBegin(string actionId, string title, string message = "", bool canCancel = false, TimeSpan showAfter = default)
     {
         ArgumentException.ThrowIfNullOrEmpty(actionId);
         ArgumentNullException.ThrowIfNull(title);
@@ -83,7 +113,7 @@ public sealed partial class LongActionService
                 return null;
             }
 
-            scope = new LongActionScope(this, actionId, title, message ?? "", canCancel);
+            scope = new LongActionScope(this, actionId, title, message ?? "", canCancel, showAfter);
             _running.Add(scope);
         }
 
@@ -206,20 +236,48 @@ public sealed partial class LongActionScope : IDisposable
     private readonly CancellationTokenSource _cancel = new();
     private readonly Lock _lock = new();
     private LongActionStatus _status;
+    private readonly TimeSpan _showAfter;
+    private readonly long _started;
     private bool _disposed;
     private bool _cancelling;
 
-    internal LongActionScope(LongActionService owner, string actionId, string title, string message, bool canCancel)
+    internal LongActionScope(LongActionService owner, string actionId, string title, string message, bool canCancel, TimeSpan showAfter = default)
     {
         _owner = owner;
+        _showAfter = showAfter;
+        _started = System.Diagnostics.Stopwatch.GetTimestamp();
         ActionId = actionId;
         Token = _cancel.Token;
-        _status = new LongActionStatus(actionId, title, message, null, canCancel);
+        Operation.SetCancellable(canCancel);
+        if (message.Length > 0)
+        {
+            Operation.Report(null, message);
+        }
+
+        _status = new LongActionStatus(actionId, title, message, null, canCancel, Operation);
     }
+
+    /// <summary>
+    /// El avance con fases, tiempo restante y «último avance» que muestra la barra de avisos. <see cref="Report"/> y
+    /// <see cref="SetCancellable"/> ya lo mantienen; la acción añade <c>Operation.SetPhase</c> o <c>Operation.Pulse</c> si le sirven.
+    /// </summary>
+    public OperationProgress Operation { get; } = new();
 
     public string ActionId { get; }
 
     public CancellationToken Token { get; }
+
+    /// <summary>Ya pasó el tiempo de espera que pidió al empezar (por omisión, ninguno): desde aquí la barra de avisos la muestra.</summary>
+    internal bool IsRevealed => TimeToReveal is null;
+
+    internal TimeSpan? TimeToReveal
+    {
+        get
+        {
+            TimeSpan left = _showAfter - System.Diagnostics.Stopwatch.GetElapsedTime(_started);
+            return left > TimeSpan.Zero ? left : null;
+        }
+    }
 
     public LongActionStatus Status
     {
@@ -246,6 +304,7 @@ public sealed partial class LongActionScope : IDisposable
                 return;
             }
 
+            Operation.Report(value, message);
             if (_cancelling)
             {
                 return;
@@ -270,6 +329,26 @@ public sealed partial class LongActionScope : IDisposable
         _owner.RaiseChanged();
     }
 
+    /// <summary>
+    /// Desde ahora la barra de avisos dibuja el avance de <paramref name="source"/> (el de un trabajo de módulo, que ya sabe su
+    /// etapa, su tiempo restante y su último avance) en lugar del propio.
+    /// </summary>
+    public void Follow(OperationProgress source)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+        lock (_lock)
+        {
+            if (_disposed || ReferenceEquals(_status.Operation, source))
+            {
+                return;
+            }
+
+            _status = _status with { Operation = source };
+        }
+
+        _owner.RaiseChanged();
+    }
+
     /// <summary>Si «Cancelar» se ofrece desde ahora (por ejemplo, solo mientras analiza).</summary>
     public void SetCancellable(bool canCancel)
     {
@@ -281,6 +360,7 @@ public sealed partial class LongActionScope : IDisposable
             }
 
             _status = _status with { CanCancel = canCancel };
+            Operation.SetCancellable(canCancel);
         }
 
         _owner.RaiseChanged();
@@ -316,6 +396,7 @@ public sealed partial class LongActionScope : IDisposable
 
             _cancelling = true;
             _status = _status with { Message = Modules.ModuleActivity.Cancelling, Progress = null, CanCancel = false };
+            Operation.MarkCancelling(Modules.ModuleActivity.Cancelling);
         }
 
         _owner.RaiseChanged();
@@ -331,6 +412,7 @@ public sealed partial class LongActionScope : IDisposable
             }
 
             _disposed = true;
+            Operation.Complete();
         }
 
         _owner.End(this);

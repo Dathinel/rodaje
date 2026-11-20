@@ -1,5 +1,7 @@
 using System.ComponentModel;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
+using Rodaje.App.Services.Operations;
 using Rodaje.App.Services.Packages;
 
 namespace Rodaje.App.Views.Plugins;
@@ -10,7 +12,15 @@ namespace Rodaje.App.Views.Plugins;
 /// </summary>
 internal sealed partial class DownloadState : INotifyPropertyChanged, IDisposable
 {
-    public void Dispose() => _cancel?.Dispose();
+    public void Dispose()
+    {
+        _clock?.Stop();
+        _cancel?.Dispose();
+    }
+
+    private OperationProgress _operation = new();
+    private DispatcherQueueTimer? _clock;
+    private string _detail = "";
 
     private double _percent;
     private string _text = "";
@@ -32,6 +42,13 @@ internal sealed partial class DownloadState : INotifyPropertyChanged, IDisposabl
         private set => Set(ref _text, value, nameof(Text));
     }
 
+    /// <summary>«quedan unos 40 s», o «Sigue trabajando; último avance hace 6 s» si la descarga lleva unos segundos sin avanzar.</summary>
+    public string Detail
+    {
+        get => _detail;
+        private set => Set(ref _detail, value, nameof(Detail));
+    }
+
     public Visibility ActiveVisibility => _active ? Visibility.Visible : Visibility.Collapsed;
 
     public Visibility IdleVisibility => _active ? Visibility.Collapsed : Visibility.Visible;
@@ -47,6 +64,17 @@ internal sealed partial class DownloadState : INotifyPropertyChanged, IDisposabl
         _cancel = new CancellationTokenSource();
         _progress?.Close();
         _progress = new ThrottledProgress<InstallProgress>(Report);
+        _operation = new OperationProgress();
+        _clock?.Stop();
+        if (DispatcherQueue.GetForCurrentThread() is { } queue)
+        {
+            // Sin avance no llega ningún informe: un reloj de 1 s mantiene al día «último avance hace N s».
+            _clock = queue.CreateTimer();
+            _clock.Interval = TimeSpan.FromSeconds(1);
+            _clock.Tick += (_, _) => ShowDetail();
+            _clock.Start();
+        }
+
         _active = true;
         Report(new InstallProgress(0, ""));
         Raise(nameof(ActiveVisibility));
@@ -58,8 +86,16 @@ internal sealed partial class DownloadState : INotifyPropertyChanged, IDisposabl
     private void Report(InstallProgress progress)
     {
         Percent = Math.Clamp(progress.Fraction, 0, 1) * 100;
+        _operation.Report(progress.Fraction, progress.Stage);
+        ShowDetail();
         string stage = progress.Stage.Length > 0 ? progress.Stage + " · " : "";
         Text = progress.Fraction >= 1 && progress.Stage is "" or "Paquete" or "Módulo" ? "Instalando…" : $"{stage}{Percent:0} %";
+    }
+
+    private void ShowDetail()
+    {
+        OperationSnapshot s = _operation.Snapshot();
+        Detail = string.Join(" · ", new[] { s.RemainingText, s.StalledText }.Where(t => t.Length > 0));
     }
 
     public void Cancel() => _cancel?.Cancel();
@@ -67,6 +103,8 @@ internal sealed partial class DownloadState : INotifyPropertyChanged, IDisposabl
     public void Finish()
     {
         _active = false;
+        _clock?.Stop();
+        Detail = "";
         _progress?.Close();
         _progress = null;
         _cancel?.Dispose();

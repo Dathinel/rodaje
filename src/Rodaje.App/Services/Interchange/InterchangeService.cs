@@ -24,14 +24,15 @@ public sealed class InterchangeService(IMediaProber prober, IIdGenerator? ids = 
     /// Lee el archivo contra una copia de los medios del proyecto (el proyecto solo se toca desde el hilo de la interfaz) y
     /// sondea los medios nuevos que existen en el disco.
     /// </summary>
-    public async Task<InterchangeResult> ReadAsync(string path, Project project, InterchangeOptions options, CancellationToken cancellationToken = default)
+    public async Task<InterchangeResult> ReadAsync(string path, Project project, InterchangeOptions options, IProgress<double>? progress = null,
+        CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(path);
         ArgumentNullException.ThrowIfNull(project);
         ArgumentNullException.ThrowIfNull(options);
         var snapshot = new Project { Id = project.Id, Media = [.. project.Media.Select(m => m.Clone())] };
         InterchangeResult result = await Task.Run(() => InterchangeFiles.Read(path, snapshot, null, options, _ids), cancellationToken);
-        await ProbeAsync(result, cancellationToken);
+        await ProbeAsync(result, progress, cancellationToken);
         return result;
     }
 
@@ -40,11 +41,12 @@ public sealed class InterchangeService(IMediaProber prober, IIdGenerator? ids = 
     /// y les copia sus datos. Un medio provisional de una EDL se corre a su TC real (<see cref="MediaRelinkEdits.RebaseShift"/>);
     /// si el archivo no cubre lo que usan sus clips, se queda provisional y lo resuelve el reenlazado.
     /// </summary>
-    public async Task ProbeAsync(InterchangeResult result, CancellationToken cancellationToken = default)
+    public async Task ProbeAsync(InterchangeResult result, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(result);
         List<MediaRef> local = [.. result.Media.Where(m => IsLocal(m.Path))];
         var probes = new RelinkProbe?[local.Count];
+        int probedCount = 0;
         await Parallel.ForEachAsync(Enumerable.Range(0, local.Count), new ParallelOptions { MaxDegreeOfParallelism = ProbeParallelism, CancellationToken = cancellationToken },
             (i, _) =>
             {
@@ -55,6 +57,7 @@ public sealed class InterchangeService(IMediaProber prober, IIdGenerator? ids = 
                     probes[i] = RelinkProbe.Of(probed);
                 }
 
+                progress?.Report(Interlocked.Increment(ref probedCount) / (double)local.Count);
                 return ValueTask.CompletedTask;
             });
 
