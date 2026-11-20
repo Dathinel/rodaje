@@ -69,8 +69,12 @@ En segundo plano y frente a la base de la 1.0.3.
 
 ## Después de la 1.0.4 (sin Linux)
 
-### B9 · Repaso con ratón (Daniel)
-Lo nuevo desde la 1.0.3: render en caché, editar por texto, intercambio EDL/FCPXML/OTIO, flujo óptico, plantillas de movimiento, HDR de 12 bits y los arreglos de B2 y B3. Lo que encuentre va a la 1.0.5.
+### B9 · Repaso con ratón, repetido hasta que quede bien
+Lo nuevo desde la 1.0.3: render en caché, editar por texto, intercambio EDL/FCPXML/OTIO, flujo óptico, plantillas de movimiento, HDR de 12 bits y los arreglos de B2 y B3. **Daniel, 19-nov: se revisa varias veces hasta que quede bien.** Este bloque va **antes de publicar** (entre B7 y B8) y se repite en vueltas:
+1. Vuelta: una sesión de Claude con control de pantalla recorre `pruebas-a-mano.md` con el exe de `main` actual y escribe `repaso-raton-<fecha>.md` (✔, ✘ y no probado, gravedad y pasos).
+2. Se arreglan todos los ✘ «bloquea» y «molesta» (jefe + Cuadrilla, PR con CI verde) y se publica un exe nuevo de `main`.
+3. Nueva vuelta, empezando por lo que falló y siguiendo con el recorrido completo.
+**Hecho cuando:** una vuelta completa sin ✘ «bloquea» ni «molesta» y, como mínimo, dos vueltas hechas. Los ✘ «cosmético» van a `pendientes.md`. Daniel lo repasa al final con el ratón solo para confirmar.
 
 ### B10 a B16 · Colaboración (D-067, `propuestas/colaboracion.md`)
 Rodaje usa `Dathinel/sala`, que ya trae lo central (red, roles, reservas, traspaso y entradas hostiles; pruebas de Sala en verde en los tres sistemas). Falta todo el lado de Rodaje, en este orden:
