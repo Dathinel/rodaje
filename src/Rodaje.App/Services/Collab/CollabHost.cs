@@ -7,7 +7,7 @@ namespace Rodaje.App.Services.Collab;
 /// Lo que la ventana tiene de la colaboración: la sala, dónde está <c>dathinel-red</c>, la clave de este equipo y el último
 /// nombre que usó la persona. Sin WinUI para poder probarlo; la ventana le pasa cómo volver al hilo de la interfaz.
 /// </summary>
-public sealed class CollabHost
+public sealed partial class CollabHost : IDisposable
 {
     public const string RedFileName = "dathinel-red.exe";
     public const string RedVariable = "RODAJE_RED";
@@ -30,9 +30,35 @@ public sealed class CollabHost
             new CollabEnvironment(redPath ?? FindRed() ?? Path.Combine(AppContext.BaseDirectory, RedFileName), Path.Combine(_folder, "identidad.bin"), appVersion ?? CurrentVersion()),
             handler,
             post);
+        Room.StateChanged += OnRoomState;
     }
 
     public RoomService Room { get; }
+
+    /// <summary>De dónde saca el anfitrión la fotografía del proyecto para quien entra; la pone la ventana.</summary>
+    public ICollabProjectSource? ProjectSource { get; set; }
+
+    private ProjectShareHost? _share;
+
+    public void Dispose()
+    {
+        Room.StateChanged -= OnRoomState;
+        _share?.Dispose();
+        _share = null;
+    }
+
+    private void OnRoomState(RoomState state)
+    {
+        if (state is { Phase: RoomPhase.Hosting, IsHost: true } && _share is null && ProjectSource is { } source)
+        {
+            _share = new ProjectShareHost(Room, source, Room.RoomFolder);
+        }
+        else if (state.Phase is RoomPhase.Closed or RoomPhase.Ended && _share is not null)
+        {
+            _share.Dispose();
+            _share = null;
+        }
+    }
 
     /// <summary>El permiso que se propone al aprobar a quien pide entrar (el que se eligió al invitar).</summary>
     public Rol DefaultRole { get; set; } = Rol.Editar;
