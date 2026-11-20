@@ -14,12 +14,20 @@ public sealed class ExportJobListenerTests
         var options = new ExportRunnerOptions { Ffmpeg = Skip.ProxyExecutable! };
         var request = new ExportRequest(ExportPlanTests.Project(Time.FromSeconds(1)), "sec", Path.Combine(Path.GetTempPath(), "rodaje-no-se-escribe.mp4"), new ExportSettings());
         using var job = new ExportJob(request, [], options);
-        job.Changed += (_, _) => throw new InvalidOperationException("La interfaz falló al enterarse.");
+        var notices = 0;
+        job.Changed += (_, _) =>
+        {
+            Interlocked.Increment(ref notices);
+            throw new InvalidOperationException("La interfaz falló al enterarse.");
+        };
 
         job.Launch();
         await job.Completion.WaitAsync(TimeSpan.FromSeconds(60));
 
+        // Falla por la petición (sin codificadores), no por lo que lanzó el escuchador, que se avisó más de una vez.
         Assert.Equal(ExportJobState.Failed, job.Progress.State);
         Assert.NotNull(job.Failure);
+        Assert.DoesNotContain("La interfaz falló", job.Failure.Message, StringComparison.Ordinal);
+        Assert.True(Volatile.Read(ref notices) >= 2, "Preparando y el estado final avisan al escuchador.");
     }
 }
