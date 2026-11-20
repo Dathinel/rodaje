@@ -82,6 +82,22 @@ public sealed class TranscriptSubtitlesTests
     }
 
     [Fact]
+    public void With_all_tracks_the_ripple_shifts_the_subtitles_once()
+    {
+        TrimFixture f = new TrimFixture()
+            .Add("v1", "v", "m2", 0, 200, 0, link: "l")
+            .Add("a1", "a", "m2", 0, 200, 0, link: "l")
+            .WithTranscript();
+        f.Track("v2").Role = TrackRoles.Subtitles;
+        f.AddTitle("v2", "s", 150, 196, 150);
+
+        IReadOnlyList<(Time Start, Time End)> removed = TranscriptEdits.DeleteWords(f.Ctx, f.Doc(), [0, 1, 2, 3, 4], ripple: true, RippleScope.AllTracks);
+
+        Assert.Equal(F(150) - removed.Aggregate(Time.Zero, (sum, s) => sum + (s.End - s.Start)), f.Clip("s").Start);
+        f.AssertValid();
+    }
+
+    [Fact]
     public void Removing_pauses_shifts_the_subtitles_after_them()
     {
         TrimFixture f = WithSubtitles();
