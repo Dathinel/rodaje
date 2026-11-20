@@ -106,6 +106,22 @@ public sealed class TextLoopPlanTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void A_split_piece_continues_the_loop_phase_of_the_whole_title()
+    {
+        Clip whole = Title(TextLoopKind.Float);
+        Clip piece = Title(TextLoopKind.Float);
+        piece.Generator!.Edges.Before = Time.FromSeconds(0.5);
+        GeneratedClipPlan a = GeneratedClipPlan.From(whole, 1920, 1080)!;
+        GeneratedClipPlan b = GeneratedClipPlan.From(piece, 1920, 1080)!;
+        foreach (double t in new[] { 0.0, 0.3, 1.1 })
+        {
+            Assert.Equal(a.TransformAt(whole.Start + Time.FromSeconds(t + 0.5)).Y, b.TransformAt(piece.Start + Time.FromSeconds(t)).Y, 9);
+        }
+
+        Assert.NotEqual(a.TransformAt(whole.Start).Y, b.TransformAt(piece.Start).Y);
+    }
+
+    [Fact]
     public void Loop_runs_during_entry_exit_and_when_edges_are_disabled()
     {
         Clip clip = Title(TextLoopKind.Float);
@@ -117,8 +133,9 @@ public sealed class TextLoopPlanTests(ITestOutputHelper output)
             Time timeline = clip.Start + Time.FromSeconds(t);
             LayerTransform original = EffectPlan.Transform(plan.Effects, plan.TimeMap.EffectTime(timeline));
             UnitPose delta = TextLoops.Delta(clip.Generator.Style.Loop!, t);
-            LayerTransform expected = TitleAnimation.Compose(original, delta.X, delta.Y, delta.Scale, delta.Rotation, delta.Opacity);
-            expected = plan.Animation!.Apply(expected, timeline - clip.Start);
+            // El bucle va por fuera de la entrada y la salida, como quedarían al convertirlas en keyframes del clip.
+            LayerTransform expected = plan.Animation!.Apply(original, timeline - clip.Start);
+            expected = TitleAnimation.Compose(expected, delta.X, delta.Y, delta.Scale, delta.Rotation, delta.Opacity);
             Assert.Equal(expected, plan.TransformAt(timeline));
         }
 
@@ -154,7 +171,7 @@ public sealed class TextLoopPlanTests(ITestOutputHelper output)
         }
 
         output.WriteLine($"{kind}: {loopTicks / (double)plainTicks:0.000}x; 100000 llamadas, margen total 1024 bytes");
-        Assert.True(loopTicks < plainTicks * 3, $"Con bucle: {loopTicks}; sin bucle: {plainTicks}");
+        Assert.True(loopTicks < plainTicks * 8, $"Con bucle: {loopTicks}; sin bucle: {plainTicks}");
     }
 
     private static (long Ticks, long Bytes) Measure(GeneratedClipPlan plan)

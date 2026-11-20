@@ -70,6 +70,9 @@ internal sealed class GeneratedClipPlan
 
     public EffectPlan? Effects { get; }
 
+    /// <summary>Lo que el título entero dura antes de este trozo (<see cref="GeneratorEdges.Before"/>): origen de la fase del bucle.</summary>
+    internal long LoopLeadTicks { get; init; }
+
     public TitleAnimation? Animation { get; }
 
     /// <summary>Posición de una capa de plantilla (D-064) en píxeles de la secuencia, sumada a la del clip.</summary>
@@ -87,14 +90,18 @@ internal sealed class GeneratedClipPlan
     {
         LayerTransform clip = EffectPlan.Transform(Effects, TimeMap.EffectTime(timeline));
         clip = clip with { X = clip.X + OffsetX, Y = clip.Y + OffsetY };
+        LayerTransform animated = Animation is { } animation ? animation.Apply(clip, timeline - Start) : clip;
+
+        // El bucle va por fuera de la entrada y la salida (como al convertirlas en keyframes, que pasan al efecto del clip) y
+        // su fase cuenta desde el inicio del título entero: un trozo cortado sigue donde iba, sin reiniciarse.
         if (Content.Style.Loop is { } loop)
         {
-            UnitPose delta = TextLoops.Delta(loop, (timeline - Start).ToSeconds());
-            clip = TitleAnimation.Compose(clip, delta.X * Content.UnitScale, delta.Y * Content.UnitScale,
+            UnitPose delta = TextLoops.Delta(loop, Time.FromTicks((timeline - Start).Ticks + LoopLeadTicks).ToSeconds());
+            animated = TitleAnimation.Compose(animated, delta.X * Content.UnitScale, delta.Y * Content.UnitScale,
                 delta.Scale, delta.Rotation, delta.Opacity);
         }
 
-        return Animation is { } animation ? animation.Apply(clip, timeline - Start) : clip;
+        return animated;
     }
 
     /// <summary>
@@ -213,6 +220,7 @@ internal sealed class GeneratedClipPlan
     {
         OffsetX = offsetX;
         OffsetY = offsetY;
+        LoopLeadTicks = source.LoopLeadTicks;
     }
 
     private static GeneratedClipPlan Build(string clipId, ClipTimeMap map, Time duration, EffectPlan? effects, TextStyle? source, GeneratorEdges edges,
@@ -257,7 +265,7 @@ internal sealed class GeneratedClipPlan
             }
         }
 
-        return new GeneratedClipPlan(clipId, map, content, effects, animation, words, spokenWords);
+        return new GeneratedClipPlan(clipId, map, content, effects, animation, words, spokenWords) { LoopLeadTicks = Math.Max(0, edges.Before.Ticks) };
 
     }
 
