@@ -54,7 +54,9 @@ public static class ExportRanges
         var choices = new List<RangeChoice> { new($"Toda la secuencia ({Clock(sequence.Duration)})", null) };
         if (MarkedRange(sequence, marks) is { } marked)
         {
-            choices.Add(new($"{MarksLabel} ({Clock(marked.Start)} – {Clock(marked.End)})", marked));
+            // Con una sola marca, el otro extremo es el borde de la secuencia: se dice así y no con un tiempo que parece elegido.
+            string from = marks.In is null ? "inicio" : Clock(marked.Start), to = marks.Out is null ? "final" : Clock(marked.End);
+            choices.Add(new($"{MarksLabel} ({from} – {to})", marked));
         }
 
         Clip[] selected = [.. selectedClipIds.Select(id => sequence.FindClip(id)?.Clip).OfType<Clip>()];

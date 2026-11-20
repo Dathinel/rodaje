@@ -51,6 +51,15 @@ public sealed class ExportMarkedRangeTests
     }
 
     [Fact]
+    public void ConUnaSolaMarca_LaEtiquetaDiceInicioOFinalEnVezDeUnTiempoQueNoSeEligio()
+    {
+        Sequence sequence = ExportTestData.Project().Sequences[0];
+
+        Assert.Equal("Entre la entrada y la salida (0:04 – final)", ExportRanges.Choices(sequence, [], new SequenceMarks(S(4), null))[1].Label);
+        Assert.Equal("Entre la entrada y la salida (inicio – 0:04)", ExportRanges.Choices(sequence, [], new SequenceMarks(null, S(4)))[1].Label);
+    }
+
+    [Fact]
     public void UnTramoVacioOFueraDeLaSecuencia_NoSeOfrece()
     {
         Sequence sequence = ExportTestData.Project().Sequences[0];
