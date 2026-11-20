@@ -2,7 +2,7 @@
 
 Orden de trabajo de Rodaje, con el mismo método que Unicomp: bloques en orden, cada uno con sus pasos, su «Hecho cuando» y su estado. Lo abierto por prioridad está en `pendientes.md`; lo que solo Daniel puede juzgar con el ratón, en `pruebas-a-mano.md`; lo cerrado, en `CHANGELOG.md`.
 
-**Daniel, 19-nov:** sacar la 1.0.4 de Windows y, después, la colaboración. **Sin Linux de momento** (queda aparcado al final de este documento; Mac también: exige registro de Apple).
+**Daniel, 20-nov (cambio):** la **1.0.4 lleva todo lo planeado, incluida la colaboración (B10 a B16)**; solo queda para la 1.0.5 lo de «Ideas guardadas» (editor automático vertical e interfaz para nuevos). Una vez publicada, Daniel la prueba con una persona **en otro país**: tiene que funcionar por internet y salir **extremadamente pulida**. Además: ir **más rápido**, con jefes en paralelo. **Sin Linux de momento** (queda aparcado al final de este documento; Mac también: exige registro de Apple).
 
 ## Cómo se trabaja
 
@@ -67,7 +67,13 @@ En segundo plano y frente a la base de la 1.0.3.
 ### B8 · Publicación (Daniel)
 1. ☐ Catálogo firmado, etiqueta y release. **Solo con el OK de Daniel.**
 
-## Después de la 1.0.4 (sin Linux)
+## Colaboración dentro de la 1.0.4 (antes iba después) y repaso final
+
+**Orden y paralelismo (20-nov).** B10 (parches en Core) y B13 (internet y diagnóstico) arrancan a la vez, porque no se tocan; B11 (sesión y pantallas) arranca también, con el esqueleto y la parte de red, y engancha los parches cuando B10 se una; B12 (pruebas hostiles) empieza con B11; B14, B15 y B16 empiezan cuando B11 tenga lo básico. B4 a B7 siguen en paralelo; **B9 (repaso con ratón, repetido) y la prueba de colaboración entre dos equipos cierran antes de B8**. Un jefe por bloque; los jefes de B10, B11 y B13 se coordinan por las interfaces de `propuestas/colaboracion.md`.
+
+**Listón de pulido para la prueba en otro país:** nada de errores sin explicar (todo fallo de red dice qué pasó y qué hacer), conexión directa o por relé visible, comprobación de la misma versión al entrar, aprobación del anfitrión siempre, un panel de diagnóstico que Daniel pueda leer por teléfono, y `docs/prueba-colaboracion.md` con el guion paso a paso para los dos.
+
+## Repaso y colaboración: detalle (sin Linux)
 
 ### B9 · Repaso con ratón, repetido hasta que quede bien
 Lo nuevo desde la 1.0.3: render en caché, editar por texto, intercambio EDL/FCPXML/OTIO, flujo óptico, plantillas de movimiento, HDR de 12 bits y los arreglos de B2 y B3. **Daniel, 19-nov: se revisa varias veces hasta que quede bien.** Este bloque va **antes de publicar** (entre B7 y B8) y se repite en vueltas:
@@ -79,7 +85,7 @@ Lo nuevo desde la 1.0.3: render en caché, editar por texto, intercambio EDL/FCP
 **Vuelta 3 (☐):** tras arreglar R8 y con lo que salga de la vuelta de Daniel; debe cerrar con una vuelta completa sin ✘ «bloquea» ni «molesta».
 **Hecho cuando:** una vuelta completa sin ✘ «bloquea» ni «molesta» y, como mínimo, dos vueltas hechas. Los ✘ «cosmético» van a `pendientes.md`. Daniel lo repasa al final con el ratón solo para confirmar.
 
-### B10 a B16 · Colaboración (D-067, `propuestas/colaboracion.md`)
+### B10 a B16 · Colaboración, dentro de la 1.0.4 (D-067, `propuestas/colaboracion.md`)
 Rodaje usa `Dathinel/sala`, que ya trae lo central (red, roles, reservas, traspaso y entradas hostiles; pruebas de Sala en verde en los tres sistemas). Falta todo el lado de Rodaje, en este orden:
 
 | Bloque | Fase del diseño | Qué | Hecho cuando |
@@ -92,7 +98,7 @@ Rodaje usa `Dathinel/sala`, que ya trae lo central (red, roles, reservas, traspa
 | B15 | 5 | Anfitrión que se va: traspaso, suplente, parches pendientes y «Cambios que no entraron» | Apagar el anfitrión a mitad: nadie pierde cambios y, al volver, converge |
 | B16 | 6 | Render del anfitrión: «Exportar en el anfitrión» y caché compartido | Un invitado lanza la exportación y sale en el anfitrión |
 
-La versión de cada una la decide Daniel al cerrar B9 (propuesta: 1.0.5 con B10 a B12, el resto después).
+**Todas van en la 1.0.4** (Daniel, 20-nov). Cada bloque se une cuando compila sin advertencias y pasa la CI, y la prueba real entre dos equipos va antes de publicar.
 
 ## Ideas guardadas para la 1.0.5 (Daniel, 20-nov)
 Detalle y respuesta sobre la IA local en `propuestas/editor-automatico-vertical.md`. Sin plan aprobado todavía: antes de escribir código va el plan por fases con el stack comparado.
