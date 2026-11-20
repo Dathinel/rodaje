@@ -250,7 +250,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
             _notificationAction = null;
             _notificationSecondaryAction = null;
-            _notificationTimer.Stop();
+            _notificationTimer?.Stop(); // se crea más abajo en el constructor; esto corre después
             Notification.IsOpen = false;
         };
         session.ProjectOpened += (_, _) => RememberProject();
