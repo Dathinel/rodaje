@@ -1,0 +1,10 @@
+﻿Colaboración por internet
+
+Rodaje trae dathinel-red.exe, el programa que conecta con otras personas para editar juntos. Solo se abre cuando hospedas o entras en una sala; mientras no lo uses no escucha nada.
+
+La primera vez que lo uses, Windows puede preguntar si permite dathinel-red en el Firewall:
+- Pulsa Permitir en "Redes privadas" (en "Redes públicas" solo si no hay otra manera, por ejemplo en un café).
+- Si pulsaste Cancelar o Bloquear: Inicio, escribe "Permitir una aplicación a través del Firewall de Windows", pulsa "Cambiar la configuración", busca dathinel-red y marca "Privada".
+- Si queda bloqueado no se rompe nada: la sala sigue funcionando por un servidor intermediario, solo más lenta y nunca en directo.
+
+Lo que se manda entre los equipos va cifrado de extremo a extremo. El servidor intermediario ve las direcciones IP, la hora y la cantidad de datos, nunca el contenido. Más detalle: carpeta de instalación\app\modulos\red\INTERNET.md.

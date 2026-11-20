@@ -43,6 +43,7 @@ internal static partial class SelfTestRun
             await ShowExportAsync(window);
             await PluginsAsync(window);
             await ModuleAsync(window);
+            await RedAsync();
             await FormatAsync(window, engine);
             await InterchangeAsync(window);
             await RenderCacheAsync(window);
