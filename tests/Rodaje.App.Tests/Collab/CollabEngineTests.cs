@@ -300,4 +300,29 @@ public sealed class CollabEngineTests
 
         Assert.Equal(before, host.HashOnUi());
     }
+
+    [SalaFact]
+    public async Task Si_un_cambio_propio_no_entra_lo_que_vino_despues_sigue_adelante()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica h = host;
+        await using Replica g = guest;
+        Assert.True(await host.Room.ReserveAsync(PatchReservations.Project), "el anfitrión tiene la reserva de lo global");
+        await CollabHarness.Until(() => guest.Room.Reservations.ContainsKey(PatchReservations.Project), "la reserva a la vista del invitado");
+
+        // El marcador pide «proyecto» (ajena: no entra); apagar el clip c3 solo pide su pista y sí cabe.
+        await guest.Ui.Post(() =>
+        {
+            guest.Live.Sequences[0].Markers.Add(MarkerAt("mk-no-entra", "no entra"));
+            guest.Engine.OnLocalChange("Añadir marcador");
+            guest.Live.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled = false;
+            guest.Engine.OnLocalChange("Apagar clip");
+        });
+
+        await CollabHarness.Until(() => !guest.Notices.IsEmpty, "el aviso del cambio que no entró");
+        await CollabHarness.Until(() => host.Live.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled == false, "el clip apagado en el anfitrión");
+        Assert.DoesNotContain(guest.Live.Sequences[0].Markers, m => m.Id == "mk-no-entra");
+        Assert.False(guest.Live.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled);
+        await Settled(host, guest, "mismo estado compartido");
+    }
 }

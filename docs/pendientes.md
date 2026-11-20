@@ -67,7 +67,6 @@ Lo que queda abierto en Rodaje, por prioridad. Cada punto se quita al cerrarlo y
 53. **Conversión `file:` ↔ `blob:` con archivos reales.** `Rodaje.Core.Collab.IBlobMap` la define y Core la usa, pero la implementación (leer la LUT o la máscara de archivo, guardarla como blob y resolverla en el otro equipo) es de `Rodaje.App` (B11); sin ella, una referencia `file:` viaja vacía. El análisis de estabilizar, los medios generados y la organización de la biblioteca siguen fuera del `.rodaje` (§9 del diseño).
 
 ### Colaboración (B11): de la revisión de Gemini y de la propia
-- **Bloquea publicar la 1.0.4:** si el anfitrión rechaza un parche propio, `Revert` descarta también los posteriores que aún no tenían respuesta (pérdida de trabajo legítimo, con aviso). Arreglo: quitar solo el rechazado y reproyectar los siguientes sobre lo confirmado (`CollabEngine.ConvergeToConfirmed`).
 - **Bloquea publicar la 1.0.4:** repetir la revisión de ChatGPT de la edición compartida (seguridad y convergencia) cuando vuelva su cuota (10:01 del 20-nov) y corregir lo grave en un PR B11-fix.
 - Pasar las barras de progreso propias (`OperationClock`, barras de `JoinDialog`, `SharedProjectFlow` y `MediaSearchDialog`) a `OperationProgress` de B9b (`Rodaje.App.Services.Operations`) cuando se una #662.
 - `PeerLayer` tiene un temporizador de 66 ms siempre activo aunque no haya sala: arrancarlo solo con la sala abierta.
