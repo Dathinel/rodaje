@@ -3,7 +3,7 @@ description: .NET de global.json y caché de NuGet en NUGET_PACKAGES (lo define 
 runs:
   using: composite
   steps:
-    - name: .NET 10.0.401
+    - name: .NET 10.0.403
       uses: actions/setup-dotnet@v4
       with:
         global-json-file: global.json

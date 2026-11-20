@@ -134,7 +134,7 @@ Consecuencias para las fases 3 y 4:
 
 ### (e) Protocolo de módulos por socket Unix y memoria compartida
 
-Prototipo `eco/` ([README](../experimentos/linux-fase0/eco/README.md)): un ejecutable AOT que hace de editor y de módulo. Usa el marco y los mensajes **reales** del protocolo v1 (`MessageChannel.cs`, `Messages.cs` y `ModuleExceptions.cs` enlazados desde `src/Rodaje.Modules.Protocol/`, sin cambios) sobre un socket de dominio Unix, con la región de memoria compartida como archivo mapeado en una carpeta 0700.
+Prototipo `eco/` ([README](../experimentos/linux-fase0/eco/README.md)): un ejecutable AOT que hace de editor y de módulo. Usa el marco y los mensajes **reales** del protocolo v1 (`MessageChannel.cs`, `Messages.cs` y `ModuleExceptions.cs` enlazados desde `externo/sala/src/Rodaje.Modules.Protocol/` — antes `src/Rodaje.Modules.Protocol/` —, sin cambios) sobre un socket de dominio Unix, con la región de memoria compartida como archivo mapeado en una carpeta 0700.
 
 | Comprobación | Linux (`ubuntu-24.04`) | macOS (`macos-15`, arm64) |
 |---|---|---|
@@ -210,7 +210,7 @@ Ninguna entra en el producto todavía: `LICENCIAS.md` y `THIRD-PARTY-NOTICES.txt
    sudo ubuntu-drivers install && sudo reboot          # driver propietario de NVIDIA
    sudo apt-get install -y git curl xz-utils clang zlib1g-dev libvulkan1 vulkan-tools
    vulkaninfo | grep VK_KHR_video_decode               # deben salir _h264 y _h265; si no, el driver no sirve y se anota
-   curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.401 --install-dir "$HOME/dotnet"
+   curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.403 --install-dir "$HOME/dotnet"
    export DOTNET_ROOT="$HOME/dotnet" PATH="$HOME/dotnet:$PATH"
    mkdir -p "$HOME/ffmpeg" && curl -sSL https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-linux64-lgpl-shared-9.0.tar.xz | tar -xJ -C "$HOME/ffmpeg" --strip-components=1
    git clone https://github.com/Dathinel/rodaje && cd rodaje/experimentos/linux-fase0/vulkan-video

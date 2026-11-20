@@ -95,7 +95,8 @@ internal static class AutoSubtitlesDialog
         var again = new Button { Content = "Transcribir de nuevo", IsEnabled = false, Margin = new Thickness(0, 4, 0, 4) };
         panel.Children.Add(again);
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
-        var progress = new ProgressBar { Maximum = 1, Width = AnalysisUi.PreviewWidth };
+        var progress = new Views.Shared.OperationProgressView { Width = AnalysisUi.PreviewWidth, ShowMessage = false, ShowCancel = false };
+        var activity = new ModuleDialogActivity();
         panel.Children.Add(status);
         panel.Children.Add(progress);
 
@@ -123,8 +124,7 @@ internal static class AutoSubtitlesDialog
         void ShowActivity()
         {
             ModuleActivityView view = ModuleActivity.Describe(job, cancel.IsCancellationRequested, "Transcribiendo");
-            progress.IsIndeterminate = view.IsIndeterminate;
-            progress.Value = view.Progress;
+            progress.Operation = activity.Current(job, cancel.IsCancellationRequested);
             scope?.Report(view.IsIndeterminate ? null : view.Progress, view.IsIndeterminate ? view.Text : "Transcribiendo la voz…");
             status.Text = view.Text;
         }
@@ -152,6 +152,7 @@ internal static class AutoSubtitlesDialog
             progress.Visibility = Visibility.Visible;
             string wanted = Selected();
             job = null;
+            activity.Restart();
             ShowActivity();
             timer.Start();
             try

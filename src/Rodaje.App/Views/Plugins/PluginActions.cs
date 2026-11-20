@@ -1,5 +1,6 @@
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Shell;
 using Rodaje.Packages;
@@ -12,10 +13,16 @@ internal static class PluginActions
     public static async Task<bool> InstallAsync(EditorServices services, string path)
     {
         ArgumentNullException.ThrowIfNull(services);
+        // Comprobar y copiar un paquete grande tarda: la barra de avisos lo dice (no mientras se espera la respuesta del diálogo).
+        LongActionScope? scope = Begin();
+        LongActionScope? Begin() => services.LongActions.TryBegin(
+            "paquete.instalar", "Instalando el paquete", "Comprobando y copiando «" + Path.GetFileName(path) + "»", showAfter: LongActionService.QuickOperationDelay);
         try
         {
             LocalPackageInstall installation = await services.Packages.InstallLocalFileAsync(path, async () =>
             {
+                scope?.Dispose();
+                scope = null;
                 var dialog = new ContentDialog
                 {
                     XamlRoot = services.Shell.XamlRoot,
@@ -25,7 +32,9 @@ internal static class PluginActions
                     SecondaryButtonText = "Cancelar",
                     DefaultButton = ContentDialogButton.Secondary,
                 };
-                return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
+                bool approved = await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
+                scope = approved ? Begin() : null;
+                return approved;
             });
             if (installation.Outcome != LocalInstallOutcome.Installed) return false;
             InstallResult result = installation.Result!;
@@ -45,6 +54,10 @@ internal static class PluginActions
         {
             services.Session.Notify(NotificationSeverity.Error, $"No se instaló «{Path.GetFileName(path)}»", ex.Message);
             return false;
+        }
+        finally
+        {
+            scope?.Dispose();
         }
     }
 

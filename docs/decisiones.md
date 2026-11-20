@@ -29,7 +29,7 @@ El nombre de trabajo «FotoShot» quedaba a una letra de Photoshop y ya existía
 
 ## D-005. Entorno propio en `.entorno\` (9 de octubre de 2026)
 
-- **Decisión.** El SDK de .NET 10.0.401 se descarga a `.entorno\dotnet` con `build\preparar-entorno.ps1`, que verifica el SHA-512 publicado por Microsoft. La versión se fija en `global.json`; la caché de NuGet también vive en `.entorno\` y la restauración usa archivos de bloqueo. Solo `git` y `gh` son globales.
+- **Decisión.** El SDK de .NET 10.0.403 se descarga a `.entorno\dotnet` con `build\preparar-entorno.ps1`, que verifica el SHA-512 publicado por Microsoft. La versión se fija en `global.json`; la caché de NuGet también vive en `.entorno\` y la restauración usa archivos de bloqueo. Solo `git` y `gh` son globales.
 - **Por qué.** Un SDK global mezclaría versiones entre programas. Un contenedor sería excesivo para una aplicación de escritorio.
 - **Consecuencia.** La primera ejecución descarga unos 280 MB. `.entorno\` no se versiona; se versiona el script que lo reconstruye.
 
@@ -262,7 +262,7 @@ Se pasó de MIT a una licencia no comercial para impedir la venta por terceros. 
 ## D-031. Módulos de IA: protocolo v1, análisis en la app y descarga firmada (11 de octubre de 2026)
 
 - **Decisión.**
-  - **Protocolo v1** en `src/Rodaje.Modules.Protocol` (sin referencias a Rodaje, AOT, compartible entre programas): marco de 4 bytes + JSON UTF-8 de hasta 1 MiB con `type`; mensajes `hello`, `welcome`, `invoke`, `progress`, `result`, `error`, `cancel`, `ping`, `pong`, `log` y `shutdown` con `JsonSerializerContext`; negociación de versión por rango, capacidades en `welcome`, avance limitado a uno cada 50 ms, cancelación confirmada con 2 s de gracia y muerte del proceso si no llega, y códigos de error estables. Campos y mensajes desconocidos se ignoran; uno inválido cierra la conexión ([protocolo-modulos.md](protocolo-modulos.md)).
+  - **Protocolo v1** en `src/Rodaje.Modules.Protocol` — movido a `externo/sala/src/Rodaje.Modules.Protocol` (submódulo del repositorio `Dathinel/sala`) en la integración del 18-nov — (sin referencias a Rodaje, AOT, compartible entre programas): marco de 4 bytes + JSON UTF-8 de hasta 1 MiB con `type`; mensajes `hello`, `welcome`, `invoke`, `progress`, `result`, `error`, `cancel`, `ping`, `pong`, `log` y `shutdown` con `JsonSerializerContext`; negociación de versión por rango, capacidades en `welcome`, avance limitado a uno cada 50 ms, cancelación confirmada con 2 s de gracia y muerte del proceso si no llega, y códigos de error estables. Campos y mensajes desconocidos se ignoran; uno inválido cierra la conexión ([protocolo-modulos.md](protocolo-modulos.md)).
   - **Desconfianza hacia el módulo:** límites en cada campo, UTF-8 estricto y búferes solo en regiones que creó el editor, con límites comprobados; cualquier violación corta, falla las llamadas con `ModuleException` y mata el proceso. Tubería con nombre aleatorio y `CurrentUserOnly` en los dos lados.
   - **Cuadros y audio por memoria compartida** (`Local\Rodaje.Mod.<guid>`, la crea el editor). El editor decodifica: los módulos no abren archivos del usuario ni traen FFmpeg.
   - **Ciclo de vida:** un proceso por módulo, al primer uso y cerrado tras 2 min ocioso, Job Object con «matar al cerrar», `ping` de vigilancia y un modelo pesado a la vez según `vramMb`.

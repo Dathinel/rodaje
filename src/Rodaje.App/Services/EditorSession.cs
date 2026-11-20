@@ -180,6 +180,12 @@ public sealed partial class EditorSession : ObservableObject
     /// <summary>Hay una apertura, un guardado o una importación en curso.</summary>
     public bool IsBusy => _busy > 0;
 
+    /// <summary>
+    /// Donde la sesión anuncia lo que tarda (abrir un proyecto, importar medios) para que la barra de avisos lo muestre con
+    /// su avance; nulo en las pruebas y mientras la ventana no lo puso.
+    /// </summary>
+    internal LongActions.LongActionService? ProgressHost { get; set; }
+
     public bool CanUndo => History.CanUndo;
 
     public bool CanRedo => History.CanRedo;
