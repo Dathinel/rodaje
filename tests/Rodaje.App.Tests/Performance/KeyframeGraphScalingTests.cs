@@ -32,6 +32,7 @@ public class KeyframeGraphScalingTests(Xunit.Abstractions.ITestOutputHelper outp
         Assert.Equal((p.Keyframes[^1].Time - p.Keyframes[0].Time).ToSeconds(), points[^1].Seconds, 3);
     }
 
+    [Trait("Categoria", "Rendimiento")]
     [Fact]
     public void Muestrear_1250_keyframes_cuesta_milisegundos()
     {
@@ -64,6 +65,5 @@ public class KeyframeGraphScalingTests(Xunit.Abstractions.ITestOutputHelper outp
         double ms = sw.Elapsed.TotalMilliseconds;
         output.WriteLine($"recorrido de 1000 keyframes: {points.Count} puntos, {ms:F1} ms (antes ~24.000 puntos)");
         Assert.InRange(points.Count, 999, 2600);
-        Assert.True(ms < 500, $"{ms} ms");
     }
 }

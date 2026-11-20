@@ -146,6 +146,7 @@ public sealed class TextLoopPlanTests(ITestOutputHelper output)
             GeneratedClipPlan.From(clip, 1920, 1080)!.TransformAt(clip.Start + Time.FromSeconds(0.25)));
     }
 
+    [Trait("Categoria", "Rendimiento")]
     [Theory]
     [InlineData(TextLoopKind.Wobble)]
     [InlineData(TextLoopKind.Shake)]
