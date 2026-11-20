@@ -71,7 +71,7 @@ internal sealed class RoomPanel
 
         if (state.Members.Count > 0)
         {
-            _root.Children.Add(Text($"En la sala: {state.Members.Count} " + (state.Members.Count == 1 ? "persona" : "personas") + " (máximo 8)", FontWeights.SemiBold));
+            _root.Children.Add(Text($"En la sala: {state.OnlineCount} " + (state.OnlineCount == 1 ? "persona" : "personas") + " (máximo 8)", FontWeights.SemiBold));
             foreach (RoomMember member in state.Members)
             {
                 _root.Children.Add(MemberRow(member, state));
@@ -166,12 +166,12 @@ internal sealed class RoomPanel
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        var dot = new Microsoft.UI.Xaml.Shapes.Ellipse { Width = 12, Height = 12, Fill = CollabPalette.BrushOf(member.ColorIndex), VerticalAlignment = VerticalAlignment.Center };
+        var dot = new Microsoft.UI.Xaml.Shapes.Ellipse { Width = 12, Height = 12, Fill = CollabPalette.BrushOf(member.ColorIndex), Opacity = member.Online ? 1 : 0.35, VerticalAlignment = VerticalAlignment.Center };
         string tag = member.IsMe ? " (tú)" : "";
         string who = member.IsHost ? " · quien hospeda" : "";
         var text = new StackPanel();
         text.Children.Add(new TextBlock { Text = member.Alias + tag, TextTrimming = TextTrimming.CharacterEllipsis });
-        text.Children.Add(InviteDialog.Hint((member.Role == Rol.Editar ? "Puede editar" : "Solo puede mirar") + who));
+        text.Children.Add(InviteDialog.Hint(member.Online ? (member.Role == Rol.Editar ? "Puede editar" : "Solo puede mirar") + who : "Desconectado · puede volver sin pedir permiso"));
         grid.Children.Add(dot);
         Grid.SetColumn(text, 1);
         grid.Children.Add(text);

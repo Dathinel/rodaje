@@ -217,6 +217,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(Views.Vision.VisionCommands.Bind(_router, _services));
         _keyboard = new KeyboardShortcutHost(Root, _router, InterceptKey);
 
+        _services.Collab?.BindSession(session);
         TitleBar.Attach(_services);
         TitleBar.InspectorTabRequested += (_, tab) => Inspector.Show(tab);
         TitleBar.MarkersPanelRequested += (_, _) => Library.ShowMarkers();

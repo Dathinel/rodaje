@@ -143,6 +143,9 @@
 
             <Canvas x:Name="PlayheadLayer" Grid.Column="1" Grid.RowSpan="2" IsHitTestVisible="False" />
 
+            <!-- Lo que se ve de los demás en una sala de colaboración (cabezales, selecciones y pistas reservadas). -->
+            <Canvas x:Name="CollabLayer" Grid.ColumnSpan="3" Grid.RowSpan="3" IsHitTestVisible="False" />
+
             <primitives:ScrollBar x:Name="VerticalBar" Grid.Row="1" Grid.Column="2" Orientation="Vertical" IndicatorMode="MouseIndicator"
                                   Minimum="0" SmallChange="20" ValueChanged="OnVerticalBarChanged" />
             <primitives:ScrollBar x:Name="HorizontalBar" Grid.Row="2" Grid.Column="1" Orientation="Horizontal" IndicatorMode="MouseIndicator"
