@@ -13,7 +13,69 @@ public static class PatchReservations
     /// <summary>
     /// Las reservas que exige el parche sobre el proyecto <paramref name="current"/> (el del anfitrión o el del invitado antes de
     /// aplicarlo): <c>pista:&lt;id&gt;</c> por cada pista que toca (la de un clip nuevo, la de donde sale y la de donde llega) y
-    /// <c>proyecto</c> por todo lo demás. Añadir un medio nuevo no pide ninguna.
+    /// <c>proyecto</c> por todo lo demás: crear o borrar una pista, cambiar o quitar un medio, las secuencias, marcadores, regiones,
+    /// transcripciones y el orden de las listas. Añadir un medio nuevo no pide ninguna, y las pistas que crea el propio parche no se
+    /// reservan (ya las cubre <c>proyecto</c>).
     /// </summary>
-    public static IReadOnlySet<string> Required(Patch patch, Project current) => throw Pending.Exception();
+    public static IReadOnlySet<string> Required(Patch patch, Project current)
+    {
+        ArgumentNullException.ThrowIfNull(patch);
+        ArgumentNullException.ThrowIfNull(current);
+        var keys = new SortedSet<string>(StringComparer.Ordinal);
+        var created = patch.Ops
+            .Where(op => op is { Kind: ElementKind.Track, Content: not null } && !ExistsTrack(current, op.Id))
+            .Select(op => op.Id)
+            .ToHashSet(StringComparer.Ordinal);
+
+        foreach (PatchOp op in patch.Ops)
+        {
+            switch (op.Kind)
+            {
+                case ElementKind.Clip:
+                    AddTrack(keys, created, op.Parent);
+                    AddTrack(keys, created, CurrentTrackOf(current, op.Id));
+                    break;
+                case ElementKind.Track:
+                    AddTrack(keys, created, op.Id);
+                    keys.Add(Project);
+                    break;
+                case ElementKind.Media when op.Content is not null && current.FindMedia(op.Id) is null:
+                    break;
+                default:
+                    keys.Add(Project);
+                    break;
+            }
+        }
+
+        if (patch.Orders.Count > 0)
+        {
+            keys.Add(Project);
+        }
+
+        return keys;
+    }
+
+    private static void AddTrack(SortedSet<string> keys, HashSet<string> created, string? trackId)
+    {
+        if (trackId is not null && !created.Contains(trackId))
+        {
+            keys.Add(Track(trackId));
+        }
+    }
+
+    private static bool ExistsTrack(Project project, string trackId) =>
+        project.Sequences.Any(s => s.FindTrack(trackId) is not null);
+
+    private static string? CurrentTrackOf(Project project, string clipId)
+    {
+        foreach (Sequence sequence in project.Sequences)
+        {
+            if (sequence.FindClip(clipId) is { } found)
+            {
+                return found.Track.Id;
+            }
+        }
+
+        return null;
+    }
 }
