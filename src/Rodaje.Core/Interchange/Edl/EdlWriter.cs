@@ -22,7 +22,9 @@ public static class EdlWriter
 
         Sequence copy = resolved.FindSequence(sequence.Id) ?? sequence;
         IReadOnlyList<int> tracks = options.VideoTracks is { Count: > 0 } chosen ? chosen : [.. Enumerable.Range(0, Math.Max(1, sequence.VideoTracks.Count))];
-        var outputs = new List<InterchangeOutput>();
+        // Una pista de video sin eventos no lleva EDL propia (sería un archivo de 43 bytes con la cabecera). Si ninguna los
+        // tiene, sale una sola, vacía, para que la exportación siempre dé algo.
+        var lists = new List<(int Index, EdlList List)>();
         foreach (int index in tracks)
         {
             var single = new InterchangeOptions
@@ -34,7 +36,18 @@ public static class EdlWriter
                 LongReelNames = options.LongReelNames,
                 Limits = options.Limits,
             };
-            EdlList list = EdlList.FromSequence(resolved, copy, single, new InterchangeReport());
+            lists.Add((index, EdlList.FromSequence(resolved, copy, single, new InterchangeReport())));
+        }
+
+        List<(int Index, EdlList List)> kept = [.. lists.Where(l => l.List.Events.Count > 0)];
+        if (kept.Count == 0)
+        {
+            kept = [lists[0]];
+        }
+
+        var outputs = new List<InterchangeOutput>();
+        foreach ((int index, EdlList list) in kept)
+        {
             outputs.Add(new InterchangeOutput(outputs.Count == 0 ? "" : $"_V{index + 1}", Format(list, copy.FrameRate)));
         }
 

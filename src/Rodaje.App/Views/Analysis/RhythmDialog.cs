@@ -35,13 +35,13 @@ internal static class RhythmDialog
         Canvas preview = AnalysisUi.Preview();
         var markers = new CheckBox { Content = "Poner un marcador en cada pulso", IsChecked = true };
         var cut = new CheckBox { Content = "Cortar el clip al ritmo" };
-        IReadOnlyList<string> others = OtherSelectedClips(session, clip);
+        IReadOnlyList<string> others = RhythmClips.Montage(session.Sequence, session.SelectedClipIds, clip);
         var fit = new CheckBox
         {
             Content = others.Count == 1 ? "Ajustar al ritmo el otro clip seleccionado" : $"Ajustar al ritmo los otros {others.Count} clips seleccionados",
             Visibility = others.Count > 0 ? Visibility.Visible : Visibility.Collapsed,
         };
-        ToolTipService.SetToolTip(fit, "Cada clip termina en el pulso que toca y lo que sigue se corre, así los cortes caen en la música. Un clip no crece más allá de su material.");
+        ToolTipService.SetToolTip(fit, "Cada clip termina en el pulso que toca y lo que sigue se corre, así los cortes caen en la música. Un clip no crece más allá de su material. Los clips de audio sueltos (otra música, la voz) no se ajustan.");
         var every = new ComboBox { ItemsSource = new[] { "cada pulso", "cada 2 pulsos", "cada 4 pulsos (compás)", "cada 8 pulsos" }, SelectedIndex = 2 };
         panel.Children.Add(status);
         panel.Children.Add(progress);
@@ -102,11 +102,6 @@ internal static class RhythmDialog
             session.Notify(NotificationSeverity.Success, "Montaje al ritmo",
                 others.Count == 1 ? "El clip termina en el pulso que le toca." : $"{others.Count} clips terminan en el pulso que les toca; Ctrl+Z deshace todo.");
         }
-
-        /// <summary>Los clips seleccionados que no son la música ni su grupo enlazado: los que se ajustan al ritmo.</summary>
-        static IReadOnlyList<string> OtherSelectedClips(EditorSession session, Clip music) =>
-            [.. session.SelectedClipIds.Where(id => id != music.Id && session.Sequence.FindClip(id) is { } found
-                && (music.LinkId is null || found.Clip.LinkId != music.LinkId))];
 
         async Task Analyze()
         {

@@ -226,7 +226,7 @@ public static partial class SubtitleEdits
     }
 
     /// <summary>El trozo de texto de cada palabra (con la puntuación que se le haya puesto a mano) o, si no se encuentra, la palabra.</summary>
-    private static List<string> TokenTexts(string text, List<GeneratorWord> words)
+    internal static List<string> TokenTexts(string text, List<GeneratorWord> words)
     {
         if (words.Count == 0)
         {
@@ -245,7 +245,7 @@ public static partial class SubtitleEdits
         generator.Edges = new GeneratorEdges();
     }
 
-    private static string Rewrap(List<string> tokens) => string.Join('\n', Wrap(tokens, SubtitleLayout.Default.MaxLineChars));
+    internal static string Rewrap(List<string> tokens) => string.Join('\n', Wrap(tokens, SubtitleLayout.Default.MaxLineChars));
 
     private static List<WordRange> Tokens(string text)
     {

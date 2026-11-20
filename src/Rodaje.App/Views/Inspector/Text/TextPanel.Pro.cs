@@ -604,7 +604,7 @@ internal sealed partial class TextPanel
             {
                 try
                 {
-                    TextStyle? style = element.IsBuiltIn ? TitleStyles.Default()
+                    TextStyle? style = element.IsBuiltIn ? BuiltInStyles.Find(element.Reference)
                         : loader.LoadTextStyle(element.Reference) is { } preset ? TitleStyles.FromPreset(preset, element.Reference) : null;
                     if (style is not null)
                     {

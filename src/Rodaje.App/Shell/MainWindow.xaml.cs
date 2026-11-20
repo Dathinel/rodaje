@@ -247,6 +247,9 @@ internal sealed partial class MainWindow : Window, IShellHost
         };
         // Exportar se quedaría con la secuencia, el nombre y el rango del proyecto anterior (Ctrl+N y Ctrl+O siguen con ella abierta).
         session.ProjectOpened += (_, _) => ClosePage();
+        // Un error o una advertencia sin acción (que no se cierran solos) era del proyecto de antes: no se queda sobre el nuevo.
+        // Los avisos del propio abrir llegan después del evento.
+        session.ProjectOpened += (_, _) => DismissStaleNotification();
         session.ProjectEdited += (_, _) => _visuals.ForgetRemovedMedia();
         session.PropertyChanged += (_, e) =>
         {
@@ -907,6 +910,18 @@ internal sealed partial class MainWindow : Window, IShellHost
             _notificationTimer.Interval = TimeSpan.FromSeconds(notification.Action is null && notification.SecondaryAction is null ? 6 : 10);
             _notificationTimer.Start();
         }
+    }
+
+    private void DismissStaleNotification()
+    {
+        if (_showingProgress || !Notification.IsOpen || _notificationAction is not null || _notificationSecondaryAction is not null
+            || Notification.Severity is not (InfoBarSeverity.Warning or InfoBarSeverity.Error))
+        {
+            return;
+        }
+
+        _notificationTimer.Stop();
+        Notification.IsOpen = false;
     }
 
     private void OnNotificationButtonClick(object sender, RoutedEventArgs e)

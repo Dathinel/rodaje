@@ -86,7 +86,41 @@ public static class TextAnimationPresets
                 [T.Y] = [new(0, 40, Interpolation.EaseOut), new(d, 0)],
                 [T.Opacity] = [new(0, 0, Interpolation.EaseOut), new(d, 1)],
             }),
+        new("tambaleo", "Tambaleo", "Entra balanceándose a un lado y a otro hasta quedarse", TextUnit.Letter, 0.4, 1.2,
+            d => new()
+            {
+                [T.Rotation] = Wobble(d, 14, 6, Interpolation.EaseInOut),
+                [T.X] = Wobble(d, 24, 6, Interpolation.EaseInOut),
+                [T.Opacity] = [new(0, 0, Interpolation.EaseOut), new(d * 0.2, 1)],
+            }),
+        new("temblor", "Temblor", "Entra temblando y se calma", TextUnit.Letter, 0.3, 0.9,
+            d => new()
+            {
+                [T.X] = Wobble(d, 8, 14, Interpolation.Linear, 1),
+                [T.Y] = Wobble(d, 8, 14, Interpolation.Linear, 2),
+                [T.Opacity] = [new(0, 0, Interpolation.EaseOut), new(d * 0.15, 1)],
+            }),
     ];
+
+    /// <summary>
+    /// Oscilación que se apaga: <paramref name="swings"/> idas y vueltas de amplitud <paramref name="amplitude"/> que
+    /// decrecen hasta 0 en <paramref name="d"/> (los pasos de un «tambaleo» o un «temblor» sin poner keyframes a mano).
+    /// </summary>
+    private static List<StyleKey> Wobble(double d, double amplitude, int swings, Interpolation interpolation, int seed = 0)
+    {
+        var keys = new List<StyleKey>(swings + 1);
+        for (int i = 0; i < swings; i++)
+        {
+            double fade = 1 - ((double)i / swings);
+            // Sin azar: con semilla, el signo y el tamaño salen de una mezcla fija, así la animación es siempre la misma.
+            double sign = seed == 0 ? (i % 2 == 0 ? -1 : 1) : Math.Sign(Math.Sin((i + 1) * (seed + 1.7)) + 0.001);
+            double size = seed == 0 ? 1 : 0.6 + (0.4 * Math.Abs(Math.Sin(i * 2.3 + seed)));
+            keys.Add(new StyleKey(d * i / swings, sign * amplitude * fade * size, interpolation));
+        }
+
+        keys.Add(new StyleKey(d, 0, Interpolation.Linear));
+        return keys;
+    }
 
     public static TextAnimationPreset? Find(string id) => All.FirstOrDefault(p => p.Id == id);
 

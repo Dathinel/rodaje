@@ -92,7 +92,10 @@ public class EffectUiTests
             }
         }
 
-        Assert.Equal(TitleStyles.BuiltInReference, Assert.Single(LibraryElements.BuiltIn(LibraryCategory.Text)).Reference);
+        Assert.Equal(
+            [TitleStyles.BuiltInReference, BuiltInStyles.WordsReference, BuiltInStyles.KaraokeReference,
+                BuiltInStyles.PopReference, BuiltInStyles.LinesReference],
+            LibraryElements.BuiltIn(LibraryCategory.Text).Select(e => e.Reference));
         Assert.Equal(
             [BuiltInEffects.Vignette, BuiltInEffects.Blur, BuiltInEffects.Sharpen,
                 BuiltInEffects.Crop, BuiltInEffects.Pixelate, BuiltInEffects.CornerPin, BuiltInEffects.ChromaKey, BuiltInEffects.Grain, BuiltInEffects.Glow, BuiltInEffects.ChromaticAberration,

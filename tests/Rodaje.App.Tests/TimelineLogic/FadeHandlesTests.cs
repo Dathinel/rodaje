@@ -76,18 +76,18 @@ public class FadeHandlesTests
     }
 
     [Fact]
-    public void AreaDeAgarre_LlegaADiezPixeles()
+    public void AreaDeAgarre_LlegaADocePixeles()
     {
         (_, Track track, Clip clip, TrackLayout layout, TimelineViewport vp) = Audio();
         TrackRow row = layout.Find(track.Id)!;
         double y = FadeHandles.HandleY(row);
         double handleX = FadeHandles.HandleX(clip, vp, FadeHandle.In);
 
-        Assert.Equal(FadeHandle.In, FadeHandles.Hit(clip, row, vp, handleX + 10, y));
-        Assert.Equal(FadeHandle.In, FadeHandles.Hit(clip, row, vp, handleX - 10, y));
-        Assert.Equal(FadeHandle.In, FadeHandles.Hit(clip, row, vp, handleX, y + 10));
-        Assert.Null(FadeHandles.Hit(clip, row, vp, handleX + 11, y));
-        Assert.Null(FadeHandles.Hit(clip, row, vp, handleX, y + 11));
+        Assert.Equal(FadeHandle.In, FadeHandles.Hit(clip, row, vp, handleX + 12, y));
+        Assert.Equal(FadeHandle.In, FadeHandles.Hit(clip, row, vp, handleX - 12, y));
+        Assert.Equal(FadeHandle.In, FadeHandles.Hit(clip, row, vp, handleX, y + 12));
+        Assert.Null(FadeHandles.Hit(clip, row, vp, handleX + 13, y));
+        Assert.Null(FadeHandles.Hit(clip, row, vp, handleX, y + 13));
     }
 
     [Fact]

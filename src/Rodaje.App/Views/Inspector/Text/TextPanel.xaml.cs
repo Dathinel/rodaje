@@ -347,8 +347,9 @@ internal sealed partial class TextPanel : UserControl, IEditorView
         _styleBox.PlaceholderText = style.Name is { Length: > 0 } name ? $"{name} (cambiado)" : "Personalizado";
         if (_sourceText is not null)
         {
-            _sourceText.Text = style.Source is null ? "" : $"Copiado de {style.Source}: actualizar el paquete no lo cambia.";
-            _sourceText.Visibility = style.Source is null ? Visibility.Collapsed : Visibility.Visible;
+            bool fromPackage = style.Source is { } source && BuiltInStyles.Find(source) is null;
+            _sourceText.Text = fromPackage ? $"Copiado de {style.Source}: actualizar el paquete no lo cambia." : "";
+            _sourceText.Visibility = fromPackage ? Visibility.Visible : Visibility.Collapsed;
         }
 
         if (_reapplyButton is not null)

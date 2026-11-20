@@ -45,6 +45,11 @@ public sealed partial class EditorSession
             return true;
         }
 
+        if (DeleteSelectedTranscriptWords(out bool deletedWords))
+        {
+            return deletedWords;
+        }
+
         Sequence sequence = Sequence;
         List<string> existing = _selection.FindAll(id => sequence.FindClip(id) is not null);
         if (existing.Count == 0)
