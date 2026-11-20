@@ -397,7 +397,8 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
         foreach ((string id, KeyChord keys) in TranscriptShortcuts.PanelKeys)
         {
             if (keys != chord) continue;
-            if (textInput && id != TranscriptShortcuts.Find) return false;
+            // Tras buscar el foco sigue en el buscador: F2 corrige la palabra encontrada sin salir de él.
+            if (textInput && id != TranscriptShortcuts.Find && id != TranscriptShortcuts.CorrectWord) return false;
             switch (id)
             {
                 case TranscriptShortcuts.Delete: _services.Session.ExecuteTranscript(Model.DeleteSelection(true)); break;
