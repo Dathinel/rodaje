@@ -143,8 +143,8 @@ public sealed class RoomService : IAsyncDisposable
             {
                 string identity = await Task.Run(() => Identidad.CargarOCrear(_env.IdentityFile), cancellationToken).ConfigureAwait(false);
                 _folder = folder;
-                await Dathinel.Sala.Sala.UnirseAsync(identity, Options(name, folder), invite.Ticket, suscribir: Subscribe, validar: ValidateAsync, ct: cancellationToken).ConfigureAwait(false);
-                Publish(s => Refreshed(s) with { Phase = RoomPhase.Connected });
+                await Dathinel.Sala.Sala.UnirseAsync(identity, Options(name, folder), invite.Ticket, suscribir: Subscribe, validar: ValidateAsync, alEsperar: OnOwnKey, ct: cancellationToken).ConfigureAwait(false);
+                Publish(s => Refreshed(s) with { Phase = RoomPhase.Connected, MyPhrase = "" });
             }
             catch (Exception ex)
             {
@@ -292,6 +292,39 @@ public sealed class RoomService : IAsyncDisposable
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             throw Wrap(ex);
+        }
+    }
+
+    /// <summary>Mientras espera la aprobación, la persona ya sabe sus cuatro palabras: las dirá a quien hospeda para que compruebe que es ella.</summary>
+    private void OnOwnKey(string key)
+    {
+        if (CollabNames.IsKey(key))
+        {
+            Publish(st => st with { MyKey = key, MyPhrase = Huella.Palabras(key) });
+        }
+    }
+
+    /// <summary>Cómo va la conexión (camino, ida y vuelta, versiones, última caída); <c>null</c> sin sala o si no se pudo leer.</summary>
+    public async Task<Diagnostico?> DiagnosticAsync(CancellationToken cancellationToken = default)
+    {
+        Dathinel.Sala.Sala? sala;
+        lock (_gate)
+        {
+            sala = _sala;
+        }
+
+        if (sala is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return await sala.DiagnosticoAsync(cancellationToken).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is SalaException or OperationCanceledException or ObjectDisposedException)
+        {
+            return null;
         }
     }
 
