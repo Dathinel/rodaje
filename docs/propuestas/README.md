@@ -17,6 +17,7 @@ Daniel prefiere números de versión seguidos: lo que se llamaba 1.1 sale como 1
 | 7 | HDR fase D parte 2 (intermedio del RAW) | [hdr-12-bits.md](hdr-12-bits.md) | D-065 |
 | 8 | Linux primero, después Mac | [mac-y-linux.md](mac-y-linux.md) | D-066 |
 | 9 | Trabajo en grupo (sala con iroh, capa común `Dathinel/sala` con Unicomp) | [colaboracion.md](colaboracion.md) | D-067 |
+| 9a | API de parches de `Rodaje.Core` (contrato para B11) | [colaboracion-api-parches.md](colaboracion-api-parches.md) | D-067 |
 
 ## Acuerdos entre diseños
 
