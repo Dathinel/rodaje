@@ -54,10 +54,10 @@ En segundo plano y frente a la base de la 1.0.3.
 **Hecho cuando:** las cifras están en `CHANGELOG.md` y ninguna empeora sin explicación.
 
 ### B6 · Preparar la publicación (sin publicar)
-1. ☐ Versión subida donde la subió la 1.0.3 (`Directory.Build.props`).
-2. ☐ `CHANGELOG.md` de la 1.0.4 en lenguaje de usuario, README y guías al día.
-3. ☐ `pruebas-a-mano.md` con la lista corta y ordenada de lo nuevo que Daniel debe probar con el ratón.
-4. ☐ `docs/publicar-1.0.4.md` con los pasos exactos que quedan, marcando los que usan la clave privada.
+1. ◐ Versión subida donde la subió la 1.0.3 (`Directory.Build.props`).
+2. ◐ `CHANGELOG.md` de la 1.0.4 en lenguaje de usuario, README y guías al día.
+3. ✔ `pruebas-a-mano.md` con la lista corta y ordenada de lo nuevo que Daniel debe probar con el ratón.
+4. ✔ `docs/publicar-1.0.4.md` con los pasos exactos que quedan, marcando los que usan la clave privada.
 **Hecho cuando:** `build\distribuir.ps1` arma instalador, zip y notas sin errores.
 
 ### B7 · Revisión final
@@ -100,6 +100,8 @@ Rodaje usa `Dathinel/sala`, que ya trae lo central (red, roles, reservas, traspa
 | B15 | 5 | Anfitrión que se va: traspaso, suplente, parches pendientes y «Cambios que no entraron» | Apagar el anfitrión a mitad: nadie pierde cambios y, al volver, converge |
 | B16 | 6 | Render del anfitrión: «Exportar en el anfitrión» y caché compartido | Un invitado lanza la exportación y sale en el anfitrión |
 
+**B10 ✔ hecho el 20-nov** (#648 tipos y huella de contenido, #649 implementación): `Rodaje.Core.Collab` con `SharedState`, `PatchDiff`, `PatchApply`, `PatchWire`, `WireSanitizer`, `PatchReservations`, `CollabHistory` y `ProjectWire`; `MediaRef.ContentKey/ContentHash` en el formato 16 (solo si existen). 10 000 secuencias aleatorias de ediciones convergen en dos réplicas (y con parches independientes reordenados); contrato en `propuestas/colaboracion-api-parches.md`. Queda en `pendientes.md`: coste de `Capture` con 5 000 clips y la conversión `file:` ↔ `blob:` con archivos reales (de `Rodaje.App`).
+
 **Todas van en la 1.0.4** (Daniel, 20-nov). Cada bloque se une cuando compila sin advertencias y pasa la CI, y la prueba real entre dos equipos va antes de publicar.
 
 ## Ideas guardadas para la 1.0.5 (Daniel, 20-nov)
@@ -107,6 +109,8 @@ Detalle y respuesta sobre la IA local en `propuestas/editor-automatico-vertical.
 - **Editor automático para video vertical** (TikTok, Instagram y similares), aparte de las opciones normales, con recetas (vlog, contar una historia, tutorial, informativo…), niveles de edición de baja a alta, reglas de retención y ganchos, y categorías y tendencias como complementos. Recomendado: nivel 1 y 2 con reglas y los módulos actuales en la 1.0.5; nivel 3 con un modelo local pequeño y los paquetes de tendencias en la 1.1.
 - **Interfaz más clara para quien llega nuevo** (a Daniel le gusta como está): tutorial por tareas con un proyecto de ejemplo guiado, modo sencillo opcional, panel «qué hago ahora» y una pasada de nombres probada con usuarios nuevos.
 - Bucle de texto por letra o por palabra (hoy el bucle mueve el bloque entero).
+
+**B13 (20-nov, Sala #16 y #18; guion en `docs/prueba-colaboracion.md`):** hecho en Sala y sin salir del PC. Dos `dathinel-red` solo por relé (local y el público de n0) dicen si el camino es directo o relé, con la versión de cada par y un mensaje de versión que dice a quién actualizar; textos del relé, cortafuegos y redes sin UDP en `Sala/docs/internet.md`; ficha de diagnóstico por teléfono. Cifras por n0 desde Colombia: entrar ~1,2 s, edición ida y vuelta p50 ~185 ms con p95 de 247 a 740 ms según la carga (el relé está en EE. UU.: el p95 < 250 ms **se cumple a ratos**; con relé local a 25 ms por tramo, sí), reconexión ~1,5 s, 0 % de pérdida, captura del relé sin texto legible. Sin medir: pérdida de paquetes simulada (sin permisos para `netem`). Falta lo de Rodaje: el panel de conexión (B11) y la prueba de verdad entre dos países con el guion.
 
 ## Aparcado
 - **Linux, fases 9 y 10** (GPU de punta a punta, AppImage): necesitan la prueba de Daniel con el USB y la tarjeta NVIDIA. Fallos de Uno ya conocidos: tiempo del transporte en 0:00, `LineGeometry`, tamaño de ventana.

@@ -116,13 +116,13 @@ internal static class RelinkDialog
 
         panel.Children.Add(new ScrollViewer { Content = list, MaxHeight = 320 });
         var search = new Button { Content = "Buscar en carpeta…" };
-        var progress = new ProgressRing { IsActive = false, Width = 20, Height = 20 };
+        var progress = new Views.Shared.OperationProgressView { Width = 360, ShowMessage = false, ShowCancel = false };
         var summary = new TextBlock { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         actions.Children.Add(search);
-        actions.Children.Add(progress);
         actions.Children.Add(summary);
         panel.Children.Add(actions);
+        panel.Children.Add(progress);
 
         var dialog = new ContentDialog
         {
@@ -137,12 +137,13 @@ internal static class RelinkDialog
 
         var cancel = new CancellationTokenSource();
         bool searching = false;
+        Rodaje.App.Services.Operations.OperationProgress? searchProgress = null;
 
         void Refresh()
         {
             dialog.IsPrimaryButtonEnabled = pending.Count > 0 && !searching;
             search.IsEnabled = !searching && pending.Count + proposed.Count < missing.Count;
-            progress.IsActive = searching;
+            progress.Operation = searching ? searchProgress : null;
             foreach (Row row in rows)
             {
                 row.Pick.IsEnabled = !searching;
@@ -167,10 +168,16 @@ internal static class RelinkDialog
 
             searching = true;
             summary.Text = "Buscando…";
+            searchProgress = new Rodaje.App.Services.Operations.OperationProgress();
+            searchProgress.Report(null, "Buscando…");
             Refresh();
             try
             {
-                var scanned = new Progress<int>(n => summary.Text = $"Buscando… {n} archivos");
+                var scanned = new Progress<int>(n =>
+                {
+                    summary.Text = $"Buscando… {n} archivos";
+                    searchProgress?.Report(null, $"{n} archivos");
+                });
                 RelinkSearchResult result = await relink.SearchAsync(
                     project, wanted, folder, scanned, MediaRelinkService.TakenPaths(pending.Values, proposed.Values), cancel.Token);
                 foreach (RelinkMatch match in result.Found)
@@ -323,8 +330,7 @@ internal static class RelinkDialog
     private static void NotifyRemaining(EditorServices services, nint hwnd, MediaRelinkService relink, IReadOnlyList<MediaRef> missing)
     {
         EditorSession session = services.Session;
-        session.Notify(NotificationSeverity.Warning, missing.Count == 1 ? "Falta un medio" : "Faltan medios", MediaRelinkService.Describe(missing),
-            new NotificationAction("Volver a enlazar", () => UiTask.Run(ReopenAsync())));
+        MediaRelinkService.NotifyMissing(session, missing, new NotificationAction("Volver a enlazar", () => UiTask.Run(ReopenAsync())));
 
         async Task ReopenAsync()
         {

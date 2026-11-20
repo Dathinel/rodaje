@@ -64,6 +64,8 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     // La barra de avisos muestra el avance de una acción larga hasta que llega un aviso; al cerrarse ese aviso vuelve al avance.
     private bool _showingProgress;
+    private readonly DispatcherTimer _revealTimer = new();
+    private readonly Views.Shared.OperationProgressView _progressView = new() { Width = 360, ShowMessage = false, ShowCancel = false };
     private string? _dismissedAction;
     private readonly HashSet<string> _shownActions = [];
     private PluginsView? _pluginsView;
@@ -88,6 +90,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         ProjectPaths.Mappings = settings.Current.PathMappings;
         Program.Metrics.Milestone("ventana_inicio");
         InitializeComponent();
+        NotificationProgress.Children.Add(_progressView);
+        _revealTimer.Tick += (_, _) => ShowLongActions();
         Program.Metrics.Milestone("ventana_xaml");
         Theme.ThemeResources.ApplyRequestedTheme(Root);
         Theme.ThemeResources.ThemeChanged += (_, _) => Theme.ThemeResources.ApplyRequestedTheme(Root);
@@ -155,6 +159,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         packages.Changed += (_, _) => UiTask.Run(Task.Run(_modules.Refresh));
         Program.Metrics.Milestone("modulos");
         _longActions = new LongActionService(session);
+        session.ProgressHost = _longActions;
         _longActions.Changed += (_, _) => _dispatcher.RunLater(ShowLongActions);
         _longActions.Changed += (_, _) => _dispatcher.RunLater(() => UpdateJobsButton(JobsPanel.ActiveCount));
         _services = new EditorServices(session, _router, settings, engine, this)
@@ -239,6 +244,20 @@ internal sealed partial class MainWindow : Window, IShellHost
         Program.Metrics.Milestone("vistas_unidas");
 
         session.Notified += (_, n) => ShowNotification(n);
+        // Un aviso que caducó («Faltan medios» tras deshacer la importación o al abrir otro proyecto) se cierra aunque
+        // tenga acción; si la sesión lo repone llega por Notified como uno nuevo.
+        session.NotificationRetracted += (_, _) =>
+        {
+            if (_showingProgress || !Notification.IsOpen)
+            {
+                return;
+            }
+
+            _notificationAction = null;
+            _notificationSecondaryAction = null;
+            _notificationTimer?.Stop(); // se crea más abajo en el constructor; esto corre después
+            Notification.IsOpen = false;
+        };
         session.ProjectOpened += (_, _) => RememberProject();
         session.ProjectOpened += (_, _) =>
         {
@@ -263,7 +282,13 @@ internal sealed partial class MainWindow : Window, IShellHost
         _notificationTimer = _dispatcher.CreateTimer();
         _notificationTimer.Interval = TimeSpan.FromSeconds(6);
         _notificationTimer.IsRepeating = false;
-        _notificationTimer.Tick += (_, _) => Notification.IsOpen = false;
+        _notificationTimer.Tick += (_, _) =>
+        {
+            if (!_closed)
+            {
+                Notification.IsOpen = false;
+            }
+        };
         Notification.Closed += (_, _) =>
         {
             if (_showingProgress)
@@ -880,8 +905,14 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private void ShowNotification(EditorNotification notification)
     {
+        if (_closed)
+        {
+            return;
+        }
+
         _showingProgress = false;
         NotificationProgress.Visibility = Visibility.Collapsed;
+        _progressView.Operation = null;
         NotificationButton.IsEnabled = true;
         Notification.Severity = notification.Severity switch
         {
@@ -961,6 +992,19 @@ internal sealed partial class MainWindow : Window, IShellHost
     /// </summary>
     private void ShowLongActions()
     {
+        if (_closed)
+        {
+            return;
+        }
+
+        _revealTimer.Stop();
+        if (_longActions.NextReveal is { } wait)
+        {
+            // Una acción que pidió esperar (abrir, importar) aparece si dura más que eso; las instantáneas no parpadean.
+            _revealTimer.Interval = wait + TimeSpan.FromMilliseconds(20);
+            _revealTimer.Start();
+        }
+
         LongActionStatus? current = _longActions.Current;
         if (current is null)
         {
@@ -970,6 +1014,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             {
                 _showingProgress = false;
                 NotificationProgress.Visibility = Visibility.Collapsed;
+                _progressView.Operation = null;
                 Notification.IsOpen = false;
             }
 
@@ -1001,9 +1046,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         Notification.Title = current.Title;
         Notification.Message = current.Message.Length > 0 ? current.Message : "En marcha…";
         NotificationProgress.Visibility = Visibility.Visible;
-        NotificationProgressBar.IsIndeterminate = current.Progress is null;
-        NotificationProgressBar.Value = current.Progress ?? 0;
-        NotificationProgressText.Text = current.ProgressText;
+        _progressView.Operation = current.Operation;
         NotificationButton.Content = "Cancelar";
         NotificationButton.Visibility = current.CanCancel ? Visibility.Visible : Visibility.Collapsed;
         AutomationProperties.SetName(NotificationButton, "Cancelar");
@@ -1020,8 +1063,10 @@ internal sealed partial class MainWindow : Window, IShellHost
     {
         int active = activeJobs + _longActions.Running.Count;
         JobsButtonText.Text = active > 0 ? $"Trabajos ({active})" : "Trabajos";
-        JobsProgress.IsActive = active > 0;
         JobsProgress.Visibility = active > 0 ? Visibility.Visible : Visibility.Collapsed;
+        LongActionStatus? only = active == 1 && _longActions.Running.Count == 1 ? _longActions.Current : null;
+        JobsProgress.IsIndeterminate = only?.Progress is null;
+        JobsProgress.Value = only?.Progress ?? 0;
     }
 
     private void ShowGlobalPanel(Views.Inspector.InspectorView.Tab tab)
@@ -1188,6 +1233,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         _closed = true;
+        _notificationTimer.Stop();
         StartupSplash.Close();
         CompositionTarget.Rendering -= OnRendering;
         _transportTimer.Stop();
@@ -1233,6 +1279,8 @@ internal sealed partial class MainWindow : Window, IShellHost
             UiTask.Report(ex, notify: false);
         }
 
+        // El panel suelta la cadena de intercambio antes de que el motor libere la GPU y su hilo de render.
+        Player.DetachViewer();
         _engine.Dispose();
         _visuals.Dispose();
         _instance.Dispose();

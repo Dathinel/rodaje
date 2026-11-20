@@ -176,7 +176,7 @@ if ($Autoprueba) {
     if (-not $SinPublicar) {
         Usar-DotnetLocal $E
         Agregar-Vswhere | Out-Null
-        $eco = Invocar-Dotnet (Join-Path $Raiz 'TestResults\app-modulo-eco.log') @('publish', (Join-Path $Raiz 'modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj'), '-c', 'Release', '-o', (Join-Path $Raiz 'modules\Rodaje.Module.Echo\bin\aot'), '--nologo', '-v', 'q', '-m:4')
+        $eco = Invocar-Dotnet (Join-Path $Raiz 'TestResults\app-modulo-eco.log') @('publish', (Join-Path $Raiz 'externo\sala\modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj'), '-c', 'Release', '-o', (Join-Path $Raiz 'externo\sala\modules\Rodaje.Module.Echo\bin\aot'), '--nologo', '-v', 'q', '-m:4')
         if ($eco.Codigo -ne 0) { Nota 'No se pudo compilar el módulo eco: la autoprueba sigue sin el paso de IA.' }
     }
     Remove-Item Env:DOTNET_ROOT -ErrorAction SilentlyContinue

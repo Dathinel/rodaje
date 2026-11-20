@@ -45,10 +45,12 @@ No hace falta instalar .NET: el SDK va dentro del proyecto.
 ## Preparar el entorno
 
 ```
-git clone https://github.com/Dathinel/rodaje.git
+git clone --recurse-submodules https://github.com/Dathinel/rodaje.git
 cd rodaje
 powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1
 ```
+
+El submódulo `externo/sala` trae el protocolo de módulos y el módulo de eco: sin él la solución no compila. Si el clone ya se hizo sin `--recurse-submodules`: `git submodule update --init --recursive`.
 
 `build\preparar-entorno.ps1` descarga en `.entorno\` el SDK de .NET fijado en `global.json` (unos 280 MB), las bibliotecas LGPL de FFmpeg (unos 75 MB) y LibRaw, verifica sus huellas y deja una marca por componente. No instala nada fuera de la carpeta del proyecto. Opciones: `-Forzar` vuelve a descargar todo; `-SoloFFmpeg` solo FFmpeg. Si una descarga se corta, basta repetir: se escribe como `.part` y solo se acepta completa y con la huella correcta.
 
@@ -196,5 +198,5 @@ El nombre y el correo deben ser reales y coincidir con los del autor del commit.
 No hace falta tocar Rodaje para ampliarlo, y el **término 4 de `LICENSE`** permite que lo que se conecta por sus interfaces públicas lleve la licencia que elija su autor, también privativa o de pago.
 
 - **Paquetes de contenido** (transiciones, filtros, LUT `.cube`, estilos de texto, zonas seguras, fuentes): un zip con `paquete.json` y sus recursos, sin código. Formato en [`docs/formato-paquete.md`](docs/formato-paquete.md); ejemplos reales en [`Dathinel/rodaje-transiciones`](https://github.com/Dathinel/rodaje-transiciones) y [`Dathinel/rodaje-filtros`](https://github.com/Dathinel/rodaje-filtros) (CC0, con su `empaquetar.ps1`). Se prueba con «Instalar desde archivo…» en Complementos o soltando el `.paquete` en la biblioteca.
-- **Módulos de IA**: un programa aparte, en cualquier lenguaje, que habla con el editor por una tubería con JSON y recibe cuadros y audio por memoria compartida. Guía completa con un módulo mínimo en C# y en otro lenguaje: [`docs/protocolo-modulos.md`](docs/protocolo-modulos.md); ejemplo en `modules\Rodaje.Module.Echo`. Se empaqueta como `.paquete` con `"kind": "module"` ([Empaquetarlo](docs/protocolo-modulos.md#empaquetarlo)).
+- **Módulos de IA**: un programa aparte, en cualquier lenguaje, que habla con el editor por una tubería con JSON y recibe cuadros y audio por memoria compartida. Guía completa con un módulo mínimo en C# y en otro lenguaje: [`docs/protocolo-modulos.md`](docs/protocolo-modulos.md); ejemplo en `externo\sala\modules\Rodaje.Module.Echo` (el protocolo vive en el submódulo `externo/sala`, repositorio `Dathinel/sala`). Se empaqueta como `.paquete` con `"kind": "module"` ([Empaquetarlo](docs/protocolo-modulos.md#empaquetarlo)).
 - Para que un complemento aparezca en el catálogo de la app (descarga firmada desde `Dathinel/rodaje-catalogo`, [`docs/descarga.md`](docs/descarga.md)), abre un issue con la plantilla de propuesta y el enlace a su repositorio.

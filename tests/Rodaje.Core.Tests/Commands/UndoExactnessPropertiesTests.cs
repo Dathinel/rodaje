@@ -328,7 +328,7 @@ public sealed class UndoExactnessPropertiesTests
 
     private static string Serialize(Project project) => ProjectSerializer.Serialize(project);
 
-    private static ProjectSpec RandomSpec(Random random)
+    internal static ProjectSpec RandomSpec(Random random)
     {
         MediaSpec[] media = [.. Enumerable.Range(0, random.Next(2, 6)).Select(_ =>
         {
@@ -350,7 +350,7 @@ public sealed class UndoExactnessPropertiesTests
             Titles: titles % 4 == 0 ? titles : 0);
     }
 
-    private static (string Text, ICommand Command) NextCommand(Random random, BuiltProject built, out Func<Random, (string Text, ICommand Command)>? drag)
+    internal static (string Text, ICommand Command) NextCommand(Random random, BuiltProject built, out Func<Random, (string Text, ICommand Command)>? drag)
     {
         drag = null;
         IIdGenerator ids = built.Ids;
@@ -613,7 +613,7 @@ public sealed class UndoExactnessPropertiesTests
         }
     }
 
-    private sealed class InjectedFailure : Exception
+    internal sealed class InjectedFailure : Exception
     {
         public InjectedFailure()
             : base("Fallo provocado por la prueba.")

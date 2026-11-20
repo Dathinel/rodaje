@@ -1,4 +1,5 @@
 using Microsoft.UI.Xaml;
+using Rodaje.App.Services.Operations;
 using Rodaje.App.Services.RenderCache;
 using Rodaje.App.Shell;
 
@@ -8,6 +9,7 @@ internal sealed partial class JobsPanel
 {
     private RenderCacheHost? _renderCache;
     private int _activeRenderCache;
+    private OperationProgress? _renderCacheOperation;
 
     private void AttachRenderCache(EditorServices services)
     {
@@ -32,8 +34,17 @@ internal sealed partial class JobsPanel
         bool busy = status.Current is not null || status.Pending > 0;
         RenderCacheRow.Visibility = busy || status.Completed > 0 || status.Failed > 0 ? Visibility.Visible : Visibility.Collapsed;
         RenderCacheText.Text = RenderCacheStatusText.Describe(status, cache.StripRate);
-        RenderCacheProgress.Value = status.Progress * 100;
-        RenderCacheProgress.Visibility = status.Current is null ? Visibility.Collapsed : Visibility.Visible;
+        if (status.Current is null)
+        {
+            _renderCacheOperation = null;
+        }
+        else
+        {
+            _renderCacheOperation ??= new OperationProgress();
+            _renderCacheOperation.Report(status.Progress);
+        }
+
+        RenderCacheProgress.Operation = _renderCacheOperation;
         RenderCacheCancel.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
         int active = status.Current is null ? 0 : 1;
         if (active != _activeRenderCache)

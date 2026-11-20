@@ -3,7 +3,7 @@
 Prototipo de la fila «Tuberías de módulos», «Memoria compartida» y «Procesos hijos» de la tabla «Lo demás»
 de `docs/propuestas/mac-y-linux.md` (D-066). El mismo ejecutable hace de editor (padre) y de módulo (hijo):
 se saludan con el protocolo v1 real (`hello`/`welcome`, marco de 4 bytes + JSON de `MessageChannel.cs`,
-enlazado desde `src/Rodaje.Modules.Protocol/` junto con `Messages.cs` y `ModuleExceptions.cs`), el editor
+enlazado desde `externo/sala/src/Rodaje.Modules.Protocol/` junto con `Messages.cs` y `ModuleExceptions.cs`), el editor
 llama a una función `eco` que copia un cuadro 1920×1080 RGBA dentro de una región de memoria compartida y
 verifica el resultado byte a byte. Sale con 0 solo si todas las comprobaciones pasan.
 

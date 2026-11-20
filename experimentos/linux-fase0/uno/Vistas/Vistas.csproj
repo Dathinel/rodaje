@@ -33,7 +33,7 @@
   <ItemGroup>
     <ProjectReference Include="$(Src)\Rodaje.Analysis\Rodaje.Analysis.csproj" />
     <ProjectReference Include="$(Src)\Rodaje.Packages\Rodaje.Packages.csproj" />
-    <ProjectReference Include="$(Src)\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <ProjectReference Include="..\..\..\..\externo\sala\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
     <ProjectReference Include="$(Src)\Rodaje.Core\Rodaje.Core.csproj" />
     <ProjectReference Include="$(Src)\Rodaje.Playback\Rodaje.Playback.csproj" />
     <!-- net10.0-windows: NuGet no deja referenciarlas como proyecto desde net10.0-desktop; van ya compiladas (medir-vistas.ps1). -->

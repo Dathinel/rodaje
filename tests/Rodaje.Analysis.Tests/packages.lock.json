@@ -96,7 +96,7 @@
       "rodaje.analysis": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Core": "[1.0.0, )"
+          "Rodaje.Core": "[1.0.3, )"
         }
       },
       "rodaje.core": {

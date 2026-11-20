@@ -100,9 +100,9 @@
     <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
     <!-- Servidor HTTP local para bajar los modelos de un módulo instalado (Packages/ModuleInstallTests). -->
     <ProjectReference Include="..\Rodaje.TestServer\Rodaje.TestServer.csproj" />
-    <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <ProjectReference Include="..\..\externo\sala\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
     <!-- Solo para que Rodaje.Module.Echo.exe quede junto a las pruebas de Modules/. -->
-    <ProjectReference Include="..\..\modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj" />
+    <ProjectReference Include="..\..\externo\sala\modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj" />
     <!-- Solo para que modulo-raw esté compilado en modules\ (las pruebas de Raw/ lo buscan ahí, como la app en desarrollo). -->
     <ProjectReference Include="..\..\modules\Rodaje.Module.Raw\Rodaje.Module.Raw.csproj" ReferenceOutputAssembly="false" />
   </ItemGroup>
