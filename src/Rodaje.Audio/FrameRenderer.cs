@@ -30,9 +30,13 @@ internal sealed class FrameRenderer
     private long _underruns;
     private long _underrunFrames;
     private long _sourceErrors;
-    private bool _inGap;
-    private float _lastLeft;
-    private float _lastRight;
+    private bool _silent;
+    private float _env = 1f;
+    private float _decay;
+    private float _baseLeft;
+    private float _baseRight;
+    private float _outLeft;
+    private float _outRight;
 
     public FrameRenderer(IAudioSampleSource source, int historyFrames, int rampFrames, float volume)
     {
@@ -129,6 +133,7 @@ internal sealed class FrameRenderer
     public void Seek(Time position)
     {
         _replayCursor = -1;
+        (_silent, _env, _decay, _outLeft, _outRight) = (false, 1f, 0f, 0f, 0f);
         try
         {
             _source.Seek(position);
@@ -181,53 +186,46 @@ internal sealed class FrameRenderer
     }
 
     // Un hueco de audio (la fuente no llegó a tiempo) entra y sale con un fundido corto: cortar o arrancar de golpe una señal
-    // con nivel suena como un chasquido. Hace falta también al final de la fuente, que es un corte igual.
+    // con nivel suena como un chasquido. Al empezar el hueco el último valor de salida se apaga en GapFadeFrames cuadros (aunque
+    // el hueco pase a otros bloques) y, cuando vuelve el audio, entra con una rampa que se suma a ese apagado: la salida no da
+    // saltos. Vale también al final de la fuente, que es un corte igual.
     private void SoftenGap(Span<float> chunk, int read, int frames)
     {
-        if (read > 0 && _inGap)
+        if (read == frames && !_silent && _env >= 1f && _decay <= 0f)
         {
-            int n = Math.Min(read, GapFadeFrames);
-            for (int i = 0; i < n; i++)
-            {
-                float g = (float)i / GapFadeFrames;
-                chunk[i * 2] *= g;
-                chunk[(i * 2) + 1] *= g;
-            }
+            _outLeft = chunk[(frames * 2) - 2];
+            _outRight = chunk[(frames * 2) - 1];
+            return;
         }
 
-        if (read > 0 && read < frames)
+        const float Step = 1f / GapFadeFrames;
+        for (int f = 0; f < frames; f++)
         {
-            int n = Math.Min(read, GapFadeFrames);
-            for (int k = 0; k < n; k++)
+            float left;
+            float right;
+            if (f < read)
             {
-                float g = (float)k / GapFadeFrames;
-                int f = read - 1 - k;
-                chunk[f * 2] *= g;
-                chunk[(f * 2) + 1] *= g;
+                _silent = false;
+                left = (chunk[f * 2] * _env) + (_baseLeft * _decay);
+                right = (chunk[(f * 2) + 1] * _env) + (_baseRight * _decay);
+                _env = MathF.Min(1f, _env + Step);
             }
-        }
-        else if (read == 0 && !_inGap)
-        {
-            // El hueco empieza justo en el borde del bloque: se prolonga el último valor mientras se apaga.
-            int n = Math.Min(frames, GapFadeFrames);
-            for (int i = 0; i < n; i++)
+            else
             {
-                float g = 1f - ((float)(i + 1) / GapFadeFrames);
-                chunk[i * 2] = _lastLeft * g;
-                chunk[(i * 2) + 1] = _lastRight * g;
-            }
-        }
+                if (!_silent)
+                {
+                    _silent = true;
+                    _env = 0;
+                    (_baseLeft, _baseRight, _decay) = (_outLeft, _outRight, 1f);
+                }
 
-        _inGap = read < frames;
-        if (read == frames)
-        {
-            _lastLeft = chunk[(frames * 2) - 2];
-            _lastRight = chunk[(frames * 2) - 1];
-        }
-        else
-        {
-            _lastLeft = 0;
-            _lastRight = 0;
+                left = _baseLeft * _decay;
+                right = _baseRight * _decay;
+            }
+
+            _decay = MathF.Max(0f, _decay - Step);
+            chunk[f * 2] = _outLeft = left;
+            chunk[(f * 2) + 1] = _outRight = right;
         }
     }
 

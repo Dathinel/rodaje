@@ -122,11 +122,21 @@ public sealed class Parameter
         return lo;
     }
 
-    /// <summary>Índice del keyframe exactamente en <paramref name="time"/>, o -1.</summary>
+    /// <summary>Índice del (primer) keyframe exactamente en <paramref name="time"/>, o -1.</summary>
     public static int IndexAt(List<Keyframe> keys, Time time)
     {
-        int after = FirstAfter(keys, time);
-        return after > 0 && keys[after - 1].Time == time ? after - 1 : -1;
+        int index = FirstAfter(keys, time) - 1;
+        if (index < 0 || keys[index].Time != time)
+        {
+            return -1;
+        }
+
+        while (index > 0 && keys[index - 1].Time == time)
+        {
+            index--;
+        }
+
+        return index;
     }
 
     public Parameter Clone() => new() { Value = Value, Keyframes = [.. Keyframes] };

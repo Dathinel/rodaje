@@ -27,7 +27,7 @@ public class KeyframeGraphScalingTests(Xunit.Abstractions.ITestOutputHelper outp
         Parameter p = Wobble(count);
         const int Cap = 1200;
         IReadOnlyList<GraphPoint> points = KeyframeGraph.Sample(p, GraphMode.Value, maxPoints: Cap);
-        Assert.True(points.Count <= Math.Max(Cap, 2 * count) + count, $"{points.Count} puntos");
+        Assert.True(points.Count <= Math.Max(Cap, (2 * (count - 1)) + 1), $"{points.Count} puntos");
         Assert.Equal(0, points[0].Seconds);
         Assert.Equal((p.Keyframes[^1].Time - p.Keyframes[0].Time).ToSeconds(), points[^1].Seconds, 3);
     }

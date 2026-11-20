@@ -77,8 +77,9 @@ public class FrameRendererTests
 
         Assert.Equal(1_000, produced);
         Assert.Equal(CountingSource.Left(100), device[100 * 2]);
-        Assert.Equal(0f, device[699 * 2]);
-        Assert.All(device[(700 * 2)..], s => Assert.Equal(0f, s));
+        Assert.Equal(CountingSource.Left(699), device[699 * 2]);
+        Assert.True(device[700 * 2] > 0f && device[700 * 2] < CountingSource.Left(699));
+        Assert.All(device[((700 + FrameRenderer.GapFadeFrames) * 2)..], s => Assert.Equal(0f, s));
         Assert.Equal(1, renderer.Underruns);
         Assert.Equal(300, renderer.UnderrunFrames);
 
@@ -89,31 +90,58 @@ public class FrameRendererTests
     }
 
     [Theory]
-    [InlineData(256)]
-    [InlineData(0)]
-    public void UnVaciadoDeBufferNoEsUnEscalon(int framesBeforeGap)
+    [InlineData(256, 1024)]
+    [InlineData(0, 1024)]
+    [InlineData(256, 64)]
+    [InlineData(0, 64)]
+    [InlineData(0, 7)]
+    public void UnVaciadoDeBufferNoEsUnEscalon(int framesBeforeGap, int block)
     {
-        // Señal fuerte (0,5 constante) que se corta y vuelve: ningún salto entre muestras seguidas pasa de lo que da el fundido.
+        // Señal fuerte (0,5 constante) que se corta y vuelve, con bloques grandes o más chicos que el fundido: ningún salto
+        // entre muestras seguidas pasa de lo que da el fundido.
         var source = new GappySource { Available = true };
         var renderer = new FrameRenderer(source, historyFrames: 4_096, rampFrames: 480, volume: 1f);
-        float[] a = new float[(256 + 400 + 256) * 2];
-        renderer.Render(a.AsSpan(0, 256 * 2), 256, 2);
+        var output = new List<float>();
+        void Run(int frames)
+        {
+            for (int done = 0; done < frames; done += block)
+            {
+                int n = Math.Min(block, frames - done);
+                float[] d = new float[n * 2];
+                renderer.Render(d, n, 2);
+                output.AddRange(d.Where((_, i) => i % 2 == 0));
+            }
+        }
+
+        Run(256);
         source.Available = false;
         source.PartialFrames = framesBeforeGap;
-        renderer.Render(a.AsSpan(256 * 2, 400 * 2), 400, 2);
+        Run(400);
         source.Available = true;
-        source.PartialFrames = 0;
-        renderer.Render(a.AsSpan(656 * 2, 256 * 2), 256, 2);
+        Run(512);
 
         float maxStep = 0;
-        for (int f = 1; f < a.Length / 2; f++)
+        for (int f = 1; f < output.Count; f++)
         {
-            maxStep = Math.Max(maxStep, Math.Abs(a[f * 2] - a[(f - 1) * 2]));
+            maxStep = Math.Max(maxStep, Math.Abs(output[f] - output[f - 1]));
         }
 
         Assert.True(maxStep <= 0.5f / 100, $"salto de {maxStep}");
-        Assert.Equal(0f, a[(256 + 300) * 2]);
-        Assert.Equal(0.5f, a[^2]);
+        Assert.Equal(0f, output[655]);
+        Assert.Equal(0.5f, output[^1]);
+    }
+
+    [Fact]
+    public void Tras_un_seek_el_fundido_no_arrastra_lo_de_la_posicion_anterior()
+    {
+        var source = new GappySource { Available = true };
+        var renderer = new FrameRenderer(source, historyFrames: 4_096, rampFrames: 480, volume: 1f);
+        float[] d = new float[256 * 2];
+        renderer.Render(d, 256, 2);
+        renderer.Seek(Time.FromSeconds(5));
+        source.Available = false;
+        renderer.Render(d, 256, 2);
+        Assert.All(d, s => Assert.Equal(0f, s));
     }
 
     [Fact]
@@ -319,7 +347,7 @@ public class FrameRendererTests
         {
             int n = Available ? interleaved.Length / 2 : Math.Min(PartialFrames, interleaved.Length / 2);
             interleaved[..(n * 2)].Fill(0.5f);
-            PartialFrames = 0;
+            PartialFrames = Available ? 0 : PartialFrames - n;
             return n;
         }
 

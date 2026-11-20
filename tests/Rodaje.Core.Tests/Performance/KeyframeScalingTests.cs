@@ -90,6 +90,10 @@ public class KeyframeScalingTests(ITestOutputHelper output)
         for (int i = 0; i < 300; i++)
         {
             p.Keyframes.Add(new Keyframe(Time.FromTicks(i * 7L), i % 5, Interpolation.EaseInOut));
+            if (i % 40 == 0)
+            {
+                p.Keyframes.Add(new Keyframe(Time.FromTicks(i * 7L), 9)); // duplicado: la búsqueda lineal daba el primero
+            }
         }
 
         for (long t = -3; t < 2200; t++)

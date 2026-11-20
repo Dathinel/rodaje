@@ -496,8 +496,13 @@ public static class EffectEdits
     private static void Upsert(Parameter parameter, Time at, double value, Interpolation? interpolation)
     {
         List<Keyframe> keys = parameter.Keyframes;
-        int index = Parameter.FirstAfter(keys, at);
-        index = index > 0 && keys[index - 1].Time == at ? index - 1 : (index < keys.Count ? index : -1);
+        int index = Parameter.IndexAt(keys, at);
+        if (index < 0)
+        {
+            index = Parameter.FirstAfter(keys, at);
+            index = index < keys.Count ? index : -1;
+        }
+
         if (index >= 0 && keys[index].Time == at)
         {
             // Cambiar el valor conserva la curva Bézier y las tangentes del keyframe.
