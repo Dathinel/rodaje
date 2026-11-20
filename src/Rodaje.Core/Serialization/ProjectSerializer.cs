@@ -425,7 +425,7 @@ public static class ProjectSerializer
     /// El lector respeta las anotaciones de nulabilidad en las propiedades, pero no dentro de las listas:
     /// <c>"clips": [null]</c> llega como un elemento nulo. Se detecta aquí, antes de validar.
     /// </summary>
-    private static List<string> FindNullItems(Project project)
+    internal static List<string> FindNullItems(Project project)
     {
         var problems = new List<string>();
 

@@ -62,6 +62,8 @@ Lo que queda abierto en Rodaje, por prioridad. Cada punto se quita al cerrarlo y
 48. **Mover una frase por texto no mueve sus subtítulos.** `MoveWords` no arrastra la pista de subtítulos (D-061).
 49. **Aviso de «Detectar ritmo» con muy pocos pulsos.** Con 4 pulsos (la voz) ajusta igual; decidir si avisa (pregunta de Daniel).
 50. **F6 y R7 sin prueba automática.** Espacio sobre un botón con foco de teclado, F2 desde el buscador, y el cursor y la zona de agarre de 12 px del asa de fundido.
+51. **Coste de comparar el proyecto en cada paso de la colaboración.** `SharedState.Capture` recorre y serializa todo el proyecto: 124 ms con 5 000 clips en una pista (Debug, `PatchCostTests`), muy por encima del objetivo de 2 ms del diseño (`propuestas/colaboracion.md` §9). Con 500 clips son 14 ms. Si `CollabSession` captura solo al cerrar cada gesto es aceptable; si no, hace falta guardar el contenido por pista y volver a serializar solo lo tocado (`docs/propuestas/colaboracion-api-parches.md`).
+52. **Conversión `file:` ↔ `blob:` con archivos reales.** `Rodaje.Core.Collab.IBlobMap` la define y Core la usa, pero la implementación (leer la LUT o la máscara de archivo, guardarla como blob y resolverla en el otro equipo) es de `Rodaje.App` (B11); sin ella, una referencia `file:` viaja vacía. El análisis de estabilizar, los medios generados y la organización de la biblioteca siguen fuera del `.rodaje` (§9 del diseño).
 
 ## Solo Daniel
 
