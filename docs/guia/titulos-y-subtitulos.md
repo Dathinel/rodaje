@@ -18,7 +18,7 @@ Los títulos son clips de texto que se dibujan sobre el visor y se editan en la 
 - **Degradado**: lineal con su ángulo (90° va de arriba abajo) o radial, de un color a otro, sobre todo el bloque.
 - **Borde** y **Sombra**: el principal y hasta cuatro más de cada uno (**Añadir borde**, **Añadir sombra**): los bordes van del más ancho al más angosto, como un neón con contorno.
 - **Fondo**, con margen y esquinas redondeadas, y **Arco**: el texto sobre un arco, con la curvatura en grados (positivo sube por el medio, negativo baja).
-- **Animación**: dos galerías, entrada y salida, con miniaturas animadas de Desvanecer, Subir, Bajar, Rebote, Escala, Elástico, Desenfoque, Girar, Máquina de escribir y Líneas. Debajo, **Por** (bloque, línea, palabra o letra), **Desfase** (0 %: todas a la vez; 100 %: una tras otra, de golpe), **Orden** (de la primera a la última, al revés, desde el centro, desde los extremos o mezclado) y **Duración**. Más abajo, los bordes por los que entra y sale y **Convertir en keyframes**, que pasa a Propiedades las animaciones del bloque entero (las de línea, palabra o letra quedan en el estilo).
+- **Animación**: dos galerías, entrada y salida, con miniaturas animadas de Desvanecer, Subir, Bajar, Rebote, Escala, Elástico, Desenfoque, Girar, Máquina de escribir, Líneas, **Tambaleo** (se balancea y se queda quieto) y **Temblor** (tiembla y se calma). Para un tambaleo no hace falta poner cientos de keyframes a mano: elige Tambaleo o Temblor, que ya los traen. Debajo, **Por** (bloque, línea, palabra o letra), **Desfase** (0 %: todas a la vez; 100 %: una tras otra, de golpe), **Orden** (de la primera a la última, al revés, desde el centro, desde los extremos o mezclado) y **Duración**. Más abajo, los bordes por los que entra y sale y **Convertir en keyframes**, que pasa a Propiedades las animaciones del bloque entero (las de línea, palabra o letra quedan en el estilo).
 - Si la fuente viene de un paquete que no está instalado o Windows no la encuentra, el panel lo avisa; la exportación usa una fuente de respaldo o pide instalar el paquete.
 
 **En el visor:** arrastra el cuerpo del título para moverlo, una esquina para escalarlo desde el centro y el asa de arriba para girarlo. Esc revierte el gesto. Un clic sobre otro título lo selecciona. Con keyframes, el gesto ajusta el del cursor. Al moverlo se pega al centro, a los tercios, a los bordes, al margen seguro de títulos (90 % del cuadro) y a los bordes de las zonas seguras que tengas a la vista (TikTok, Reels…); Alt lo suelta. Doble clic escribe sobre el visor; ahí Ctrl+B, Ctrl+I y Ctrl+U ponen negrita, cursiva o subrayado a lo elegido.
@@ -46,6 +46,8 @@ Cada subtítulo automático guarda sus palabras con su hora. En la pestaña Text
 ## Karaoke
 
 En la misma sección, **Resaltar la palabra que suena** pinta cada palabra en el color de «Resaltado» mientras suena. Con **Modo › Barrido de color**, el color avanza dentro de la palabra al ritmo de la voz y lo dicho queda pintado, como en un karaoke. Se ve igual al exportar.
+
+La biblioteca (categoría **Texto**) trae cuatro estilos de subtítulo animados que ya combinan entrada y resaltado: **Palabra a palabra** (cada palabra sube al entrar y se pinta la que suena), **Karaoke** (barrido de color), **Pop** (borde negro grueso y entrada elástica por palabra) y **Líneas** (entra línea a línea y se desvanece); sin palabras transcritas se ven como un subtítulo normal.
 
 ## Traducir
 

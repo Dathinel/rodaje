@@ -12,6 +12,9 @@ internal sealed class FrameRenderer
 {
     private const int ChunkFrames = 1024;
 
+    /// <summary>Cuadros del fundido con que el audio entra y sale del silencio de un vaciado de búfer (unos 2,7 ms a 48 kHz).</summary>
+    internal const int GapFadeFrames = 128;
+
     private readonly IAudioSampleSource _source;
     private readonly float[] _chunk = new float[ChunkFrames * 2];
     private readonly float[] _history;
@@ -27,6 +30,13 @@ internal sealed class FrameRenderer
     private long _underruns;
     private long _underrunFrames;
     private long _sourceErrors;
+    private bool _silent;
+    private float _env = 1f;
+    private float _decay;
+    private float _baseLeft;
+    private float _baseRight;
+    private float _outLeft;
+    private float _outRight;
 
     public FrameRenderer(IAudioSampleSource source, int historyFrames, int rampFrames, float volume)
     {
@@ -123,6 +133,7 @@ internal sealed class FrameRenderer
     public void Seek(Time position)
     {
         _replayCursor = -1;
+        (_silent, _env, _decay, _outLeft, _outRight) = (false, 1f, 0f, 0f, 0f);
         try
         {
             _source.Seek(position);
@@ -161,12 +172,61 @@ internal sealed class FrameRenderer
         if (read < frames)
         {
             chunk[(read * 2)..].Clear();
+        }
+
+        SoftenGap(chunk, read, frames);
+        if (read < frames)
+        {
             Interlocked.Increment(ref _underruns);
             Interlocked.Add(ref _underrunFrames, frames - read);
         }
 
         CopyToHistory(_written, chunk[..(frames * 2)]);
         Volatile.Write(ref _written, _written + frames);
+    }
+
+    // Un hueco de audio (la fuente no llegó a tiempo) entra y sale con un fundido corto: cortar o arrancar de golpe una señal
+    // con nivel suena como un chasquido. Al empezar el hueco el último valor de salida se apaga en GapFadeFrames cuadros (aunque
+    // el hueco pase a otros bloques) y, cuando vuelve el audio, entra con una rampa que se suma a ese apagado: la salida no da
+    // saltos. Vale también al final de la fuente, que es un corte igual.
+    private void SoftenGap(Span<float> chunk, int read, int frames)
+    {
+        if (read == frames && !_silent && _env >= 1f && _decay <= 0f)
+        {
+            _outLeft = chunk[(frames * 2) - 2];
+            _outRight = chunk[(frames * 2) - 1];
+            return;
+        }
+
+        const float Step = 1f / GapFadeFrames;
+        for (int f = 0; f < frames; f++)
+        {
+            float left;
+            float right;
+            if (f < read)
+            {
+                _silent = false;
+                left = (chunk[f * 2] * _env) + (_baseLeft * _decay);
+                right = (chunk[(f * 2) + 1] * _env) + (_baseRight * _decay);
+                _env = MathF.Min(1f, _env + Step);
+            }
+            else
+            {
+                if (!_silent)
+                {
+                    _silent = true;
+                    _env = 0;
+                    (_baseLeft, _baseRight, _decay) = (_outLeft, _outRight, 1f);
+                }
+
+                left = _baseLeft * _decay;
+                right = _baseRight * _decay;
+            }
+
+            _decay = MathF.Max(0f, _decay - Step);
+            chunk[f * 2] = _outLeft = left;
+            chunk[(f * 2) + 1] = _outRight = right;
+        }
     }
 
     private void CopyToHistory(long globalFrame, ReadOnlySpan<float> stereo)

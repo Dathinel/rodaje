@@ -18,8 +18,9 @@ $fallos = 0
 try {
     foreach ($p in $Proyectos) {
         Write-Host "  Pruebas de $p con huellas..."
-        # Las de rendimiento y tiempo real leen tantos cuadros como dé el reloj: no son comparables.
-        & (Join-Path $raiz 'build\dotnet-local.cmd') test (Join-Path $raiz $p) --nologo -v q --filter 'Categoria!=Rendimiento&Categoria!=TiempoReal' | Out-Host
+        # Las de rendimiento y tiempo real leen tantos cuadros como dé el reloj: no son comparables. El filtro va entre comillas
+        # literales: dotnet-local.cmd lo pasa a cmd, que sin ellas corta en el «&».
+        & (Join-Path $raiz 'build\dotnet-local.cmd') test (Join-Path $raiz $p) --nologo -v q --filter '"Categoria!=Rendimiento&Categoria!=TiempoReal"' | Out-Host
         if ($LASTEXITCODE -ne 0) { $fallos++ }
     }
 }

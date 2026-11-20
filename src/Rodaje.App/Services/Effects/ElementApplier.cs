@@ -37,7 +37,7 @@ public sealed class ElementApplier(EditorSession session, IContentLoader loader,
         ArgumentNullException.ThrowIfNull(element);
         if (element.IsBuiltIn)
         {
-            return TitleStyles.Default();
+            return BuiltInStyles.Find(element.Reference) ?? TitleStyles.Default();
         }
 
         string reference = element.Reference;

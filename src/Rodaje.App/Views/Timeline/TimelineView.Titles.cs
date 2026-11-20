@@ -109,8 +109,9 @@ internal sealed partial class TimelineView
                 return;
             }
 
-            bool builtIn = reference == TitleStyles.BuiltInReference;
-            var element = new LibraryElement("Texto", "", "", reference, true, builtIn ? null : PackageOrigin.Installed, ItemKind.TextStyle);
+            BuiltInStyle? builtIn = BuiltInStyles.All.FirstOrDefault(s => s.Reference == reference);
+            var element = new LibraryElement(builtIn?.Name ?? "Texto", "", "", reference, true,
+                builtIn is not null ? null : PackageOrigin.Installed, ItemKind.TextStyle);
             var applier = new ElementApplier(session, new InstalledContentLoader(() => services.Packages.Installed));
             string sequenceId = session.SequenceId;
             if (await applier.LoadTextStyleAsync(element) is { } style && session.SequenceId == sequenceId)

@@ -41,6 +41,10 @@ public sealed class TranscriptPanelModel
     public IReadOnlyList<PauseChoice> Pauses { get; private set; } = [];
     public IReadOnlyList<(int First, int Count)> Matches { get; private set; } = [];
     public bool ShowRemoved { get; set; }
+
+    /// <summary>La versión de la sesión con la que se leyó el documento (<see cref="Rebuild"/>).</summary>
+    public long Version => _version;
+
     public IReadOnlyList<RemovedTranscriptSpan> RemovedWords { get; private set; } = [];
     public MediaTranscript? CurrentTranscript => Document.Words.Count == 0 ? null
         : _transcripts.FirstOrDefault(t => t.Id == Document.Words[SelectionFirst >= 0 ? SelectionFirst : Math.Max(0, ActiveWord)].TranscriptId);

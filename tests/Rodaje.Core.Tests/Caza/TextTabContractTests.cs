@@ -92,13 +92,13 @@ public sealed class TextTabContractTests
         Assert.Equal([false, true, true, true, true, false, false, true, true], lowered.ToArray());
     }
 
-    // «miniaturas animadas de Desvanecer, Subir, Bajar, Rebote, Escala, Elástico, Desenfoque, Girar, Máquina de escribir y
-    // Líneas»
+    // «miniaturas animadas de Desvanecer, Subir, Bajar, Rebote, Escala, Elástico, Desenfoque, Girar, Máquina de escribir, Líneas,
+    // Tambaleo y Temblor»
     [Fact]
-    public void Animation_gallery_has_the_ten_named_presets_in_order()
+    public void Animation_gallery_has_the_twelve_named_presets_in_order()
     {
         Assert.Equal(
-            ["Desvanecer", "Subir", "Bajar", "Rebote", "Escala", "Elástico", "Desenfoque", "Girar", "Máquina de escribir", "Líneas"],
+            ["Desvanecer", "Subir", "Bajar", "Rebote", "Escala", "Elástico", "Desenfoque", "Girar", "Máquina de escribir", "Líneas", "Tambaleo", "Temblor"],
             TextAnimationPresets.All.Select(p => p.Name));
     }
 

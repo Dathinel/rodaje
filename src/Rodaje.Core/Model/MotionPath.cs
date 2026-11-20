@@ -30,10 +30,10 @@ public static class MotionPath
             return false;
         }
 
-        int right = xs.FindIndex(k => k.Time > time);
+        int right = Parameter.FirstAfter(xs, time);
         Keyframe xa = xs[right - 1];
         Keyframe xb = xs[right];
-        int j = ys.FindIndex(k => k.Time == xa.Time);
+        int j = Parameter.IndexAt(ys, xa.Time);
         if (j < 0 || j + 1 >= ys.Count || ys[j + 1].Time != xb.Time)
         {
             return false;
