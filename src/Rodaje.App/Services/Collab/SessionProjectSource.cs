@@ -1,22 +1,23 @@
 using System.Text;
 using Rodaje.Core.Model;
-using Rodaje.Core.Serialization;
 
 namespace Rodaje.App.Services.Collab;
 
 /// <summary>
-/// La fotografía del proyecto abierto para el invitado que entra: una copia sin rutas del anfitrión y la lista de medios con su
-/// SHA-256. La copia se toma en el hilo de la interfaz (<paramref name="onUi"/>); calcular los SHA-256 y escribir va fuera.
+/// La fotografía del proyecto para el invitado que entra: lo confirmado de la sala (sin rutas, con sus versiones y su orden,
+/// que da <paramref name="wire"/>) y la lista de medios con su SHA-256, sacada de los medios del proyecto abierto (que sí
+/// conocen su ruta en este equipo). Los medios se leen en el hilo de la interfaz (<paramref name="onUi"/>); calcular los
+/// SHA-256 va fuera.
 /// </summary>
-public sealed class SessionProjectSource(EditorSession session, Func<Func<(Project Copy, string Name)>, Task<(Project Copy, string Name)>> onUi, MediaManifestBuilder? builder = null) : ICollabProjectSource
+public sealed class SessionProjectSource(EditorSession session, Func<Func<(List<MediaRef> Media, string Name)>, Task<(List<MediaRef> Media, string Name)>> onUi, Func<(string Json, long Seq)> wire, MediaManifestBuilder? builder = null) : ICollabProjectSource
 {
     private readonly MediaManifestBuilder _builder = builder ?? new MediaManifestBuilder();
 
     public async Task<ProjectSnapshot> CaptureAsync(CancellationToken cancellationToken)
     {
-        (Project copy, string name) = await onUi(() => (session.Project.Clone(), session.ProjectName)).ConfigureAwait(false);
-        IReadOnlyList<MediaManifestEntry> media = await _builder.BuildAsync(copy.Media, m => m.Path, cancellationToken: cancellationToken).ConfigureAwait(false);
-        ProjectScrub.Scrub(copy);
-        return new ProjectSnapshot(name, Encoding.UTF8.GetBytes(ProjectSerializer.Serialize(copy)), 0, media);
+        (List<MediaRef> media, string name) = await onUi(() => ([.. session.Project.Media.Select(m => m.Clone())], session.ProjectName)).ConfigureAwait(false);
+        (string json, long seq) = wire();
+        IReadOnlyList<MediaManifestEntry> manifest = await _builder.BuildAsync(media, m => m.Path, cancellationToken: cancellationToken).ConfigureAwait(false);
+        return new ProjectSnapshot(name, Encoding.UTF8.GetBytes(json), seq, manifest);
     }
 }

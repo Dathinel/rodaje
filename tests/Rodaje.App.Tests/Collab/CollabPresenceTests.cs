@@ -61,8 +61,9 @@ public sealed class CollabPresenceTests
         Assert.False(seenByHost.Mine);
         Assert.True(onGuest.Locks["v1"].Mine);
 
-        TrackLock? blocked = await onHost.EnsureAsync([CollabPresence.KeyForTrack("v1"), CollabPresence.KeyForTrack("a1")]);
+        ReservationBlock? blocked = await onHost.EnsureAsync([CollabPresence.KeyForTrack("v1"), CollabPresence.KeyForTrack("a1")]);
         Assert.Equal("Luis", blocked?.OwnerAlias);
+        Assert.Equal("v1", blocked?.TrackId);
         Assert.Null(await onGuest.EnsureAsync([CollabPresence.KeyForTrack("v1")]));
         Assert.Null(await onHost.EnsureAsync([CollabPresence.KeyForTrack("a1"), "proyecto"]));
 

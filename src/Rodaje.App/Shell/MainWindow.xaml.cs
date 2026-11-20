@@ -166,7 +166,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             RenderCache = _renderCache,
             Collab = new Services.Collab.CollabHost(Services.AppDataPaths.Root, post => _dispatcher.RunLater(post))
             {
-                ProjectSource = new Services.Collab.SessionProjectSource(session, work => Services.Collab.UiInvoke.Run(post => _dispatcher.RunLater(post), work)),
+                Confirm = (title, message, confirm) => dialogs.ConfirmAsync(title, message, confirm),
             },
         };
         engine.SetContent(content);

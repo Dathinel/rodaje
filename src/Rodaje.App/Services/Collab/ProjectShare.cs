@@ -1,11 +1,11 @@
 using System.Security.Cryptography;
 using System.Text.Json;
+using Rodaje.Core.Collab;
 using Rodaje.Core.Model;
-using Rodaje.Core.Serialization;
 
 namespace Rodaje.App.Services.Collab;
 
-/// <summary>El proyecto del anfitrión tal como se manda: JSON del <c>.rodaje</c> sin rutas, su número de orden y los medios.</summary>
+/// <summary>El proyecto del anfitrión tal como se manda: la copia inicial sin rutas (<c>ProjectWire</c>), su número de orden y los medios.</summary>
 /// <param name="Seq">El último orden aplicado en el estado que se fotografió: el invitado sigue desde el siguiente.</param>
 public sealed record ProjectSnapshot(string Name, byte[] Json, long Seq, IReadOnlyList<MediaManifestEntry> Media);
 
@@ -15,8 +15,8 @@ public interface ICollabProjectSource
     Task<ProjectSnapshot> CaptureAsync(CancellationToken cancellationToken);
 }
 
-/// <summary>Lo que recibe el invitado: el proyecto ya sin rutas del anfitrión, su nombre y los medios que tiene que buscar.</summary>
-public sealed record ReceivedProject(Project Project, string Name, long Seq, IReadOnlyList<MediaManifestEntry> Media, int DroppedFiles);
+/// <summary>Lo que recibe el invitado: el proyecto sin rutas del anfitrión con sus versiones, su nombre, el orden en que está y los medios que tiene que buscar.</summary>
+public sealed record ReceivedProject(Project Project, ElementVersions Versions, string Name, long Seq, IReadOnlyList<MediaManifestEntry> Media);
 
 /// <summary>Los mensajes directos con los que el invitado pide el proyecto y el anfitrión contesta (fuera del orden de la sala).</summary>
 internal static class ShareMessages
@@ -244,18 +244,15 @@ public static class ProjectShareGuest
             throw new CollabException("El proyecto llegó dañado. Vuelve a entrar en la sala.");
         }
 
-        Project project;
-        try
+        ProjectParseResult parsed = ProjectWire.TryParse(System.Text.Encoding.UTF8.GetString(bytes));
+        if (parsed.Project is not { } project || parsed.Versions is not { } versions)
         {
-            project = ProjectSerializer.Deserialize(System.Text.Encoding.UTF8.GetString(bytes));
-        }
-        catch (Exception ex) when (ex is ProjectFormatException or JsonException or InvalidOperationException or ArgumentException)
-        {
-            throw new CollabException("El proyecto que mandó la otra persona no se puede abrir con esta versión de Rodaje. Comprueba que las dos usáis la misma.", ex);
+            throw new CollabException("El proyecto que mandó la otra persona no se puede abrir con esta versión de Rodaje. Comprueba que las dos usáis la misma.");
         }
 
-        int dropped = ProjectScrub.Scrub(project);
-        return new ReceivedProject(project, name, seq, media, dropped);
+        project.Name = name;
+        MediaPlaceholders.Fill(project);
+        return new ReceivedProject(project, versions, name, seq, media);
     }
 
     private static (string Name, string Hash, long Size, long Seq) ReadHeader(JsonElement reply)

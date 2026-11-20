@@ -5,6 +5,14 @@ namespace Rodaje.App.Services.Collab;
 /// <summary>Dónde está otra persona: su cabezal, qué tiene seleccionado y en qué pista trabaja.</summary>
 public sealed record PeerPresence(string Key, string Alias, int ColorIndex, double PlayheadSeconds, IReadOnlyList<string> SelectedClips, string? TrackId);
 
+/// <summary>Una reserva que tiene otra persona: la clave, la pista (si es de pista) y quién la tiene.</summary>
+public sealed record ReservationBlock(string Key, string TrackId, string OwnerAlias)
+{
+    public string Describe() => TrackId.Length > 0
+        ? $"{OwnerAlias} tiene esa pista ahora. Espera a que termine o pídesela."
+        : $"{OwnerAlias} está cambiando algo del proyecto entero. Espera a que termine.";
+}
+
 /// <summary>Una pista que tiene reservada alguien: <paramref name="Mine"/> si es este equipo.</summary>
 public sealed record TrackLock(string TrackId, string OwnerKey, string OwnerAlias, int ColorIndex, bool Mine);
 
@@ -103,25 +111,69 @@ public sealed partial class CollabPresence : IDisposable
     }
 
     /// <summary>
-    /// Se asegura de que las reservas son nuestras antes de mandar un cambio: pide las que faltan. Devuelve la primera pista que
-    /// tiene otra persona (para decirle «Ana tiene esta pista»), o <c>null</c> si todas son nuestras o no hay reservas que pedir.
+    /// Se asegura de que las reservas son nuestras antes de mandar un cambio: pide las que faltan (pistas y <c>proyecto</c>).
+    /// Devuelve la primera que tiene otra persona (para decirle «Ana tiene esta pista»), o <c>null</c> si todas son nuestras o no se
+    /// pueden pedir (una clave que Sala no admite no bloquea la edición).
     /// </summary>
-    public async Task<TrackLock?> EnsureAsync(IEnumerable<string> keys, CancellationToken cancellationToken = default)
+    public async Task<ReservationBlock?> EnsureAsync(IEnumerable<string> keys, CancellationToken cancellationToken = default)
     {
-        foreach (string key in keys.Where(k => k.StartsWith(TrackPrefix, StringComparison.Ordinal)))
+        foreach (string key in keys)
         {
-            if (!await _room.ReserveAsync(key, cancellationToken).ConfigureAwait(false))
+            if (!await _room.ReserveAsync(key, cancellationToken).ConfigureAwait(false) && Dathinel.Sala.Sala.ClaveDeReservaValida(key))
             {
                 Rebuild();
-                if (Locks.TryGetValue(key[TrackPrefix.Length..], out TrackLock? other) && !other.Mine)
+                string trackId = key.StartsWith(TrackPrefix, StringComparison.Ordinal) ? key[TrackPrefix.Length..] : "";
+                string? ownerKey = _room.Reservations.GetValueOrDefault(key);
+                if (ownerKey is not null && ownerKey != _room.State.MyKey)
                 {
-                    return other;
+                    string alias = _room.State.Members.FirstOrDefault(m => m.Key == ownerKey)?.Alias ?? "Alguien";
+                    return new ReservationBlock(key, trackId, alias);
                 }
             }
         }
 
         Rebuild();
         return null;
+    }
+
+    /// <summary>
+    /// Terminó un cambio que había pedido estas reservas (el anfitrión lo aceptó o no entró): las de lo global (<c>proyecto</c>) se
+    /// sueltan ya, para que otra persona pueda cambiar marcadores o la cabecera; las de pista se sueltan 10 s después si no
+    /// interesan por lo seleccionado.
+    /// </summary>
+    public void Done(IEnumerable<string> keys)
+    {
+        List<string> now = [];
+        lock (_gate)
+        {
+            long at = _clock();
+            foreach (string key in keys)
+            {
+                if (!key.StartsWith(TrackPrefix, StringComparison.Ordinal))
+                {
+                    now.Add(key);
+                }
+                else if (!_wanted.Contains(key))
+                {
+                    _releaseAt[key] = at + (long)ReleaseDelay.TotalMilliseconds;
+                }
+            }
+        }
+
+        foreach (string key in now)
+        {
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    await _room.ReleaseAsync(key, _stop.Token).ConfigureAwait(false);
+                }
+                catch (Exception ex) when (ex is CollabException or OperationCanceledException or ObjectDisposedException)
+                {
+                    // Sala la suelta sola a los 2 minutos sin actividad.
+                }
+            });
+        }
     }
 
     private async Task LoopAsync()

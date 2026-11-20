@@ -73,6 +73,7 @@ public static class CollabMessages
         "ritmo" => "Vas demasiado rápido. Espera un momento.",
         "tiempo" => "Quien hospeda la sala tardó demasiado en responder.",
         "ocupado" => "Hay demasiados cambios esperando. Espera unos segundos.",
+        "conflicto" => "Otra persona cambió lo mismo un instante antes que tú.",
         _ => string.IsNullOrWhiteSpace(detail) ? "El cambio no es válido." : detail,
     };
 }
