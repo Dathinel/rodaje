@@ -2,7 +2,7 @@
 
 Módulo de IA de Rodaje: traduce los textos de una pista de subtítulos a otro idioma. La app crea
 una pista nueva con los mismos tiempos; el módulo solo devuelve los textos con los mismos ids. Proceso aparte que
-habla el protocolo v1 (`src/Rodaje.Modules.Protocol`).
+habla el protocolo v1 (`externo/sala/src/Rodaje.Modules.Protocol`).
 
 - **Motor:** llama.cpp vía LLamaSharp 0.27.0 (MIT). La biblioteca nativa se elige al cargar el primer modelo: Vulkan
   si el controlador trae `vulkan-1.dll`, si no la de CPU (AVX512, AVX2, AVX o sin AVX).

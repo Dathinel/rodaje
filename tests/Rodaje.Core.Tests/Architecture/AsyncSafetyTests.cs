@@ -484,18 +484,21 @@ public sealed partial class AsyncSafetyTests
 
     private static List<(string File, string Code)> Sources(string prefix = "")
     {
-        string src = Path.Combine(RepoRoot(), "src");
         var list = new List<(string, string)>();
-        foreach (string path in Directory.EnumerateFiles(src, "*.cs", SearchOption.AllDirectories))
+        // El protocolo de módulos vive en el submódulo externo/sala: se sigue analizando con el mismo nombre relativo.
+        foreach ((string src, string only) in new[] { (Path.Combine(RepoRoot(), "src"), ""), (Path.Combine(RepoRoot(), "externo", "sala", "src"), "Rodaje.Modules.Protocol/") })
         {
-            string relative = Path.GetRelativePath(src, path).Replace('\\', '/');
-            if (relative.Contains("/obj/", StringComparison.Ordinal) || relative.Contains("/bin/", StringComparison.Ordinal)
-                || !relative.StartsWith(prefix, StringComparison.Ordinal))
+            foreach (string path in Directory.EnumerateFiles(src, "*.cs", SearchOption.AllDirectories))
             {
-                continue;
-            }
+                string relative = Path.GetRelativePath(src, path).Replace('\\', '/');
+                if (relative.Contains("/obj/", StringComparison.Ordinal) || relative.Contains("/bin/", StringComparison.Ordinal)
+                    || !relative.StartsWith(only, StringComparison.Ordinal) || !relative.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    continue;
+                }
 
-            list.Add((relative, Strip(File.ReadAllText(path))));
+                list.Add((relative, Strip(File.ReadAllText(path))));
+            }
         }
 
         Assert.NotEmpty(list);

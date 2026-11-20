@@ -95,6 +95,8 @@ Rodaje usa `Dathinel/sala`, que ya trae lo central (red, roles, reservas, traspa
 
 La versión de cada una la decide Daniel al cerrar B9 (propuesta: 1.0.5 con B10 a B12, el resto después).
 
+**B13 (20-nov, Sala #16 y #18; guion en `docs/prueba-colaboracion.md`):** hecho en Sala y sin salir del PC. Dos `dathinel-red` solo por relé (local y el público de n0) dicen si el camino es directo o relé, con la versión de cada par y un mensaje de versión que dice a quién actualizar; textos del relé, cortafuegos y redes sin UDP en `Sala/docs/internet.md`; ficha de diagnóstico por teléfono. Cifras por n0 desde Colombia: entrar ~1,2 s, edición ida y vuelta p50 ~185 ms con p95 de 247 a 740 ms según la carga (el relé está en EE. UU.: el p95 < 250 ms **se cumple a ratos**; con relé local a 25 ms por tramo, sí), reconexión ~1,5 s, 0 % de pérdida, captura del relé sin texto legible. Sin medir: pérdida de paquetes simulada (sin permisos para `netem`). Falta lo de Rodaje: el panel de conexión (B11) y la prueba de verdad entre dos países con el guion.
+
 ## Aparcado
 - **Linux, fases 9 y 10** (GPU de punta a punta, AppImage): necesitan la prueba de Daniel con el USB y la tarjeta NVIDIA. Fallos de Uno ya conocidos: tiempo del transporte en 0:00, `LineGeometry`, tamaño de ventana.
 - **Mac, fase 11:** exige registro de Apple (Daniel, 17-nov).
