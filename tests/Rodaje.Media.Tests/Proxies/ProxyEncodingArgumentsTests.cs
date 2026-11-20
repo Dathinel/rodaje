@@ -47,6 +47,32 @@ public sealed class ProxyEncodingArgumentsTests
     }
 
     [Fact]
+    public void Room_settings_have_their_own_tag_and_validate()
+    {
+        Assert.Equal("h540-g15-a128-v1", ProxySettings.Room.Tag);
+        Assert.NotEqual(ProxySettings.Default.Tag, ProxySettings.Room.Tag);
+        ProxySettings.Room.Validate();
+        Assert.Equal("h540-g15-a64-v1", new ProxySettings { AudioBitrateKbps = 64 }.Tag);
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ProxySettings { AudioBitrateKbps = 8 }.Validate());
+        Assert.Throws<ArgumentOutOfRangeException>(() => new ProxySettings { AudioBitrateKbps = 600 }.Validate());
+    }
+
+    [Fact]
+    public void Room_arguments_map_the_first_audio_track_to_stereo_aac()
+    {
+        IReadOnlyList<string> args = ProxyEncoders.BuildArguments(Input, ProxySettings.Room, "libopenh264", "o.mp4", hardwareDecoding: false);
+
+        Assert.DoesNotContain("-an", args);
+        AssertSequence(args, "-map", "0:2");
+        AssertSequence(args, "-map", "0:a:0?");
+        AssertSequence(args, "-c:a", "aac");
+        AssertSequence(args, "-b:a", "128k");
+        AssertSequence(args, "-ac", "2");
+        AssertSequence(args, "-sn", "-dn");
+        Assert.Contains("-progress", args);
+    }
+
+    [Fact]
     public void Arguments_keep_every_frame_and_timestamp_of_the_original()
     {
         IReadOnlyList<string> args = ProxyEncoders.BuildArguments(Input, ProxySettings.Default, "h264_nvenc", @"C:\p r\o.tmp.mp4", hardwareDecoding: false);

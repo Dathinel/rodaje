@@ -64,6 +64,7 @@ internal sealed partial class TitleBar : UserControl
         UpdateChecks();
         UpdateStats();
         Bindings.Update();
+        AttachCollab(services);
     }
 
     private void UpdateStats()

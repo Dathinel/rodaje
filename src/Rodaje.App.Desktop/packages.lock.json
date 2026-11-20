@@ -488,6 +488,12 @@
           "DirectNAot.Extensions": "1.6.1"
         }
       },
+      "dathinel.sala": {
+        "type": "Project",
+        "dependencies": {
+          "Rodaje.Modules.Protocol": "[1.0.3, )"
+        }
+      },
       "rodaje.analysis": {
         "type": "Project",
         "dependencies": {

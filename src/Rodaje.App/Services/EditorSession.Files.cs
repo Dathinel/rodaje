@@ -26,7 +26,7 @@ public sealed partial class EditorSession
     public async Task<bool> NewProjectAsync()
     {
         VerifyAccess();
-        if (RefuseWhileBusy() || !await ConfirmDiscardChangesAsync())
+        if (RefuseWhileBusy() || !await ConfirmDiscardChangesAsync() || !await ConfirmLeavingRoomAsync())
         {
             return false;
         }
@@ -36,11 +36,13 @@ public sealed partial class EditorSession
         return true;
     }
 
+    private Task<bool> ConfirmLeavingRoomAsync() => BeforeProjectReplaced?.Invoke() ?? Task.FromResult(true);
+
     /// <summary>Abre un <c>.rodaje</c>; sin ruta, se le pide a la persona.</summary>
     public async Task<bool> OpenProjectAsync(string? path = null)
     {
         VerifyAccess();
-        if (RefuseWhileBusy() || !await ConfirmDiscardChangesAsync())
+        if (RefuseWhileBusy() || !await ConfirmDiscardChangesAsync() || !await ConfirmLeavingRoomAsync())
         {
             return false;
         }
