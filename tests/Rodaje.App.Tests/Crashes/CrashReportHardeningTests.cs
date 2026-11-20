@@ -161,6 +161,7 @@ public class CrashReportHardeningTests
     }
 
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public async Task EndSession_ConUnInformeAMediasEnOtroHilo_NoEsperaSinFin()
     {
         using var dir = new TempDirectory();
