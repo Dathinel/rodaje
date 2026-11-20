@@ -29,7 +29,7 @@ internal sealed partial class PlayerView
         {
             SwapChainPanelNative.SetSwapChain(VideoPanel, 0);
         }
-        catch (System.Runtime.InteropServices.COMException)
+        catch (Exception ex) when (ex is System.Runtime.InteropServices.COMException or ObjectDisposedException or InvalidCastException)
         {
             // La ventana ya se desmonta: sin panel que desenlazar.
         }

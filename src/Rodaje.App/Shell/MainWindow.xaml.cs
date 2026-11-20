@@ -957,6 +957,11 @@ internal sealed partial class MainWindow : Window, IShellHost
     /// </summary>
     private void ShowLongActions()
     {
+        if (_closed)
+        {
+            return;
+        }
+
         LongActionStatus? current = _longActions.Current;
         if (current is null)
         {
