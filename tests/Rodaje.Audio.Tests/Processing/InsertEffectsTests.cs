@@ -323,6 +323,7 @@ public sealed class InsertEffectsTests(ITestOutputHelper output)
     }
 
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public void A_block_with_every_new_effect_costs_little_and_allocates_nothing()
     {
         var chain = new AudioEffectChain(new AudioEffectsSettings(

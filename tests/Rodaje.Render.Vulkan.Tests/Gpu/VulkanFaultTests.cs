@@ -86,6 +86,7 @@ public sealed unsafe class VulkanFaultTests
     }
 
     [VulkanFact]
+    [Trait("Categoria", "TiempoReal")]
     public void Export_read_gives_up_after_its_timeout_and_on_cancel()
     {
         using VulkanGpu gpu = VulkanGpu.Create(preferSoftware: true);
