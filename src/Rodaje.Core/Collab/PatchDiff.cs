@@ -64,7 +64,7 @@ public static class PatchDiff
     }
 
     // Qué clase de elemento va en cada lista: los nuevos de una lista se añaden en el orden en que los aplica PatchApply.
-    private static ElementKind ContainerKind(string container) => container switch
+    internal static ElementKind ContainerKind(string container) => container switch
     {
         PatchContainers.Media => ElementKind.Media,
         PatchContainers.Sequences => ElementKind.Sequence,

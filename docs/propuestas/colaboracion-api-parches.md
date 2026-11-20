@@ -1,19 +1,21 @@
 # Colaboración: la API de parches de `Rodaje.Core` (bloque B10)
 
-Contrato para quien programa contra los parches (B11: `CollabSession`, `RoomService`, `MediaMatch`, vistas). Todo vive en `src/Rodaje.Core/Collab/` (espacio de nombres `Rodaje.Core.Collab`), es puro (sin red ni disco, salvo `ContentKey`/`ContentHash`) y no depende de `Rodaje.App`. Diseño: `colaboracion.md` §3.2, §3.3, §4.1, §5 y §9. **Estado:** los tipos y las firmas de este documento son estables; los cuerpos que dicen «pendiente» llegan en los PR siguientes de B10 sin cambiar las firmas (hasta entonces lanzan `NotImplementedException`). Cada cambio de firma se avisa a B11.
+Contrato para quien programa contra los parches (B11: `CollabSession`, `RoomService`, `MediaMatch`, vistas). Todo vive en `src/Rodaje.Core/Collab/` (espacio de nombres `Rodaje.Core.Collab`), es puro (sin red ni disco, salvo `ContentKey`/`ContentHash`) y no depende de `Rodaje.App`. Diseño: `colaboracion.md` §3.2, §3.3, §4.1, §5 y §9. **Estado:** todo implementado y probado (la prueba de convergencia de §6 incluida). Las firmas son estables; cada cambio se avisa a B11.
 
 ## 1. Las piezas
 
 | Tipo | Para qué |
 |---|---|
 | `ElementKind`, `ElementKey` | Clase e identificador de un elemento compartido: `Media`, `Transcript`, `Sequence` (cabecera), `Track` (sin clips), `Clip`, `Marker`, `Region`. Los identificadores son únicos en todo el proyecto |
-| `SharedState` | Fotografía de lo compartido de un proyecto: contenido canónico de cada elemento y orden de las listas. `Capture(project)` y `Hash` (SHA-256). **Dos réplicas están iguales si y solo si su `Hash` coincide.** No incluye `Project.Name` ni `MediaRef.Path` |
+| `SharedState` | Fotografía de lo compartido de un proyecto: contenido canónico de cada elemento y orden de las listas. `Capture(project, IBlobMap? = null)` y `Hash` (SHA-256). **Dos réplicas están iguales si y solo si su `Hash` coincide.** No incluye `Project.Name` ni `MediaRef.Path` |
 | `Patch`, `PatchOp`, `PatchOrder`, `PatchBlob`, `PatchHeader` | El parche: cambios de elemento (contenido nuevo o `null` = borrar, con la versión de la que partió), orden de listas cuando no sale del resto, y blobs que necesita |
 | `PatchDiff.Create(before, after, versions, header)` | De dos `SharedState` a un `Patch?` (`null` si no cambió nada). Determinista |
-| `PatchApply.TryApply(project, versions, patch)` | Comprueba versiones, padres y `ModelValidator` del proyecto entero sobre una copia; si pasa, cambia el proyecto y avanza las versiones. Nunca lanza por un parche malo |
+| `PatchApply.TryApply(project, versions, patch, options?)` | Comprueba versiones, padres y `ModelValidator` del proyecto entero sobre una copia; si pasa, cambia el proyecto y avanza las versiones. Nunca lanza por un parche malo |
 | `PatchResult`, `PatchRejection`, `PatchRejectionReason` | `IsAccepted` o el motivo (`Malformed`, `Hostile`, `TooLarge`, `VersionConflict`, `UnknownParent`, `Invalid`) con un texto en español |
 | `PatchWire.ToJson` / `TryParse` | El parche como JSON compacto; `TryParse` pasa por `WireSanitizer` y devuelve `PatchParseResult` (parche o rechazo), nunca una excepción |
 | `WireSanitizer.Check(json, limits)` / `WireLimits` | Lista de permitidos antes de abrir nada (§5 del diseño): profundidad, tamaño, cantidad, campos desconocidos, identificadores repetidos o mal formados, y ninguna ruta (`file:`, UNC, absoluta, relativa, `..`) |
+| `IBlobMap` | Puente que da `Rodaje.App` entre `file:<ruta>` (de cada equipo) y `blob:<sha256>` (de la sala): `Sha256Of(fileReference)` y `FileReferenceFor(sha256)`. Sin él, una referencia `file:` viaja vacía (sin LUT) y nunca como ruta |
+| `ProjectWire` | La copia inicial de la sala: `ToJson(project, versions?, blobs?)` y `TryParse(json, blobs?)` → `ProjectParseResult(Project, ElementVersions)` o rechazo. Es un parche de altas sobre un proyecto vacío, con el mismo saneador y las mismas comprobaciones; sin nombre ni rutas. Límite 64 MiB |
 | `ElementVersions` | Versión de cada elemento (sin entrada = 0). `Advance(patch)`, `Clone()`, `ToJson()` / `TryParse` para el que entra a mitad de sesión |
 | `PatchReservations.Required(patch, project)` | Qué reservas pide el parche: `pista:<id>` por pista tocada y `proyecto` para lo global; añadir un medio nuevo no pide ninguna |
 | `CollabHistory` | Deshacer y rehacer propios con parches inversos: `Record(before, after, texto)`, `PlanUndo` / `PlanRedo` (devuelven el parche o `ChangedByOthers`), `CommitUndo` / `CommitRedo` cuando el anfitrión acepta, `DiscardUndo`, `Clear` |
@@ -70,6 +72,9 @@ Contrato para quien programa contra los parches (B11: `CollabSession`, `RoomServ
 | Fuentes de los títulos | Sistema o paquetes | No viajan: si falta, aviso y respaldo |
 | Paquetes de efectos o transiciones (`paquete@versión/elemento`) | Instalados por el usuario | No viajan: el clip queda con su respaldo y un aviso |
 
-## 6. Qué falta (B10)
+## 6. Pruebas y qué falta
 
-`SharedState.Capture/Hash`, `PatchDiff.Create`, `PatchApply.TryApply`, `PatchWire`, `WireSanitizer.Check`, `PatchReservations.Required` y `CollabHistory` llegan en los PR siguientes; la prueba de convergencia con 10 000 secuencias aleatorias cierra el bloque. Medidas de coste (proyecto de 5 000 clips) y la conversión de `file:` a `blob:` con los archivos reales (que necesita la carpeta del proyecto, de `Rodaje.App`) quedan anotadas en `pendientes.md` si no entran.
+- `PatchConvergenceTests`: 10 000 secuencias aleatorias de ediciones (las de `UndoExactnessPropertiesTests`: línea de tiempo, keyframes, marcadores, regiones, mezclador, compuestos, grupos cerrados y cancelados, deshacer y rehacer, órdenes que fallan) en A; cada paso sale como parche de `PatchDiff`, pasa por `PatchWire` y se aplica en B con `PatchApply`; huella igual al final (y en cada paso en una de cada 25), y otra réplica C con los pares contiguos de parches independientes (clips de pistas distintas) en el otro orden.
+- `CollabHistoryTests`: 1 000 secuencias de pasos con deshacer y rehacer de `CollabHistory` dan el mismo estado que el historial de una sola persona, y la réplica B converge; más los casos con otra persona editando.
+- `WireSanitizerTests` y `ProjectWireTests`: JSON hostil (profundidad, tamaño, campos desconocidos, ids repetidos, rutas `file:`/UNC/absolutas, ruta en un medio, blobs mal formados, texto roto) se rechaza sin excepciones.
+- **Sin hacer en B10:** convertir `file:` ↔ `blob:` con los archivos reales (`IBlobMap` lo implementa `Rodaje.App`); medir el coste de `Capture` en un proyecto de 5 000 clips (hoy recorre todo el proyecto en cada paso; si pasa de 2 ms por paso, se guarda el contenido por pista); el registro persistente de la sala y las reservas (de Sala y B11).
