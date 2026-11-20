@@ -1,5 +1,6 @@
 using System.Reflection;
 using Dathinel.Sala;
+using Rodaje.Core.Model;
 
 namespace Rodaje.App.Services.Collab;
 
@@ -31,9 +32,60 @@ public sealed partial class CollabHost : IDisposable
             handler,
             post);
         Room.StateChanged += OnRoomState;
+        Presence = new CollabPresence(Room);
     }
 
     public RoomService Room { get; }
+
+    /// <summary>Los cabezales de los demás y las pistas reservadas, para dibujarlos en la línea de tiempo.</summary>
+    public CollabPresence Presence { get; }
+
+    private EditorSession? _session;
+    private string[] _selection = [];
+    private string? _selectionTrack;
+
+    /// <summary>Engancha la sesión del editor: su cabezal y su selección son lo que ven los demás, y las pistas de lo seleccionado se reservan.</summary>
+    public void BindSession(EditorSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        _session = session;
+        session.TransportChanged += (_, _) => PublishLocal();
+        session.SelectionChanged += (_, _) =>
+        {
+            RefreshSelection();
+            PublishLocal();
+        };
+    }
+
+    private void RefreshSelection()
+    {
+        if (_session is not { } session)
+        {
+            return;
+        }
+
+        _selection = [.. session.SelectedClipIds.Take(CollabPresence.MaxSelected)];
+        HashSet<string> ids = [.. _selection];
+        List<string> tracks = [];
+        foreach (Track track in session.Sequence.VideoTracks.Concat(session.Sequence.AudioTracks))
+        {
+            if (track.Clips.Any(c => ids.Contains(c.Id)))
+            {
+                tracks.Add(track.Id);
+            }
+        }
+
+        _selectionTrack = tracks.Count > 0 ? tracks[0] : null;
+        Presence.WantTracks(tracks);
+    }
+
+    private void PublishLocal()
+    {
+        if (_session is { } session && Room.State.InRoom)
+        {
+            Presence.SetLocal(session.ProgramPosition.ToSeconds(), _selection, _selectionTrack);
+        }
+    }
 
     /// <summary>De dónde saca el anfitrión la fotografía del proyecto para quien entra; la pone la ventana.</summary>
     public ICollabProjectSource? ProjectSource { get; set; }
@@ -43,6 +95,7 @@ public sealed partial class CollabHost : IDisposable
     public void Dispose()
     {
         Room.StateChanged -= OnRoomState;
+        Presence.Dispose();
         _share?.Dispose();
         _share = null;
     }

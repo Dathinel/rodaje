@@ -26,7 +26,8 @@ public enum RoomPhase
 /// <summary>Una persona de la sala.</summary>
 /// <param name="ColorIndex">0 a 11, siempre el mismo para la misma clave en todos los equipos.</param>
 /// <param name="Phrase">Las cuatro palabras de la clave, para comprobarla de viva voz.</param>
-public sealed record RoomMember(string Key, string Alias, Rol Role, bool IsHost, bool IsMe, string Phrase, int ColorIndex);
+/// <param name="Online">Está conectado ahora. Sala guarda a los que ya dejó entrar aunque se vayan; el anfitrión sabe quién se fue, el invitado de momento no.</param>
+public sealed record RoomMember(string Key, string Alias, Rol Role, bool IsHost, bool IsMe, string Phrase, int ColorIndex, bool Online = true);
 
 /// <summary>Alguien que pide entrar y espera la decisión del anfitrión.</summary>
 public sealed record RoomRequest(string Key, string Alias, string Phrase);
@@ -49,6 +50,9 @@ public sealed record RoomState(
     string? Problem)
 {
     public static readonly RoomState Closed = new(RoomPhase.Closed, false, "", "", Rol.Editar, [], [], null);
+
+    /// <summary>Cuántos miembros están conectados ahora.</summary>
+    public int OnlineCount => Members.Count(m => m.Online);
 
     public bool InRoom => Phase is RoomPhase.Hosting or RoomPhase.Connected or RoomPhase.Reconnecting;
 

@@ -38,6 +38,7 @@ public sealed class RoomService : IAsyncDisposable
     private Dathinel.Sala.Sala? _sala;
     private string _folder = "";
     private string _lastAnchored = "";
+    private readonly HashSet<string> _offline = new(StringComparer.Ordinal);
 
     /// <param name="post">
     /// Cómo se avisa a la interfaz de un cambio (en la app, la cola del hilo de interfaz). Por omisión se avisa en el mismo
@@ -69,6 +70,12 @@ public sealed class RoomService : IAsyncDisposable
 
     /// <summary>Un mensaje directo de otro miembro (fuera del orden): quién lo manda y su contenido. No debe bloquear.</summary>
     public event Action<string, JsonElement>? DirectReceived;
+
+    /// <summary>Llegó la presencia de otro miembro (cabezal, selección): su clave y el objeto. No debe bloquear.</summary>
+    public event Action<string, JsonElement>? PresenceReceived;
+
+    /// <summary>Cambió quién tiene una reserva: la clave (<c>pista:&lt;id&gt;</c>) y el dueño (<c>null</c>: quedó libre).</summary>
+    public event Action<string, string?>? ReservationChanged;
 
     /// <summary>Avance de una descarga de blob: su huella y los bytes recibidos.</summary>
     public event Action<string, long>? BlobProgress;
@@ -284,6 +291,44 @@ public sealed class RoomService : IAsyncDisposable
     public Task RequestBlobAsync(string from, string hash, long size, string destination, long limit, CancellationToken cancellationToken = default) =>
         Guard(() => Active().PedirBlobAsync(from, hash, size, destination, limit, cancellationToken));
 
+    /// <summary>Manda la presencia propia (≤ 4 KiB, ≤ 20 por segundo; Sala descarta lo de más).</summary>
+    public Task SendPresenceAsync(JsonElement presence, CancellationToken cancellationToken = default) =>
+        Guard(() => Active().PresenciaAsync(presence, cancellationToken));
+
+    /// <summary>
+    /// Pide la reserva de una pista u otra etiqueta: <c>true</c> si es nuestra (estaba libre o ya la teníamos). Una clave que
+    /// Sala no admite devuelve <c>false</c> sin lanzar: la edición sigue, sin candado.
+    /// </summary>
+    public async Task<bool> ReserveAsync(string key, CancellationToken cancellationToken = default)
+    {
+        if (!Dathinel.Sala.Sala.ClaveDeReservaValida(key))
+        {
+            return false;
+        }
+
+        bool mine = false;
+        await Guard(async () => mine = await Active().ReservarAsync(key, cancellationToken).ConfigureAwait(false)).ConfigureAwait(false);
+        return mine;
+    }
+
+    public Task ReleaseAsync(string key, CancellationToken cancellationToken = default) =>
+        Dathinel.Sala.Sala.ClaveDeReservaValida(key) ? Guard(() => Active().SoltarAsync(key, cancellationToken)) : Task.CompletedTask;
+
+    /// <summary>Quién tiene cada reserva que este equipo conoce (clave → clave del dueño).</summary>
+    public IReadOnlyDictionary<string, string> Reservations
+    {
+        get
+        {
+            Dathinel.Sala.Sala? sala;
+            lock (_gate)
+            {
+                sala = _sala;
+            }
+
+            return sala?.Reservas ?? new Dictionary<string, string>();
+        }
+    }
+
     private Dathinel.Sala.Sala Active()
     {
         lock (_gate)
@@ -309,12 +354,22 @@ public sealed class RoomService : IAsyncDisposable
         s.SolicitudRetirada += k => OnSala(s, () => Publish(st => st with { Requests = [.. st.Requests.Where(x => x.Key != k)] }));
         s.MiembroEntra += m => OnSala(s, () =>
         {
+            lock (_gate)
+            {
+                _offline.Remove(m.Clave);
+            }
+
             Publish(Refreshed);
             Notify(CollabMessages.Joined(m.Alias), false);
         });
         s.MiembroSale += (k, motivo) => OnSala(s, () =>
         {
             string alias = State.Members.FirstOrDefault(x => x.Key == k)?.Alias ?? "Alguien";
+            lock (_gate)
+            {
+                _offline.Add(k);
+            }
+
             Publish(Refreshed);
             Notify(CollabMessages.Left(alias, motivo), false);
         });
@@ -326,6 +381,8 @@ public sealed class RoomService : IAsyncDisposable
         });
         s.DirectoRecibido += d => OnSala(s, () => DirectReceived?.Invoke(d.De, d.Datos));
         s.BlobAvance += (hash, bytes) => OnSala(s, () => BlobProgress?.Invoke(hash, bytes));
+        s.PresenciaRecibida += (k, d) => OnSala(s, () => PresenceReceived?.Invoke(k, d));
+        s.ReservaCambia += (k, owner) => OnSala(s, () => ReservationChanged?.Invoke(k, owner));
         s.Desconectada += () => OnSala(s, () =>
         {
             if (State.Phase == RoomPhase.Connected)
@@ -450,7 +507,7 @@ public sealed class RoomService : IAsyncDisposable
         List<RoomMember> members =
         [
             .. raw
-                .Select(m => new RoomMember(m.Clave, m.Alias, m.Rol, m.Clave == host, m.Clave == me, Huella.Palabras(m.Clave), MemberColors.IndexFor(m.Clave)))
+                .Select(m => new RoomMember(m.Clave, m.Alias, m.Rol, m.Clave == host, m.Clave == me, Huella.Palabras(m.Clave), MemberColors.IndexFor(m.Clave), !_offline.Contains(m.Clave) || m.Clave == me))
                 .OrderByDescending(m => m.IsHost).ThenByDescending(m => m.IsMe).ThenBy(m => m.Alias, StringComparer.CurrentCultureIgnoreCase),
         ];
         if (sala.EsAnfitrion)
