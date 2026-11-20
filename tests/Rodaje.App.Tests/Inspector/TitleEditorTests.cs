@@ -37,6 +37,39 @@ public class TitleEditorTests
     private static Clip Title(EditorSession session) => session.SelectedTitle!;
 
     [Fact]
+    public void Loop_se_elige_se_arrastra_y_se_deshace_sin_ventana() => UiThread.Run(async () =>
+    {
+        (EditorSession session, TitleEditor editor, _) = await WithTitle();
+        int steps = session.History.Count;
+        Assert.True(editor.CommitStyle("loop-kind", s => TitleEditor.SetLoop(s, TextLoopKind.Shake)));
+        Assert.Equal(6, Title(session).Generator!.Style!.Loop!.Speed);
+        for (int i = 2; i <= 15; i++)
+        {
+            double amount = i / 10.0;
+            Assert.True(editor.ChangeStyle("loop-amount", s => s.Loop!.Amount = amount));
+        }
+
+        editor.EndChange();
+        Assert.Equal(steps + 2, session.History.Count);
+        Assert.True(session.Undo());
+        Assert.Equal(1, Title(session).Generator!.Style!.Loop!.Amount);
+        Assert.True(session.Redo());
+        Assert.Equal(1.5, Title(session).Generator!.Style!.Loop!.Amount);
+        Assert.True(editor.ChangeStyle("loop-speed", s => s.Loop!.Speed = 3));
+        Assert.True(editor.ChangeStyle("loop-speed", s => s.Loop!.Speed = 4));
+        editor.EndChange();
+        Assert.Equal(steps + 3, session.History.Count);
+        Assert.True(session.Undo());
+        Assert.Equal(6, Title(session).Generator!.Style!.Loop!.Speed);
+        Assert.True(editor.CommitStyle("loop-kind", s => TitleEditor.SetLoop(s, TextLoopKind.Float)));
+        Assert.Equal(0.5, Title(session).Generator!.Style!.Loop!.Speed);
+        Assert.True(editor.CommitStyle("loop-kind", s => TitleEditor.SetLoop(s, null)));
+        Assert.Null(Title(session).Generator!.Style!.Loop);
+        Assert.True(session.Undo());
+        Assert.Equal(TextLoopKind.Float, Title(session).Generator!.Style!.Loop!.Kind);
+    });
+
+    [Fact]
     public void Escribir_UnaTandaEsUnPaso_YUnaPausaEmpiezaOtro() => UiThread.Run(async () =>
     {
         (EditorSession session, TitleEditor editor, ManualClock clock) = await WithTitle();

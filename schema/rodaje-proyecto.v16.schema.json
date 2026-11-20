@@ -891,6 +891,33 @@
                                     ]
                                   }
                                 }
+                              },
+                              "loop": {
+                                "type": [
+                                  "object",
+                                  "null"
+                                ],
+                                "properties": {
+                                  "kind": {
+                                    "type": "string",
+                                    "enum": [
+                                      "wobble",
+                                      "shake",
+                                      "pulse",
+                                      "float"
+                                    ]
+                                  },
+                                  "amount": {
+                                    "type": "number",
+                                    "minimum": 0.1,
+                                    "maximum": 2
+                                  },
+                                  "speed": {
+                                    "type": "number",
+                                    "minimum": 0.1,
+                                    "maximum": 20
+                                  }
+                                }
                               }
                             }
                           },
@@ -1112,6 +1139,9 @@
                                         },
                                         "out": {
                                           "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/out"
+                                        },
+                                        "loop": {
+                                          "$ref": "#/properties/sequences/items/properties/videoTracks/items/properties/clips/items/properties/generator/properties/style/properties/loop"
                                         }
                                       }
                                     },
