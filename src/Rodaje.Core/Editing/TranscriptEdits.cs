@@ -262,6 +262,7 @@ public static partial class TranscriptEdits
         }
 
         removed.Sort();
+        FollowInSubtitles(ctx, removed, ripple);
         return removed;
     }
 
