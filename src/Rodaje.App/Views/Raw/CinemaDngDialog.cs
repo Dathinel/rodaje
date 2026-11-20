@@ -133,6 +133,7 @@ internal static class CinemaDngDialog
         }
         catch (OperationCanceledException)
         {
+            session.Notify(NotificationSeverity.Informational, Title, "Cancelado: no se importó nada.");
             return;
         }
         catch (ModuleException)

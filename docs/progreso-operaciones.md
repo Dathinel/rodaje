@@ -109,4 +109,6 @@ No existen como operación propia: detectar escenas, flujo óptico (es un paso d
 
 ## 3. Estado de los PR
 
-Ver «Registro» al final; se actualiza en cada PR que cierra una fila.
+- #652: modelo `OperationProgress` y vista `OperationProgressView` (unido el 20-nov).
+- #662: barra de avisos (con espera de 0,6 s), abrir, importar medios, importar y exportar línea de tiempo, instalar `.paquete`, Trabajos (módulos, exportaciones, render en caché, proxies), diálogos de módulos, traducir, texto a voz, reenlazar, CinemaDNG y descargas de complementos (unido el 20-nov).
+- Pendiente: cancelar de verdad en «Sincronizar por el sonido» y la multicámara (falta un token en `MulticamSync.Run`); verificación con ratón en B9 (`pruebas-a-mano.md`).

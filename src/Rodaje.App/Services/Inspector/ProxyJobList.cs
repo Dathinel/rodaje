@@ -62,7 +62,15 @@ public sealed class ProxyJobList
     }
 
     /// <summary>Quita las filas terminadas; <c>true</c> si quitó alguna.</summary>
-    public bool ClearFinished() => _rows.RemoveAll(r => !r.IsActive) > 0;
+    public bool ClearFinished()
+    {
+        foreach (JobRow row in _rows.Where(r => !r.IsActive))
+        {
+            _operations.Remove(row.SourcePath);
+        }
+
+        return _rows.RemoveAll(r => !r.IsActive) > 0;
+    }
 
     private static JobRow Row(ProxyStatus status, string text, double progress, bool active = false, bool error = false, OperationProgress? operation = null) =>
         new(status.SourcePath, Path.GetFileName(status.SourcePath), text, Math.Clamp(progress, 0, 1), active, error, operation);
