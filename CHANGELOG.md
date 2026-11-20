@@ -35,6 +35,7 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ### Cambiado
 
+- Defensa del cierre de la ventana, sin causa demostrada: el temporizador de avisos se detiene al cerrar, el panel del visor suelta su cadena de intercambio antes de que el motor libere la GPU y el evento de despertar del hilo de render no se cierra si el hilo no terminó. Es para el error intermitente `0xC000027B` de WinUI al terminar la autoprueba, que sigue abierto (no sale 0 en 10 corridas seguidas todavía).
 - **Muchos keyframes:** evaluar y buscar un keyframe es por bisección (antes lineal), la gráfica del inspector se muestrea por los píxeles que tiene (antes 48 muestras por tramo: unos 60.000 puntos con 1250 keyframes en un parámetro) y ni ella ni la línea de tiempo dibujan rombos que se pisan; un vaciado de búfer de audio entra y sale del silencio con un fundido de 2,7 ms en vez de un escalón (chasquido). Cifras en `docs/rendimiento-keyframes.md`.
 - La autoprueba y las medidas (`--autoprueba`, `--medir`, `--arranque`) corren de fondo: la ventana no aparece en pantalla ni toma el foco; `--visible` la muestra como antes.
 - Por dentro (sin cambio visible): el compositor, la exportación y los títulos pasan por una capa de GPU común (`IGpu`) con los mismos píxeles que antes (comprobado con huellas de cada lectura), y el SDK de .NET sube a la 10.0.403. En Windows el envío de trabajo a la GPU con 8 capas cuesta un 21 % más de CPU por cuadro (aceptado; las cifras de la verificación van en `docs/publicar-1.0.4.md`).
