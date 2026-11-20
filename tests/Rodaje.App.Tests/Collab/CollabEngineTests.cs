@@ -207,9 +207,7 @@ public sealed class CollabEngineTests
         {
             // Si pasa en la CI, el informe trae lo que había en cada lado para encontrar la causa.
             string Dump(Replica r) => string.Join(",", r.Live.Sequences[0].Markers.Select(m => m.Id)) + " | avisos: " + string.Join(" / ", r.Notices) + " | desinc: " + string.Join(" / ", r.Desyncs);
-            Assert.Fail($"{ex.Message}
-anfitrión: {Dump(host)}
-invitado: {Dump(guest)}");
+            Assert.Fail(string.Join(Environment.NewLine, ex.Message, "anfitrión: " + Dump(host), "invitado: " + Dump(guest)));
         }
 
         int markers = host.Live.Sequences[0].Markers.Count(m => m.Id is "mk-a" or "mk-b");
