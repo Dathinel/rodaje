@@ -267,6 +267,20 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
 
     private async Task SendOneAsync(Pending pending)
     {
+        bool dropped;
+        lock (_m)
+        {
+            dropped = !_pending.Contains(pending);
+        }
+
+        if (dropped)
+        {
+            // Se deshizo (lo vivo volvió a lo confirmado) antes de salir: no se manda lo que la persona ya no ve.
+            pending.Sent.TrySetResult(Guid.Empty);
+            _presence.Done(pending.Keys);
+            return;
+        }
+
         try
         {
             ReservationBlock? blocked = await _presence.EnsureAsync(pending.Keys, _stop.Token).ConfigureAwait(false);
