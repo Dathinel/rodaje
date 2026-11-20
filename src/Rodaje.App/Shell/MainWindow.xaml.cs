@@ -260,7 +260,13 @@ internal sealed partial class MainWindow : Window, IShellHost
         _notificationTimer = _dispatcher.CreateTimer();
         _notificationTimer.Interval = TimeSpan.FromSeconds(6);
         _notificationTimer.IsRepeating = false;
-        _notificationTimer.Tick += (_, _) => Notification.IsOpen = false;
+        _notificationTimer.Tick += (_, _) =>
+        {
+            if (!_closed)
+            {
+                Notification.IsOpen = false;
+            }
+        };
         Notification.Closed += (_, _) =>
         {
             if (_showingProgress)
@@ -877,6 +883,11 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private void ShowNotification(EditorNotification notification)
     {
+        if (_closed)
+        {
+            return;
+        }
+
         _showingProgress = false;
         NotificationProgress.Visibility = Visibility.Collapsed;
         NotificationButton.IsEnabled = true;
@@ -1173,6 +1184,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         _closed = true;
+        _notificationTimer.Stop();
         StartupSplash.Close();
         CompositionTarget.Rendering -= OnRendering;
         _transportTimer.Stop();
@@ -1218,6 +1230,8 @@ internal sealed partial class MainWindow : Window, IShellHost
             UiTask.Report(ex, notify: false);
         }
 
+        // El panel suelta la cadena de intercambio antes de que el motor libere la GPU y su hilo de render.
+        Player.DetachViewer();
         _engine.Dispose();
         _visuals.Dispose();
         _instance.Dispose();

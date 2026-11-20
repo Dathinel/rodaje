@@ -32,6 +32,10 @@ internal sealed partial class PlayerView
         };
     }
 
+    public void DetachViewer()
+    {
+    }
+
     private void ShowViewerFrame(PlayerEngine engine)
     {
         Volatile.Write(ref _viewerQueued, 0);
