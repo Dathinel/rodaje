@@ -476,6 +476,7 @@ public sealed unsafe partial class VulkanGpu : IGpu
     private void Poll()
     {
         List<IDecoderSurface>? retained = null;
+        long done = 0;
         lock (_contextLock)
         {
             while (_inFlight.TryPeek(out FrameContext? context))
@@ -489,7 +490,7 @@ public sealed unsafe partial class VulkanGpu : IGpu
                 // VK_ERROR_DEVICE_LOST (o cualquier error) no es «todavía no»: marca la pérdida y lanza.
                 Check(status, "vkGetFenceStatus");
                 _inFlight.Dequeue();
-                Volatile.Write(ref _completed, Math.Max(_completed, context.Serial));
+                done = Math.Max(done, context.Serial);
                 context.TakeRetained(ref retained);
                 if (context.Waiters > 0)
                 {
@@ -503,6 +504,12 @@ public sealed unsafe partial class VulkanGpu : IGpu
         }
 
         retained?.ForEach(static surface => surface.Release());
+
+        // Después de soltar las superficies: quien ve el envío completo también las ve soltadas (otro hilo puede estar leyendo).
+        long seen;
+        while (done > 0 && (seen = Volatile.Read(ref _completed)) < done && Interlocked.CompareExchange(ref _completed, done, seen) != seen)
+        {
+        }
 
         List<Action>? ready = null;
         lock (_garbageLock)
