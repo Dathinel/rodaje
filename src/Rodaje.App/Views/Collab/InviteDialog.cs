@@ -47,16 +47,21 @@ internal static class InviteDialog
         var oneUse = new CheckBox { Content = "Solo sirve para una persona", IsChecked = true };
         var roleHint = Hint("Podrás cambiar el permiso de cada persona cuando quieras, desde el panel de la sala.");
         var problem = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = ThemeResources.Brush("AccentBrush"), Visibility = Visibility.Collapsed };
-        var progress = new ProgressRing { IsActive = false, Width = 20, Height = 20, Visibility = Visibility.Collapsed };
+        var progress = new ProgressBar { IsIndeterminate = true, Visibility = Visibility.Collapsed };
+        var progressText = InviteDialog.Hint("Abriendo la sala y preparando tu invitación…");
+        progressText.Visibility = Visibility.Collapsed;
+        var nameHint = Hint("Escribe tu nombre para continuar.");
 
         var form = new StackPanel { Spacing = 12, MinWidth = 440 };
         form.Children.Add(Hint("Tus invitados verán y editarán este proyecto contigo. Cada persona que pida entrar tendrá que ser aprobada por ti."));
         form.Children.Add(name);
+        form.Children.Add(nameHint);
         form.Children.Add(role);
         form.Children.Add(roleHint);
         form.Children.Add(validity);
         form.Children.Add(oneUse);
         form.Children.Add(problem);
+        form.Children.Add(progressText);
         form.Children.Add(progress);
 
         var dialog = new ContentDialog
@@ -69,7 +74,20 @@ internal static class InviteDialog
             DefaultButton = ContentDialogButton.Primary,
             IsPrimaryButtonEnabled = CollabNames.NormalizeAlias(name.Text) is not null,
         };
-        name.TextChanged += (_, _) => dialog.IsPrimaryButtonEnabled = CollabNames.NormalizeAlias(name.Text) is not null;
+        void RefreshName()
+        {
+            bool ok = CollabNames.NormalizeAlias(name.Text) is not null;
+            nameHint.Visibility = ok ? Visibility.Collapsed : Visibility.Visible;
+            dialog.IsPrimaryButtonEnabled = ok;
+        }
+
+        name.TextChanged += (_, _) => RefreshName();
+        RefreshName();
+        if (room.State.InRoom)
+        {
+            dialog.Title = "Crear otra invitación";
+            form.Children.Insert(0, Hint("Las invitaciones anteriores siguen valiendo hasta que caduquen o las use alguien. Quien ya está en la sala no necesita otra."));
+        }
 
         bool created = false;
         bool busy = false;
@@ -88,8 +106,7 @@ internal static class InviteDialog
 
             busy = true;
             dialog.IsPrimaryButtonEnabled = false;
-            progress.IsActive = true;
-            progress.Visibility = Visibility.Visible;
+            progress.Visibility = progressText.Visibility = Visibility.Visible;
             problem.Visibility = Visibility.Collapsed;
             UiTask.Run(async () =>
             {
@@ -113,8 +130,7 @@ internal static class InviteDialog
                 finally
                 {
                     busy = false;
-                    progress.IsActive = false;
-                    progress.Visibility = Visibility.Collapsed;
+                    progress.Visibility = progressText.Visibility = Visibility.Collapsed;
                 }
             });
         };

@@ -1,3 +1,4 @@
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
@@ -37,7 +38,14 @@ internal static class SharedProjectFlow
         }
 
         IReadOnlyDictionary<string, string>? found = await MediaSearchDialog.ShowAsync(services, hwnd, received, host);
-        found ??= new Dictionary<string, string>();
+        if (found is null)
+        {
+            // Cerrar «Busca tus archivos» o pulsar «Salir de la sala» es salir: no se abre un proyecto que la persona no quiso abrir.
+            await room.LeaveAsync();
+            services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", "Todavía no se abrió ningún proyecto. Puedes volver a entrar con la invitación.");
+            return;
+        }
+
         foreach ((string id, string path) in found)
         {
             if (received.Project.FindMedia(id) is { } media)
@@ -87,20 +95,38 @@ internal static class SharedProjectFlow
             return (null, false);
         }
 
-        var bar = new ProgressBar { IsIndeterminate = true, MinWidth = 420 };
-        var text = new TextBlock { Text = "Pidiendo el proyecto a quien hospeda la sala…", TextWrapping = TextWrapping.Wrap };
+        var bar = new ProgressBar { IsIndeterminate = true, MinWidth = 440 };
+        var text = new TextBlock { Text = "Paso 1 de 3: pidiendo el proyecto a quien hospeda la sala…", TextWrapping = TextWrapping.Wrap };
+        var clockText = InviteDialog.Hint("");
         var panel = new StackPanel { Spacing = 12 };
         panel.Children.Add(text);
         panel.Children.Add(bar);
-        var dialog = new ContentDialog { XamlRoot = root, Title = "Recibiendo el proyecto", Content = panel, CloseButtonText = "Salir de la sala" };
+        panel.Children.Add(clockText);
+        var dialog = new ContentDialog { XamlRoot = root, Title = "Entrando en la sala", Content = panel, CloseButtonText = "Cancelar y salir de la sala" };
 
         using var cancel = new CancellationTokenSource();
-        var progress = new Progress<double>(p =>
+        var clock = new OperationClock();
+        ShareProgress? last = null;
+        var progress = new Progress<ShareProgress>(p =>
         {
-            bar.IsIndeterminate = false;
-            bar.Value = p * 100;
-            text.Text = $"Recibiendo el proyecto ({(int)(p * 100)} %)…";
+            clock.Progressed();
+            last = p;
+            bar.IsIndeterminate = p.Fraction is null;
+            if (p.Fraction is { } f)
+            {
+                bar.Value = f * 100;
+            }
+
+            text.Text = $"Paso {p.Step} de {p.Steps}: {char.ToLowerInvariant(p.Text[0])}{p.Text[1..]}";
         });
+        DispatcherQueueTimer ticker = DispatcherQueue.GetForCurrentThread().CreateTimer();
+        ticker.Interval = TimeSpan.FromSeconds(1);
+        ticker.Tick += (_, _) =>
+        {
+            string? left = last?.Fraction is { } f ? OperationClock.Remaining(f, clock.Elapsed) : null;
+            clockText.Text = clock.Describe() + (left is null ? "" : $" Faltan {left}.");
+        };
+        ticker.Start();
         Task<ReceivedProject> work = ProjectShareGuest.ReceiveAsync(room, roomFolder, progress, cancel.Token);
         string? problem = null;
         _ = work.ContinueWith(
@@ -121,6 +147,7 @@ internal static class SharedProjectFlow
             }
         };
         await DialogGate.ShowAsync(dialog);
+        ticker.Stop();
         if (!work.IsCompleted)
         {
             await cancel.CancelAsync();

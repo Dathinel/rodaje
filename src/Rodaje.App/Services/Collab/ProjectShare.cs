@@ -12,7 +12,8 @@ public sealed record ProjectSnapshot(string Name, byte[] Json, long Seq, IReadOn
 /// <summary>De dónde saca el anfitrión la fotografía del proyecto abierto. La implementación de la app la toma en el hilo de la interfaz.</summary>
 public interface ICollabProjectSource
 {
-    Task<ProjectSnapshot> CaptureAsync(CancellationToken cancellationToken);
+    /// <param name="progress">Medios con su SHA-256 calculado y medios en total (leer cada archivo entero lleva tiempo).</param>
+    Task<ProjectSnapshot> CaptureAsync(IProgress<(int Done, int Total)>? progress, CancellationToken cancellationToken);
 }
 
 /// <summary>Lo que recibe el invitado: el proyecto sin rutas del anfitrión con sus versiones, su nombre, el orden en que está y los medios que tiene que buscar.</summary>
@@ -24,6 +25,7 @@ internal static class ShareMessages
     public const string Ask = "pedir-proyecto";
     public const string Project = "proyecto";
     public const string Failed = "proyecto-error";
+    public const string Preparing = "preparando";
     public const long MaxProjectBytes = 64L << 20;
 
     public static JsonElement Make(string type, Action<Utf8JsonWriter>? more = null)
@@ -95,7 +97,7 @@ public sealed partial class ProjectShareHost : IDisposable
 
         try
         {
-            ProjectSnapshot snapshot = await _source.CaptureAsync(_stop.Token).ConfigureAwait(false);
+            ProjectSnapshot snapshot = await _source.CaptureAsync(new ThrottledProgress(this, to), _stop.Token).ConfigureAwait(false);
             if (snapshot.Json.Length is 0 or > (int)ShareMessages.MaxProjectBytes)
             {
                 await Fail(to, "El proyecto es demasiado grande para compartirlo así. Comprime o simplifica el proyecto e inténtalo de nuevo.").ConfigureAwait(false);
@@ -145,6 +147,40 @@ public sealed partial class ProjectShareHost : IDisposable
         }
     }
 
+    /// <summary>Le cuenta al invitado cómo va la preparación de los medios, como mucho dos veces por segundo.</summary>
+    private sealed class ThrottledProgress(ProjectShareHost host, string to) : IProgress<(int Done, int Total)>
+    {
+        private long _last;
+
+        public void Report((int Done, int Total) value)
+        {
+            long now = Environment.TickCount64;
+            if (now - Interlocked.Read(ref _last) < 500 && value.Done < value.Total)
+            {
+                return;
+            }
+
+            Interlocked.Exchange(ref _last, now);
+            _ = host.TellAsync(to, value.Done, value.Total);
+        }
+    }
+
+    private async Task TellAsync(string to, int done, int total)
+    {
+        try
+        {
+            await _room.SendDirectAsync(ShareMessages.Make(ShareMessages.Preparing, w =>
+            {
+                w.WriteNumber("hecho", done);
+                w.WriteNumber("total", total);
+            }), to, _stop.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is CollabException or OperationCanceledException or ObjectDisposedException)
+        {
+            // Es un aviso de ánimo: si no sale, el invitado sigue viendo que la sala está viva.
+        }
+    }
+
     private async Task Fail(string to, string text)
     {
         try
@@ -158,13 +194,20 @@ public sealed partial class ProjectShareHost : IDisposable
     }
 }
 
+/// <summary>Cómo va la recepción del proyecto, para una barra con porcentaje o por pasos.</summary>
+/// <param name="Step">Paso actual (1 a <paramref name="Steps"/>).</param>
+/// <param name="Fraction">De 0 a 1 dentro del paso, o <c>null</c> si no se sabe.</param>
+public sealed record ShareProgress(int Step, int Steps, string Text, double? Fraction);
+
 /// <summary>El lado del invitado: pide el proyecto, lo baja por huella, lo comprueba y le quita las rutas ajenas.</summary>
 public static class ProjectShareGuest
 {
+    /// <summary>Sin ninguna señal de vida del anfitrión (ni el proyecto ni un «preparando») durante este tiempo, se da por perdido.</summary>
     public static readonly TimeSpan AnswerTimeout = TimeSpan.FromSeconds(60);
 
-    /// <param name="progress">De 0 a 1 mientras baja el proyecto.</param>
-    public static async Task<ReceivedProject> ReceiveAsync(RoomService room, string roomFolder, IProgress<double>? progress = null, CancellationToken cancellationToken = default)
+    public const int Steps = 3;
+
+    public static async Task<ReceivedProject> ReceiveAsync(RoomService room, string roomFolder, IProgress<ShareProgress>? progress = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(room);
         string host = room.HostKey;
@@ -174,11 +217,25 @@ public static class ProjectShareGuest
         }
 
         TaskCompletionSource<JsonElement> answer = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        long lastSign = Environment.TickCount64;
         void OnDirect(string from, JsonElement message)
         {
-            if (from == host && ShareMessages.Type(message) is ShareMessages.Project or ShareMessages.Failed)
+            if (from != host)
+            {
+                return;
+            }
+
+            string? type = ShareMessages.Type(message);
+            if (type is ShareMessages.Project or ShareMessages.Failed)
             {
                 answer.TrySetResult(message.Clone());
+            }
+            else if (type == ShareMessages.Preparing
+                && message.TryGetProperty("hecho", out JsonElement d) && d.TryGetInt32(out int done)
+                && message.TryGetProperty("total", out JsonElement t) && t.TryGetInt32(out int total) && total > 0 && done >= 0 && done <= total)
+            {
+                Interlocked.Exchange(ref lastSign, Environment.TickCount64);
+                progress?.Report(new ShareProgress(2, Steps, $"Quien hospeda la sala está preparando tus archivos ({done} de {total})…", (double)done / total));
             }
         }
 
@@ -186,12 +243,21 @@ public static class ProjectShareGuest
         JsonElement reply;
         try
         {
+            progress?.Report(new ShareProgress(1, Steps, "Pidiendo el proyecto a quien hospeda la sala…", null));
             await room.SendDirectAsync(ShareMessages.Make(ShareMessages.Ask), host, cancellationToken).ConfigureAwait(false);
-            reply = await answer.Task.WaitAsync(AnswerTimeout, cancellationToken).ConfigureAwait(false);
-        }
-        catch (TimeoutException)
-        {
-            throw new CollabException("Quien hospeda la sala no mandó el proyecto a tiempo. Comprueba que Rodaje sigue abierto allí y vuelve a entrar.");
+            while (!answer.Task.IsCompleted)
+            {
+                // Cada señal de vida del anfitrión reinicia la espera: preparar archivos enormes puede llevar minutos.
+                TimeSpan left = AnswerTimeout - TimeSpan.FromMilliseconds(Environment.TickCount64 - Interlocked.Read(ref lastSign));
+                if (left <= TimeSpan.Zero)
+                {
+                    throw new CollabException("Quien hospeda la sala no mandó el proyecto a tiempo. Comprueba que Rodaje sigue abierto allí y vuelve a entrar.");
+                }
+
+                await Task.WhenAny(answer.Task, Task.Delay(left < TimeSpan.FromSeconds(1) ? left : TimeSpan.FromSeconds(1), cancellationToken)).ConfigureAwait(false);
+            }
+
+            reply = answer.Task.Result;
         }
         finally
         {
@@ -215,14 +281,17 @@ public static class ProjectShareGuest
         {
             if (h == hash)
             {
-                progress?.Report(Math.Clamp((double)bytes / size, 0, 1));
+                double fraction = Math.Clamp((double)bytes / size, 0, 1);
+                progress?.Report(new ShareProgress(3, Steps, $"Recibiendo el proyecto ({(int)(fraction * 100)} %)…", fraction));
             }
         }
 
         room.BlobProgress += OnProgress;
         try
         {
+            progress?.Report(new ShareProgress(3, Steps, "Recibiendo el proyecto (0 %)…", 0));
             await room.RequestBlobAsync(host, hash, size, received, ShareMessages.MaxProjectBytes, cancellationToken).ConfigureAwait(false);
+            progress?.Report(new ShareProgress(3, Steps, "Recibiendo el proyecto (100 %)…", 1));
         }
         finally
         {

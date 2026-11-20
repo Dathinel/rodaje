@@ -21,19 +21,19 @@ public static class CollabMessages
     /// <summary>El texto de un fallo de Sala. Los de versión y rechazo los redacta Sala o el anfitrión; aquí se completan.</summary>
     public static string For(SalaException ex) => ex.Codigo switch
     {
-        "rechazado" => "Quien hospeda la sala no te dejó entrar. Si fue un error, pídele otra invitación.",
+        "rechazado" => "Quien hospeda la sala no te dejó entrar. Si fue un descuido, avísale por mensaje y vuelve a intentarlo con la misma invitación.",
         "version" => string.IsNullOrWhiteSpace(ex.Message)
-            ? "Tú y quien te invitó tenéis versiones distintas de Rodaje. Actualiza la que sea más vieja y vuelve a probar."
+            ? "Tu versión de Rodaje y la de quien te invitó son distintas. Actualiza la que sea más vieja desde la página de Rodaje y vuelve a probar."
             : ex.Message,
-        "billete-invalido" => "La invitación no vale: caducó, ya la usó otra persona o la anularon. Pídele a quien te invitó que cree una nueva.",
-        "sin-conexion" => "No se pudo llegar al equipo de quien te invitó. Comprueba que Rodaje sigue abierto allí y que los dos tenéis internet o estáis en la misma red; luego vuelve a probar.",
-        "llena" => "La sala está llena. Pídele a quien la hospeda que deje un hueco libre.",
+        "billete-invalido" => "Esta invitación ya no sirve: puede haber caducado, haberla usado otra persona (si era para una sola) o haberla cancelado quien hospeda. Pídele a quien te invitó que cree una nueva.",
+        "sin-conexion" => "No se pudo llegar al equipo de quien te invitó. Comprueba que Rodaje sigue abierto allí y que los dos tienen internet (o están en la misma red); luego vuelve a probar.",
+        "llena" => "La sala alcanzó su límite de 8 personas. Espera a que alguien salga para poder entrar.",
         "ya-abierta" => "Ya hay una sala abierta en este Rodaje. Sal de ella antes de empezar otra.",
         "sin-red" => "Falta un componente de Rodaje para trabajar en grupo o no se pudo abrir. Reinstala Rodaje y vuelve a probar.",
         "ocupado" or "ocupado-red" => "Hay demasiado movimiento ahora mismo. Espera unos segundos y vuelve a probar.",
-        "identidad" => "Rodaje no pudo leer la clave de este equipo para entrar en salas. Cierra y vuelve a abrir Rodaje; si sigue igual, avísanos.",
+        "identidad" => "No se pudo preparar la conexión en este equipo. Cierra y vuelve a abrir Rodaje; si sigue igual, reinicia el equipo.",
         "superada" => "La sala cambió de anfitrión mientras entrabas. Vuelve a pedir la invitación.",
-        "cerrada" => "La sala se cerró.",
+        "cerrada" => "La sala ya no está abierta. Quien la hospedaba la cerró, pero tu copia del proyecto sigue en tu equipo.",
         _ => "No se pudo completar la conexión. Comprueba tu internet y vuelve a probar.",
     };
 

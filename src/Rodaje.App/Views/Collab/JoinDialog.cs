@@ -1,3 +1,4 @@
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
@@ -69,15 +70,22 @@ internal static class JoinDialog
 
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
         var problem = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = ThemeResources.Brush("AccentBrush"), Visibility = Visibility.Collapsed };
-        var progress = new ProgressRing { IsActive = false, Width = 20, Height = 20, Visibility = Visibility.Collapsed };
-        var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
-        statusRow.Children.Add(progress);
+        var progress = new ProgressBar { IsIndeterminate = true, Visibility = Visibility.Collapsed };
+        var statusRow = new StackPanel { Spacing = 8 };
         statusRow.Children.Add(status);
+        statusRow.Children.Add(progress);
+        var inviteHint = InviteDialog.Hint("Pega aquí el enlace o texto de invitación que te enviaron.");
+        var nameHint = InviteDialog.Hint("Escribe tu nombre para continuar.");
+        var clock = new OperationClock();
+        DispatcherQueueTimer ticker = DispatcherQueue.GetForCurrentThread().CreateTimer();
+        ticker.Interval = TimeSpan.FromSeconds(1);
 
         var form = new StackPanel { Spacing = 12, MinWidth = 460 };
         form.Children.Add(invite);
+        form.Children.Add(inviteHint);
         form.Children.Add(paste);
         form.Children.Add(name);
+        form.Children.Add(nameHint);
         form.Children.Add(new TextBlock { Text = "Carpeta donde guardar tu copia del proyecto", FontSize = ThemeResources.Size("BodyFontSize"), Foreground = ThemeResources.Brush("TextMutedBrush") });
         form.Children.Add(folderRow);
         form.Children.Add(InviteDialog.Hint("Guardamos una copia en tu equipo para que tus cambios no se pierdan si se corta la conexión."));
@@ -99,7 +107,15 @@ internal static class JoinDialog
         bool joined = false;
         string roomFolder = "";
 
-        void Refresh() => dialog.IsPrimaryButtonEnabled = !busy && !string.IsNullOrWhiteSpace(invite.Text) && CollabNames.NormalizeAlias(name.Text) is not null;
+        void Refresh()
+        {
+            bool hasInvite = !string.IsNullOrWhiteSpace(invite.Text);
+            bool hasName = CollabNames.NormalizeAlias(name.Text) is not null;
+            inviteHint.Visibility = hasInvite || busy ? Visibility.Collapsed : Visibility.Visible;
+            nameHint.Visibility = hasName || busy ? Visibility.Collapsed : Visibility.Visible;
+            dialog.IsPrimaryButtonEnabled = !busy && hasInvite && hasName;
+        }
+
         invite.TextChanged += (_, _) => Refresh();
         name.TextChanged += (_, _) => Refresh();
         Refresh();
@@ -129,9 +145,12 @@ internal static class JoinDialog
             Refresh();
             invite.IsEnabled = name.IsEnabled = pick.IsEnabled = paste.IsEnabled = false;
             problem.Visibility = Visibility.Collapsed;
-            status.Text = "Conectando con la sala y esperando a que quien te invitó te deje entrar…";
+            clock.Restart();
+            string baseText = "Paso 1 de 3: conectando con la sala y esperando a que quien te invitó te deje entrar (puede tardar hasta 10 minutos). ";
+            status.Text = baseText + clock.Describe();
             status.Visibility = progress.Visibility = Visibility.Visible;
-            progress.IsActive = true;
+            ticker.Tick += (_, _) => status.Text = baseText + clock.Describe();
+            ticker.Start();
             UiTask.Run(async () =>
             {
                 try
@@ -154,7 +173,7 @@ internal static class JoinDialog
                     busy = false;
                     invite.IsEnabled = name.IsEnabled = pick.IsEnabled = paste.IsEnabled = true;
                     status.Visibility = progress.Visibility = Visibility.Collapsed;
-                    progress.IsActive = false;
+                    ticker.Stop();
                     Refresh();
                 }
             });
@@ -163,6 +182,7 @@ internal static class JoinDialog
         dialog.Closed += (_, _) => cancel.Cancel();
 
         await DialogGate.ShowAsync(dialog);
+        ticker.Stop();
         cancel.Dispose();
         if (joined)
         {

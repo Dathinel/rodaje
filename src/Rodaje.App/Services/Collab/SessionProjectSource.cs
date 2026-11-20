@@ -13,11 +13,11 @@ public sealed class SessionProjectSource(EditorSession session, Func<Func<(List<
 {
     private readonly MediaManifestBuilder _builder = builder ?? new MediaManifestBuilder();
 
-    public async Task<ProjectSnapshot> CaptureAsync(CancellationToken cancellationToken)
+    public async Task<ProjectSnapshot> CaptureAsync(IProgress<(int Done, int Total)>? progress, CancellationToken cancellationToken)
     {
         (List<MediaRef> media, string name) = await onUi(() => ([.. session.Project.Media.Select(m => m.Clone())], session.ProjectName)).ConfigureAwait(false);
         (string json, long seq) = wire();
-        IReadOnlyList<MediaManifestEntry> manifest = await _builder.BuildAsync(media, m => m.Path, cancellationToken: cancellationToken).ConfigureAwait(false);
+        IReadOnlyList<MediaManifestEntry> manifest = await _builder.BuildAsync(media, m => m.Path, progress, cancellationToken).ConfigureAwait(false);
         return new ProjectSnapshot(name, Encoding.UTF8.GetBytes(json), seq, manifest);
     }
 }
