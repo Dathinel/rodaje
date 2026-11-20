@@ -37,11 +37,13 @@
                             ToolTipService.ToolTip="{x:Bind InstallTooltip}" />
                     <Button Content="Desinstalar" Visibility="{x:Bind UninstallVisibility}" IsEnabled="{x:Bind CanUninstallNow, Mode=OneWay}" Click="OnUninstallClick" />
                 </StackPanel>
-                <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"
-                            Visibility="{x:Bind DownloadActiveVisibility, Mode=OneWay}">
-                    <ProgressBar Width="140" Minimum="0" Maximum="100" Value="{x:Bind DownloadPercent, Mode=OneWay}" VerticalAlignment="Center" />
-                    <TextBlock Text="{x:Bind DownloadText, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" MinWidth="64" VerticalAlignment="Center" />
-                    <Button Content="Cancelar" Click="OnCancelDownloadClick" ToolTipService.ToolTip="Lo descargado se guarda y se sigue desde ahí la próxima vez" />
+                <StackPanel Grid.Column="2" Spacing="4" VerticalAlignment="Center" Visibility="{x:Bind DownloadActiveVisibility, Mode=OneWay}">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <ProgressBar Width="140" Minimum="0" Maximum="100" Value="{x:Bind DownloadPercent, Mode=OneWay}" VerticalAlignment="Center" />
+                        <TextBlock Text="{x:Bind DownloadText, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" MinWidth="64" VerticalAlignment="Center" />
+                        <Button Content="Cancelar" Click="OnCancelDownloadClick" ToolTipService.ToolTip="Lo descargado se guarda y se sigue desde ahí la próxima vez" />
+                    </StackPanel>
+                    <TextBlock Text="{x:Bind DownloadDetail, Mode=OneWay}" Style="{StaticResource CaptionTextStyle}" MaxWidth="320" TextWrapping="Wrap" />
                 </StackPanel>
             </Grid>
         </DataTemplate>

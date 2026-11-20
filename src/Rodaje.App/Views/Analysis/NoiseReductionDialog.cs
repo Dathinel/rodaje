@@ -59,7 +59,8 @@ internal static class NoiseReductionDialog
         session.Pause();
         var panel = new StackPanel { Spacing = 4, Width = AnalysisUi.PreviewWidth };
         var status = new TextBlock { Text = "Limpiando la voz…", TextWrapping = TextWrapping.Wrap };
-        var progress = new ProgressBar { Maximum = 1, Width = AnalysisUi.PreviewWidth };
+        var progress = new Views.Shared.OperationProgressView { Width = AnalysisUi.PreviewWidth, ShowMessage = false, ShowCancel = false };
+        var activity = new ModuleDialogActivity();
         panel.Children.Add(status);
         panel.Children.Add(progress);
         if (services.Modules is { } estimating)
@@ -136,8 +137,7 @@ internal static class NoiseReductionDialog
         void ShowActivity()
         {
             ModuleActivityView view = ModuleActivity.Describe(job, cancel.IsCancellationRequested, "Limpiando la voz");
-            progress.IsIndeterminate = view.IsIndeterminate;
-            progress.Value = view.Progress;
+            progress.Operation = activity.Current(job, cancel.IsCancellationRequested);
             scope?.Report(view.IsIndeterminate ? null : view.Progress, view.IsIndeterminate ? view.Text : "Limpiando la voz…");
             status.Text = view.Text;
         }

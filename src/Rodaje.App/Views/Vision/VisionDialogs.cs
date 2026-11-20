@@ -89,7 +89,8 @@ internal static class VisionDialogs
         Estimate();
         quality.SelectionChanged += (_, _) => Estimate();
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
-        var progress = new ProgressBar { Maximum = 1, Width = AnalysisUi.PreviewWidth, Visibility = Visibility.Collapsed };
+        var progress = new Views.Shared.OperationProgressView { Width = AnalysisUi.PreviewWidth, ShowMessage = false, ShowCancel = false, Visibility = Visibility.Collapsed };
+        var activity = new ModuleDialogActivity();
         panel.Children.Add(progress);
         panel.Children.Add(status);
         ContentDialog dialog = AnalysisUi.Dialog(root, RemoveBackgroundTitle, "Aplicar", panel, AnalysisApplyPhase.NeedsAnalysis);
@@ -102,8 +103,7 @@ internal static class VisionDialogs
         void ShowActivity()
         {
             ModuleActivityView view = ModuleActivity.Describe(job, cancel.IsCancellationRequested, "Recortando el sujeto");
-            progress.IsIndeterminate = view.IsIndeterminate;
-            progress.Value = view.Progress;
+            progress.Operation = activity.Current(job, cancel.IsCancellationRequested);
             status.Text = view.Text;
             scope.Report(view.IsIndeterminate ? null : view.Progress, view.Text);
         }
@@ -150,6 +150,7 @@ internal static class VisionDialogs
         {
             quality.IsEnabled = false;
             progress.Visibility = Visibility.Visible;
+            activity.Restart();
             ShowActivity();
             timer.Start();
             try
@@ -219,7 +220,8 @@ internal static class VisionDialogs
         Slider? smooth = null;
         smooth = AnalysisUi.Slider(panel, "Suavidad", 0, 1, smoothing, 0.05, v => string.Create(SpanishNumbers.Format, $"{v * 100:0} %"),
             () => smoothing = smooth!.Value);
-        var progress = new ProgressBar { Maximum = 1, Width = AnalysisUi.PreviewWidth, Visibility = Visibility.Collapsed };
+        var progress = new Views.Shared.OperationProgressView { Width = AnalysisUi.PreviewWidth, ShowMessage = false, ShowCancel = false, Visibility = Visibility.Collapsed };
+        var activity = new ModuleDialogActivity();
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
         panel.Children.Add(progress);
         panel.Children.Add(status);
@@ -233,8 +235,7 @@ internal static class VisionDialogs
         void ShowActivity()
         {
             ModuleActivityView view = ModuleActivity.Describe(job, cancel.IsCancellationRequested, "Buscando al sujeto");
-            progress.IsIndeterminate = view.IsIndeterminate;
-            progress.Value = view.Progress;
+            progress.Operation = activity.Current(job, cancel.IsCancellationRequested);
             status.Text = view.Text;
             scope.Report(view.IsIndeterminate ? null : view.Progress, view.Text);
         }
@@ -285,6 +286,7 @@ internal static class VisionDialogs
             aspect.IsEnabled = false;
             subject.IsEnabled = false;
             progress.Visibility = Visibility.Visible;
+            activity.Restart();
             ShowActivity();
             timer.Start();
             (_, int aw, int ah) = ReframeAspects[Math.Max(0, aspect.SelectedIndex)];
