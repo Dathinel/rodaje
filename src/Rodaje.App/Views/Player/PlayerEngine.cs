@@ -482,9 +482,13 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             _metrics.Note("el hilo de render no terminó en 3 s");
         }
 
-        lock (_pendingLock)
+        // Con el hilo todavía vivo no se cierra el evento que espera: el proceso termina de todos modos.
+        if (!_thread.IsAlive)
         {
-            _wake.Dispose();
+            lock (_pendingLock)
+            {
+                _wake.Dispose();
+            }
         }
     }
 
