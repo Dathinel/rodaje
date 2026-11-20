@@ -164,6 +164,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             AutoProxies = CreateAutoProxies(session),
             WatchedFolders = new WatchedFolderInbox(session, () => settings.Current),
             RenderCache = _renderCache,
+            Collab = new Services.Collab.CollabHost(Services.AppDataPaths.Root, post => _dispatcher.RunLater(post)),
         };
         engine.SetContent(content);
         IReadOnlyList<string> fonts = TitleFontFiles.Find(packages.Installed);
@@ -218,6 +219,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         TitleBar.MarkersPanelRequested += (_, _) => Library.ShowMarkers();
         TitleBar.TranscriptPanelRequested += (_, _) => Library.ShowTranscript();
         TitleBar.ExitRequested += (_, _) => RequestClose();
+        TitleBar.CollabJoinRequested += (_, _) => Services.Crashes.UiTask.Run(Views.Collab.JoinDialog.ShowAsync(_services, _hwnd));
         TitleBar.RecentProjectMissing += (_, path) =>
         {
             settings.Current.RecentProjects.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
@@ -1180,6 +1182,19 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
     }
 
+    /// <summary>Cierra la sala de colaboración (si hay) para que los demás vean que se fue en vez de una caída de la conexión.</summary>
+    private void LeaveRoomOnClose()
+    {
+        try
+        {
+            _services.Collab?.Room.LeaveAsync().Wait(TimeSpan.FromSeconds(2));
+        }
+        catch (Exception ex) when (ex is AggregateException or ObjectDisposedException)
+        {
+            // La ventana se cierra igual: dathinel-red termina solo al cerrarse la tubería.
+        }
+    }
+
     private void OnClosed(object sender, WindowEventArgs args)
     {
         if (_closed)
@@ -1188,6 +1203,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         _closed = true;
+        LeaveRoomOnClose();
         StartupSplash.Close();
         CompositionTarget.Rendering -= OnRendering;
         _transportTimer.Stop();
