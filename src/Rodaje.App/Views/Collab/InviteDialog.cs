@@ -136,6 +136,7 @@ internal static class InviteDialog
 
             await room.HostAsync(alias, CollabHost.RoomFolderFor(path));
             collab.Alias = alias;
+            collab.StartEditing(null);
         }
 
         return await room.CreateInviteAsync(validity, oneUse);

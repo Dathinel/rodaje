@@ -18,6 +18,9 @@ public enum EditKind
 
     /// <summary>Se pasó a ver otra secuencia (entrar o salir de un clip compuesto); el proyecto no cambió.</summary>
     SequenceChanged,
+
+    /// <summary>Un cambio de otra persona en una sala de colaboración, aplicado sin pasar por el historial.</summary>
+    External,
 }
 
 public sealed class ProjectEditedEventArgs(EditKind kind, ICommand? command) : EventArgs
@@ -180,13 +183,25 @@ public sealed partial class EditorSession : ObservableObject
     /// <summary>Hay una apertura, un guardado o una importación en curso.</summary>
     public bool IsBusy => _busy > 0;
 
-    public bool CanUndo => History.CanUndo;
+    /// <summary>
+    /// En una sala de colaboración, deshacer y rehacer son solo de lo propio (parches inversos) y sustituyen al historial de
+    /// siempre, que restauraría la secuencia entera y borraría lo de los demás. <c>null</c> fuera de una sala.
+    /// </summary>
+    public ICollabHistory? CollabHistory { get; set; }
 
-    public bool CanRedo => History.CanRedo;
+    /// <summary>
+    /// Se llama antes de cambiar de proyecto (nuevo o abrir otro): <c>false</c> si la persona decide no hacerlo (por ejemplo,
+    /// porque iba a dejar una sala de colaboración). <c>null</c> fuera de una sala.
+    /// </summary>
+    public Func<Task<bool>>? BeforeProjectReplaced { get; set; }
 
-    public string? UndoDescription => History.UndoDescription;
+    public bool CanUndo => CollabHistory?.CanUndo ?? History.CanUndo;
 
-    public string? RedoDescription => History.RedoDescription;
+    public bool CanRedo => CollabHistory?.CanRedo ?? History.CanRedo;
+
+    public string? UndoDescription => CollabHistory is { } c ? c.UndoDescription : History.UndoDescription;
+
+    public string? RedoDescription => CollabHistory is { } c ? c.RedoDescription : History.RedoDescription;
 
     public bool IsInGesture => History.IsInGroup;
 
@@ -274,6 +289,11 @@ public sealed partial class EditorSession : ObservableObject
     public bool Undo()
     {
         VerifyAccess();
+        if (CollabHistory is { } collab)
+        {
+            return collab.Undo();
+        }
+
         if (!History.CanUndo)
         {
             return false;
@@ -287,6 +307,11 @@ public sealed partial class EditorSession : ObservableObject
     public bool Redo()
     {
         VerifyAccess();
+        if (CollabHistory is { } collab)
+        {
+            return collab.Redo();
+        }
+
         if (!History.CanRedo)
         {
             return false;
@@ -301,8 +326,13 @@ public sealed partial class EditorSession : ObservableObject
     public bool JumpToHistory(int position)
     {
         VerifyAccess();
-        if (History.IsInGroup)
+        if (History.IsInGroup || CollabHistory is not null)
         {
+            if (CollabHistory is not null)
+            {
+                Notify(NotificationSeverity.Informational, "Mientras colaboras", "El historial es solo de tus cambios: usa Deshacer y Rehacer. Para volver atrás en un salto, sal de la sala.");
+            }
+
             return false;
         }
 
@@ -721,6 +751,23 @@ public sealed partial class EditorSession : ObservableObject
         _selection = selection;
         OnPropertyChanged(nameof(SelectedClipIds));
         SelectionChanged?.Invoke(this, EventArgs.Empty);
+    }
+
+    /// <summary>
+    /// Aplica un cambio que viene de fuera del historial (un parche de otra persona en una sala): lo hace <paramref name="mutate"/>
+    /// sobre el proyecto, queda con cambios sin guardar y el reproductor y las vistas se ponen al día como tras cualquier edición.
+    /// </summary>
+    internal void ApplyExternalChange(Action mutate)
+    {
+        VerifyAccess();
+        ArgumentNullException.ThrowIfNull(mutate);
+        mutate();
+        if (!History.IsInGroup)
+        {
+            History.MarkDirty();
+        }
+
+        AfterEdit(EditKind.External, null);
     }
 
     private void OnHistoryChanged(object? sender, EventArgs e)

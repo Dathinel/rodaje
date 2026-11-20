@@ -69,6 +69,8 @@ internal static class SharedProjectFlow
             }
         }
 
+        collab.StartEditing(received);
+
         int lost = received.Project.Media.Count - found.Count;
         services.Session.Notify(
             lost > 0 ? NotificationSeverity.Warning : NotificationSeverity.Success,

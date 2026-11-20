@@ -189,6 +189,24 @@ public sealed class RoomService : IAsyncDisposable
         }
     }
 
+    /// <summary>La sala se cierra por algo que Rodaje decidió (la copia dejó de coincidir): pasa a «terminada» con el motivo.</summary>
+    public async Task EndWithAsync(string text)
+    {
+        Dathinel.Sala.Sala? sala;
+        lock (_gate)
+        {
+            sala = _sala;
+            _sala = null;
+        }
+
+        Publish(st => st with { Phase = RoomPhase.Ended, Requests = [], Problem = text });
+        Notify(text, true);
+        if (sala is not null)
+        {
+            await DisposeQuietlyAsync(sala).ConfigureAwait(false);
+        }
+    }
+
     public async ValueTask DisposeAsync()
     {
         await LeaveAsync().ConfigureAwait(false);

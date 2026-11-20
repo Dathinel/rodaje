@@ -1,4 +1,5 @@
 using System.Reflection;
+using System.Text.Json;
 using Dathinel.Sala;
 using Rodaje.Core.Model;
 
@@ -14,9 +15,17 @@ public sealed partial class CollabHost : IDisposable
     public const string RedVariable = "RODAJE_RED";
 
     private readonly string _folder;
+    private readonly Action<Action> _post;
+    private readonly SwitchHandler _switch = new();
 
     public CollabHost(string dataRoot, Action<Action> post, string? appVersion = null, string? redPath = null, ICollabPayloadHandler? handler = null)
     {
+        _post = post;
+        if (handler is not null)
+        {
+            _switch.SetTarget(handler);
+        }
+
         _folder = Path.Combine(dataRoot, "colaboracion");
         try
         {
@@ -29,7 +38,7 @@ public sealed partial class CollabHost : IDisposable
 
         Room = new RoomService(
             new CollabEnvironment(redPath ?? FindRed() ?? Path.Combine(AppContext.BaseDirectory, RedFileName), Path.Combine(_folder, "identidad.bin"), appVersion ?? CurrentVersion()),
-            handler,
+            _switch,
             post);
         Room.StateChanged += OnRoomState;
         Presence = new CollabPresence(Room);
@@ -87,29 +96,204 @@ public sealed partial class CollabHost : IDisposable
         }
     }
 
-    /// <summary>De dónde saca el anfitrión la fotografía del proyecto para quien entra; la pone la ventana.</summary>
-    public ICollabProjectSource? ProjectSource { get; set; }
+    /// <summary>Pregunta a la persona antes de dejar la sala (abrir otro proyecto): título, texto y botón. La pone la ventana.</summary>
+    public Func<string, string, string, Task<bool>>? Confirm { get; set; }
+
+    /// <summary>La edición compartida de esta sala; nula hasta que empieza y tras terminar.</summary>
+    public CollabEngine? Engine { get; private set; }
 
     private ProjectShareHost? _share;
 
     public void Dispose()
     {
         Room.StateChanged -= OnRoomState;
+        StopEditing();
         Presence.Dispose();
-        _share?.Dispose();
-        _share = null;
     }
 
     private void OnRoomState(RoomState state)
     {
-        if (state is { Phase: RoomPhase.Hosting, IsHost: true } && _share is null && ProjectSource is { } source)
+        if (state.Phase is RoomPhase.Closed or RoomPhase.Ended)
         {
-            _share = new ProjectShareHost(Room, source, Room.RoomFolder);
+            StopEditing();
         }
-        else if (state.Phase is RoomPhase.Closed or RoomPhase.Ended && _share is not null)
+    }
+
+    /// <summary>
+    /// Empieza la edición compartida de la sala en la que ya se está. El anfitrión (<paramref name="received"/> nulo) comparte el
+    /// proyecto abierto; el invitado empieza con la copia que recibió, que ya tiene abierta.
+    /// </summary>
+    public void StartEditing(ReceivedProject? received)
+    {
+        if (_session is not { } session || Engine is not null)
         {
-            _share.Dispose();
-            _share = null;
+            return;
+        }
+
+        var engine = new CollabEngine(
+            session.Project,
+            Room,
+            Presence,
+            work => UiInvoke.Run<int>(_post, () =>
+            {
+                work();
+                return 0;
+            }),
+            () =>
+            {
+                _applyingExternal = true;
+                try
+                {
+                    session.ApplyExternalChange(() => { });
+                }
+                finally
+                {
+                    _applyingExternal = false;
+                }
+            },
+            (text, problem) => session.Notify(problem ? NotificationSeverity.Warning : NotificationSeverity.Informational, "Colaboración", text),
+            () => session.IsInGesture);
+        engine.Desynced += reason => UiInvoke.Run<int>(_post, () =>
+        {
+            _ = Room.EndWithAsync("Tu copia del proyecto dejó de coincidir con la de la sala y no se puede seguir editando así. "
+                + "Tu copia sigue en este equipo. Vuelve a entrar con una invitación nueva. (" + reason + ")");
+            return 0;
+        });
+        Engine = engine;
+        if (received is null)
+        {
+            engine.StartAsHost();
+            _share = new ProjectShareHost(Room, new SessionProjectSource(
+                session,
+                work => UiInvoke.Run(_post, work),
+                engine.CaptureForGuest), Room.RoomFolder);
+        }
+        else
+        {
+            engine.StartAsGuest(received.Project, received.Versions, received.Seq);
+        }
+
+        _switch.SetTarget(engine);
+        session.CollabHistory = engine;
+        session.BeforeProjectReplaced = ConfirmLeaveRoomAsync;
+        session.HistoryChanged += OnHistoryChanged;
+    }
+
+    private void StopEditing()
+    {
+        if (_session is { } session)
+        {
+            session.HistoryChanged -= OnHistoryChanged;
+            session.CollabHistory = null;
+            session.BeforeProjectReplaced = null;
+        }
+
+        _share?.Dispose();
+        _share = null;
+        _switch.SetTarget(null);
+        Engine?.Dispose();
+        Engine = null;
+    }
+
+    private bool _applyingExternal;
+
+    private void OnHistoryChanged(object? sender, EventArgs e)
+    {
+        if (_applyingExternal || _session is not { } session || Engine is not { } engine || session.IsInGesture)
+        {
+            return;
+        }
+
+        engine.OnLocalChange(session.History.UndoDescription ?? "Cambio");
+    }
+
+    private async Task<bool> ConfirmLeaveRoomAsync()
+    {
+        if (!Room.State.InRoom || Confirm is not { } confirm)
+        {
+            return true;
+        }
+
+        bool host = Room.State.IsHost;
+        bool ok = await confirm(
+            host ? "¿Quieres cerrar la sala?" : "¿Quieres salir de la sala?",
+            host
+                ? "Si cambias de proyecto, la sala se cierra para todos. Cada persona conserva su copia del proyecto."
+                : "Si cambias de proyecto, sales de la sala. Tu copia del proyecto se queda en tu equipo.",
+            host ? "Cerrar la sala" : "Salir de la sala");
+        if (ok)
+        {
+            await Room.LeaveAsync();
+        }
+
+        return ok;
+    }
+
+    /// <summary>
+    /// Lo que la sala le pide a Rodaje sobre las cargas mientras la edición no ha empezado (el invitado aún recibe el proyecto):
+    /// lo que llega se guarda y se entrega al empezar; nada se acepta todavía.
+    /// </summary>
+    private sealed class SwitchHandler : ICollabPayloadHandler
+    {
+        private readonly Lock _lock = new();
+        private readonly List<Ordenado> _waiting = [];
+        private ICollabPayloadHandler? _target;
+
+        public void SetTarget(ICollabPayloadHandler? target)
+        {
+            List<Ordenado> replay;
+            lock (_lock)
+            {
+                _target = target;
+                replay = target is null ? [] : [.. _waiting];
+                if (target is not null)
+                {
+                    _waiting.Clear();
+                }
+            }
+
+            foreach (Ordenado o in replay)
+            {
+                target!.Apply(o);
+            }
+        }
+
+        public ValueTask<Veredicto> ValidateAsync(Miembro author, JsonElement payload, CancellationToken cancellationToken)
+        {
+            ICollabPayloadHandler? target;
+            lock (_lock)
+            {
+                target = _target;
+            }
+
+            return target?.ValidateAsync(author, payload, cancellationToken)
+                ?? ValueTask.FromResult(Veredicto.No("sin-edicion", "La sala todavía no está lista."));
+        }
+
+        public void Apply(Ordenado ordered)
+        {
+            ICollabPayloadHandler? target;
+            lock (_lock)
+            {
+                target = _target;
+                if (target is null && _waiting.Count < 4096)
+                {
+                    _waiting.Add(ordered);
+                }
+            }
+
+            target?.Apply(ordered);
+        }
+
+        public void Rejected(Rechazo rejection)
+        {
+            ICollabPayloadHandler? target;
+            lock (_lock)
+            {
+                target = _target;
+            }
+
+            target?.Rejected(rejection);
         }
     }
 
