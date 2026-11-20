@@ -292,7 +292,7 @@ internal static class ExportShareMessages
 /// para aprobar a mano y, si se acepta, lo encola en la cola de exportación normal sobre la copia confirmada del proyecto.
 /// Manda progreso y resultado por directos; el archivo queda en la carpeta de exportaciones de la sala, en este equipo.
 /// </summary>
-public sealed class ExportShareHost : IDisposable
+public sealed partial class ExportShareHost : IDisposable
 {
     private const int ProgressIntervalMs = 500;
 
