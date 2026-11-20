@@ -26,6 +26,9 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
     public bool StartupProbe { get; init; }
 
     /// <summary>La maneja una herramienta (medida, autoprueba, arranque): sin autoguardado ni preguntas al cerrar.</summary>
+    /// <summary>El enlace <c>rodaje://unirse/…</c> con el que se abrió Rodaje: abre «Unirse a una sala» con él ya pegado.</summary>
+    public string? InviteLink { get; init; }
+
     public bool IsAutomated => MeasureSeconds is not null || SelfTest || StartupProbe;
 
     public bool Visible { get; init; }
@@ -38,6 +41,7 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
     public static AppOptions Parse(string[] args)
     {
         var files = new List<string>();
+        string? invite = null;
         double? measure = null;
         string? log = null;
         bool audio = true;
@@ -86,9 +90,20 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             {
                 audio = false;
             }
+            else if (a.StartsWith("rodaje://", StringComparison.OrdinalIgnoreCase))
+            {
+                invite = a;
+            }
             else
             {
-                files.Add(Path.GetFullPath(a));
+                try
+                {
+                    files.Add(Path.GetFullPath(a));
+                }
+                catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+                {
+                    // Un argumento que no es una ruta (un enlace de otro tipo) no debe impedir que Rodaje arranque.
+                }
             }
         }
 
@@ -97,7 +112,7 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             files.Add(clip);
         }
 
-        return new AppOptions(files, measure, log, audio, uiHz) { Scenario = scenario, NoProxies = noProxies, SelfTest = selfTest, StartupProbe = startup, Visible = visible };
+        return new AppOptions(files, measure, log, audio, uiHz) { Scenario = scenario, NoProxies = noProxies, SelfTest = selfTest, StartupProbe = startup, Visible = visible, InviteLink = invite };
     }
 
     private static string? FindTestClip()

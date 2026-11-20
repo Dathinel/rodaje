@@ -68,6 +68,7 @@ internal static class MediaSearchDialog
         var cancel = new CancellationTokenSource();
         var matcher = new MediaMatch();
         bool searching = false;
+        CancellationTokenSource? current = null;
 
         void Summarize()
         {
@@ -82,15 +83,17 @@ internal static class MediaSearchDialog
         async Task SearchAsync(IReadOnlyList<string> where)
         {
             List<MediaManifestEntry> wanted = [.. known.Values.Where(e => !found.ContainsKey(e.MediaId))];
-            if (searching || wanted.Count == 0 || where.Count == 0)
+            if (wanted.Count == 0 || where.Count == 0)
             {
                 return;
             }
 
+            current?.Cancel();
+            using CancellationTokenSource mine = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token);
+            current = mine;
             searching = true;
             clock.Restart();
             progress.Visibility = Visibility.Visible;
-            choose.IsEnabled = false;
             foreach (MediaManifestEntry e in wanted)
             {
                 rows[e.MediaId].Text = "Buscando…";
@@ -102,9 +105,9 @@ internal static class MediaSearchDialog
                 var scanned = new Progress<int>(n =>
                 {
                     clock.Progressed();
-                    summary.Text = $"Paso 3 de 3: buscando tus archivos… {n} revisados. {clock.Describe()}";
+                    summary.Text = $"Paso 4 de 4: buscando tus archivos… {n} revisados. {clock.Describe()}";
                 });
-                MediaMatchReport report = await Task.Run(() => matcher.SearchAsync(wanted, where, scanned, cancel.Token));
+                MediaMatchReport report = await Task.Run(() => matcher.SearchAsync(wanted, where, scanned, mine.Token));
                 foreach ((string id, string path) in report.Found)
                 {
                     found[id] = path;
@@ -127,9 +130,12 @@ internal static class MediaSearchDialog
             }
             finally
             {
-                searching = false;
-                progress.Visibility = Visibility.Collapsed;
-                choose.IsEnabled = true;
+                if (ReferenceEquals(current, mine))
+                {
+                    current = null;
+                    searching = false;
+                    progress.Visibility = Visibility.Collapsed;
+                }
             }
         }
 

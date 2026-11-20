@@ -1092,6 +1092,15 @@ internal sealed partial class MainWindow : Window, IShellHost
         TitleBar.CaptionInset.Width = new GridLength(Math.Max(0, CaptionButtonsWidth() / scale));
         UpdateDragRegion();
         Theme.ThemeResources.FollowWindows(_dispatcher, () => _settings.Current);
+        if (_options.InviteLink is { } link)
+        {
+            // Rodaje se abrió con un enlace de invitación: «Unirse a una sala» sale con él ya pegado, cuando la ventana está lista.
+            DispatcherQueueTimer opening = _dispatcher.CreateTimer();
+            opening.Interval = TimeSpan.FromSeconds(1.5);
+            opening.IsRepeating = false;
+            opening.Tick += (_, _) => UiTask.Run(Views.Collab.JoinDialog.ShowAsync(_services, _hwnd, link));
+            opening.Start();
+        }
     }
 
     private void OnRendering(object? sender, object e) => Session.UpdateTransport(_engine.Snapshot);

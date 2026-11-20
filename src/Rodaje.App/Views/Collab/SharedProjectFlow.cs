@@ -96,7 +96,7 @@ internal static class SharedProjectFlow
         }
 
         var bar = new ProgressBar { IsIndeterminate = true, MinWidth = 440 };
-        var text = new TextBlock { Text = "Paso 1 de 3: pidiendo el proyecto a quien hospeda la sala…", TextWrapping = TextWrapping.Wrap };
+        var text = new TextBlock { Text = "Paso 2 de 4: pidiendo el proyecto a quien hospeda la sala…", TextWrapping = TextWrapping.Wrap };
         var clockText = InviteDialog.Hint("");
         var panel = new StackPanel { Spacing = 12 };
         panel.Children.Add(text);
@@ -117,7 +117,7 @@ internal static class SharedProjectFlow
                 bar.Value = f * 100;
             }
 
-            text.Text = $"Paso {p.Step} de {p.Steps}: {char.ToLowerInvariant(p.Text[0])}{p.Text[1..]}";
+            text.Text = $"Paso {p.Step + 1} de {p.Steps + 1}: {char.ToLowerInvariant(p.Text[0])}{p.Text[1..]}";
         });
         DispatcherQueueTimer ticker = DispatcherQueue.GetForCurrentThread().CreateTimer();
         ticker.Interval = TimeSpan.FromSeconds(1);

@@ -90,6 +90,8 @@ internal static class JoinDialog
         var clock = new OperationClock();
         DispatcherQueueTimer ticker = DispatcherQueue.GetForCurrentThread().CreateTimer();
         ticker.Interval = TimeSpan.FromSeconds(1);
+        string baseText = "";
+        ticker.Tick += (_, _) => status.Text = baseText + clock.Describe();
 
         var form = new StackPanel { Spacing = 12, MinWidth = 460 };
         form.Children.Add(invite);
@@ -159,10 +161,9 @@ internal static class JoinDialog
             invite.IsEnabled = name.IsEnabled = pick.IsEnabled = paste.IsEnabled = false;
             problem.Visibility = Visibility.Collapsed;
             clock.Restart();
-            string baseText = "Paso 1 de 3: conectando con la sala y esperando a que quien te invitó te deje entrar (puede tardar hasta 10 minutos). ";
+            baseText = "Paso 1 de 4: conectando con la sala y esperando a que quien te invitó te deje entrar (puede tardar hasta 10 minutos). ";
             status.Text = baseText + clock.Describe();
             status.Visibility = progress.Visibility = Visibility.Visible;
-            ticker.Tick += (_, _) => status.Text = baseText + clock.Describe();
             ticker.Start();
             UiTask.Run(async () =>
             {
@@ -179,9 +180,9 @@ internal static class JoinDialog
                 {
                     // La persona cerró el diálogo mientras esperaba: no hay nada que decirle.
                 }
-                catch (CollabException ex)
+                catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
-                    problem.Text = ex.Message;
+                    problem.Text = ex is CollabException ? ex.Message : CollabMessages.ForUnexpected();
                     problem.Visibility = Visibility.Visible;
                     busy = false;
                     invite.IsEnabled = name.IsEnabled = pick.IsEnabled = paste.IsEnabled = true;
