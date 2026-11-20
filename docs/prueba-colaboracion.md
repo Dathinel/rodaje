@@ -37,7 +37,7 @@ La primera vez que alguien hospeda una sala o se une a una, Windows puede mostra
 | Paso | Qué hacer | Qué debería pasar y qué anotar |
 |---|---|---|
 | 1. Hospedar el proyecto | Daniel abre el proyecto guardado y entra en **Archivo › Colaborar › Hospedar este proyecto**. Elige caducidad de 1 hora y marca «de un solo uso». Copia el enlace `rodaje://unirse/...` (o enseña el código QR en pantalla) y se lo manda por mensaje a la otra persona. | Rodaje genera el enlace y queda esperando la conexión. Anotar la hora exacta y si el enlace se generó de inmediato. |
-| 2. Unirse a la sala | El invitado abre el enlace recibido (o entra en **Archivo › Colaborar › Unirse...** y pega el enlace). Elige una carpeta en su disco para guardar su copia del proyecto. | La pantalla del invitado muestra una **huella de cuatro palabras** del anfitrión y un mensaje indicando que espera la aprobación. |
+| 2. Unirse a la sala | El invitado abre el enlace recibido (o entra en **Archivo › Colaborar › Unirse...** y pega el enlace). Elige una carpeta en su disco para guardar su copia del proyecto. Mientras espera, ve sus **propias cuatro palabras** (las que verá Daniel en su aviso). | La pantalla del invitado muestra sus cuatro palabras y un mensaje indicando que espera la aprobación (el progreso dice en qué va: buscando, conectando, esperando que Daniel apruebe). Si tarda más de un minuto sin cambiar, anotar la hora y el último mensaje. |
 | 3. Comprobación por voz | Daniel y el invitado se leen mutuamente en voz alta las **cuatro palabras** que cada uno ve en su pantalla para confirmar que coinciden exactamente. | Las palabras deben ser exactamente iguales en ambas pantallas. Esta comprobación asegura que están conectándose entre sí y no con otra persona. Si no coinciden, se detiene la prueba y se anota. |
 | 4. Aceptar la entrada | Daniel ve en su pantalla el aviso «[nombre] quiere entrar» junto a las cuatro palabras confirmadas. Elige la opción **Editar** para conceder permiso de edición. (Más adelante se puede repetir con **Solo mirar**). | El invitado entra al proyecto, se le carga la línea de tiempo y en la barra superior aparecen los nombres y colores asignados a cada uno. |
 | 5. Revisar el panel de conexión | Ambos abren el panel de conexión en **Archivo › Colaborar › Estado de la conexión** `[confirmar con la pantalla]`. | Debe indicar si el camino es **directo o por servidor intermediario** (relé), la **latencia** (ida y vuelta, en ms), la **pérdida** de paquetes (%) y la **versión** de cada uno. Anotar los tres números en cada comprobación. |
@@ -98,6 +98,8 @@ Cómo interpretar esta información:
 2. Ida y vuelta (latencia): menos de 100 ms es excelente; entre 100 y 250 ms es adecuado para editar con fluidez; más de 250 ms produce un retraso perceptible al ver las ediciones del otro.
 3. Pérdida: menos de 1 % es una conexión limpia; más de 5 % indica una conexión inestable con posibles tirones.
 4. Versiones: si no coinciden, la persona con la versión más antigua debe actualizar Rodaje para poder continuar.
+
+Qué esperar de esta prueba en concreto: el servidor intermediario público (el de n0) está en Estados Unidos y Europa, no en Sudamérica. Medido desde Colombia, una edición tarda unos 190 ms en confirmarse (a veces más de 300 ms) y entrar a la sala unos 1,2 s. Entre dos países puede ser algo más. Es normal y no es un fallo: el cambio se ve al instante en tu pantalla y los 190 ms son hasta que el anfitrión lo confirma. Anota las cifras que veas.
 
 ## 9. Problemas conocidos y qué hacer
 
