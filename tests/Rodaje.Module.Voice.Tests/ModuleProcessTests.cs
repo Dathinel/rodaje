@@ -62,6 +62,7 @@ public sealed class ModuleProcessTests(ITestOutputHelper output)
     }
 
     [ModelFact]
+    [Trait("Categoria", "TiempoReal")]
     public async Task Cancelling_a_long_text_is_confirmed_quickly_and_the_module_keeps_working()
     {
         await using ModuleProcess module = await ModuleProcess.StartAsync(Exe);
