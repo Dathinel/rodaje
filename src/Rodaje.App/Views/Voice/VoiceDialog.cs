@@ -165,7 +165,7 @@ internal static class VoiceDialog
             try
             {
                 Task<SynthesizedVoice> call;
-                using (services.Modules?.Jobs.CaptureNext(Adopt))
+                using (ModuleJobList.CaptureNext(Adopt))
                 {
                     call = synth.SynthesizeAsync(wanted, "Texto a voz", work.Token);
                 }
@@ -320,7 +320,7 @@ internal static class VoiceDialog
             try
             {
                 Task<VoiceCatalog> call;
-                using (services.Modules?.Jobs.CaptureNext(Adopt))
+                using (ModuleJobList.CaptureNext(Adopt))
                 {
                     call = synth.GetVoicesAsync(work.Token);
                 }

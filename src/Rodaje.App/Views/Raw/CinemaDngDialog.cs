@@ -123,7 +123,7 @@ internal static class CinemaDngDialog
         {
             Task<CinemaDngResult> run;
             // La barra de avisos dibuja el avance del trabajo de módulo (revelado por lotes, tiempo restante, último avance).
-            using (services.Modules.Jobs.CaptureNext(job => scope.Follow(job.Operation)))
+            using (ModuleJobList.CaptureNext(job => scope.Follow(job.Operation)))
             {
                 run = CinemaDngImport.RunAsync(services.Modules, module, ffmpeg, sequence, options,
                     saveIn.Folder, $"CinemaDNG «{sequence.Name}»", () => gpu, scope.Token);

@@ -233,14 +233,14 @@ public sealed class ModuleJobList(SynchronizationContext? context)
     /// llegar al avance del trabajo de módulo que lanza (<c>ModuleManager.RunAsync</c> lo añade antes de su primer
     /// <c>await</c>): <c>using (jobs.CaptureNext(j => job = j)) { task = servicio.HacerAsync(…); }</c>.
     /// </summary>
-    public IDisposable CaptureNext(Action<ModuleJob> onJob)
+    public static IDisposable CaptureNext(Action<ModuleJob> onJob)
     {
         ArgumentNullException.ThrowIfNull(onJob);
         t_capture = onJob;
         return new Release();
     }
 
-    private sealed class Release : IDisposable
+    private sealed partial class Release : IDisposable
     {
         public void Dispose() => t_capture = null;
     }

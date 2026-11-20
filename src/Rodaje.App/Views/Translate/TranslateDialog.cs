@@ -130,7 +130,7 @@ internal static class TranslateDialog
                 status.Text = Fmt($"Traduciendo {texts.Count} textos al {to.Name.ToLower(CultureInfo.CurrentCulture)}… (sigue en Trabajos si cierras)");
                 Task<TrackTranslation> call;
                 // El avance del trabajo de módulo (etapa, porcentaje, tiempo restante) va al diálogo y a la barra de avisos.
-                using (modules.Jobs.CaptureNext(j =>
+                using (ModuleJobList.CaptureNext(j =>
                 {
                     busy.Operation = j.Operation;
                     scope?.Follow(j.Operation);

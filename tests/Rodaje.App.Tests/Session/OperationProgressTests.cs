@@ -271,7 +271,7 @@ public class OperationProgressTests
         var list = new ModuleJobList(null);
         var captured = new List<ModuleJob>();
         ModuleJob first;
-        using (list.CaptureNext(captured.Add))
+        using (ModuleJobList.CaptureNext(captured.Add))
         {
             first = list.Add("Uno", "M");
             list.Add("Dos", "M");
@@ -280,7 +280,7 @@ public class OperationProgressTests
         list.Add("Tres", "M");
         Assert.Same(first, Assert.Single(captured));
 
-        using (list.CaptureNext(captured.Add))
+        using (ModuleJobList.CaptureNext(captured.Add))
         {
         }
 

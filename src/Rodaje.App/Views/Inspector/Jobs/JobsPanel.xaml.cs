@@ -78,7 +78,7 @@ internal sealed partial class JobsPanel : UserControl, IEditorView
 
     private void OnContainerContentChanging(ListViewBase sender, ContainerContentChangingEventArgs args)
     {
-        if (args.ItemContainer.ContentTemplateRoot is not FrameworkElement root || root.FindName("ProgressSlot") is not Border slot)
+        if (!ReferenceEquals(sender, List) || args.ItemContainer.ContentTemplateRoot is not FrameworkElement root || root.FindName("ProgressSlot") is not Border slot)
         {
             return;
         }
