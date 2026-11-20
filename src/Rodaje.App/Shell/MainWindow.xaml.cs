@@ -169,6 +169,10 @@ internal sealed partial class MainWindow : Window, IShellHost
             AutoProxies = CreateAutoProxies(session),
             WatchedFolders = new WatchedFolderInbox(session, () => settings.Current),
             RenderCache = _renderCache,
+            Collab = new Services.Collab.CollabHost(Services.AppDataPaths.Root, post => _dispatcher.RunLater(post))
+            {
+                Confirm = (title, message, confirm) => dialogs.ConfirmAsync(title, message, confirm),
+            },
         };
         engine.SetContent(content);
         IReadOnlyList<string> fonts = TitleFontFiles.Find(packages.Installed);
@@ -218,11 +222,13 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(Views.Vision.VisionCommands.Bind(_router, _services));
         _keyboard = new KeyboardShortcutHost(Root, _router, InterceptKey);
 
+        _services.Collab?.BindSession(session);
         TitleBar.Attach(_services);
         TitleBar.InspectorTabRequested += (_, tab) => Inspector.Show(tab);
         TitleBar.MarkersPanelRequested += (_, _) => Library.ShowMarkers();
         TitleBar.TranscriptPanelRequested += (_, _) => Library.ShowTranscript();
         TitleBar.ExitRequested += (_, _) => RequestClose();
+        TitleBar.CollabJoinRequested += (_, _) => Services.Crashes.UiTask.Run(Views.Collab.JoinDialog.ShowAsync(_services, _hwnd));
         TitleBar.RecentProjectMissing += (_, path) =>
         {
             settings.Current.RecentProjects.RemoveAll(p => string.Equals(p, path, StringComparison.OrdinalIgnoreCase));
@@ -1101,6 +1107,15 @@ internal sealed partial class MainWindow : Window, IShellHost
         TitleBar.CaptionInset.Width = new GridLength(Math.Max(0, CaptionButtonsWidth() / scale));
         UpdateDragRegion();
         Theme.ThemeResources.FollowWindows(_dispatcher, () => _settings.Current);
+        if (_options.InviteLink is { } link)
+        {
+            // Rodaje se abrió con un enlace de invitación: «Unirse a una sala» sale con él ya pegado, cuando la ventana está lista.
+            DispatcherQueueTimer opening = _dispatcher.CreateTimer();
+            opening.Interval = TimeSpan.FromSeconds(1.5);
+            opening.IsRepeating = false;
+            opening.Tick += (_, _) => UiTask.Run(Views.Collab.JoinDialog.ShowAsync(_services, _hwnd, link));
+            opening.Start();
+        }
     }
 
     private void OnRendering(object? sender, object e) => Session.UpdateTransport(_engine.Snapshot);
@@ -1207,8 +1222,16 @@ internal sealed partial class MainWindow : Window, IShellHost
             // Con el proyecto guardado, cerrar con una exportación, un módulo de IA o una acción larga en curso los mataría sin avisar.
             if (await Session.ConfirmDiscardChangesAsync()
                 && (ClosingNotice.Describe(JobsPanel.ActiveCount + _longActions.Running.Count) is not { } busy
-                    || await _dialogs.ConfirmAsync(ClosingNotice.Title, busy, ClosingNotice.Confirm)))
+                    || await _dialogs.ConfirmAsync(ClosingNotice.Title, busy, ClosingNotice.Confirm))
+                && (Services.Collab.CollabClosing.Describe(_services.Collab?.Room.State) is not { } room
+                    || await _dialogs.ConfirmAsync(Services.Collab.CollabClosing.Title, room.Text, room.Confirm)))
             {
+                // Salir de la sala antes de cerrar: los demás ven que se fue y no una caída de la conexión.
+                if (_services.Collab is { } collab)
+                {
+                    await collab.Room.LeaveAsync();
+                }
+
                 _allowClose = true;
                 Close();
             }
@@ -1234,6 +1257,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         _closed = true;
         _notificationTimer.Stop();
+        _services.Collab?.Dispose();
         _revealTimer.Stop();
         StartupSplash.Close();
         CompositionTarget.Rendering -= OnRendering;

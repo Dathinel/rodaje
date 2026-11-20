@@ -15,6 +15,26 @@ Con el exe publicado desde `main` (`Rodaje.bat`). Cada punto remite al apartado 
 7. **CinemaDNG en HDR sin recortar**, pasos 1 a 3 (necesita un DNG).
 8. **Preferencias:** abre Preferencias › Rendimiento y guarda sin cambiar nada: el cálculo en caché en marcha no se pierde. El «Mapeo de rutas» acepta una fila «origen | destino».
 9. **Exportar:** un MP4 H.264 corto, con y sin «Usar el render en caché».
+10. **Colaboración** (apartado de abajo; necesita otra persona o un segundo equipo): invitar, entrar, editar a la vez y salir.
+
+## Colaboración (sala con anfitrión)
+
+Hacen falta **dos equipos** (o un equipo y alguien en otro lugar): quien hospeda y quien entra, con **la misma versión de Rodaje** y `dathinel-red.exe` junto a `Rodaje.exe` (en `modulos\red\`). Por internet entra por los relés públicos de n0; en la misma red, directo. Lo que sigue lo hace quien hospeda (A) y quien entra (B), siguiendo solo lo que dice la pantalla: **no hay que leer nada más**.
+
+1. **A guarda un proyecto con 2 o 3 videos** y abre **Colaborar › Invitar a otras personas…**: sale su nombre ya puesto, «Puede editar», «24 horas» y «Solo sirve para una persona». **Crear invitación**: sale el texto, **Copiar invitación** lo copia y dice que ya se puede pegar.
+2. **B pega la invitación** en **Colaborar › Unirse a una sala…** (con espacios o saltos de línea de más: da igual), escribe su nombre y pulsa **Unirme**. Mientras espera, el diálogo lo dice y se puede cancelar sin dejar nada a medias.
+3. **A recibe la tarjeta «B quiere entrar»** con las cuatro palabras de comprobación y los botones **Dejar entrar para editar / solo para mirar / Rechazar**. Rechaza una vez (B ve «Quien hospeda la sala no te dejó entrar…»), vuelve a invitar y esta vez deja entrar para editar. La invitación de un solo uso ya no sirve una segunda vez (B lo ve con qué hacer).
+4. **B recibe el proyecto** (progreso) y llega a «Busca tus archivos»: con los videos en su equipo salen «Encontrado» (aunque estén en otra carpeta o con otro nombre); sin ellos, «No está en tu equipo» y los clips quedan sin conexión con su aviso. Continúa.
+5. **Los dos editan a la vez** (cortar, mover, añadir un marcador, cambiar un efecto): lo de uno aparece en el otro en menos de un segundo; el cabezal de cada uno se ve en el del otro con su nombre y color; la pista de B muestra «B edita aquí» en la cabecera de A y la selección de B sale con su contorno.
+6. **Los dos tocan la misma pista a la vez:** uno de los dos ve «Un cambio tuyo no se pudo aplicar: B tiene esa pista ahora…» y su cambio se deshace; el otro sigue. Nadie queda con un proyecto distinto (Colaborar › Panel de la sala sigue mostrando a los dos).
+7. **Deshacer** (Ctrl+Z) en B solo deshace lo de B, y llega a A. Si A tocó antes lo mismo, B ve «No se puede deshacer: otra persona cambió ese elemento».
+8. **A pone a B en «Solo puede mirar»** (panel › … › Cambiar a solo mirar): B ve «Ahora solo puedes mirar» y, si intenta editar, «Solo puedes mirar en esta sala…» y nada cambia.
+9. **Corta la conexión de B** (desenchufa el cable o apaga el Wi-Fi 30 s): B ve «Sin conexión con quien hospeda la sala… Rodaje reintenta solo»; al volver, se restablece y sigue igual que A.
+10. **A expulsa a B** (panel › … › Expulsar): B ve «La sala terminó» con el motivo y su copia sigue en su equipo. Prueba también que **A cierra Rodaje** (B lo ve) y que **abrir otro proyecto** dentro de una sala pregunta antes «¿Quieres salir/cerrar la sala?».
+11. **Versión distinta:** con otra versión de Rodaje, B no entra y el mensaje dice cuál le falta.
+12. **Panel de la sala:** quién está y quién no (A ve a quien se fue como «Desconectado»), últimos avisos, y salir o cerrar la sala con su confirmación.
+
+Lo que queda para una vuelta posterior: el diagnóstico de conexión («directa o por relé», latencia) y «Copiar diagnóstico» en el panel (entra con B13), los proxies de los medios que B no tiene (B14) y el cambio de anfitrión (B15).
 
 ## Editar por el texto
 
