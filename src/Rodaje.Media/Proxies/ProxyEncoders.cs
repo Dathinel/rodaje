@@ -106,7 +106,20 @@ public static class ProxyEncoders
         args.AddRange([
             "-copyts", "-i", input.SourcePath,
             "-map", "0:" + input.StreamIndex.ToString(CultureInfo.InvariantCulture),
-            "-an", "-sn", "-dn", "-map_metadata", "-1", "-map_chapters", "-1",
+        ]);
+        if (settings.AudioBitrateKbps is { } kbps)
+        {
+            // El primer flujo de audio si lo hay («?» no falla sin él): el proxy de la sala es el único archivo que
+            // tiene el invitado, así que su audio va a AAC estéreo.
+            args.AddRange(["-map", "0:a:0?", "-c:a", "aac", "-b:a", Kbps(kbps), "-ac", "2"]);
+        }
+        else
+        {
+            args.Add("-an");
+        }
+
+        args.AddRange([
+            "-sn", "-dn", "-map_metadata", "-1", "-map_chapters", "-1",
             "-fps_mode", "passthrough", "-enc_time_base:v", "demux",
             "-vf", string.Create(CultureInfo.InvariantCulture, $"scale={width}:{height}:flags=bicubic,setsar=1"),
             "-c:v", encoder,

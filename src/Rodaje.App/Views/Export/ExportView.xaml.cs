@@ -5,6 +5,7 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Collab;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
@@ -128,8 +129,12 @@ internal sealed partial class ExportView : UserControl
         FooterNote.Text = "Comprobando los codificadores de este equipo…";
         IReadOnlyList<EncoderSpec> encoders = await _jobs.Runner.GetEncodersAsync();
         string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
+        IReadOnlyList<string> proxyOnly = [.. session.Project.Media
+            .Where(m => m.Path.Length > 0 && RoomProxies.IsRoomProxyPath(m.ResolvePath(projectFolder ?? Directory.GetCurrentDirectory())))
+            .Select(m => m.Name is { Length: > 0 } name ? name : Path.GetFileNameWithoutExtension(m.Path))];
         _model = new ExportDialogModel(_services.Settings.Current.Export, session.Sequence, session.SelectedClipIds, encoders, session.ProjectName,
-            projectFolder, new SequenceMarks(session.SequenceIn, session.SequenceOut)) { PendingOutputs = [.. _jobs.Entries.Where(e => !e.IsFinished).Select(e => e.OutputPath)] };
+            projectFolder, new SequenceMarks(session.SequenceIn, session.SequenceOut), proxyOnly)
+        { PendingOutputs = [.. _jobs.Entries.Where(e => !e.IsFinished).Select(e => e.OutputPath)] };
         _model.Changed += (_, _) => QueueRefresh();
         ShowAdvanced(_services.Settings.Current.Export.AdvancedOpen);
         Refresh();

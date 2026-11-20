@@ -4,7 +4,7 @@ Nada de esto está hecho: publicar es irreversible y lo decide Daniel. Orden de 
 
 ## Antes (sin clave)
 
-1. `main` con la CI verde en los tres sistemas y sin PR de la versión pendientes (el #461 sigue siendo «NO UNIR»; no se publica nada desde él).
+1. `main` con la CI verde en los tres sistemas y sin PR de la versión pendientes (el #461 sigue siendo «NO UNIR»; no se publica nada desde él). El submódulo externo `externo/sala` (repositorio `Dathinel/sala`) debe estar inicializado y al día (`git clone --recurse-submodules` o `git submodule update --init externo/sala`).
 2. El PR «Rodaje 1.0.4» unido: sube `Version` en `Directory.Build.props` (1.0.3 → 1.0.4), cambia «Sin publicar» por «1.0.4 - AAAA-MM-DD» en `CHANGELOG.md` y deja `README.md`, `build/instalador/notas-version.md` y `docs/guia/instalar.md` con la 1.0.4.
 3. `docs/pendientes-legales.md`: nada que bloquee (la 1.0.3 lo revisó; repasar solo lo que añadió Linux/macOS: FFmpeg de Unix ya está en su release y no entra en esta versión).
 4. Repaso con ratón de `docs/pruebas-a-mano.md` hecho y sus hallazgos graves arreglados o anotados como conocidos en las notas.

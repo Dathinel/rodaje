@@ -118,11 +118,27 @@ public sealed class ProxyGenerator : IDisposable
         CancellationToken cancellationToken = default)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(sourcePath);
-        settings ??= ProxySettings.Default;
-        settings.Validate();
         string source = Path.GetFullPath(sourcePath);
         progress?.Report(new ProxyProgress(source, ProxyJobPhase.Queued, 0, 0, 0, 0, null));
         SourceFingerprint fingerprint = await Task.Run(() => SourceFingerprint.Compute(source), cancellationToken).ConfigureAwait(false);
+        return await GenerateAsync(fingerprint, settings, progress, cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Como <see cref="GenerateAsync(string, ProxySettings?, IProgress{ProxyProgress}?, CancellationToken)"/>, pero con
+    /// la huella ya calculada: el almacén la indexa por <see cref="SourceFingerprint.Key"/>, que puede ser otra clave del
+    /// contenido (el proxy de la sala usa el SHA-256 entero del archivo).
+    /// </summary>
+    public async Task<ProxyEntry> GenerateAsync(
+        SourceFingerprint fingerprint,
+        ProxySettings? settings = null,
+        IProgress<ProxyProgress>? progress = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(fingerprint);
+        settings ??= ProxySettings.Default;
+        settings.Validate();
+        string source = Path.GetFullPath(fingerprint.Path);
         string key = $"{fingerprint.Key}-{settings.Tag}";
         var listener = new Listener(source, progress);
         SharedJob? job;

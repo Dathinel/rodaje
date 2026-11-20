@@ -10,6 +10,9 @@ public sealed record ProxySettings
 
     public static ProxySettings Default { get; } = new();
 
+    /// <summary>El proxy de la sala: lleva audio AAC estéreo, porque el invitado no tiene el original de donde sacarlo.</summary>
+    public static ProxySettings Room { get; } = new() { AudioBitrateKbps = 128 };
+
     /// <summary>Alto del proxy en píxeles (540 o 720); un origen más bajo conserva su alto.</summary>
     public int TargetHeight { get; init; } = 540;
 
@@ -19,8 +22,15 @@ public sealed record ProxySettings
     /// <summary>Tasa de bits para 30 fps; se escala con la tasa del origen.</summary>
     public int BitrateKbpsAt30Fps => TargetHeight <= 540 ? 3_000 : 5_000;
 
+    /// <summary>
+    /// Tasa del audio AAC estéreo en kb/s, o <c>null</c> sin audio (el proxy de la vista previa: el audio sale del
+    /// original). El proxy de la sala la fija: es el único archivo de medios que tiene el invitado.
+    /// </summary>
+    public int? AudioBitrateKbps { get; init; }
+
     /// <summary>Identificador corto de los ajustes, parte del nombre de archivo del proxy.</summary>
-    public string Tag => string.Create(CultureInfo.InvariantCulture, $"h{TargetHeight}-g{GopLength}-v{FormatVersion}");
+    public string Tag => string.Create(CultureInfo.InvariantCulture,
+        $"h{TargetHeight}-g{GopLength}{(AudioBitrateKbps is { } kbps ? $"-a{kbps}" : "")}-v{FormatVersion}");
 
     public void Validate()
     {
@@ -32,6 +42,12 @@ public sealed record ProxySettings
         if (GopLength is < 1 or > 120)
         {
             throw new ArgumentOutOfRangeException(nameof(GopLength), $"El GOP del proxy debe estar entre 1 y 120; se recibió {GopLength}.");
+        }
+
+        if (AudioBitrateKbps is not (null or >= 64 and <= 512))
+        {
+            throw new ArgumentOutOfRangeException(nameof(AudioBitrateKbps),
+                $"La tasa del audio del proxy debe estar entre 64 y 512 kb/s o ser nula; se recibió {AudioBitrateKbps}.");
         }
     }
 
