@@ -90,6 +90,18 @@
               "string",
               "null"
             ]
+          },
+          "contentKey": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "contentHash": {
+            "type": [
+              "string",
+              "null"
+            ]
           }
         }
       }

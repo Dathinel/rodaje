@@ -126,6 +126,33 @@ public sealed class Sequence
     [JsonIgnore]
     public Time Duration => AllTracks.SelectMany(t => t.Clips).Select(c => c.End).DefaultIfEmpty(Time.Zero).Max();
 
+    /// <summary>Una copia con la cabecera (formato, mezcla maestra, buses) y sin pistas, marcadores ni regiones; comparte efectos y buses: es para serializar, no para editar.</summary>
+    internal Sequence WithoutContents()
+    {
+        Sequence copy = (Sequence)MemberwiseClone();
+        copy.VideoTracks = [];
+        copy.AudioTracks = [];
+        copy.Markers = [];
+        copy.Regions = [];
+        return copy;
+    }
+
+    /// <summary>Copia la cabecera de <paramref name="other"/> (todo menos pistas, marcadores y regiones).</summary>
+    internal void CopyHeaderFrom(Sequence other)
+    {
+        Id = other.Id;
+        Name = other.Name;
+        FrameRate = other.FrameRate;
+        Width = other.Width;
+        Height = other.Height;
+        SampleRate = other.SampleRate;
+        ColorSpace = other.ColorSpace;
+        StartTimecode = other.StartTimecode;
+        MasterGainDb = other.MasterGainDb;
+        MasterEffects = other.MasterEffects.ConvertAll(e => e.Clone());
+        AudioBuses = other.AudioBuses.ConvertAll(b => b.Clone());
+    }
+
     public Sequence Clone()
     {
         Sequence copy = (Sequence)MemberwiseClone();
