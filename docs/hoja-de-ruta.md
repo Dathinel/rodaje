@@ -93,6 +93,12 @@ Rodaje usa `Dathinel/sala`, que ya trae lo central (red, roles, reservas, traspa
 
 La versión de cada una la decide Daniel al cerrar B9 (propuesta: 1.0.5 con B10 a B12, el resto después).
 
+## Ideas guardadas para la 1.0.5 (Daniel, 20-nov)
+Detalle y respuesta sobre la IA local en `propuestas/editor-automatico-vertical.md`. Sin plan aprobado todavía: antes de escribir código va el plan por fases con el stack comparado.
+- **Editor automático para video vertical** (TikTok, Instagram y similares), aparte de las opciones normales, con recetas (vlog, contar una historia, tutorial, informativo…), niveles de edición de baja a alta, reglas de retención y ganchos, y categorías y tendencias como complementos. Recomendado: nivel 1 y 2 con reglas y los módulos actuales en la 1.0.5; nivel 3 con un modelo local pequeño y los paquetes de tendencias en la 1.1.
+- **Interfaz más clara para quien llega nuevo** (a Daniel le gusta como está): tutorial por tareas con un proyecto de ejemplo guiado, modo sencillo opcional, panel «qué hago ahora» y una pasada de nombres probada con usuarios nuevos.
+- Bucle de texto por letra o por palabra (hoy el bucle mueve el bloque entero).
+
 ## Aparcado
 - **Linux, fases 9 y 10** (GPU de punta a punta, AppImage): necesitan la prueba de Daniel con el USB y la tarjeta NVIDIA. Fallos de Uno ya conocidos: tiempo del transporte en 0:00, `LineGeometry`, tamaño de ventana.
 - **Mac, fase 11:** exige registro de Apple (Daniel, 17-nov).
