@@ -79,6 +79,20 @@ public static class ProjectSchema
                 : new JsonObject { ["anyOf"] = new JsonArray(rational, new JsonObject { ["type"] = "null" }) };
         }
 
+        if (type == typeof(StyleLoop) && schema["$ref"] is null)
+        {
+            schema = new JsonObject
+            {
+                ["type"] = new JsonArray("object", "null"),
+                ["properties"] = new JsonObject
+                {
+                    ["kind"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray("wobble", "shake", "pulse", "float") },
+                    ["amount"] = new JsonObject { ["type"] = "number", ["minimum"] = StyleLoop.MinAmount, ["maximum"] = StyleLoop.MaxAmount },
+                    ["speed"] = new JsonObject { ["type"] = "number", ["minimum"] = StyleLoop.MinSpeed, ["maximum"] = StyleLoop.MaxSpeed },
+                },
+            };
+        }
+
         if (context.Path.IsEmpty && type == typeof(Project))
         {
             var root = new JsonObject
