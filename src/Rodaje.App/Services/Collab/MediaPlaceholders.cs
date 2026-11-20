@@ -26,4 +26,21 @@ public static class MediaPlaceholders
         string safe = new([.. media.Id.Where(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_').Take(48)]);
         return MediaFolder + Path.DirectorySeparatorChar + (safe.Length > 0 ? safe : "m" + index);
     }
+
+    /// <summary>Si la ruta del medio es el marcador de la sala (<c>medios\…</c>): no hay archivo detrás en este equipo.</summary>
+    public static bool IsPlaceholder(string? path) =>
+        path is { Length: > 0 } p
+        && (p.StartsWith(MediaFolder + Path.DirectorySeparatorChar, StringComparison.Ordinal)
+            || p.StartsWith(MediaFolder + '/', StringComparison.Ordinal));
+
+    /// <summary>
+    /// Si al proyecto le faltan originales en este equipo: un medio sin ruta, con el marcador de la sala o apuntando a un
+    /// archivo que ya no está. Con ellos «Exportar» no se ofrece a un invitado: para eso está «Exportar en el anfitrión».
+    /// </summary>
+    public static bool MissingOriginals(Project project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        return project.Media.Any(m => m.Path.Length == 0 || IsPlaceholder(m.Path)
+            || (Path.IsPathFullyQualified(m.Path) && !File.Exists(m.Path)));
+    }
 }
