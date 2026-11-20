@@ -237,6 +237,22 @@ jobs:
         shell: pwsh
         run: powershell -NoProfile -ExecutionPolicy Bypass -File build\shaders.ps1 comprobar
 
+      # dathinel-red (Rust, de Sala) para las pruebas de la sala de colaboración: Rodaje.App.Tests lo busca en
+      # externo/sala/red/target/debug. Sin él esas pruebas se omiten, así que aquí se compila siempre.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            externo/sala/red/target
+          key: cargo-windows-${{ hashFiles('externo/sala/red/Cargo.lock', 'externo/sala/rust-toolchain.toml') }}
+
+      - name: dathinel-red (pruebas de colaboración)
+        shell: pwsh
+        working-directory: externo/sala/red
+        run: |
+          cargo build --locked
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Publicar AOT para la autoprueba
         shell: pwsh
         run: |
