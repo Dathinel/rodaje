@@ -174,6 +174,20 @@ public sealed class MediaRelinkService
         return missing;
     }
 
+    /// <summary>
+    /// El aviso «Faltan medios» de la barra, con la acción que abre el diálogo. Caduca cuando ninguno de esos medios
+    /// sigue en el proyecto —al deshacer la importación que los trajo o al abrir otro— y se repone si reaparecen, al
+    /// rehacer.
+    /// </summary>
+    public static void NotifyMissing(EditorSession session, IReadOnlyList<MediaRef> missing, NotificationAction action)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ArgumentNullException.ThrowIfNull(missing);
+        ArgumentNullException.ThrowIfNull(action);
+        session.Notify(NotificationSeverity.Warning, missing.Count == 1 ? "Falta un medio" : "Faltan medios", Describe(missing),
+            action, isStale: () => missing.All(m => session.Project.FindMedia(m.Id) is null));
+    }
+
     /// <summary>Texto corto de lo que falta, para el aviso cuando no se puede abrir el diálogo o se cierra sin terminar.</summary>
     public static string Describe(IReadOnlyList<MediaRef> missing)
     {

@@ -4,6 +4,7 @@
 using System.Diagnostics;
 using System.Text;
 using System.Text.Json;
+using Rodaje.Core.Collab;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Effects;
@@ -371,6 +372,25 @@ try
     }
 
     Avance($"Esquema JSON exportado: {schema.Length} caracteres, JSON válido.");
+
+    // Colaboración (D-067): copia inicial, un parche de ida y vuelta, aplicación y rechazo de JSON hostil, todo sin reflexión.
+    {
+        ProjectParseResult initial = ProjectWire.TryParse(ProjectWire.ToJson(project));
+        Exigir(initial.IsValid && SharedState.Capture(initial.Project!).Hash == SharedState.Capture(project).Hash,
+            $"la copia inicial de la sala llega igual (dio: {initial.Rejection?.Message})");
+
+        Project edited = initial.Project!.Clone();
+        edited.Sequences[0].Markers.Add(new Marker { Id = "marcador-aot", Name = "ñandú 😀" });
+        Patch? patch = PatchDiff.Create(SharedState.Capture(initial.Project), SharedState.Capture(edited), initial.Versions!,
+            new PatchHeader("aot-1", 0, "k:aot", "Marcador"));
+        Exigir(patch is not null && patch.Ops.Count == 1, "el parche de un marcador tiene un solo cambio");
+        PatchParseResult arrived = PatchWire.TryParse(PatchWire.ToJson(patch!));
+        Exigir(arrived.IsValid, "el parche pasa el saneador");
+        Exigir(PatchApply.TryApply(initial.Project, initial.Versions!, arrived.Patch!).IsAccepted
+            && SharedState.Capture(initial.Project).Hash == SharedState.Capture(edited).Hash, "aplicar el parche deja la réplica igual");
+        Exigir(!PatchWire.TryParse("{\"id\":\"x\",\"base\":0,\"author\":\"a\",\"desc\":\"d\",\"ops\":[],\"extra\":1}").IsValid, "un campo desconocido se rechaza");
+        Avance("Colaboración: copia inicial, parche de ida y vuelta, aplicación y JSON hostil rechazado.");
+    }
 
     Exigir(opacity.Evaluate(S(1)) == 0, "antes del primer keyframe vale el primero");
     Exigir(Math.Abs(opacity.Evaluate(S(2.5)) - 0.5) < 1e-12, "a mitad de una rampa lineal vale la mitad");
