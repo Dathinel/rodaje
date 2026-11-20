@@ -210,7 +210,7 @@ Ninguna entra en el producto todavía: `LICENCIAS.md` y `THIRD-PARTY-NOTICES.txt
    sudo ubuntu-drivers install && sudo reboot          # driver propietario de NVIDIA
    sudo apt-get install -y git curl xz-utils clang zlib1g-dev libvulkan1 vulkan-tools
    vulkaninfo | grep VK_KHR_video_decode               # deben salir _h264 y _h265; si no, el driver no sirve y se anota
-   curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.401 --install-dir "$HOME/dotnet"
+   curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --version 10.0.403 --install-dir "$HOME/dotnet"
    export DOTNET_ROOT="$HOME/dotnet" PATH="$HOME/dotnet:$PATH"
    mkdir -p "$HOME/ffmpeg" && curl -sSL https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n9.0-latest-linux64-lgpl-shared-9.0.tar.xz | tar -xJ -C "$HOME/ffmpeg" --strip-components=1
    git clone https://github.com/Dathinel/rodaje && cd rodaje/experimentos/linux-fase0/vulkan-video

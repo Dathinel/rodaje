@@ -49,7 +49,7 @@ Componentes incluidos:
 ===============================================================================
 1. .NET Runtime y compilador Native AOT, serie 10.0
    (paquetes Microsoft.NETCore.App.Runtime.win-x64 y
-   Microsoft.DotNet.ILCompiler 10.0.12, compilados con el SDK 10.0.401)
+   Microsoft.DotNet.ILCompiler 10.0.14, compilados con el SDK 10.0.403)
    https://github.com/dotnet/runtime
    Licencia: MIT
 ===============================================================================

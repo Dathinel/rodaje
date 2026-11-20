@@ -41,9 +41,9 @@
       },
       "Microsoft.NET.ILLink.Tasks": {
         "type": "Direct",
-        "requested": "[10.0.12, )",
-        "resolved": "10.0.12",
-        "contentHash": "xi+BDjFpW+Sb+MHFHaH6Y/gV9I8BluFwRXc1QyCdoZbIK26eNiBeFuMTe/FMwc33G1wdHCyDg7CVTmb8OdQrMQ=="
+        "requested": "[10.0.14, )",
+        "resolved": "10.0.14",
+        "contentHash": "YlTamXppEQls6DYWt7RdUuwWDb0lyw/vXCaGeQpLCpsLmfwGuCkOz/vIGgMTV7ECsJcavkCOkxZXv9s8rdAHkQ=="
       },
       "SkiaSharp.NativeAssets.Linux": {
         "type": "Direct",
@@ -104,6 +104,32 @@
           "Uno.Foundation.Logging": "7.0.65"
         }
       },
+      "Uno.UI.App.Mcp": {
+        "type": "Direct",
+        "requested": "[2.0.3, )",
+        "resolved": "2.0.3",
+        "contentHash": "d5kH7U1AEQZ5Jj++jtlokUG7mFDo0NDLKhRF06BBseq3DfY4lxZU8rGRKq+yjohBc3NiBU+YUjyoOea8mHnSPw==",
+        "dependencies": {
+          "SkiaSharp": "4.151.1"
+        }
+      },
+      "Uno.UI.HotDesign": {
+        "type": "Direct",
+        "requested": "[2.0.4, )",
+        "resolved": "2.0.4",
+        "contentHash": "VeZ87D17rgnQEiPSptx2jmL5NrKDhpQaRIXOd4lSowyAtts4bIJY7GUzAsyj7xvHNNMVILCw/3fapLemvHWjcg==",
+        "dependencies": {
+          "CommunityToolkit.Mvvm": "8.4.2",
+          "Microsoft.DotNet.PlatformAbstractions": "3.1.6",
+          "Microsoft.Extensions.Logging": "10.0.14",
+          "Uno.Core.Extensions.Logging.Singleton": "5.0.0",
+          "Uno.Themes.WinUI": "9.0.1",
+          "Uno.Toolkit.WinUI": "11.0.1",
+          "Uno.WinUI": "7.0.65",
+          "Uno.WinUI.DevServer": "7.0.65",
+          "Uno.WinUI.DevServer.Messaging": "7.0.65"
+        }
+      },
       "Uno.WinUI": {
         "type": "Direct",
         "requested": "[7.0.65, )",
@@ -127,6 +153,16 @@
           "SkiaSharp": "4.156.0",
           "SkiaSharp.Skottie": "4.156.0",
           "Uno.WinUI": "7.0.65"
+        }
+      },
+      "Uno.WinUI.DevServer": {
+        "type": "Direct",
+        "requested": "[7.0.65, )",
+        "resolved": "7.0.65",
+        "contentHash": "d0EJDEjHZqy6FAVkFFD9csxHf1Adb6/dCi2b1HBnk6Sm8KcCBWj8BeZMhzRoCXN+JoiYwjDnUUZBs+SHJzbJAg==",
+        "dependencies": {
+          "Uno.WinUI": "7.0.65",
+          "Uno.WinUI.DevServer.Messaging": "7.0.65"
         }
       },
       "Uno.WinUI.Graphics2DSK": {
@@ -187,6 +223,11 @@
           "Uno.WinUI.Composition.WebGpu.Init": "7.0.65",
           "Uno.WinUI.Runtime": "7.0.65"
         }
+      },
+      "CommunityToolkit.Mvvm": {
+        "type": "Transitive",
+        "resolved": "8.4.2",
+        "contentHash": "WadCzGEc2U+3e20avRLng4qNtt4zoOGWrdUISqJWrHe3/FSnrYjuM5Sb4yQb09LhkBXrrI4Zt3dLKgRMbItsrg=="
       },
       "DirectNAot": {
         "type": "Transitive",
@@ -407,6 +448,25 @@
         "resolved": "0.92.0",
         "contentHash": "h7IMakm0PF2jxiagoysoAjrzzLQ0UBdnSXQL5kb17YW0Fvyo12Tg96A99QkzwktWRrd7H+Uw9EzjasNLUfGYlA=="
       },
+      "Uno.Core.Extensions.Collections": {
+        "type": "Transitive",
+        "resolved": "5.0.0",
+        "contentHash": "xRBmplOV0QVxznBYfiN9/Rmor216x48Yy4eFkYTFMpinwPdXOsjCPN/7zUJ3ldzxMJdoTBYEukwdtxUK+R+aaQ==",
+        "dependencies": {
+          "Uno.Core.Extensions.Disposables": "5.0.0",
+          "Uno.Core.Extensions.Equality": "5.0.0"
+        }
+      },
+      "Uno.Core.Extensions.Disposables": {
+        "type": "Transitive",
+        "resolved": "5.0.0",
+        "contentHash": "Q5L8v3mMcFgKLJIR2bZaaw9ZhJnQ4OkoQJtdPovKCSlrDpA5IBCSlA7u6KbxQJ2R0IdA/E8At0Abu7aKSlDLIQ=="
+      },
+      "Uno.Core.Extensions.Equality": {
+        "type": "Transitive",
+        "resolved": "5.0.0",
+        "contentHash": "O1rCBYi4SVTFiil2gNT3h9I00pMbPTTfmXNe9mXvuvnqUp8Wbt5ggQ/tx8/lpQ+kdxlLPZEG+tFwr8i3b2NFnQ=="
+      },
       "Uno.Core.Extensions.Logging": {
         "type": "Transitive",
         "resolved": "5.0.0",
@@ -433,6 +493,11 @@
         "resolved": "2.9.4",
         "contentHash": "Y0w4Xi5z8tokc34ZrbBhOX1TL/HegU99N8MryqGvC07bwGTVzHOCK2m1mpAmCINc8RbmGO00ft0vKZxiR823RA=="
       },
+      "Uno.Fonts.Roboto": {
+        "type": "Transitive",
+        "resolved": "2.10.1",
+        "contentHash": "buadM9L3iFG3sEBpb+IqvbHs7GCg2h7c3HSNFFLS3kBYmsXtcj/YL8s7CdYiiiDw6vcy6dXs6meDJFA3W/sHkg=="
+      },
       "Uno.Foundation": {
         "type": "Transitive",
         "resolved": "7.0.65",
@@ -453,6 +518,34 @@
         "resolved": "77.4.1",
         "contentHash": "ssCN9I5sgqh3QYUaWHsf3IhCM9orIbZ/PDckRbjrYkqmhNOzXqjEkKi6LuCISpAKo/QpwyceDg9WF06K71uJUQ=="
       },
+      "Uno.Themes.WinUI": {
+        "type": "Transitive",
+        "resolved": "9.0.1",
+        "contentHash": "uB/QExswx7Cl910u7CVplUcSeFzpNDueP+T3GWy+PV7dxq1SXTsPRrHt7H2M+yYcZCkNQtMaJizOG+IIc8uZYw==",
+        "dependencies": {
+          "Uno.Core.Extensions.Disposables": "5.0.0",
+          "Uno.Core.Extensions.Logging.Singleton": "5.0.0",
+          "Uno.Fonts.Roboto": "2.10.1",
+          "Uno.WinUI": "7.0.29"
+        }
+      },
+      "Uno.Toolkit": {
+        "type": "Transitive",
+        "resolved": "11.0.1",
+        "contentHash": "4ojdEoPTKHTXsklha1vPHYbYilBaHFYchifvHvzSG4Y8w0tSw3nFmIxPBTFVA/bSQtqZwNUuHB3KPRJQ5x8Dxg=="
+      },
+      "Uno.Toolkit.WinUI": {
+        "type": "Transitive",
+        "resolved": "11.0.1",
+        "contentHash": "scLGfr0CtjLokV5NjCuHgrTBPAxgNiUOhjsDrPxlwx9VxVA2kDOFnpdRf8ma4DDE5k71tpgyb7R9me2TpiVxOw==",
+        "dependencies": {
+          "Uno.Core.Extensions.Collections": "5.0.0",
+          "Uno.Core.Extensions.Logging": "5.0.0",
+          "Uno.Core.Extensions.Logging.Singleton": "5.0.0",
+          "Uno.Toolkit": "11.0.1",
+          "Uno.WinUI": "7.0.29"
+        }
+      },
       "Uno.WinRT": {
         "type": "Transitive",
         "resolved": "7.0.65",
@@ -470,6 +563,11 @@
           "Silk.NET.WebGPU.Extensions.WGPU": "2.23.0",
           "Uno.WinUI": "7.0.65"
         }
+      },
+      "Uno.WinUI.DevServer.Messaging": {
+        "type": "Transitive",
+        "resolved": "7.0.65",
+        "contentHash": "CkQZdZRrCqU9SYjyLevEd+EZOBJlSCW5a5MnTSaiBT/bwYsyPNWWrfM4PtF3UFbXxpbdOQSUWBZssxVAEL74OQ=="
       },
       "Uno.WinUI.Runtime": {
         "type": "Transitive",
