@@ -9,6 +9,7 @@ using Rodaje.App.Services.Collab;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector;
@@ -126,15 +127,22 @@ internal sealed partial class ExportView : UserControl
         ExportButton.IsEnabled = false;
         ProjectsButton.IsEnabled = false;
         VersionsButton.IsEnabled = false;
+        HostExportButton.IsEnabled = false;
         FooterNote.Text = "Comprobando los codificadores de este equipo…";
         IReadOnlyList<EncoderSpec> encoders = await _jobs.Runner.GetEncodersAsync();
         string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
         IReadOnlyList<string> proxyOnly = [.. session.Project.Media
             .Where(m => m.Path.Length > 0 && RoomProxies.IsRoomProxyPath(m.ResolvePath(projectFolder ?? Directory.GetCurrentDirectory())))
             .Select(m => m.Name is { Length: > 0 } name ? name : Path.GetFileNameWithoutExtension(m.Path))];
+        RoomState room = _services.Collab?.Room.State ?? RoomState.Closed;
         _model = new ExportDialogModel(_services.Settings.Current.Export, session.Sequence, session.SelectedClipIds, encoders, session.ProjectName,
             projectFolder, new SequenceMarks(session.SequenceIn, session.SequenceOut), proxyOnly)
-        { PendingOutputs = [.. _jobs.Entries.Where(e => !e.IsFinished).Select(e => e.OutputPath)] };
+        {
+            PendingOutputs = [.. _jobs.Entries.Where(e => !e.IsFinished).Select(e => e.OutputPath)],
+            RoomGuest = room is { IsHost: false, InRoom: true },
+            CanAskHostExport = room is { IsHost: false } && room.CanEdit,
+            MissingOriginals = room is { IsHost: false, InRoom: true } && MediaPlaceholders.MissingOriginals(session.Project),
+        };
         _model.Changed += (_, _) => QueueRefresh();
         ShowAdvanced(_services.Settings.Current.Export.AdvancedOpen);
         Refresh();
@@ -413,6 +421,8 @@ internal sealed partial class ExportView : UserControl
         ExportButton.IsEnabled = problems.Count == 0;
         ProjectsButton.IsEnabled = problems.Count == 0;
         VersionsButton.IsEnabled = model.VersionProblems.Count == 0;
+        HostExportButton.Visibility = model.RoomGuest ? Visibility.Visible : Visibility.Collapsed;
+        HostExportButton.IsEnabled = model.CanExportOnHost;
         FooterNote.Text = _jobs.Runner.IsSimulation
             ? "Simulación: no se escribe ningún archivo."
             : _jobs.ActiveCount > 0 ? "Hay otra exportación en curso: esta esperará su turno." : "";
@@ -1029,5 +1039,51 @@ internal sealed partial class ExportView : UserControl
         ExportEntry entry = _jobs.Enqueue(request);
         Started?.Invoke(this, entry);
         CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnHostExportClick(object sender, RoutedEventArgs e) => UiTask.Run(OnHostExportClickAsync());
+
+    /// <summary>
+    /// «Exportar en el anfitrión»: manda el pedido (solo ajustes, rango y nombre sugerido, sin rutas) y sigue su progreso
+    /// en la barra de avisos; el archivo queda en el equipo de quien hospeda la sala.
+    /// </summary>
+    private async Task OnHostExportClickAsync()
+    {
+        if (_model is not { } model || _services.Collab is not { } collab)
+        {
+            return;
+        }
+
+        model.SetOutputPath(PathBox.Text);
+        if (!model.CanExportOnHost)
+        {
+            return;
+        }
+
+        EditorSession session = _services.Session;
+        string sequenceId = session.SequenceId;
+        string suggestedName = Path.GetFileName(model.OutputPath);
+        ExportSettings settings = model.ResolvedSettings();
+        ExportRange? range = model.Ranges[model.RangeIndex].Range;
+        // Se cierra ya: la espera y el avance siguen en la barra de avisos, con Cancelar.
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+        using LongActionScope? scope = _services.LongActions.TryBegin(
+            "exportar.anfitrion", "Exportar en el anfitrión", "Pidiendo permiso a quien hospeda la sala…",
+            canCancel: true, showAfter: LongActionService.QuickOperationDelay);
+        try
+        {
+            string fileName = await ExportShareGuest.RequestAsync(collab.Room, sequenceId, suggestedName, settings, range,
+                scope?.Operation, scope?.Token ?? CancellationToken.None);
+            session.Notify(NotificationSeverity.Success, "Exportado en el anfitrión",
+                $"«{fileName}» quedó en el equipo de quien hospeda la sala. El archivo está allí: pídeselo si lo necesitas.");
+        }
+        catch (OperationCanceledException)
+        {
+            session.Notify(NotificationSeverity.Informational, "Exportar en el anfitrión", "Cancelado: no quedó nada exportando allí.");
+        }
+        catch (CollabException ex)
+        {
+            session.Notify(NotificationSeverity.Warning, "No se pudo exportar en el anfitrión", ex.Message);
+        }
     }
 }
