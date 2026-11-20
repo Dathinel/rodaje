@@ -2,7 +2,7 @@
 
 Orden de trabajo de Rodaje, con el mismo método que Unicomp: bloques en orden, cada uno con sus pasos, su «Hecho cuando» y su estado. Lo abierto por prioridad está en `pendientes.md`; lo que solo Daniel puede juzgar con el ratón, en `pruebas-a-mano.md`; lo cerrado, en `CHANGELOG.md`.
 
-**Daniel, 19-nov:** sacar la 1.0.4 de Windows y, después, la colaboración. **Sin Linux de momento** (queda aparcado al final de este documento; Mac también: exige registro de Apple).
+**Daniel, 20-nov (cambio):** la **1.0.4 lleva todo lo planeado, incluida la colaboración (B10 a B16)**; solo queda para la 1.0.5 lo de «Ideas guardadas» (editor automático vertical e interfaz para nuevos). Una vez publicada, Daniel la prueba con una persona **en otro país**: tiene que funcionar por internet y salir **extremadamente pulida**. Además: ir **más rápido**, con jefes en paralelo. **Sin Linux de momento** (queda aparcado al final de este documento; Mac también: exige registro de Apple).
 
 ## Cómo se trabaja
 
@@ -67,7 +67,15 @@ En segundo plano y frente a la base de la 1.0.3.
 ### B8 · Publicación (Daniel)
 1. ☐ Catálogo firmado, etiqueta y release. **Solo con el OK de Daniel.**
 
-## Después de la 1.0.4 (sin Linux)
+## Colaboración dentro de la 1.0.4 (antes iba después) y repaso final
+
+**Orden y paralelismo (20-nov).** B10 (parches en Core) y B13 (internet y diagnóstico) arrancan a la vez, porque no se tocan; B11 (sesión y pantallas) arranca también, con el esqueleto y la parte de red, y engancha los parches cuando B10 se una; B12 (pruebas hostiles) empieza con B11; B14, B15 y B16 empiezan cuando B11 tenga lo básico. B4 a B7 siguen en paralelo; **B9 (repaso con ratón, repetido) y la prueba de colaboración entre dos equipos cierran antes de B8**. Un jefe por bloque; los jefes de B10, B11 y B13 se coordinan por las interfaces de `propuestas/colaboracion.md`.
+
+**Requisito de interfaz (consejo de Daniel, 20-nov):** en toda operación larga (cargar un proyecto, renderizar, exportar, analizar, descargar, generar proxies, enviar o recibir por la red) tiene que haber algo visual que diga que no se quedó trabado, y debe ser una **barra de progreso con porcentaje, no una rueda** (la rueda no dice si avanza). Si el porcentaje no se conoce: por fases («paso 2 de 5: …») o con el último avance («sigue trabajando, último avance hace 4 s»), con el tiempo restante estimado cuando se pueda y un botón de cancelar. Bloque **B9b** (auditoría y componente común); la red de B11 y B13 lo usa desde el principio.
+
+**Listón de pulido para la prueba en otro país:** nada de errores sin explicar (todo fallo de red dice qué pasó y qué hacer), conexión directa o por relé visible, comprobación de la misma versión al entrar, aprobación del anfitrión siempre, progreso visible en toda operación larga, un panel de diagnóstico que Daniel pueda leer por teléfono, y `docs/prueba-colaboracion.md` con el guion paso a paso para los dos.
+
+## Repaso y colaboración: detalle (sin Linux)
 
 ### B9 · Repaso con ratón, repetido hasta que quede bien
 Lo nuevo desde la 1.0.3: render en caché, editar por texto, intercambio EDL/FCPXML/OTIO, flujo óptico, plantillas de movimiento, HDR de 12 bits y los arreglos de B2 y B3. **Daniel, 19-nov: se revisa varias veces hasta que quede bien.** Este bloque va **antes de publicar** (entre B7 y B8) y se repite en vueltas:
@@ -75,10 +83,11 @@ Lo nuevo desde la 1.0.3: render en caché, editar por texto, intercambio EDL/FCP
 1. Vuelta: una sesión de Claude con control de pantalla recorre `pruebas-a-mano.md` con el exe de `main` actual y escribe `repaso-raton-<fecha>.md` (✔, ✘ y no probado, gravedad y pasos).
 2. Se arreglan todos los ✘ «bloquea» y «molesta» (jefe + Cuadrilla, PR con CI verde) y se publica un exe nuevo de `main`.
 3. Nueva vuelta, empezando por lo que falló y siguiendo con el recorrido completo.
-**Vuelta 2 (☐):** necesita un exe de `main` con B2 (keyframes y textos animados), B3 y B9a, y empieza por F1 a F6 y R1 a R9, y sigue con lo que la vuelta 1 no pudo probar (Montaje al ritmo, Sincronizar por el sonido, CinemaDNG, render en caché a fondo, 0,25×, clic y arrastre en el panel Transcripción con ratón real).
+**Vuelta 2 (20-nov, `main` del 20-nov, `docs/repaso-raton-20-nov.md`): ✔ hecha con ratón (control de pantalla)**: de lo probado, casi todo ✔ (correcciones F1 a F6 salvo lo marcado, R1 a R7 y R9, keyframes y gráficos con 300 y 1000, textos animados y los 4 estilos de subtítulo, exportar = visor) y 1 ✘ leve (R8: el aviso «Faltan medios» sigue tras deshacer la importación). **No pudo probarse con ese control** (y queda para Daniel con ratón real): selección por arrastre en el panel Transcripción y **Supr sobre una frase entera (F2/F4)**, alta de keyframes con la reproducción en marcha, el zoom de la gráfica con la rueda, el recorrido del visor con X e Y, Pulso/Temblor/Flotar (casi no se distinguieron), cancelar una exportación, F6 desde el buscador, importar FCPXML, «Borrar el render en caché», el audio y las mediciones de fluidez sin carga ajena.
+**Vuelta 3 (☐):** tras arreglar R8 y con lo que salga de la vuelta de Daniel; debe cerrar con una vuelta completa sin ✘ «bloquea» ni «molesta».
 **Hecho cuando:** una vuelta completa sin ✘ «bloquea» ni «molesta» y, como mínimo, dos vueltas hechas. Los ✘ «cosmético» van a `pendientes.md`. Daniel lo repasa al final con el ratón solo para confirmar.
 
-### B10 a B16 · Colaboración (D-067, `propuestas/colaboracion.md`)
+### B10 a B16 · Colaboración, dentro de la 1.0.4 (D-067, `propuestas/colaboracion.md`)
 Rodaje usa `Dathinel/sala`, que ya trae lo central (red, roles, reservas, traspaso y entradas hostiles; pruebas de Sala en verde en los tres sistemas). Falta todo el lado de Rodaje, en este orden:
 
 | Bloque | Fase del diseño | Qué | Hecho cuando |
@@ -93,9 +102,15 @@ Rodaje usa `Dathinel/sala`, que ya trae lo central (red, roles, reservas, traspa
 
 **B10 ✔ hecho el 20-nov** (#648 tipos y huella de contenido, #649 implementación): `Rodaje.Core.Collab` con `SharedState`, `PatchDiff`, `PatchApply`, `PatchWire`, `WireSanitizer`, `PatchReservations`, `CollabHistory` y `ProjectWire`; `MediaRef.ContentKey/ContentHash` en el formato 16 (solo si existen). 10 000 secuencias aleatorias de ediciones convergen en dos réplicas (y con parches independientes reordenados); contrato en `propuestas/colaboracion-api-parches.md`. Queda en `pendientes.md`: coste de `Capture` con 5 000 clips y la conversión `file:` ↔ `blob:` con archivos reales (de `Rodaje.App`).
 
-**B11 (20-nov):** ◐ PR apilados abiertos (esqueleto, invitar y unirse, proyecto y medios, presencia y edición compartida con diagnóstico y progreso). Falta el repaso con ratón y la prueba entre tres equipos (`pruebas-a-mano.md`, «Colaboración»), el progreso común de B9b y el empaquetado de `dathinel-red` (B13).
+**Todas van en la 1.0.4** (Daniel, 20-nov). Cada bloque se une cuando compila sin advertencias y pasa la CI, y la prueba real entre dos equipos va antes de publicar.
 
-La versión de cada una la decide Daniel al cerrar B9 (propuesta: 1.0.5 con B10 a B12, el resto después).
+## Ideas guardadas para la 1.0.5 (Daniel, 20-nov)
+Detalle y respuesta sobre la IA local en `propuestas/editor-automatico-vertical.md`. Sin plan aprobado todavía: antes de escribir código va el plan por fases con el stack comparado.
+- **Editor automático para video vertical** (TikTok, Instagram y similares), aparte de las opciones normales, con recetas (vlog, contar una historia, tutorial, informativo…), niveles de edición de baja a alta, reglas de retención y ganchos, y categorías y tendencias como complementos. Recomendado: nivel 1 y 2 con reglas y los módulos actuales en la 1.0.5; nivel 3 con un modelo local pequeño y los paquetes de tendencias en la 1.1.
+- **Interfaz más clara para quien llega nuevo** (a Daniel le gusta como está): tutorial por tareas con un proyecto de ejemplo guiado, modo sencillo opcional, panel «qué hago ahora» y una pasada de nombres probada con usuarios nuevos.
+- Bucle de texto por letra o por palabra (hoy el bucle mueve el bloque entero).
+
+**B11 (20-nov):** ◐ PR apilados abiertos (esqueleto, invitar y unirse, proyecto y medios, presencia y edición compartida con diagnóstico y progreso). Falta el repaso con ratón y la prueba entre tres equipos (`pruebas-a-mano.md`, «Colaboración»), el progreso común de B9b y el empaquetado de `dathinel-red` (B13).
 
 **B13 (20-nov, Sala #16 y #18; guion en `docs/prueba-colaboracion.md`):** hecho en Sala y sin salir del PC. Dos `dathinel-red` solo por relé (local y el público de n0) dicen si el camino es directo o relé, con la versión de cada par y un mensaje de versión que dice a quién actualizar; textos del relé, cortafuegos y redes sin UDP en `Sala/docs/internet.md`; ficha de diagnóstico por teléfono. Cifras por n0 desde Colombia: entrar ~1,2 s, edición ida y vuelta p50 ~185 ms con p95 de 247 a 740 ms según la carga (el relé está en EE. UU.: el p95 < 250 ms **se cumple a ratos**; con relé local a 25 ms por tramo, sí), reconexión ~1,5 s, 0 % de pérdida, captura del relé sin texto legible. Sin medir: pérdida de paquetes simulada (sin permisos para `netem`). Falta lo de Rodaje: el panel de conexión (B11) y la prueba de verdad entre dos países con el guion.
 
