@@ -57,7 +57,7 @@ jobs:
       - name: dotnet-local --version
         if: runner.os == 'Windows'
         shell: cmd
-        run: build\dotnet-local.cmd --version | findstr /r /c:"^10.0.403"
+        run: build\dotnet-local.cmd --version | findstr /r /c:"^10\.0\.403"
 
       - name: Compilar Rodaje.Core
         if: runner.os != 'Windows'
