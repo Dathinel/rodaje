@@ -74,6 +74,7 @@ Lo que queda abierto en Rodaje, por prioridad. Cada punto se quita al cerrarlo y
 - Rechazar a alguien por descuido no pide confirmación; no hay lista de rechazados recientes.
 - Unir en un solo mensaje las notificaciones repetidas de un cambio que choca (hoy una por cada paso descartado).
 - Proxies (B14): falta generar el proxy de sala con FFmpeg (video bajo con AAC), el almacén aparte por `ContentHash` que la limpieza no toque y el medio «solo proxy» en la reproducción; el reparto por huella ya está en `ProxyShare.cs`.
+- «Exportar en el anfitrión» (B16): el caché compartido en red local de la fase 6 del diseño queda fuera de este encargo (`docs/propuestas/colaboracion.md` §4.3); también quedan pendientes probarlo con tres equipos y el repaso con ratón.
 - `dathinel-red.exe` no va todavía en la distribución (B13): sin él la colaboración no abre.
 
 ## Solo Daniel

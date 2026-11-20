@@ -1,9 +1,11 @@
 using System.Reflection;
 using System.Text.Json;
 using Dathinel.Sala;
+using Rodaje.Core.Collab;
 using Rodaje.Core.Model;
 using Rodaje.App.Services.Crashes;
 using Rodaje.Media.Proxies;
+using Rodaje.App.Views.Export;
 
 namespace Rodaje.App.Services.Collab;
 
@@ -104,6 +106,15 @@ public sealed partial class CollabHost : IDisposable
     /// <summary>La edición compartida de esta sala; nula hasta que empieza y tras terminar.</summary>
     public CollabEngine? Engine { get; private set; }
 
+    /// <summary>La cola de exportación del equipo, para «Exportar en el anfitrión»; la pone la ventana.</summary>
+    public ExportJobList? ExportQueue { get; set; }
+
+    /// <summary>Aprobar a mano el pedido de un invitado («Luis pide exportar…»); la pone la ventana. Sin ella, todo pedido se rechaza.</summary>
+    public Func<HostExportApproval, Task<bool>>? ApproveExport { get; set; }
+
+    /// <summary>El servicio del anfitrión de «Exportar en el anfitrión»; nulo hasta que hospeda y tras terminar.</summary>
+    public ExportShareHost? HostExports { get; private set; }
+
     private ProjectShareHost? _share;
     private ProxyShareHost? _proxyShare;
     private RoomProxyMaker? _proxyMaker;
@@ -176,6 +187,21 @@ public sealed partial class CollabHost : IDisposable
                 engine.CaptureForGuest), Room.RoomFolder);
             IRoomProxyMaker maker = ProxyMakerFor(session) is { } real ? real : new MissingFfmpeg();
             _proxyShare = new ProxyShareHost(Room, maker, Room.RoomFolder);
+            if (ExportQueue is { } queue)
+            {
+                HostExports = new ExportShareHost(Room, queue, ConfirmedProjectAsync, Room.RoomFolder,
+                    work => UiInvoke.Run<int>(_post, () =>
+                    {
+                        work();
+                        return 0;
+                    }))
+                {
+                    // La aprobación abre un diálogo: va por el hilo de la interfaz como cualquier diálogo de la ventana.
+                    Approve = ask => ApproveExport is { } approve
+                        ? UiInvoke.Run(_post, () => approve(ask)).Unwrap()
+                        : Task.FromResult(false),
+                };
+            }
         }
         else
         {
@@ -205,6 +231,8 @@ public sealed partial class CollabHost : IDisposable
         _proxyMaker?.Dispose();
         _proxyMaker = null;
         Proxies = null;
+        HostExports?.Dispose();
+        HostExports = null;
         _switch.SetTarget(null);
         Engine?.Dispose();
         Engine = null;
@@ -240,6 +268,36 @@ public sealed partial class CollabHost : IDisposable
         public Task<RoomProxy?> MakeAsync(string mediaHash, string folder, IProgress<double>? progress, CancellationToken cancellationToken)
             => Task.FromException<RoomProxy?>(new CollabException(
                 "Este equipo no puede hacer copias ligeras: le falta el componente de video. Pídela otra vez cuando quien hospeda tenga Rodaje completo."));
+    }
+
+    /// <summary>
+    /// La copia confirmada del proyecto del anfitrión para «Exportar en el anfitrión»: la instantánea de
+    /// <see cref="CollabEngine.CaptureForGuest"/> con las rutas reales de sus medios (las del proyecto abierto, que se leen
+    /// en el hilo de la interfaz); la de un medio que solo existe en la copia compartida queda como marcador y el medio
+    /// saldrá «sin conexión» al exportar.
+    /// </summary>
+    private async Task<ConfirmedExportProject> ConfirmedProjectAsync(CancellationToken cancellationToken)
+    {
+        CollabEngine engine = Engine ?? throw new CollabException("La edición compartida ya terminó.");
+        (string json, _) = engine.CaptureForGuest();
+        ProjectParseResult parsed = ProjectWire.TryParse(json);
+        if (parsed.Project is not { } project)
+        {
+            throw new CollabException("La copia confirmada del proyecto no se pudo leer en este equipo.");
+        }
+
+        return await UiInvoke.Run(_post, () =>
+        {
+            Project live = _session?.Project ?? new Project();
+            for (int i = 0; i < project.Media.Count; i++)
+            {
+                project.Media[i].Path = live.FindMedia(project.Media[i].Id)?.Path
+                    ?? MediaPlaceholders.PlaceholderFor(project.Media[i], i);
+            }
+
+            string? directory = _session?.FilePath is { } file ? Path.GetDirectoryName(file) : null;
+            return new ConfirmedExportProject(project, directory);
+        });
     }
 
     private async Task<bool> ConfirmLeaveRoomAsync()

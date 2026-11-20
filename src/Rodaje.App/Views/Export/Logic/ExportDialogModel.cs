@@ -164,6 +164,15 @@ public sealed class ExportDialogModel
     /// </summary>
     public IReadOnlyCollection<string> PendingOutputs { get; init; } = [];
 
+    /// <summary>Se unió a la sala de otra persona (no la hospeda): además de «Exportar» se ofrece «Exportar en el anfitrión».</summary>
+    public bool RoomGuest { get; init; }
+
+    /// <summary>Puede pedir la exportación al anfitrión: está en la sala, conectado y con rol de editar.</summary>
+    public bool CanAskHostExport { get; init; }
+
+    /// <summary>A la copia de la sala le faltan archivos originales en este equipo: «Exportar» no se ofrece, «Exportar en el anfitrión» sí.</summary>
+    public bool MissingOriginals { get; init; }
+
     public OutputCheck OutputCheck => ExportRanges.Check(OutputPath, Settings.Container) is var check && check == OutputCheck.Ok
         && PendingOutputs.Contains(OutputPath, StringComparer.OrdinalIgnoreCase)
             ? OutputCheck.Exists
@@ -200,11 +209,36 @@ public sealed class ExportDialogModel
                 problems.Add(ExportRanges.Describe(OutputCheck)!);
             }
 
+            if (RoomGuest && MissingOriginals)
+            {
+                problems.Add("No están los archivos originales de los medios en este equipo: exportar aquí no se ofrece. "
+                    + "Usa «Exportar en el anfitrión»: sale en el equipo de quien hospeda la sala, con la copia compartida del proyecto.");
+            }
+
+            return problems;
+        }
+    }
+
+    /// <summary>Lo que impide «Exportar en el anfitrión» (los ajustes y la duración; el destino lo elige el anfitrión, no la ruta de aquí).</summary>
+    public IReadOnlyList<string> HostProblems
+    {
+        get
+        {
+            var problems = new List<string>();
+            if (Duration.Ticks <= 0)
+            {
+                problems.Add("La secuencia está vacía: no hay nada que exportar.");
+            }
+
+            problems.AddRange(ExportSettingsEditor.Validate(Settings, Encoders).Select(p => p.Message));
             return problems;
         }
     }
 
     public bool CanExport => Problems.Count == 0;
+
+    /// <summary>El botón «Exportar en el anfitrión» está disponible: invitado de la sala, con rol y conexión, y ajustes que valen.</summary>
+    public bool CanExportOnHost => RoomGuest && CanAskHostExport && HostProblems.Count == 0;
 
     /// <summary>
     /// Aviso para «Varias versiones»: los preajustes cuyo contenedor no lleva subtítulos aparte cuando se eligió ese modo
