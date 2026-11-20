@@ -25,11 +25,14 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
 {
     private sealed class Pending(Patch patch, SharedState before, SharedState after, string description, bool isUndo, bool isRedo)
     {
-        public Patch Patch { get; } = patch;
+        public Patch Patch { get; set; } = patch;
 
-        public SharedState Before { get; } = before;
+        public SharedState Before { get; set; } = before;
 
-        public SharedState After { get; } = after;
+        public SharedState After { get; set; } = after;
+
+        // La sala ya lo ordenó (está en lo confirmado); solo falta que la interfaz lo dé por bueno.
+        public bool Confirmed { get; set; }
 
         public string Description { get; } = description;
 
@@ -392,6 +395,10 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
                     else
                     {
                         _seq = ordered.Seq;
+                        if (_pending.FirstOrDefault(p => p.Patch.Id == patch.Id) is { } own)
+                        {
+                            own.Confirmed = true;
+                        }
                     }
                 }
             }
@@ -537,24 +544,92 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
 
     private void Revert(Pending pending, string text)
     {
-        bool known;
+        List<Pending> later;
         lock (_m)
         {
-            known = _pending.Remove(pending);
+            int index = _pending.IndexOf(pending);
+            if (index < 0)
+            {
+                return;
+            }
+
+            later = _pending.GetRange(index + 1, _pending.Count - index - 1);
+            _pending.RemoveAt(index);
         }
 
-        if (!known)
+        _presence.Done(pending.Keys);
+        if (!ResetToConfirmed())
         {
             return;
         }
 
-        _presence.Done(pending.Keys);
-        ConvergeToConfirmed();
-        _notice($"Un cambio tuyo no se pudo aplicar: {text} Lo deshicimos para que sigas igual que los demás.", true);
+        // Solo se pierde lo rechazado: lo propio que venía detrás se vuelve a montar sobre lo confirmado y, si ya no cabe, se avisa.
+        List<Pending> lost = [];
+        foreach (Pending next in later.Where(p => !p.Confirmed))
+        {
+            if (!Reproject(next))
+            {
+                lost.Add(next);
+            }
+        }
+
+        if (lost.Count > 0)
+        {
+            lock (_m)
+            {
+                _pending.RemoveAll(lost.Contains);
+            }
+
+            foreach (Pending p in lost)
+            {
+                _presence.Done(p.Keys);
+            }
+        }
+
+        _baseline = SharedState.Capture(_live);
+        _liveChanged();
+        string also = lost.Count == 0 ? "" : $" Tampoco entró lo que hiciste después y dependía de eso ({string.Join(", ", lost.Select(p => p.Description))}).";
+        _notice($"Un cambio tuyo no se pudo aplicar: {text} Lo deshicimos para que sigas igual que los demás.{also}", true);
+    }
+
+    /// <summary>Vuelve a aplicar un paso propio sin respuesta sobre lo vivo: <c>false</c> si ya no cabe. Solo desde <c>ui</c>.</summary>
+    private bool Reproject(Pending next)
+    {
+        Patch? patch = PatchDiff.Create(next.Before, next.After, _liveVersions, new PatchHeader(next.Patch.Id, next.Patch.BaseOrder, next.Patch.Author, next.Patch.Description));
+        if (patch is null)
+        {
+            return false;
+        }
+
+        SharedState before = SharedState.Capture(_live);
+        if (!PatchApply.TryApply(_live, _liveVersions, patch).IsAccepted)
+        {
+            return false;
+        }
+
+        next.Patch = patch;
+        next.Before = before;
+        next.After = SharedState.Capture(_live);
+        next.Keys = PatchReservations.Required(patch, _live);
+        return true;
     }
 
     /// <summary>Lo vivo pasa a ser lo confirmado (descartando lo propio sin respuesta). Solo desde <c>ui</c>.</summary>
     private void ConvergeToConfirmed()
+    {
+        lock (_m)
+        {
+            _pending.Clear();
+        }
+
+        if (ResetToConfirmed())
+        {
+            _liveChanged();
+        }
+    }
+
+    /// <summary>Lo vivo vuelve a lo confirmado y conserva la lista de pasos sin respuesta. <c>false</c> si no hay vuelta segura.</summary>
+    private bool ResetToConfirmed()
     {
         SharedState target;
         ElementVersions versions;
@@ -562,7 +637,6 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         {
             target = SharedState.Capture(_mirror);
             versions = _mirrorVersions.Clone();
-            _pending.Clear();
         }
 
         SharedState current = SharedState.Capture(_live);
@@ -573,12 +647,12 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
             if (!result.IsAccepted)
             {
                 Desynced?.Invoke(result.Rejection!.Message);
-                return;
+                return false;
             }
         }
 
         _liveVersions = versions;
         _baseline = target;
-        _liveChanged();
+        return true;
     }
 }
