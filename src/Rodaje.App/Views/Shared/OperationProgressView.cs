@@ -13,7 +13,7 @@ namespace Rodaje.App.Views.Shared;
 /// cuatro veces por segundo mientras está a la vista, así que quien informa puede hacerlo cada cuadro sin costar nada, y
 /// solo toca los controles cuyo contenido cambió (no parpadea). Los colores salen del tema (claro, oscuro y alto contraste).
 /// </summary>
-internal sealed class OperationProgressView : UserControl
+internal sealed partial class OperationProgressView : UserControl
 {
     private static readonly TimeSpan PollInterval = TimeSpan.FromMilliseconds(250);
 
