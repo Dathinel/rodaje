@@ -99,6 +99,31 @@ public sealed class TranscriptPanelModelTests
     });
 
     [Fact]
+    public void ASecondDeleteAfterTheWordsWentDoesNotTakeTheClipsThatWereSelectedWithThem() => UiThread.Run(() =>
+    {
+        (EditorSession session, _) = SessionWithWordsSelected();
+        Assert.True(session.DeleteSelection());
+        Time duration = session.Sequence.Duration;
+
+        Assert.False(session.DeleteSelection());
+
+        Assert.Equal(2, session.Sequence.AudioTracks[0].Clips.Count);
+        Assert.Equal(duration, session.Sequence.Duration);
+    });
+
+    [Fact]
+    public void ADeleteWithWordsThatNoLongerHoldDoesNothingInsteadOfTakingTheClips() => UiThread.Run(() =>
+    {
+        (EditorSession session, _) = SessionWithWordsSelected();
+        Assert.True(session.Execute(Edits.SplitAllTracks(session.SequenceId, S(3))));
+        int clips = session.Sequence.AudioTracks[0].Clips.Count;
+
+        Assert.False(session.DeleteSelection());
+
+        Assert.Equal(clips, session.Sequence.AudioTracks[0].Clips.Count);
+    });
+
+    [Fact]
     public void DeleteAfterChoosingClipsInTheTimelineRemovesTheClip() => UiThread.Run(() =>
     {
         (EditorSession session, _) = SessionWithWordsSelected();
