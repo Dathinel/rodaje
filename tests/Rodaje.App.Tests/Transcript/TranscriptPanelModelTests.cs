@@ -66,6 +66,86 @@ public sealed class TranscriptPanelModelTests
         Assert.False(session.RebuildTranscript(model));
     });
 
+    private static (EditorSession Session, TranscriptPanelModel Model) SessionWithWordsSelected()
+    {
+        Project sample = Talk();
+        var session = new EditorSession(new FakePlayback(), new FakeProber(), new FakeDialogs());
+        Assert.True(session.Execute(new AddMediaCommand(sample.Media[0])));
+        Assert.True(session.Execute(Edits.InsertMedia(session.SequenceId, "m", Time.Zero, S(6), session.Sequence.AudioTracks[0].Id, Time.Zero)));
+        Assert.True(session.Execute(new SetTranscriptCommand("m", sample.Transcripts[0])));
+        var model = new TranscriptPanelModel();
+        Assert.True(session.RebuildTranscript(model));
+        model.SelectWord(1);
+        model.SelectWord(2, extend: true);
+        session.SelectTranscriptWords(model);
+        return (session, model);
+    }
+
+    // F2 del repaso del 19-nov: un clic en el panel no le dio el foco, Supr llegó al borrado de clips y se llevó el clip
+    // entero (6 s) en vez de las dos palabras.
+    [Fact]
+    public void DeleteWithoutPanelFocusRemovesOnlyTheSelectedWordsNotTheWholeClip() => UiThread.Run(() =>
+    {
+        (EditorSession session, TranscriptPanelModel model) = SessionWithWordsSelected();
+
+        Assert.True(session.DeleteSelection());
+
+        Assert.Equal(2, session.Sequence.AudioTracks[0].Clips.Count);
+        Assert.InRange(session.Sequence.Duration.ToSeconds(), 3.9, 4.1);
+        Assert.True(session.RebuildTranscript(model));
+        Assert.Equal(["Hola", "hola", "fin"], model.Document.Words.Select(w => w.Text));
+        session.Undo();
+        Assert.Equal(S(6), session.Sequence.Duration);
+    });
+
+    [Fact]
+    public void ASecondDeleteAfterTheWordsWentDoesNotTakeTheClipsThatWereSelectedWithThem() => UiThread.Run(() =>
+    {
+        (EditorSession session, _) = SessionWithWordsSelected();
+        Assert.True(session.DeleteSelection());
+        Time duration = session.Sequence.Duration;
+
+        Assert.False(session.DeleteSelection());
+
+        Assert.Equal(2, session.Sequence.AudioTracks[0].Clips.Count);
+        Assert.Equal(duration, session.Sequence.Duration);
+    });
+
+    [Fact]
+    public void ADeleteWithWordsThatNoLongerHoldDoesNothingInsteadOfTakingTheClips() => UiThread.Run(() =>
+    {
+        (EditorSession session, _) = SessionWithWordsSelected();
+        Assert.True(session.Execute(Edits.SplitAllTracks(session.SequenceId, S(3))));
+        int clips = session.Sequence.AudioTracks[0].Clips.Count;
+
+        Assert.False(session.DeleteSelection());
+
+        Assert.Equal(clips, session.Sequence.AudioTracks[0].Clips.Count);
+    });
+
+    [Fact]
+    public void DeleteAfterChoosingClipsInTheTimelineRemovesTheClip() => UiThread.Run(() =>
+    {
+        (EditorSession session, _) = SessionWithWordsSelected();
+        string clip = session.Sequence.AudioTracks[0].Clips[0].Id;
+
+        session.Select([clip]);
+        Assert.True(session.DeleteSelection());
+
+        Assert.Empty(session.Sequence.AudioTracks[0].Clips);
+    });
+
+    [Fact]
+    public void DeleteAfterClosingThePanelRemovesTheClip() => UiThread.Run(() =>
+    {
+        (EditorSession session, _) = SessionWithWordsSelected();
+
+        session.ForgetTranscriptSelection();
+        Assert.True(session.DeleteSelection());
+
+        Assert.Empty(session.Sequence.AudioTracks[0].Clips);
+    });
+
     [Fact]
     public void ClickShiftAndExtensionKeepTheAnchorAndAllowCrossingIt()
     {

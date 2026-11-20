@@ -187,6 +187,13 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
         return ExecuteOnTargets(Targets(), clip => Edits.SetTitleBox(Session.SequenceId, clip.Id, change(clip.Generator!.Box)));
     }
 
+    /// <summary>Elige un bucle con la velocidad propia de su clase; «Ninguno» quita el campo opcional.</summary>
+    public static void SetLoop(TextStyle style, TextLoopKind? kind)
+    {
+        ArgumentNullException.ThrowIfNull(style);
+        style.Loop = kind is { } value ? new StyleLoop { Kind = value, Amount = style.Loop?.Amount ?? 1 } : null;
+    }
+
     /// <summary>Un cambio suelto (un desplegable, una casilla): un paso propio del historial.</summary>
     public bool CommitStyle(string field, Action<TextStyle> change)
     {
@@ -257,7 +264,8 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
 
     /// <summary>
     /// «Reaplicar estilo»: vuelve a copiar el estilo del paquete de <see cref="TextStyle.Source"/> sobre el título, con
-    /// lo que el paquete tenga hoy (D-029). Los errores de lectura del paquete pasan a quien llama.
+    /// lo que el paquete tenga hoy (D-029); en un estilo de fábrica distinto del «Texto», la copia que hay hoy en el
+    /// registro. Los errores de lectura del paquete pasan a quien llama.
     /// </summary>
     public ReapplyResult ReapplyStyle(IContentLoader loader)
     {
@@ -267,12 +275,17 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
             return ReapplyResult.NoSource;
         }
 
-        if (loader.LoadTextStyle(source) is not { } preset)
+        TextStyle? fresh = BuiltInStyles.Find(source);
+        if (fresh is null)
         {
-            return ReapplyResult.Missing;
+            if (loader.LoadTextStyle(source) is not { } preset)
+            {
+                return ReapplyResult.Missing;
+            }
+
+            fresh = TitleStyles.FromPreset(preset, source);
         }
 
-        TextStyle fresh = TitleStyles.FromPreset(preset, source);
         if (clip.Generator!.Style!.ContentEquals(fresh))
         {
             return ReapplyResult.Unchanged;

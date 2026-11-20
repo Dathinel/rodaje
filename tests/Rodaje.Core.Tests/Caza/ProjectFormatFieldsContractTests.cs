@@ -10,6 +10,30 @@ namespace Rodaje.Core.Tests.Caza;
 /// <summary>Contrato del formato y comprobación de lectura y escritura.</summary>
 public sealed class ProjectFormatFieldsContractTests
 {
+    [Fact]
+    public void Loop_es_opcional_y_no_cambia_la_version_del_formato()
+    {
+        Project project = ValidProject();
+        var title = MakeTitle("loop", 40, 0, 3);
+        project.Sequences[0].VideoTracks[0].Clips.Add(title);
+        string before = ProjectSerializer.Serialize(project);
+        Assert.DoesNotContain("\"loop\":", before, StringComparison.Ordinal);
+        int version = JsonNode.Parse(before)!["schemaVersion"]!.GetValue<int>();
+        title.Generator!.Style!.Loop = new StyleLoop { Kind = TextLoopKind.Float };
+        JsonObject saved = Saved(project);
+        Assert.Equal(version, saved["schemaVersion"]!.GetValue<int>());
+        JsonObject loop = saved["sequences"]![0]!["videoTracks"]![0]!["clips"]!.AsArray()[^1]!["generator"]!["style"]!["loop"]!.AsObject();
+        Assert.Equal("float", loop["kind"]!.GetValue<string>());
+        Assert.Equal(0.5, loop["speed"]!.GetValue<double>());
+        loop.Remove("speed");
+        Assert.Equal(0.5, Read(saved).Sequences[0].VideoTracks[0].Clips[^1].Generator!.Style!.Loop!.Speed);
+        loop["kind"] = "unknown";
+        Rejected(saved);
+        loop["kind"] = "float";
+        loop["amount"] = 2.1;
+        Rejected(saved);
+    }
+
     private static JsonObject Root() => JsonNode.Parse(ProjectSerializer.Serialize(ValidProject()))!.AsObject();
 
     private static JsonObject Sequence(JsonObject root) => root["sequences"]![0]!.AsObject();
