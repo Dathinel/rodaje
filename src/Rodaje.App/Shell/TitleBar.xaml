@@ -151,6 +151,13 @@
                 <MenuFlyoutItem Text="Acercar" Tag="timeline.zoomIn" Click="OnActionClick" />
                 <MenuFlyoutItem Text="Alejar" Tag="timeline.zoomOut" Click="OnActionClick" />
             </MenuBarItem>
+            <MenuBarItem Title="Colaborar">
+                <MenuFlyoutItem x:Name="CollabInviteItem" Text="Invitar a otras personas..." Click="OnCollabInviteClick" ToolTipService.ToolTip="Hospeda este proyecto para que otras personas puedan unirse y editar contigo." />
+                <MenuFlyoutItem x:Name="CollabJoinItem" Text="Unirse a una sala..." Click="OnCollabJoinClick" ToolTipService.ToolTip="Entra a colaborar en un proyecto con un enlace o texto de invitación." />
+                <MenuFlyoutSeparator />
+                <MenuFlyoutItem x:Name="CollabPanelItem" Text="Panel de la sala" Click="OnCollabPanelClick" ToolTipService.ToolTip="Mira quiénes están en la sala y decide quién entra." />
+                <MenuFlyoutItem x:Name="CollabLeaveItem" Text="Salir de la sala" Click="OnCollabLeaveClick" />
+            </MenuBarItem>
             <MenuBarItem Title="Complementos">
                 <MenuFlyoutItem Text="Gestor de complementos..." Tag="view.plugins" Click="OnActionClick" />
             </MenuBarItem>
@@ -185,7 +192,11 @@
             <TextBlock x:Name="StatsText" MaxWidth="280" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" />
         </StackPanel>
 
-        <Button x:Name="ExportButton" x:FieldModifier="internal" Grid.Column="4" Content="EXPORTAR" Margin="0,0,12,0"
-                Style="{StaticResource AccentButtonStyle}" Click="OnExportClick" />
+        <StackPanel Grid.Column="4" Orientation="Horizontal" Spacing="8" Margin="0,0,12,0" VerticalAlignment="Center">
+            <!-- La sala: solo se ve dentro de una; el panel (quién está, quién pide entrar) cuelga de aquí. -->
+            <Button x:Name="CollabButton" Visibility="Collapsed" Click="OnCollabButtonClick" />
+            <Button x:Name="ExportButton" x:FieldModifier="internal" Content="EXPORTAR"
+                    Style="{StaticResource AccentButtonStyle}" Click="OnExportClick" />
+        </StackPanel>
     </Grid>
 </UserControl>
