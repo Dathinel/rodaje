@@ -242,7 +242,7 @@ public sealed class CollabRecoveryTests
         await CollabHarness.Until(() => b.Engine.Unsettled.Items.Count == 1, "el autor recibe su cambio separado");
         Assert.Empty(a.Engine.Unsettled.Items);
         Assert.Contains(Assert.Single(b.Engine.Unsettled.Items).Patch.Ops, op => op.Id == "de-b");
-        Assert.Single(new CollabJournal(b.Room.RoomFolder).Load(() => Assert.Fail("registro válido"))!.Entries, e => e.Kind == "unsettled");
+        await CollabHarness.Until(() => new CollabJournal(b.Room.RoomFolder).Load(() => { })?.Entries.Count(e => e.Kind == "unsettled") == 1, "el registro guarda el cambio separado");
     }
 
     [Fact]
