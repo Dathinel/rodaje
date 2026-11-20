@@ -71,10 +71,11 @@ En segundo plano y frente a la base de la 1.0.3.
 
 ### B9 · Repaso con ratón, repetido hasta que quede bien
 Lo nuevo desde la 1.0.3: render en caché, editar por texto, intercambio EDL/FCPXML/OTIO, flujo óptico, plantillas de movimiento, HDR de 12 bits y los arreglos de B2 y B3. **Daniel, 19-nov: se revisa varias veces hasta que quede bien.** Este bloque va **antes de publicar** (entre B7 y B8) y se repite en vueltas:
-**Vuelta 1 (19-20 nov, exe de `main` del 19-nov, `docs/repaso-raton-19-nov.md`):** 7 ✔, 1 ✘, 4 sin probar. Lo más grave: borrar una frase en el panel Transcripción se llevó 15 palabras (F2, posible pérdida de datos), un error de E/S en el hilo de exportación cierra la app (F5) y el panel no deja seleccionar palabras con el ratón (F4). Arreglos: bloque **B9a** (en curso).
+**Vuelta 1 (19-20 nov, exe de `main` del 19-nov, `docs/repaso-raton-19-nov.md`):** 7 ✔, 1 ✘, 4 sin probar. Lo más grave: borrar una frase en el panel Transcripción se llevó 15 palabras (F2, posible pérdida de datos), un error de E/S en el hilo de exportación cierra la app (F5) y el panel no deja seleccionar palabras con el ratón (F4). Arreglos: bloque **B9a**, ✔ **hecho el 20-nov** con 13 PR unidos (#625 a #633 y #635 a #638: F2, F1, F5, F6, F3 y F4, R1 a R8; los de F3, F4 y F2 salieron de leer el código y de la autoprueba, **sin confirmar con ratón real**). Sin tocar: R9 (miniaturas del proyecto anterior; probable artefacto de los proyectos de repro, sin verificar). Lo que queda va a `pendientes.md`.
 1. Vuelta: una sesión de Claude con control de pantalla recorre `pruebas-a-mano.md` con el exe de `main` actual y escribe `repaso-raton-<fecha>.md` (✔, ✘ y no probado, gravedad y pasos).
 2. Se arreglan todos los ✘ «bloquea» y «molesta» (jefe + Cuadrilla, PR con CI verde) y se publica un exe nuevo de `main`.
 3. Nueva vuelta, empezando por lo que falló y siguiendo con el recorrido completo.
+**Vuelta 2 (☐):** necesita un exe de `main` con B2 (keyframes y textos animados), B3 y B9a, y empieza por F1 a F6 y R1 a R9, y sigue con lo que la vuelta 1 no pudo probar (Montaje al ritmo, Sincronizar por el sonido, CinemaDNG, render en caché a fondo, 0,25×, clic y arrastre en el panel Transcripción con ratón real).
 **Hecho cuando:** una vuelta completa sin ✘ «bloquea» ni «molesta» y, como mínimo, dos vueltas hechas. Los ✘ «cosmético» van a `pendientes.md`. Daniel lo repasa al final con el ratón solo para confirmar.
 
 ### B10 a B16 · Colaboración (D-067, `propuestas/colaboracion.md`)

@@ -56,6 +56,12 @@ Lo que queda abierto en Rodaje, por prioridad. Cada punto se quita al cerrarlo y
 42. **Costo de flujo óptico no computado en la previsión de caché.** `RenderCacheScan.Classify` no suma el coste de interpolar al clasificar los tramos pesados (`docs/interpolacion.md`).
 43. **Tiempo de ida y vuelta en SmpteTimecode.** La ida y vuelta de las 24 h tardó 1,8 s en equipo cargado frente al objetivo < 1 s (`docs/intercambio.md`).
 44. **Cadencia de proxy de MKV corto en intermedio HDR.** Matroska almacena tiempos en ms y la tasa media puede variar; comprobar que ningún cuadro se desplace medio cuadro (`docs/hdr.md`).
+45. **R9 sin verificar: miniaturas del proyecto anterior al abrir otro.** Al abrir otro proyecto, la pista Video 2 se pintó un rato con una tira del anterior. Probable artefacto de los proyectos de repro, que repiten ids y la caché de miniaturas se indexa por ellos; confirmar con proyectos reales (`docs/repaso-raton-19-nov.md`).
+46. **F2, F3 y F4 del repaso sin confirmar con ratón real.** Los arreglos (#625, #626, #635) salen del código, de pruebas y de la autoprueba; falta ver con el ratón que Supr en el panel Transcripción solo borra lo elegido y que clic y arrastre sobre las palabras seleccionan (vuelta 2 del repaso).
+47. **`ThrottledProgress.Deliver` ejecuta el callback del llamador en el pool.** Una excepción ahí tumbaría el proceso; protegerlo como el hilo de exportación (`src/Rodaje.Packages`).
+48. **Mover una frase por texto no mueve sus subtítulos.** `MoveWords` no arrastra la pista de subtítulos (D-061).
+49. **Aviso de «Detectar ritmo» con muy pocos pulsos.** Con 4 pulsos (la voz) ajusta igual; decidir si avisa (pregunta de Daniel).
+50. **F6 y R7 sin prueba automática.** Espacio sobre un botón con foco de teclado, F2 desde el buscador, y el cursor y la zona de agarre de 12 px del asa de fundido.
 
 ## Solo Daniel
 
