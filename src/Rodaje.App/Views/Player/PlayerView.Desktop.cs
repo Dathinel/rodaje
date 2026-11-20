@@ -32,14 +32,15 @@ internal sealed partial class PlayerView
         };
     }
 
-    public void DetachViewer()
-    {
-    }
+    private bool _viewerClosed;
+
+    /// <summary>Al cerrar la ventana: los cuadros que lleguen tarde no se pintan.</summary>
+    public void DetachViewer() => _viewerClosed = true;
 
     private void ShowViewerFrame(PlayerEngine engine)
     {
         Volatile.Write(ref _viewerQueued, 0);
-        if (engine.TakeViewerFrame() is not { } frame)
+        if (_viewerClosed || engine.TakeViewerFrame() is not { } frame)
         {
             return;
         }
