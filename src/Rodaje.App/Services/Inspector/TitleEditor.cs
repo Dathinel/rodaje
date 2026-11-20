@@ -257,7 +257,8 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
 
     /// <summary>
     /// «Reaplicar estilo»: vuelve a copiar el estilo del paquete de <see cref="TextStyle.Source"/> sobre el título, con
-    /// lo que el paquete tenga hoy (D-029). Los errores de lectura del paquete pasan a quien llama.
+    /// lo que el paquete tenga hoy (D-029); en un estilo de fábrica distinto del «Texto», la copia que hay hoy en el
+    /// registro. Los errores de lectura del paquete pasan a quien llama.
     /// </summary>
     public ReapplyResult ReapplyStyle(IContentLoader loader)
     {
@@ -267,12 +268,17 @@ public sealed class TitleEditor(EditorSession session, TimeProvider? clock = nul
             return ReapplyResult.NoSource;
         }
 
-        if (loader.LoadTextStyle(source) is not { } preset)
+        TextStyle? fresh = BuiltInStyles.Find(source);
+        if (fresh is null)
         {
-            return ReapplyResult.Missing;
+            if (loader.LoadTextStyle(source) is not { } preset)
+            {
+                return ReapplyResult.Missing;
+            }
+
+            fresh = TitleStyles.FromPreset(preset, source);
         }
 
-        TextStyle fresh = TitleStyles.FromPreset(preset, source);
         if (clip.Generator!.Style!.ContentEquals(fresh))
         {
             return ReapplyResult.Unchanged;

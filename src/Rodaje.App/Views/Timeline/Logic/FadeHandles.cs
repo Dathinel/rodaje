@@ -26,8 +26,8 @@ public static class FadeHandles
     /// <summary>Lado del cuadrito que se dibuja.</summary>
     public const double Size = 8;
 
-    /// <summary>Distancia en píxeles a la que se agarra un asa.</summary>
-    public const double Grab = 10;
+    /// <summary>Distancia en píxeles a la que se agarra un asa (el cuadrito mide 8: una zona de 24 px de lado no se pierde con el ratón).</summary>
+    public const double Grab = 12;
 
     /// <summary>Margen del bloque del clip dentro de la fila (el mismo con que se dibuja).</summary>
     private const double ClipInset = 2;

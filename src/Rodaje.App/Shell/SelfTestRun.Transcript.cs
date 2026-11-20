@@ -44,6 +44,13 @@ internal static partial class SelfTestRun
 
         DocWord[] before = [.. panel.Model.Document.Words];
         Time duration = session.Sequence.Duration;
+        panel.SelectWordAsClick(1);
+        panel.UpdateLayout();
+        await Task.Delay(100);
+        int shapes = panel.HighlightShapeCount, found = panel.WordFoundInsideItself(1);
+        await CaptureElementAsync(panel, "transcripcion-seleccion");
+        if (shapes == 0 || found != 1)
+            throw new InvalidOperationException($"El panel no resalta ni encuentra la palabra elegida: {shapes} fondos dibujados, un clic dentro de la palabra da la {found}.");
         panel.Model.SelectWord(1);
         session.SelectTranscriptWords(panel.Model);
         if (!session.SelectedClipIds.Contains(before[1].ClipId))

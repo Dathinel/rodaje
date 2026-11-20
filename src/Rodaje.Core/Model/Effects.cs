@@ -94,11 +94,49 @@ public sealed class Parameter
             return Keyframes[^1].Value;
         }
 
-        int right = Keyframes.FindIndex(k => k.Time > sourceTime);
+        int right = FirstAfter(Keyframes, sourceTime);
         Keyframe a = Keyframes[right - 1];
         Keyframe b = Keyframes[right];
         double t = (double)(sourceTime - a.Time).Ticks / (b.Time - a.Time).Ticks;
         return KeyframeMath.Segment(a, b, KeyframeMath.Ease(a.Interpolation, a.Ease, t));
+    }
+
+    /// <summary>Índice del primer keyframe con tiempo mayor que <paramref name="time"/> (o <c>Count</c>), por bisección: la lista va ordenada.</summary>
+    public static int FirstAfter(List<Keyframe> keys, Time time)
+    {
+        int lo = 0;
+        int hi = keys.Count;
+        while (lo < hi)
+        {
+            int mid = (lo + hi) >>> 1;
+            if (keys[mid].Time > time)
+            {
+                hi = mid;
+            }
+            else
+            {
+                lo = mid + 1;
+            }
+        }
+
+        return lo;
+    }
+
+    /// <summary>Índice del (primer) keyframe exactamente en <paramref name="time"/>, o -1.</summary>
+    public static int IndexAt(List<Keyframe> keys, Time time)
+    {
+        int index = FirstAfter(keys, time) - 1;
+        if (index < 0 || keys[index].Time != time)
+        {
+            return -1;
+        }
+
+        while (index > 0 && keys[index - 1].Time == time)
+        {
+            index--;
+        }
+
+        return index;
     }
 
     public Parameter Clone() => new() { Value = Value, Keyframes = [.. Keyframes] };

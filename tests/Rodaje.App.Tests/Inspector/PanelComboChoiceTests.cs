@@ -422,12 +422,13 @@ public class PanelComboChoiceTests
 
     private static TextStyle StyleOf(LibraryElement element)
     {
-        TextStyle style = TitleStyles.Default();
-        if (!element.IsBuiltIn)
+        if (element.IsBuiltIn)
         {
-            style.Source = element.Reference;
+            return BuiltInStyles.Find(element.Reference)!;
         }
 
+        TextStyle style = TitleStyles.Default();
+        style.Source = element.Reference;
         return style;
     }
 
@@ -443,14 +444,14 @@ public class PanelComboChoiceTests
                 return (styles, TextStyleChoices.IndexOf(styles, StyleOf(element)));
             },
             builtIn);
-        Assert.Equal(3, chosen);
+        Assert.Equal(7, chosen);
     }
 
     [Fact]
     public void Texto_UnEstiloCambiado_NoEligeNinguno()
     {
         ChoiceList<LibraryElement> styles = TextStyleChoices.Build(TextStyles);
-        Assert.Equal(["Texto", "Neón · Títulos", "Cine · Títulos"], styles.Labels);
+        Assert.Equal(["Texto", "Palabra a palabra", "Karaoke", "Pop", "Líneas", "Neón · Títulos", "Cine · Títulos"], styles.Labels);
         Assert.Equal(0, TextStyleChoices.IndexOf(styles, TitleStyles.Default()));
 
         TextStyle changed = TitleStyles.Default();

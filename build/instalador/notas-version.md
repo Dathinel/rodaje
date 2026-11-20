@@ -2,12 +2,13 @@ Rodaje {{VERSION}} ({{FECHA}}): editor de video nativo para Windows, compilado d
 
 ## Novedades de la {{VERSION}}
 
-- **Copiar, duplicar y pegar clips** con sus enlazados, grupos y transiciones; **pegar insertando** (Ctrl+Alt+V) y pegar en otro proyecto, que importa solo los medios que falten.
-- **Sincronizar por el sonido** dos o más clips (cámara y grabadora) y **montaje al ritmo** de la música; **asas de fundido** en los clips de audio con curva a elegir.
-- **HDR:** MaxCLL/MaxFALL medidos al exportar HDR10, «Expandir a HDR» por clip, LUT y curvas en PQ y visor HDR según el monitor de la ventana. **CinemaDNG revelado en la GPU** con el módulo RAW de cine 1.1.0 (sin GPU, sigue en la CPU).
-- **Personalización:** «Seguir a Windows» cambia al momento, color propio de las pistas y controles teñidos con el tema.
-- **Comodidad:** proyectos recientes, autoguardado configurable, Ir a tiempo (Ctrl+J), menú Reproducción, rueda de Desplazamiento, exportar entre entrada y salida u otros proyectos a la vez, submuestreo de color y aviso de versión nueva (Ayuda › Buscar actualizaciones).
-- **Más solidez:** unas 570 pruebas nuevas y arreglos en complementos (restos al actualizar o desinstalar), estabilización de clips cortos y pegar tras importar. Todo en el historial de cambios del repositorio.
+- **Editar por el texto:** el panel Transcripción muestra lo que se dice; borrar palabras o frases corta el video con ripple, Ctrl+X y Ctrl+V mueven frases, «Quitar muletillas…» y las pausas largas se limpian en un paso, y cada clip del mismo medio reutiliza la transcripción.
+- **Render en caché:** los tramos pesados se calculan solos mientras no editas y se reproducen como un solo clip; una franja sobre la regla dice qué va lento, justo o ya calculado, y se puede usar al exportar.
+- **Cuadros intermedios:** mezcla de cuadros y flujo óptico propio (sin descargar modelos) para la cámara lenta y para pasar de 24 a 30 cuadros.
+- **Plantillas de movimiento:** rótulos y títulos de varias capas con campos para rellenar en el inspector, que se guardan, exportan e importan como paquetes.
+- **Intercambio con otros editores:** Archivo › Importar y Exportar línea de tiempo en EDL, FCPXML y OpenTimelineIO, con aviso previo de lo que no llega igual; los medios guardan su código de tiempo y su carrete.
+- **HDR:** «Importar CinemaDNG…» ofrece un intermedio FFV1 de 16 bits en PQ BT.2020 que conserva las luces por encima del blanco.
+- **Por dentro:** capa de GPU común con los mismos píxeles, mapeo de rutas en Preferencias y SDK de .NET 10.0.403. Esta versión es solo para Windows.
 
 ## Qué trae
 
