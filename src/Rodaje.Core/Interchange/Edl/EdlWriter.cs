@@ -35,6 +35,12 @@ public static class EdlWriter
                 Limits = options.Limits,
             };
             EdlList list = EdlList.FromSequence(resolved, copy, single, new InterchangeReport());
+            if (outputs.Count > 0 && list.Events.Count == 0)
+            {
+                // Una pista de video sin clips no lleva EDL propia: sería un archivo de 43 bytes sin eventos.
+                continue;
+            }
+
             outputs.Add(new InterchangeOutput(outputs.Count == 0 ? "" : $"_V{index + 1}", Format(list, copy.FrameRate)));
         }
 

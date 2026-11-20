@@ -52,6 +52,19 @@ public sealed class EdlRoundTripTests
     }
 
     [Fact]
+    public void A_video_track_without_clips_does_not_get_a_file_of_its_own()
+    {
+        TimelineDraft draft = RandomTimelines.Create(4);
+        draft.Sequence.VideoTracks.Add(new Track { Id = "vacia", Kind = TrackKind.Video, Name = "Vacía" });
+        var options = new InterchangeOptions { FrameRate = draft.Sequence.FrameRate };
+
+        IReadOnlyList<InterchangeOutput> outputs = EdlWriter.Write(draft.Project, draft.Sequence, null, options);
+
+        Assert.Equal(["", "_V2"], outputs.Select(o => o.Suffix));
+        Assert.All(outputs, o => Assert.Contains("001", o.Text, StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void A_hand_written_list_with_cut_dissolve_speed_freeze_and_marker_reads_as_expected()
     {
         const string edl = """
