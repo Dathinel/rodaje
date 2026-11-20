@@ -25,7 +25,8 @@ public static class KeyframeGraph
     /// <summary>La curva entre el primer y el último keyframe (en segundos desde el primero), en valor o en velocidad.</summary>
     /// <param name="partner">Para X o Y de la posición, el otro eje: la trayectoria se evalúa junta, como en el motor.</param>
     /// <param name="partnerIsY">Si <paramref name="partner"/> es Y (el parámetro dibujado es X).</param>
-    public static IReadOnlyList<GraphPoint> Sample(Parameter parameter, GraphMode mode, Parameter? partner = null, bool partnerIsY = true)
+    /// <param name="maxPoints">Tope de puntos que la gráfica puede mostrar (sus píxeles): con muchos keyframes cada tramo lleva menos muestras, hasta 2 (inicio y fin).</param>
+    public static IReadOnlyList<GraphPoint> Sample(Parameter parameter, GraphMode mode, Parameter? partner = null, bool partnerIsY = true, int maxPoints = int.MaxValue)
     {
         ArgumentNullException.ThrowIfNull(parameter);
         List<Keyframe> keys = parameter.Keyframes;
@@ -35,20 +36,21 @@ public static class KeyframeGraph
         }
 
         Time origin = keys[0].Time;
-        var points = new List<GraphPoint>(((keys.Count - 1) * SamplesPerSegment) + 1);
+        int samples = Math.Clamp(maxPoints / (keys.Count - 1), 2, SamplesPerSegment);
+        var points = new List<GraphPoint>(((keys.Count - 1) * samples) + 1);
         for (int k = 0; k + 1 < keys.Count; k++)
         {
             long from = keys[k].Time.Ticks;
             long span = keys[k + 1].Time.Ticks - from;
-            for (int i = k == 0 ? 0 : 1; i <= SamplesPerSegment; i++)
+            for (int i = k == 0 ? 0 : 1; i <= samples; i++)
             {
                 // Al final del tramo se mira justo antes del keyframe siguiente: «mantener» salta ahí.
-                long at = from + (span * i / SamplesPerSegment) - (i == SamplesPerSegment ? 1 : 0);
+                long at = from + (span * i / samples) - (i == samples ? 1 : 0);
                 Time time = Time.FromTicks(at);
                 double seconds = (time - origin).ToSeconds();
                 points.Add(new GraphPoint(seconds, mode == GraphMode.Value
                     ? ValueAt(parameter, partner, partnerIsY, time)
-                    : SpeedAt(parameter, partner, partnerIsY, time, Math.Max(1, span / (4 * SamplesPerSegment)))));
+                    : SpeedAt(parameter, partner, partnerIsY, time, Math.Max(1, span / (4 * samples)))));
             }
         }
 
