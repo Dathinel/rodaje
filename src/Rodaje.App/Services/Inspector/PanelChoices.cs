@@ -283,7 +283,7 @@ public static class TextStyleChoices
             return exact >= 0 ? exact : Find(styles, e => e.LegacyReference == source);
         }
 
-        return Find(styles, e => e.IsBuiltIn && style.ContentEquals(TitleStyles.Default()));
+        return Find(styles, e => e.IsBuiltIn && BuiltInStyles.Find(e.Reference) is { } builtIn && style.ContentEquals(builtIn));
     }
 
     private static int Find(ChoiceList<LibraryElement> styles, Func<LibraryElement, bool> match)

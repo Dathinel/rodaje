@@ -47,6 +47,8 @@ Cada subtítulo automático guarda sus palabras con su hora. En la pestaña Text
 
 En la misma sección, **Resaltar la palabra que suena** pinta cada palabra en el color de «Resaltado» mientras suena. Con **Modo › Barrido de color**, el color avanza dentro de la palabra al ritmo de la voz y lo dicho queda pintado, como en un karaoke. Se ve igual al exportar.
 
+La biblioteca (categoría **Texto**) trae cuatro estilos de subtítulo animados que ya combinan entrada y resaltado: **Palabra a palabra** (cada palabra sube al entrar y se pinta la que suena), **Karaoke** (barrido de color), **Pop** (borde negro grueso y entrada elástica por palabra) y **Líneas** (entra línea a línea y se desvanece); sin palabras transcritas se ven como un subtítulo normal.
+
 ## Traducir
 
 Clic derecho en un subtítulo o **Herramientas › Texto y voz › Traducir pista…** (módulo «Traducir subtítulos»): elige la pista, el idioma del original (o Detectar) y el destino entre 20 idiomas. El diálogo informa claramente de que cerrarlo cancela el trabajo de traducción en segundo plano. Crea una pista nueva encima, «<pista> (<idioma>)», con los mismos tiempos; la original no cambia. Lo que no se pudo traducir conserva el original y se avisa.
