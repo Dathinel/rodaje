@@ -85,7 +85,6 @@ Rodaje usa `Dathinel/sala`, que ya trae lo central (red, roles, reservas, traspa
 |---|---|---|---|
 | B10 | 1a | Parches en Core: `ContentKey`, `ContentHash` (v16 con lector y escritor), `PatchDiff`, `PatchApply`, `CollabHistory`, `WireSanitizer` | 10 000 secuencias aleatorias de parches convergen igual en dos réplicas |
 | B11 | 1c | `CollabSession`, `RoomService`, `MediaMatch` y las vistas de Invitar y Unirse | Tres Rodaje en la misma red editan a la vez y ven a los demás |
-
 | B12 | 2 | Pruebas hostiles en Rodaje | Ninguna entrada hostil tumba al anfitrión ni escribe fuera de la carpeta |
 | B13 | 3 | Internet: relé, billetes con relé, «Solo por relé» y el cortafuegos de Windows explicado | Casa ↔ datos móviles conectan y dicen si es directo o por relé; latencia p95 < 250 ms por relé |
 | B14 | 4 | Proxies del anfitrión: almacén por `ContentHash`, medio «solo proxy», «Pedir proxy» | Un invitado sin los originales edita y oye con proxies |
