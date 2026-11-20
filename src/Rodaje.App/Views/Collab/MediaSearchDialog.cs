@@ -43,7 +43,8 @@ internal static class MediaSearchDialog
         }
 
         var summary = new TextBlock { TextWrapping = TextWrapping.Wrap };
-        var progress = new ProgressRing { IsActive = false, Width = 20, Height = 20 };
+        var progress = new ProgressBar { IsIndeterminate = true, Visibility = Visibility.Collapsed, MinWidth = 220 };
+        var clock = new OperationClock();
         var choose = new Button { Content = "Elegir carpetas donde buscar…" };
         var top = new StackPanel { Spacing = 12, MinWidth = 520 };
         top.Children.Add(InviteDialog.Hint("Para editar sin esperas, Rodaje usa los archivos de video y audio que tengas en tu equipo. Los cambios del proyecto se comparten, pero los archivos no viajan por internet."));
@@ -59,7 +60,8 @@ internal static class MediaSearchDialog
             XamlRoot = root,
             Title = "Busca tus archivos",
             Content = top,
-            PrimaryButtonText = "Continuar al proyecto",
+            PrimaryButtonText = "Entrar al proyecto",
+            CloseButtonText = "Salir de la sala",
             DefaultButton = ContentDialogButton.Primary,
         };
 
@@ -86,7 +88,8 @@ internal static class MediaSearchDialog
             }
 
             searching = true;
-            progress.IsActive = true;
+            clock.Restart();
+            progress.Visibility = Visibility.Visible;
             choose.IsEnabled = false;
             foreach (MediaManifestEntry e in wanted)
             {
@@ -96,7 +99,11 @@ internal static class MediaSearchDialog
             try
             {
                 // El avance se crea aquí, en el hilo de la interfaz: dentro de Task.Run avisaría desde un hilo de trabajo.
-                var scanned = new Progress<int>(n => summary.Text = $"Buscando… {n} archivos");
+                var scanned = new Progress<int>(n =>
+                {
+                    clock.Progressed();
+                    summary.Text = $"Paso 3 de 3: buscando tus archivos… {n} revisados. {clock.Describe()}";
+                });
                 MediaMatchReport report = await Task.Run(() => matcher.SearchAsync(wanted, where, scanned, cancel.Token));
                 foreach ((string id, string path) in report.Found)
                 {
@@ -121,7 +128,7 @@ internal static class MediaSearchDialog
             finally
             {
                 searching = false;
-                progress.IsActive = false;
+                progress.Visibility = Visibility.Collapsed;
                 choose.IsEnabled = true;
             }
         }

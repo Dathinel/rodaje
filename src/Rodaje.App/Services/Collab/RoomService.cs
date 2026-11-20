@@ -369,7 +369,15 @@ public sealed class RoomService : IAsyncDisposable
         {
             Requests = [.. st.Requests.Where(x => x.Key != r.Clave), new RoomRequest(r.Clave, r.Alias, r.Huella)],
         }));
-        s.SolicitudRetirada += k => OnSala(s, () => Publish(st => st with { Requests = [.. st.Requests.Where(x => x.Key != k)] }));
+        s.SolicitudRetirada += k => OnSala(s, () =>
+        {
+            string? who = State.Requests.FirstOrDefault(x => x.Key == k)?.Alias;
+            Publish(st => st with { Requests = [.. st.Requests.Where(x => x.Key != k)] });
+            if (who is not null)
+            {
+                Notify($"{who} canceló su solicitud o se desconectó antes de que decidieras.", false);
+            }
+        });
         s.MiembroEntra += m => OnSala(s, () =>
         {
             lock (_gate)
@@ -416,7 +424,7 @@ public sealed class RoomService : IAsyncDisposable
         });
         s.Cerrada += motivo => OnSala(s, () => _ = EndAsync(s, CollabMessages.ForClosed(motivo)));
         // Estuvo fuera tanto que la sala ya no guarda lo que se perdió: hace falta una copia nueva del proyecto.
-        s.Desfasada += _ => OnSala(s, () => _ = EndAsync(s, CollabMessages.ForClosed("desfasada")));
+        s.Desfasada += since => OnSala(s, () => _ = EndAsync(s, CollabMessages.ForClosed("desfasada")));
         s.Superada += (_, _) => OnSala(s, () => _ = EndAsync(s, CollabMessages.ForClosed("traspaso")));
     }
 

@@ -8,9 +8,18 @@ namespace Rodaje.App.Tests.Collab;
 
 public sealed class ProjectShareTests
 {
-    private sealed class FakeSource(Func<ProjectSnapshot> make) : ICollabProjectSource
+    private sealed class FakeSource(Func<ProjectSnapshot> make, int steps = 0) : ICollabProjectSource
     {
-        public Task<ProjectSnapshot> CaptureAsync(CancellationToken cancellationToken) => Task.FromResult(make());
+        public async Task<ProjectSnapshot> CaptureAsync(IProgress<(int Done, int Total)>? progress, CancellationToken cancellationToken)
+        {
+            for (int i = 1; i <= steps; i++)
+            {
+                await Task.Delay(120, cancellationToken);
+                progress?.Report((i, steps));
+            }
+
+            return make();
+        }
     }
 
     private static ProjectSnapshot Snapshot(string? json = null, IReadOnlyList<MediaManifestEntry>? media = null) =>
@@ -38,6 +47,36 @@ public sealed class ProjectShareTests
         });
         Assert.Equal(SharedState.Capture(ModelSamples.ValidProject()).Hash, SharedState.Capture(received.Project).Hash);
         Assert.Single(Directory.GetFiles(Path.Combine(guest.RoomFolder, "recibido"), "*.rodaje"));
+    }
+
+    [SalaFact]
+    public async Task Mientras_el_anfitrion_prepara_los_medios_el_invitado_ve_el_avance_por_pasos_y_con_porcentaje()
+    {
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        using ProjectShareHost share = new(host, new FakeSource(() => Snapshot(), steps: 4), host.RoomFolder);
+        List<ShareProgress> seen = [];
+
+        await ProjectShareGuest.ReceiveAsync(guest, guest.RoomFolder, new SyncProgress<ShareProgress>(seen.Add)).WaitAsync(TimeSpan.FromSeconds(30));
+
+        Assert.Equal(1, seen[0].Step);
+        Assert.Null(seen[0].Fraction);
+        Assert.Contains(seen, p => p.Step == 2 && p.Fraction is > 0 and <= 1 && p.Text.Contains("de 4", StringComparison.Ordinal));
+        Assert.Contains(seen, p => p.Step == 3 && p.Fraction == 1);
+        Assert.Equal(seen.OrderBy(p => p.Step).Select(p => p.Step), seen.Select(p => p.Step));
+        Assert.All(seen, p => Assert.Equal(ProjectShareGuest.Steps, p.Steps));
+    }
+
+    private sealed class SyncProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value)
+        {
+            lock (this)
+            {
+                report(value);
+            }
+        }
     }
 
     [SalaFact]

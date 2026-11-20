@@ -1184,7 +1184,9 @@ internal sealed partial class MainWindow : Window, IShellHost
             // Con el proyecto guardado, cerrar con una exportación, un módulo de IA o una acción larga en curso los mataría sin avisar.
             if (await Session.ConfirmDiscardChangesAsync()
                 && (ClosingNotice.Describe(JobsPanel.ActiveCount + _longActions.Running.Count) is not { } busy
-                    || await _dialogs.ConfirmAsync(ClosingNotice.Title, busy, ClosingNotice.Confirm)))
+                    || await _dialogs.ConfirmAsync(ClosingNotice.Title, busy, ClosingNotice.Confirm))
+                && (Services.Collab.CollabClosing.Describe(_services.Collab?.Room.State) is not { } room
+                    || await _dialogs.ConfirmAsync(Services.Collab.CollabClosing.Title, room.Text, room.Confirm)))
             {
                 _allowClose = true;
                 Close();
