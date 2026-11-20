@@ -50,6 +50,21 @@ internal static class CollabHarness
         return null;
     }
 
+    /// <summary>Abre la sala de Ana y mete a Luis: el anfitrión lo aprueba con el rol dado.</summary>
+    public static async Task<(RoomService Host, RoomService Guest, RecordingHandler HostH, RecordingHandler GuestH)> RoomAsync(Rol role = Rol.Editar)
+    {
+        RecordingHandler hh = new(), gh = new();
+        RoomService host = new(Env(), hh);
+        RoomService guest = new(Env(), gh);
+        await host.HostAsync("Ana", TempFolder());
+        CollabInvitation invite = await host.CreateInviteAsync(TimeSpan.FromMinutes(10));
+        Task joining = guest.JoinAsync(invite.Link, "Luis", TempFolder());
+        await Until(() => host.State.Requests.Count == 1, "la solicitud de Luis");
+        await host.ApproveAsync(host.State.Requests[0].Key, role);
+        await joining.WaitAsync(TimeSpan.FromSeconds(20));
+        return (host, guest, hh, gh);
+    }
+
     public static string TempFolder()
     {
         string c = Path.Combine(Path.GetTempPath(), "rodaje-sala-pruebas", Guid.NewGuid().ToString("N")[..12]);
@@ -101,25 +116,10 @@ public sealed class RoomServiceTests
 {
     private static JsonElement Json(string s) => JsonDocument.Parse(s).RootElement.Clone();
 
-    /// <summary>Abre la sala de Ana y mete a Luis: el anfitrión lo aprueba con el rol dado.</summary>
-    private static async Task<(RoomService Host, RoomService Guest, RecordingHandler HostH, RecordingHandler GuestH)> RoomAsync(Rol role = Rol.Editar)
-    {
-        RecordingHandler hh = new(), gh = new();
-        RoomService host = new(CollabHarness.Env(), hh);
-        RoomService guest = new(CollabHarness.Env(), gh);
-        await host.HostAsync("Ana", CollabHarness.TempFolder());
-        CollabInvitation invite = await host.CreateInviteAsync(TimeSpan.FromMinutes(10));
-        Task joining = guest.JoinAsync(invite.Link, "Luis", CollabHarness.TempFolder());
-        await CollabHarness.Until(() => host.State.Requests.Count == 1, "la solicitud de Luis");
-        await host.ApproveAsync(host.State.Requests[0].Key, role);
-        await joining.WaitAsync(TimeSpan.FromSeconds(20));
-        return (host, guest, hh, gh);
-    }
-
     [SalaFact]
     public async Task El_anfitrion_abre_la_sala_y_el_invitado_entra_cuando_lo_aprueban()
     {
-        (RoomService host, RoomService guest, _, _) = await RoomAsync();
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
         await using RoomService h = host;
         await using RoomService g = guest;
         Assert.Equal(RoomPhase.Hosting, host.State.Phase);
@@ -158,7 +158,7 @@ public sealed class RoomServiceTests
     [SalaFact]
     public async Task Una_invitacion_de_un_solo_uso_no_sirve_dos_veces()
     {
-        (RoomService host, RoomService guest, _, _) = await RoomAsync();
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
         await using RoomService h = host;
         await using RoomService g = guest;
         await guest.LeaveAsync();
@@ -191,7 +191,7 @@ public sealed class RoomServiceTests
     [SalaFact]
     public async Task Las_cargas_pasan_por_el_manejador_y_llegan_a_todos_en_orden()
     {
-        (RoomService host, RoomService guest, RecordingHandler hh, RecordingHandler gh) = await RoomAsync();
+        (RoomService host, RoomService guest, RecordingHandler hh, RecordingHandler gh) = await CollabHarness.RoomAsync();
         await using RoomService h = host;
         await using RoomService g = guest;
         for (int i = 0; i < 5; i++)
@@ -209,7 +209,7 @@ public sealed class RoomServiceTests
     [SalaFact]
     public async Task Si_el_anfitrion_no_acepta_una_carga_el_invitado_lo_sabe_con_un_texto_claro()
     {
-        (RoomService host, RoomService guest, RecordingHandler hh, RecordingHandler gh) = await RoomAsync();
+        (RoomService host, RoomService guest, RecordingHandler hh, RecordingHandler gh) = await CollabHarness.RoomAsync();
         await using RoomService h = host;
         await using RoomService g = guest;
         hh.Decide = _ => Veredicto.No("no-valido", "El cambio no es válido.");
@@ -225,7 +225,7 @@ public sealed class RoomServiceTests
     [SalaFact]
     public async Task Quien_solo_mira_no_puede_mandar_y_el_texto_dice_que_hacer()
     {
-        (RoomService host, RoomService guest, _, _) = await RoomAsync(Rol.Mirar);
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync(Rol.Mirar);
         await using RoomService h = host;
         await using RoomService g = guest;
         Assert.Equal(Rol.Mirar, guest.State.MyRole);
@@ -237,7 +237,7 @@ public sealed class RoomServiceTests
     [SalaFact]
     public async Task Cambiar_el_rol_y_expulsar_llegan_al_invitado()
     {
-        (RoomService host, RoomService guest, _, _) = await RoomAsync();
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
         await using RoomService h = host;
         await using RoomService g = guest;
         string luis = host.State.Members.Single(m => !m.IsMe).Key;

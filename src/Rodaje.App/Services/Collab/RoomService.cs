@@ -67,6 +67,18 @@ public sealed class RoomService : IAsyncDisposable
 
     public event Action<RoomNotice>? Noticed;
 
+    /// <summary>Un mensaje directo de otro miembro (fuera del orden): quién lo manda y su contenido. No debe bloquear.</summary>
+    public event Action<string, JsonElement>? DirectReceived;
+
+    /// <summary>Avance de una descarga de blob: su huella y los bytes recibidos.</summary>
+    public event Action<string, long>? BlobProgress;
+
+    /// <summary>La carpeta de la sala de esta copia del proyecto; vacía sin sala.</summary>
+    public string RoomFolder => _folder;
+
+    /// <summary>La clave de quien hospeda la sala (la propia, si es este equipo); vacía sin sala.</summary>
+    public string HostKey => State.Members.FirstOrDefault(m => m.IsHost)?.Key ?? "";
+
     // ---------- abrir ----------
 
     /// <summary>Abre la sala de este proyecto. <paramref name="folder"/> es la carpeta de sala del proyecto (dentro van los anclados).</summary>
@@ -258,6 +270,28 @@ public sealed class RoomService : IAsyncDisposable
         }
     }
 
+    /// <summary>Manda un mensaje fuera del orden (al anfitrión, o a un miembro si este equipo hospeda).</summary>
+    public Task SendDirectAsync(JsonElement payload, string? to = null, CancellationToken cancellationToken = default) =>
+        Guard(() => Active().EnviarDirectoAsync(payload, to, cancellationToken));
+
+    /// <summary>Ofrece un archivo propio (dentro de la carpeta de la sala) por su SHA-256 en minúsculas.</summary>
+    public Task OfferBlobAsync(string path, string hash, long size, CancellationToken cancellationToken = default) =>
+        Guard(() => Active().OfrecerBlobsAsync([(path, hash, size)], cancellationToken));
+
+    public Task RetractBlobAsync(string hash) => Guard(() => Active().RetirarBlobsAsync([hash]));
+
+    /// <summary>Baja un blob que otro miembro ofreció. Sala comprueba tamaño y SHA-256 y lo deja en <paramref name="destination"/>.</summary>
+    public Task RequestBlobAsync(string from, string hash, long size, string destination, long limit, CancellationToken cancellationToken = default) =>
+        Guard(() => Active().PedirBlobAsync(from, hash, size, destination, limit, cancellationToken));
+
+    private Dathinel.Sala.Sala Active()
+    {
+        lock (_gate)
+        {
+            return _sala ?? throw new CollabException("No hay ninguna sala abierta.");
+        }
+    }
+
     // ---------- eventos de Sala ----------
 
     private void Subscribe(Dathinel.Sala.Sala s)
@@ -290,6 +324,8 @@ public sealed class RoomService : IAsyncDisposable
             _handler.Rejected(r);
             Notify(CollabMessages.Rejected(r.Motivo, r.Detalle), true);
         });
+        s.DirectoRecibido += d => OnSala(s, () => DirectReceived?.Invoke(d.De, d.Datos));
+        s.BlobAvance += (hash, bytes) => OnSala(s, () => BlobProgress?.Invoke(hash, bytes));
         s.Desconectada += () => OnSala(s, () =>
         {
             if (State.Phase == RoomPhase.Connected)
