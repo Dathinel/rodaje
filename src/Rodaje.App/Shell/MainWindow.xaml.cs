@@ -1065,8 +1065,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         JobsButtonText.Text = active > 0 ? $"Trabajos ({active})" : "Trabajos";
         JobsProgress.Visibility = active > 0 ? Visibility.Visible : Visibility.Collapsed;
         LongActionStatus? only = active == 1 && _longActions.Running.Count == 1 ? _longActions.Current : null;
-        JobsProgress.IsIndeterminate = only?.Progress is null;
-        JobsProgress.Value = only?.Progress ?? 0;
+        JobsProgress.IsIndeterminate = only?.LiveProgress is null;
+        JobsProgress.Value = only?.LiveProgress ?? 0;
     }
 
     private void ShowGlobalPanel(Views.Inspector.InspectorView.Tab tab)
@@ -1234,6 +1234,7 @@ internal sealed partial class MainWindow : Window, IShellHost
 
         _closed = true;
         _notificationTimer.Stop();
+        _revealTimer.Stop();
         StartupSplash.Close();
         CompositionTarget.Rendering -= OnRendering;
         _transportTimer.Stop();

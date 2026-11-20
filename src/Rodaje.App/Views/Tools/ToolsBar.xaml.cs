@@ -94,8 +94,8 @@ internal sealed partial class ToolsBar : UserControl, IEditorView
             icon.Visibility = busy ? Visibility.Collapsed : Visibility.Visible;
             ring.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
             ring.IsActive = busy;
-            ring.IsIndeterminate = status?.Progress is null;
-            ring.Value = status?.Progress ?? 0;
+            ring.IsIndeterminate = status?.LiveProgress is null;
+            ring.Value = status?.LiveProgress ?? 0;
             label.Text = status is { ProgressText.Length: > 0 } ? $"{tool.Label} · {status.ProgressText}" : tool.Label;
             _buttons[tool.ActionId].IsEnabled = !busy;
             AutomationProperties.SetItemStatus(_buttons[tool.ActionId], busy ? "En marcha " + status!.ProgressText : "");

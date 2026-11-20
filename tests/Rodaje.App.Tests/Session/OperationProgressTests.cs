@@ -305,6 +305,17 @@ public class OperationProgressTests
     }
 
     [Fact]
+    public void TiempoRestante_DeMasDeUnDia_NoSeMuestra()
+    {
+        var clock = new ManualClock();
+        var p = new OperationProgress(clock);
+        clock.Advance(100000);
+        p.Report(0.02); // 2 % en más de un día: faltarían semanas
+
+        Assert.Null(p.Snapshot().Remaining);
+    }
+
+    [Fact]
     public void EnEspera_NoSeDiceSigueTrabajando()
     {
         var clock = new ManualClock();

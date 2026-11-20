@@ -254,9 +254,17 @@ public sealed partial class EditorSession
         }
 
         // Un gesto en curso (arrastrar un clip, un deslizador) no admite otro paso del historial: se espera a que acabe.
-        while (IsInGesture && ReferenceEquals(target, Project) && canApply?.Invoke() != false)
+        try
         {
-            await Task.Delay(100, cancellationToken);
+            while (IsInGesture && ReferenceEquals(target, Project) && canApply?.Invoke() != false)
+            {
+                await Task.Delay(100, token);
+            }
+        }
+        catch (OperationCanceledException) when (progress is { Token.IsCancellationRequested: true } && !cancellationToken.IsCancellationRequested)
+        {
+            Notify(NotificationSeverity.Informational, "Importación cancelada", "No se añadió ningún medio.");
+            return ImportResult.Empty;
         }
 
         if (!ReferenceEquals(target, Project) || canApply?.Invoke() == false)

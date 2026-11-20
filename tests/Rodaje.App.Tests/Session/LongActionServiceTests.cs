@@ -57,6 +57,22 @@ public class LongActionServiceTests
     });
 
     [Fact]
+    public void Seguir_UnTrabajo_Termina_VuelveAlAvancePropio()
+    {
+        var service = new LongActionService(NewSession());
+        using LongActionScope scope = service.TryBegin("a", "A")!;
+        var job = new Rodaje.App.Services.Operations.OperationProgress();
+        scope.Follow(job);
+        Assert.Same(job, service.Current!.Operation);
+
+        job.Report(0.5);
+        Assert.Equal(0.5, service.Current.LiveProgress);
+
+        job.Complete();
+        Assert.Same(scope.Operation, service.Current!.Operation);
+    }
+
+    [Fact]
     public void ElAvanceCompletoLlegaAlModeloComun_YCancelarLoPoneEnCancelando()
     {
         var service = new LongActionService(NewSession());

@@ -57,7 +57,10 @@ internal sealed partial class OperationProgressView : UserControl
         Loaded += (_, _) =>
         {
             Refresh();
-            _timer.Start();
+            if (_operation is not null)
+            {
+                _timer.Start();
+            }
         };
         Unloaded += (_, _) => _timer.Stop();
     }
@@ -72,6 +75,16 @@ internal sealed partial class OperationProgressView : UserControl
             {
                 _operation = value;
                 _cancel.IsEnabled = true;
+            }
+
+            // Sin avance que dibujar no hay por qué despertar cuatro veces por segundo.
+            if (value is null)
+            {
+                _timer.Stop();
+            }
+            else if (IsLoaded)
+            {
+                _timer.Start();
             }
 
             Refresh();
