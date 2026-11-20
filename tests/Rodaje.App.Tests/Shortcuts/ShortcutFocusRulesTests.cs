@@ -1,5 +1,4 @@
 using Rodaje.App.Services.Shortcuts;
-using Windows.System;
 
 namespace Rodaje.App.Tests.Shortcuts;
 
@@ -9,7 +8,7 @@ public sealed class ShortcutFocusRulesTests
     [Fact]
     public void SpaceOnAButtonReachedWithTheKeyboardPressesIt()
     {
-        var space = new KeyChord((int)VirtualKey.Space);
+        var space = new KeyChord(ShortcutFocusRules.SpaceKey);
 
         Assert.True(ShortcutFocusRules.SpaceGoesToButton(space, keyboardFocusedButton: true));
         Assert.False(ShortcutFocusRules.SpaceGoesToButton(space, keyboardFocusedButton: false));
@@ -18,7 +17,7 @@ public sealed class ShortcutFocusRulesTests
     [Fact]
     public void OtherKeysAndModifiedSpaceStayShortcuts()
     {
-        Assert.False(ShortcutFocusRules.SpaceGoesToButton(new KeyChord((int)VirtualKey.K), keyboardFocusedButton: true));
-        Assert.False(ShortcutFocusRules.SpaceGoesToButton(new KeyChord((int)VirtualKey.Space, KeyModifiers.Shift), keyboardFocusedButton: true));
+        Assert.False(ShortcutFocusRules.SpaceGoesToButton(new KeyChord(0x4B), keyboardFocusedButton: true));
+        Assert.False(ShortcutFocusRules.SpaceGoesToButton(new KeyChord(ShortcutFocusRules.SpaceKey, KeyModifiers.Shift), keyboardFocusedButton: true));
     }
 }
