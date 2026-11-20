@@ -85,6 +85,7 @@ Rodaje usa `Dathinel/sala`, que ya trae lo central (red, roles, reservas, traspa
 |---|---|---|---|
 | B10 | 1a | Parches en Core: `ContentKey`, `ContentHash` (v16 con lector y escritor), `PatchDiff`, `PatchApply`, `CollabHistory`, `WireSanitizer` | 10 000 secuencias aleatorias de parches convergen igual en dos réplicas |
 | B11 | 1c | `CollabSession`, `RoomService`, `MediaMatch` y las vistas de Invitar y Unirse | Tres Rodaje en la misma red editan a la vez y ven a los demás |
+
 | B12 | 2 | Pruebas hostiles en Rodaje | Ninguna entrada hostil tumba al anfitrión ni escribe fuera de la carpeta |
 | B13 | 3 | Internet: relé, billetes con relé, «Solo por relé» y el cortafuegos de Windows explicado | Casa ↔ datos móviles conectan y dicen si es directo o por relé; latencia p95 < 250 ms por relé |
 | B14 | 4 | Proxies del anfitrión: almacén por `ContentHash`, medio «solo proxy», «Pedir proxy» | Un invitado sin los originales edita y oye con proxies |
@@ -92,6 +93,8 @@ Rodaje usa `Dathinel/sala`, que ya trae lo central (red, roles, reservas, traspa
 | B16 | 6 | Render del anfitrión: «Exportar en el anfitrión» y caché compartido | Un invitado lanza la exportación y sale en el anfitrión |
 
 **B10 ✔ hecho el 20-nov** (#648 tipos y huella de contenido, #649 implementación): `Rodaje.Core.Collab` con `SharedState`, `PatchDiff`, `PatchApply`, `PatchWire`, `WireSanitizer`, `PatchReservations`, `CollabHistory` y `ProjectWire`; `MediaRef.ContentKey/ContentHash` en el formato 16 (solo si existen). 10 000 secuencias aleatorias de ediciones convergen en dos réplicas (y con parches independientes reordenados); contrato en `propuestas/colaboracion-api-parches.md`. Queda en `pendientes.md`: coste de `Capture` con 5 000 clips y la conversión `file:` ↔ `blob:` con archivos reales (de `Rodaje.App`).
+
+**B11 (20-nov):** ◐ PR apilados abiertos (esqueleto, invitar y unirse, proyecto y medios, presencia y edición compartida con diagnóstico y progreso). Falta el repaso con ratón y la prueba entre tres equipos (`pruebas-a-mano.md`, «Colaboración»), el progreso común de B9b y el empaquetado de `dathinel-red` (B13).
 
 La versión de cada una la decide Daniel al cerrar B9 (propuesta: 1.0.5 con B10 a B12, el resto después).
 
