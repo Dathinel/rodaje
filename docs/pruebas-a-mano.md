@@ -165,7 +165,8 @@ Con una toma real con cielo o ventanas que se quemen (o la carta sintética si n
 
 ## Plantillas de movimiento (D-064)
 
-Hace falta al menos un paquete con plantillas instalado (el `.paquete` de `Complementosodaje-plantillas`, soltándolo en la biblioteca) o una plantilla propia del paso 7.
+Hace falta al menos un paquete con plantillas instalado (el `.paquete` de `Complementos
+odaje-plantillas`, soltándolo en la biblioteca) o una plantilla propia del paso 7.
 
 1. Biblioteca › **Plantillas**: las miniaturas aparecen solas, se animan al pasar el ratón y vuelven al cuadro quieto al salir. ¿Se entiende el cuadro quieto (es el del medio)? ¿Sirve el ícono del carril?
 2. Doble clic pone la plantilla en el cursor; arrastrarla a una pista concreta la deja ahí. La etiqueta del clip es el nombre de la plantilla.
@@ -194,9 +195,11 @@ Hace falta al menos un paquete con plantillas instalado (el `.paquete` de `Compl
 
 ## Rodaje en Linux (D-066, fase 8)
 
-En el PC de siempre con Ubuntu 24.04 desde el USB (sesión X11 o Wayland con XWayland). Hace falta el driver de NVIDIA (o Mesa) con Vulkan y zenity (viene con GNOME). La app es el artefacto pp-linux de la CI (o uild/app-linux.sh en el propio Linux): carpeta pp/, ejecutable odaje.
+En el PC de siempre con Ubuntu 24.04 desde el USB (sesión X11 o Wayland con XWayland). Hace falta el driver de NVIDIA (o Mesa) con Vulkan y zenity (viene con GNOME). La app es el artefacto pp-linux de la CI (o uild/app-linux.sh en el propio Linux): carpeta pp/, ejecutable 
+odaje.
 
-1. **Arranque**: abre odaje sin argumentos dos veces seguidas y cronometra desde el doble clic hasta poder pulsar un menú (en caliente, la segunda). Objetivo: menos de 1 s. Dilo en segundos.
+1. **Arranque**: abre 
+odaje sin argumentos dos veces seguidas y cronometra desde el doble clic hasta poder pulsar un menú (en caliente, la segunda). Objetivo: menos de 1 s. Dilo en segundos.
 2. **Abrir y guardar**: Archivo › Importar medios (diálogo de zenity con el filtro «Videos, audios e imágenes»), luego Guardar como… y Abrir proyecto. Di si el diálogo se ve bien y si la ventana de Rodaje se queda en gris mientras está abierto (es lo esperado de momento).
 3. **Visor**: reproduce un 1080p y un 4K HEVC 10 bits. El visor va por la CPU en esta fase (el nativo es la fase 9): di si va fluido, cuántos cuadros perdidos marca la barra de estado y si el tamaño del visor sigue a la ventana al redimensionar. Pausa en un título: se debe ver igual que en Windows.
 4. **Editar**: corta (B o «Dividir»), recorta un borde, deshaz y rehaz, mueve un clip con el ratón. Mira si las líneas finas (curvas del inspector, mezclador, regla de la línea de tiempo) se dibujan: Uno no implementa LineGeometry y puede que falten.
@@ -206,6 +209,7 @@ En el PC de siempre con Ubuntu 24.04 desde el USB (sesión X11 o Wayland con XWa
 8. **Exportar**: exporta 10 s a ProRes y a H.264 (si la lista ofrece h264_nvenc o h264_vaapi). Abre el archivo con el reproductor del sistema.
 9. **Teclado**: en un teclado español, mira cómo se llaman en Atajos las teclas de signos ( '  y  ¡ ): en Linux salen con el nombre de la tecla de EE. UU. (pendiente).
 10. **Audio**: reproduce con sonido (PipeWire); di si se oye sincronizado con la imagen.
+
 ## Progreso visible en toda operación larga (B9b)
 
 Para la vuelta de repaso con ratón (B9). Criterio común: nada se queda con solo una rueda; cada operación larga muestra una **barra** (con porcentaje o en movimiento), el texto de fase o etapa, «quedan unos N s» cuando hay porcentaje y, si pasan 5 s sin avance, «Sigue trabajando; último avance hace N s». Revisa también el tema **claro**, **oscuro** y **alto contraste** (Preferencias › Apariencia) y que la barra no parpadee ni tape el recorrido del cursor en la línea de tiempo.

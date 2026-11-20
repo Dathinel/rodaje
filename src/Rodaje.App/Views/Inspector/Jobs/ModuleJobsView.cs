@@ -45,11 +45,7 @@ internal sealed partial class ModuleJobsView : UserControl, IEditorView
         _jobs = services.Modules?.Jobs;
         if (_jobs is not null)
         {
-            _jobs.Changed += (_, _) =>
-            {
-                Show();
-                ActiveCountChanged?.Invoke(this, _jobs.ActiveCount);
-            };
+            _jobs.Changed += (_, _) => Show();
         }
     }
 

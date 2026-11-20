@@ -9,6 +9,9 @@ namespace Rodaje.App.Services.LongActions;
 /// <param name="Operation">El avance completo (fases, tiempo restante, último avance) que dibuja <c>OperationProgressView</c>.</param>
 public sealed record LongActionStatus(string ActionId, string Title, string Message, double? Progress, bool CanCancel, OperationProgress? Operation = null)
 {
+    /// <summary>El avance del trabajo seguido (un módulo) si lo hay; si no, <see cref="Progress"/>.</summary>
+    public double? LiveProgress => Operation?.Snapshot() is { IsFinished: false } s ? s.Fraction : Progress;
+
     /// <summary>«42 %», o vacío si el avance no se conoce.</summary>
     public string ProgressText => Progress is { } p ? string.Create(SpanishNumbers.Format, $"{Math.Floor(p * 100):0} %") : "";
 }
@@ -346,6 +349,21 @@ public sealed partial class LongActionScope : IDisposable
             _status = _status with { Operation = source };
         }
 
+        // Al terminar el trabajo seguido, la barra vuelve al avance propio en vez de quedarse en 100 %.
+        source.Completed += () =>
+        {
+            lock (_lock)
+            {
+                if (_disposed || !ReferenceEquals(_status.Operation, source))
+                {
+                    return;
+                }
+
+                _status = _status with { Operation = Operation };
+            }
+
+            _owner.RaiseChanged();
+        };
         _owner.RaiseChanged();
     }
 
@@ -376,7 +394,15 @@ public sealed partial class LongActionScope : IDisposable
             }
         }
 
-        _cancel.Cancel();
+        try
+        {
+            _cancel.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+            return false;
+        }
+
         MarkCancelling();
         return true;
     }
