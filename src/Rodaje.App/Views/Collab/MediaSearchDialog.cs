@@ -67,7 +67,6 @@ internal static class MediaSearchDialog
 
         var cancel = new CancellationTokenSource();
         var matcher = new MediaMatch();
-        bool searching = false;
         CancellationTokenSource? current = null;
 
         void Summarize()
@@ -91,7 +90,6 @@ internal static class MediaSearchDialog
             current?.Cancel();
             using CancellationTokenSource mine = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token);
             current = mine;
-            searching = true;
             clock.Restart();
             progress.Visibility = Visibility.Visible;
             foreach (MediaManifestEntry e in wanted)
@@ -133,7 +131,6 @@ internal static class MediaSearchDialog
                 if (ReferenceEquals(current, mine))
                 {
                     current = null;
-                    searching = false;
                     progress.Visibility = Visibility.Collapsed;
                 }
             }
