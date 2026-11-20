@@ -853,7 +853,11 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             DefaultButton = ContentDialogButton.Close,
         };
         Task<string> work = proxies.RequestAsync(item.Id, operation, cancel.Token);
-        _ = work.ContinueWith(_ => _dispatcher?.RunLater(dialog.Hide));
+        UiTask.Run(work.ContinueWith(t =>
+        {
+            _ = t.Exception;
+            _dispatcher?.RunLater(dialog.Hide);
+        }));
         if (DialogGate.IsOpen)
         {
             return;

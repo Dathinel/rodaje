@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text.Json;
 using Dathinel.Sala;
+using Rodaje.App.Services.Crashes;
 
 namespace Rodaje.App.Services.Collab;
 
@@ -66,7 +67,7 @@ public sealed partial class ProxyShareHost : IDisposable
         if (ShareMessages.Type(message) == ProxyMessages.Ask && _room.State is { IsHost: true, Phase: RoomPhase.Hosting }
             && message.TryGetProperty("sha256", out JsonElement h) && h.ValueKind == JsonValueKind.String && h.GetString() is { } hash && MediaManifest.IsHash(hash))
         {
-            _ = Task.Run(() => ServeAsync(from, hash));
+            UiTask.Run(Task.Run(() => ServeAsync(from, hash)));
         }
     }
 
@@ -200,7 +201,7 @@ public sealed partial class ProxyShareHost : IDisposable
             }
 
             Interlocked.Exchange(ref _last, now);
-            _ = host.TellAsync(to, mediaHash, Math.Clamp(value, 0, 1));
+            UiTask.Run(host.TellAsync(to, mediaHash, Math.Clamp(value, 0, 1)));
         }
     }
 
