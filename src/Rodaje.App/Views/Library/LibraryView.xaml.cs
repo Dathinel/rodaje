@@ -12,7 +12,7 @@ using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Effects;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Packages;
-using Rodaje.App.Services.Progress;
+using Rodaje.App.Services.Operations;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Services.Titles;
 using Rodaje.App.Shell;
