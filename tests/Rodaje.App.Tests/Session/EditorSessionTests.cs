@@ -404,6 +404,29 @@ public class EditorSessionTests
     });
 
     [Fact]
+    public void Importar_ConLaBarraDeAvisos_SeCancelaYNoAnadeNada() => UiThread.Run(async () =>
+    {
+        var prober = new GatedProber(new FakeProber().Video("a.mp4"));
+        var session = new EditorSession(new FakePlayback(), prober, new FakeDialogs(), new SequentialIdGenerator());
+        var service = new Rodaje.App.Services.LongActions.LongActionService(session);
+        session.ProgressHost = service;
+        var notices = new List<EditorNotification>();
+        session.Notified += (_, n) => notices.Add(n);
+
+        Task<ImportResult> importing = session.ImportMediaAsync([Path.GetFullPath("a.mp4")]);
+        Assert.True(service.IsRunning("medios.importar"));
+        Assert.True(service.Cancel("medios.importar"));
+        prober.Release();
+        ImportResult result = await importing;
+
+        Assert.Empty(result.MediaIds);
+        Assert.Empty(session.Project.Media);
+        Assert.False(service.IsRunning("medios.importar"));
+        Assert.Contains(notices, n => n.Title == "Importación cancelada");
+        Assert.False(session.IsBusy);
+    });
+
+    [Fact]
     public void Importar_ConUnGestoAbierto_EsperaAQueTermineYEntra() => UiThread.Run(async () =>
     {
         var prober = new GatedProber(new FakeProber().Video("a.mp4"));

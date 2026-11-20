@@ -1,3 +1,5 @@
+using Rodaje.App.Services.Operations;
+
 namespace Rodaje.App.Services.Modules;
 
 /// <summary>Lo que muestra un diálogo con su propia barra mientras corre un módulo.</summary>
@@ -35,5 +37,40 @@ public static class ModuleActivity
         }
 
         return new ModuleActivityView((job.Stage ?? working) + "…", progress, false);
+    }
+}
+
+/// <summary>
+/// El avance que dibuja un diálogo de módulo: el del trabajo cuando ya existe y, mientras el módulo arranca (hasta 30 s en
+/// frío), uno propio «Iniciando el módulo…» que cuenta desde que se pidió; así la barra dice cuánto lleva y, si pasan unos
+/// segundos sin avance, que sigue trabajando.
+/// </summary>
+public sealed class ModuleDialogActivity
+{
+    private OperationProgress _starting = NewStarting();
+
+    /// <summary>Empieza una corrida nueva (el trabajo anterior ya no cuenta).</summary>
+    public void Restart() => _starting = NewStarting();
+
+    public OperationProgress Current(ModuleJob? job, bool cancelRequested)
+    {
+        if (job is not null)
+        {
+            return job.Operation;
+        }
+
+        if (cancelRequested)
+        {
+            _starting.MarkCancelling();
+        }
+
+        return _starting;
+    }
+
+    private static OperationProgress NewStarting()
+    {
+        var starting = new OperationProgress();
+        starting.Report(null, ModuleActivity.Starting);
+        return starting;
     }
 }

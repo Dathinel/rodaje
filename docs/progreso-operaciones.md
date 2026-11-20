@@ -10,7 +10,7 @@ Dos piezas, sin dependencias nuevas:
 
 | Pieza | Dónde | Qué es |
 |---|---|---|
-| `OperationProgress` | `src/Rodaje.App/Services/Progress/OperationProgress.cs` | El modelo, sin WinUI y seguro entre hilos. Quien trabaja informa; la interfaz lee `Snapshot()`. |
+| `OperationProgress` | `src/Rodaje.App/Services/Operations/OperationProgress.cs` | El modelo, sin WinUI y seguro entre hilos. Quien trabaja informa; la interfaz lee `Snapshot()`. |
 | `OperationProgressView` | `src/Rodaje.App/Views/Shared/OperationProgressView.cs` | La vista (`UserControl`): barra, porcentaje, línea de fase y tiempo restante, aviso de sin avance y botón Cancelar. |
 
 ### Lo que informa quien trabaja (`OperationProgress`)
@@ -78,6 +78,35 @@ Reglas para la red: informar siempre en la capa que lee del socket (no en la int
 
 `LongActionService` (acciones largas de la barra de avisos) ya lleva un avance con porcentaje y Cancelar; en el PR siguiente su `LongActionScope` lleva un `OperationProgress` (`scope.Operation`) y la barra de avisos usa `OperationProgressView`, de modo que todas las acciones que lo usan (color automático, silencios, subtítulos, estabilizar, texto a voz…) ganan fases, tiempo restante y «último avance» sin cambiar sus llamadas (`scope.Report(…)`, `scope.Progress`). Los diálogos con su propia barra, las descargas de paquetes, los módulos de IA y los proxies pasan al componente en PR pequeños (ver el estado en la sección 2).
 
-## 2. Auditoría
+## 2. Auditoría (20-nov, lectura de Devin revisada en el código)
 
-(Se rellena con el inventario revisado: operación, dónde se lanza, indicador hoy, si hay porcentaje en el origen, si se cancela, qué se cambió y en qué PR.)
+«Antes» es lo que había; «Ahora» lo que queda tras B9b (PR en la sección 3). **Cancelar**: sí real (corta el trabajo), parcial (se cancela al cerrar el diálogo) o no.
+
+| Operación | Antes | Ahora | Cancelar |
+|---|---|---|---|
+| Abrir proyecto | nada (solo `BeginBusy`) | barra de avisos con «Paso k de 2» tras 0,6 s; sin porcentaje (leer el JSON no lo da) | no |
+| Guardar | nada | sin cambio: dura milisegundos | no |
+| Importar medios (biblioteca, soltar, carpetas vigiladas, CinemaDNG) | nada | «Leyendo los medios: k de n», porcentaje, tiempo restante, Cancelar (tras 0,6 s) | sí |
+| Importar / exportar línea de tiempo (EDL, FCPXML, OTIO) | nada | importar: porcentaje de medios sondeados y Cancelar; exportar: «Escribiendo…» sin porcentaje | importar sí |
+| Exportar video (cola) | barra con %; indeterminada sin texto en preparar, medir, mezclar y cerrar | vista común: fases por nombre, fps, tiempo restante, «último avance», «Paso k de n» en varias pasadas | sí (mata `ffmpeg`) |
+| Render en caché | barra con % | vista común (tiempo restante, «último avance») | sí |
+| Análisis: silencios, ritmo, ducking, estabilizar | barra local con % y barra de avisos | igual, más tiempo restante y «último avance» en la barra de avisos | parcial (cierra el diálogo) |
+| Color automático, tracking, quitar fondo, reencuadre | barra con % y Cancelar | igual, más tiempo restante y «último avance» | sí |
+| Sincronizar por el sonido, multicámara | barra con % | igual, más tiempo restante | no (pendiente: no hay token) |
+| Reducir ruido, subtítulos automáticos, transcribir | barra con % del módulo en el diálogo; el restante solo en Trabajos | vista común en el diálogo (arranque del módulo, etapa, %, restante, «último avance») y en Trabajos | parcial; real en Trabajos |
+| Traducir pista, texto a voz (y cargar voces) | **rueda** | vista común (barra con % del módulo) en el diálogo y en la barra de avisos | parcial; real en Trabajos |
+| Importar CinemaDNG | barra de avisos indeterminada | % del módulo en la barra de avisos | sí |
+| Reenlazar medios («Buscar en carpeta») | **rueda** + conteo | barra en movimiento con lo que lleva y «último avance» (el total no se conoce) | sí |
+| Grabar voz en off | cuenta atrás y vúmetro | sin cambio: una grabación no tiene total | «Detener» |
+| Exportar fotograma | texto con Cancelar | sin cambio: dura menos de un segundo | sí |
+| Descargar e instalar paquetes y modelos | barra con % y etapa | más «quedan unos N s» y «Sigue trabajando; último avance hace N s» | sí |
+| Instalar un `.paquete` local | nada | «Instalando el paquete» en la barra de avisos | no |
+| Generar proxies | barra con % en Trabajos; solo texto en la biblioteca | vista común con tiempo restante y «último avance»; «En cola» sin aviso de sin avance | sí |
+| Botón «Trabajos» | **rueda** sobre el icono | barra fina (con % si es un solo trabajo) | – |
+| Red de la colaboración (B11, B13) | no existe aún | usar `OperationProgress` desde el principio (sección 1) | según la operación |
+
+No existen como operación propia: detectar escenas, flujo óptico (es un paso del render), render separado de exportar. Sin indicador por ser instantáneas: plantillas, escaneo de salud de la biblioteca, miniaturas y ondas (aparecen al pintarse), comprobar actualizaciones, autoguardado.
+
+## 3. Estado de los PR
+
+Ver «Registro» al final; se actualiza en cada PR que cierra una fila.

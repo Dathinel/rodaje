@@ -57,6 +57,9 @@ public sealed partial class EditorSession
             return false;
         }
 
+        using LongActions.LongActionScope? progress = ProgressHost?.TryBegin(
+            "proyecto.abrir", "Abriendo el proyecto", Path.GetFileName(full), showAfter: LongActions.LongActionService.QuickOperationDelay);
+        progress?.Operation.SetPhase(1, 2, "Leyendo el archivo");
         BeginBusy();
         Project loaded;
         ClampSummary clamped;
@@ -85,6 +88,8 @@ public sealed partial class EditorSession
             Notify(NotificationSeverity.Error, $"No se pudo abrir «{Path.GetFileName(full)}»", "El proyecto no tiene ninguna secuencia.");
             return false;
         }
+
+        progress?.Operation.SetPhase(2, 2, "Preparando la línea de tiempo");
 
         // Un proyecto de la v1.0.0 con valores más allá del límite de hoy (posición, ancla, giro, tasa, clips tras el final)
         // se acota al leerlo. Antes era en silencio y el proyecto quedaba «Guardado» aunque ya no era igual al archivo:
@@ -208,6 +213,11 @@ public sealed partial class EditorSession
         }
 
         Project target = Project;
+        using LongActions.LongActionScope? progress = ProgressHost?.TryBegin(
+            "medios.importar", files.Length == 1 ? "Importando el medio" : "Importando medios", "", canCancel: true,
+            showAfter: LongActions.LongActionService.QuickOperationDelay);
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, progress?.Token ?? default);
+        CancellationToken token = linked.Token;
         BeginBusy();
         MediaProbeResult[] probes;
         try
@@ -215,19 +225,28 @@ public sealed partial class EditorSession
             // Limita las lecturas simultáneas del disco sin bloquear hilos del pool mientras esperan su turno.
             int concurrency = Math.Clamp(Environment.ProcessorCount, 2, 8);
             using var slots = new SemaphoreSlim(concurrency, concurrency);
+            int read = 0;
             probes = await Task.WhenAll(files.Select(async file =>
             {
-                await slots.WaitAsync(cancellationToken).ConfigureAwait(false);
+                await slots.WaitAsync(token).ConfigureAwait(false);
                 try
                 {
-                    return await Task.Run(() => _prober.Probe(file), cancellationToken).ConfigureAwait(false);
+                    MediaProbeResult probe = await Task.Run(() => _prober.Probe(file), token).ConfigureAwait(false);
+                    int done = Interlocked.Increment(ref read);
+                    progress?.Report(done / (double)files.Length, $"Leyendo los medios: {done} de {files.Length}");
+                    return probe;
                 }
                 finally
                 {
                     slots.Release();
                 }
             }));
-            cancellationToken.ThrowIfCancellationRequested();
+            token.ThrowIfCancellationRequested();
+        }
+        catch (OperationCanceledException) when (progress is { Token.IsCancellationRequested: true } && !cancellationToken.IsCancellationRequested)
+        {
+            Notify(NotificationSeverity.Informational, "Importación cancelada", "No se añadió ningún medio.");
+            return ImportResult.Empty;
         }
         finally
         {
