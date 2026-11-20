@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -232,7 +233,7 @@ public sealed partial class EditorSession : ObservableObject
         }
         catch (EditException ex) when (_historyChanges == changes)
         {
-            Notify(NotificationSeverity.Warning, "No se pudo hacer", ex.Message);
+            Notify(NotificationSeverity.Warning, "No se pudo hacer", ClipLabels.NameClipsIn(Project, ex.Message));
             return false;
         }
 
