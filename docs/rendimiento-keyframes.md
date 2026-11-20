@@ -27,7 +27,19 @@ Lo que NO era el problema: añadir, deshacer y guardar son lineales y baratos; e
 
 ## Material de 120 y 240 fps
 
-El plan (`VideoClipPlan.NextShown`) pide solo los cuadros que se ven: en 120/240 fps sobre 30/60 salta de 4 en 4 (o 2, 8) y la decodificación descarta los que no son de referencia. Prueba nueva `HighFrameRateSourceTests`: 30 o 60 cuadros por segundo pedidos, con el paso exacto. **No quedó medido** con un clip sintético de FFmpeg de 120 fps decodificando de verdad (el PC compartido estaba ocupado con otra medición): queda como paso para una máquina libre.
+El plan (`VideoClipPlan.NextShown`) pide solo los cuadros que se ven: en 120/240 fps sobre 30/60 salta de 4 en 4 (o 2, 8). Prueba `HighFrameRateSourceTests`: el paso es exacto y se piden 30 o 60 cuadros por segundo.
+
+**Decodificación real** (20-nov, `HighFrameRateDecodeTests`, H.264 sintético de FFmpeg con GOP de 2 s y 2 cuadros B, decodificador por software, Debug, prioridad baja, PC compartido). Un decodificador entre cuadros tiene que descifrar todos los cuadros del GOP aunque la línea de tiempo pida uno de cada N, así que pedir menos no abarata la decodificación: lo que importa es que cada segundo de material se decodifique en mucho menos de un segundo.
+
+| Material | Línea | Todos los cuadros | Segundos de decodificación por segundo de material | Cuadros pedidos por segundo (veces el tiempo real de la línea) |
+|---|---|---|---|---|
+| 120 fps 720p | 30 | 4747 cuadros/s | 0,03 | 1178 (39×) |
+| 120 fps 720p | 60 | 4966 | 0,02 | 2492 (41×) |
+| 240 fps 720p | 30 | 5321 | 0,05 | 664 (22×) |
+| 240 fps 720p | 60 | 5333 | 0,04 | 1298 (22×) |
+| 120 fps 1080p | 30 | 2441 | 0,05 | 604 (20×) |
+
+No se encontró un defecto de planificación ni de decodificación en este material. Límites de la medida: el contenido sintético comprime muy bien, así que material real de cámara a 120/240 fps (más bits por cuadro) y 4K costarán bastante más; no se midió la decodificación por GPU; y la reproducción completa con interfaz no se probó. Si un material real se traba, lo primero a medir es el bitrate y el GOP del archivo, no la planificación. Las pruebas de tiempo van con `Categoria=Rendimiento` (nocturna), no en cada PR.
 
 ## Lo que se vio con el ratón (repaso del 19-nov) y lo que se midió después
 
