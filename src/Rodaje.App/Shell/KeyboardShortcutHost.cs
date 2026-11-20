@@ -71,7 +71,7 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
         var chord = new KeyChord((int)e.Key, CurrentModifiers());
         bool handled = _intercept?.Invoke(chord) == true
             || TryFocusedShortcut(chord)
-            || (!FocusedSliderTakes(chord) && _router.Dispatch(chord, e.KeyStatus.WasKeyDown, FocusKind(e.OriginalSource)));
+            || (!FocusedSliderTakes(chord) && !ShortcutFocusRules.SpaceGoesToButton(chord, FocusedKeyboardButton()) && _router.Dispatch(chord, e.KeyStatus.WasKeyDown, FocusKind(e.OriginalSource)));
         if (handled)
         {
             _consumed.Add(e.Key);
@@ -106,6 +106,9 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
         && (VirtualKey)chord.Key is VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down
             or VirtualKey.Home or VirtualKey.End or VirtualKey.PageUp or VirtualKey.PageDown
         && _root.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is Slider { FocusState: FocusState.Keyboard };
+
+    private bool FocusedKeyboardButton() =>
+        _root.XamlRoot is { } root && FocusManager.GetFocusedElement(root) is ButtonBase { FocusState: FocusState.Keyboard };
 
     // Si WinUI lleva el foco a la barra de menús por su cuenta (por ejemplo, al quitar del árbol el botón que lo tenía),
     // no llega por el teclado: Espacio sigue reproduciendo en lugar de abrir «Archivo».
