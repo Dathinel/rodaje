@@ -29,7 +29,7 @@ El nombre de trabajo «FotoShot» quedaba a una letra de Photoshop y ya existía
 
 ## D-005. Entorno propio en `.entorno\` (9 de octubre de 2026)
 
-- **Decisión.** El SDK de .NET 10.0.401 se descarga a `.entorno\dotnet` con `build\preparar-entorno.ps1`, que verifica el SHA-512 publicado por Microsoft. La versión se fija en `global.json`; la caché de NuGet también vive en `.entorno\` y la restauración usa archivos de bloqueo. Solo `git` y `gh` son globales.
+- **Decisión.** El SDK de .NET 10.0.403 se descarga a `.entorno\dotnet` con `build\preparar-entorno.ps1`, que verifica el SHA-512 publicado por Microsoft. La versión se fija en `global.json`; la caché de NuGet también vive en `.entorno\` y la restauración usa archivos de bloqueo. Solo `git` y `gh` son globales.
 - **Por qué.** Un SDK global mezclaría versiones entre programas. Un contenedor sería excesivo para una aplicación de escritorio.
 - **Consecuencia.** La primera ejecución descarga unos 280 MB. `.entorno\` no se versiona; se versiona el script que lo reconstruye.
 

@@ -1,6 +1,6 @@
 # Fase 2 de Linux y macOS (D-066): comprueba que build/preparar-entorno.ps1 crea .entorno igual en Windows,
 # Linux y macOS con las mismas huellas fijadas, y que dotnet-local (.cmd en Windows, .sh en Unix) levanta el
-# SDK 10.0.401 y compila Rodaje.Core. Corre a mano y en los PR que toquen el instalador del entorno.
+# SDK 10.0.403 y compila Rodaje.Core. Corre a mano y en los PR que toquen el instalador del entorno.
 
 name: Entorno en Windows, Linux y macOS
 
@@ -52,7 +52,7 @@ jobs:
         run: |
           v="$(bash build/dotnet-local.sh --version)"
           echo "$v"
-          [ "$v" = "10.0.401" ]
+          [ "$v" = "10.0.403" ]
 
       - name: dotnet-local --version
         if: runner.os == 'Windows'
