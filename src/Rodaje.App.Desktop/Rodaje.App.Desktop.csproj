@@ -54,7 +54,7 @@
     <ProjectReference Include="..\Rodaje.Export\Rodaje.Export.csproj" />
     <ProjectReference Include="..\Rodaje.Render\Rodaje.Render.csproj" />
     <ProjectReference Include="..\Rodaje.Packages\Rodaje.Packages.csproj" />
-    <ProjectReference Include="..\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <ProjectReference Include="..\..\externo\sala\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
     <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
   </ItemGroup>
 
