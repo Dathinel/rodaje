@@ -174,7 +174,7 @@ public sealed class ModuleJob
 }
 
 /// <summary>Los trabajos de módulos (lo más reciente primero). <see cref="Changed"/> salta en el contexto de la interfaz.</summary>
-public sealed class ModuleJobList(SynchronizationContext? context)
+public sealed partial class ModuleJobList(SynchronizationContext? context)
 {
     private readonly object _lock = new();
     private readonly List<ModuleJob> _jobs = [];
