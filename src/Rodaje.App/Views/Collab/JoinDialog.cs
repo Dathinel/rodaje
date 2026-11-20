@@ -97,6 +97,7 @@ internal static class JoinDialog
         var cancel = new CancellationTokenSource();
         bool busy = false;
         bool joined = false;
+        string roomFolder = "";
 
         void Refresh() => dialog.IsPrimaryButtonEnabled = !busy && !string.IsNullOrWhiteSpace(invite.Text) && CollabNames.NormalizeAlias(name.Text) is not null;
         invite.TextChanged += (_, _) => Refresh();
@@ -136,7 +137,8 @@ internal static class JoinDialog
                 try
                 {
                     string alias = CollabNames.NormalizeAlias(name.Text)!;
-                    await room.JoinAsync(invite.Text, alias, Path.Combine(folder, "Rodaje - sala " + DateTime.Now.ToString("yyyy-MM-dd HH.mm", System.Globalization.CultureInfo.InvariantCulture)), cancel.Token);
+                    roomFolder = Path.Combine(folder, "Rodaje - sala " + DateTime.Now.ToString("yyyy-MM-dd HH.mm", System.Globalization.CultureInfo.InvariantCulture));
+                    await room.JoinAsync(invite.Text, alias, roomFolder, cancel.Token);
                     collab.Alias = alias;
                     joined = true;
                     dialog.Hide();
@@ -161,23 +163,11 @@ internal static class JoinDialog
         dialog.Closed += (_, _) => cancel.Cancel();
 
         await DialogGate.ShowAsync(dialog);
+        cancel.Dispose();
         if (joined)
         {
-            services.Session.Notify(NotificationSeverity.Success, "Entraste en la sala", "Ya estás con " + OtherNames(room.State) + ".");
+            await SharedProjectFlow.RunAsync(services, hwnd, roomFolder);
         }
-
-        cancel.Dispose();
-    }
-
-    private static string OtherNames(RoomState state)
-    {
-        List<string> names = [.. state.Members.Where(m => !m.IsMe).Select(m => m.Alias)];
-        return names.Count switch
-        {
-            0 => "quien te invitó",
-            1 => names[0],
-            _ => string.Join(", ", names[..^1]) + " y " + names[^1],
-        };
     }
 
     private static string DefaultFolder() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Rodaje", "Salas");

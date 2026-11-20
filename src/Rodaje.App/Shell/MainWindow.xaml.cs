@@ -164,7 +164,10 @@ internal sealed partial class MainWindow : Window, IShellHost
             AutoProxies = CreateAutoProxies(session),
             WatchedFolders = new WatchedFolderInbox(session, () => settings.Current),
             RenderCache = _renderCache,
-            Collab = new Services.Collab.CollabHost(Services.AppDataPaths.Root, post => _dispatcher.RunLater(post)),
+            Collab = new Services.Collab.CollabHost(Services.AppDataPaths.Root, post => _dispatcher.RunLater(post))
+            {
+                ProjectSource = new Services.Collab.SessionProjectSource(session, work => Services.Collab.UiInvoke.Run(post => _dispatcher.RunLater(post), work)),
+            },
         };
         engine.SetContent(content);
         IReadOnlyList<string> fonts = TitleFontFiles.Find(packages.Installed);
@@ -1188,6 +1191,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         try
         {
             _services.Collab?.Room.LeaveAsync().Wait(TimeSpan.FromSeconds(2));
+            _services.Collab?.Dispose();
         }
         catch (Exception ex) when (ex is AggregateException or ObjectDisposedException)
         {
