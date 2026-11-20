@@ -2,6 +2,20 @@
 
 Lo que no cubren las pruebas automáticas ni la autoprueba del exe y conviene repasar con la app abierta antes de publicar. Cada apartado dice qué hacer y qué tiene que pasar. Las pruebas automáticas se corren con `Probar.bat`; la autoprueba, con `Rodaje.bat -Autoprueba`.
 
+## Lista corta de la 1.0.4 (lo nuevo desde la 1.0.3, por orden)
+
+Con el exe publicado desde `main` (`Rodaje.bat`). Cada punto remite al apartado de abajo; unos 10 a 20 minutos en total si solo se hace el primer paso de cada uno. Lo que falle va a la 1.0.5 salvo que rompa datos o el arranque.
+
+1. **Arranque y cierre:** abre y cierra la app tres veces seguidas (con un proyecto y sin él). No debe salir ningún error de WinUI al cerrar.
+2. **Render en caché**, pasos 1 a 4: la franja sobre la regla, el cálculo solo tras 3 s y reproducir el tramo verde. Es lo que más toca la reproducción.
+3. **Editar por el texto**, pasos 1, 3, 4 y 9: transcribir, borrar una frase con Supr, mostrar lo quitado y recuperarlo.
+4. **Cuadros intermedios**, pasos 1 a 4: 0,25× con mezcla y con flujo óptico, y 24 en 30 a 1×.
+5. **Plantillas de movimiento**, pasos 1 a 4 y 7 (necesita el paquete de plantillas, hoy privado: se salta si no lo tienes).
+6. **Intercambio:** exporta a OTIO, FCPXML y EDL un montaje con cortes, un fundido y una velocidad, e importa el OTIO (pasos 1 y 2). Abrir la EDL/FCPXML en DaVinci Resolve es opcional (paso 4).
+7. **CinemaDNG en HDR sin recortar**, pasos 1 a 3 (necesita un DNG).
+8. **Preferencias:** abre Preferencias › Rendimiento y guarda sin cambiar nada: el cálculo en caché en marcha no se pierde. El «Mapeo de rutas» acepta una fila «origen | destino».
+9. **Exportar:** un MP4 H.264 corto, con y sin «Usar el render en caché».
+
 ## Editar por el texto
 
 Hace falta el módulo «Subtítulos automáticos» y un video con voz de unos minutos.
