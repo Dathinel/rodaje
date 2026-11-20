@@ -76,6 +76,14 @@ internal sealed partial class TextPanel
         PathRows.Children.Add(Caption("Grados que abarca la línea más larga: positivo sube por el centro, negativo baja. Cada letra gira con el arco."));
         BuildAnimationRows(entry: true);
         BuildAnimationRows(entry: false);
+        AnimationRows.Children.Add(Caption("Movimiento continuo"));
+        AnimationRows.Children.Add(ChoiceRow("Movimiento", "loop-kind", ["Ninguno", "Tambaleo", "Temblor", "Pulso", "Flotar"],
+            s => s.Loop is { } loop ? (int)loop.Kind + 1 : 0,
+            (s, i) => TitleEditor.SetLoop(s, i == 0 ? null : (TextLoopKind)(i - 1))));
+        AnimationRows.Children.Add(SliderRow("Cantidad", StyleLoop.MinAmount, StyleLoop.MaxAmount, 0.05, "loop-amount", s => s.Loop?.Amount,
+            (s, v) => { if (s.Loop is { } loop) { loop.Amount = v; } }));
+        AnimationRows.Children.Add(SliderRow("Velocidad Hz", StyleLoop.MinSpeed, StyleLoop.MaxSpeed, 0.1, "loop-speed", s => s.Loop?.Speed,
+            (s, v) => { if (s.Loop is { } loop) { loop.Speed = v; } }));
         BuildKaraokeRow();
         BuildStyleGallery();
         StartThumbClock();
@@ -604,7 +612,7 @@ internal sealed partial class TextPanel
             {
                 try
                 {
-                    TextStyle? style = element.IsBuiltIn ? TitleStyles.Default()
+                    TextStyle? style = element.IsBuiltIn ? BuiltInStyles.Find(element.Reference)
                         : loader.LoadTextStyle(element.Reference) is { } preset ? TitleStyles.FromPreset(preset, element.Reference) : null;
                     if (style is not null)
                     {

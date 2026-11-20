@@ -262,6 +262,11 @@ public static partial class TranscriptEdits
         }
 
         removed.Sort();
+        // Con todas las pistas el ripple ya corrió los subtítulos (o falló porque uno atraviesa el tramo): no se corren dos veces.
+        if (!(ripple && scope.IncludesAllTracks()))
+        {
+            FollowInSubtitles(ctx, removed, ripple);
+        }
         return removed;
     }
 

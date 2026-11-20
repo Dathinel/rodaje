@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -178,7 +179,7 @@ public sealed partial class EditorSession
         }
         catch (EditException ex)
         {
-            Notify(NotificationSeverity.Warning, "No se pudo hacer", ex.Message);
+            Notify(NotificationSeverity.Warning, "No se pudo hacer", ClipLabels.NameClipsIn(Project, ex.Message));
             return ThreePointOutcome.Failed;
         }
 

@@ -33,7 +33,9 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
         RegisterPropertyChangedCallback(VisibilityProperty, (_, _) =>
         {
             if (Visibility == Visibility.Visible) Refresh();
+            else _services?.Session.ForgetTranscriptSelection();
         });
+        AddHandler(PointerPressedEvent, new PointerEventHandler(OnPanelPointerPressed), true);
     }
 
     public TranscriptPanelModel Model { get; } = new();
@@ -43,6 +45,31 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
         && t.Inlines.OfType<Run>().Any(r => !_wordIndices.ContainsKey(r) && !_removedRuns.ContainsKey(r)));
     internal int RealizedWordCount => _realized.Values.Sum(p => p.Count);
     internal void ShowRemovedWords(bool show) => ShowRemovedToggle.IsOn = show;
+
+    // Para la autoprueba: lo que el panel dibuja de verdad y si un clic sobre una palabra la encuentra.
+    internal int HighlightShapeCount => _realized.Keys.Sum(t => VisualTreeHelper.GetParent(t) is Grid grid && grid.Children.Count > 0 && grid.Children[0] is Canvas canvas ? canvas.Children.Count : 0);
+
+    internal void SelectWordAsClick(int word)
+    {
+        Model.SelectWord(word);
+        SelectionChanged();
+    }
+
+    /// <summary>La palabra que da un clic en medio de la palabra <paramref name="word"/> (-2 si no está a la vista): debe ser ella.</summary>
+    internal int WordFoundInsideItself(int word)
+    {
+        foreach ((TextBlock text, _) in _realized)
+        {
+            foreach (Run run in text.Inlines.OfType<Run>())
+            {
+                if (_wordIndices.GetValueOrDefault(run, -1) != word) continue;
+                Rect rect = CharacterRects(run)[run.Text.Length / 2];
+                return WordAt(text, new Point(rect.X + (rect.Width * 0.75), rect.Y + (rect.Height / 2)));
+            }
+        }
+
+        return -2;
+    }
 
     public void ShowGuideTrack(string? trackId)
     {
@@ -179,10 +206,12 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
     {
         if (VisualTreeHelper.GetParent(text) is not Grid grid || grid.Children[0] is not Canvas canvas) return;
         canvas.Children.Clear();
+        bool contrast = Theme.ThemeResources.IsHighContrast;
         var selectedBackground = new SolidColorBrush(Theme.ThemeResources.SolidColor("AccentBrush"));
         var selectedForeground = new SolidColorBrush(Theme.ThemeResources.SolidColor("AccentForegroundBrush"));
-        var activeBackground = new SolidColorBrush(Colors.Goldenrod);
-        var activeForeground = new SolidColorBrush(Colors.Black);
+        // La palabra que suena: un tinte del acento con el texto de siempre; con contraste alto, los colores de selección del sistema.
+        var activeBackground = new SolidColorBrush(Theme.ThemeResources.SolidColor(contrast ? "AccentBrush" : "AccentSubtleBrush"));
+        Brush? activeForeground = contrast ? selectedForeground : null;
         Rect? pending = null;
         bool pendingActive = false;
 
@@ -201,15 +230,16 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
             if (!_wordIndices.TryGetValue(run, out int i)) continue;
             bool active = Model.ActiveWord == i;
             bool selected = Model.IsSelected(i);
-            if (active || selected) run.Foreground = active ? activeForeground : selectedForeground;
+            Brush? foreground = selected ? selectedForeground : active ? activeForeground : null;
+            if (foreground is not null) run.Foreground = foreground;
             else run.ClearValue(TextElement.ForegroundProperty);
             if ((!active && !selected) || text.ActualHeight <= 0) continue;
-            for (int offset = 0; offset < run.Text.Length; offset++)
+            // La seleccionada manda sobre la que suena: se dibuja con su color.
+            bool asActive = active && !selected;
+            foreach (Rect rect in CharacterRects(run))
             {
-                if (run.ContentStart!.GetPositionAtOffset(offset, LogicalDirection.Forward) is not { } pointer) continue;
-                Rect rect = pointer.GetCharacterRect(LogicalDirection.Forward);
                 if (rect.Width <= 0 || rect.Height <= 0) continue;
-                if (pending is { } prior && pendingActive == active && Math.Abs(prior.Y - rect.Y) < 0.5
+                if (pending is { } prior && pendingActive == asActive && Math.Abs(prior.Y - rect.Y) < 0.5
                     && Math.Abs(prior.Height - rect.Height) < 0.5 && Math.Abs(prior.Right - rect.X) < 1)
                 {
                     pending = new Rect(prior.X, prior.Y, rect.Right - prior.X, Math.Max(prior.Height, rect.Height));
@@ -218,12 +248,45 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
                 {
                     Flush();
                     pending = rect;
-                    pendingActive = active;
+                    pendingActive = asActive;
                 }
             }
         }
 
         Flush();
+    }
+
+    // GetCharacterRect da ancho 0 en cada carácter (medido con la autoprueba en WinUI 3): sin ancho no se dibuja el fondo de
+    // lo elegido ni se encuentra la palabra bajo el puntero. El ancho de cada uno sale de dónde empieza el siguiente.
+    private static List<Rect> CharacterRects(Run run)
+    {
+        string text = run.Text;
+        var starts = new Rect[text.Length + 1];
+        for (int i = 0; i <= text.Length; i++)
+        {
+            TextPointer? pointer = i == text.Length ? run.ContentEnd : run.ContentStart!.GetPositionAtOffset(i, LogicalDirection.Forward);
+            starts[i] = pointer?.GetCharacterRect(LogicalDirection.Forward) ?? default;
+        }
+
+        var rects = new List<Rect>(text.Length);
+        double last = 6;
+        for (int i = 0; i < text.Length; i++)
+        {
+            Rect rect = starts[i], next = starts[i + 1];
+            if (rect.Height <= 0)
+            {
+                rects.Add(default);
+                continue;
+            }
+
+            double width = rect.Width > 0 ? rect.Width
+                : next.Height > 0 && Math.Abs(next.Y - rect.Y) < 0.5 && next.X > rect.X ? next.X - rect.X
+                : last;
+            last = width;
+            rects.Add(new Rect(rect.X, rect.Y, width, rect.Height));
+        }
+
+        return rects;
     }
 
     private int WordAt(TextBlock text, Point point)
@@ -235,17 +298,28 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
     {
         foreach (Inline inline in text.Inlines)
         {
-            if (inline is Run run)
-            {
-                for (int offset = 0; offset < run.Text.Length; offset++)
-                {
-                    TextPointer? pointer = run.ContentStart!.GetPositionAtOffset(offset, LogicalDirection.Forward);
-                    if (pointer is not null && pointer.GetCharacterRect(LogicalDirection.Forward).Contains(point)) return run;
-                }
-            }
+            if (inline is Run run && CharacterRects(run).Exists(rect => rect.Width > 0 && rect.Contains(point))) return run;
         }
 
         return null;
+    }
+
+    // Un clic en cualquier parte del panel le da el foco (salvo en lo que se lo queda por sí mismo): con el foco fuera, Supr
+    // iría al borrado de la línea de tiempo.
+    private void OnPanelPointerPressed(object sender, PointerRoutedEventArgs args)
+    {
+        if (!TakesFocusItself(args.OriginalSource as DependencyObject)) Focus(FocusState.Pointer);
+    }
+
+    private static bool TakesFocusItself(DependencyObject? element)
+    {
+        for (; element is not null; element = VisualTreeHelper.GetParent(element))
+        {
+            if (element is TextBox or ComboBox or ToggleSwitch or Microsoft.UI.Xaml.Controls.Primitives.ButtonBase
+                or Microsoft.UI.Xaml.Controls.Primitives.ScrollBar) return true;
+        }
+
+        return false;
     }
 
     private void OnWordTapped(object sender, TappedRoutedEventArgs args)
@@ -343,7 +417,8 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
         foreach ((string id, KeyChord keys) in TranscriptShortcuts.PanelKeys)
         {
             if (keys != chord) continue;
-            if (textInput && id != TranscriptShortcuts.Find) return false;
+            // Tras buscar el foco sigue en el buscador: F2 corrige la palabra encontrada sin salir de él.
+            if (textInput && id != TranscriptShortcuts.Find && id != TranscriptShortcuts.CorrectWord) return false;
             switch (id)
             {
                 case TranscriptShortcuts.Delete: _services.Session.ExecuteTranscript(Model.DeleteSelection(true)); break;

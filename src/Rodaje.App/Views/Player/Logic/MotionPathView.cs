@@ -25,7 +25,8 @@ public static class MotionPathView
         transform is not null && (Keys(transform, T.X).Count >= 2 || Keys(transform, T.Y).Count >= 2);
 
     /// <summary>El recorrido en píxeles de la secuencia, de su primer keyframe al último.</summary>
-    public static IReadOnlyList<Vector2> Sample(EffectInstance transform, int width, int height)
+    /// <param name="maxPoints">Tope de puntos: con cientos de keyframes cada tramo lleva menos muestras (hasta 1) en vez de 24.</param>
+    public static IReadOnlyList<Vector2> Sample(EffectInstance transform, int width, int height, int maxPoints = 1500)
     {
         ArgumentNullException.ThrowIfNull(transform);
         List<Time> times = [.. Keys(transform, T.X).Concat(Keys(transform, T.Y)).Select(k => k.Time).Distinct().Order()];
@@ -34,14 +35,15 @@ public static class MotionPathView
             return [];
         }
 
-        var points = new List<Vector2>(((times.Count - 1) * SamplesPerSegment) + 1);
+        int samples = Math.Clamp(maxPoints / (times.Count - 1), 1, SamplesPerSegment);
+        var points = new List<Vector2>(((times.Count - 1) * samples) + 1);
         for (int k = 0; k + 1 < times.Count; k++)
         {
             long from = times[k].Ticks;
             long span = times[k + 1].Ticks - from;
-            for (int i = k == 0 ? 0 : 1; i <= SamplesPerSegment; i++)
+            for (int i = k == 0 ? 0 : 1; i <= samples; i++)
             {
-                points.Add(At(transform, width, height, Time.FromTicks(from + (span * i / SamplesPerSegment))));
+                points.Add(At(transform, width, height, Time.FromTicks(from + (span * i / samples))));
             }
         }
 

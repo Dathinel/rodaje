@@ -138,10 +138,11 @@ public sealed class ExportJob : IDisposable
     {
         _clock.Start();
         CancellationToken token = _cancel.Token;
-        string work = Path.Combine(_options.TemporaryDirectory ?? Path.GetTempPath(), $"rodaje-exportar-{_id}{ExportOutputGuard.TemporaryMarker}");
         string journalId = "exportar-" + _id;
+        string? work = null;
         try
         {
+            work = Path.Combine(_options.TemporaryDirectory ?? Path.GetTempPath(), $"rodaje-exportar-{_id}{ExportOutputGuard.TemporaryMarker}");
             Publish(ExportJobState.Preparing, 0, force: true);
             IReadOnlyList<EncoderSpec> encoders = _encoders ?? _options.Encoders!.GetAsync(token).GetAwaiter().GetResult();
             ExportPlan plan;
@@ -228,30 +229,42 @@ public sealed class ExportJob : IDisposable
 #pragma warning restore CA1031
         {
             ExportException error = ExportErrors.Map(ex, _frame >= 0 ? _frame : null);
-            if (token.IsCancellationRequested || error.Code == ExportErrorCode.Canceled)
-            {
-                Publish(ExportJobState.Canceled, Volatile.Read(ref _written), force: true);
-            }
-            else
+            bool canceled = token.IsCancellationRequested || error.Code == ExportErrorCode.Canceled;
+            if (!canceled)
             {
                 Volatile.Write(ref _failure, error);
-                Publish(ExportJobState.Failed, Volatile.Read(ref _written), force: true);
             }
+
+            PublishFinal(canceled ? ExportJobState.Canceled : ExportJobState.Failed);
         }
         finally
         {
-            ExportOutputGuard.DeleteTemporary(work);
-            try
+            // Un temporal o un diario que no se pueden limpiar (carpeta sin permiso, disco que falla) no tumban la app:
+            // este es un hilo propio y una excepción que salga de aquí termina el proceso.
+            if (work is { } folder)
             {
-                _options.Journal?.Remove(journalId);
+                Guarded(() => ExportOutputGuard.DeleteTemporary(folder));
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-            {
-            }
-
+            Guarded(() => _options.Journal?.Remove(journalId));
             _done.TrySetResult();
         }
     }
+
+    // El estado final queda guardado antes de avisar; quien escucha Changed (la interfaz) puede lanzar, y el hilo no puede morir.
+    private void PublishFinal(ExportJobState state) => Guarded(() => Publish(state, Volatile.Read(ref _written), force: true));
+
+#pragma warning disable CA1031 // Nada se escapa del hilo de la exportación.
+    private static void Guarded(Action action)
+    {
+        try
+        {
+            action();
+        }
+        catch (Exception)
+        {
+        }
+    }
+#pragma warning restore CA1031
 
     /// <summary>El motor de la exportación: D3D11 sobre el dispositivo de siempre en Windows; Vulkan en los demás (sin dispositivo D3D11, los
     /// decodificadores dan cuadros de CPU y el compositor los sube).</summary>
@@ -616,7 +629,8 @@ public sealed class ExportJob : IDisposable
                 state == ExportJobState.Completed ? Result?.Bytes ?? 0 : 0, _pass, _passCount);
         }
 
-        Changed?.Invoke(this, EventArgs.Empty);
+        // Quien escucha (la interfaz) corre en este hilo propio: si lanza, la exportación no debe morir ni tumbar la app.
+        Guarded(() => Changed?.Invoke(this, EventArgs.Empty));
     }
 
     /// <summary>El avance del audio como cuadros de la salida.</summary>

@@ -33,6 +33,22 @@ public static class ClipLabels
         return sign + number;
     }
 
+    /// <summary>
+    /// El aviso de una edición que falló con el nombre de cada clip en vez de su id interno: «el clip «clip-3f9…»» pasa a
+    /// «el clip «voz»». Lo que va entre comillas angulares y no es el id de un clip se deja como está.
+    /// </summary>
+    public static string NameClipsIn(Project project, string message)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(message);
+        return System.Text.RegularExpressions.Regex.Replace(message, "«([^»]+)»", match =>
+        {
+            string id = match.Groups[1].Value;
+            Clip? clip = project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).FirstOrDefault(c => c.Id == id);
+            return clip is not null && Name(project, clip) is { Length: > 0 } name ? "«" + name + "»" : match.Value;
+        });
+    }
+
     /// <summary>Nombre del clip; <paramref name="fallback"/> si es un medio que ya no está.</summary>
     public static string Name(Project project, Clip clip, string fallback = "")
     {

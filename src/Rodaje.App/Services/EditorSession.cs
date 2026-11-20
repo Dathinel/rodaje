@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
@@ -232,7 +233,7 @@ public sealed partial class EditorSession : ObservableObject
         }
         catch (EditException ex) when (_historyChanges == changes)
         {
-            Notify(NotificationSeverity.Warning, "No se pudo hacer", ex.Message);
+            Notify(NotificationSeverity.Warning, "No se pudo hacer", ClipLabels.NameClipsIn(Project, ex.Message));
             return false;
         }
 
@@ -362,12 +363,14 @@ public sealed partial class EditorSession : ObservableObject
     {
         VerifyAccess();
         ArgumentNullException.ThrowIfNull(clipIds);
+        _wordSelection = null;
         SetSelection([.. clipIds.Distinct(StringComparer.Ordinal)]);
     }
 
     public void ToggleSelection(string clipId)
     {
         VerifyAccess();
+        _wordSelection = null;
         List<string> next = [.. _selection];
         if (!next.Remove(clipId))
         {
@@ -380,6 +383,7 @@ public sealed partial class EditorSession : ObservableObject
     public void ClearSelection()
     {
         VerifyAccess();
+        _wordSelection = null;
         SetSelection([]);
     }
 

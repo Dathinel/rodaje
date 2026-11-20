@@ -6,13 +6,29 @@ namespace Rodaje.Core.Tests.Caza;
 public class TextAnimationPresetsCazaTests
 {
     [Fact]
-    public void All_ContainsExactlyTenFactoryPresets()
+    public void All_ContainsExactlyTwelveFactoryPresets()
     {
-        Assert.Equal(10, TextAnimationPresets.All.Count);
+        Assert.Equal(12, TextAnimationPresets.All.Count);
         Assert.All(TextAnimationPresets.All, Assert.NotNull);
-        Assert.Equal(10, TextAnimationPresets.All.Select(p => p.Id).Distinct().Count());
+        Assert.Equal(12, TextAnimationPresets.All.Select(p => p.Id).Distinct().Count());
         Assert.All(TextAnimationPresets.All, p => Assert.False(string.IsNullOrWhiteSpace(p.Id)));
         Assert.All(TextAnimationPresets.All, p => Assert.False(string.IsNullOrWhiteSpace(p.Name)));
+    }
+
+    [Theory]
+    [InlineData("tambaleo")]
+    [InlineData("temblor")]
+    public void Wobble_presets_settle_to_rest_with_shrinking_swings(string id)
+    {
+        StyleAnimation animation = TextAnimationPresets.Find(id)!.In();
+        foreach ((string name, List<StyleKey> keys) in animation.Curves.Where(c => c.Key != "opacity"))
+        {
+            Assert.True(keys.Count >= 7, name);
+            Assert.Equal(0, keys[^1].Value);
+            Assert.Equal(animation.DurationSeconds, keys[^1].T, 9);
+            Assert.True(keys.Zip(keys.Skip(1)).All(p => p.First.T < p.Second.T), name);
+            Assert.True(Math.Abs(keys[1].Value) <= Math.Abs(keys[0].Value) * 1.0001 + 1e-9 || id == "temblor", name);
+        }
     }
 
     [Fact]

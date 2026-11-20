@@ -55,12 +55,12 @@ public static class LibraryElements
         _ => [],
     };
 
-    /// <summary>Lo que trae el motor en cada categoría, sacado del registro de efectos; en Texto, el estilo de fábrica.</summary>
+    /// <summary>Lo que trae el motor en cada categoría, sacado del registro de efectos; en Texto, los estilos de fábrica.</summary>
     public static IReadOnlyList<LibraryElement> BuiltIn(LibraryCategory category) => category switch
     {
         LibraryCategory.Text =>
         [
-            new("Texto", "Un título en el cursor: blanco, en negrita y con sombra.", Engine, TitleStyles.BuiltInReference, true, null, ItemKind.TextStyle),
+            .. BuiltInStyles.All.Select(s => new LibraryElement(s.Name, s.Description, Engine, s.Reference, true, null, ItemKind.TextStyle)),
         ],
         LibraryCategory.Effects =>
         [
