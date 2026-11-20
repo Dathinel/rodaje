@@ -28,7 +28,7 @@ El protocolo de módulos vive en `Dathinel/sala` y Rodaje lo usa por el submódu
 Reporte de un usuario real: con un texto «tambaleando» y muchos keyframes, el editor se satura (a veces «el sonido explota o la imagen se congela») y un video de muchos fps se traba.
 1. ◐ Prueba de consola que reproduce 50, 200, 1000 y 5000 keyframes en un título y mide añadir, deshacer, evaluar por cuadro, línea de tiempo, inspector y guardado.
 2. ☐ Arreglo de la causa, con cifras antes y después.
-3. ☐ Presets de texto «Tambaleo» y «Temblor», para no poner cientos de keyframes a mano.
+3. ☐ Textos animados de fábrica. **Primero se audita** lo que ya hay para no duplicarlo: diez entradas y salidas (Desvanecer, Subir, Bajar, Rebote, Escala, Elástico, Desenfoque, Girar, Máquina de escribir, Líneas, por bloque, línea, palabra o letra), la galería de estilos, el estilo «Subtítulo», karaoke con barrido de color y las plantillas de movimiento. Después se añade solo lo que falte: **animaciones continuas** (Tambaleo, Temblor, Pulso, Flotar), que no existen, para no poner cientos de keyframes a mano, y unos pocos **estilos de subtítulo animados** listos, palabra por palabra, hechos con las funciones existentes.
 4. ☐ Audio con la interfaz bloqueada: un vaciado de búfer no puede sonar como un estallido ni congelar la imagen.
 5. ☐ Reproducción de material de 120 y 240 fps en una línea de 30 o 60.
 **Hecho cuando:** `docs/rendimiento-keyframes.md` trae las cifras; con 1000 keyframes añadir, reproducir y guardar no dan tirones; la reproducción de 120 fps no se atasca.
