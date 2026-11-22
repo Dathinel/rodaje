@@ -1,9 +1,9 @@
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Collab;
 using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.Operations;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
 using Rodaje.App.Views.Relink;
@@ -70,30 +70,29 @@ internal static class JoinDialog
         Grid.SetColumn(pick, 1);
         folderRow.Children.Add(pick);
 
-        var status = new TextBlock { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
         var problem = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = ThemeResources.Brush("AccentBrush"), Visibility = Visibility.Collapsed };
-        var progress = new ProgressBar { IsIndeterminate = true, Visibility = Visibility.Collapsed };
-        var statusRow = new StackPanel { Spacing = 8 };
-        statusRow.Children.Add(status);
-        statusRow.Children.Add(progress);
+        var progress = new Views.Shared.OperationProgressView();
         var inviteHint = InviteDialog.Hint("Pega aquí el enlace o texto de invitación que te enviaron.");
         var nameHint = InviteDialog.Hint("Escribe tu nombre para continuar.");
         var words = new TextBlock { TextWrapping = TextWrapping.Wrap, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, Visibility = Visibility.Collapsed };
         var wordsHint = InviteDialog.Hint("Dile estas palabras a quien te invitó para que compruebe que eres tú.");
         wordsHint.Visibility = Visibility.Collapsed;
-        void ShowWords(RoomState st)
+        OperationProgress? joining = null;
+        CancellationTokenSource? attempt = null;
+        void OnRoomState(RoomState st)
         {
             bool has = st.MyPhrase.Length > 0;
             words.Text = has ? "Tus palabras de comprobación: " + st.MyPhrase : "";
             words.Visibility = wordsHint.Visibility = has ? Visibility.Visible : Visibility.Collapsed;
+            joining?.Pulse();
         }
 
-        room.StateChanged += ShowWords;
-        var clock = new OperationClock();
-        DispatcherQueueTimer ticker = DispatcherQueue.GetForCurrentThread().CreateTimer();
-        ticker.Interval = TimeSpan.FromSeconds(1);
-        string baseText = "";
-        ticker.Tick += (_, _) => status.Text = baseText + clock.Describe();
+        room.StateChanged += OnRoomState;
+        progress.OnCancel = () =>
+        {
+            joining?.MarkCancelling();
+            attempt?.Cancel();
+        };
 
         var form = new StackPanel { Spacing = 12, MinWidth = 460 };
         form.Children.Add(invite);
@@ -105,7 +104,7 @@ internal static class JoinDialog
         form.Children.Add(folderRow);
         form.Children.Add(InviteDialog.Hint("Guardamos una copia en tu equipo para que tus cambios no se pierdan si se corta la conexión."));
         form.Children.Add(problem);
-        form.Children.Add(statusRow);
+        form.Children.Add(progress);
         form.Children.Add(words);
         form.Children.Add(wordsHint);
 
@@ -162,25 +161,31 @@ internal static class JoinDialog
             Refresh();
             invite.IsEnabled = name.IsEnabled = pick.IsEnabled = paste.IsEnabled = false;
             problem.Visibility = Visibility.Collapsed;
-            clock.Restart();
-            baseText = "Paso 1 de 4: conectando con la sala y esperando a que quien te invitó te deje entrar (puede tardar hasta 10 minutos). ";
-            status.Text = baseText + clock.Describe();
-            status.Visibility = progress.Visibility = Visibility.Visible;
-            ticker.Start();
+            OperationProgress op = joining = new OperationProgress();
+            op.SetCancellable(true);
+            JoinFlowProgress.Begin(op);
+            op.Report(null, "Esperando a que quien te invitó te deje entrar; puede tardar hasta 10 minutos.");
+            CancellationTokenSource mine = attempt = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token);
+            progress.Operation = op;
             UiTask.Run(async () =>
             {
                 try
                 {
                     string alias = CollabNames.NormalizeAlias(name.Text)!;
                     roomFolder = Path.Combine(folder, "Rodaje - sala " + DateTime.Now.ToString("yyyy-MM-dd HH.mm", System.Globalization.CultureInfo.InvariantCulture));
-                    await room.JoinAsync(invite.Text, alias, roomFolder, cancel.Token);
+                    await room.JoinAsync(invite.Text, alias, roomFolder, mine.Token);
                     collab.Alias = alias;
+                    op.Complete();
                     joined = true;
                     dialog.Hide();
                 }
                 catch (OperationCanceledException)
                 {
-                    // La persona cerró el diálogo mientras esperaba: no hay nada que decirle.
+                    // Se pulsó «Cancelar» o se cerró el diálogo: si sigue abierto, queda como estaba para reintentar.
+                    busy = false;
+                    invite.IsEnabled = name.IsEnabled = pick.IsEnabled = paste.IsEnabled = true;
+                    progress.Operation = null;
+                    Refresh();
                 }
                 catch (Exception ex) when (ex is not OutOfMemoryException)
                 {
@@ -188,9 +193,13 @@ internal static class JoinDialog
                     problem.Visibility = Visibility.Visible;
                     busy = false;
                     invite.IsEnabled = name.IsEnabled = pick.IsEnabled = paste.IsEnabled = true;
-                    status.Visibility = progress.Visibility = Visibility.Collapsed;
-                    ticker.Stop();
+                    progress.Operation = null;
                     Refresh();
+                }
+                finally
+                {
+                    attempt = null;
+                    mine.Dispose();
                 }
             });
         };
@@ -198,8 +207,7 @@ internal static class JoinDialog
         dialog.Closed += (_, _) => cancel.Cancel();
 
         await DialogGate.ShowAsync(dialog);
-        room.StateChanged -= ShowWords;
-        ticker.Stop();
+        room.StateChanged -= OnRoomState;
         cancel.Dispose();
         if (joined)
         {

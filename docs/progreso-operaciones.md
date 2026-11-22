@@ -103,7 +103,7 @@ Reglas para la red: informar siempre en la capa que lee del socket (no en la int
 | Instalar un `.paquete` local | nada | «Instalando el paquete» en la barra de avisos | no |
 | Generar proxies | barra con % en Trabajos; solo texto en la biblioteca | vista común con tiempo restante y «último avance»; «En cola» sin aviso de sin avance | sí |
 | Botón «Trabajos» | **rueda** sobre el icono | barra fina (con % si es un solo trabajo) | – |
-| Red de la colaboración (B11, B13) | no existe aún | usar `OperationProgress` desde el principio (sección 1) | según la operación |
+| Red de la colaboración (B11, B13): unirse, recibir el proyecto, buscar medios | barras propias con `OperationClock` | vista común con las fases del camino (`JoinFlowProgress`, pasos 1-5) | sí |
 
 No existen como operación propia: detectar escenas, flujo óptico (es un paso del render), render separado de exportar. Sin indicador por ser instantáneas: plantillas, escaneo de salud de la biblioteca, miniaturas y ondas (aparecen al pintarse), comprobar actualizaciones, autoguardado.
 
