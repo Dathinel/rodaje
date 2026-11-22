@@ -25,7 +25,10 @@ internal sealed partial class TitleBar
         }
 
         _roomPanel = new RoomPanel(services, collab, () => InviteDialog.ShowAsync(services));
+        _roomPanel.RecoveryChanged += () => UpdateCollab(collab.Room.State);
         _roomFlyout = new Flyout { Content = new ScrollViewer { Content = _roomPanel.Content, MaxHeight = 640, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
+        // El tope por defecto del flyout (456 px) corta el panel, que pide hasta 460 más el margen.
+        _roomFlyout.FlyoutPresenterStyle = new Style(typeof(FlyoutPresenter)) { Setters = { new Setter(FrameworkElement.MaxWidthProperty, 520.0) } };
         _roomFlyout.Opened += (_, _) => _roomPanel.StartDiagnostics();
         _roomFlyout.Closed += (_, _) => _roomPanel.StopDiagnostics();
         collab.Room.StateChanged += state => UpdateCollab(state);
@@ -50,9 +53,11 @@ internal sealed partial class TitleBar
         _roomPanel?.Render(state);
 
         bool inRoom = state.Phase != RoomPhase.Closed;
-        CollabButton.Visibility = inRoom ? Visibility.Visible : Visibility.Collapsed;
+        bool hasUnsettled = _roomPanel?.HasUnsettled == true;
+        CollabButton.Visibility = inRoom || hasUnsettled ? Visibility.Visible : Visibility.Collapsed;
         CollabButton.Content = state.Phase switch
         {
+            RoomPhase.Closed when hasUnsettled => "Sala · cambios que no entraron",
             RoomPhase.Reconnecting => "Sala · sin conexión",
             RoomPhase.Ended => "Sala terminada",
             RoomPhase.Starting => "Sala · abriendo…",
@@ -65,7 +70,7 @@ internal sealed partial class TitleBar
 
         CollabInviteItem.IsEnabled = !(state.InRoom && !state.IsHost) && state.Phase is not (RoomPhase.Starting or RoomPhase.Ended);
         CollabJoinItem.IsEnabled = state.Phase == RoomPhase.Closed;
-        CollabPanelItem.IsEnabled = inRoom;
+        CollabPanelItem.IsEnabled = inRoom || hasUnsettled;
         CollabLeaveItem.IsEnabled = inRoom;
         CollabLeaveItem.Text = state.Phase == RoomPhase.Ended ? "Cerrar el aviso de la sala" : state.IsHost ? "Cerrar la sala para todos" : "Salir de la sala";
 

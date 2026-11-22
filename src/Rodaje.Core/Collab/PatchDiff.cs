@@ -54,7 +54,7 @@ public static class PatchDiff
                     .OrderBy(id => positions[new ElementKey(kind, id)]));
             if (!naive.SequenceEqual(ids, StringComparer.Ordinal))
             {
-                orders.Add(new PatchOrder(container, ids));
+                orders.Add(new PatchOrder(container, ids, versions.GetOrder(container)));
             }
         }
 

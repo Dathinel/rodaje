@@ -8,8 +8,13 @@ namespace Rodaje.App.Tests.Collab;
 
 public sealed class ProjectShareTests
 {
-    private sealed class FakeSource(Func<ProjectSnapshot> make, int steps = 0) : ICollabProjectSource
+    private sealed class FakeSource(Func<Task<ProjectSnapshot>> make, int steps = 0) : ICollabProjectSource
     {
+        public FakeSource(Func<ProjectSnapshot> make, int steps = 0)
+            : this(() => Task.FromResult(make()), steps)
+        {
+        }
+
         public async Task<ProjectSnapshot> CaptureAsync(IProgress<(int Done, int Total)>? progress, CancellationToken cancellationToken)
         {
             for (int i = 1; i <= steps; i++)
@@ -18,7 +23,7 @@ public sealed class ProjectShareTests
                 progress?.Report((i, steps));
             }
 
-            return make();
+            return await make().WaitAsync(cancellationToken);
         }
     }
 
@@ -77,6 +82,44 @@ public sealed class ProjectShareTests
                 report(value);
             }
         }
+    }
+
+    [SalaFact]
+    public async Task Pedir_el_proyecto_muchas_veces_no_acumula_trabajo_en_el_anfitrion()
+    {
+        // Revisión, hallazgo 5: cada «pedir-proyecto» creaba otra tarea que esperaba al semáforo sin límite; un miembro
+        // insistente acumulaba trabajo por delante de los invitados legítimos.
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int captures = 0;
+        int projects = 0;
+        var source = new FakeSource(async () =>
+        {
+            Interlocked.Increment(ref captures);
+            await gate.Task;
+            return Snapshot();
+        });
+        using ProjectShareHost share = new(host, source, host.RoomFolder);
+        guest.DirectReceived += (_, m) =>
+        {
+            if (ShareMessages.Type(m) == ShareMessages.Project)
+            {
+                Interlocked.Increment(ref projects);
+            }
+        };
+
+        for (int i = 0; i < 6; i++)
+        {
+            await guest.SendDirectAsync(ShareMessages.Make(ShareMessages.Ask), guest.HostKey);
+        }
+
+        await CollabHarness.Until(() => Volatile.Read(ref captures) >= 1, "la primera copia");
+        gate.TrySetResult();
+        await CollabHarness.Until(() => Volatile.Read(ref projects) >= 1, "la copia recibida");
+        await Task.Delay(1500);
+        Assert.True(Volatile.Read(ref captures) <= 2, $"se prepararon {captures} copias para 6 peticiones del mismo miembro");
     }
 
     [SalaFact]

@@ -19,6 +19,9 @@ public sealed record CollabEnvironment(string RedPath, string IdentityFile, stri
     public TimeSpan? ValidateTimeout { get; init; }
 
     public TimeSpan? StandbyWait { get; init; }
+
+    /// <summary>Vuelve a buscar dathinel-red al abrir una sala si no estaba al arrancar (se copió después a dist).</summary>
+    public Func<string?>? Locate { get; init; }
 }
 
 /// <summary>Una invitación recién creada.</summary>
@@ -696,6 +699,7 @@ public sealed class RoomService : IAsyncDisposable
         IReadOnlyList<Miembro> raw = sala.Miembros;
         string me = sala.Clave;
         string host = sala.Anfitrion;
+        string? standby = sala.Suplente;
         List<RoomMember> members =
         [
             .. raw
@@ -707,12 +711,12 @@ public sealed class RoomService : IAsyncDisposable
             SaveAnchored(raw.Where(m => m.Clave != me));
         }
 
-        if (s.IsHost == sala.EsAnfitrion && s.MyKey == me && s.MyRole == sala.Rol && s.Members.SequenceEqual(members))
+        if (s.IsHost == sala.EsAnfitrion && s.MyKey == me && s.MyRole == sala.Rol && s.StandbyKey == standby && s.Members.SequenceEqual(members))
         {
             return s;
         }
 
-        return s with { IsHost = sala.EsAnfitrion, MyKey = me, MyRole = sala.Rol, Members = members };
+        return s with { IsHost = sala.EsAnfitrion, MyKey = me, MyRole = sala.Rol, Members = members, StandbyKey = standby };
     }
 
     private void SaveAnchored(IEnumerable<Miembro> others)
@@ -767,7 +771,7 @@ public sealed class RoomService : IAsyncDisposable
 
     private OpcionesSala Options(string alias, string folder)
     {
-        OpcionesSala o = new("rodaje", _env.AppVersion, alias, _env.RedPath, Path.GetFullPath(folder))
+        OpcionesSala o = new("rodaje", _env.AppVersion, alias, RedPath(), Path.GetFullPath(folder))
         {
             Red = _env.Red,
             MaxMiembros = _env.MaxMembers,
@@ -779,6 +783,8 @@ public sealed class RoomService : IAsyncDisposable
 
         return _env.ValidateTimeout is { } t ? o with { TopeValidar = t } : o;
     }
+
+    private string RedPath() => File.Exists(_env.RedPath) ? _env.RedPath : _env.Locate?.Invoke() ?? _env.RedPath;
 
     private static string CheckAlias(string alias) =>
         CollabNames.NormalizeAlias(alias)
@@ -797,7 +803,7 @@ public sealed class RoomService : IAsyncDisposable
 
     private void CheckReady(string folder)
     {
-        if (!File.Exists(_env.RedPath))
+        if (!File.Exists(RedPath()))
         {
             throw new CollabException(CollabMessages.For(new SalaException("sin-red", "")));
         }

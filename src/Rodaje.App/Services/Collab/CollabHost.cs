@@ -25,7 +25,7 @@ public sealed partial class CollabHost : IDisposable
         _post = post;
         if (handler is not null)
         {
-            _switch.SetTarget(handler);
+            _switch.Attach(handler);
         }
 
         _folder = Path.Combine(dataRoot, "colaboracion");
@@ -39,11 +39,17 @@ public sealed partial class CollabHost : IDisposable
         }
 
         Room = new RoomService(
-            new CollabEnvironment(redPath ?? FindRed() ?? Path.Combine(AppContext.BaseDirectory, RedFileName), Path.Combine(_folder, "identidad.bin"), appVersion ?? CurrentVersion()),
+            new CollabEnvironment(redPath ?? FindRed() ?? Path.Combine(AppContext.BaseDirectory, RedFileName), Path.Combine(_folder, "identidad.bin"), appVersion ?? CurrentVersion())
+            {
+                Locate = redPath is null ? FindRed : null,
+            },
             _switch,
             post);
         Room.StateChanged += OnRoomState;
         Presence = new CollabPresence(Room);
+        TrackRequests = new TrackRequests(Room, Presence, id => _trackNames.GetValueOrDefault(id), () => _session?.IsInGesture == true);
+        TrackRequests.Requested += request => _post(() => ShowTrackRequest(request));
+        TrackRequests.Told += text => _post(() => _session?.Notify(NotificationSeverity.Informational, "Colaboración", text));
     }
 
     public RoomService Room { get; }
@@ -51,21 +57,87 @@ public sealed partial class CollabHost : IDisposable
     /// <summary>Los cabezales de los demás y las pistas reservadas, para dibujarlos en la línea de tiempo.</summary>
     public CollabPresence Presence { get; }
 
+    /// <summary>«Pedir la pista» a quien la tiene reservada, y la respuesta cuando se la piden a este equipo.</summary>
+    public TrackRequests TrackRequests { get; }
+
     private EditorSession? _session;
     private string[] _selection = [];
     private string? _selectionTrack;
+
+    // Las pistas del proyecto (id → nombre) para validar lo que llega por la sala sin leer el proyecto fuera del hilo de la interfaz.
+    private volatile Dictionary<string, string> _trackNames = new(StringComparer.Ordinal);
 
     /// <summary>Engancha la sesión del editor: su cabezal y su selección son lo que ven los demás, y las pistas de lo seleccionado se reservan.</summary>
     public void BindSession(EditorSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
+        RefreshTrackNames();
+        session.HistoryChanged += (_, _) => RefreshTrackNames();
+        session.ProjectOpened += (_, _) => RefreshTrackNames();
         session.TransportChanged += (_, _) => PublishLocal();
         session.SelectionChanged += (_, _) =>
         {
             RefreshSelection();
             PublishLocal();
         };
+    }
+
+    private void RefreshTrackNames()
+    {
+        if (_session is not { } session)
+        {
+            return;
+        }
+
+        Dictionary<string, string> names = new(StringComparer.Ordinal);
+        foreach (Track track in session.Project.Sequences.SelectMany(s => s.AllTracks))
+        {
+            names.TryAdd(track.Id, track.Name.Length > 0 ? track.Name : "sin nombre");
+        }
+
+        if (names.Count != _trackNames.Count || names.Any(kv => _trackNames.GetValueOrDefault(kv.Key) != kv.Value))
+        {
+            _trackNames = names;
+        }
+    }
+
+    /// <summary>Quién tiene la pista, si se le puede pedir (para el menú de la cabecera); <c>null</c> si no.</summary>
+    public string? TrackOwnerToAsk(string trackId) => TrackRequests.OwnerToAsk(trackId);
+
+    /// <summary>«Pedir la pista»: manda el pedido y dice a la persona qué pasó.</summary>
+    public void AskTrack(string trackId) => UiTask.Run(AskTrackAsync(trackId));
+
+    private async Task AskTrackAsync(string trackId)
+    {
+        string text;
+        bool problem = false;
+        try
+        {
+            text = await TrackRequests.AskAsync(trackId);
+        }
+        catch (CollabException ex)
+        {
+            text = ex.Message;
+            problem = true;
+        }
+
+        _session?.Notify(problem ? NotificationSeverity.Warning : NotificationSeverity.Informational, "Colaboración", text);
+    }
+
+    private void ShowTrackRequest(TrackRequest request) =>
+        _session?.Notify(NotificationSeverity.Informational, "Colaboración", $"{request.FromAlias} te pide la pista {request.TrackName}.",
+            new NotificationAction("Soltar la pista", () => UiTask.Run(TrackRequests.YieldAsync(request))),
+            new NotificationAction("Ahora no", () => UiTask.Run(TrackRequests.DeclineAsync(request))));
+
+    /// <summary>Un aviso de la edición compartida; si es el de un cambio que chocó con una pista ajena, lleva «Pedir la pista».</summary>
+    private void NotifyCollab(EditorSession session, string text, bool problem)
+    {
+        NotificationAction? ask = Presence.TakeLastBlock() is { TrackId.Length: > 0 } block && text.Contains(block.Describe(), StringComparison.Ordinal)
+            && TrackRequests.OwnerToAsk(block.TrackId) is not null
+            ? new NotificationAction("Pedir la pista", () => AskTrack(block.TrackId))
+            : null;
+        session.Notify(problem ? NotificationSeverity.Warning : NotificationSeverity.Informational, "Colaboración", text, ask);
     }
 
     private void RefreshSelection()
@@ -104,6 +176,9 @@ public sealed partial class CollabHost : IDisposable
     /// <summary>La edición compartida de esta sala; nula hasta que empieza y tras terminar.</summary>
     public CollabEngine? Engine { get; private set; }
 
+    /// <summary>La vista puede conectar o soltar los eventos del motor al empezar o terminar la edición.</summary>
+    public event Action? EditingChanged;
+
     private ProjectShareHost? _share;
     private ProxyShareHost? _proxyShare;
     private RoomProxyMaker? _proxyMaker;
@@ -115,6 +190,7 @@ public sealed partial class CollabHost : IDisposable
     {
         Room.StateChanged -= OnRoomState;
         StopEditing();
+        TrackRequests.Dispose();
         Presence.Dispose();
     }
 
@@ -128,13 +204,15 @@ public sealed partial class CollabHost : IDisposable
 
     /// <summary>
     /// Empieza la edición compartida de la sala en la que ya se está. El anfitrión (<paramref name="received"/> nulo) comparte el
-    /// proyecto abierto; el invitado empieza con la copia que recibió, que ya tiene abierta.
+    /// proyecto abierto; el invitado empieza con la copia que recibió, que ya tiene abierta. Devuelve <see langword="false"/>
+    /// si mientras llegaba esa copia se perdió algún cambio retenido: entonces no empieza nada y hay que pedir otra copia
+    /// inicial, que ya trae lo perdido.
     /// </summary>
-    public void StartEditing(ReceivedProject? received)
+    public bool StartEditing(ReceivedProject? received)
     {
         if (_session is not { } session || Engine is not null)
         {
-            return;
+            return true;
         }
 
         var engine = new CollabEngine(
@@ -158,7 +236,7 @@ public sealed partial class CollabHost : IDisposable
                     _applyingExternal = false;
                 }
             },
-            (text, problem) => session.Notify(problem ? NotificationSeverity.Warning : NotificationSeverity.Informational, "Colaboración", text),
+            (text, problem) => NotifyCollab(session, text, problem),
             () => session.IsInGesture);
         engine.Desynced += reason => UiInvoke.Run<int>(_post, () =>
         {
@@ -166,14 +244,9 @@ public sealed partial class CollabHost : IDisposable
                 + "Tu copia sigue en este equipo. Vuelve a entrar con una invitación nueva. (" + reason + ")"));
             return 0;
         });
-        Engine = engine;
         if (received is null)
         {
             engine.StartAsHost();
-            _share = new ProjectShareHost(Room, new SessionProjectSource(
-                session,
-                work => UiInvoke.Run(_post, work),
-                engine.CaptureForGuest), Room.RoomFolder);
             IRoomProxyMaker maker = ProxyMakerFor(session) is { } real ? real : new MissingFfmpeg();
             _proxyShare = new ProxyShareHost(Room, maker, Room.RoomFolder);
         }
@@ -187,10 +260,26 @@ public sealed partial class CollabHost : IDisposable
             Proxies = new RoomProxies(Room, Room.RoomFolder, received.Media);
         }
 
-        _switch.SetTarget(engine);
+        if (!_switch.TryAttach(engine))
+        {
+            engine.Dispose();
+            return false;
+        }
+
+        Engine = engine;
+        if (received is null)
+        {
+            _share = new ProjectShareHost(Room, new SessionProjectSource(
+                session,
+                work => UiInvoke.Run(_post, work),
+                engine.CaptureForGuest), Room.RoomFolder);
+        }
+
         session.CollabHistory = engine;
         session.BeforeProjectReplaced = ConfirmLeaveRoomAsync;
         session.HistoryChanged += OnHistoryChanged;
+        EditingChanged?.Invoke();
+        return true;
     }
 
     private void StopEditing()
@@ -209,9 +298,10 @@ public sealed partial class CollabHost : IDisposable
         _proxyMaker?.Dispose();
         _proxyMaker = null;
         Proxies = null;
-        _switch.SetTarget(null);
+        _switch.Detach();
         Engine?.Dispose();
         Engine = null;
+        EditingChanged?.Invoke();
     }
 
     private bool _applyingExternal;
@@ -275,25 +365,50 @@ public sealed partial class CollabHost : IDisposable
     private sealed class SwitchHandler : ICollabPayloadHandler
     {
         private readonly Lock _lock = new();
-        private readonly List<Ordenado> _waiting = [];
+        private readonly EarlyPayloadQueue _early = new();
         private ICollabPayloadHandler? _target;
 
-        public void SetTarget(ICollabPayloadHandler? target)
+        /// <summary>Destino desde la construcción: todavía no puede haber cola retenida.</summary>
+        public void Attach(ICollabPayloadHandler target)
         {
-            List<Ordenado> replay;
             lock (_lock)
             {
                 _target = target;
-                replay = target is null ? [] : [.. _waiting];
-                if (target is not null)
-                {
-                    _waiting.Clear();
-                }
             }
+        }
 
-            foreach (Ordenado o in replay)
+        /// <summary>
+        /// Instala el destino y le entrega lo retenido, en orden y dentro del candado, para que nada que llegue a la vez
+        /// se le cuele por delante. Devuelve <see langword="false"/> si se perdió alguna carga retenida: no instala nada
+        /// (la cola queda limpia) y hay que pedir otra copia inicial, que ya trae lo perdido.
+        /// </summary>
+        public bool TryAttach(CollabEngine target)
+        {
+            lock (_lock)
             {
-                target!.Apply(o);
+                IReadOnlyList<Ordenado>? replay = _early.Drain();
+                if (replay is null)
+                {
+                    return false;
+                }
+
+                _target = target;
+                foreach (Ordenado o in replay)
+                {
+                    target.Apply(o);
+                }
+
+                return true;
+            }
+        }
+
+        /// <summary>Quita el destino y tira lo retenido (la sala terminó: nada de otra sesión vale).</summary>
+        public void Detach()
+        {
+            lock (_lock)
+            {
+                _target = null;
+                _ = _early.Drain();
             }
         }
 
@@ -315,9 +430,9 @@ public sealed partial class CollabHost : IDisposable
             lock (_lock)
             {
                 target = _target;
-                if (target is null && _waiting.Count < 4096)
+                if (target is null)
                 {
-                    _waiting.Add(ordered);
+                    _early.Add(ordered);
                 }
             }
 
