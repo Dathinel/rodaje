@@ -24,6 +24,28 @@ public sealed class PreferencesViewModel(AppSettings settings)
         : Settings.LinkedAudioTracks.ToSetting() ?? [];
     public ProxyUsage ProxyUsage { get => Settings.ProxyUsage; set => Settings.ProxyUsage = value; }
     public PreviewQuality PreviewQuality { get => Settings.PreviewQuality; set => Settings.PreviewQuality = value; }
+
+    /// <summary>La primera opción de «Tarjeta gráfica».</summary>
+    public const string AutomaticGpu = "Automática (la más potente)";
+
+    /// <summary>El adaptador elegido; vacío, automática.</summary>
+    public string GpuAdapter { get => Settings.GpuAdapter ?? ""; set => Settings.GpuAdapter = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); }
+
+    /// <summary>
+    /// Las opciones de «Tarjeta gráfica»: la automática y cada adaptador de hardware, sin repetir; el guardado va también
+    /// aunque ya no esté (otra GPU, el portátil sin la externa), para no perderlo al guardar otra cosa.
+    /// </summary>
+    public static IReadOnlyList<string> GpuAdapterOptions(IEnumerable<string> hardware, string? saved)
+    {
+        ArgumentNullException.ThrowIfNull(hardware);
+        List<string> options = [AutomaticGpu, .. hardware.Where(n => !string.IsNullOrWhiteSpace(n)).Distinct(StringComparer.OrdinalIgnoreCase)];
+        if (!string.IsNullOrWhiteSpace(saved) && !options.Skip(1).Contains(saved, StringComparer.OrdinalIgnoreCase))
+        {
+            options.Add(saved);
+        }
+
+        return options;
+    }
     public TenBitViewer TenBitViewer { get => Settings.TenBitViewer; set => Settings.TenBitViewer = value; }
     public HdrViewer HdrViewer { get => Settings.HdrViewer; set => Settings.HdrViewer = value; }
     public ShortcutPreset ShortcutPreset { get => Settings.ShortcutPreset; set => Settings.ShortcutPreset = value; }

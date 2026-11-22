@@ -31,6 +31,8 @@
             <ComboBox x:Name="PreviewQualityBox" Header="Calidad de la vista previa" />
             <ComboBox x:Name="TenBitViewerBox" Header="Visor de 10 bits" />
             <ComboBox x:Name="HdrViewerBox" Header="Visor HDR en scRGB" />
+            <ComboBox x:Name="GpuAdapterBox" Header="Tarjeta gráfica" />
+            <TextBlock Text="Para el visor, los efectos y la exportación. Se aplica al volver a abrir Rodaje. En automática usa la más potente, salvo que en Configuración de Windows › Pantalla › Gráficos hayas puesto Rodaje en «Ahorro de energía»." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
             <TextBlock Text="Render en caché" FontWeight="SemiBold" />
             <ComboBox x:Name="RenderCacheModeBox" Header="Calcular en segundo plano" />
             <TextBox x:Name="RenderCacheFolderBox" Header="Carpeta" PlaceholderText="%LOCALAPPDATA%\Rodaje\render" />
