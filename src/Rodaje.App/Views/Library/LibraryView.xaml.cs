@@ -850,7 +850,8 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     /// <summary>«Pedir la copia ligera a quien hospeda»: el medio sin original se queda con su proxy de sala (B14).</summary>
     private async Task RequestRoomProxyAsync()
     {
-        if (_menuTarget is not { } item || _services?.Collab?.Proxies is not { } proxies || !proxies.CanRequest(item.Id) || XamlRoot is null)
+        if (_menuTarget is not { } item || _services?.Collab?.Proxies is not { } proxies || !proxies.CanRequest(item.Id)
+            || XamlRoot is null || DialogGate.IsOpen)
         {
             return;
         }
@@ -881,17 +882,18 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             _ = t.Exception;
             _dispatcher?.RunLater(dialog.Hide);
         }));
-        if (DialogGate.IsOpen)
-        {
-            return;
-        }
-
         await DialogGate.ShowAsync(dialog);
         try
         {
-            string relative = await work;
-            // La ruta queda relativa a la carpeta de la sala, sin los datos del archivo: los del medio ya son los del original.
-            session.Execute(new RelinkMediaCommand([new MediaRelinkTarget(item.Id, relative)]));
+            string path = await work;
+            // Absoluta en memoria: biblioteca, miniaturas y reproductor no resuelven desde la carpeta de la sala.
+            // Solo cambia la ruta local (no viaja en los parches); se conservan los datos del original.
+            // Execute recarga el reproductor y avisa a las vistas para renovar el estado y las cachés del archivo anterior.
+            if (!session.Execute(new RelinkMediaCommand([new MediaRelinkTarget(item.Id, path)])))
+            {
+                return;
+            }
+
             session.Notify(NotificationSeverity.Success, "Copia ligera lista",
                 $"«{item.Name}» ya se ve y se oye con la copia ligera de la sala. El original sigue faltando: la exportación se hace en el anfitrión.");
         }
