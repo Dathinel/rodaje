@@ -110,6 +110,7 @@ internal sealed partial class PreferencesView : UserControl
         RenderCacheModeBox.SelectedIndex = (int)_model.RenderCacheMode;
         RenderCacheFolderBox.Text = _model.RenderCacheFolder;
         RenderCacheCapBox.Value = _model.RenderCacheCapGb;
+        CollabOriginalCapBox.Value = _model.CollabOriginalCapGb;
         LoadPersonalization(settings);
         _loading = false;
     }
@@ -150,6 +151,7 @@ internal sealed partial class PreferencesView : UserControl
         model.RenderCacheMode = (Services.RenderCache.RenderCacheMode)Math.Max(0, RenderCacheModeBox.SelectedIndex);
         model.RenderCacheFolder = RenderCacheFolderBox.Text;
         model.RenderCacheCapGb = RenderCacheCapBox.Value;
+        model.CollabOriginalCapGb = CollabOriginalCapBox.Value;
         model.SetLinkedAudioVideoTracks(LinkedAudioTracksPanel.Children.OfType<CheckBox>()
             .Where(checkBox => checkBox.IsChecked == true)
             .Select(checkBox => (int)checkBox.Tag));

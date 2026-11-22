@@ -58,6 +58,14 @@ public sealed class MediaManifestBuilder(Func<string, CancellationToken, Task<st
         IEnumerable<MediaRef> media,
         Func<MediaRef, string> resolvePath,
         string hash,
+        CancellationToken cancellationToken = default) =>
+        (await FindMediaByHashAsync(media, resolvePath, hash, cancellationToken).ConfigureAwait(false))?.Path;
+
+    /// <summary>Como <see cref="FindByHashAsync"/>, con el medio del proyecto al que pertenece el archivo.</summary>
+    public async Task<(MediaRef Media, string Path)?> FindMediaByHashAsync(
+        IEnumerable<MediaRef> media,
+        Func<MediaRef, string> resolvePath,
+        string hash,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(media);
@@ -94,7 +102,7 @@ public sealed class MediaManifestBuilder(Func<string, CancellationToken, Task<st
 
             if (found == hash)
             {
-                return info.FullName;
+                return (m, info.FullName);
             }
         }
 

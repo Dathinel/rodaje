@@ -115,5 +115,10 @@
                 <TextBlock x:Name="ContrastNote" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
             </StackPanel></ScrollViewer>
         </TabViewItem>
+        <TabViewItem Header="Colaboración" IsClosable="False"><ScrollViewer><StackPanel Spacing="16" Padding="12">
+            <TextBlock Text="Originales en una sala" FontWeight="SemiBold" />
+            <NumberBox x:Name="CollabOriginalCapBox" Header="Tope en GB (vacío: sin tope)" Minimum="0.1" Maximum="100000" SpinButtonPlacementMode="Inline" />
+            <TextBlock Text="Vale para los originales que pides a quien hospeda y para los que mandas cuando hospedas tú. Los originales solo viajan por conexión directa o por un relé propio, nunca por el relé de pruebas, y quien hospeda aprueba cada envío." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+        </StackPanel></ScrollViewer></TabViewItem>
     </TabView>
 </UserControl>

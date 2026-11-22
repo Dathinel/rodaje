@@ -33,6 +33,9 @@ public sealed class PreferencesViewModel(AppSettings settings)
     /// <summary>Tope en GB; NaN o menos de 1, el automático.</summary>
     public double RenderCacheCapGb { get => Settings.RenderCacheCapGb ?? double.NaN; set => Settings.RenderCacheCapGb = double.IsFinite(value) && value >= 1 ? Math.Min(value, 100_000) : null; }
 
+    /// <summary>Tope de los originales de la sala en GB; NaN, sin tope.</summary>
+    public double CollabOriginalCapGb { get => Settings.CollabOriginalCapGb ?? double.NaN; set => Settings.CollabOriginalCapGb = double.IsFinite(value) && value >= 0.1 ? Math.Min(value, 100_000) : null; }
+
     public void SetLinkedAudioVideoTracks(IEnumerable<int> videoTracks)
     {
         ArgumentNullException.ThrowIfNull(videoTracks);

@@ -39,8 +39,23 @@ public sealed partial class AppSettings
     /// <summary>Tope del render en caché en GB; nulo, el automático (el menor entre 50 GB y el 10 % del disco libre, mínimo 5).</summary>
     public double? RenderCacheCapGb { get; set; }
 
+    /// <summary>
+    /// Tope en GB de los originales que se piden o se mandan en una sala (Preferencias › Colaboración); nulo, sin tope. Vale
+    /// para lo que este equipo pide como invitado y para lo que manda como anfitrión.
+    /// </summary>
+    public double? CollabOriginalCapGb { get; set; }
+
+    /// <summary>El tope de <see cref="CollabOriginalCapGb"/> en bytes; <c>null</c>, sin tope.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public long? CollabOriginalCapBytes => CollabOriginalCapGb is { } gb ? (long)(gb * (1L << 30)) : null;
+
     private void NormalizeWorkflow()
     {
+        if (CollabOriginalCapGb is not (>= 0.1 and <= 100_000))
+        {
+            CollabOriginalCapGb = null;
+        }
+
         if (!Enum.IsDefined(RenderCacheMode))
         {
             RenderCacheMode = RenderCache.RenderCacheMode.Smart;
