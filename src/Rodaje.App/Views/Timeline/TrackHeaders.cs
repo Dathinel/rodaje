@@ -461,23 +461,23 @@ internal sealed class TrackHeaders
         foreach ((string text, int? value) in Heights)
         {
             var item = new RadioMenuFlyoutItem { Text = text, GroupName = "alto-" + row.TrackId, IsChecked = row.Track.Height == value };
-            item.Click += (_, _) =>
+            item.Click += (_, _) => Later(() =>
             {
                 HeightChanging?.Invoke(row.TrackId, value);
                 HeightCommitted?.Invoke(row.TrackId);
-            };
+            });
             height.Items.Add(item);
         }
 
         menu.Items.Add(height);
         AddOrderItems(menu, row);
         var gaps = new MenuFlyoutItem { Text = "Cerrar todos los huecos de la pista", Icon = new FontIcon { Glyph = "" }, IsEnabled = !row.Track.Locked };
-        gaps.Click += (_, _) => CloseGapsRequested?.Invoke(row.TrackId);
+        gaps.Click += (_, _) => Later(() => CloseGapsRequested?.Invoke(row.TrackId));
         gaps.KeyboardAcceleratorTextOverride = Key(TimelineShortcuts.CloseGaps);
         menu.Items.Add(gaps);
         menu.Items.Add(new MenuFlyoutSeparator());
         var add = new MenuFlyoutItem { Text = "Añadir pista de subtítulos", Icon = new FontIcon { Glyph = "" } };
-        add.Click += (_, _) => SubtitleTrackRequested?.Invoke();
+        add.Click += (_, _) => Later(() => SubtitleTrackRequested?.Invoke());
         add.KeyboardAcceleratorTextOverride = Key(ActionIds.AddSubtitleTrack);
         menu.Items.Add(add);
         if (row.Kind == TrackKind.Video && !row.IsMain)
@@ -485,7 +485,7 @@ internal sealed class TrackHeaders
             bool subtitles = row.Track.Role == TrackRoles.Subtitles;
             var role = new ToggleMenuFlyoutItem { Text = "Usar para subtítulos", IsChecked = subtitles, IsEnabled = !row.Track.Locked };
             string trackId = row.TrackId;
-            role.Click += (_, _) => SubtitleRoleRequested?.Invoke(trackId, !subtitles);
+            role.Click += (_, _) => Later(() => SubtitleRoleRequested?.Invoke(trackId, !subtitles));
             menu.Items.Add(role);
             if (subtitles)
             {
@@ -604,7 +604,7 @@ internal sealed class TrackHeaders
             ToolTipService.SetToolTip(item, preset.Description);
         }
 
-        item.Click += (_, _) => AudioPresetRequested?.Invoke(trackId, preset);
+        item.Click += (_, _) => Later(() => AudioPresetRequested?.Invoke(trackId, preset));
         return item;
     }
 
