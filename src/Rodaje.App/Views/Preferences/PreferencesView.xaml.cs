@@ -74,7 +74,26 @@ internal sealed partial class PreferencesView : UserControl
         {
             FrameRateBox.Items.Add(label);
         }
+
+        Loaded += (_, _) =>
+        {
+            if (XamlRoot is { } root)
+            {
+                FitHeight(root, null);
+                root.Changed += FitHeight;
+            }
+        };
+        Unloaded += (_, _) =>
+        {
+            if (XamlRoot is { } root)
+            {
+                root.Changed -= FitHeight;
+            }
+        };
     }
+
+    /// <summary>Alto fijo de las pestañas, pero que quepa en la ventana: si no, el diálogo añade su propio desplazamiento.</summary>
+    private void FitHeight(XamlRoot root, XamlRootChangedEventArgs? args) => Tabs.Height = PreferencesViewModel.TabsHeight(root.Size.Height);
 
     /// <summary>El espacio de trabajo elegido en la pestaña, para que la ventana lo aplique al guardar.</summary>
     public string? WorkspaceToApply { get; private set; }
