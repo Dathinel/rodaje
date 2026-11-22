@@ -249,6 +249,15 @@ Para la vuelta de repaso con ratón (B9). Criterio común: nada se queda con sol
 10. **Botón «Trabajos»**: con algo en marcha, la barra fina bajo su nombre (no hay rueda).
 
 
+## Tamaños raros y estándar (1080×2400 de un celular)
+
+1. Proyecto nuevo (Ctrl+N) e importa una grabación de pantalla vertical del celular. La barra de avisos dice «La secuencia tomó 1080×2400 del clip.» con «Usar 1080×1920 (estándar vertical)» y «Dejar así».
+2. Pon el clip en la línea de tiempo y pulsa «Usar 1080×1920»: el formato del reproductor pasa a 9:16 · 1080×1920 y el clip llena el cuadro sin deformarse (se pierde un poco arriba y abajo). Ctrl+Z vuelve a 1080×2400.
+3. Con la secuencia en 1080×2400, abre Exportar: cada tarjeta dice el tamaño que saldrá («1080×2400, como la secuencia»), la línea «Formato» también, y debajo «1080×2400 no es un tamaño estándar…» con «Usar 1080×1920». Púlsalo: Formato dice 1080×1920, Avanzado › Resolución marca «Vertical 9:16» y Forma «Recortar»; cámbiala a «Barras». El proyecto sigue en 1080×2400.
+4. Elige varias tarjetas y abre y cierra Resolución y Forma muchas veces: ningún texto de las tarjetas cambia y la app no se cierra.
+5. Con un clip 1920×1080 no sale ningún aviso.
+
+
 ## Colaboración: seguridad (D-067, B12)
 
 Sin saber nada técnico: dos equipos, el anfitrión (A) y un invitado (B). Cada punto dice qué hacer y qué no debe pasar. Las pruebas automáticas atacan con mensajes rotos (`PatchHostileTests` aquí y la batería de `Dathinel/sala`); esto es lo que solo se ve con la pantalla.
