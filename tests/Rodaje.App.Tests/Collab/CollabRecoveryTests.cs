@@ -154,6 +154,13 @@ public sealed class CollabRecoveryTests
         const string reason = "Otra persona tiene la pista reservada. Puedes conservar tu cambio o descartarlo.";
         Assert.True(journal.Save(state with { Entries = [new JournalEntry("unsettled", patch, Reason: reason)] }));
         Assert.Equal(reason, Assert.Single(journal.Load(() => Assert.Fail("registro válido"))!.Entries).Reason);
+        string author = new('a', 64);
+        Assert.True(journal.Save(state with { Entries = [new JournalEntry("separated", patch with { Author = author })], RecoveryHosts = [author] }));
+        JournalState restored = journal.Load(() => Assert.Fail("registro válido"))!;
+        Assert.Equal(author, Assert.Single(restored.Entries).Patch.Author);
+        Assert.Equal(author, Assert.Single(restored.RecoveryHosts!));
+        Assert.True(journal.Save(state with { Entries = [new JournalEntry("separated", patch with { Author = "autor-invalido" })] }));
+        Assert.Null(journal.Load(() => warnings++));
     }
 
     [SalaFact]
@@ -246,15 +253,234 @@ public sealed class CollabRecoveryTests
     }
 
     [Fact]
-    public void Un_borrado_no_recuperable_conserva_el_parche_original()
+    public void Un_borrado_usa_la_version_y_el_padre_actuales_y_respeta_reservas()
     {
         Project project = ModelSamples.ValidProject();
-        Patch patch = AddMarker(project);
-        Patch deletion = patch with { Ops = patch.Ops.Select(o => o with { Content = (string?)null }).ToArray() };
-        UnsettledChanges changes = new();
-        changes.Add(deletion, "El borrado no entró. Puedes rehacerlo manualmente o descartarlo.");
-        Assert.Null(UnsettledRecovery.Create(deletion, project, new ElementVersions(),
-            new PatchHeader(Guid.NewGuid().ToString("N"), 0, "propio", "Conservar"), new Dictionary<string, string>()));
-        Assert.Same(deletion, Assert.Single(changes.Items).Patch);
+        Patch deletion = new(Guid.NewGuid().ToString("N"), 0, "propio", "Borrar",
+            [new PatchOp(ElementKind.Clip, "c3", "pista-antigua", 0, null)], [], []);
+        ElementVersions versions = new();
+        versions.Set(new ElementKey(ElementKind.Clip, "c3"), 7);
+        PatchHeader header = new(Guid.NewGuid().ToString("N"), 0, "propio", "Conservar");
+        Dictionary<string, string> reservations = new() { ["pista:v2"] = "otra-persona" };
+        Assert.Null(UnsettledRecovery.Create(deletion, project, versions, header, reservations));
+        reservations["pista:v2"] = "propio";
+        Patch recovered = Assert.IsType<Patch>(UnsettledRecovery.Create(deletion, project, versions, header, reservations));
+        PatchOp op = Assert.Single(recovered.Ops);
+        Assert.Equal(7, op.BaseVersion);
+        Assert.Equal("v2", op.Parent);
+        Assert.True(PatchApply.TryApply(project, versions, recovered).IsAccepted);
+        Assert.True(Assert.IsType<Patch>(UnsettledRecovery.Create(deletion, project, versions, header, reservations)).IsEmpty);
+    }
+
+    private static async Task Keep(Replica replica, Patch patch)
+    {
+        await CollabHarness.Until(() => replica.Room.Reservations.Values.All(owner => owner == replica.Room.State.MyKey), "las reservas ajenas liberadas");
+        await replica.Ui.Post(() =>
+        {
+            replica.Engine.Unsettled.Add(patch, "Este cambio no entró.");
+            Assert.True(replica.Engine.KeepUnsettled(patch.Id));
+        });
+    }
+
+    private static Task Converged(Replica a, Replica b, Replica c, long seq) => CollabHarness.Until(() =>
+        a.Engine.CaptureForGuest().Seq == seq && a.Engine.CaptureForGuest() == b.Engine.CaptureForGuest()
+        && a.Engine.CaptureForGuest() == c.Engine.CaptureForGuest()
+        && a.HashOnUi() == b.HashOnUi() && a.HashOnUi() == c.HashOnUi(), "las tres copias recuperadas");
+
+    [SalaFact]
+    public async Task Conservar_borrado_en_tres_replicas_y_repetirlo_no_envia_nada()
+    {
+        (Replica host, Replica guest) = await CollabEngineTests.StartAsync();
+        await using Replica a = host;
+        await using Replica b = guest;
+        await using Replica c = new();
+        await JoinThird(a, c);
+        Patch deletion = new(Guid.NewGuid().ToString("N"), 0, b.Room.State.MyKey, "Borrar clip",
+            [new PatchOp(ElementKind.Clip, "c3", "v2", 0, null)], [], []);
+        await a.Edit(p => p.Sequences[0].VideoTracks[1].Clips[0].Enabled = false);
+        await Converged(a, b, c, 1);
+        await Keep(b, deletion);
+        await Converged(a, b, c, 2);
+        Assert.Empty(b.Live.Sequences[0].VideoTracks[1].Clips);
+        Assert.Empty(b.Engine.Unsettled.Items);
+        int validations = 0;
+        a.BeforeValidation(_ => { Interlocked.Increment(ref validations); return Task.CompletedTask; });
+        await Keep(b, deletion);
+        await b.Ui.Post(() => Assert.Empty(b.Engine.Unsettled.Items));
+        Assert.Equal(0, Volatile.Read(ref validations));
+        Assert.Equal(2, b.Engine.CaptureForGuest().Seq);
+        Assert.DoesNotContain(new CollabJournal(b.Room.RoomFolder).Load(() => Assert.Fail("registro válido"))!.Entries,
+            e => e.Kind is "pending" or "unsettled");
+        Assert.Empty(a.Desyncs);
+        Assert.Empty(b.Desyncs);
+        Assert.Empty(c.Desyncs);
+    }
+
+    [SalaFact]
+    public async Task Conservar_solo_orden_de_pistas_con_una_pista_y_un_clip_nuevos_intercalados()
+    {
+        (Replica host, Replica guest) = await CollabEngineTests.StartAsync();
+        await using Replica a = host;
+        await using Replica b = guest;
+        await using Replica c = new();
+        await JoinThird(a, c);
+        Project reordered = b.Live.Clone();
+        reordered.Sequences[0].VideoTracks.Reverse();
+        Patch original = PatchDiff.Create(SharedState.Capture(b.Live), SharedState.Capture(reordered), new ElementVersions(),
+            new PatchHeader(Guid.NewGuid().ToString("N"), 0, b.Room.State.MyKey, "Reordenar pistas"))!;
+        Assert.NotNull(original);
+        Assert.Empty(original.Ops);
+        Assert.Single(original.Orders);
+        await a.Edit(p =>
+        {
+            p.Sequences[0].VideoTracks.Insert(1, new Track { Id = "intercalada", Name = "Intercalada", Kind = TrackKind.Video });
+            p.Sequences[0].VideoTracks[0].Clips.Insert(1, ModelSamples.MakeClip("intercalado", "m1", 10, 10, 11));
+        });
+        await Converged(a, b, c, 1);
+        await Keep(b, original);
+        await Converged(a, b, c, 2);
+        Assert.Equal(new[] { "v2", "v1", "intercalada" }, b.Live.Sequences[0].VideoTracks.Select(x => x.Id));
+        Assert.Equal(new[] { "c1", "intercalado", "c2" }, b.Live.Sequences[0].VideoTracks[1].Clips.Select(x => x.Id));
+        Assert.Empty(b.Engine.Unsettled.Items);
+        Assert.Empty(a.Desyncs);
+        Assert.Empty(b.Desyncs);
+        Assert.Empty(c.Desyncs);
+    }
+
+    [SalaFact]
+    public async Task Conservar_altas_borrados_y_orden_en_un_solo_paso_en_tres_replicas()
+    {
+        (Replica host, Replica guest) = await CollabEngineTests.StartAsync();
+        await using Replica a = host;
+        await using Replica b = guest;
+        await using Replica c = new();
+        await JoinThird(a, c);
+        await a.Edit(p => p.Sequences[0].Markers.AddRange(new[] { "primero", "borrar", "ultimo" }
+            .Select(id => new Marker { Id = id, Name = id, Time = Time.FromSeconds(1) })));
+        await Converged(a, b, c, 1);
+        Project after = b.Live.Clone();
+        after.Sequences[0].Markers.RemoveAll(m => m.Id == "borrar");
+        after.Sequences[0].Markers.Reverse();
+        after.Sequences[0].Markers.Insert(1, new Marker { Id = "alta", Name = "Nuevo recuperado", Time = Time.FromSeconds(2) });
+        Patch original = PatchDiff.Create(SharedState.Capture(b.Live), SharedState.Capture(after), new ElementVersions(),
+            new PatchHeader(Guid.NewGuid().ToString("N"), 1, b.Room.State.MyKey, "Paso mixto"))!;
+        await a.Edit(p => p.Sequences[0].Markers.Insert(1, new Marker { Id = "intercalado", Name = "Intercalado", Time = Time.FromSeconds(3) }));
+        await Converged(a, b, c, 2);
+        await Keep(b, original);
+        await Converged(a, b, c, 3);
+        Marker added = Assert.Single(b.Live.Sequences[0].Markers, m => m.Name == "Nuevo recuperado");
+        Assert.NotEqual("alta", added.Id);
+        Assert.Equal(new[] { "ultimo", added.Id, "primero", "intercalado" }, b.Live.Sequences[0].Markers.Select(m => m.Id));
+        Assert.Empty(b.Engine.Unsettled.Items);
+        Assert.Empty(a.Desyncs);
+        Assert.Empty(b.Desyncs);
+        Assert.Empty(c.Desyncs);
+    }
+
+    [SalaFact]
+    public async Task El_ganador_guarda_hasta_el_regreso_del_autor_y_acusa_duplicados()
+    {
+        (Replica host, Replica guest) = await CollabEngineTests.StartAsync();
+        await using Replica a = host;
+        await using Replica b = guest;
+        await using Replica c = new();
+        await JoinThird(a, c);
+        string author = c.Room.State.MyKey;
+        string folder = c.Room.RoomFolder;
+        a.Engine.OnConnectionLost();
+        await c.Edit(p => p.Sequences[0].Markers.Add(new Marker { Id = "separado-ausente", Name = "Conservar", Time = Time.FromSeconds(2) }));
+        await Converged(a, b, c, 1);
+        c.Engine.Dispose();
+        await c.Room.LeaveAsync();
+        await CollabHarness.Until(() => a.Room.State.Members.Any(m => m.Key == author && !m.Online), "el autor está fuera");
+        await a.Engine.HandleSupersededAsync();
+        CollabJournal oldJournal = new(a.Room.RoomFolder);
+        JournalEntry separated = Assert.Single(oldJournal.Load(() => Assert.Fail("registro válido"))!.Entries, e => e.Kind == "separated");
+        Assert.Equal(author, separated.Patch.Author);
+        // Frontera del motor como en las otras pruebas de Superada: Sala hace el traspaso real.
+        await a.Room.HandOverAsync(b.Room.State.MyKey);
+        CollabJournal winner = new(b.Room.RoomFolder);
+        await CollabHarness.Until(() => winner.Load(() => { })?.Entries.Any(e => e.Kind == "separated") == true, "la custodia en el ganador");
+        await CollabHarness.Until(() => oldJournal.Load(() => { })?.Entries.All(e => e.Kind != "separated") == true, "el acuse de custodia");
+        JsonElement ack = JsonSerializer.SerializeToElement(new { tipo = "cambio-separado-recibido", id = separated.Patch.Id });
+        b.Engine.OnRecoveryDirect(a.Room.State.MyKey, ack);
+        Assert.Single(winner.Load(() => Assert.Fail("registro válido"))!.Entries, e => e.Kind == "separated");
+        await b.Ui.Post(() =>
+        {
+            Project live = b.Live.Clone();
+            b.Engine.Dispose();
+            b.Attach(live);
+            b.Engine.StartAsHost(1);
+        });
+        Assert.Equal(author, Assert.Single(winner.Load(() => Assert.Fail("registro válido"))!.Entries, e => e.Kind == "separated").Patch.Author);
+        CollabInvitation invite = await b.Room.CreateInviteAsync(TimeSpan.FromMinutes(10));
+        Task joining = c.Room.JoinAsync(invite.Link, "Eva", folder);
+        await CollabHarness.Until(() => joining.IsCompleted || b.Room.State.Requests.Any(r => r.Key == author), "el regreso de la misma clave");
+        if (!joining.IsCompleted) await b.Room.ApproveAsync(author, Rol.Editar);
+        await joining.WaitAsync(TimeSpan.FromSeconds(20));
+        ProjectParseResult snapshot = ProjectWire.TryParse(b.Engine.CaptureForGuest().Json);
+        await c.Ui.Post(() =>
+        {
+            c.Attach(snapshot.Project!);
+            c.Engine.StartAsGuest(snapshot.Project!.Clone(), snapshot.Versions!, 1);
+        });
+        await CollabHarness.Until(() => c.Engine.Unsettled.Items.Count == 1, "el autor guarda su cambio al volver");
+        await CollabHarness.Until(() => winner.Load(() => { })?.Entries.All(e => e.Kind != "separated") == true, "el acuse del autor retira la entrega");
+        JsonElement delivery = JsonSerializer.SerializeToElement(new { tipo = "cambio-separado", patch = JsonSerializer.Deserialize<JsonElement>(PatchWire.ToJson(separated.Patch)) });
+        TaskCompletionSource duplicateAck = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        b.Room.DirectReceived += (from, data) =>
+        {
+            if (from == author && data.TryGetProperty("tipo", out JsonElement type) && type.GetString() == "cambio-separado-recibido") duplicateAck.TrySetResult();
+        };
+        await b.Room.SendDirectAsync(delivery, author);
+        await duplicateAck.Task.WaitAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(separated.Patch.Id, Assert.Single(c.Engine.Unsettled.Items).Id);
+        Assert.Single(new CollabJournal(folder).Load(() => Assert.Fail("registro válido"))!.Entries, e => e.Kind == "unsettled");
+        Assert.Empty(a.Desyncs);
+        Assert.Empty(b.Desyncs);
+        Assert.Empty(c.Desyncs);
+    }
+
+    [SalaFact]
+    public async Task La_cola_recorta_los_mas_antiguos_y_rechaza_mensajes_hostiles()
+    {
+        (Replica host, Replica guest) = await CollabEngineTests.StartAsync();
+        await using Replica a = host;
+        await using Replica b = guest;
+        string author = new('f', 64);
+        Patch sample = AddMarker(a.Live) with { Author = author };
+        JournalEntry[] entries = [.. Enumerable.Range(0, CollabEngine.MaxSeparatedPerAuthor + 1)
+            .Select(_ => new JournalEntry("separated", sample with { Id = Guid.NewGuid().ToString("N") }))];
+        CollabJournal journal = new(a.Room.RoomFolder);
+        await a.Ui.Post(() =>
+        {
+            a.Engine.Dispose();
+            Assert.True(journal.Save(new JournalState(0, ProjectWire.ToJson(a.Live), null, [], entries)));
+            a.Attach(a.Live.Clone());
+            a.Engine.StartAsHost();
+        });
+        await CollabHarness.Until(() => journal.Load(() => { })?.Entries.Count(e => e.Kind == "separated") == CollabEngine.MaxSeparatedPerAuthor,
+            "el recorte persistido tras restaurar");
+        JournalState saved = journal.Load(() => Assert.Fail("registro válido"))!;
+        Assert.Equal(CollabEngine.MaxSeparatedPerAuthor, saved.Entries.Count(e => e.Kind == "separated"));
+        Assert.DoesNotContain(saved.Entries, e => e.Patch.Id == entries[0].Patch.Id);
+        Assert.Contains(saved.Entries, e => e.Patch.Id == entries[^1].Patch.Id);
+        await CollabHarness.Until(() => a.Notices.Any(n => n.Contains("más antiguos", StringComparison.Ordinal)), "el aviso del recorte");
+        string before = File.ReadAllText(Path.Combine(a.Room.RoomFolder, "registro.jsonl"), Encoding.UTF8);
+        foreach (string hostile in new[]
+        {
+            "null", "[]", "{\"tipo\":1}", "{\"tipo\":\"cambio-separado\",\"patch\":null}",
+            "{\"tipo\":\"cambio-separado-recibido\",\"id\":42}",
+            "{\"tipo\":\"cambio-separado-recibido\",\"id\":\"incorrecto\"}",
+            "{\"tipo\":\"cambio-separado-recibido\",\"tipo\":\"cambio-separado-recibido\",\"id\":\"" + entries[^1].Patch.Id + "\"}",
+            "{\"tipo\":\"cambio-separado\",\"patch\":\"" + new string('x', WireLimits.Default.MaxPatchBytes + 1) + "\"}"
+        })
+        {
+            using JsonDocument message = JsonDocument.Parse(hostile);
+            a.Engine.OnRecoveryDirect(author, message.RootElement);
+            b.Engine.OnRecoveryDirect(a.Room.State.MyKey, message.RootElement);
+        }
+        Assert.Equal(before, File.ReadAllText(Path.Combine(a.Room.RoomFolder, "registro.jsonl"), Encoding.UTF8));
+        Assert.Empty(b.Engine.Unsettled.Items);
     }
 }
