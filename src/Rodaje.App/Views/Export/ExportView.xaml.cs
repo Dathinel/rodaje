@@ -299,20 +299,11 @@ internal sealed partial class ExportView : UserControl
         Fill(RateBox, _rates.Select(ExportChoices.RateChoiceName), Index(_rates, rate));
         ShowRateValues(video.RateControl, rate, encoder);
 
-        _sizes = ExportGeometry.Sizes(model.SequenceWidth, model.SequenceHeight);
-        int sizeIndex = IndexOf(_sizes, z => z.Width == video.Width && z.Height == video.Height);
-        if (sizeIndex < 0)
-        {
-            (int w, int h) = model.OutputSize;
-            _sizes = [.. _sizes, new SizeChoice($"{w}×{h} (del preajuste)", video.Width, video.Height)];
-            sizeIndex = _sizes.Count - 1;
-        }
-
-        Fill(SizeBox, _sizes.Select(z => z.Label), sizeIndex);
+        _sizes = model.SizeChoices;
+        Fill(SizeBox, _sizes.Select(z => z.Label), IndexOf(_sizes, z => z.Width == video.Width && z.Height == video.Height));
         Fill(FitBox, FitChoices.Select(f => f.Label), Array.FindIndex(FitChoices, f => f.Value == video.Fit));
         FitBox.IsEnabled = model.ShapeDiffers;
-        Fill(FrameRateBox, ExportGeometry.FrameRates.Select(f => f.Rate is null ? $"Como la secuencia ({ExportText.Number(model.FrameRate.ToDouble(), 3)})" : f.Label),
-            IndexOf(ExportGeometry.FrameRates, f => f.Rate == video.FrameRate));
+        Fill(FrameRateBox, model.FrameRateLabels, IndexOf(ExportGeometry.FrameRates, f => f.Rate == video.FrameRate));
 
         _bitDepths = ExportChoices.BitDepths(encoder);
         Fill(BitDepthBox, _bitDepths.Select(b => $"{b} bits"), Index(_bitDepths, video.BitDepth));

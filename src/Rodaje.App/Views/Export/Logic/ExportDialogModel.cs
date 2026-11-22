@@ -14,6 +14,7 @@ public sealed class ExportDialogModel
 {
     private readonly ExportPreferences _preferences;
     private readonly Sequence _sequence;
+    private readonly List<SizeChoice> _presetSizes = [];
 
     /// <param name="marks">Las marcas I y O de la secuencia: con ellas, el rango propuesto es «Entre la entrada y la salida».</param>
     /// <param name="proxyOnlyMedia">Los medios del proyecto que solo tienen la copia ligera de la sala; con ellos no se exporta.</param>
@@ -120,6 +121,20 @@ public sealed class ExportDialogModel
 
     public (int Width, int Height) OutputSize => Settings.Video is { } v ? ExportGeometry.OutputSize(v, SequenceWidth, SequenceHeight) : (0, 0);
 
+    // Ni los textos ni los elementos de estas dos listas dependen de lo elegido en ellas: elegir no puede rehacer el desplegable
+    // que se acaba de usar, porque WinUI cierra la app sin rastro (tarea 91). Pasaba con «Como la secuencia (60)» al elegir
+    // 60 fps y con el tamaño «del preajuste» de las secuencias de tamaño raro, que desaparecía al elegir otro.
+
+    /// <summary>Los textos del desplegable de tasas, en el orden de <see cref="ExportGeometry.FrameRates"/>.</summary>
+    public IReadOnlyList<string> FrameRateLabels =>
+        [.. ExportGeometry.FrameRates.Select(f => f.Rate is null ? $"Como la secuencia ({ExportText.Number(SequenceFrameRate.ToDouble(), 3)})" : f.Label)];
+
+    /// <summary>
+    /// Los tamaños del desplegable: los de <see cref="ExportGeometry.Sizes"/> y, al final, los que trajo algún preajuste
+    /// mientras el diálogo está abierto (se quedan aunque se elija otro).
+    /// </summary>
+    public IReadOnlyList<SizeChoice> SizeChoices => [.. ExportGeometry.Sizes(SequenceWidth, SequenceHeight), .. _presetSizes];
+
     /// <summary>
     /// El preajuste elegido es de redes con otra forma que la del proyecto (Reels 9:16 con un proyecto 16:9): la salida
     /// sigue al proyecto y la vista ofrece cambiar el formato del proyecto. Los de 16:9 (YouTube, maestros) no avisan.
@@ -170,7 +185,12 @@ public sealed class ExportDialogModel
             : check;
 
     /// <summary>Lo que impide exportar (vacío si se puede); la ruta que ya existe no impide, pide confirmar.</summary>
-    public IReadOnlyList<string> Problems => [.. ExportSettingsEditor.Validate(Settings, Encoders).Select(p => p.Message), .. VersionProblems];
+    public IReadOnlyList<string> Problems => [.. ExportSettingsEditor.Validate(Settings, Encoders).Select(p => p.Message), .. OutputProblems, .. VersionProblems];
+
+    /// <summary>Lo que el codificador no hace con el tamaño y la tasa reales (H.264 por GPU sobre una secuencia 8K, 240 fps).</summary>
+    private IEnumerable<string> OutputProblems => Settings.Video is not null && VideoEncoder is { } encoder
+        ? ExportSettingsValidator.CheckOutput(encoder, OutputSize.Width, OutputSize.Height, FrameRate).Select(p => p.Message)
+        : [];
 
     /// <summary>Los nombres de los medios del proyecto que solo tienen la copia ligera de la sala (B14).</summary>
     public IReadOnlyList<string> ProxyOnlyMedia { get; }
@@ -424,6 +444,12 @@ public sealed class ExportDialogModel
         CoercedSettings coerced = ExportSettingsEditor.Coerce(settings, Encoders);
         Settings = coerced.Settings;
         Adjustments = coerced.Changes;
+        if (Settings.Video is { } video && !SizeChoices.Any(z => z.Width == video.Width && z.Height == video.Height))
+        {
+            (int w, int h) = OutputSize;
+            _presetSizes.Add(new SizeChoice($"{w}×{h} (del preajuste)", video.Width, video.Height));
+        }
+
         if (!keepPreset && ExportPresetLibrary.Find(_preferences, PresetId) is { } preset && !PresetMatches(preset, Settings))
         {
             PresetId = ExportPresetLibrary.CustomId;

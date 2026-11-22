@@ -1,5 +1,6 @@
 using System.Globalization;
 using Rodaje.Core.Model;
+using Rodaje.Core.Timing;
 using Rodaje.Media.Export;
 
 namespace Rodaje.Export;
@@ -155,6 +156,29 @@ public static class ExportSettingsValidator
                 problems.Add(new(ExportProblemCode.InvalidValue, "Un video 360 equirectangular es 2:1 (por ejemplo 3840×1920)."));
             }
         }
+    }
+
+    /// <summary>
+    /// Lo que <paramref name="encoder"/> no codifica con el tamaño y la tasa reales de la salida (los de la secuencia si no se
+    /// piden otros). Solo se saben con la secuencia: lo llaman el diálogo y <c>ExportPlan</c>, no <see cref="Validate"/>.
+    /// </summary>
+    public static IReadOnlyList<ExportProblem> CheckOutput(EncoderSpec encoder, int width, int height, Rational frameRate)
+    {
+        ArgumentNullException.ThrowIfNull(encoder);
+        var problems = new List<ExportProblem>();
+        if (encoder.MaxSide is { } side && Math.Max(width, height) > side)
+        {
+            problems.Add(new(ExportProblemCode.InvalidValue, string.Create(CultureInfo.InvariantCulture,
+                $"{encoder.Id} codifica hasta {side} px por lado y la salida sería de {width}×{height}: elige un tamaño menor, o HEVC o AV1.")));
+        }
+
+        if (encoder.MaxFrameRate is { } fps && frameRate.ToDouble() > fps)
+        {
+            problems.Add(new(ExportProblemCode.InvalidValue, string.Create(CultureInfo.InvariantCulture,
+                $"{encoder.Id} codifica hasta {fps} cuadros por segundo y la salida va a {frameRate.ToDouble():0.###}: elige una tasa menor u otro codificador.")));
+        }
+
+        return problems;
     }
 
     /// <summary>Por qué un alto no sirve entrelazado con <paramref name="format"/>; lo usa también <c>ExportPlan</c>.</summary>
