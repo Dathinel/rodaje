@@ -180,8 +180,11 @@ public sealed class RoomService : IAsyncDisposable
         }
     }
 
-    /// <summary>Sale de la sala (o la cierra, si es el anfitrión). Sin sala no hace nada.</summary>
-    public async Task LeaveAsync()
+    /// <summary>Sale de la sala (o la cierra para todos, si es el anfitrión). Sin sala no hace nada.</summary>
+    public Task LeaveAsync() => LeaveAsync(warnClosed: true);
+
+    // Al desechar (cerrar Rodaje, pruebas) no se avisa: para los demás es una caída y el suplente puede tomar la sala.
+    private async Task LeaveAsync(bool warnClosed)
     {
         await _lifecycle.WaitAsync().ConfigureAwait(false);
         try
@@ -195,7 +198,11 @@ public sealed class RoomService : IAsyncDisposable
 
             if (sala is not null)
             {
-                await WarnClosedAsync(sala).ConfigureAwait(false);
+                if (warnClosed)
+                {
+                    await WarnClosedAsync(sala).ConfigureAwait(false);
+                }
+
                 await DisposeQuietlyAsync(sala).ConfigureAwait(false);
             }
 
@@ -249,7 +256,7 @@ public sealed class RoomService : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await LeaveAsync().ConfigureAwait(false);
+        await LeaveAsync(warnClosed: false).ConfigureAwait(false);
         _lifecycle.Dispose();
     }
 
