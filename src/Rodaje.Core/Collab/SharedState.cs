@@ -38,7 +38,8 @@ public sealed class SharedState
     /// sin él, viajan vacías.
     /// </summary>
     /// <exception cref="Rodaje.Core.Serialization.ProjectFormatException">Si algún elemento tiene un valor que no se puede guardar (un número NaN, un texto con un sustituto suelto).</exception>
-    public static SharedState Capture(Project project, IBlobMap? blobs = null)
+    /// <exception cref="OperationCanceledException">Si <paramref name="cancellationToken"/> se cancela recorriendo el proyecto.</exception>
+    public static SharedState Capture(Project project, IBlobMap? blobs = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(project);
         var elements = new Dictionary<ElementKey, ElementState>();
@@ -46,6 +47,7 @@ public sealed class SharedState
 
         foreach (MediaRef media in project.Media)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             elements[new ElementKey(ElementKind.Media, media.Id)] = new ElementState(null, ElementCodec.EncodeMedia(media, blobs));
         }
 
@@ -53,6 +55,7 @@ public sealed class SharedState
 
         foreach (MediaTranscript transcript in project.Transcripts)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             elements[new ElementKey(ElementKind.Transcript, transcript.MediaId)] = new ElementState(null, ElementCodec.EncodeTranscript(transcript, blobs));
         }
 
@@ -60,9 +63,10 @@ public sealed class SharedState
 
         foreach (Sequence sequence in project.Sequences)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             elements[new ElementKey(ElementKind.Sequence, sequence.Id)] = new ElementState(null, ElementCodec.EncodeSequence(sequence, blobs));
-            AddTracks(elements, sequence, sequence.VideoTracks, blobs);
-            AddTracks(elements, sequence, sequence.AudioTracks, blobs);
+            AddTracks(elements, sequence, sequence.VideoTracks, blobs, cancellationToken);
+            AddTracks(elements, sequence, sequence.AudioTracks, blobs, cancellationToken);
             orders[PatchContainers.VideoTracks(sequence.Id)] = [.. sequence.VideoTracks.Select(t => t.Id)];
             orders[PatchContainers.AudioTracks(sequence.Id)] = [.. sequence.AudioTracks.Select(t => t.Id)];
 
@@ -85,10 +89,11 @@ public sealed class SharedState
         return new SharedState(project.Id, elements, orders);
     }
 
-    private static void AddTracks(Dictionary<ElementKey, ElementState> elements, Sequence sequence, List<Track> tracks, IBlobMap? blobs)
+    private static void AddTracks(Dictionary<ElementKey, ElementState> elements, Sequence sequence, List<Track> tracks, IBlobMap? blobs, CancellationToken cancellationToken)
     {
         foreach (Track track in tracks)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             elements[new ElementKey(ElementKind.Track, track.Id)] = new ElementState(sequence.Id, ElementCodec.EncodeTrack(track, blobs));
             foreach (Clip clip in track.Clips)
             {

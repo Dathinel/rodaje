@@ -139,6 +139,25 @@ public sealed class ProjectShareTests
     }
 
     [SalaFact]
+    public async Task Cancelar_mientras_se_espera_la_respuesta_termina_la_tarea_cancelada()
+    {
+        // Revisión, hallazgo 9: el bucle de espera no comprobaba el token y seguía girando hasta agotar el plazo.
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        // Sin ProjectShareHost: nadie contesta el «pedir-proyecto» y el invitado solo espera.
+        using var cancel = new CancellationTokenSource();
+
+        Task receive = ProjectShareGuest.ReceiveAsync(guest, guest.RoomFolder, cancellationToken: cancel.Token);
+        await Task.Delay(300);
+        cancel.Cancel();
+
+        Task winner = await Task.WhenAny(receive, Task.Delay(TimeSpan.FromSeconds(1)));
+        Assert.Same(receive, winner);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => receive);
+    }
+
+    [SalaFact]
     public async Task Si_el_anfitrion_manda_algo_que_no_es_un_proyecto_o_falla_el_invitado_lo_sabe_con_un_texto()
     {
         (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();

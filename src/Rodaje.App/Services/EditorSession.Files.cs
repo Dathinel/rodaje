@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
@@ -279,6 +280,7 @@ public sealed partial class EditorSession
         var added = new List<Rodaje.Media.Probe.MediaInfo>();
         var skipped = new List<SkippedMedia>();
         bool changed = false;
+        bool adopted = false;
         History.BeginGroup(files.Length == 1 ? "Importar medio" : "Importar medios");
         try
         {
@@ -298,7 +300,11 @@ public sealed partial class EditorSession
 
                 try
                 {
-                    changed |= AdoptFormatIfEmpty(probe.Info!);
+                    if (AdoptFormatIfEmpty(probe.Info!))
+                    {
+                        adopted = changed = true;
+                    }
+
                     var media = new MediaRef { Id = _ids.NewId("media"), Path = probe.Path };
                     probe.Info!.ApplyTo(media);
                     History.Execute(new AddMediaCommand(media));
@@ -326,6 +332,11 @@ public sealed partial class EditorSession
         if (added.Count > 0)
         {
             MediaImported?.Invoke(this, added);
+        }
+
+        if (adopted)
+        {
+            OfferStandardFormat();
         }
 
         if (Sequence.ColorSpace == SequenceColorSpace.Sdr709
@@ -538,6 +549,26 @@ public sealed partial class EditorSession
 
         Notify(NotificationSeverity.Informational, "Todavía no", "Espera a que termine lo que está en curso: abrir, guardar o importar.");
         return true;
+    }
+
+    /// <summary>
+    /// La secuencia tomó del primer clip un tamaño raro (la pantalla de un celular, 1080×2400): se ofrece el estándar más
+    /// cercano rellenando el cuadro, en un paso que se deshace. El aviso caduca si el tamaño cambia por otro lado.
+    /// </summary>
+    private void OfferStandardFormat()
+    {
+        (int width, int height) = (Sequence.Width, Sequence.Height);
+        if (ProjectFormats.IsStandard(width, height))
+        {
+            return;
+        }
+
+        (int w, int h) = ProjectFormats.NearestStandard(width, height);
+        string sequenceId = SequenceId;
+        Notify(NotificationSeverity.Informational, "Formato del proyecto", $"La secuencia tomó {width}×{height} del clip.",
+            new NotificationAction($"Usar {w}×{h} ({ProjectFormats.StandardName(w, h)})", () => ChangeFormat(w, h, Sequence.FrameRate, ClipFit.Fill)),
+            new NotificationAction("Dejar así", static () => { }),
+            () => SequenceId != sequenceId || Sequence.Width != width || Sequence.Height != height);
     }
 
     private bool AdoptFormatIfEmpty(MediaInfo info)

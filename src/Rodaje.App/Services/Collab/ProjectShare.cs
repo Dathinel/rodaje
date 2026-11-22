@@ -288,6 +288,7 @@ public static class ProjectShareGuest
             await room.SendDirectAsync(ShareMessages.Make(ShareMessages.Ask), host, cancellationToken).ConfigureAwait(false);
             while (!answer.Task.IsCompleted)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 // Cada señal de vida del anfitrión reinicia la espera: preparar archivos enormes puede llevar minutos.
                 TimeSpan left = AnswerTimeout - TimeSpan.FromMilliseconds(Environment.TickCount64 - Interlocked.Read(ref lastSign));
                 if (left <= TimeSpan.Zero)
@@ -295,7 +296,9 @@ public static class ProjectShareGuest
                     throw new CollabException("Quien hospeda la sala no mandó el proyecto a tiempo. Comprueba que Rodaje sigue abierto allí y vuelve a entrar.");
                 }
 
-                await Task.WhenAny(answer.Task, Task.Delay(left < TimeSpan.FromSeconds(1) ? left : TimeSpan.FromSeconds(1), cancellationToken)).ConfigureAwait(false);
+                Task winner = await Task.WhenAny(answer.Task, Task.Delay(left < TimeSpan.FromSeconds(1) ? left : TimeSpan.FromSeconds(1), cancellationToken)).ConfigureAwait(false);
+                // La demora cancelada acaba la espera en el acto: sin esperarla el bucle seguiría girando hasta el plazo.
+                await winner.ConfigureAwait(false);
             }
 
             reply = answer.Task.Result;
@@ -354,7 +357,7 @@ public static class ProjectShareGuest
             throw new CollabException("El proyecto llegó dañado. Vuelve a entrar en la sala.");
         }
 
-        ProjectParseResult parsed = ProjectWire.TryParse(System.Text.Encoding.UTF8.GetString(bytes));
+        ProjectParseResult parsed = ProjectWire.TryParse(System.Text.Encoding.UTF8.GetString(bytes), cancellationToken: cancellationToken);
         if (parsed.Project is not { } project || parsed.Versions is not { } versions)
         {
             throw new CollabException("El proyecto que mandó la otra persona no se puede abrir con esta versión de Rodaje. Comprueba que las dos usáis la misma.");

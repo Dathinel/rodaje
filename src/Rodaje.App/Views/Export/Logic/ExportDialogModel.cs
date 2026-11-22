@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Settings;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -120,6 +121,35 @@ public sealed class ExportDialogModel
     public EncoderSpec? AudioEncoder => ExportSettingsEditor.Encoders(Settings, Encoders).Audio;
 
     public (int Width, int Height) OutputSize => Settings.Video is { } v ? ExportGeometry.OutputSize(v, SequenceWidth, SequenceHeight) : (0, 0);
+
+    /// <summary>
+    /// El tamaño que saldría con ese preajuste en esta secuencia: «1080×2400, como la secuencia» o «1920×1080»; vacío si
+    /// el preajuste es solo audio. Depende solo de la secuencia, no de lo elegido.
+    /// </summary>
+    public string PresetSizeLabel(ExportPreset preset)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+        return ExportGeometry.FollowSequence(preset.Settings, SequenceWidth, SequenceHeight).Video is { } video
+            ? SizeLabel(ExportGeometry.OutputSize(video, SequenceWidth, SequenceHeight))
+            : "";
+    }
+
+    /// <summary>«1080×2400, como la secuencia» o «1920×1080».</summary>
+    public string SizeLabel((int Width, int Height) size) =>
+        size == (SequenceWidth, SequenceHeight) ? $"{size.Width}×{size.Height}, como la secuencia" : $"{size.Width}×{size.Height}";
+
+    /// <summary>El estándar más cercano si la salida tiene un tamaño raro (1080×2400 → 1080×1920); nulo si ya es estándar o no hay video.</summary>
+    public (int Width, int Height)? StandardSuggestion =>
+        Settings.Video is null || OutputSize is var (w, h) && ProjectFormats.IsStandard(w, h) ? null : ProjectFormats.NearestStandard(OutputSize.Width, OutputSize.Height);
+
+    /// <summary>Exporta al estándar sugerido sin tocar el proyecto, rellenando el cuadro (Barras se elige en Avanzado › Forma).</summary>
+    public void UseStandardSize()
+    {
+        if (StandardSuggestion is var (w, h))
+        {
+            Update(s => s with { Video = s.Video! with { Width = w, Height = h, Fit = ExportFit.Crop } });
+        }
+    }
 
     // Ni los textos ni los elementos de estas dos listas dependen de lo elegido en ellas: elegir no puede rehacer el desplegable
     // que se acaba de usar, porque WinUI cierra la app sin rastro (tarea 91). Pasaba con «Como la secuencia (60)» al elegir

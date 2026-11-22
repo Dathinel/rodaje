@@ -26,7 +26,7 @@ internal static partial class SelfTestRun
 
         using CancellationTokenSource limit = new(TimeSpan.FromSeconds(30));
         await using ModuleProcess process = await ModuleProcess.StartAsync(path, cancellationToken: limit.Token);
-        if (process.Client.Module.Id != "dathinel-red" || process.Client.Module.Functions.All(f => f.Name != "abrir-sala"))
+        if (process.Client.Module.Id != "dathinel-red" || process.Client.Module.Functions.All(f => f.Id != "abrir-sala"))
         {
             throw new InvalidOperationException("dathinel-red arrancó pero no se presentó como se esperaba.");
         }

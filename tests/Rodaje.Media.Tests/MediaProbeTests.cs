@@ -139,6 +139,9 @@ public sealed class MediaProbeTests
         Rational real = new(30, 1);
         Assert.Equal(new Rational(30000, 1001), MediaProbe.ResolveFrameRate(avg, real, new Rational(2997, 100), variable: true));
         Assert.Equal(new Rational(30, 1), MediaProbe.ResolveFrameRate(new Rational(30, 1), real, new Rational(25, 1), variable: false));
+        // Un cuadro perdido baja el promedio sin cambiar la tasa; cuadros repetidos a 2 ms no son 500 fps.
+        Assert.Equal(new Rational(30, 1), MediaProbe.ResolveFrameRate(new Rational(89, 3), real, new Rational(30, 1), variable: false));
+        Assert.Equal(new Rational(30, 1), MediaProbe.ResolveFrameRate(new Rational(30, 1), real, new Rational(500, 1), variable: true));
         Assert.Equal(new Rational(25, 1), MediaProbe.ResolveFrameRate(null, null, new Rational(25, 1), variable: false));
 
         // Marcas casi pegadas (intervalo de 1 en base 1/90000) o muy separadas: la medida no es una tasa creíble.

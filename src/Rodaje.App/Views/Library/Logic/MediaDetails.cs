@@ -26,6 +26,12 @@ public static class MediaDetails
             : "—";
     }
 
+    /// <summary>
+    /// Si «Generar proxy» aplica al medio: con video, no imagen fija y con el archivo original a mano (sin él no hay
+    /// nada de donde sacar la copia ligera).
+    /// </summary>
+    public static bool CanGenerateProxy(bool isStillImage, bool hasVideo, bool offline) => hasVideo && !isStillImage && !offline;
+
     /// <summary>«30 fps», «29,97 fps», «23,976 fps»; «—» en una foto o un audio.</summary>
     public static string FrameRate(MediaRef media)
     {
