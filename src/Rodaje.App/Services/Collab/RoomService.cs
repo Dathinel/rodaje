@@ -184,7 +184,7 @@ public sealed class RoomService : IAsyncDisposable
     public Task LeaveAsync() => LeaveAsync(warnClosed: true);
 
     // Al desechar (cerrar Rodaje, pruebas) no se avisa: para los demás es una caída y el suplente puede tomar la sala.
-    private async Task LeaveAsync(bool warnClosed)
+    internal async Task LeaveAsync(bool warnClosed)
     {
         await _lifecycle.WaitAsync().ConfigureAwait(false);
         try
