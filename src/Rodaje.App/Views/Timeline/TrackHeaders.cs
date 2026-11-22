@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Audio;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Theme;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Timeline;
@@ -57,6 +58,12 @@ internal sealed class TrackHeaders
     public Func<string, string>? KeyText { get; set; }
 
     private string Key(string actionId) => KeyText?.Invoke(actionId) ?? "";
+
+    /// <summary>
+    /// Lo que pide un botón o el menú de una cabecera, después de su clic: cambiar M/S/L, subir, bajar o borrar rehace las
+    /// cabeceras y quita del árbol el botón pulsado (o el ancla del menú), lo que WinUI no tolera dentro del clic (tarea 91).
+    /// </summary>
+    private void Later(Action action) => _canvas.DispatcherQueue.RunAfterEvent(action);
 
     public TrackHeaders(Canvas canvas, TimelineBrushes brushes, Style toggleStyle)
     {
@@ -498,10 +505,10 @@ internal sealed class TrackHeaders
         {
             var solo = new ToggleMenuFlyoutItem { Text = "Solo", IsChecked = row.Track.Solo };
             string soloTrack = row.TrackId;
-            solo.Click += (_, _) => Toggled?.Invoke(soloTrack, TrackToggle.Solo);
+            solo.Click += (_, _) => Later(() => Toggled?.Invoke(soloTrack, TrackToggle.Solo));
             solo.KeyboardAcceleratorTextOverride = Key(TimelineShortcuts.SoloTrack);
             var exclusive = new MenuFlyoutItem { Text = "Solo exclusivo (solo esta pista)" };
-            exclusive.Click += (_, _) => Toggled?.Invoke(soloTrack, TrackToggle.SoloExclusive);
+            exclusive.Click += (_, _) => Later(() => Toggled?.Invoke(soloTrack, TrackToggle.SoloExclusive));
             menu.Items.Add(new MenuFlyoutSeparator());
             menu.Items.Add(solo);
             menu.Items.Add(exclusive);
@@ -574,9 +581,9 @@ internal sealed class TrackHeaders
             ToolTipService.SetToolTip(delete, "La pista principal no se elimina");
         }
 
-        up.Click += (_, _) => StepRequested?.Invoke(trackId, true);
-        down.Click += (_, _) => StepRequested?.Invoke(trackId, false);
-        delete.Click += (_, _) => DeleteRequested?.Invoke(trackId);
+        up.Click += (_, _) => Later(() => StepRequested?.Invoke(trackId, true));
+        down.Click += (_, _) => Later(() => StepRequested?.Invoke(trackId, false));
+        delete.Click += (_, _) => Later(() => DeleteRequested?.Invoke(trackId));
         delete.KeyboardAcceleratorTextOverride = Key(ActionIds.Delete);
         menu.Opening += (_, _) =>
         {
@@ -699,7 +706,7 @@ internal sealed class TrackHeaders
         TimelineView.KeepOffFocus(button);
         ToolTipService.SetToolTip(button, tip);
         string trackId = track.Id;
-        button.Click += (_, _) => Toggled?.Invoke(trackId, which);
+        button.Click += (_, _) => Later(() => Toggled?.Invoke(trackId, which));
         return button;
     }
 
@@ -728,7 +735,7 @@ internal sealed class TrackHeaders
         {
             bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
                 .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-            Toggled?.Invoke(trackId, ctrl ? TrackToggle.SoloExclusive : TrackToggle.Solo);
+            Later(() => Toggled?.Invoke(trackId, ctrl ? TrackToggle.SoloExclusive : TrackToggle.Solo));
         };
         return button;
     }

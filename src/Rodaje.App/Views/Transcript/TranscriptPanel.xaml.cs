@@ -9,8 +9,10 @@ using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
+using Rodaje.App.Services.Inspector;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Windows.Foundation;
@@ -26,6 +28,8 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
     private EditorServices? _services;
     private string? _guideTrackId;
     private bool _settingTracks;
+    private ChoiceList<string> _guides = new();
+    private readonly ClosedListRetry _guidesRetry = new();
 
     public TranscriptPanel()
     {
@@ -36,6 +40,7 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
             else _services?.Session.ForgetTranscriptSelection();
         });
         AddHandler(PointerPressedEvent, new PointerEventHandler(OnPanelPointerPressed), true);
+        GuideTrack.RetryWhenClosed(_guidesRetry, Refresh);
     }
 
     public TranscriptPanelModel Model { get; } = new();
@@ -99,22 +104,23 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
         EditorSession session = _services.Session;
         if (!session.RebuildTranscript(Model, _guideTrackId)) return;
 
-        _settingTracks = true;
-        GuideTrack.Items.Clear();
+        var guides = new ChoiceList<string>();
         foreach (Track track in session.Sequence.AudioTracks.Concat(session.Sequence.VideoTracks)
                      .Where(t => t.Clips.Any(c => session.Project.FindTranscript(c.MediaId) is not null)))
         {
-            GuideTrack.Items.Add(new ComboBoxItem { Content = track.Name, Tag = track.Id });
+            guides.Add(track.Name, track.Id);
         }
 
-        if (_guideTrackId is not null && !GuideTrack.Items.Cast<ComboBoxItem>().Any(t => (string)t.Tag == _guideTrackId))
+        if (_guideTrackId is not null && !guides.Contains(_guideTrackId))
         {
             _guideTrackId = null;
             session.RebuildTranscript(Model);
         }
 
-        GuideTrack.SelectedItem = GuideTrack.Items.Cast<ComboBoxItem>().FirstOrDefault(t => (string)t.Tag == Model.Document.TrackId);
-        GuideTrack.Visibility = GuideTrack.Items.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
+        // Elegir la pista guía refresca el panel: el desplegable solo se rehace si cambió la lista (tarea 91).
+        _settingTracks = true;
+        _guides = ComboBoxChoices.Show(GuideTrack, _guides, guides, Model.Document.TrackId is { } guide ? guides.IndexOf(guide) : -1, retry: _guidesRetry);
+        GuideTrack.Visibility = guides.Count > 1 ? Visibility.Visible : Visibility.Collapsed;
         _settingTracks = false;
         _realized.Clear();
         _wordIndices.Clear();
@@ -468,9 +474,11 @@ internal sealed partial class TranscriptPanel : UserControl, IFocusedShortcutTar
     private void OnNextClick(object sender, RoutedEventArgs args) => FindNext(false);
     private void OnGuideChanged(object sender, SelectionChangedEventArgs args)
     {
-        if (_settingTracks) return;
-        _guideTrackId = (GuideTrack.SelectedItem as ComboBoxItem)?.Tag as string;
-        Refresh();
+        DispatcherQueue.Choose(_guides, GuideTrack.SelectedIndex, _settingTracks, trackId => trackId == _guideTrackId ? null : () =>
+        {
+            _guideTrackId = trackId;
+            Refresh();
+        });
     }
 
     public Task ShowFillersAsync() => ShowChoicesAsync(true);

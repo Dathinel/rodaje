@@ -9,6 +9,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Windows.Foundation;
@@ -44,7 +45,12 @@ internal sealed partial class TranscriptPanel
         {
             if (args.Key == VirtualKey.Enter)
             {
-                if (ReferenceEquals(document, Model.Document)) _services.Session.ExecuteTranscript(Model.CorrectWord(box.Text));
+                // Corregir rehace los párrafos y quita el texto que ancla este cuadro: después del evento (tarea 91).
+                string corrected = box.Text;
+                DispatcherQueue.RunAfterEvent(() =>
+                {
+                    if (ReferenceEquals(document, Model.Document)) _services?.Session.ExecuteTranscript(Model.CorrectWord(corrected));
+                });
                 flyout.Hide();
                 Focus(FocusState.Programmatic);
                 args.Handled = true;
@@ -69,7 +75,8 @@ internal sealed partial class TranscriptPanel
         if (_removedRuns.TryGetValue(run, out RemovedTranscriptSpan span))
         {
             var recover = new MenuFlyoutItem { Text = "Recuperar" };
-            recover.Click += (_, _) => _services?.Session.ExecuteTranscript(Model.Recover(span));
+            // Recuperar o partir rehace los párrafos y quita el texto que ancla el menú: después del clic (tarea 91).
+            recover.Click += (_, _) => DispatcherQueue.RunAfterEvent(() => _services?.Session.ExecuteTranscript(Model.Recover(span)));
             menu.Items.Add(recover);
         }
         else if (_wordIndices.TryGetValue(run, out int word))
@@ -79,7 +86,7 @@ internal sealed partial class TranscriptPanel
             var correct = new MenuFlyoutItem { Text = "Corregir palabra · F2", IsEnabled = Model.SelectionCount == 1 };
             correct.Click += (_, _) => ShowWordEditor();
             var paragraph = new MenuFlyoutItem { Text = "Empezar párrafo aquí" };
-            paragraph.Click += (_, _) => _services?.Session.ExecuteTranscript(Model.SplitParagraph());
+            paragraph.Click += (_, _) => DispatcherQueue.RunAfterEvent(() => _services?.Session.ExecuteTranscript(Model.SplitParagraph()));
             menu.Items.Add(correct);
             menu.Items.Add(paragraph);
         }

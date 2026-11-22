@@ -5,6 +5,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -123,7 +124,8 @@ internal sealed partial class TimelineView
                 Padding = new Thickness(8, 2, 8, 2),
                 MinHeight = 0,
             };
-            toggle.Click += (_, _) => Session?.ToggleSourceProgram();
+            // Todo lo de esta barra la rehace entera (quita el control pulsado): después de su evento (tarea 91).
+            toggle.Click += (_, _) => DispatcherQueue.RunAfterEvent(() => Session?.ToggleSourceProgram());
             SourcePanel.Children.Add(toggle);
             SourcePanel.Children.Add(Caption($"{source.Name} · E {Mark(session.SourceIn)} · S {Mark(session.SourceOut)}"));
             AddTrackSelector("V", session.SourceVideoEnabled && source.HasVideo, source.HasVideo, session.Sequence.VideoTracks,
@@ -156,12 +158,17 @@ internal sealed partial class TimelineView
         }
 
         box.SelectedIndex = tracks.FindIndex(t => t.Id == target);
-        toggle.Click += (_, _) => UpdateSourceTracks(isVideo, toggle.IsChecked == true, null);
+        toggle.Click += (_, _) =>
+        {
+            bool on = toggle.IsChecked == true;
+            DispatcherQueue.RunAfterEvent(() => UpdateSourceTracks(isVideo, on, null));
+        };
         box.SelectionChanged += (_, _) =>
         {
             if (!_fillingSourcePanel && box.SelectedItem is ComboBoxItem { Tag: string id })
             {
-                UpdateSourceTracks(isVideo, toggle.IsChecked == true, id);
+                bool on = toggle.IsChecked == true;
+                DispatcherQueue.RunAfterEvent(() => UpdateSourceTracks(isVideo, on, id));
             }
         };
         SourcePanel.Children.Add(toggle);
@@ -183,7 +190,7 @@ internal sealed partial class TimelineView
     private static Button ActionButton(string text, Action click)
     {
         var button = new Button { Content = text, Padding = new Thickness(8, 2, 8, 2), MinHeight = 0 };
-        button.Click += (_, _) => click();
+        button.Click += (_, _) => button.DispatcherQueue.RunAfterEvent(click);
         return button;
     }
 
