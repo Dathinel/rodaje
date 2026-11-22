@@ -68,13 +68,15 @@ internal static class MediaSearchDialog
         var cancel = new CancellationTokenSource();
         CancellationTokenSource? current = null;
         OperationProgress? searching = null;
-        var matcher = new MediaMatch(hasher: async (path, ct) =>
+        // Cada archivo verificado es un avance de verdad: sin él, el «último avance» pararía durante las huellas largas.
+        async Task<string?> HashAsync(string path, CancellationToken ct)
         {
-            // Cada archivo verificado es un avance de verdad: sin él, el «último avance» pararía durante las huellas largas.
             string? hash = await MediaMatch.Sha256Async(path, ct).ConfigureAwait(false);
             searching?.Pulse();
             return hash;
-        });
+        }
+
+        var matcher = new MediaMatch(hasher: HashAsync);
         progress.OnCancel = () =>
         {
             searching?.MarkCancelling();
