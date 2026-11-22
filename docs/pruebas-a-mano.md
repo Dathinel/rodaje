@@ -265,3 +265,14 @@ Sin saber nada técnico: dos equipos, el anfitrión (A) y un invitado (B). Cada 
 10. **Sin rutas ajenas.** B no debe ver en ninguna parte la ruta de las carpetas de A (nombres de usuario, «D:\…»): solo nombres de medios. Y al guardar el proyecto de B, sus medios apuntan a donde B los tiene, no a donde los tiene A.
 11. **Sin medio.** B no tiene un medio de A: aparece «sin conexión» (no un error ni un cierre) y se puede seguir editando lo demás; la falta de ese archivo no bloquea ni impide la entrada de nuevos invitados a la sala.
 12. **Cortafuegos.** La primera vez, Windows pregunta por el cortafuegos al abrir la sala: la pantalla de Rodaje lo explica antes de que salga.
+
+## Otros equipos, otros países y discos raros (entorno, 22-nov)
+
+Lo que la CI no puede ver. Si algo falla, anótalo con el idioma de Windows, la escala y la GPU.
+
+1. **Cuadros numéricos con coma y con punto**: en el inspector (por ejemplo, Opacidad o Escala de un clip, el tamaño de un título o un parámetro de una plantilla) escribe `0,5` + Intro y después `0.5` + Intro: las dos valen 0,5 y el cuadro muestra `0,50`. `1.000` vale 1, no mil. Repite con Windows en inglés (Configuración › Hora e idioma › Idioma y región › Formato regional: Inglés (Estados Unidos)) y, si puedes, en árabe (Arabia Saudí): el cuadro debe seguir con cifras normales y coma.
+2. **Escala de pantalla y portátiles pequeños**: con la ventana a 1366×768 y la escala de Windows al 125 %, 150 % y 175 %, abre Preferencias, Exportar y Colaborar. Los botones Guardar/Cancelar/Exportar deben verse sin mover la ventana. En Preferencias, la pestaña se desplaza por dentro: comprueba que no haya dos barras de desplazamiento a la vez.
+3. **Sin GPU compatible**: con `RODAJE_FORZAR_WARP=1`, abre un proyecto, reprodúcelo y exporta 5 s. Debe ir lento, pero sin el error «Hace falta una GPU con Direct3D 11». En un portátil con Intel y NVIDIA, mira en Ayuda › Acerca de (o en el informe de `-Medir`) qué GPU usa: hoy es la que Windows da por defecto, que suele ser la Intel.
+4. **El mismo proyecto en dos ventanas**: abre `x.rodaje` en dos ventanas de Rodaje, cambia algo en la primera y guarda. Cambia algo en la segunda y pulsa Ctrl+S: debe salir «El proyecto cambió fuera de esta ventana» con «Guardar encima» y «Guardar como…». Ninguno de los dos botones debe cerrar la app. Con «Guardar encima», el archivo queda como el de la segunda ventana.
+5. **Carpeta de datos en una USB**: arranca con `RODAJE_DATOS=E:\RodajeDatos` (la letra de tu USB), cambia un visor (Forma de onda) y quita la USB. Cambia otro visor: debe salir una sola vez «No se pudieron guardar los ajustes…» y la app sigue. Vuelve a ponerla y cierra: los ajustes se guardan.
+6. **Nombres raros**: en Guardar como, prueba `CON`, `nul` y `a:b`. Debe salir «No se pudo guardar» sin cerrar la app y sin dejar archivos sueltos en la carpeta.
