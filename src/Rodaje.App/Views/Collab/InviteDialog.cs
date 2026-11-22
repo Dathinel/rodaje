@@ -152,7 +152,12 @@ internal static class InviteDialog
 
             await room.HostAsync(alias, CollabHost.RoomFolderFor(path));
             collab.Alias = alias;
-            collab.StartEditing(null);
+            if (!collab.StartEditing(null))
+            {
+                // Prácticamente imposible en el anfitrión (nadie entró todavía), pero se trata igual que en el invitado.
+                await room.LeaveAsync();
+                throw new CollabException("Se perdieron cambios de la sala al empezar la edición. Vuelve a intentarlo.");
+            }
         }
 
         return await room.CreateInviteAsync(validity, oneUse);
