@@ -38,8 +38,8 @@ public sealed class RoomProxies
     public bool CanRequest(string mediaId) => _entries.ContainsKey(mediaId);
 
     /// <summary>
-    /// La ruta relativa (a la carpeta de la sala) que se guarda en <see cref="Core.Model.MediaRef.Path"/> al descargar la
-    /// copia ligera; <c>null</c> si el medio no está en el manifiesto.
+    /// La ruta relativa a la carpeta de la sala; <c>null</c> si el medio no está en el manifiesto.
+    /// No sirve como ruta del medio en memoria: la biblioteca y el reproductor esperan rutas absolutas.
     /// </summary>
     public string? RelativePathFor(string mediaId)
     {
@@ -64,8 +64,9 @@ public sealed class RoomProxies
     }
 
     /// <summary>
-    /// Pide la copia ligera del medio a quien hospeda y la deja en la carpeta de la sala. Devuelve la ruta relativa que
-    /// debe quedar en el medio. El invitado no manda rutas: solo la huella del archivo que falta.
+    /// Pide la copia ligera del medio a quien hospeda y la deja en la carpeta de la sala. Devuelve la ruta absoluta
+    /// verificada que debe quedar en el medio en memoria. Al guardar, ProjectPaths la hace relativa al proyecto.
+    /// El invitado no manda rutas: solo la huella del archivo que falta.
     /// </summary>
     /// <exception cref="CollabException">No llegó o llegó dañada; el texto dice qué hacer después.</exception>
     public async Task<string> RequestAsync(string mediaId, OperationProgress? progress = null, CancellationToken cancellationToken = default)
@@ -85,8 +86,7 @@ public sealed class RoomProxies
         progress?.SetCancellable(true);
         await ProxyShareGuest.RequestAsync(room, entry.Hash, destination, Adapt(progress), cancellationToken).ConfigureAwait(false);
         progress?.Complete();
-        return RelativePathFor(mediaId)
-            ?? throw new InvalidOperationException("El medio dejó de estar en el manifiesto durante la descarga.");
+        return destination;
     }
 
     /// <summary>El nombre de archivo de la copia ligera de una huella.</summary>

@@ -1,5 +1,6 @@
 using System.Security.Cryptography;
 using Dathinel.Sala;
+using Rodaje.App.Services;
 using Rodaje.App.Services.Collab;
 using Rodaje.App.Services.Operations;
 using Rodaje.Core.Commands;
@@ -95,7 +96,7 @@ public sealed class RoomProxiesTests
     }
 
     [Fact]
-    public void Al_enlazar_la_copia_ligera_se_guarda_su_ruta_relativa_con_los_datos_del_original()
+    public void La_copia_ligera_usa_ruta_absoluta_en_memoria_y_relativa_solo_al_guardar()
     {
         string projectDir = Path.Combine(Path.GetTempPath(), "sala-prueba");
         var project = new Project { Name = "sala" };
@@ -109,16 +110,25 @@ public sealed class RoomProxiesTests
             HasAudio = true,
             FrameRate = Rational.Fps25,
         });
-        string hash = new('d', 64);
-        string relative = $"proxies{Path.DirectorySeparatorChar}proxy-{hash}.mp4";
+        var proxies = new RoomProxies(null, projectDir, [new MediaManifestEntry("m1", "toma", 100, Hash)]);
+        string absolute = proxies.AbsolutePathFor("m1")!;
 
-        new RelinkMediaCommand([new MediaRelinkTarget("m1", relative)]).Apply(project);
+        new RelinkMediaCommand([new MediaRelinkTarget("m1", absolute)]).Apply(project);
 
         MediaRef media = project.Media[0];
-        Assert.Equal(relative, media.Path);
+        Assert.Equal(absolute, media.Path);
+        Assert.True(Path.IsPathFullyQualified(media.Path));
+        Assert.Equal(absolute, media.ResolvePath(Environment.CurrentDirectory));
         Assert.True(media.HasVideo && media.HasAudio);
         Assert.Equal(Rational.Fps25, media.FrameRate);
         Assert.True(RoomProxies.IsRoomProxyPath(media.ResolvePath(projectDir)));
+
+        // El archivo del proyecto puede vivir en una subcarpeta; la base de la ruta guardada es esa, no la sala.
+        string savedFolder = Path.Combine(projectDir, "recibido");
+        MediaRef saved = ProjectPaths.ForSaving(project, savedFolder).GetMedia("m1");
+        Assert.Equal(Path.GetRelativePath(savedFolder, absolute), saved.Path);
+        Assert.Equal(absolute, saved.ResolvePath(savedFolder));
+        Assert.Equal(absolute, media.Path);
     }
 
     [Fact]
