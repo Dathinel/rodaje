@@ -773,7 +773,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
         try
         {
-            using Process? _ = Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.Path}\"") { UseShellExecute = false });
+            using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.Path}\"") { UseShellExecute = false });
         }
         catch (System.ComponentModel.Win32Exception ex)
         {

@@ -384,7 +384,7 @@ internal sealed partial class TitleBar : UserControl
     {
         try
         {
-            using Process? _ = Process.Start(new ProcessStartInfo(UpstreamAttribution.RepositoryUrl) { UseShellExecute = true });
+            using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo(UpstreamAttribution.RepositoryUrl) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
         {

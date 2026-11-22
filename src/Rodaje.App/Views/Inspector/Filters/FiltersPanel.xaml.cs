@@ -618,7 +618,7 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         nint owner = XamlRoot?.ContentIslandEnvironment is { } environment ? Win32Interop.GetWindowFromWindowId(environment.AppWindowId) : 0;
         string? folder = _services is { } services
             ? FileDialogFolderPolicy.OpenFolder(services.Settings.Current)
-            : Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
+            : Services.AppDataPaths.UserFolder(Environment.SpecialFolder.MyDocuments);
         try
         {
             IReadOnlyList<string> picked = FileDialogs.Open(owner, "Cargar LUT", multiple: false, folder, ("Tablas de color", "*.cube"), FileDialogs.AllFilter);

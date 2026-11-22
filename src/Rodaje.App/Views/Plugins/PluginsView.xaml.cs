@@ -345,7 +345,7 @@ internal sealed partial class PluginsView : UserControl, IEditorView
     {
         try
         {
-            using Process? _ = Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+            using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo(target) { UseShellExecute = true });
         }
         catch (System.ComponentModel.Win32Exception ex)
         {

@@ -34,6 +34,14 @@ internal static partial class Program
         try
         {
             AppOptions options = AppOptions.Parse(args);
+            if (options.ChaosSeed is not null)
+            {
+                // El caos no deja rastro fuera de su carpeta: sin RODAJE_DATOS escribiría en los datos del usuario.
+                AppDataPaths.Sandbox = Rodaje.Media.EnvironmentVariables.Read(AppDataPaths.OverrideVariable) is not null
+                    ? AppDataPaths.Root
+                    : throw new InvalidOperationException("--caos exige RODAJE_DATOS (la carpeta de la corrida).");
+            }
+
             // Con las opciones ya leídas: una corrida automática no abre la copia del registro ni recupera sesiones.
             _ = Crashes.BeginSession(options.IsAutomated);
             if (options.SelfTest && Crashes.Version == "?")
