@@ -49,12 +49,32 @@ public sealed partial class AppSettings
     [System.Text.Json.Serialization.JsonIgnore]
     public long? CollabOriginalCapBytes => CollabOriginalCapGb is { } gb ? (long)(gb * (1L << 30)) : null;
 
+    /// <summary>
+    /// Dirección https del relé propio (Preferencias › Colaboración); nula, los relés públicos de n0. Se guarda como la
+    /// escribió la persona: <c>Dathinel.Sala.Red</c> la exige válida y la comprobación la hace
+    /// <c>Collab.CollabNetwork</c> al abrir o entrar en una sala.
+    /// </summary>
+    public string? CollabRelayUrl { get; set; }
+
+    /// <summary>«Solo por relé» (Preferencias › Colaboración): la otra persona no ve la IP de este equipo.</summary>
+    public bool CollabRelayOnly { get; set; }
+
+    /// <summary>Nombre con el que entrar en las salas (Preferencias › Colaboración); nulo, el usuario de Windows.</summary>
+    public string? CollabAlias { get; set; }
+
+    /// <summary>Carpeta por defecto de las copias de sala (Preferencias › Colaboración); nula, «Documentos\Rodaje\Salas».</summary>
+    public string? CollabRoomsFolder { get; set; }
+
     private void NormalizeWorkflow()
     {
         if (CollabOriginalCapGb is not (>= 0.1 and <= 100_000))
         {
             CollabOriginalCapGb = null;
         }
+
+        CollabRelayUrl = string.IsNullOrWhiteSpace(CollabRelayUrl) ? null : CollabRelayUrl.Trim();
+        CollabAlias = Collab.CollabNames.NormalizeAlias(CollabAlias);
+        CollabRoomsFolder = string.IsNullOrWhiteSpace(CollabRoomsFolder) ? null : CollabRoomsFolder.Trim();
 
         if (!Enum.IsDefined(RenderCacheMode))
         {

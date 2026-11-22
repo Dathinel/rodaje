@@ -36,6 +36,18 @@ public sealed class PreferencesViewModel(AppSettings settings)
     /// <summary>Tope de los originales de la sala en GB; NaN, sin tope.</summary>
     public double CollabOriginalCapGb { get => Settings.CollabOriginalCapGb ?? double.NaN; set => Settings.CollabOriginalCapGb = double.IsFinite(value) && value >= 0.1 ? Math.Min(value, 100_000) : null; }
 
+    /// <summary>Dirección del relé propio; vacía, los relés públicos de n0.</summary>
+    public string CollabRelayUrl { get => Settings.CollabRelayUrl ?? ""; set => Settings.CollabRelayUrl = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); }
+
+    /// <summary>«Solo por relé»: la otra persona no ve la IP de este equipo.</summary>
+    public bool CollabRelayOnly { get => Settings.CollabRelayOnly; set => Settings.CollabRelayOnly = value; }
+
+    /// <summary>Nombre con el que entrar en las salas; vacío, el usuario de Windows.</summary>
+    public string CollabAlias { get => Settings.CollabAlias ?? ""; set => Settings.CollabAlias = Services.Collab.CollabNames.NormalizeAlias(value); }
+
+    /// <summary>Carpeta por defecto de las copias de sala; vacía, «Documentos\Rodaje\Salas».</summary>
+    public string CollabRoomsFolder { get => Settings.CollabRoomsFolder ?? ""; set => Settings.CollabRoomsFolder = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); }
+
     public void SetLinkedAudioVideoTracks(IEnumerable<int> videoTracks)
     {
         ArgumentNullException.ThrowIfNull(videoTracks);

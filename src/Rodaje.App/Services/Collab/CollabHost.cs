@@ -20,7 +20,8 @@ public sealed partial class CollabHost : IDisposable
     private readonly Action<Action> _post;
     private readonly SwitchHandler _switch = new();
 
-    public CollabHost(string dataRoot, Action<Action> post, string? appVersion = null, string? redPath = null, ICollabPayloadHandler? handler = null)
+    /// <param name="red">Cómo sale a la red al abrir o entrar en una sala (en la app, lo de Preferencias › Colaboración); nula, los relés públicos de n0.</param>
+    public CollabHost(string dataRoot, Action<Action> post, string? appVersion = null, string? redPath = null, ICollabPayloadHandler? handler = null, Func<Red>? red = null)
     {
         _post = post;
         if (handler is not null)
@@ -39,7 +40,10 @@ public sealed partial class CollabHost : IDisposable
         }
 
         Room = new RoomService(
-            new CollabEnvironment(redPath ?? FindRed() ?? Path.Combine(AppContext.BaseDirectory, RedFileName), Path.Combine(_folder, "identidad.bin"), appVersion ?? CurrentVersion()),
+            new CollabEnvironment(redPath ?? FindRed() ?? Path.Combine(AppContext.BaseDirectory, RedFileName), Path.Combine(_folder, "identidad.bin"), appVersion ?? CurrentVersion())
+            {
+                RedSource = red,
+            },
             _switch,
             post);
         Room.StateChanged += OnRoomState;
@@ -562,6 +566,7 @@ public sealed partial class CollabHost : IDisposable
         }
     }
 
-    /// <summary>Un nombre para proponer la primera vez: el del usuario de Windows.</summary>
-    public static string SuggestedAlias() => CollabNames.NormalizeAlias(Environment.UserName) ?? "";
+    /// <summary>Nombre con el que entrar en las salas: el de Preferencias › Colaboración si está puesto; si no, el del usuario de Windows.</summary>
+    public static string SuggestedAlias(Settings.AppSettings? settings = null) =>
+        CollabNames.NormalizeAlias(settings?.CollabAlias) ?? CollabNames.NormalizeAlias(Environment.UserName) ?? "";
 }

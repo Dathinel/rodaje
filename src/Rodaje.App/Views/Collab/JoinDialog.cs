@@ -51,8 +51,8 @@ internal static class JoinDialog
         }
 
         paste.Click += (_, _) => UiTask.Run(PasteAsync());
-        var name = new TextBox { Header = "Tu nombre en la sala", PlaceholderText = "Escribe cómo te verán los demás", MaxLength = CollabNames.MaxAlias, Text = collab.Alias.Length > 0 ? collab.Alias : CollabHost.SuggestedAlias() };
-        string folder = DefaultFolder();
+        var name = new TextBox { Header = "Tu nombre en la sala", PlaceholderText = "Escribe cómo te verán los demás", MaxLength = CollabNames.MaxAlias, Text = collab.Alias.Length > 0 ? collab.Alias : CollabHost.SuggestedAlias(services.Settings.Current) };
+        string folder = CollabNetwork.DefaultRoomsFolder(services.Settings.Current);
         var folderText = new TextBlock { Text = folder, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
         var pick = new Button { Content = "Elegir carpeta…" };
         pick.Click += (_, _) =>
@@ -214,6 +214,4 @@ internal static class JoinDialog
             await SharedProjectFlow.RunAsync(services, hwnd, roomFolder);
         }
     }
-
-    private static string DefaultFolder() => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Rodaje", "Salas");
 }

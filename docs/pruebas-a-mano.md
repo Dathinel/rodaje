@@ -49,6 +49,11 @@ Hacen falta **dos equipos** (o un equipo y alguien en otro lugar): quien hospeda
     - **Pedir todos:** menú de un medio › **Pedir todos los originales** pide en cola los que faltan («Original 2 de 5»); el que falla no para a los demás y cada uno que llega queda enlazado.
     - **Tope:** en **Preferencias › Colaboración**, «Tope en GB» limita lo que se pide y lo que se envía (vacío: sin tope, el valor por defecto); un original que lo pase se niega diciendo el tope.
     - **Seguridad:** en B, lo que se recibe se guarda solo dentro de la carpeta de la sala (`medios\`) con un nombre saneado (un nombre de medio raro o hostil no escribe fuera), y en ningún lado se ve una ruta del equipo de A.
+19. **Preferencias › Colaboración:** cada ajuste vale desde la próxima sala que se abra (la abierta sigue como estaba; no hace falta reiniciar).
+    - **Relé:** «Salir a internet por» trae **Relé de pruebas de n0 (por defecto)**; con **Relé propio** sale «Dirección del relé propio». Una dirección mala (`http://…`, con `usuario:clave@`, con ruta, con `?` o con `#`) enseña el motivo en español bajo el cuadro; con una buena (con o sin puerto), **Probar conexión** dice «El relé responde…» o qué falló (el botón pasa a **Cancelar** mientras tarda). Con un relé propio encendido en los dos equipos, la copia ligera y el original sí viajan por él (por el de n0 no).
+    - **Solo por relé:** marcada, la otra persona no ve tu IP; sal y vuelve a entrar y el panel de la sala muestra el camino por relé aunque hubiera directo.
+    - **Tu nombre en la sala:** se usa en vez del usuario de Windows al invitar y al unirse.
+    - **Carpeta por defecto de las copias de sala:** **Elegir…** la cambia y es la que propone «Unirse a una sala»; vacía, vuelve a `Documentos\Rodaje\Salas`.
 
 ## Editar por el texto
 

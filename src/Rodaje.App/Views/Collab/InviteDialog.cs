@@ -37,7 +37,7 @@ internal static class InviteDialog
             return;
         }
 
-        var name = new TextBox { Header = "Tu nombre en la sala", PlaceholderText = "Escribe cómo te verán los demás", MaxLength = CollabNames.MaxAlias, Text = StartingName(collab, room) };
+        var name = new TextBox { Header = "Tu nombre en la sala", PlaceholderText = "Escribe cómo te verán los demás", MaxLength = CollabNames.MaxAlias, Text = StartingName(collab, room, services.Settings.Current) };
         var role = new RadioButtons { Header = "Permiso para quien entre", SelectedIndex = collab.DefaultRole == Rol.Editar ? 0 : 1 };
         role.Items.Add("Puede editar");
         role.Items.Add("Solo puede mirar");
@@ -222,8 +222,8 @@ internal static class InviteDialog
         return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary && await session.SaveAsync() && session.FilePath is not null;
     }
 
-    private static string StartingName(CollabHost collab, RoomService room) =>
-        room.State.MyAlias.Length > 0 ? room.State.MyAlias : collab.Alias.Length > 0 ? collab.Alias : CollabHost.SuggestedAlias();
+    private static string StartingName(CollabHost collab, RoomService room, Services.Settings.AppSettings settings) =>
+        room.State.MyAlias.Length > 0 ? room.State.MyAlias : collab.Alias.Length > 0 ? collab.Alias : CollabHost.SuggestedAlias(settings);
 
     internal static TextBlock Hint(string text) => new()
     {
