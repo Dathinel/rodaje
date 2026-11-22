@@ -1,6 +1,9 @@
+using System.Globalization;
+using Rodaje.App.Services.Format;
+
 namespace Rodaje.App.Services.Inspector;
 
-/// <summary>Lo escrito en un cuadro numérico que todavía no se ha confirmado (sin Intro), sin WinUI.</summary>
+/// <summary>Lo escrito en un cuadro numérico, sin WinUI.</summary>
 public static class TypedNumber
 {
     /// <summary>
@@ -14,5 +17,27 @@ public static class TypedNumber
         return string.IsNullOrEmpty(text) || parse(text) is not { } value || !double.IsFinite(value) || value == current
             ? null
             : value;
+    }
+
+    /// <summary>
+    /// Lee «29,97» y «29.97» igual en cualquier Windows. El formateador de WinRT sigue el idioma de Windows: en
+    /// es-CO o de-DE rechazaba «0.5» y leía «1.000» como mil; en en-US rechazaba «1,5». Sin separador de miles, con signo
+    /// «-» o «−»; lo demás (cifras nativas, dos separadores) es nulo.
+    /// </summary>
+    public static double? Parse(string? text)
+    {
+        string s = (text ?? "").Trim().Replace('−', '-').Replace(',', '.');
+        return s.Length > 0
+            && double.TryParse(s, NumberStyles.AllowLeadingSign | NumberStyles.AllowDecimalPoint, CultureInfo.InvariantCulture, out double v)
+            && double.IsFinite(v)
+            ? v
+            : null;
+    }
+
+    /// <summary>Con coma decimal, como el resto de la app, y siempre con <paramref name="decimals"/> decimales.</summary>
+    public static string Format(double value, int decimals)
+    {
+        double rounded = Math.Round(value, decimals, MidpointRounding.AwayFromZero);
+        return (rounded == 0 ? 0 : rounded).ToString("F" + decimals.ToString(CultureInfo.InvariantCulture), SpanishNumbers.Format);
     }
 }
