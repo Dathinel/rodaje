@@ -129,7 +129,11 @@ internal sealed partial class MarkersPanel : UserControl, IEditorView
         _menu.Items.Add(MenuItem("Editar…", "", (_, _) => UiTask.Run(EditAsync(_menuTarget?.Key))));
         _menu.Items.Add(new MenuFlyoutSeparator());
         // Quitar rehace la lista y quita la fila que ancla el menú o el botón pulsado: después del clic (tarea 91).
-        _menu.Items.Add(MenuItem("Quitar", "", (_, _) => DispatcherQueue.RunAfterEvent(() => Remove(_menuTarget?.Key))));
+        _menu.Items.Add(MenuItem("Quitar", "", (_, _) =>
+        {
+            string? key = _menuTarget?.Key;
+            DispatcherQueue.RunAfterEvent(() => Remove(key));
+        }));
         RegisterPropertyChangedCallback(VisibilityProperty, (_, _) =>
         {
             if (_stale && Visibility == Visibility.Visible)
@@ -376,7 +380,11 @@ internal sealed partial class MarkersPanel : UserControl, IEditorView
 
     private void OnEditClick(object sender, RoutedEventArgs e) => UiTask.Run(EditAsync((sender as FrameworkElement)?.Tag as string));
 
-    private void OnRemoveClick(object sender, RoutedEventArgs e) => DispatcherQueue.RunAfterEvent(() => Remove((sender as FrameworkElement)?.Tag as string));
+    private void OnRemoveClick(object sender, RoutedEventArgs e)
+    {
+        string? key = (sender as FrameworkElement)?.Tag as string;
+        DispatcherQueue.RunAfterEvent(() => Remove(key));
+    }
 
     private void OnPreviousClick(object sender, RoutedEventArgs e)
     {
