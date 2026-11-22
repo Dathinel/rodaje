@@ -294,7 +294,8 @@ public sealed class CollabEngineTests
         Assert.Contains(host.Live.Sequences[0].Markers, m => m.Id == "mk-otro");
         Assert.Contains(guest.Live.Sequences[0].Markers, m => m.Id == "mk-otro");
         await Settled(host, guest, "mismo estado compartido");
-        Assert.True(guest.Engine.CanRedo);
+        // Lo vivo coincide en cuanto el anfitrión aplica el deshacer; rehacer se habilita al llegar la confirmación al invitado.
+        await CollabHarness.Until(() => guest.Engine.CanRedo, "el deshacer confirmado en el invitado");
     }
 
     [SalaFact]
