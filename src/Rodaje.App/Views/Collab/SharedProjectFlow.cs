@@ -1,9 +1,9 @@
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Collab;
 using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.Operations;
 using Rodaje.App.Shell;
 using Rodaje.Core.Model;
 using Rodaje.Core.Serialization;
@@ -95,39 +95,13 @@ internal static class SharedProjectFlow
             return (null, false);
         }
 
-        var bar = new ProgressBar { IsIndeterminate = true, MinWidth = 440 };
-        var text = new TextBlock { Text = "Paso 2 de 4: pidiendo el proyecto a quien hospeda la sala…", TextWrapping = TextWrapping.Wrap };
-        var clockText = InviteDialog.Hint("");
-        var panel = new StackPanel { Spacing = 12 };
-        panel.Children.Add(text);
-        panel.Children.Add(bar);
-        panel.Children.Add(clockText);
-        var dialog = new ContentDialog { XamlRoot = root, Title = "Entrando en la sala", Content = panel, CloseButtonText = "Cancelar y salir de la sala" };
+        // Los pasos del reparto llegan como fases 2 a 4 del camino («Paso 3 de 5: …»); el diálogo ya ofrece Cancelar abajo.
+        var operation = new OperationProgress();
+        var view = new Views.Shared.OperationProgressView { Operation = operation, MinWidth = 440 };
+        var dialog = new ContentDialog { XamlRoot = root, Title = "Entrando en la sala", Content = view, CloseButtonText = "Cancelar y salir de la sala" };
 
         using var cancel = new CancellationTokenSource();
-        var clock = new OperationClock();
-        ShareProgress? last = null;
-        var progress = new Progress<ShareProgress>(p =>
-        {
-            clock.Progressed();
-            last = p;
-            bar.IsIndeterminate = p.Fraction is null;
-            if (p.Fraction is { } f)
-            {
-                bar.Value = f * 100;
-            }
-
-            text.Text = $"Paso {p.Step + 1} de {p.Steps + 1}: {char.ToLowerInvariant(p.Text[0])}{p.Text[1..]}";
-        });
-        DispatcherQueueTimer ticker = DispatcherQueue.GetForCurrentThread().CreateTimer();
-        ticker.Interval = TimeSpan.FromSeconds(1);
-        ticker.Tick += (_, _) =>
-        {
-            string? left = last?.Fraction is { } f ? OperationClock.Remaining(f, clock.Elapsed) : null;
-            clockText.Text = clock.Describe() + (left is null ? "" : $" Faltan {left}.");
-        };
-        ticker.Start();
-        Task<ReceivedProject> work = ProjectShareGuest.ReceiveAsync(room, roomFolder, progress, cancel.Token);
+        Task<ReceivedProject> work = ProjectShareGuest.ReceiveAsync(room, roomFolder, JoinFlowProgress.Receive(operation), cancel.Token);
         string? problem = null;
         _ = work.ContinueWith(
             t =>
@@ -147,7 +121,6 @@ internal static class SharedProjectFlow
             }
         };
         await DialogGate.ShowAsync(dialog);
-        ticker.Stop();
         if (!work.IsCompleted)
         {
             await cancel.CancelAsync();
@@ -156,6 +129,7 @@ internal static class SharedProjectFlow
 
         if (work.IsCompletedSuccessfully)
         {
+            operation.Complete();
             return (await work, false);
         }
 

@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services.Collab;
 using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.Operations;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
 using Rodaje.App.Views.Relink;
@@ -43,16 +44,15 @@ internal static class MediaSearchDialog
         }
 
         var summary = new TextBlock { TextWrapping = TextWrapping.Wrap };
-        var progress = new ProgressBar { IsIndeterminate = true, Visibility = Visibility.Collapsed, MinWidth = 220 };
-        var clock = new OperationClock();
+        var progress = new Views.Shared.OperationProgressView();
         var choose = new Button { Content = "Elegir carpetas donde buscar…" };
         var top = new StackPanel { Spacing = 12, MinWidth = 520 };
         top.Children.Add(InviteDialog.Hint("Para editar sin esperas, Rodaje usa los archivos de video y audio que tengas en tu equipo. Los cambios del proyecto se comparten, pero los archivos no viajan por internet."));
         top.Children.Add(new ScrollViewer { Content = list, MaxHeight = 280 });
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         actions.Children.Add(choose);
-        actions.Children.Add(progress);
         top.Children.Add(actions);
+        top.Children.Add(progress);
         top.Children.Add(summary);
 
         var dialog = new ContentDialog
@@ -66,8 +66,22 @@ internal static class MediaSearchDialog
         };
 
         var cancel = new CancellationTokenSource();
-        var matcher = new MediaMatch();
         CancellationTokenSource? current = null;
+        OperationProgress? searching = null;
+        // Cada archivo verificado es un avance de verdad: sin él, el «último avance» pararía durante las huellas largas.
+        async Task<string?> HashAsync(string path, CancellationToken ct)
+        {
+            string? hash = await MediaMatch.Sha256Async(path, ct).ConfigureAwait(false);
+            searching?.Pulse();
+            return hash;
+        }
+
+        var matcher = new MediaMatch(hasher: HashAsync);
+        progress.OnCancel = () =>
+        {
+            searching?.MarkCancelling();
+            current?.Cancel();
+        };
 
         void Summarize()
         {
@@ -90,8 +104,11 @@ internal static class MediaSearchDialog
             current?.Cancel();
             using CancellationTokenSource mine = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token);
             current = mine;
-            clock.Restart();
-            progress.Visibility = Visibility.Visible;
+            var operation = new OperationProgress();
+            operation.SetCancellable(true);
+            JoinFlowProgress.Searching(operation);
+            searching = operation;
+            progress.Operation = operation;
             foreach (MediaManifestEntry e in wanted)
             {
                 rows[e.MediaId].Text = "Buscando…";
@@ -100,11 +117,7 @@ internal static class MediaSearchDialog
             try
             {
                 // El avance se crea aquí, en el hilo de la interfaz: dentro de Task.Run avisaría desde un hilo de trabajo.
-                var scanned = new Progress<int>(n =>
-                {
-                    clock.Progressed();
-                    summary.Text = $"Paso 4 de 4: buscando tus archivos… {n} revisados. {clock.Describe()}";
-                });
+                var scanned = new Progress<int>(n => operation.Report(null, $"{n} archivos revisados"));
                 MediaMatchReport report = await Task.Run(() => matcher.SearchAsync(wanted, where, scanned, mine.Token));
                 foreach ((string id, string path) in report.Found)
                 {
@@ -122,6 +135,8 @@ internal static class MediaSearchDialog
                 {
                     summary.Text += $" {report.CloudOnly} archivos parecidos solo están en la nube (OneDrive): descárgalos y vuelve a buscar.";
                 }
+
+                operation.Complete();
             }
             catch (OperationCanceledException)
             {
@@ -131,7 +146,8 @@ internal static class MediaSearchDialog
                 if (ReferenceEquals(current, mine))
                 {
                     current = null;
-                    progress.Visibility = Visibility.Collapsed;
+                    searching = null;
+                    progress.Operation = null;
                 }
             }
         }
