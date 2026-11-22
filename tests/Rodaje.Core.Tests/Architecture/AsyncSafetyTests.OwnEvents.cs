@@ -16,7 +16,7 @@ public sealed partial class AsyncSafetyTests
     {
         ["Rodaje.App/Views/Analysis/DuckingDialog.cs"] = (1, "solo cambia un texto del diálogo."),
         ["Rodaje.App/Views/Export/ExportView.xaml.cs"] = (17, "cambian el modelo; la vista se refresca con QueueRefresh, después del evento, y las listas no dependen de lo elegido en ellas (#687)."),
-        ["Rodaje.App/Views/Inspector/Dynamics/DynamicsPanel.cs"] = (2, "Detector tiene elementos fijos y rehace otro desplegable; el de preajustes pasa por OnPresetChosen y LaterForChosen, que difiere."),
+        ["Rodaje.App/Views/Inspector/Dynamics/DynamicsPanel.cs"] = (1, "Detector tiene elementos fijos y rehace otro desplegable (los preajustes)."),
         ["Rodaje.App/Views/Inspector/Filters/FiltersPanel.Image.cs"] = (1, "la proporción tiene elementos fijos y su refresco solo elige."),
         ["Rodaje.App/Views/Inspector/Filters/FiltersPanel.Options.cs"] = (1, "una opción no cambia el tipo ni el contexto del filtro, que es lo único que rehace las filas."),
         ["Rodaje.App/Views/Inspector/Filters/FiltersPanel.Presets.cs"] = (1, "la cuadrícula de preajustes solo se rehace con RunLater tras un await."),
@@ -45,7 +45,7 @@ public sealed partial class AsyncSafetyTests
     [Fact]
     public void ItemsControlEventsDeferOrAreReviewed()
     {
-        List<(string File, string Code)> ui = [.. Sources("Rodaje.App/").Where(s => IsUiFile(s.File))];
+        List<(string File, string Code)> ui = [.. Sources("Rodaje.App/").Where(s => IsUiFile(s.File)).OrderBy(s => s.File, StringComparer.Ordinal)];
         var found = new Dictionary<string, int>(StringComparer.Ordinal);
         var problems = new List<string>();
         void Check(string file, string where, string? body)
@@ -123,8 +123,11 @@ public sealed partial class AsyncSafetyTests
     {
         List<(string File, string Code)> ui =
         [
-            ("Rodaje.App/Views/X/A.cs", "void Later() { DispatcherQueue.RunAfterEvent(Apply); } void OnPick(object s, object e) { Later(); } void Bare() { Refresh(); }"),
+            ("Rodaje.App/Views/X/A.cs", "void Later() { DispatcherQueue.RunAfterEvent(Apply); } void OnPick(object s, object e) { Later(); } void Bare() { Refresh(); }"
+                + " void Deep() { OnPick(null, null); } void Deeper() { Deep(); }"),
         ];
+        Assert.True(Defers(ui, "Rodaje.App/Views/X", "{ Deep(); }"));
+        Assert.False(Defers(ui, "Rodaje.App/Views/X", "{ Deeper(); }"));
         Assert.True(Defers(ui, "Rodaje.App/Views/X", "{ if (x) Later(); }"));
         Assert.True(Defers(ui, "Rodaje.App/Views/X", "DispatcherQueue.Choose(_list, box.SelectedIndex, _updating, v => null)"));
         Assert.False(Defers(ui, "Rodaje.App/Views/X", "{ Bare(); }"));
@@ -139,11 +142,11 @@ public sealed partial class AsyncSafetyTests
 
     private static string Folder(string file) => file[..file.LastIndexOf('/')];
 
-    // Si el cuerpo difiere su trabajo, él o un método de la misma carpeta al que llama.
-    private static bool Defers(List<(string File, string Code)> ui, string folder, string body) =>
+    // Si el cuerpo difiere su trabajo, él o un método de la misma carpeta al que llama (hasta dos niveles).
+    private static bool Defers(List<(string File, string Code)> ui, string folder, string body, int depth = 2) =>
         DefersHere(body)
-        || CalledNameRegex().Matches(body).Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal)
-            .Any(name => MethodIn(ui, folder, name).Body is { } called && DefersHere(called));
+        || (depth > 0 && CalledNameRegex().Matches(body).Select(m => m.Groups[1].Value).Distinct(StringComparer.Ordinal)
+            .Any(name => MethodIn(ui, folder, name).Body is { } called && Defers(ui, folder, called, depth - 1)));
 
     private static bool DefersHere(string body) => OwnEventDeferrals.Any(d => body.Contains(d, StringComparison.Ordinal));
 
