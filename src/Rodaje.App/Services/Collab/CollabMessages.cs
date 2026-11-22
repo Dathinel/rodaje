@@ -53,6 +53,16 @@ public static class CollabMessages
         _ => "La sala terminó. Tu copia del proyecto sigue en este equipo.",
     };
 
+    /// <summary>El anfitrión avisó antes de cerrar la sala (el directo «sala-cerrada»): su nombre y dónde quedó la copia.</summary>
+    public static string ForHostClosed(string? hostAlias, string folder)
+    {
+        string who = hostAlias is { Length: > 0 } a ? $"{a} cerró la sala." : "Quien hospedaba la sala la cerró.";
+        string where = folder.Length > 0
+            ? $"Tu copia del proyecto queda guardada en {folder}."
+            : "Tu copia del proyecto sigue en este equipo.";
+        return who + " " + where;
+    }
+
     public static string Joined(string alias) => $"{alias} entró en la sala.";
 
     public static string Left(string alias, string reason) => reason switch

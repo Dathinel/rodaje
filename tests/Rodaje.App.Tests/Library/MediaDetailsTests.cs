@@ -42,6 +42,15 @@ public class MediaDetailsTests
     }
 
     [Fact]
+    public void GenerarProxy_SoloConVideoYConElArchivo()
+    {
+        Assert.True(MediaDetails.CanGenerateProxy(isStillImage: false, hasVideo: true, offline: false));
+        Assert.False(MediaDetails.CanGenerateProxy(isStillImage: false, hasVideo: true, offline: true));
+        Assert.False(MediaDetails.CanGenerateProxy(isStillImage: true, hasVideo: true, offline: false));
+        Assert.False(MediaDetails.CanGenerateProxy(isStillImage: false, hasVideo: false, offline: false));
+    }
+
+    [Fact]
     public void Resumen_JuntaLoQueHay()
     {
         var media = new MediaRef { Path = "a.mov", HasVideo = true, HasAudio = true, FrameRate = Rational.Fps60, Width = 1920, Height = 1080, SampleRate = 48000, AudioChannels = 2 };

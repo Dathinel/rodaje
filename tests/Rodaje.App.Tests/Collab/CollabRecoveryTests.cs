@@ -72,7 +72,7 @@ public sealed class CollabRecoveryTests
         a.BeforeValidation(async ct => { validating.TrySetResult(); await Task.Delay(Timeout.InfiniteTimeSpan, ct); });
         await b.Edit(p => p.Sequences[0].Markers.Add(new Marker { Id = "sin-respuesta", Name = "Sin respuesta", Time = Time.FromSeconds(3) }));
         await validating.Task.WaitAsync(TimeSpan.FromSeconds(10));
-        await a.Room.LeaveAsync(); // Dispose de Sala; sin mandar un cierre de edición a los invitados.
+        await a.Room.LeaveAsync(warnClosed: false); // Una caída: sin «sala-cerrada» ni cierre de edición a los invitados.
         await CollabHarness.Until(() => b.Room.State.Phase == RoomPhase.Reconnecting, "B pierde al anfitrión");
         await Task.Delay(150);
         await Assert.ThrowsAsync<CollabException>(() => c.Room.TakeHostAsync());
