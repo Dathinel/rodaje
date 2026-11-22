@@ -37,33 +37,11 @@ internal static class MediaSearchDialog
         var askButtons = new Dictionary<string, Button>(StringComparer.Ordinal);
 
         var list = new StackPanel { Spacing = 6 };
-        foreach (MediaRef media in projectMedia)
-        {
-            string title = known.TryGetValue(media.Id, out MediaManifestEntry? entry) && entry.Name.Length > 0
-                ? entry.Name
-                : media.Name.Length > 0 ? media.Name : media.Id;
-            var name = new TextBlock { Text = MediaManifest.DisplayName(title), TextTrimming = TextTrimming.CharacterEllipsis, FontWeight = FontWeights.SemiBold };
-            var state = new TextBlock { Text = known.ContainsKey(media.Id) ? "Buscando…" : "No está en tu equipo", FontSize = ThemeResources.Size("BodyFontSize"), Foreground = ThemeResources.Brush("TextMutedBrush") };
-            rows[media.Id] = state;
-            var item = new StackPanel();
-            item.Children.Add(name);
-            item.Children.Add(state);
-            if (proxies.CanRequest(media.Id))
-            {
-                var ask = new Button { Content = "Pedir la copia ligera" };
-                ask.Click += (_, _) => UiTask.Run(RequestProxyAsync(media.Id));
-                askButtons[media.Id] = ask;
-                item.Children.Add(ask);
-            }
-
-            list.Children.Add(item);
-        }
 
         var summary = new TextBlock { TextWrapping = TextWrapping.Wrap };
         var progress = new Views.Shared.OperationProgressView();
         var choose = new Button { Content = "Elegir carpetas donde buscar…" };
         var askMissing = new Button { Content = "Pedir copia ligera de los que faltan", Visibility = Visibility.Collapsed };
-        askMissing.Click += (_, _) => UiTask.Run(RequestMissingAsync());
         var top = new StackPanel { Spacing = 12, MinWidth = 520 };
         top.Children.Add(InviteDialog.Hint("Para editar sin esperas, Rodaje usa los archivos de video y audio que tengas en tu equipo. Los cambios del proyecto se comparten, pero los archivos no viajan por internet."));
         top.Children.Add(new ScrollViewer { Content = list, MaxHeight = 280 });
@@ -120,6 +98,30 @@ internal static class MediaSearchDialog
         }
 
         bool stopAsking = false;
+
+        // Las filas se arman aquí: sus botones usan las funciones de abajo, que leen el diálogo ya montado.
+        askMissing.Click += (_, _) => UiTask.Run(RequestMissingAsync());
+        foreach (MediaRef media in projectMedia)
+        {
+            string title = known.TryGetValue(media.Id, out MediaManifestEntry? entry) && entry.Name.Length > 0
+                ? entry.Name
+                : media.Name.Length > 0 ? media.Name : media.Id;
+            var name = new TextBlock { Text = MediaManifest.DisplayName(title), TextTrimming = TextTrimming.CharacterEllipsis, FontWeight = FontWeights.SemiBold };
+            var state = new TextBlock { Text = known.ContainsKey(media.Id) ? "Buscando…" : "No está en tu equipo", FontSize = ThemeResources.Size("BodyFontSize"), Foreground = ThemeResources.Brush("TextMutedBrush") };
+            rows[media.Id] = state;
+            var item = new StackPanel();
+            item.Children.Add(name);
+            item.Children.Add(state);
+            if (proxies.CanRequest(media.Id))
+            {
+                var ask = new Button { Content = "Pedir la copia ligera" };
+                ask.Click += (_, _) => UiTask.Run(RequestProxyAsync(media.Id));
+                askButtons[media.Id] = ask;
+                item.Children.Add(ask);
+            }
+
+            list.Children.Add(item);
+        }
 
         /// <summary>Pide a quien hospeda la copia ligera del medio, con el mismo reparto que usa la biblioteca.</summary>
         async Task RequestProxyAsync(string mediaId)
