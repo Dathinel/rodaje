@@ -88,6 +88,12 @@ public static unsafe class GpuAdapterChoice
             }
 
             // Automática, o el nombre pedido ya no está (otra GPU, otro equipo): el de alto rendimiento.
+            // DXGI 1.6 llega con Windows 10 1803; antes, el de por defecto.
+            if (!OperatingSystem.IsWindowsVersionAtLeast(10, 0, 17134))
+            {
+                return null;
+            }
+
             IDXGIFactory6* factory6;
             if (factory->QueryInterface(__uuidof<IDXGIFactory6>(), (void**)&factory6).FAILED)
             {
