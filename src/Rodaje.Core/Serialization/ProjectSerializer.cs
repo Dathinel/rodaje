@@ -274,6 +274,14 @@ public static class ProjectSerializer
     /// </remarks>
     public static void Save(Project project, string path) => Save(project, path, SaveFileSystem.Real);
 
+    private static bool IsReservedDeviceName(string fileName)
+    {
+        string stem = fileName.Split('.')[0].TrimEnd(' ').ToUpperInvariant();
+        return stem is "CON" or "PRN" or "AUX" or "NUL"
+            || (stem.Length == 4 && (stem.StartsWith("COM", StringComparison.Ordinal) || stem.StartsWith("LPT", StringComparison.Ordinal))
+                && stem[3] is (>= '0' and <= '9') or '¹' or '²' or '³');
+    }
+
     /// <summary>Igual que <see cref="Save(Project, string)"/>, con las operaciones de archivo inyectables.</summary>
     internal static void Save(Project project, string path, SaveFileSystem fileSystem)
     {
@@ -281,6 +289,14 @@ public static class ProjectSerializer
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
         string fullPath = Path.GetFullPath(path);
+        // En Windows «a:b.rodaje» es el flujo «b.rodaje» de un archivo «a» que se crearía vacío y se quedaría al fallar.
+        // Y en Windows 10, «CON.rodaje» o «nul.rodaje» son dispositivos, no archivos.
+        string fileName = Path.GetFileName(fullPath);
+        if (fileName.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0 || (OperatingSystem.IsWindows() && IsReservedDeviceName(fileName)))
+        {
+            throw new ArgumentException($"El nombre «{fileName}» no vale como nombre de archivo (caracteres no admitidos o nombre reservado del sistema).", nameof(path));
+        }
+
         string tempPath = fullPath + TempSuffix;
         string backupPath = fullPath + BackupSuffix;
         byte[] bytes = Utf8NoBom.GetBytes(Serialize(project) + "\n");

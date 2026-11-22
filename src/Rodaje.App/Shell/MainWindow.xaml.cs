@@ -363,6 +363,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         AppWindow.Closing += OnClosing;
         Closed += OnClosed;
 
+        settings.SaveFailed += warning => _dispatcher.RunLater(() => session.Notify(NotificationSeverity.Warning, "Ajustes", warning));
         foreach (string? warning in new[] { settingsWarning, shortcutsWarning })
         {
             if (warning is not null)
@@ -861,13 +862,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         SaveLayout();
-        try
-        {
-            _settings.SaveIfChanged();
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-        }
+        _settings.SaveIfChanged();
     }
 
     /// <summary>«Guardado hace N min» en la barra de estado; con cambios sin guardar y una copia más nueva, la copia.</summary>
@@ -1276,16 +1271,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         SaveLayout();
-        try
-        {
-            _settings.Save();
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
+        _settings.Save();
 
         Player.CloseExternal();
         _autosave?.Complete();

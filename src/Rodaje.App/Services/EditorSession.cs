@@ -163,6 +163,9 @@ public sealed partial class EditorSession : ObservableObject
     /// </summary>
     public DateTimeOffset? LastSavedAt { get; private set; }
 
+    // La fecha del archivo tras abrirlo o guardarlo aquí; otra distinta al guardar es que lo cambió otra ventana.
+    private DateTimeOffset? _diskWrite;
+
     private static DateTimeOffset? LastWriteOf(string? path)
     {
         if (path is null)
@@ -627,7 +630,7 @@ public sealed partial class EditorSession : ObservableObject
         _selectedTransition = null;
         _editVersion++;
         FilePath = filePath;
-        LastSavedAt = LastWriteOf(filePath);
+        LastSavedAt = _diskWrite = LastWriteOf(filePath);
         _previewOff.Clear();
         _playbackStale = false;
         _playback.Load(project.Clone(), sequenceId);

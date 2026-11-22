@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
@@ -163,7 +164,18 @@ public sealed partial class EditorSession
             return false;
         }
 
-        return await SaveToAsync(Path.GetFullPath(ProjectPaths.WithProjectExtension(path)));
+        string full;
+        try
+        {
+            full = Path.GetFullPath(ProjectPaths.WithProjectExtension(path));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
+        {
+            Notify(NotificationSeverity.Error, "No se pudo guardar", ex.Message);
+            return false;
+        }
+
+        return await SaveToAsync(full);
     }
 
     /// <summary>
@@ -458,7 +470,7 @@ public sealed partial class EditorSession
         }
     }
 
-    private async Task<bool> SaveToAsync(string path)
+    private async Task<bool> SaveToAsync(string path, bool overwrite = false)
     {
         VerifyAccess();
         // Los guardados van en fila: dos Ctrl+S seguidos no escriben a la vez el mismo temporal, y uno viejo que termina
@@ -470,7 +482,7 @@ public sealed partial class EditorSession
         try
         {
             await previous;
-            return await WriteProjectAsync(path);
+            return await WriteProjectAsync(path, overwrite);
         }
         finally
         {
@@ -479,7 +491,7 @@ public sealed partial class EditorSession
         }
     }
 
-    private async Task<bool> WriteProjectAsync(string path)
+    private async Task<bool> WriteProjectAsync(string path, bool overwrite)
     {
         if (IsInGesture)
         {
@@ -495,13 +507,37 @@ public sealed partial class EditorSession
         string? previousFolder = FilePath is null ? null : Path.GetDirectoryName(FilePath);
         Project copy = ProjectPaths.ForSaving(Project, folder, previousFolder);
         copy.Name = name;
+        // El mismo proyecto abierto en otra ventana (u otro equipo, en una carpeta compartida): si el archivo cambió desde
+        // que se abrió o guardó aquí, no se pisa sin preguntar. La fecha se mira fuera del hilo de la interfaz (UNC).
+        DateTimeOffset? expected = _diskWrite;
+        bool changedOutside = false;
+        DateTimeOffset? written = null;
         try
         {
-            await Task.Run(() => ProjectSerializer.Save(copy, path));
+            await Task.Run(() =>
+            {
+                if (!rename && !overwrite && LastWriteOf(path) is { } onDisk && onDisk != expected)
+                {
+                    changedOutside = true;
+                    return;
+                }
+
+                ProjectSerializer.Save(copy, path);
+                written = LastWriteOf(path);
+            });
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException or ArgumentException or NotSupportedException)
         {
             Notify(NotificationSeverity.Error, "No se pudo guardar", ex.Message);
+            return false;
+        }
+
+        if (changedOutside)
+        {
+            Notify(NotificationSeverity.Warning, "El proyecto cambió fuera de esta ventana",
+                $"Otra ventana o programa guardó «{Path.GetFileName(path)}» después de abrirlo aquí. Guardar encima borra esos cambios; «Guardar como…» los conserva.",
+                new NotificationAction("Guardar encima", () => UiTask.Run(SaveToAsync(path, overwrite: true))),
+                new NotificationAction("Guardar como…", () => UiTask.Run(SaveAsAsync())));
             return false;
         }
 
@@ -519,6 +555,7 @@ public sealed partial class EditorSession
         // Las referencias «file:» en memoria son absolutas (LutReference.ForFile y al abrir): no hay que tocarlas al
         // cambiar de carpeta, ni en el proyecto ni en la pila de deshacer.
         FilePath = path;
+        _diskWrite = written;
         LastSavedAt = DateTimeOffset.UtcNow;
         if (version == _editVersion && !IsInGesture)
         {
