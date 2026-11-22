@@ -26,23 +26,52 @@ public sealed partial class CollabEngine
     private bool _persistenceFailed;
     private bool _journalBlocked;
     private bool _recoveryReady;
+    private int _persistRetryScheduled;
 
     public UnsettledChanges Unsettled { get; } = new();
     public event Action? UnsettledChanged;
+
+    /// <summary>Solo para las pruebas: si no es nulo, sustituye el guardado del registro en <see cref="Persist"/>.</summary>
+    internal Func<JournalState, bool>? SaveJournal { get; set; }
 
     // Bajo _m. Los pendientes nunca se recortan para cumplir el tope: se deja de enviar si no caben.
     private bool Persist()
     {
         if (_journalBlocked) return false;
-        if (_journal is null) return true;
+        if (_journal is null && SaveJournal is null) return true;
         List<JournalEntry> entries = [.. _pending.Where(p => !p.Confirmed).Select(p => new JournalEntry("pending", p.Patch)),
             .. Unsettled.Items.Select(i => new JournalEntry("unsettled", i.Patch, Reason: i.Reason)),
             .. _branch.Where(e => e.Patch.Author == _room.State.MyKey), .. _separated];
-        bool saved = _journal.Save(new JournalState(_seq, ProjectWire.ToJson(_mirror, _mirrorVersions), _separation, _acceptedOrder.ToArray(), entries, _recoveryHosts));
+        JournalState state = new(_seq, ProjectWire.ToJson(_mirror, _mirrorVersions), _separation, _acceptedOrder.ToArray(), entries, _recoveryHosts);
+        bool saved = SaveJournal?.Invoke(state) ?? _journal!.Save(state);
         if (!saved && !_persistenceFailed)
             _ = _ui(() => _notice("No se pudo guardar el registro de la sala. Conserva el proyecto abierto y comprueba el espacio y los permisos de su carpeta antes de cerrar.", true));
         _persistenceFailed = !saved;
+        if (!saved && Interlocked.Exchange(ref _persistRetryScheduled, 1) == 0) UiTask.Run(RetryPersistAsync());
         return saved;
+    }
+
+    // Un guardado que falló se reintenta solo con pausas crecientes: Windows retiene el archivo un instante (antivirus,
+    // índice de búsqueda) y sin reintento el cambio quedaba solo en memoria hasta que otro disparo volviera a guardar.
+    private async Task RetryPersistAsync()
+    {
+        try
+        {
+            CancellationToken stop = _stop.Token;
+            for (int wait = 250; wait <= 8000; wait *= 2)
+            {
+                await Task.Delay(wait, stop).ConfigureAwait(false);
+                lock (_m)
+                {
+                    if (Persist()) return;
+                }
+            }
+        }
+        catch (Exception ex) when (ex is OperationCanceledException or ObjectDisposedException)
+        {
+            // El motor se cerró durante la espera.
+        }
+        finally { Interlocked.Exchange(ref _persistRetryScheduled, 0); }
     }
 
     private void RememberAccepted(string id)
@@ -299,12 +328,15 @@ public sealed partial class CollabEngine
             return;
         }
         if (patch.Author != state.MyKey) return;
+        bool saved;
         lock (_m)
         {
             Unsettled.Add(patch, "Otra copia de la sala quedó al mando. Este cambio quedó en la copia anterior. Vuelve a entrar para conservarlo como uno nuevo o descartarlo.");
-            if (!Persist()) return;
+            saved = Persist();
         }
         _ = _ui(() => UnsettledChanged?.Invoke());
+        // Sin acuse hasta que el registro lo tenga: quien lo mandó conserva su copia y la reenvía al cambiar la conexión.
+        if (!saved) return;
         UiTask.Run(SendRecoveryControlAsync(relay ? "cambio-separado-guardado" : "cambio-separado-recibido", patch.Id, from));
     }
 
