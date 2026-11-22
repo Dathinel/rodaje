@@ -8,6 +8,7 @@ using Rodaje.App.Services.Collab;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
+using Rodaje.App.Views.Inspector;
 using Windows.UI.Text;
 
 namespace Rodaje.App.Views.Collab;
@@ -28,6 +29,13 @@ internal sealed class RoomPanel
     private readonly StackPanel _root = new() { Spacing = 12, MinWidth = 380, MaxWidth = 460 };
     private string _diagnosis = "";
     private DispatcherQueueTimer? _timer;
+    private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
+    private CollabEngine? _recoveryEngine;
+    private bool _showUnsettled;
+    private string _recoveryProblem = "";
+
+    public bool HasUnsettled => _recoveryEngine?.Unsettled.Items.Count > 0;
+    public event Action? RecoveryChanged;
 
     public RoomPanel(EditorServices services, CollabHost collab, Func<Task> invite)
     {
@@ -35,6 +43,8 @@ internal sealed class RoomPanel
         _collab = collab;
         _invite = invite;
         collab.Room.Noticed += n => AddNotice(n);
+        collab.EditingChanged += AttachRecovery;
+        AttachRecovery();
         Render(collab.Room.State);
     }
 
@@ -74,6 +84,26 @@ internal sealed class RoomPanel
 
     private RoomService Room => _collab.Room;
 
+    private void AttachRecovery()
+    {
+        // El motor se dispone al terminar la sala, pero su lista y su registro siguen disponibles para consultar y descartar.
+        if (_collab.Engine is { } engine && !ReferenceEquals(engine, _recoveryEngine))
+        {
+            if (_recoveryEngine is { } previous) previous.UnsettledChanged -= OnUnsettledChanged;
+            _recoveryEngine = engine;
+            engine.UnsettledChanged += OnUnsettledChanged;
+            _recoveryProblem = "";
+        }
+
+        OnUnsettledChanged();
+    }
+
+    private void OnUnsettledChanged() => _ = _dispatcher.RunLater(() =>
+    {
+        Render(Room.State);
+        RecoveryChanged?.Invoke();
+    });
+
     private void AddNotice(RoomNotice notice)
     {
         _notices.Insert(0, notice);
@@ -88,6 +118,7 @@ internal sealed class RoomPanel
     public void Render(RoomState state)
     {
         _root.Children.Clear();
+        RenderUnsettled();
         if (state.Phase == RoomPhase.Closed)
         {
             _root.Children.Add(Text("No estás en ninguna sala.", FontWeights.SemiBold));
@@ -98,6 +129,17 @@ internal sealed class RoomPanel
         string host = state.Members.FirstOrDefault(m => m.IsHost)?.Alias ?? "";
         _root.Children.Add(Text(state.IsHost ? "Tu sala" : host.Length > 0 ? $"Sala de {host}" : "Sala", FontWeights.SemiBold, ThemeResources.Size("TitleFontSize")));
         _root.Children.Add(InviteDialog.Hint(StatusLine(state)));
+
+        if (RoomRecoveryView.HostNotice(state, state.StandbyKey) is { } hostNotice)
+        {
+            _root.Children.Add(InviteDialog.Hint(hostNotice));
+            if (RoomRecoveryView.CanTakeHost(state, state.StandbyKey))
+            {
+                var takeHost = new Button { Content = "Tomar el anfitrión" };
+                takeHost.Click += (_, _) => UiTask.Run(() => RunAsync(Room.TakeHostAsync()));
+                _root.Children.Add(takeHost);
+            }
+        }
 
         foreach (RoomRequest request in state.Requests)
         {
@@ -220,9 +262,10 @@ internal sealed class RoomPanel
         var dot = new Microsoft.UI.Xaml.Shapes.Ellipse { Width = 12, Height = 12, Fill = CollabPalette.BrushOf(member.ColorIndex), Opacity = member.Online ? 1 : 0.35, VerticalAlignment = VerticalAlignment.Center };
         string tag = member.IsMe ? " (tú)" : "";
         string who = member.IsHost ? " · quien hospeda" : "";
+        string standby = RoomRecoveryView.IsStandby(member, state.StandbyKey) ? " · suplente" : "";
         var text = new StackPanel();
         text.Children.Add(new TextBlock { Text = member.Alias + tag, TextTrimming = TextTrimming.CharacterEllipsis });
-        text.Children.Add(InviteDialog.Hint(member.Online ? (member.Role == Rol.Editar ? "Puede editar" : "Solo puede mirar") + who : "Desconectado · puede volver sin pedir permiso"));
+        text.Children.Add(InviteDialog.Hint((member.Online ? (member.Role == Rol.Editar ? "Puede editar" : "Solo puede mirar") + who : "Desconectado · puede volver sin pedir permiso") + standby));
         grid.Children.Add(dot);
         Grid.SetColumn(text, 1);
         grid.Children.Add(text);
@@ -236,6 +279,12 @@ internal sealed class RoomPanel
             var kick = new MenuFlyoutItem { Text = "Expulsar de la sala…" };
             kick.Click += (_, _) => UiTask.Run(KickAsync(member));
             menu.Items.Add(role);
+            if (RoomRecoveryView.CanHandOver(state, member))
+            {
+                var handOver = new MenuFlyoutItem { Text = "Pasar anfitrión a…" };
+                handOver.Click += (_, _) => UiTask.Run(() => HandOverAsync(member));
+                menu.Items.Add(handOver);
+            }
             menu.Items.Add(kick);
             more.Flyout = menu;
             Grid.SetColumn(more, 2);
@@ -243,6 +292,86 @@ internal sealed class RoomPanel
         }
 
         return grid;
+    }
+
+    private async Task HandOverAsync(RoomMember member)
+    {
+        if (_services.Shell.XamlRoot is not { } root || DialogGate.IsOpen) return;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = root,
+            Title = "¿Pasar el anfitrión?",
+            Content = InviteDialog.Hint(RoomRecoveryView.HandOverConfirmation(member.Alias)),
+            PrimaryButtonText = "Pasar anfitrión",
+            CloseButtonText = "Cancelar",
+            DefaultButton = ContentDialogButton.Close,
+        };
+        if (await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary)
+        {
+            await RunAsync(Room.HandOverAsync(member.Key));
+        }
+    }
+
+    private void RenderUnsettled()
+    {
+        if (_recoveryEngine is not { } engine) return;
+        IReadOnlyList<UnsettledChange> items = engine.Unsettled.Items;
+        if (items.Count == 0)
+        {
+            _showUnsettled = false;
+            return;
+        }
+
+        var show = new Button { Content = RoomRecoveryView.UnsettledCount(items.Count) };
+        show.Click += (_, _) =>
+        {
+            _showUnsettled = !_showUnsettled;
+            Render(Room.State);
+        };
+        _root.Children.Add(show);
+        if (!_showUnsettled) return;
+        _root.Children.Add(Text("Cambios que no entraron", FontWeights.SemiBold));
+        if (_recoveryProblem.Length > 0) _root.Children.Add(InviteDialog.Hint(_recoveryProblem));
+        foreach (UnsettledChange item in items)
+        {
+            var card = new StackPanel { Spacing = 8 };
+            card.Children.Add(Text(item.Description, FontWeights.SemiBold));
+            card.Children.Add(InviteDialog.Hint(item.Reason));
+            var keep = new Button { Content = "Conservar como nuevo" };
+            keep.Click += (_, _) => UiTask.Run(() =>
+            {
+                bool kept = ReferenceEquals(engine, _collab.Engine) && engine.KeepUnsettled(item.Id);
+                _recoveryProblem = kept ? "" : RoomRecoveryView.KeepFailed;
+                Render(Room.State);
+                return Task.CompletedTask;
+            });
+            var discard = new Button { Content = "Descartar" };
+            discard.Click += (_, _) => UiTask.Run(() => DiscardUnsettledAsync(engine, item));
+            card.Children.Add(keep);
+            card.Children.Add(discard);
+            _root.Children.Add(card);
+        }
+    }
+
+    private async Task DiscardUnsettledAsync(CollabEngine engine, UnsettledChange item)
+    {
+        if (_services.Shell.XamlRoot is not { } root || DialogGate.IsOpen) return;
+        var dialog = new ContentDialog
+        {
+            XamlRoot = root,
+            Title = "¿Descartar este cambio?",
+            Content = InviteDialog.Hint("Se quitará de los cambios guardados y no podrás recuperarlo desde esta lista."),
+            PrimaryButtonText = "Descartar",
+            CloseButtonText = "Conservar en la lista",
+            DefaultButton = ContentDialogButton.Close,
+        };
+        if (await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary)
+        {
+            if (!ReferenceEquals(engine, _recoveryEngine)) return;
+            engine.DiscardUnsettled(item.Id);
+            _recoveryProblem = engine.Unsettled.Items.Any(i => i.Id == item.Id) ? RoomRecoveryView.DiscardFailed : "";
+            Render(Room.State);
+        }
     }
 
     private async Task KickAsync(RoomMember member)

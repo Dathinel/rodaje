@@ -620,6 +620,7 @@ public sealed class RoomService : IAsyncDisposable
         IReadOnlyList<Miembro> raw = sala.Miembros;
         string me = sala.Clave;
         string host = sala.Anfitrion;
+        string? standby = sala.Suplente;
         List<RoomMember> members =
         [
             .. raw
@@ -631,12 +632,12 @@ public sealed class RoomService : IAsyncDisposable
             SaveAnchored(raw.Where(m => m.Clave != me));
         }
 
-        if (s.IsHost == sala.EsAnfitrion && s.MyKey == me && s.MyRole == sala.Rol && s.Members.SequenceEqual(members))
+        if (s.IsHost == sala.EsAnfitrion && s.MyKey == me && s.MyRole == sala.Rol && s.StandbyKey == standby && s.Members.SequenceEqual(members))
         {
             return s;
         }
 
-        return s with { IsHost = sala.EsAnfitrion, MyKey = me, MyRole = sala.Rol, Members = members };
+        return s with { IsHost = sala.EsAnfitrion, MyKey = me, MyRole = sala.Rol, Members = members, StandbyKey = standby };
     }
 
     private void SaveAnchored(IEnumerable<Miembro> others)

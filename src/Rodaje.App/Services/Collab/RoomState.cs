@@ -52,6 +52,9 @@ public sealed record RoomState(
 {
     public static readonly RoomState Closed = new(RoomPhase.Closed, false, "", "", Rol.Editar, [], [], null);
 
+    /// <summary>Suplente en esta instantánea; permite avisar también cuando solo cambia el suplente.</summary>
+    public string? StandbyKey { get; init; }
+
     /// <summary>Cuántos miembros están conectados ahora.</summary>
     public int OnlineCount => Members.Count(m => m.Online);
 
