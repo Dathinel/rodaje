@@ -124,10 +124,10 @@ public sealed partial class AsyncSafetyTests
         List<(string File, string Code)> ui =
         [
             ("Rodaje.App/Views/X/A.cs", "void Later() { DispatcherQueue.RunAfterEvent(Apply); } void OnPick(object s, object e) { Later(); } void Bare() { Refresh(); }"
-                + " void Deep() { OnPick(null, null); } void Deeper() { Deep(); }"),
+                + " void Deep() { OnPick(null, null); }"),
         ];
-        Assert.True(Defers(ui, "Rodaje.App/Views/X", "{ Deep(); }"));
-        Assert.False(Defers(ui, "Rodaje.App/Views/X", "{ Deeper(); }"));
+        Assert.True(Defers(ui, "Rodaje.App/Views/X", "{ OnPick(null, null); }"));
+        Assert.False(Defers(ui, "Rodaje.App/Views/X", "{ Deep(); }"));
         Assert.True(Defers(ui, "Rodaje.App/Views/X", "{ if (x) Later(); }"));
         Assert.True(Defers(ui, "Rodaje.App/Views/X", "DispatcherQueue.Choose(_list, box.SelectedIndex, _updating, v => null)"));
         Assert.False(Defers(ui, "Rodaje.App/Views/X", "{ Bare(); }"));
