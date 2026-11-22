@@ -308,14 +308,22 @@ internal sealed partial class BindingEditor : UserControl
             Fill();
         };
         flyout.Opened += (_, _) => search.Focus(FocusState.Programmatic);
-        list.ItemClick += (_, e) => DispatcherQueue.RunAfterEvent(() => UiTask.Run(async () =>
+        list.ItemClick += (_, e) =>
         {
-            if (e.ClickedItem is not FrameworkElement { Tag: string id } || _host is null)
+            if (e.ClickedItem is FrameworkElement { Tag: string id })
+            {
+                flyout.Hide();
+                DispatcherQueue.RunAfterEvent(() => UiTask.Run(AssignAsync(id)));
+            }
+        };
+
+        async Task AssignAsync(string id)
+        {
+            if (_host is null)
             {
                 return;
             }
 
-            flyout.Hide();
             if (_key is { } vk)
             {
                 await _host.AssignKeyAsync(id, new KeyChord(vk, slot.Modifiers), null, toSlot: true);
@@ -326,7 +334,8 @@ internal sealed partial class BindingEditor : UserControl
             }
 
             owner.Focus(FocusState.Programmatic);
-        }));
+        }
+
         return flyout;
     }
 
