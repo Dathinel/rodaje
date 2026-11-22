@@ -64,7 +64,7 @@ internal static class UnsettledRecovery
             if (!afterOps.Orders.TryGetValue(container, out IReadOnlyList<string>? present)) continue;
             string[] wanted = [.. order.Ids.Select(id => ids.GetValueOrDefault(id, id))];
             IReadOnlyList<string> merged = RecoverOrder(wanted, present);
-            if (!present.SequenceEqual(merged)) orders.Add(new PatchOrder(container, merged));
+            if (!present.SequenceEqual(merged)) orders.Add(new PatchOrder(container, merged, versions.GetOrder(container)));
         }
         patch = patch with { Orders = orders };
         if (PatchReservations.Required(patch, live).Any(key => reservations.TryGetValue(key, out string? owner) && owner != header.Author)) return null;
