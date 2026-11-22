@@ -319,7 +319,8 @@ internal sealed partial class TrackingPanel : UserControl, IEditorView
         void Item(string text, Action action)
         {
             var item = new MenuFlyoutItem { Text = text };
-            item.Click += (_, _) => action();
+            // Editar rehace la lista y quita la fila que ancla este menú: después del clic (tarea 91).
+            item.Click += (_, _) => DispatcherQueue.RunAfterEvent(action);
             menu.Items.Add(item);
         }
 
