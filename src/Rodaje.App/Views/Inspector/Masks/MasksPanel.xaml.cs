@@ -525,13 +525,20 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         Refresh();
     }
 
+    // Activar rehace la lista y quita la fila del botón: después del clic (tarea 91).
     private void OnEnabledClick(object sender, RoutedEventArgs e)
     {
-        if (sender is ToggleButton { Tag: string id } toggle && _clipId is not null
-            && !RunOnSameMask(id, (clipId, maskId) => Edits.SetEffectEnabled(SequenceId, clipId, maskId, toggle.IsChecked != true)))
+        if (sender is ToggleButton { Tag: string id } toggle)
         {
-            // La fila no se rehace si el modelo no cambió.
-            toggle.IsChecked = toggle.IsChecked != true;
+            bool enabled = toggle.IsChecked != true;
+            DispatcherQueue.RunAfterEvent(() =>
+            {
+                if (_clipId is not null && !RunOnSameMask(id, (clipId, maskId) => Edits.SetEffectEnabled(SequenceId, clipId, maskId, enabled)))
+                {
+                    // La fila no se rehace si el modelo no cambió.
+                    toggle.IsChecked = enabled;
+                }
+            });
         }
     }
 
