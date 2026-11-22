@@ -44,6 +44,9 @@ public sealed partial class CollabHost : IDisposable
             post);
         Room.StateChanged += OnRoomState;
         Presence = new CollabPresence(Room);
+        TrackRequests = new TrackRequests(Room, Presence, id => _trackNames.GetValueOrDefault(id), () => _session?.IsInGesture == true);
+        TrackRequests.Requested += request => _post(() => ShowTrackRequest(request));
+        TrackRequests.Told += text => _post(() => _session?.Notify(NotificationSeverity.Informational, "Colaboración", text));
     }
 
     public RoomService Room { get; }
@@ -51,21 +54,87 @@ public sealed partial class CollabHost : IDisposable
     /// <summary>Los cabezales de los demás y las pistas reservadas, para dibujarlos en la línea de tiempo.</summary>
     public CollabPresence Presence { get; }
 
+    /// <summary>«Pedir la pista» a quien la tiene reservada, y la respuesta cuando se la piden a este equipo.</summary>
+    public TrackRequests TrackRequests { get; }
+
     private EditorSession? _session;
     private string[] _selection = [];
     private string? _selectionTrack;
+
+    // Las pistas del proyecto (id → nombre) para validar lo que llega por la sala sin leer el proyecto fuera del hilo de la interfaz.
+    private volatile Dictionary<string, string> _trackNames = new(StringComparer.Ordinal);
 
     /// <summary>Engancha la sesión del editor: su cabezal y su selección son lo que ven los demás, y las pistas de lo seleccionado se reservan.</summary>
     public void BindSession(EditorSession session)
     {
         ArgumentNullException.ThrowIfNull(session);
         _session = session;
+        RefreshTrackNames();
+        session.HistoryChanged += (_, _) => RefreshTrackNames();
+        session.ProjectOpened += (_, _) => RefreshTrackNames();
         session.TransportChanged += (_, _) => PublishLocal();
         session.SelectionChanged += (_, _) =>
         {
             RefreshSelection();
             PublishLocal();
         };
+    }
+
+    private void RefreshTrackNames()
+    {
+        if (_session is not { } session)
+        {
+            return;
+        }
+
+        Dictionary<string, string> names = new(StringComparer.Ordinal);
+        foreach (Track track in session.Project.Sequences.SelectMany(s => s.AllTracks))
+        {
+            names.TryAdd(track.Id, track.Name.Length > 0 ? track.Name : "sin nombre");
+        }
+
+        if (names.Count != _trackNames.Count || names.Any(kv => _trackNames.GetValueOrDefault(kv.Key) != kv.Value))
+        {
+            _trackNames = names;
+        }
+    }
+
+    /// <summary>Quién tiene la pista, si se le puede pedir (para el menú de la cabecera); <c>null</c> si no.</summary>
+    public string? TrackOwnerToAsk(string trackId) => TrackRequests.OwnerToAsk(trackId);
+
+    /// <summary>«Pedir la pista»: manda el pedido y dice a la persona qué pasó.</summary>
+    public void AskTrack(string trackId) => UiTask.Run(AskTrackAsync(trackId));
+
+    private async Task AskTrackAsync(string trackId)
+    {
+        string text;
+        bool problem = false;
+        try
+        {
+            text = await TrackRequests.AskAsync(trackId);
+        }
+        catch (CollabException ex)
+        {
+            text = ex.Message;
+            problem = true;
+        }
+
+        _session?.Notify(problem ? NotificationSeverity.Warning : NotificationSeverity.Informational, "Colaboración", text);
+    }
+
+    private void ShowTrackRequest(TrackRequest request) =>
+        _session?.Notify(NotificationSeverity.Informational, "Colaboración", $"{request.FromAlias} te pide la pista {request.TrackName}.",
+            new NotificationAction("Soltar la pista", () => UiTask.Run(TrackRequests.YieldAsync(request))),
+            new NotificationAction("Ahora no", () => UiTask.Run(TrackRequests.DeclineAsync(request))));
+
+    /// <summary>Un aviso de la edición compartida; si es el de un cambio que chocó con una pista ajena, lleva «Pedir la pista».</summary>
+    private void NotifyCollab(EditorSession session, string text, bool problem)
+    {
+        NotificationAction? ask = Presence.TakeLastBlock() is { TrackId.Length: > 0 } block && text.Contains(block.Describe(), StringComparison.Ordinal)
+            && TrackRequests.OwnerToAsk(block.TrackId) is not null
+            ? new NotificationAction("Pedir la pista", () => AskTrack(block.TrackId))
+            : null;
+        session.Notify(problem ? NotificationSeverity.Warning : NotificationSeverity.Informational, "Colaboración", text, ask);
     }
 
     private void RefreshSelection()
@@ -118,6 +187,7 @@ public sealed partial class CollabHost : IDisposable
     {
         Room.StateChanged -= OnRoomState;
         StopEditing();
+        TrackRequests.Dispose();
         Presence.Dispose();
     }
 
@@ -161,7 +231,7 @@ public sealed partial class CollabHost : IDisposable
                     _applyingExternal = false;
                 }
             },
-            (text, problem) => session.Notify(problem ? NotificationSeverity.Warning : NotificationSeverity.Informational, "Colaboración", text),
+            (text, problem) => NotifyCollab(session, text, problem),
             () => session.IsInGesture);
         engine.Desynced += reason => UiInvoke.Run<int>(_post, () =>
         {

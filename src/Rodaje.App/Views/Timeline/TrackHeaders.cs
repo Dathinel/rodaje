@@ -114,6 +114,12 @@ internal sealed class TrackHeaders
     /// <summary>Se soltó una cabecera arrastrada: la posición nueva dentro de su tipo.</summary>
     public event Action<string, int>? ReorderRequested;
 
+    /// <summary>Del menú de una cabecera, en una sala: pedir la pista a quien la tiene reservada.</summary>
+    public event Action<string>? AskTrackRequested;
+
+    /// <summary>Quién tiene la pista reservada si se le puede pedir (otra persona de la sala); <c>null</c> oculta «Pedir la pista».</summary>
+    public Func<string, string?>? TrackOwnerToAsk { get; set; }
+
     /// <summary>Si la pista puede subir (true) o bajar; la da la vista, que conoce la secuencia.</summary>
     public Func<string, bool, bool>? CanStep { get; set; }
 
@@ -443,6 +449,7 @@ internal sealed class TrackHeaders
     private MenuFlyout Menu(TrackRow row)
     {
         var menu = new MenuFlyout();
+        AddAskItem(menu, row.TrackId);
         var height = new MenuFlyoutSubItem { Text = "Alto de la pista", Icon = new FontIcon { Glyph = "" } };
         foreach ((string text, int? value) in Heights)
         {
@@ -533,6 +540,27 @@ internal sealed class TrackHeaders
         }
 
         return menu;
+    }
+
+    /// <summary>«Pedir la pista a Ana»: solo se ve al abrir el menú si otra persona de la sala tiene la pista reservada.</summary>
+    private void AddAskItem(MenuFlyout menu, string trackId)
+    {
+        if (TrackOwnerToAsk is null)
+        {
+            return;
+        }
+
+        var ask = new MenuFlyoutItem { Text = "Pedir la pista", Icon = new FontIcon { Glyph = "\uE77B" }, Visibility = Visibility.Collapsed };
+        ask.Click += (_, _) => AskTrackRequested?.Invoke(trackId);
+        var separator = new MenuFlyoutSeparator { Visibility = Visibility.Collapsed };
+        menu.Items.Add(ask);
+        menu.Items.Add(separator);
+        menu.Opening += (_, _) =>
+        {
+            string? owner = TrackOwnerToAsk?.Invoke(trackId);
+            ask.Visibility = separator.Visibility = owner is null ? Visibility.Collapsed : Visibility.Visible;
+            ask.Text = owner is null ? "Pedir la pista" : $"Pedir la pista a {owner}";
+        };
     }
 
     private void AddOrderItems(MenuFlyout menu, TrackRow row)
