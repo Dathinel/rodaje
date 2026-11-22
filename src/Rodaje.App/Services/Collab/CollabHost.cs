@@ -104,6 +104,9 @@ public sealed partial class CollabHost : IDisposable
     /// <summary>La edición compartida de esta sala; nula hasta que empieza y tras terminar.</summary>
     public CollabEngine? Engine { get; private set; }
 
+    /// <summary>La vista puede conectar o soltar los eventos del motor al empezar o terminar la edición.</summary>
+    public event Action? EditingChanged;
+
     private ProjectShareHost? _share;
     private ProxyShareHost? _proxyShare;
     private RoomProxyMaker? _proxyMaker;
@@ -202,6 +205,7 @@ public sealed partial class CollabHost : IDisposable
         session.CollabHistory = engine;
         session.BeforeProjectReplaced = ConfirmLeaveRoomAsync;
         session.HistoryChanged += OnHistoryChanged;
+        EditingChanged?.Invoke();
         return true;
     }
 
@@ -224,6 +228,7 @@ public sealed partial class CollabHost : IDisposable
         _switch.Detach();
         Engine?.Dispose();
         Engine = null;
+        EditingChanged?.Invoke();
     }
 
     private bool _applyingExternal;
