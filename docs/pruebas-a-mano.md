@@ -16,6 +16,22 @@ Con el exe publicado desde `main` (`Rodaje.bat`). Cada punto remite al apartado 
 8. **Preferencias:** abre Preferencias › Rendimiento y guarda sin cambiar nada: el cálculo en caché en marcha no se pierde. El «Mapeo de rutas» acepta una fila «origen | destino».
 9. **Exportar:** un MP4 H.264 corto, con y sin «Usar el render en caché». Con un proyecto de celular (1080×2400 a 29,97) abre «Avanzado», despliega «Cuadros por segundo» y elige 60, luego despliega «Resolución» y elige dos seguidas: la app sigue abierta y cada lista conserva sus opciones (antes se cerraba).
 10. **Colaboración** (apartado de abajo; necesita otra persona o un segundo equipo): invitar, entrar, editar a la vez y salir.
+11. **Clics que rehacen su propia lista** (apartado «Cierres sin rastro», abajo): unos 5 minutos; la app no debe cerrarse en ninguno.
+
+## Cierres sin rastro: clics que rehacen su propia lista
+
+Cada paso hacía que WinUI cerrara la app sin aviso ni informe (la lista o el botón se rehacía dentro de su propio clic). Basta con que la app siga abierta y el cambio se vea.
+
+1. **Historial:** haz tres ediciones y, en Inspector › Historial, haz clic en el primer paso y luego en el último.
+2. **Transcripción:** con dos pistas transcritas, elige la otra en «Pista guía» y vuelve a la primera. Clic derecho en una palabra › «Empezar párrafo aquí»; F2, corrige la palabra e Intro (se aplica una sola vez en Historial).
+3. **Cabeceras de pista:** pulsa M, S (y Ctrl+S) y L de una pista varias veces seguidas; clic derecho › Subir y Bajar.
+4. **Barra de origen:** abre un medio en el visor de origen, cambia la pista del desplegable V y pulsa V, A y «Ver el origen».
+5. **Biblioteca:** abre una carpeta con un clic y vuelve; clic derecho en un medio › «Quitar del proyecto» y Deshacer.
+6. **Menús de la barra:** Ver › Espacio de trabajo (elige dos seguidos); Archivo › Proyectos recientes › «Vaciar la lista».
+7. **Filtros, Máscaras y Seguimiento:** en la fila de un filtro pulsa activar y quitar, y arrastra para reordenar; en una máscara, «Más acciones» › Color y Bajar; en un seguimiento › Quitar.
+8. **Marcadores y atajos:** quita un marcador con su botón; en Atajos quita una tecla de una acción y, en el editor de combinaciones, quita una.
+9. **Mezclador:** en una tira pulsa el activar y el A/B de una inserción, clic derecho › Preajuste, y arrastra una inserción a otro puesto.
+10. **Texto y Voz:** en un título con dos capas de borde quita una; en Generar voz, abre «Idioma» en cuanto aparezca el diálogo (está desactivado hasta tener las voces).
 
 ## Colaboración (sala con anfitrión)
 
