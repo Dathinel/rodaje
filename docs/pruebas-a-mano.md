@@ -274,3 +274,16 @@ Sin saber nada técnico: dos equipos, el anfitrión (A) y un invitado (B). Cada 
 10. **Sin rutas ajenas.** B no debe ver en ninguna parte la ruta de las carpetas de A (nombres de usuario, «D:\…»): solo nombres de medios. Y al guardar el proyecto de B, sus medios apuntan a donde B los tiene, no a donde los tiene A.
 11. **Sin medio.** B no tiene un medio de A: aparece «sin conexión» (no un error ni un cierre) y se puede seguir editando lo demás; la falta de ese archivo no bloquea ni impide la entrada de nuevos invitados a la sala.
 12. **Cortafuegos.** La primera vez, Windows pregunta por el cortafuegos al abrir la sala: la pantalla de Rodaje lo explica antes de que salga.
+
+## Medios raros de la vida real (22-nov)
+
+Las pruebas automáticas (`RealWorldMediaTests`, `ProxyOddSourceTests`, `OddMediaExportTests`) ya pasan estos medios por sonda, miniaturas, cuadros, audio, proxy y exportación. Con el ratón falta ver que **la interfaz** los trata igual. Usa archivos reales si los tienes; si no, los genera `ffmpeg` como en esas pruebas.
+
+1. **Cámara MPEG-TS / AVCHD** (`.ts`, `.mts`, `.m2ts`, también uno que empiece a las 10 h): arrástralo a la biblioteca y a la línea de tiempo. Debe tener miniaturas en la tira y en la biblioteca, verse desde el primer cuadro al reproducir y exportarse. Antes salía en negro y la exportación fallaba con «el cuadro 0 no se pudo decodificar».
+2. **Entrelazado** (DVD `.mpg`/`.vob` o 1080i de cámara): la miniatura aparece (antes, error de `sws_scale_frame`).
+3. **Foto de cámara** (JPEG de varios MB): se ve en el visor desde el primer intento y se exporta. Antes el primer cuadro salía vacío.
+4. **Video recortado sin recodificar** (por ejemplo, recortado en QuickTime o en «Fotos» con «Guardar como clip nuevo»): el clip dura lo que el recorte, sin un cuadro congelado al final.
+5. **Celular con un cuadro perdido o captura de pantalla con cuadros repetidos** (OBS, grabación de Discord): «Generar proxy» funciona (antes fallaba con todos los codificadores: «el proxy quedó a 89/3 fps…») y el clip no aparece a 500 fps.
+6. **Archivo bloqueado o borrado**: abre un video en otro programa que lo bloquee (o bórralo justo antes de soltarlo desde una carpeta vigilada) e impórtalo: aviso «otro programa lo tiene abierto…» o «el archivo ya no existe», sin cerrar la importación de los demás.
+7. **Ruta larga** (más de 260 caracteres, carpetas anidadas) y **nombre con emoji y tildes**: importar, reproducir, proxy y exportar.
+8. **Celular girado** (vertical grabado con el teléfono de lado): la miniatura y el visor salen derechos; exportado, también.

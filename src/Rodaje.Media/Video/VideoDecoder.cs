@@ -585,15 +585,23 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         long floor = _originTs - _frameDurationTs;
         long target = TimestampOf(frameIndex) - extraBackoff;
         long step = _frameDurationTs;
+        bool fromStart = false;
         for (int attempt = 0; attempt < MaxSeekAttempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             ResetDecoder();
             long ts = Math.Max(target, floor);
-            int r = ffmpeg.av_seek_frame(_format, _streamIndex, ts, ffmpeg.AVSEEK_FLAG_BACKWARD);
-            if (r < 0)
+            int r = fromStart ? SeekToFileStart() : ffmpeg.av_seek_frame(_format, _streamIndex, ts, ffmpeg.AVSEEK_FLAG_BACKWARD);
+            if (r < 0 && !fromStart)
             {
                 r = ffmpeg.avformat_seek_file(_format, _streamIndex, long.MinValue, ts, long.MaxValue, 0);
+            }
+
+            if (r < 0 && !fromStart)
+            {
+                // Un formato que no sabe buscar esa marca se lee desde el principio.
+                fromStart = true;
+                continue;
             }
 
             if (r < 0)
@@ -605,7 +613,15 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
             {
                 if (ts <= floor)
                 {
-                    return false;
+                    if (fromStart)
+                    {
+                        return false;
+                    }
+
+                    // MPEG-TS con un solo keyframe (o sin índice): buscar el primer dts cae después de él. Desde el
+                    // principio del archivo sí aparece; antes no se veía ni se exportaba ningún cuadro.
+                    fromStart = true;
+                    continue;
                 }
 
                 target = ts - step;
@@ -646,6 +662,13 @@ public sealed unsafe class VideoDecoder : IVideoFrameSource, IDisposable
         }
 
         throw new MediaException($"No se encontró un keyframe anterior al cuadro {frameIndex} tras {MaxSeekAttempts} intentos.");
+    }
+
+    // A byte 0 si el formato lo permite (TS, MKV, AVI); si no, a la marca más baja posible.
+    private int SeekToFileStart()
+    {
+        int r = ffmpeg.av_seek_frame(_format, -1, 0, ffmpeg.AVSEEK_FLAG_BYTE);
+        return r >= 0 ? r : ffmpeg.avformat_seek_file(_format, _streamIndex, long.MinValue, long.MinValue, long.MaxValue, 0);
     }
 
     private bool ReadFirstKeyPacket(CancellationToken cancellationToken, out long keyTimestamp)
