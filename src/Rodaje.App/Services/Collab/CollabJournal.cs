@@ -5,7 +5,8 @@ using Rodaje.Core.Collab;
 namespace Rodaje.App.Services.Collab;
 
 internal sealed record JournalEntry(string Kind, Patch Patch, long Seq = 0, string Reason = "");
-internal sealed record JournalState(long Seq, string Snapshot, long? Separation, IReadOnlyList<string> Accepted, IReadOnlyList<JournalEntry> Entries);
+internal sealed record JournalState(long Seq, string Snapshot, long? Separation, IReadOnlyList<string> Accepted, IReadOnlyList<JournalEntry> Entries,
+    IReadOnlyList<string>? RecoveryHosts = null);
 
 /// <summary>Instantánea JSONL acotada. Nunca se modifica el archivo publicado hasta cerrar y vaciar el temporal.</summary>
 internal sealed class CollabJournal(string folder)
@@ -47,6 +48,13 @@ internal sealed class CollabJournal(string folder)
                 accepted.Add(value);
             }
             List<JournalEntry> entries = [];
+            List<string> recoveryHosts = [];
+            if (h.TryGetProperty("recoveryHosts", out JsonElement hosts))
+                foreach (JsonElement host in hosts.EnumerateArray())
+                {
+                    if (recoveryHosts.Count >= 16 || host.GetString() is not { } key || !IsMemberKey(key)) throw new InvalidDataException();
+                    recoveryHosts.Add(key);
+                }
             HashSet<string> seen = new(StringComparer.Ordinal);
             foreach (string line in lines.Skip(1))
             {
@@ -57,16 +65,17 @@ internal sealed class CollabJournal(string folder)
                 Patch? patch = PatchWire.TryParse(root.GetProperty("patch").GetRawText()).Patch;
                 long order = root.GetProperty("seq").GetInt64();
                 string reason = root.GetProperty("reason").GetString() ?? "";
-                if (kind is not ("pending" or "unsettled" or "branch") || patch is null || !Guid.TryParse(patch.Id, out _)
+                if (kind is not ("pending" or "unsettled" or "branch" or "separated") || patch is null || !Guid.TryParse(patch.Id, out _)
                     || !seen.Add(kind + patch.Id) || order < 0 || order > seq || reason.Length > 4096) throw new InvalidDataException();
                 // El texto puede venir de un archivo manipulado: se descartan rutas, claves y controles.
                 bool safeReason = reason.Length > 0 && !reason.Any(char.IsControl) && !reason.Contains(':', StringComparison.Ordinal)
                     && !reason.Contains('\\', StringComparison.Ordinal) && !reason.Contains('/', StringComparison.Ordinal)
                     && !reason.Split(' ').Any(word => word.Length >= 64 && word.All(Uri.IsHexDigit));
-                entries.Add(new JournalEntry(kind, patch with { Author = "propio" }, order,
+                if (kind == "separated" && !IsMemberKey(patch.Author)) throw new InvalidDataException();
+                entries.Add(new JournalEntry(kind, kind == "separated" ? patch : patch with { Author = "propio" }, order,
                     kind == "unsettled" ? safeReason ? reason : "Este cambio no entró en la sala. Puedes conservarlo como un cambio nuevo o descartarlo." : ""));
             }
-            return new JournalState(seq, snapshot, separation, accepted, entries);
+            return new JournalState(seq, snapshot, separation, accepted, entries, recoveryHosts);
         }
         catch (Exception ex) when (ex is IOException or InvalidDataException or UnauthorizedAccessException or JsonException or InvalidOperationException
             or KeyNotFoundException or FormatException or ArgumentException or OverflowException)
@@ -97,6 +106,9 @@ internal sealed class CollabJournal(string folder)
                     writer.WriteStartArray("accepted");
                     foreach (string id in state.Accepted) writer.WriteStringValue(id);
                     writer.WriteEndArray();
+                    writer.WriteStartArray("recoveryHosts");
+                    foreach (string key in state.RecoveryHosts ?? []) writer.WriteStringValue(key);
+                    writer.WriteEndArray();
                     writer.WriteEndObject();
                 }
                 file.WriteByte((byte)'\n');
@@ -109,7 +121,7 @@ internal sealed class CollabJournal(string folder)
                         writer.WriteNumber("seq", entry.Seq);
                         writer.WriteString("reason", entry.Reason);
                         writer.WritePropertyName("patch");
-                        writer.WriteRawValue(PatchWire.ToJson(entry.Patch with { Author = "propio" }));
+                        writer.WriteRawValue(PatchWire.ToJson(entry.Kind == "separated" ? entry.Patch : entry.Patch with { Author = "propio" }));
                         writer.WriteEndObject();
                     }
                     file.WriteByte((byte)'\n');
@@ -134,4 +146,6 @@ internal sealed class CollabJournal(string folder)
 
     private static JsonDocument Parse(string json) => JsonDocument.Parse(json,
         new JsonDocumentOptions { MaxDepth = WireLimits.Default.MaxDepth + 4, AllowDuplicateProperties = false });
+
+    internal static bool IsMemberKey(string key) => key.Length == 64 && key.All(Uri.IsHexDigit);
 }

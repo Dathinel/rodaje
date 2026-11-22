@@ -1,4 +1,5 @@
 using Dathinel.Sala;
+using System.Text;
 using System.Text.Json;
 using Rodaje.App.Services.Crashes;
 using Rodaje.Core.Collab;
@@ -13,11 +14,18 @@ public sealed partial class CollabEngine
     private readonly HashSet<string> _accepted = new(StringComparer.Ordinal);
     private readonly Queue<string> _acceptedOrder = new();
     private readonly List<JournalEntry> _branch = [];
+    private readonly List<JournalEntry> _separated = [];
+    private readonly HashSet<string> _sendingSeparated = new(StringComparer.Ordinal);
+    private readonly List<string> _recoveryHosts = [];
+    internal const int MaxSeparatedPerAuthor = 256;
+    internal const int MaxSeparatedBytes = 64 * 1024 * 1024;
+    private long _separatedBytes;
     private long? _separation;
     private bool _superseded;
     private int _recovering;
     private bool _persistenceFailed;
     private bool _journalBlocked;
+    private bool _recoveryReady;
 
     public UnsettledChanges Unsettled { get; } = new();
     public event Action? UnsettledChanged;
@@ -29,8 +37,8 @@ public sealed partial class CollabEngine
         if (_journal is null) return true;
         List<JournalEntry> entries = [.. _pending.Where(p => !p.Confirmed).Select(p => new JournalEntry("pending", p.Patch)),
             .. Unsettled.Items.Select(i => new JournalEntry("unsettled", i.Patch, Reason: i.Reason)),
-            .. _branch.Where(e => e.Patch.Author == _room.State.MyKey)];
-        bool saved = _journal.Save(new JournalState(_seq, ProjectWire.ToJson(_mirror, _mirrorVersions), _separation, _acceptedOrder.ToArray(), entries));
+            .. _branch.Where(e => e.Patch.Author == _room.State.MyKey), .. _separated];
+        bool saved = _journal.Save(new JournalState(_seq, ProjectWire.ToJson(_mirror, _mirrorVersions), _separation, _acceptedOrder.ToArray(), entries, _recoveryHosts));
         if (!saved && !_persistenceFailed)
             _ = _ui(() => _notice("No se pudo guardar el registro de la sala. Conserva el proyecto abierto y comprueba el espacio y los permisos de su carpeta antes de cerrar.", true));
         _persistenceFailed = !saved;
@@ -52,6 +60,7 @@ public sealed partial class CollabEngine
             _restore = null;
             if (saved is not null)
             {
+                foreach (string host in saved.RecoveryHosts ?? []) RememberRecoveryHost(host);
                 ProjectParseResult snapshot = ProjectWire.TryParse(saved.Snapshot);
                 if (snapshot.Project?.Id != _mirror.Id)
                 {
@@ -64,6 +73,11 @@ public sealed partial class CollabEngine
                 _separation = saved.Separation is { } separation ? Math.Min(separation, _seq) : null;
                 foreach (JournalEntry entry in saved.Entries)
                 {
+                    if (entry.Kind == "separated")
+                    {
+                        AddSeparated(entry.Patch);
+                        continue;
+                    }
                     Patch patch = entry.Patch with { Author = _room.State.MyKey };
                     if (entry.Kind == "unsettled") Unsettled.Add(patch, entry.Reason);
                     else if (entry.Kind == "branch")
@@ -93,7 +107,9 @@ public sealed partial class CollabEngine
                 UnsettledChanged?.Invoke();
             }
             Persist();
+            _recoveryReady = true;
         }
+        OnRoomChanged(_room.State);
     }
 
     private bool IsReflected(Patch patch)
@@ -118,18 +134,29 @@ public sealed partial class CollabEngine
         if (state.Phase is not (RoomPhase.Hosting or RoomPhase.Connected)) return;
         lock (_m)
         {
+            string? host = state.Members.FirstOrDefault(m => m.IsHost)?.Key;
+            if (host is not null && RememberRecoveryHost(host) && _recoveryReady) Persist();
             // Sala conserva y reenvía las cargas que ya tienen id de transporte. Solo salen aquí las aún no enviadas.
             foreach (Pending pending in _pending.Where(p => !p.Confirmed && !p.Attempted))
                 _outbox.Writer.TryWrite(pending);
         }
+        UiTask.Run(SendSeparatedAsync());
+        if (!state.IsHost && _recoveryReady) UiTask.Run(SendRecoveryControlAsync("cambios-separados-listo", null, _room.HostKey));
+    }
+
+    private bool RememberRecoveryHost(string key)
+    {
+        if (_recoveryHosts.Contains(key)) return false;
+        _recoveryHosts.Add(key);
+        if (_recoveryHosts.Count > 16) _recoveryHosts.RemoveAt(0);
+        return true;
     }
 
     internal void OnConnectionLost()
     {
         lock (_m)
         {
-            // TODO B15a: acordar un punto común con acuse de todos los miembros al reconectar.
-            // Hasta entonces se conserva el primer corte: ante Superada se ofrece recuperar de más antes que perder cambios.
+            // Se conserva el primer corte: ante Superada se ofrece recuperar de más antes que perder cambios.
             _separation ??= _seq;
             Persist();
         }
@@ -146,13 +173,55 @@ public sealed partial class CollabEngine
                 Unsettled.Add(entry.Patch, "Otra copia de la sala quedó al mando durante el corte. Este cambio quedó en la copia anterior. Vuelve a entrar y elige conservarlo como uno nuevo o descartarlo.");
             foreach (Pending pending in _pending.Where(p => !p.Confirmed))
                 Unsettled.Add(pending.Patch, "El cambio seguía sin respuesta cuando otra copia de la sala quedó al mando. Vuelve a entrar para conservarlo como uno nuevo o descartarlo.");
+            foreach (JournalEntry entry in branch.Where(e => e.Patch.Author != _room.State.MyKey))
+                AddSeparated(entry.Patch);
             _pending.Clear();
             _branch.Clear();
             if (!Persist()) _notice("No se pudo guardar «Cambios que no entraron». Conserva el proyecto abierto y comprueba el espacio y los permisos antes de cerrar.", true);
         }
         _ = _ui(() => UnsettledChanged?.Invoke());
-        if (!_room.State.IsHost) return;
-        foreach (JournalEntry entry in branch.Where(e => e.Patch.Author != _room.State.MyKey))
+        await SendSeparatedAsync().ConfigureAwait(false);
+    }
+
+    // Bajo _m. La cola conserva su orden de llegada, también al restaurar el registro.
+    private void AddSeparated(Patch patch)
+    {
+        if (_separated.Any(e => e.Patch.Id == patch.Id)) return;
+        _separated.Add(new JournalEntry("separated", patch));
+        _separatedBytes += SeparatedBytes(patch);
+        bool trimmed = false;
+        while (_separated.Count(e => e.Patch.Author == patch.Author) > MaxSeparatedPerAuthor)
+        {
+            RemoveSeparated(_separated.First(e => e.Patch.Author == patch.Author));
+            trimmed = true;
+        }
+        while (_separatedBytes > MaxSeparatedBytes || _separated.Count > CollabJournal.MaxEntries / 2)
+        {
+            RemoveSeparated(_separated[0]);
+            trimmed = true;
+        }
+        if (trimmed) _ = _ui(() => _notice("Se alcanzó el límite de cambios separados sin entregar. Se descartaron los más antiguos. Conserva una copia del proyecto anterior para recuperarlos.", true));
+    }
+
+    private static int SeparatedBytes(Patch patch) => Encoding.UTF8.GetByteCount(PatchWire.ToJson(patch)) + 128;
+
+    private void RemoveSeparated(JournalEntry entry)
+    {
+        _separated.Remove(entry);
+        _separatedBytes -= SeparatedBytes(entry.Patch);
+    }
+
+    private async Task SendSeparatedAsync()
+    {
+        List<JournalEntry> deliveries;
+        lock (_m)
+        {
+            RoomState state = _room.State;
+            if (!_recoveryReady || state.Phase is not (RoomPhase.Hosting or RoomPhase.Connected) || _separated.Count == 0 || !Persist()) return;
+            deliveries = [.. _separated.Where(e => (!state.IsHost || state.Members.Any(m => m.Key == e.Patch.Author && m.Online))
+                && _sendingSeparated.Add(e.Patch.Id))];
+        }
+        foreach (JournalEntry entry in deliveries)
         {
             try
             {
@@ -165,30 +234,91 @@ public sealed partial class CollabEngine
                     writer.WriteRawValue(PatchWire.ToJson(entry.Patch));
                     writer.WriteEndObject();
                 }
-                using JsonDocument message = JsonDocument.Parse(stream.ToArray());
-                await _room.SendDirectAsync(message.RootElement, entry.Patch.Author, _stop.Token).ConfigureAwait(false);
+                using JsonDocument message = JsonDocument.Parse(stream.ToArray(), new JsonDocumentOptions { MaxDepth = WireLimits.Default.MaxDepth + 4 });
+                string target = _room.State.IsHost ? entry.Patch.Author : _room.HostKey;
+                await _room.SendDirectAsync(message.RootElement, target, _stop.Token).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is CollabException or OperationCanceledException)
             {
-                // TODO B15a: entrega con acuse al autor que ya no está conectado a la rama perdedora.
-                // Ese autor conserva su registro local; no se fusiona ni se borra su copia.
+                // Se conserva hasta el acuse; el próximo cambio de conexión vuelve a intentarlo.
             }
+            finally { lock (_m) _sendingSeparated.Remove(entry.Patch.Id); }
         }
     }
 
-    private void OnRecoveryDirect(string from, JsonElement message)
+    internal void OnRecoveryDirect(string from, JsonElement message)
     {
-        if (from != _room.HostKey || message.ValueKind != JsonValueKind.Object
-            || !message.TryGetProperty("tipo", out JsonElement type) || type.ValueKind != JsonValueKind.String || type.GetString() != "cambio-separado"
-            || !message.TryGetProperty("patch", out JsonElement data)) return;
+        if (!_recoveryReady || message.ValueKind != JsonValueKind.Object) return;
+        string json = message.GetRawText();
+        if (json.Length > WireLimits.Default.MaxPatchBytes + 1024 || Encoding.UTF8.GetByteCount(json) > WireLimits.Default.MaxPatchBytes + 1024) return;
+        HashSet<string> fields = new(StringComparer.Ordinal);
+        if (message.EnumerateObject().Any(p => !fields.Add(p.Name))
+            || !message.TryGetProperty("tipo", out JsonElement type) || type.ValueKind != JsonValueKind.String) return;
+        string? kind = type.GetString();
+        RoomState state = _room.State;
+        if (kind == "cambios-separados-listo")
+        {
+            if (fields.Count == 1 && state.IsHost && state.Members.Any(m => m.Key == from && m.Online)) UiTask.Run(SendSeparatedAsync());
+            return;
+        }
+        bool custody = kind == "cambio-separado-guardado";
+        if (kind == "cambio-separado-recibido" || custody)
+        {
+            if ((custody ? state.IsHost || from != _room.HostKey : !state.IsHost)
+                || fields.Count != 2 || !message.TryGetProperty("id", out JsonElement id)
+                || id.ValueKind != JsonValueKind.String || !Guid.TryParse(id.GetString(), out _)) return;
+            lock (_m)
+            {
+                JournalEntry? entry = _separated.FirstOrDefault(e => e.Patch.Id == id.GetString() && (custody || e.Patch.Author == from));
+                if (entry is null) return;
+                int index = _separated.IndexOf(entry);
+                RemoveSeparated(entry);
+                if (!Persist()) { _separated.Insert(index, entry); _separatedBytes += SeparatedBytes(entry.Patch); }
+            }
+            return;
+        }
+        if (kind != "cambio-separado" || fields.Count != 2
+            || !message.TryGetProperty("patch", out JsonElement data) || data.ValueKind != JsonValueKind.Object) return;
+        bool relay;
+        lock (_m) relay = state.IsHost && _recoveryHosts.Contains(from)
+            && state.Members.Any(m => m.Key == from && m.Online && m.Role == Rol.Editar);
+        if (!relay && from != _room.HostKey) return;
         Patch? patch = PatchWire.TryParse(data.GetRawText()).Patch;
-        if (patch is null || patch.Author != _room.State.MyKey) return;
+        if (patch is null || !Guid.TryParse(patch.Id, out _) || !CollabJournal.IsMemberKey(patch.Author)) return;
+        if (relay && patch.Author != state.MyKey)
+        {
+            lock (_m)
+            {
+                JournalEntry? existing = _separated.FirstOrDefault(e => e.Patch.Id == patch.Id);
+                if (existing is not null && PatchWire.ToJson(existing.Patch) != PatchWire.ToJson(patch)) return;
+                AddSeparated(patch);
+                if (!Persist()) return;
+            }
+            UiTask.Run(SendRecoveryControlAsync("cambio-separado-guardado", patch.Id, from));
+            UiTask.Run(SendSeparatedAsync());
+            return;
+        }
+        if (patch.Author != state.MyKey) return;
         lock (_m)
         {
             Unsettled.Add(patch, "Otra copia de la sala quedó al mando. Este cambio quedó en la copia anterior. Vuelve a entrar para conservarlo como uno nuevo o descartarlo.");
-            Persist();
+            if (!Persist()) return;
         }
         _ = _ui(() => UnsettledChanged?.Invoke());
+        UiTask.Run(SendRecoveryControlAsync(relay ? "cambio-separado-guardado" : "cambio-separado-recibido", patch.Id, from));
+    }
+
+    private async Task SendRecoveryControlAsync(string type, string? id, string target)
+    {
+        try
+        {
+            JsonElement message = ShareMessages.Make(type, id is null ? null : w => w.WriteString("id", id));
+            await _room.SendDirectAsync(message, target, _stop.Token).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is CollabException or OperationCanceledException)
+        {
+            // Un reenvío se deduplica en Unsettled y vuelve a acusarse incluso si ya estaba guardado.
+        }
     }
 
     private void SaveUnsettled(Patch patch, string reason)
@@ -225,6 +355,16 @@ public sealed partial class CollabEngine
             _notice("Este cambio no se pudo montar como una copia nueva. Sigue guardado en «Cambios que no entraron»; puedes rehacerlo manualmente o descartarlo.", true);
             return false;
         }
+        if (patch.IsEmpty)
+        {
+            lock (_m)
+            {
+                Unsettled.Remove(id);
+                if (!Persist()) { Unsettled.Add(item.Patch, item.Reason); return false; }
+            }
+            UnsettledChanged?.Invoke();
+            return true;
+        }
         SharedState before = SharedState.Capture(_live);
         if (!PatchApply.TryApply(_live, _liveVersions, patch).IsAccepted) return false;
         Pending pending = new(patch, before, SharedState.Capture(_live), item.Description, false, false);
@@ -233,7 +373,7 @@ public sealed partial class CollabEngine
         {
             if (!Persist()) return false;
             Unsettled.Remove(id);
-            if (!Persist()) Unsettled.Add(item.Patch, item.Reason);
+            if (!Persist()) { Unsettled.Add(item.Patch, item.Reason); return false; }
         }
         _liveChanged();
         UnsettledChanged?.Invoke();
