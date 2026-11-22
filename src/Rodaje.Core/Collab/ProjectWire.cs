@@ -30,10 +30,10 @@ public static class ProjectWire
     /// ellas, todo empieza en la versión 0.
     /// </summary>
     /// <exception cref="Rodaje.Core.Serialization.ProjectFormatException">Si el proyecto tiene un valor que el archivo no puede guardar.</exception>
-    public static string ToJson(Project project, ElementVersions? versions = null, IBlobMap? blobs = null)
+    public static string ToJson(Project project, ElementVersions? versions = null, IBlobMap? blobs = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(project);
-        SharedState full = SharedState.Capture(project, blobs);
+        SharedState full = SharedState.Capture(project, blobs, cancellationToken);
         var empty = new SharedState(project.Id, new Dictionary<ElementKey, ElementState>(), new Dictionary<string, IReadOnlyList<string>>());
         Patch patch = PatchDiff.Create(empty, full, new ElementVersions(), new PatchHeader("inicial", 0, "anfitrion", "Proyecto inicial"))
             ?? new Patch("inicial", 0, "anfitrion", "Proyecto inicial", [], [], []);
@@ -60,8 +60,11 @@ public static class ProjectWire
     /// <param name="json">El texto de la copia inicial.</param>
     /// <param name="blobs">Dónde están los archivos por huella que el parche referencia.</param>
     /// <param name="maxElements">Tope de elementos de la copia (los cambios del parche): las pruebas lo bajan para provocar el rechazo.</param>
-    public static ProjectParseResult TryParse(string json, IBlobMap? blobs = null, int maxElements = MaxElements)
+    /// <param name="cancellationToken">Cancela la lectura y la aplicación de la copia (puede llevar decenas de miles de elementos).</param>
+    /// <exception cref="OperationCanceledException">Si se cancela mientras se lee o se aplica.</exception>
+    public static ProjectParseResult TryParse(string json, IBlobMap? blobs = null, int maxElements = MaxElements, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (json is null || Encoding.UTF8.GetByteCount(json) > MaxBytes)
         {
             return Rejected(PatchRejectionReason.TooLarge, "La copia inicial del proyecto es más grande de lo que admite la sala.");
@@ -91,7 +94,7 @@ public static class ProjectWire
                 return Rejected(PatchRejectionReason.Malformed, "La copia inicial trae versiones que no son válidas.");
             }
 
-            PatchParseResult parsed = PatchWire.TryParse(patchJson.GetRawText(), InitialLimits);
+            PatchParseResult parsed = PatchWire.TryParse(patchJson.GetRawText(), InitialLimits, cancellationToken);
             if (parsed.Patch is null)
             {
                 return new ProjectParseResult(null, null, parsed.Rejection);
@@ -103,7 +106,8 @@ public static class ProjectWire
             }
 
             var project = new Project { Id = projectId };
-            PatchResult applied = PatchApply.TryApply(project, new ElementVersions(), parsed.Patch, new PatchApplyOptions { Limits = InitialLimits, Blobs = blobs });
+            PatchResult applied = PatchApply.TryApply(project, new ElementVersions(), parsed.Patch,
+                new PatchApplyOptions { Limits = InitialLimits, Blobs = blobs, CancellationToken = cancellationToken });
             return applied.IsAccepted
                 ? new ProjectParseResult(project, versions, null)
                 : new ProjectParseResult(null, null, applied.Rejection);

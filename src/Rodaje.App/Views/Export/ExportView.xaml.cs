@@ -199,15 +199,16 @@ internal sealed partial class ExportView : UserControl
     private void RefreshPresets(ExportDialogModel model)
     {
         var cards = model.Presets
-            .Select(p => (Id: p.Id, Name: p.Name, Description: p.Origin == ExportPresetOrigin.User ? "Propio · " + p.Description : p.Description))
-            .Append((Id: ExportPresetLibrary.CustomId, Name: "Personalizado", Description: "Lo que elijas en Avanzado."))
+            .Select(p => (Id: p.Id, Name: p.Name, Description: p.Origin == ExportPresetOrigin.User ? "Propio · " + p.Description : p.Description,
+                Size: model.PresetSizeLabel(p)))
+            .Append((Id: ExportPresetLibrary.CustomId, Name: "Personalizado", Description: "Lo que elijas en Avanzado.", Size: ""))
             .ToList();
         if (ComboChoices.NeedsRebuild(PresetCards.Children.Select(c => (c as Button)?.Tag as string ?? ""), cards.Select(c => c.Id)))
         {
             PresetCards.Children.Clear();
-            foreach ((string id, string name, string description) in cards)
+            foreach ((string id, string name, string description, string size) in cards)
             {
-                PresetCards.Children.Add(PresetCard(id, name, description));
+                PresetCards.Children.Add(PresetCard(id, name, description, size));
             }
         }
 
@@ -224,14 +225,21 @@ internal sealed partial class ExportView : UserControl
         ExportPresetButton.IsEnabled = model.PresetId != ExportPresetLibrary.CustomId;
     }
 
-    private Button PresetCard(string id, string name, string description)
+    // El tamaño real depende solo de la secuencia: la tarjeta no cambia de texto al elegirla.
+    private Button PresetCard(string id, string name, string description, string size)
     {
-        var text = new StackPanel { Spacing = 4 };
+        var text = new StackPanel { Spacing = 2 };
         text.Children.Add(new TextBlock { Text = name, Style = (Style)Application.Current.Resources["PanelTitleTextStyle"], TextTrimming = TextTrimming.CharacterEllipsis });
+        if (size.Length > 0)
+        {
+            text.Children.Add(new TextBlock { Text = size, Style = (Style)Application.Current.Resources["CaptionTextStyle"], TextTrimming = TextTrimming.CharacterEllipsis });
+            description = $"{size}. {description}";
+        }
+
         text.Children.Add(new TextBlock
         {
             Text = description, Style = (Style)Application.Current.Resources["CaptionTextStyle"], TextWrapping = TextWrapping.Wrap,
-            TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 2,
+            TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = size.Length > 0 ? 1 : 2,
         });
         var card = new Button
         {
@@ -256,6 +264,18 @@ internal sealed partial class ExportView : UserControl
 
         Fill(RangeBox, model.Ranges.Select(r => r.Label), model.RangeIndex);
         SummaryText.Text = Summary(model);
+
+        if (model.StandardSuggestion is var (w, h))
+        {
+            (int ow, int oh) = model.OutputSize;
+            StandardSizeText.Text = $"{ow}×{oh} no es un tamaño estándar: algunas plataformas lo reescalan.";
+            StandardSizeButton.Content = $"Usar {w}×{h}";
+            StandardSizePanel.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            StandardSizePanel.Visibility = Visibility.Collapsed;
+        }
 
         string? presetNote = model.PresetShapeNote;
         PresetShapeText.Text = presetNote ?? "";
@@ -418,8 +438,7 @@ internal sealed partial class ExportView : UserControl
         {
             string where = encoder.IsHardware ? "por GPU" : encoder.Vendor == EncoderVendor.Microsoft ? "por Windows" : "por CPU";
             parts.Add($"{ExportChoices.CodecName(video.Codec)} {where} ({encoder.Id})");
-            (int w, int h) = model.OutputSize;
-            parts.Add($"{w}×{h}");
+            parts.Add(model.SizeLabel(model.OutputSize));
             parts.Add($"{ExportText.Number(model.FrameRate.ToDouble(), 3)} fps");
             if (video.BitDepth != 8)
             {
@@ -690,6 +709,8 @@ internal sealed partial class ExportView : UserControl
     }
 
     private static int Kbps(double mbps) => (int)Math.Max(1, Math.Round(mbps * 1000));
+
+    private void OnUseStandardSizeClick(object sender, RoutedEventArgs e) => _model?.UseStandardSize();
 
     private void OnSizeChanged(object sender, SelectionChangedEventArgs e)
     {

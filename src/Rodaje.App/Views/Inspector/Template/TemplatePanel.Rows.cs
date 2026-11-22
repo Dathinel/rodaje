@@ -204,12 +204,7 @@ internal sealed partial class TemplatePanel
             MinHeight = 28,
             FontSize = ThemeResources.Size("BodyFontSize"),
             SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Hidden,
-            NumberFormatter = new Windows.Globalization.NumberFormatting.DecimalFormatter
-            {
-                FractionDigits = fractional ? 2 : 0,
-                IsDecimalPointAlwaysDisplayed = false,
-                NumberRounder = new Windows.Globalization.NumberFormatting.IncrementNumberRounder { Increment = fractional ? 0.01 : 1 },
-            },
+            NumberFormatter = new TypedNumberFormatter(fractional ? 2 : 0),
         };
         AutomationProperties.SetName(number, parameter.Label);
         NumberBoxCommit.CommitBeforeFocusLeaves(number);

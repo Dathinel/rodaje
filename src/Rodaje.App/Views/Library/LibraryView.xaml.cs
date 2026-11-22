@@ -203,7 +203,8 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     private static MenuFlyoutItem MenuItem(string text, string glyph, RoutedEventHandler click)
     {
         var item = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph } };
-        item.Click += click;
+        // Quitar, mover o marcar puede rehacer la cuadrícula y quitar el elemento que ancla el menú: después del clic (tarea 91).
+        item.Click += (sender, e) => item.DispatcherQueue.RunAfterEvent(() => click(sender, e));
         return item;
     }
 
@@ -650,15 +651,19 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
         _menuTarget = item;
         _replaceItem.IsEnabled = ReplaceTargetClip() is not null;
+        _proxyItem.IsEnabled = MediaDetails.CanGenerateProxy(item.IsStillImage, item.HasVideo, item.IsOffline);
         if (item.IsStillImage)
         {
-            _proxyItem.IsEnabled = false;
             _proxyItem.Text = "Generar proxy (no aplica a imágenes fijas)";
             ToolTipService.SetToolTip(_proxyItem, "No aplica a imágenes fijas.");
         }
+        else if (item.IsOffline)
+        {
+            _proxyItem.Text = "Generar proxy (falta el archivo)";
+            ToolTipService.SetToolTip(_proxyItem, "El archivo original no está donde dice el proyecto. Vuelve a enlazarlo primero.");
+        }
         else
         {
-            _proxyItem.IsEnabled = item.HasVideo;
             _proxyItem.Text = "Generar proxy";
             ToolTipService.SetToolTip(_proxyItem, null);
         }
@@ -814,7 +819,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
     private async Task GenerateProxyAsync()
     {
-        if (_menuTarget is not { HasVideo: true } item || _services is null)
+        if (_menuTarget is not { HasVideo: true } item || _services is null || item.IsOffline)
         {
             return;
         }

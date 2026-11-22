@@ -126,6 +126,9 @@ function Publicar {
     Get-ChildItem -LiteralPath $Salida -Filter '*.pdb' -Recurse | Remove-Item -Force
     # La documentación XML de las bibliotecas solo sirve al compilar.
     Get-ChildItem -LiteralPath $Carpeta -Filter 'Rodaje.*.xml' | Remove-Item -Force
+    # dathinel-red (colaboración) en app\modulos\red, como en distribuir.ps1: sin él «Invitar» y «Unirse» fallan.
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'red.ps1') -Destino $Carpeta
+    if ($LASTEXITCODE -ne 0) { Aviso 'No se pudo preparar dathinel-red (build\red.ps1): la colaboración no abrirá en este exe.' }
 
     $tamExe = (Get-Item -LiteralPath $Exe).Length
     $archivos = Get-ChildItem -LiteralPath $Salida -File -Recurse

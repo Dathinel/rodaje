@@ -120,7 +120,8 @@ public static class PatchWire
     /// Lee un parche que llegó de otro equipo: pasa antes por <see cref="WireSanitizer"/> y nunca lanza. Un texto hostil o mal
     /// formado devuelve el rechazo, no una excepción.
     /// </summary>
-    public static PatchParseResult TryParse(string json, WireLimits? limits = null)
+    /// <exception cref="OperationCanceledException">Si <paramref name="cancellationToken"/> se cancela recorriéndolo.</exception>
+    public static PatchParseResult TryParse(string json, WireLimits? limits = null, CancellationToken cancellationToken = default)
     {
         limits ??= WireLimits.Default;
         if (WireSanitizer.Check(json, limits) is { } rejection)
@@ -135,6 +136,7 @@ public static class PatchWire
             var ops = new List<PatchOp>();
             foreach (JsonElement op in root.GetProperty("ops").EnumerateArray())
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (!ElementKinds.TryParse(op.GetProperty("kind").GetString(), out ElementKind kind))
                 {
                     return new PatchParseResult(null, WireSanitizer.Malformed("Un cambio del parche tiene una clase que no es válida."));

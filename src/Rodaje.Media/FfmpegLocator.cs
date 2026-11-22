@@ -1,3 +1,5 @@
+using System.Globalization;
+
 namespace Rodaje.Media;
 
 /// <summary>Decide en qué carpeta buscar las DLL de FFmpeg, en un orden fijo y comprobable.</summary>
@@ -23,7 +25,7 @@ public static class FfmpegLocator
     {
         ArgumentNullException.ThrowIfNull(versioned);
         string[] parts = versioned.Split('-', 2);
-        if (parts.Length != 2 || !int.TryParse(parts[1], out _))
+        if (parts.Length != 2 || !int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out _))
         {
             return versioned;
         }
@@ -61,7 +63,7 @@ public static class FfmpegLocator
             return null;
         }
 
-        return parts.Length == 2 && parts[0].Length > 0 && int.TryParse(parts[1], out _) ? $"{parts[0]}-{parts[1]}" : null;
+        return parts.Length == 2 && parts[0].Length > 0 && int.TryParse(parts[1], NumberStyles.None, CultureInfo.InvariantCulture, out _) ? $"{parts[0]}-{parts[1]}" : null;
     }
 
     /// <summary>Nombre de un programa de FFmpeg (<c>ffmpeg</c>, <c>ffprobe</c>) en este sistema.</summary>

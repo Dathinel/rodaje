@@ -81,18 +81,16 @@ Lo que queda abierto en Rodaje, por prioridad. Cada punto se quita al cerrarlo y
 
 ### Colaboración (B12): lo que dejó fuera la segunda revisión independiente
 
-Del hallazgo 4 (límites acumulados y coste) solo entró lo barato: índice por identificador en `PatchApply`/`PatchReservations` y tope de elementos en la copia inicial (`ProjectWire.MaxElements`). Queda:
-- Presupuestos acumulados de elementos y memoria entre parches sucesivos: el tope cubre la copia recibida, no el crecimiento por lotes de altas válidas.
-- Virtualizar la lista visual de medios (`MediaSearchDialog` crea un control por medio) y cancelación durante operaciones largas.
+Del hallazgo 4 (límites acumulados y coste) entraron el índice por identificador en `PatchApply`/`PatchReservations`, el tope de elementos en la copia inicial (`ProjectWire.MaxElements`), el presupuesto acumulado de elementos y medios al aplicar (`PatchApply.MaxMedia`), la cancelación al recorrer el proyecto (`SharedState`, `ProjectWire`, `PatchApply`) y la del bucle de espera del invitado (hallazgo 9). Queda:
+- Presupuesto acumulado de memoria entre parches sucesivos.
+- Virtualizar la lista de «Busca tus archivos» (`MediaSearchDialog` crea una fila con botones por medio; el presupuesto de 20 000 medios la acota).
 - La copia inicial sigue clonando y validando el proyecto entero varias veces por parche.
 
 Del hallazgo 5 quedó fuera: reutilizar capturas entre peticiones, cancelar al salir el solicitante y una cuota con política de retirada para los archivos por huella que quedan en `compartido`.
 
 Del hallazgo 6 quedó fuera: `ConvergeToConfirmed` sigue descartando todos los pendientes (incluidos los independientes válidos) en lugar de conservarlos para reenvío, y la restauración usa un parche normal que puede fallar si el inverso excede el tope de 900 KiB. En esta rama no está el comportamiento del PR #670.
 
-Hallazgos de la revisión no abordados en B12:
-- **9 (molesta):** el bucle de espera de respuesta de `ProjectShareGuest` puede seguir girando tras cancelar hasta agotar el plazo; falta comprobar el token dentro del bucle y propagar la cancelación.
-- **10 (menor):** `LooksLikePath` no reconoce rutas relativas ordinarias (`carpeta/archivo.cube`) en opciones de efectos desconocidos; distinguir opciones de texto de referencias y validar las admitidas.
+Del hallazgo 10 ya no se escapan rutas relativas por las opciones (cualquier barra se trata como ruta salvo `blob:` y `paquete@versión/elemento`), con el coste aceptado de que una opción de texto que lleve barras tampoco pasa.
 
 Garantías que la revisión no pudo verificar y siguen abiertas:
 - Qué revisión de Sala respalda roles, identidad autenticada, deduplicación del envoltorio y confinamiento de blobs (pregunta de Daniel); el validador de Rodaje tampoco comprueba `author.Rol`, así que un miembro con rol «mirar» podría pasar validación local si Sala no lo corta antes.

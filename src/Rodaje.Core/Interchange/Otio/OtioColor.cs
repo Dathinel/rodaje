@@ -27,9 +27,9 @@ internal static class OtioColor
 
         string trimmed = hex.Trim();
         if (trimmed.StartsWith('#') && trimmed.Length == 7 &&
-            int.TryParse(trimmed.AsSpan(1, 2), System.Globalization.NumberStyles.HexNumber, null, out int r) &&
-            int.TryParse(trimmed.AsSpan(3, 2), System.Globalization.NumberStyles.HexNumber, null, out int g) &&
-            int.TryParse(trimmed.AsSpan(5, 2), System.Globalization.NumberStyles.HexNumber, null, out int b))
+            int.TryParse(trimmed.AsSpan(1, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int r) &&
+            int.TryParse(trimmed.AsSpan(3, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int g) &&
+            int.TryParse(trimmed.AsSpan(5, 2), System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out int b))
         {
             int bestDistance = int.MaxValue;
             string bestName = "GREEN";

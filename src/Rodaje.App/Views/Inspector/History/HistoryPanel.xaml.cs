@@ -100,9 +100,10 @@ internal sealed partial class HistoryPanel : UserControl, IEditorView
 
     private void OnItemClick(object sender, ItemClickEventArgs e)
     {
+        // Saltar rehace los elementos de esta lista (el actual y los aplicados): dentro de su ItemClick cierra WinUI (tarea 91).
         if (e.ClickedItem is HistoryItem item)
         {
-            _session?.JumpToHistory(item.Position);
+            DispatcherQueue.RunAfterEvent(() => _session?.JumpToHistory(item.Position));
         }
     }
 }
