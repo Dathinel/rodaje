@@ -164,11 +164,12 @@ internal sealed partial class TitleBar : UserControl
 
         RecentMenu.Items.Add(new MenuFlyoutSeparator());
         var clear = new MenuFlyoutItem { Text = "Vaciar la lista" };
-        clear.Click += (_, _) =>
+        // Vaciar rehace este menú: después del clic de su elemento (tarea 91).
+        clear.Click += (_, _) => DispatcherQueue.RunAfterEvent(() =>
         {
             settings.RecentProjects.Clear();
             RefreshRecentProjects(settings);
-        };
+        });
         RecentMenu.Items.Add(clear);
     }
 

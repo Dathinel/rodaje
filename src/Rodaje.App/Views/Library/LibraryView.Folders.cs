@@ -186,9 +186,10 @@ internal sealed partial class LibraryView
 
     private void OnFolderClick(object sender, ItemClickEventArgs e)
     {
+        // Abrir rehace las carpetas de esta cuadrícula: después de su ItemClick (tarea 91).
         if (e.ClickedItem is FolderItem folder)
         {
-            OpenFolder(folder.Id);
+            DispatcherQueue.RunAfterEvent(() => OpenFolder(folder.Id));
         }
     }
 
