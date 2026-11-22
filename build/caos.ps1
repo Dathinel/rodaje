@@ -175,7 +175,9 @@ try {
         if (Test-Path -LiteralPath $carpeta) { Remove-Item -LiteralPath $carpeta -Recurse -Force }
         $datos = Join-Path $carpeta 'datos'
         $tmp = Join-Path $carpeta 'tmp'
-        New-Item -ItemType Directory -Force -Path $datos, $tmp | Out-Null
+        # La carpeta de trabajo del proceso: lo que la app escriba con una ruta relativa cae aquí y se cuenta como fallo.
+        $actual = Join-Path $carpeta 'actual'
+        New-Item -ItemType Directory -Force -Path $datos, $tmp, $actual | Out-Null
         Remove-Item -LiteralPath $ErrorTxt -ErrorAction SilentlyContinue
         $env:RODAJE_DATOS = $datos
         $env:RODAJE_PROXIES = Join-Path $carpeta 'proxies'
@@ -185,7 +187,7 @@ try {
         $env:HTTP_PROXY = 'http://127.0.0.1:9'; $env:HTTPS_PROXY = 'http://127.0.0.1:9'; $env:ALL_PROXY = 'http://127.0.0.1:9'; $env:NO_PROXY = ''
         $argumentos = @('--caos', $semilla, $Minutos.ToString([Globalization.CultureInfo]::InvariantCulture), '--sin-audio') + @($archivos | ForEach-Object { '"' + $_ + '"' })
         $inicio = Get-Date
-        $p = Start-Process -FilePath $Exe -ArgumentList $argumentos -PassThru
+        $p = Start-Process -FilePath $Exe -ArgumentList $argumentos -WorkingDirectory $actual -PassThru
         foreach ($v in $variables) { [Environment]::SetEnvironmentVariable($v, $guardadas[$v]) }
         $null = $p.Handle
         $limite = [int](($Minutos * 60 + 90) * 1000)
@@ -197,7 +199,8 @@ try {
         $registro = Join-Path $datos 'caos.log'
         $pasos = if (Test-Path -LiteralPath $registro) { @(Select-String -LiteralPath $registro -Pattern "^\d+`t[^ ]" -Encoding UTF8).Count } else { 0 }
         $informes = @(Get-ChildItem -LiteralPath (Join-Path $datos 'fallos') -File -ErrorAction SilentlyContinue)
-        $mal = -not $termino -or $codigo -ne 0 -or $informes.Count -gt 0 -or (Test-Path -LiteralPath $ErrorTxt)
+        $relativos = @(Get-ChildItem -LiteralPath $actual -Recurse -File -Force -ErrorAction SilentlyContinue)
+        $mal = -not $termino -or $codigo -ne 0 -or $informes.Count -gt 0 -or (Test-Path -LiteralPath $ErrorTxt) -or $relativos.Count -gt 0
         $segundos = [int]((Get-Date) - $inicio).TotalSeconds
         if ($mal) {
             $guardar = Join-Path $Resultados "semilla-$semilla"
@@ -206,7 +209,8 @@ try {
             if (Test-Path -LiteralPath $registro) { Copy-Item -LiteralPath $registro -Destination $guardar }
             foreach ($i in $informes) { Copy-Item -LiteralPath $i.FullName -Destination $guardar }
             if (Test-Path -LiteralPath $ErrorTxt) { Move-Item -LiteralPath $ErrorTxt -Destination $guardar -Force }
-            $causa = if (-not $termino) { 'no terminó a tiempo (cuelgue sin vigilante o cierre trabado)' } else { Causa $guardar $codigo (Join-Path $guardar 'caos.log') }
+            if ($relativos.Count -gt 0) { $relativos | ForEach-Object { $_.FullName.Substring($actual.Length) } | Set-Content -LiteralPath (Join-Path $guardar 'escritos-con-ruta-relativa.txt') -Encoding UTF8 }
+            $causa = if ($relativos.Count -gt 0 -and $codigo -eq 0 -and $informes.Count -eq 0) { "escribió con ruta relativa: $($relativos[0].FullName.Substring($actual.Length))" } elseif (-not $termino) { 'no terminó a tiempo (cuelgue sin vigilante o cierre trabado)' } else { Causa $guardar $codigo (Join-Path $guardar 'caos.log') }
             $fallos += [pscustomobject]@{ Semilla = $semilla; Codigo = ('0x{0:X8}' -f $codigo); Pasos = $pasos; Causa = $causa; Carpeta = $guardar }
             Mal ("Semilla {0}: falló tras {1} pasos y {2} s: {3}" -f $semilla, $pasos, $segundos, $causa)
         } else {
