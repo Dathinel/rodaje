@@ -387,12 +387,13 @@ public static class WireSanitizer
         return null;
     }
 
-    // Una opción que no es una referencia a un paquete ni a un blob no puede ser una ruta: ni de red, ni absoluta, ni relativa, ni con «..».
+    // Una opción que no es una referencia a un paquete ni a un blob no puede ser una ruta: ni de red, ni absoluta, ni
+    // relativa, ni con «..». Cualquier barra la delata (revisión, hallazgo 10: «carpeta/archivo.cube» se escapaba).
     private static bool LooksLikePath(string text) =>
-        text.StartsWith('/') || text.StartsWith('\\')
-        || (text.Length >= 2 && char.IsAsciiLetter(text[0]) && text[1] == ':')
-        || text.Contains("../", StringComparison.Ordinal) || text.Contains("..\\", StringComparison.Ordinal)
-        || text.StartsWith("./", StringComparison.Ordinal) || text.StartsWith(".\\", StringComparison.Ordinal);
+        !text.StartsWith(ElementCodec.BlobPrefix, StringComparison.Ordinal)
+        && !Effects.OptionDefinition.IsWellFormedReference(text)
+        && (text.Contains('/', StringComparison.Ordinal) || text.Contains('\\', StringComparison.Ordinal)
+            || (text.Length >= 2 && char.IsAsciiLetter(text[0]) && text[1] == ':'));
 
     private static bool IsContainer(string container, WireLimits limits)
     {

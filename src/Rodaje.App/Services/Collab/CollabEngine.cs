@@ -395,7 +395,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
     /// <summary>Solo en el anfitrión: el parche entra si es válido, las reservas son del autor y cabe sobre lo confirmado.</summary>
     public ValueTask<Veredicto> ValidateAsync(Miembro author, JsonElement payload, CancellationToken cancellationToken)
     {
-        PatchParseResult parsed = PatchWire.TryParse(payload.GetRawText());
+        PatchParseResult parsed = PatchWire.TryParse(payload.GetRawText(), cancellationToken: cancellationToken);
         if (parsed.Patch is not { } patch)
         {
             return ValueTask.FromResult(Veredicto.No("no-valido", parsed.Rejection?.Message ?? "El cambio no es válido."));
