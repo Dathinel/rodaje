@@ -169,9 +169,11 @@ internal sealed partial class MainWindow : Window, IShellHost
             AutoProxies = CreateAutoProxies(session),
             WatchedFolders = new WatchedFolderInbox(session, () => settings.Current),
             RenderCache = _renderCache,
-            Collab = new Services.Collab.CollabHost(Services.AppDataPaths.Root, post => _dispatcher.RunLater(post))
+            Collab = new Services.Collab.CollabHost(Services.AppDataPaths.Root, post => _dispatcher.RunLater(post), red: () => Services.Collab.CollabNetwork.ForSettings(settings.Current))
             {
                 Confirm = (title, message, confirm) => dialogs.ConfirmAsync(title, message, confirm),
+                ApproveOriginal = (ask, cancellationToken) => Views.Collab.OriginalApproval.AskAsync(Root.XamlRoot, ask, cancellationToken),
+                OriginalCap = () => settings.Current.CollabOriginalCapBytes,
             },
         };
         engine.SetContent(content);

@@ -20,7 +20,8 @@ public sealed partial class CollabHost : IDisposable
     private readonly Action<Action> _post;
     private readonly SwitchHandler _switch = new();
 
-    public CollabHost(string dataRoot, Action<Action> post, string? appVersion = null, string? redPath = null, ICollabPayloadHandler? handler = null)
+    /// <param name="red">Cómo sale a la red al abrir o entrar en una sala (en la app, lo de Preferencias › Colaboración); nula, los relés públicos de n0.</param>
+    public CollabHost(string dataRoot, Action<Action> post, string? appVersion = null, string? redPath = null, ICollabPayloadHandler? handler = null, Func<Red>? red = null)
     {
         _post = post;
         if (handler is not null)
@@ -42,6 +43,7 @@ public sealed partial class CollabHost : IDisposable
             new CollabEnvironment(redPath ?? FindRed() ?? Path.Combine(AppContext.BaseDirectory, RedFileName), Path.Combine(_folder, "identidad.bin"), appVersion ?? CurrentVersion())
             {
                 Locate = redPath is null ? FindRed : null,
+                RedSource = red,
             },
             _switch,
             post);
@@ -182,9 +184,22 @@ public sealed partial class CollabHost : IDisposable
     private ProjectShareHost? _share;
     private ProxyShareHost? _proxyShare;
     private RoomProxyMaker? _proxyMaker;
+    private OriginalShareHost? _originalShare;
 
     /// <summary>Las copias ligeras que el invitado puede pedir a quien hospeda; nulo en el anfitrión y fuera de la sala.</summary>
     public RoomProxies? Proxies { get; private set; }
+
+    /// <summary>Los originales que el invitado puede pedir a quien hospeda; nulo en el anfitrión y fuera de la sala.</summary>
+    public RoomOriginals? Originals { get; private set; }
+
+    /// <summary>
+    /// Pregunta a quien hospeda si manda un original que le piden (Enviar, Enviar todos los que pida, No enviar); el token se
+    /// cancela si pasan 10 minutos sin respuesta. La pone la ventana; sin ella, los originales se niegan.
+    /// </summary>
+    public Func<OriginalAsk, CancellationToken, Task<OriginalDecision>>? ApproveOriginal { get; set; }
+
+    /// <summary>El tope de tamaño de los originales (Preferencias › Colaboración), en bytes; <c>null</c>, sin tope. La pone la ventana.</summary>
+    public Func<long?>? OriginalCap { get; set; }
 
     public void Dispose()
     {
@@ -249,6 +264,12 @@ public sealed partial class CollabHost : IDisposable
             engine.StartAsHost();
             IRoomProxyMaker maker = ProxyMakerFor(session) is { } real ? real : new MissingFfmpeg();
             _proxyShare = new ProxyShareHost(Room, maker, Room.RoomFolder);
+            string projectDirectory = ProjectDirectory(session);
+            _originalShare = new OriginalShareHost(Room, new ProjectOriginalSource(() => session.Project.Media, m => m.ResolvePath(projectDirectory)), Room.RoomFolder,
+                (ask, cancellationToken) => ApproveOriginal is { } approve
+                    ? UiInvoke.Run(_post, () => approve(ask, cancellationToken)).Unwrap()
+                    : Task.FromResult(OriginalDecision.Refuse),
+                () => OriginalCap?.Invoke());
         }
         else
         {
@@ -258,6 +279,7 @@ public sealed partial class CollabHost : IDisposable
                 work => UiInvoke.Run(_post, work),
                 engine.CaptureForGuest), Room.RoomFolder);
             Proxies = new RoomProxies(Room, Room.RoomFolder, received.Media);
+            Originals = new RoomOriginals(Room, Room.RoomFolder, received.Media, () => OriginalCap?.Invoke());
         }
 
         if (!_switch.TryAttach(engine))
@@ -297,7 +319,10 @@ public sealed partial class CollabHost : IDisposable
         _proxyShare = null;
         _proxyMaker?.Dispose();
         _proxyMaker = null;
+        _originalShare?.Dispose();
+        _originalShare = null;
         Proxies = null;
+        Originals = null;
         _switch.Detach();
         Engine?.Dispose();
         Engine = null;
@@ -324,9 +349,12 @@ public sealed partial class CollabHost : IDisposable
             return null;
         }
 
-        string projectDirectory = session.FilePath is { Length: > 0 } file ? Path.GetDirectoryName(file)! : Room.RoomFolder;
+        string projectDirectory = ProjectDirectory(session);
         return _proxyMaker = new RoomProxyMaker(ffmpeg, () => session.Project.Media, m => m.ResolvePath(projectDirectory));
     }
+
+    private string ProjectDirectory(EditorSession session) =>
+        session.FilePath is { Length: > 0 } file ? Path.GetDirectoryName(file)! : Room.RoomFolder;
 
     /// <summary>Responde al invitado con el porqué cuando este equipo no puede codificar nada.</summary>
     private sealed class MissingFfmpeg : IRoomProxyMaker
@@ -539,6 +567,7 @@ public sealed partial class CollabHost : IDisposable
         }
     }
 
-    /// <summary>Un nombre para proponer la primera vez: el del usuario de Windows.</summary>
-    public static string SuggestedAlias() => CollabNames.NormalizeAlias(Environment.UserName) ?? "";
+    /// <summary>Nombre con el que entrar en las salas: el de Preferencias › Colaboración si está puesto; si no, el del usuario de Windows.</summary>
+    public static string SuggestedAlias(Settings.AppSettings? settings = null) =>
+        CollabNames.NormalizeAlias(settings?.CollabAlias) ?? CollabNames.NormalizeAlias(Environment.UserName) ?? "";
 }

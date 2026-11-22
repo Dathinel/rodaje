@@ -78,7 +78,6 @@ Lo que queda abierto en Rodaje, por prioridad. Cada punto se quita al cerrarlo y
 - Unir en un solo mensaje las notificaciones repetidas de un cambio que choca (hoy una por cada paso descartado).
 - Proxies (B14): falta generar el proxy de sala con FFmpeg (video bajo con AAC), el almacén aparte por `ContentHash` que la limpieza no toque y el medio «solo proxy» en la reproducción; el reparto por huella ya está en `ProxyShare.cs`.
 - `dathinel-red.exe` no va todavía en la distribución (B13): sin él la colaboración no abre.
-- «Solo por relé» (B13) existe en Sala (`Red.SinRele`/relé forzado) pero no en la interfaz de Rodaje: falta la opción en el panel de la sala o en Preferencias.
 
 ### Colaboración (B12): lo que dejó fuera la segunda revisión independiente
 

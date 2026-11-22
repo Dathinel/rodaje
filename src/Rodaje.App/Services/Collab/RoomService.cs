@@ -13,6 +13,12 @@ public sealed record CollabEnvironment(string RedPath, string IdentityFile, stri
     /// <summary>Cómo sale a la red: los relés públicos de n0 por defecto; las pruebas y la red local usan <see cref="Red.SinRele"/>.</summary>
     public Red Red { get; init; } = Red.N0;
 
+    /// <summary>
+    /// Cómo sale a la red, leída otra vez cada vez que se abre o se entra en una sala — como <see cref="RedPath"/> se
+    /// vuelve a buscar — para que un cambio en Preferencias no exija reiniciar. Nula, vale <see cref="Red"/>.
+    /// </summary>
+    public Func<Red>? RedSource { get; init; }
+
     public int MaxMembers { get; init; } = 8;
 
     /// <summary>Tiempo máximo para que el anfitrión conteste una carga; el de Sala por defecto es 30 s.</summary>
@@ -773,7 +779,7 @@ public sealed class RoomService : IAsyncDisposable
     {
         OpcionesSala o = new("rodaje", _env.AppVersion, alias, RedPath(), Path.GetFullPath(folder))
         {
-            Red = _env.Red,
+            Red = _env.RedSource?.Invoke() ?? _env.Red,
             MaxMiembros = _env.MaxMembers,
         };
         if (_env.StandbyWait is { } wait)

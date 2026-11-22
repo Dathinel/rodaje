@@ -19,7 +19,8 @@ internal static class MediaSearchDialog
 {
     /// <summary>Devuelve medio → archivo para lo que se encontró (puede estar vacío), o <c>null</c> si la persona cerró el diálogo.</summary>
     /// <param name="proxies">Las copias ligeras que se pueden pedir a quien hospeda por cada medio que no aparezca.</param>
-    public static async Task<IReadOnlyDictionary<string, string>?> ShowAsync(EditorServices services, nint hwnd, ReceivedProject received, string hostName, RoomProxies proxies)
+    /// <param name="originals">Los originales que se pueden pedir a quien hospeda; <c>null</c>, sin esa opción.</param>
+    public static async Task<IReadOnlyDictionary<string, string>?> ShowAsync(EditorServices services, nint hwnd, ReceivedProject received, string hostName, RoomProxies proxies, RoomOriginals? originals = null)
     {
         ArgumentNullException.ThrowIfNull(proxies);
         if (services.Shell.XamlRoot is not { } root)
@@ -35,6 +36,7 @@ internal static class MediaSearchDialog
         List<string> folders = [];
         var rows = new Dictionary<string, TextBlock>(StringComparer.Ordinal);
         var askButtons = new Dictionary<string, Button>(StringComparer.Ordinal);
+        var originalButtons = new Dictionary<string, Button>(StringComparer.Ordinal);
 
         var list = new StackPanel { Spacing = 6 };
 
@@ -94,6 +96,11 @@ internal static class MediaSearchDialog
                 ask.Visibility = found.ContainsKey(id) ? Visibility.Collapsed : Visibility.Visible;
             }
 
+            foreach ((string id, Button ask) in originalButtons)
+            {
+                ask.Visibility = found.ContainsKey(id) && !proxied.Contains(id) ? Visibility.Collapsed : Visibility.Visible;
+            }
+
             askMissing.Visibility = requestable > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
@@ -118,6 +125,14 @@ internal static class MediaSearchDialog
                 ask.Click += (_, _) => UiTask.Run(RequestProxyAsync(media.Id));
                 askButtons[media.Id] = ask;
                 item.Children.Add(ask);
+            }
+
+            if (originals?.MenuText(media.Id) is { } originalText)
+            {
+                var askOriginal = new Button { Content = originalText.Replace(" a quien hospeda", "", StringComparison.Ordinal) };
+                askOriginal.Click += (_, _) => UiTask.Run(RequestOriginalAsync(media.Id));
+                originalButtons[media.Id] = askOriginal;
+                item.Children.Add(askOriginal);
             }
 
             list.Children.Add(item);
@@ -164,6 +179,55 @@ internal static class MediaSearchDialog
                     rows[mediaId].Text = "No llegó la copia ligera";
                     problem = ex.Message;
                 }
+            }
+            finally
+            {
+                if (ReferenceEquals(current, mine))
+                {
+                    current = null;
+                    searching = null;
+                    progress.Operation = null;
+                }
+            }
+
+            Summarize();
+            if (problem is not null)
+            {
+                summary.Text += " " + problem;
+            }
+        }
+
+        /// <summary>Pide a quien hospeda el archivo original: llega comprobado y sustituye a la copia ligera si la había.</summary>
+        async Task RequestOriginalAsync(string mediaId)
+        {
+            if (originals is null || (found.ContainsKey(mediaId) && !proxied.Contains(mediaId)) || cancel.IsCancellationRequested)
+            {
+                return;
+            }
+
+            current?.Cancel();
+            using CancellationTokenSource mine = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token);
+            current = mine;
+            var operation = new OperationProgress();
+            searching = operation;
+            progress.Operation = operation;
+            string before = rows[mediaId].Text;
+            rows[mediaId].Text = "Pidiendo el original…";
+            string? problem = null;
+            try
+            {
+                found[mediaId] = await originals.RequestOriginalAsync(mediaId, operation, mine.Token);
+                proxied.Remove(mediaId);
+                rows[mediaId].Text = "Original recibido";
+            }
+            catch (OperationCanceledException)
+            {
+                rows[mediaId].Text = before;
+            }
+            catch (Exception ex) when (ex is CollabException or InvalidOperationException or IOException)
+            {
+                rows[mediaId].Text = before;
+                problem = ex.Message;
             }
             finally
             {

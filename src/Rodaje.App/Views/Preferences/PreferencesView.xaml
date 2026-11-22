@@ -115,5 +115,28 @@
                 <TextBlock x:Name="ContrastNote" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
             </StackPanel></ScrollViewer>
         </TabViewItem>
+        <TabViewItem Header="Colaboración" IsClosable="False"><ScrollViewer><StackPanel Spacing="16" Padding="12">
+            <TextBlock Text="Relé" FontWeight="SemiBold" />
+            <ComboBox x:Name="CollabRelayBox" Header="Salir a internet por" SelectionChanged="OnCollabRelayChanged" />
+            <StackPanel x:Name="CollabRelayOwnPanel" Spacing="8" Visibility="Collapsed">
+                <TextBox x:Name="CollabRelayUrlBox" Header="Dirección del relé propio" PlaceholderText="https://rele.midominio.es" TextChanged="OnCollabRelayUrlChanged" />
+                <TextBlock x:Name="CollabRelayUrlHint" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" Visibility="Collapsed" />
+                <StackPanel Orientation="Horizontal" Spacing="12">
+                    <Button x:Name="CollabRelayProbeButton" Content="Probar conexión" Click="OnCollabRelayProbeClick" />
+                    <TextBlock x:Name="CollabRelayProbeText" VerticalAlignment="Center" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+                </StackPanel>
+            </StackPanel>
+            <CheckBox x:Name="CollabRelayOnlyBox" Content="Solo por relé" />
+            <TextBlock Text="La otra persona no ve tu IP (el relé sí); todo pasa por el servidor y la conexión va algo más lenta. Por el relé de pruebas no viajan ni las copias ligeras ni los originales; por uno propio, sí." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+            <TextBlock Text="Tu nombre y tus copias" FontWeight="SemiBold" />
+            <TextBox x:Name="CollabAliasBox" Header="Tu nombre en la sala" PlaceholderText="El nombre de tu usuario de Windows" MaxLength="40" />
+            <Grid ColumnSpacing="12"><Grid.ColumnDefinitions><ColumnDefinition Width="*"/><ColumnDefinition Width="Auto"/></Grid.ColumnDefinitions>
+                <TextBox x:Name="CollabRoomsFolderBox" Header="Carpeta por defecto de las copias de sala" PlaceholderText="Documentos\Rodaje\Salas" />
+                <Button Grid.Column="1" Content="Elegir…" Click="OnCollabRoomsFolderClick" VerticalAlignment="Bottom" />
+            </Grid>
+            <TextBlock Text="Originales en una sala" FontWeight="SemiBold" />
+            <NumberBox x:Name="CollabOriginalCapBox" Header="Tope en GB (vacío: sin tope)" Minimum="0.1" Maximum="100000" SpinButtonPlacementMode="Inline" />
+            <TextBlock Text="Vale para los originales que pides a quien hospeda y para los que mandas cuando hospedas tú. Los originales solo viajan por conexión directa o por un relé propio, nunca por el relé de pruebas, y quien hospeda aprueba cada envío." Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
+        </StackPanel></ScrollViewer></TabViewItem>
     </TabView>
 </UserControl>
