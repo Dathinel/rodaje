@@ -312,8 +312,7 @@ public sealed partial class CollabEngine
     {
         try
         {
-            JsonElement message = id is null ? JsonSerializer.SerializeToElement(new { tipo = type })
-                : JsonSerializer.SerializeToElement(new { tipo = type, id });
+            JsonElement message = ShareMessages.Make(type, id is null ? null : w => w.WriteString("id", id));
             await _room.SendDirectAsync(message, target, _stop.Token).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is CollabException or OperationCanceledException)
