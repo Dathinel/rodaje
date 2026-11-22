@@ -45,6 +45,22 @@ public sealed partial class CultureParsingTests
         Assert.Empty(found);
     }
 
+    /// <summary>
+    /// Lo que hace que la región de Windows (coma decimal, la i turca, cifras arábigas) no cambie nada en la app ni en los
+    /// módulos: sin esto, cualquier ToString o ToLower sin cultura del código pasaría a depender del país.
+    /// </summary>
+    [Fact]
+    public void Cada_ejecutable_publica_con_InvariantGlobalization()
+    {
+        string root = RepositoryRoot();
+        List<string> exes = [.. new[] { "src", "modules" }
+            .SelectMany(f => Directory.EnumerateFiles(Path.Combine(root, f), "*.csproj", SearchOption.AllDirectories))
+            .Where(f => Regex.IsMatch(File.ReadAllText(f), "<OutputType>(Win)?Exe</OutputType>"))];
+        Assert.True(exes.Count >= 9, "la vigilancia no encuentra la app, el lanzador y los módulos");
+        Assert.Empty(exes.Where(f => !File.ReadAllText(f).Contains("<InvariantGlobalization>true</InvariantGlobalization>", StringComparison.Ordinal))
+            .Select(f => Path.GetRelativePath(root, f)));
+    }
+
     [Fact]
     public void La_vigilancia_detecta_los_parse_sin_cultura()
     {
