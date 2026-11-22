@@ -26,6 +26,7 @@ public static class PatchReservations
             .Where(op => op is { Kind: ElementKind.Track, Content: not null } && !ExistsTrack(current, op.Id))
             .Select(op => op.Id)
             .ToHashSet(StringComparer.Ordinal);
+        HashSet<string>? media = null;
 
         foreach (PatchOp op in patch.Ops)
         {
@@ -39,7 +40,7 @@ public static class PatchReservations
                     AddTrack(keys, created, op.Id);
                     keys.Add(Project);
                     break;
-                case ElementKind.Media when op.Content is not null && current.FindMedia(op.Id) is null:
+                case ElementKind.Media when op.Content is not null && !(media ??= MediaIds(current)).Contains(op.Id):
                     break;
                 default:
                     keys.Add(Project);
@@ -65,6 +66,9 @@ public static class PatchReservations
 
     private static bool ExistsTrack(Project project, string trackId) =>
         project.Sequences.Any(s => s.FindTrack(trackId) is not null);
+
+    // Índice por identificador: sin él, saber si un medio ya existe sale lineal por cada uno que trae el parche.
+    private static HashSet<string> MediaIds(Project project) => [.. project.Media.Select(m => m.Id)];
 
     private static string? CurrentTrackOf(Project project, string clipId)
     {

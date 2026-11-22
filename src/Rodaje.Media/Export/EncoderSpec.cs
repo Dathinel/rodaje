@@ -186,6 +186,12 @@ public sealed record EncoderSpec
     /// <summary>Canales como máximo (audio); 0 en video.</summary>
     public int MaxChannels { get; init; }
 
+    /// <summary>Lado más largo que codifica, en píxeles; <c>null</c> sin otro límite que <see cref="ExportVideoFormat.MaxDimension"/>.</summary>
+    public int? MaxSide { get; init; }
+
+    /// <summary>Cuadros por segundo como máximo; <c>null</c> sin otro límite que el de las secuencias.</summary>
+    public int? MaxFrameRate { get; init; }
+
     public bool IsAudio => Codec.IsAudio();
 
     public bool Supports10Bit => PixelFormats.Any(f => f.BitDepth() >= 10);

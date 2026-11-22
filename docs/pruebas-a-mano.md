@@ -14,7 +14,7 @@ Con el exe publicado desde `main` (`Rodaje.bat`). Cada punto remite al apartado 
 6. **Intercambio:** exporta a OTIO, FCPXML y EDL un montaje con cortes, un fundido y una velocidad, e importa el OTIO (pasos 1 y 2). Abrir la EDL/FCPXML en DaVinci Resolve es opcional (paso 4).
 7. **CinemaDNG en HDR sin recortar**, pasos 1 a 3 (necesita un DNG).
 8. **Preferencias:** abre Preferencias › Rendimiento y guarda sin cambiar nada: el cálculo en caché en marcha no se pierde. El «Mapeo de rutas» acepta una fila «origen | destino».
-9. **Exportar:** un MP4 H.264 corto, con y sin «Usar el render en caché».
+9. **Exportar:** un MP4 H.264 corto, con y sin «Usar el render en caché». Con un proyecto de celular (1080×2400 a 29,97) abre «Avanzado», despliega «Cuadros por segundo» y elige 60, luego despliega «Resolución» y elige dos seguidas: la app sigue abierta y cada lista conserva sus opciones (antes se cerraba).
 10. **Colaboración** (apartado de abajo; necesita otra persona o un segundo equipo): invitar, entrar, editar a la vez y salir.
 
 ## Colaboración (sala con anfitrión)

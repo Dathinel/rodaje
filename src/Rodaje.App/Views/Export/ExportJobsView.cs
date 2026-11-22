@@ -8,6 +8,7 @@ using Rodaje.App.Services.Operations;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Shared;
 using Rodaje.Export;
 using Rodaje.Media.Video;
@@ -215,6 +216,12 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
             ? "Esta exportación fue una simulación: no se escribió ningún archivo."
             : $"«{entry.Title}» ya no está en su carpeta; quizá se movió o se borró.");
 
+    /// <summary>
+    /// La acción de un botón de una tarjeta, después de su clic: quitar o reintentar quita la tarjeta (y su botón) del árbol, y
+    /// hacerlo dentro del propio clic es lo que WinUI no tolera (ver <c>ExportView.QueueRefresh</c>). Si lanza, queda informe y aviso.
+    /// </summary>
+    private void AfterClick(Action action) => DispatcherQueue.RunAfterEvent(action);
+
     private static T Resource<T>(string key) => (T)Application.Current.Resources[key];
 
     /// <summary>La tarjeta de una exportación; se actualiza en sitio para no rearmar la lista diez veces por segundo.</summary>
@@ -246,7 +253,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
             _error.Foreground = Resource<Brush>("MeterHighBrush");
             _cancel.Style = Resource<Style>("ToolButtonStyle");
             ToolTipService.SetToolTip(_cancel, "Cancelar la exportación");
-            _cancel.Click += (_, _) => owner._jobs?.Cancel(entry);
+            _cancel.Click += (_, _) => owner.AfterClick(() => owner._jobs?.Cancel(entry));
 
             var thumbFrame = new Border
             {
@@ -377,7 +384,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         private void AddAction(string text, Action run)
         {
             var button = new Button { Content = text, Padding = new Thickness(8, 3, 8, 3) };
-            button.Click += (_, _) => run();
+            button.Click += (_, _) => _owner.AfterClick(run);
             _actions.Children.Add(button);
         }
     }
