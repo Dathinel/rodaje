@@ -39,7 +39,10 @@ public sealed partial class CollabHost : IDisposable
         }
 
         Room = new RoomService(
-            new CollabEnvironment(redPath ?? FindRed() ?? Path.Combine(AppContext.BaseDirectory, RedFileName), Path.Combine(_folder, "identidad.bin"), appVersion ?? CurrentVersion()),
+            new CollabEnvironment(redPath ?? FindRed() ?? Path.Combine(AppContext.BaseDirectory, RedFileName), Path.Combine(_folder, "identidad.bin"), appVersion ?? CurrentVersion())
+            {
+                Locate = redPath is null ? FindRed : null,
+            },
             _switch,
             post);
         Room.StateChanged += OnRoomState;
