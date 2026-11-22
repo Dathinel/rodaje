@@ -25,67 +25,80 @@ internal static class SharedProjectFlow
 
         RoomService room = collab.Room;
         string host = room.State.Members.FirstOrDefault(m => m.IsHost)?.Alias ?? "quien hospeda la sala";
-        ReceivedProject? received = null;
-        while (received is null)
+        for (int attempt = 1; ; attempt++)
         {
-            (received, bool retry) = await ReceiveWithDialogAsync(services, room, roomFolder);
-            if (received is null && !retry)
+            ReceivedProject? received = null;
+            while (received is null)
+            {
+                (received, bool retry) = await ReceiveWithDialogAsync(services, room, roomFolder);
+                if (received is null && !retry)
+                {
+                    await room.LeaveAsync();
+                    services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", "No se recibió el proyecto. Puedes volver a entrar con la invitación o pedir otra.");
+                    return;
+                }
+            }
+
+            IReadOnlyDictionary<string, string>? found = await MediaSearchDialog.ShowAsync(services, hwnd, received, host);
+            if (found is null)
+            {
+                // Cerrar «Busca tus archivos» o pulsar «Salir de la sala» es salir: no se abre un proyecto que la persona no quiso abrir.
+                await room.LeaveAsync();
+                services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", "Todavía no se abrió ningún proyecto. Puedes volver a entrar con la invitación.");
+                return;
+            }
+
+            foreach ((string id, string path) in found)
+            {
+                if (received.Project.FindMedia(id) is { } media)
+                {
+                    media.Path = path;
+                }
+            }
+
+            string file = UniquePath(roomFolder, received.Name);
+            try
+            {
+                Project copy = ProjectPaths.ForSaving(received.Project, roomFolder);
+                await Task.Run(() => ProjectSerializer.Save(copy, file));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException)
+            {
+                services.Session.Notify(NotificationSeverity.Error, "No se pudo guardar tu copia del proyecto", ex.Message);
+                await room.LeaveAsync();
+                return;
+            }
+
+            while (!await services.Session.OpenProjectAsync(file))
+            {
+                if (!await AskOpenAgainAsync(services, file))
+                {
+                    await room.LeaveAsync();
+                    services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", $"Tu copia del proyecto está en «{file}»; puedes abrirla cuando quieras.");
+                    return;
+                }
+            }
+
+            if (collab.StartEditing(received))
+            {
+                int lost = received.Project.Media.Count - found.Count;
+                services.Session.Notify(
+                    lost > 0 ? NotificationSeverity.Warning : NotificationSeverity.Success,
+                    "Estás en la sala",
+                    lost > 0
+                        ? $"{lost} {(lost == 1 ? "medio no está" : "medios no están")} en tu equipo: se ven en la línea de tiempo, pero no se pueden reproducir hasta tener el archivo."
+                        : "Ya tienes el proyecto y todos sus medios.");
+                return;
+            }
+
+            // Mientras llegaba la copia se perdieron cambios de la sala: la copia nueva que se pida ya los trae.
+            if (attempt >= 3)
             {
                 await room.LeaveAsync();
-                services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", "No se recibió el proyecto. Puedes volver a entrar con la invitación o pedir otra.");
+                services.Session.Notify(NotificationSeverity.Warning, "Saliste de la sala", "La sala no paraba de cambiar y tu copia no llegó entera varias veces seguidas. Vuelve a entrar con la invitación cuando veas que está más tranquila.");
                 return;
             }
         }
-
-        IReadOnlyDictionary<string, string>? found = await MediaSearchDialog.ShowAsync(services, hwnd, received, host);
-        if (found is null)
-        {
-            // Cerrar «Busca tus archivos» o pulsar «Salir de la sala» es salir: no se abre un proyecto que la persona no quiso abrir.
-            await room.LeaveAsync();
-            services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", "Todavía no se abrió ningún proyecto. Puedes volver a entrar con la invitación.");
-            return;
-        }
-
-        foreach ((string id, string path) in found)
-        {
-            if (received.Project.FindMedia(id) is { } media)
-            {
-                media.Path = path;
-            }
-        }
-
-        string file = UniquePath(roomFolder, received.Name);
-        try
-        {
-            Project copy = ProjectPaths.ForSaving(received.Project, roomFolder);
-            await Task.Run(() => ProjectSerializer.Save(copy, file));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException)
-        {
-            services.Session.Notify(NotificationSeverity.Error, "No se pudo guardar tu copia del proyecto", ex.Message);
-            await room.LeaveAsync();
-            return;
-        }
-
-        while (!await services.Session.OpenProjectAsync(file))
-        {
-            if (!await AskOpenAgainAsync(services, file))
-            {
-                await room.LeaveAsync();
-                services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", $"Tu copia del proyecto está en «{file}»; puedes abrirla cuando quieras.");
-                return;
-            }
-        }
-
-        collab.StartEditing(received);
-
-        int lost = received.Project.Media.Count - found.Count;
-        services.Session.Notify(
-            lost > 0 ? NotificationSeverity.Warning : NotificationSeverity.Success,
-            "Estás en la sala",
-            lost > 0
-                ? $"{lost} {(lost == 1 ? "medio no está" : "medios no están")} en tu equipo: se ven en la línea de tiempo, pero no se pueden reproducir hasta tener el archivo."
-                : "Ya tienes el proyecto y todos sus medios.");
     }
 
     private static async Task<(ReceivedProject? Received, bool Retry)> ReceiveWithDialogAsync(EditorServices services, RoomService room, string roomFolder)
