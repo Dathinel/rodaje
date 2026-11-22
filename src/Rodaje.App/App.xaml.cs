@@ -135,7 +135,7 @@ public partial class App : Application
         {
             var package = new global::Windows.ApplicationModel.DataTransfer.DataPackage();
             package.SetText(text);
-            global::Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+            Rodaje.App.Shell.SystemAccess.SetClipboard(package);
         }, Program.Log);
         if (copied)
         {

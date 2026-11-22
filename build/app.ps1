@@ -15,6 +15,7 @@
 #   ... -Autoprueba      abre el exe publicado con --autoprueba (clip de prueba, todas las pestañas del inspector, un
 #                        segundo de reproducción), comprueba antes que la ventana queda lista y falla si no sale con 0,
 #                        deja rodaje-error.txt o un informe en fallos\. Sin audio, con datos aislados y hasta 180 s.
+#   ... -Caos -Semilla 7 -Minutos 5   modo caos de fondo con esa semilla (build\caos.ps1 corre varias y resume)
 # Los videos se importan y se ponen seguidos en la pista principal; un .rodaje se abre.
 # Solo recompila si el exe falta o algún fuente de src\ o Directory.Build.* es más nuevo que él. Sale con 0 si todo fue bien.
 [CmdletBinding(PositionalBinding = $false)]
@@ -28,7 +29,10 @@ param(
     [switch]$SinPublicar,
     [switch]$Publicar,
     [switch]$SoloPublicar,
-    [switch]$Autoprueba
+    [switch]$Autoprueba,
+    [switch]$Caos,
+    [int]$Semilla = 1,
+    [double]$Minutos = 5
 )
 
 $ErrorActionPreference = 'Stop'
@@ -153,6 +157,10 @@ if (($hayCambios -and -not $SinPublicar) -or -not (Test-Path -LiteralPath $Exe))
     if (-not (Publicar)) { Write-Host ''; exit 1 }
 }
 if ($SoloPublicar) { Bien 'Rodaje está compilado y listo para abrir.'; exit 0 }
+if ($Caos) {
+    & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'caos.ps1') -Semillas $Semilla -Minutos $Minutos -SinPublicar
+    exit $LASTEXITCODE
+}
 
 $argumentos = @()
 foreach ($a in @($Archivos | Where-Object { $_ })) {

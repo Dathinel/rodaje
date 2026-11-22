@@ -79,6 +79,15 @@ internal sealed partial class KeyboardShortcutHost : IDisposable
         }
     }
 
+    /// <summary>
+    /// Una pulsación sin teclado (modo caos), por el mismo camino que <c>PreviewKeyDown</c> desde el control con el foco:
+    /// la intercepción de la ventana, el atajo del control enfocado y el enrutador.
+    /// </summary>
+    internal bool Press(KeyChord chord) =>
+        _intercept?.Invoke(chord) == true
+        || TryFocusedShortcut(chord)
+        || (!FocusedSliderTakes(chord) && !ShortcutFocusRules.SpaceGoesToButton(chord, FocusedKeyboardButton()) && _router.Dispatch(chord, false, FocusKind(null)));
+
     private bool TryFocusedShortcut(KeyChord chord)
     {
         DependencyObject? focused = _root.XamlRoot is { } root ? FocusManager.GetFocusedElement(root) as DependencyObject : null;

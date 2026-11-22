@@ -832,7 +832,7 @@ internal sealed partial class ShortcutsView : UserControl, IEditorView, IShortcu
     {
         try
         {
-            using var process = Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+            using var process = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo(path) { UseShellExecute = true });
         }
         catch (System.ComponentModel.Win32Exception ex)
         {

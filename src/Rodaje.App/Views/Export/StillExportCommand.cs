@@ -101,7 +101,7 @@ internal static partial class StillExportCommand
                     {
                         try
                         {
-                            using var _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select,\"{result.OutputPath}\"") { UseShellExecute = false });
+                            using var _ = Rodaje.App.Shell.SystemAccess.Start(new System.Diagnostics.ProcessStartInfo("explorer.exe", $"/select,\"{result.OutputPath}\"") { UseShellExecute = false });
                         }
                         catch
                         {
