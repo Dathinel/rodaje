@@ -23,10 +23,17 @@ public sealed class PublicRelayTests
         new("anfitrion", true, "1.0.4", new DiagnosticoRed(releSolicitado, null, releSolicitado != "ninguno", soloRele, false), pares, null, 0, null, null);
 
     [Fact]
-    public void Nada_llega_a_decidirse_sin_diagnostico_ni_con_rele_ninguno()
+    public void Sin_diagnostico_se_niega_y_con_rele_ninguno_pasa()
     {
-        Assert.False(ProxyShareHost.OverPublicRelay(null, "luis"));
+        Assert.True(ProxyShareHost.OverPublicRelay(null, "luis"));
         Assert.False(ProxyShareHost.OverPublicRelay(Diag("ninguno"), "luis"));
+    }
+
+    [Fact]
+    public void Con_n0_un_camino_que_no_consta_como_directo_se_niega()
+    {
+        Assert.True(ProxyShareHost.OverPublicRelay(Diag("n0", pares: Par("luis", Camino.Desconocido)), "luis"));
+        Assert.True(ProxyShareHost.OverPublicRelay(Diag("n0"), "luis"));
     }
 
     [Fact]
@@ -42,7 +49,7 @@ public sealed class PublicRelayTests
         Diagnostico mixto = Diag("n0", pares: [Par("luis", Camino.Rele), Par("ana", Camino.Directo)]);
         Assert.True(ProxyShareHost.OverPublicRelay(mixto, "luis"));
         Assert.False(ProxyShareHost.OverPublicRelay(mixto, "ana"));
-        Assert.False(ProxyShareHost.OverPublicRelay(mixto, "desconocido"));
+        Assert.True(ProxyShareHost.OverPublicRelay(mixto, "desconocido"));
     }
 
     [Fact]

@@ -36,6 +36,9 @@ internal static class ProxyMessages
 /// </summary>
 public sealed partial class ProxyShareHost : IDisposable
 {
+    /// <summary>Peticiones esperando su turno o sirviéndose; las de más se niegan en el acto (cada una lee el diagnóstico de la red).</summary>
+    internal const int MaxQueued = 16;
+
     private readonly RoomService _room;
     private readonly IRoomProxyMaker _maker;
     private readonly string _folder;
@@ -45,6 +48,7 @@ public sealed partial class ProxyShareHost : IDisposable
     // Leído una vez: los avisos sueltos pueden llegar después de Dispose, cuando _stop ya no da su token.
     private readonly CancellationToken _token;
     private readonly Dictionary<string, RoomProxy> _made = new(StringComparer.Ordinal);
+    private int _queued;
 
     /// <param name="diagnostic">Cómo leer el diagnóstico de la sala (el de <see cref="RoomService"/> salvo en las pruebas).</param>
     public ProxyShareHost(RoomService room, IRoomProxyMaker maker, string roomFolder,
@@ -70,7 +74,24 @@ public sealed partial class ProxyShareHost : IDisposable
         if (ShareMessages.Type(message) == ProxyMessages.Ask && _room.State is { IsHost: true, Phase: RoomPhase.Hosting }
             && message.TryGetProperty("sha256", out JsonElement h) && h.ValueKind == JsonValueKind.String && h.GetString() is { } hash && MediaManifest.IsHash(hash))
         {
-            UiTask.Run(Task.Run(() => ServeAsync(from, hash)));
+            if (Interlocked.Increment(ref _queued) > MaxQueued)
+            {
+                Interlocked.Decrement(ref _queued);
+                UiTask.Run(Task.Run(() => Fail(from, hash, "Quien hospeda la sala está atendiendo muchas peticiones a la vez. Vuelve a pedirlo en un momento.")));
+                return;
+            }
+
+            UiTask.Run(Task.Run(async () =>
+            {
+                try
+                {
+                    await ServeAsync(from, hash).ConfigureAwait(false);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _queued);
+                }
+            }));
         }
     }
 
@@ -78,23 +99,24 @@ public sealed partial class ProxyShareHost : IDisposable
     public const string RelayRefusal = "Por internet con el relé de pruebas no se mandan proxies.";
 
     /// <summary>
-    /// Si el camino hasta <paramref name="peer"/> pasa por el relé público de n0: los proxies no van por ahí (son
-    /// archivos grandes y el relé es de pruebas). Solo se mandan por conexión directa o por un relé propio; un relé
-    /// propio se conoce por <see cref="DiagnosticoRed.ReleSolicitado"/> que ya no es «n0».
+    /// Si el camino hasta <paramref name="peer"/> puede pasar por el relé público de n0: los proxies y los originales no
+    /// van por ahí (son archivos grandes y el relé es de pruebas). Solo se mandan por conexión directa o por un relé
+    /// propio; un relé propio se conoce por <see cref="DiagnosticoRed.ReleSolicitado"/> que ya no es «n0». Ante la duda
+    /// (sin diagnóstico, o con n0 y un camino que no consta como directo) se niega.
     /// </summary>
     public static bool OverPublicRelay(Diagnostico? diagnostic, string peer)
     {
-        if (diagnostic is null || diagnostic.Red.ReleSolicitado != "n0")
-        {
-            return false;
-        }
-
-        if (diagnostic.Red.SoloRele)
+        if (diagnostic is null)
         {
             return true;
         }
 
-        return diagnostic.Pares.FirstOrDefault(p => p.Clave == peer)?.Camino == Camino.Rele;
+        if (diagnostic.Red.ReleSolicitado != "n0")
+        {
+            return false;
+        }
+
+        return diagnostic.Red.SoloRele || diagnostic.Pares.FirstOrDefault(p => p.Clave == peer)?.Camino != Camino.Directo;
     }
 
     private async Task ServeAsync(string to, string mediaHash)

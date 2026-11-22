@@ -256,6 +256,33 @@ public sealed class ProxyShareTests
         Assert.Contains("componente de video", ex.Message, StringComparison.Ordinal);
     }
 
+    [SalaFact]
+    public async Task Con_la_cola_llena_la_peticion_de_mas_se_niega_en_el_acto()
+    {
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        FakeMaker maker = new((_, folder) => Write(folder, 300_000));
+        TaskCompletionSource<Diagnostico?> hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int reads = 0;
+        using ProxyShareHost share = new(host, maker, host.RoomFolder, _ => { Interlocked.Increment(ref reads); return hold.Task; });
+        using CancellationTokenSource stop = new();
+
+        static string Hash(int i) => new string('b', 62) + i.ToString("x2", System.Globalization.CultureInfo.InvariantCulture);
+        List<Task> waiting = [.. Enumerable.Range(0, ProxyShareHost.MaxQueued).Select(i =>
+            ProxyShareGuest.RequestAsync(guest, Hash(i), Path.Combine(guest.RoomFolder, $"{i}.mp4"), cancellationToken: stop.Token))];
+        await CollabHarness.Until(() => Volatile.Read(ref reads) == ProxyShareHost.MaxQueued, "las peticiones en cola");
+
+        CollabException ex = await Assert.ThrowsAsync<CollabException>(() =>
+            ProxyShareGuest.RequestAsync(guest, Hash(99), Path.Combine(guest.RoomFolder, "de-mas.mp4")).WaitAsync(TimeSpan.FromSeconds(30)));
+
+        Assert.Contains("muchas peticiones", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(ProxyShareHost.MaxQueued, Volatile.Read(ref reads));
+        await stop.CancelAsync();
+        hold.SetResult(null);
+        await Task.WhenAll(waiting.Select(t => t.ContinueWith(_ => { }, TaskScheduler.Default)));
+    }
+
     private sealed class Sync<T>(Action<T> add) : IProgress<T>
     {
         public void Report(T value)
