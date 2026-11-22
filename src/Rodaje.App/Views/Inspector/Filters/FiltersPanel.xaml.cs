@@ -651,18 +651,21 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     }
 
     // Los botones y el menú de una fila editan y la lista se rehace (quita la fila del botón): después del clic (tarea 91).
-    private void OnEnabledClick(object sender, RoutedEventArgs e) => DispatcherQueue.RunAfterEvent(() => SetEnabled(sender));
-
-    private void SetEnabled(object sender)
+    private void OnEnabledClick(object sender, RoutedEventArgs e)
     {
         if (sender is ToggleButton { Tag: string effectId } toggle)
         {
             bool enabled = toggle.IsChecked != true;
-            if (!RunOnSameFilter(effectId, (sequence, clip, effect) => Edits.SetEffectEnabled(sequence, clip, effect, enabled)))
-            {
-                // Falló (pista bloqueada): la fila no se rehace si el modelo no cambió.
-                toggle.IsChecked = toggle.IsChecked != true;
-            }
+            DispatcherQueue.RunAfterEvent(() => SetEnabled(toggle, effectId, enabled));
+        }
+    }
+
+    private void SetEnabled(ToggleButton toggle, string effectId, bool enabled)
+    {
+        if (!RunOnSameFilter(effectId, (sequence, clip, effect) => Edits.SetEffectEnabled(sequence, clip, effect, enabled)))
+        {
+            // Falló (pista bloqueada): la fila no se rehace si el modelo no cambió.
+            toggle.IsChecked = enabled;
         }
     }
 
@@ -700,13 +703,13 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
     {
         if (args.Items.Count == 1 && args.Items[0] is FilterItem item)
         {
-            DispatcherQueue.RunAfterEvent(() => Reorder(item));
+            int target = Items.IndexOf(item);
+            DispatcherQueue.RunAfterEvent(() => Reorder(item, target));
         }
     }
 
-    private void Reorder(FilterItem item)
+    private void Reorder(FilterItem item, int target)
     {
-        int target = Items.IndexOf(item);
         if (target >= 0 && target != IndexOf(item.EffectId))
         {
             Run((sequence, clip) => Edits.MoveEffect(sequence, clip, item.EffectId, target));
