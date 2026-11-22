@@ -167,7 +167,7 @@ public sealed class RoomProxyMakerTests : IDisposable
         string path = Path.Combine(_root, "toma.mp4");
         if (!File.Exists(path))
         {
-            GeneratedMedia media = TestMediaGenerator.CreateDefault()!.GetOrCreate(Spec);
+            Rodaje.TestMedia.GeneratedMedia media = TestMediaGenerator.CreateDefault()!.GetOrCreate(Spec);
             File.Copy(media.Path, path);
         }
 
