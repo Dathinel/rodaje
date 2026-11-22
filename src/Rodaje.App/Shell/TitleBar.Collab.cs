@@ -26,6 +26,8 @@ internal sealed partial class TitleBar
 
         _roomPanel = new RoomPanel(services, collab, () => InviteDialog.ShowAsync(services));
         _roomFlyout = new Flyout { Content = new ScrollViewer { Content = _roomPanel.Content, MaxHeight = 640, VerticalScrollBarVisibility = ScrollBarVisibility.Auto } };
+        // El tope por defecto del flyout (456 px) corta el panel, que pide hasta 460 más el margen.
+        _roomFlyout.FlyoutPresenterStyle = new Style(typeof(FlyoutPresenter)) { Setters = { new Setter(FrameworkElement.MaxWidthProperty, 520.0) } };
         _roomFlyout.Opened += (_, _) => _roomPanel.StartDiagnostics();
         _roomFlyout.Closed += (_, _) => _roomPanel.StopDiagnostics();
         collab.Room.StateChanged += state => UpdateCollab(state);
