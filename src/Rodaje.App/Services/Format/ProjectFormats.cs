@@ -120,6 +120,58 @@ public static class ProjectFormats
         return aspect.Custom ? (width, height) : aspect.Size(shortSide);
     }
 
+    /// <summary>Tamaños que se aceptan como estándar (tabla en <c>docs/resoluciones-estandar.md</c>).</summary>
+    public static IReadOnlyList<(int Width, int Height)> StandardSizes { get; } =
+    [
+        (1280, 720), (1920, 1080), (2560, 1440), (3840, 2160), (7680, 4320),
+        (720, 1280), (1080, 1920), (1440, 2560), (2160, 3840),
+        (1080, 1080), (1080, 1350), (4096, 2160), (2048, 1080),
+    ];
+
+    public static bool IsStandard(int width, int height) => StandardSizes.Contains((width, height));
+
+    /// <summary>
+    /// El estándar que se ofrece en lugar de un tamaño raro: casi cuadrado → 1080×1080; vertical más cerca de 4:5 que de
+    /// 9:16 → 1080×1350; si no, 16:9 o 9:16 con el menor lado corto que no baje del de origen (2 % de margen, tope 4320).
+    /// Así 1080×2400 → 1080×1920, 1366×768 → 1920×1080 y el ultrapanorámico 2560×1080 → 1920×1080 (con barras o recorte).
+    /// Un tamaño que ya es estándar se devuelve igual.
+    /// </summary>
+    public static (int Width, int Height) NearestStandard(int width, int height)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        if (IsStandard(width, height))
+        {
+            return (width, height);
+        }
+
+        if (Match(width, height).Label == "1:1")
+        {
+            return (1080, 1080);
+        }
+
+        // Frontera entre 9:16 (0,5625) y 4:5 (0,8) en escala logarítmica.
+        if (width < height && (double)width / height > Math.Sqrt(0.5625 * 0.8))
+        {
+            return (1080, 1350);
+        }
+
+        int shortSide = Math.Min(width, height);
+        int[] sides = [720, 1080, 1440, 2160, 4320];
+        int side = sides.FirstOrDefault(s => s >= shortSide * 0.98, sides[^1]);
+        int longSide = side * 16 / 9;
+        return width >= height ? (longSide, side) : (side, longSide);
+    }
+
+    /// <summary>«estándar vertical», «estándar horizontal», «cuadrado» o «retrato 4:5», para el texto del botón.</summary>
+    public static string StandardName(int width, int height) => (width, height) switch
+    {
+        (1080, 1080) => "cuadrado",
+        (1080, 1350) => "retrato 4:5",
+        _ when width < height => "estándar vertical",
+        _ => "estándar horizontal",
+    };
+
     /// <summary>Si las medidas sirven para una secuencia (pares y entre <see cref="MinSide"/> y <see cref="MaxSide"/>).</summary>
     public static bool IsValidSize(int width, int height) =>
         width is >= MinSide and <= MaxSide && height is >= MinSide and <= MaxSide && width % 2 == 0 && height % 2 == 0;
