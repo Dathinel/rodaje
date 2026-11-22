@@ -34,6 +34,9 @@ public sealed record CollabInvitation(string Link, DateTimeOffset ExpiresAt, boo
 /// </summary>
 public sealed class RoomService : IAsyncDisposable
 {
+    /// <summary>El «tipo» del directo que el anfitrión difunde justo antes de cerrar la sala.</summary>
+    internal const string RoomClosedType = "sala-cerrada";
+
     private readonly CollabEnvironment _env;
     private readonly ICollabPayloadHandler _handler;
     private readonly Action<Action> _post;
@@ -180,8 +183,11 @@ public sealed class RoomService : IAsyncDisposable
         }
     }
 
-    /// <summary>Sale de la sala (o la cierra, si es el anfitrión). Sin sala no hace nada.</summary>
-    public async Task LeaveAsync()
+    /// <summary>Sale de la sala (o la cierra para todos, si es el anfitrión). Sin sala no hace nada.</summary>
+    public Task LeaveAsync() => LeaveAsync(warnClosed: true);
+
+    // Al desechar (cerrar Rodaje, pruebas) no se avisa: para los demás es una caída y el suplente puede tomar la sala.
+    internal async Task LeaveAsync(bool warnClosed)
     {
         await _lifecycle.WaitAsync().ConfigureAwait(false);
         try
@@ -195,6 +201,11 @@ public sealed class RoomService : IAsyncDisposable
 
             if (sala is not null)
             {
+                if (warnClosed)
+                {
+                    await WarnClosedAsync(sala).ConfigureAwait(false);
+                }
+
                 await DisposeQuietlyAsync(sala).ConfigureAwait(false);
             }
 
@@ -203,6 +214,28 @@ public sealed class RoomService : IAsyncDisposable
         finally
         {
             _lifecycle.Release();
+        }
+    }
+
+    /// <summary>
+    /// El anfitrión avisa a todos antes de cerrar: sin este directo, la desconexión les parece un corte de red y Sala
+    /// reintenta entrar para siempre. «enviar» solo encola en el proceso de red: el respiro le da tiempo a salir al cable.
+    /// </summary>
+    private static async Task WarnClosedAsync(Dathinel.Sala.Sala sala)
+    {
+        if (!sala.EsAnfitrion)
+        {
+            return;
+        }
+
+        try
+        {
+            await sala.EnviarDirectoAsync(ShareMessages.Make(RoomClosedType)).WaitAsync(TimeSpan.FromSeconds(2)).ConfigureAwait(false);
+            await Task.Delay(300).ConfigureAwait(false);
+        }
+        catch (Exception ex) when (ex is not OutOfMemoryException)
+        {
+            // Si el aviso no sale, los invitados lo verán como un corte más y reintentarán.
         }
     }
 
@@ -226,7 +259,7 @@ public sealed class RoomService : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
-        await LeaveAsync().ConfigureAwait(false);
+        await LeaveAsync(warnClosed: false).ConfigureAwait(false);
         _lifecycle.Dispose();
     }
 
@@ -358,12 +391,39 @@ public sealed class RoomService : IAsyncDisposable
 
         try
         {
-            return await sala.DiagnosticoAsync(cancellationToken).ConfigureAwait(false);
+            Diagnostico d = await sala.DiagnosticoAsync(cancellationToken).ConfigureAwait(false);
+            return FillMemberAliases(d, sala.Miembros);
         }
         catch (Exception ex) when (ex is SalaException or OperationCanceledException or ObjectDisposedException)
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// El proceso de red no siempre sabe el alias de un par (al invitado no se lo da): <see cref="Diagnostico.ParaTelefono"/>
+    /// enseñaría sus palabras de comprobación. Se rellena con la lista de miembros, que sí lleva nombres.
+    /// </summary>
+    internal static Diagnostico FillMemberAliases(Diagnostico d, IReadOnlyList<Miembro> members)
+    {
+        ArgumentNullException.ThrowIfNull(d);
+        if (d.Pares.All(p => p.Alias.Length > 0))
+        {
+            return d;
+        }
+
+        Dictionary<string, string> aliases = new(StringComparer.Ordinal);
+        foreach (Miembro m in members)
+        {
+            if (m.Alias.Length > 0)
+            {
+                aliases[m.Clave] = m.Alias;
+            }
+        }
+
+        return aliases.Count == 0
+            ? d
+            : d with { Pares = [.. d.Pares.Select(p => p.Alias.Length == 0 && aliases.TryGetValue(p.Clave, out string? a) ? p with { Alias = a } : p)] };
     }
 
     /// <summary>Manda un mensaje fuera del orden (al anfitrión, o a un miembro si este equipo hospeda).</summary>
@@ -482,7 +542,17 @@ public sealed class RoomService : IAsyncDisposable
             _handler.Rejected(r);
             if (r.Motivo != "ya-confirmado") Notify(CollabMessages.Rejected(r.Motivo, null), true);
         });
-        s.DirectoRecibido += d => OnSala(s, () => DirectReceived?.Invoke(d.De, d.Datos));
+        s.DirectoRecibido += d => OnSala(s, () =>
+        {
+            // El anfitrión avisa antes de cerrar: es el fin de la sala, no un corte de red que se reintente.
+            if (!State.IsHost && d.De == HostKey && ShareMessages.Type(d.Datos) == RoomClosedType)
+            {
+                UiTask.Run(EndAsync(s, CollabMessages.ForHostClosed(HostAlias(d.De), _folder)));
+                return;
+            }
+
+            DirectReceived?.Invoke(d.De, d.Datos);
+        });
         s.BlobAvance += (hash, bytes) => OnSala(s, () => BlobProgress?.Invoke(hash, bytes));
         s.PresenciaRecibida += (k, d) => OnSala(s, () => PresenceReceived?.Invoke(k, d));
         s.ReservaCambia += (k, owner) => OnSala(s, () => ReservationChanged?.Invoke(k, owner));
@@ -574,6 +644,12 @@ public sealed class RoomService : IAsyncDisposable
             Notify(CollabMessages.ForUnexpected(), true);
         }
     }
+
+    /// <summary>El alias de quien manda el directo de sala cerrada (el anfitrión); vacío si no está en la lista.</summary>
+    private string HostAlias(string from) =>
+        State.Members.FirstOrDefault(m => m.Key == from)?.Alias
+        ?? State.Members.FirstOrDefault(m => m.IsHost)?.Alias
+        ?? "";
 
     private async Task EndAsync(Dathinel.Sala.Sala s, string text)
     {

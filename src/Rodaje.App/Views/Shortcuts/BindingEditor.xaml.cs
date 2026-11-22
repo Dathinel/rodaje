@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Theme;
+using Rodaje.App.Views.Inspector;
 
 namespace Rodaje.App.Views.Shortcuts;
 
@@ -247,7 +248,8 @@ internal sealed partial class BindingEditor : UserControl
             var remove = new Button { Style = (Style)Application.Current.Resources["ToolButtonStyle"], Content = "" };
             ToolTipService.SetToolTip(remove, $"Quitar: «{slot.Text}» deja de hacer «{slot.Label}»");
             AutomationProperties.SetName(remove, $"Quitar {slot.Text}");
-            remove.Click += (_, _) => Remove(slot);
+            // Quitar o asignar rehace las filas (y quita el botón pulsado o el dueño del menú): después del evento (tarea 91).
+            remove.Click += (_, _) => DispatcherQueue.RunAfterEvent(() => Remove(slot));
             buttons.Children.Add(remove);
         }
 
@@ -306,14 +308,22 @@ internal sealed partial class BindingEditor : UserControl
             Fill();
         };
         flyout.Opened += (_, _) => search.Focus(FocusState.Programmatic);
-        list.ItemClick += (_, e) => UiTask.Run(async () =>
+        list.ItemClick += (_, e) =>
         {
-            if (e.ClickedItem is not FrameworkElement { Tag: string id } || _host is null)
+            if (e.ClickedItem is FrameworkElement { Tag: string id })
+            {
+                flyout.Hide();
+                DispatcherQueue.RunAfterEvent(() => UiTask.Run(AssignAsync(id)));
+            }
+        };
+
+        async Task AssignAsync(string id)
+        {
+            if (_host is null)
             {
                 return;
             }
 
-            flyout.Hide();
             if (_key is { } vk)
             {
                 await _host.AssignKeyAsync(id, new KeyChord(vk, slot.Modifiers), null, toSlot: true);
@@ -324,7 +334,8 @@ internal sealed partial class BindingEditor : UserControl
             }
 
             owner.Focus(FocusState.Programmatic);
-        });
+        }
+
         return flyout;
     }
 

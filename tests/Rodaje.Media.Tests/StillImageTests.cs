@@ -90,4 +90,38 @@ public sealed class StillImageTests
         Assert.Contains("un cuadro", MediaSupport.Classify(image.Path, out var info)!);
         Assert.False(info!.IsStillImage);
     }
+
+    /// <summary>
+    /// Una foto de cámara pasa del búfer de lectura (32 KB): la sonda leía su único paquete, no podía volver atrás y el
+    /// primer cuadro no salía (miniatura vacía, «no se pudo decodificar» al exportar). Las de 64×48 cabían y pasaban.
+    /// </summary>
+    [FfmpegLibraryTheory]
+    [InlineData("jpg", 1920, 1080)]
+    [InlineData("png", 1281, 721)]
+    [InlineData("webp", 1920, 1080)]
+    public void Camera_sized_images_decode_on_the_first_request(string extension, int width, int height)
+    {
+        string directory = Directory.CreateTempSubdirectory("rodaje-foto-grande-").FullName;
+        try
+        {
+            string path = Path.Combine(directory, "foto." + extension);
+            FfmpegTool.Default!.Run(["-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i",
+                $"testsrc2=s={width + 1}x{height + 1},noise=alls=40:allf=t,scale={width}:{height}", "-frames:v", "1", "-update", "1", path]);
+            Assert.True(new FileInfo(path).Length > 32 * 1024, "La imagen tiene que pasar del búfer de lectura.");
+            Assert.Null(MediaSupport.Classify(path, out MediaInfo? info));
+            Assert.Equal((width, height), (info!.Video!.Width, info.Video.Height));
+            using (var decoder = VideoDecoder.Open(path, new VideoDecoderOptions { AllowHardwareDecoding = false }))
+            using (var frame = decoder.GetFrame(0))
+            {
+                Assert.NotNull(frame);
+            }
+
+            using ThumbnailDecoder thumbnails = ThumbnailDecoder.Open(path);
+            Assert.NotNull(thumbnails.Decode(Time.Zero, 90));
+        }
+        finally
+        {
+            Directory.Delete(directory, recursive: true);
+        }
+    }
 }

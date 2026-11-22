@@ -650,22 +650,28 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
     }
 
+    // Los botones y el menú de una fila editan y la lista se rehace (quita la fila del botón): después del clic (tarea 91).
     private void OnEnabledClick(object sender, RoutedEventArgs e)
     {
         if (sender is ToggleButton { Tag: string effectId } toggle)
         {
             bool enabled = toggle.IsChecked != true;
-            if (!RunOnSameFilter(effectId, (sequence, clip, effect) => Edits.SetEffectEnabled(sequence, clip, effect, enabled)))
-            {
-                // Falló (pista bloqueada): la fila no se rehace si el modelo no cambió.
-                toggle.IsChecked = toggle.IsChecked != true;
-            }
+            DispatcherQueue.RunAfterEvent(() => SetEnabled(toggle, effectId, enabled));
         }
     }
 
-    private void OnMoveUpClick(object sender, RoutedEventArgs e) => Move(sender, -1);
+    private void SetEnabled(ToggleButton toggle, string effectId, bool enabled)
+    {
+        if (!RunOnSameFilter(effectId, (sequence, clip, effect) => Edits.SetEffectEnabled(sequence, clip, effect, enabled)))
+        {
+            // Falló (pista bloqueada): la fila no se rehace si el modelo no cambió.
+            toggle.IsChecked = enabled;
+        }
+    }
 
-    private void OnMoveDownClick(object sender, RoutedEventArgs e) => Move(sender, 1);
+    private void OnMoveUpClick(object sender, RoutedEventArgs e) => DispatcherQueue.RunAfterEvent(() => Move(sender, -1));
+
+    private void OnMoveDownClick(object sender, RoutedEventArgs e) => DispatcherQueue.RunAfterEvent(() => Move(sender, 1));
 
     private void Move(object sender, int delta)
     {
@@ -675,7 +681,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
     }
 
-    private void OnRemoveClick(object sender, RoutedEventArgs e)
+    private void OnRemoveClick(object sender, RoutedEventArgs e) => DispatcherQueue.RunAfterEvent(() => Remove(sender));
+
+    private void Remove(object sender)
     {
         if (sender is FrameworkElement { Tag: string effectId })
         {
@@ -690,15 +698,18 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
     }
 
-    // La lista ya movió la fila; se pasa al modelo con un comando y la lista se rehace desde ahí.
+    // La lista ya movió la fila; se pasa al modelo con un comando y la lista se rehace desde ahí, después del evento.
     private void OnDragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
     {
-        if (args.Items.Count != 1 || args.Items[0] is not FilterItem item)
+        if (args.Items.Count == 1 && args.Items[0] is FilterItem item)
         {
-            return;
+            int target = Items.IndexOf(item);
+            DispatcherQueue.RunAfterEvent(() => Reorder(item, target));
         }
+    }
 
-        int target = Items.IndexOf(item);
+    private void Reorder(FilterItem item, int target)
+    {
         if (target >= 0 && target != IndexOf(item.EffectId))
         {
             Run((sequence, clip) => Edits.MoveEffect(sequence, clip, item.EffectId, target));

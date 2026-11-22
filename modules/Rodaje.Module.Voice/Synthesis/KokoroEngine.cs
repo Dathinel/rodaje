@@ -37,7 +37,7 @@ internal sealed class KokoroEngine : IDisposable
     }
 
     public static int DefaultThreads() =>
-        int.TryParse(Environment.GetEnvironmentVariable("RODAJE_VOZ_HILOS"), out int n) && n > 0 ? n : Math.Clamp(Environment.ProcessorCount / 2, 1, 16);
+        int.TryParse(Environment.GetEnvironmentVariable("RODAJE_VOZ_HILOS"), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int n) && n > 0 ? n : Math.Clamp(Environment.ProcessorCount / 2, 1, 16);
 
     public static bool IsKnown(char c) => Vocab.ContainsKey(c);
 

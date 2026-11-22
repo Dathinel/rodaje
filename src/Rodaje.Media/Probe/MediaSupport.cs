@@ -12,6 +12,8 @@ public static class MediaSupport
         "exr_pipe", "qoi_pipe", "j2k_pipe", "jpegxl_pipe", "pam_pipe", "pgm_pipe", "ppm_pipe", "psd_pipe", "svg_pipe",
     };
 
+    internal static bool IsStillImageDemuxer(string format) => StillImageFormats.Contains(format);
+
     internal static bool IsStillImageFormat(string format, string codec) => StillImageFormats.Contains(format)
         && codec is "png" or "mjpeg" or "webp" or "bmp" or "tiff";
 
@@ -22,13 +24,37 @@ public static class MediaSupport
         {
             info = MediaProbe.Probe(path);
         }
+        catch (FileNotFoundException)
+        {
+            // Borrado entre elegirlo y leerlo (carpeta vigilada, reenlazar): la importación entera fallaba con la excepción.
+            info = null;
+            return "el archivo ya no existe";
+        }
         catch (MediaException ex)
         {
             info = null;
-            return $"no se pudo leer ({ex.Message})";
+            return IsLocked(path) ? "otro programa lo tiene abierto sin dejar leerlo; ciérralo y vuelve a importarlo" : $"no se pudo leer ({ex.Message})";
         }
 
         return Problem(info);
+    }
+
+    // FFmpeg dice «No such file or directory» de un archivo que existe pero está bloqueado (Windows).
+    private static bool IsLocked(string path)
+    {
+        try
+        {
+            using FileStream _ = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            return false;
+        }
+        catch (IOException)
+        {
+            return File.Exists(path);
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return false;
+        }
     }
 
     /// <summary><c>null</c> si el medio ya leído se puede usar; si no, el motivo en español.</summary>

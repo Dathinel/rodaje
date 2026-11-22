@@ -71,22 +71,25 @@ internal sealed partial class TextPanel
 
         var box = new TextBox { Text = word.Text, Height = 28, MinHeight = 28, MinWidth = 0, FontSize = Resource<double>("BodyFontSize") };
         AutomationProperties.SetName(box, $"Palabra {index + 1}");
+        string committed = word.Text;
         void Commit()
         {
-            if (box.Text != word.Text)
+            if (box.Text != committed)
             {
+                committed = box.Text;
                 _wordsShown = null;
                 _editor?.CorrectWord(index, box.Text);
             }
         }
 
-        box.LostFocus += (_, _) => Commit();
+        // Corregir o dividir rehace la lista de palabras (y quita esta fila): después del evento (tarea 91).
+        box.LostFocus += (_, _) => DispatcherQueue.RunAfterEvent(Commit);
         box.KeyDown += (_, e) =>
         {
             if (e.Key == VirtualKey.Enter)
             {
                 e.Handled = true;
-                Commit();
+                DispatcherQueue.RunAfterEvent(Commit);
             }
             else if (e.Key == VirtualKey.Escape)
             {
@@ -105,11 +108,11 @@ internal sealed partial class TextPanel
         };
         AutomationProperties.SetName(split, $"Dividir el subtítulo en «{word.Text}»");
         ToolTipService.SetToolTip(split, "Dividir aquí: esta palabra empieza un subtítulo nuevo");
-        split.Click += (_, _) =>
+        split.Click += (_, _) => DispatcherQueue.RunAfterEvent(() =>
         {
             _wordsShown = null;
             _editor?.SplitAtWord(index);
-        };
+        });
 
         Grid.SetColumn(box, 1);
         Grid.SetColumn(split, 2);

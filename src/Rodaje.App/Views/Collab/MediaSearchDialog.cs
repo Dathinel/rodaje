@@ -18,8 +18,10 @@ namespace Rodaje.App.Views.Collab;
 internal static class MediaSearchDialog
 {
     /// <summary>Devuelve medio → archivo para lo que se encontró (puede estar vacío), o <c>null</c> si la persona cerró el diálogo.</summary>
-    public static async Task<IReadOnlyDictionary<string, string>?> ShowAsync(EditorServices services, nint hwnd, ReceivedProject received, string hostName)
+    /// <param name="proxies">Las copias ligeras que se pueden pedir a quien hospeda por cada medio que no aparezca.</param>
+    public static async Task<IReadOnlyDictionary<string, string>?> ShowAsync(EditorServices services, nint hwnd, ReceivedProject received, string hostName, RoomProxies proxies)
     {
+        ArgumentNullException.ThrowIfNull(proxies);
         if (services.Shell.XamlRoot is not { } root)
         {
             return new Dictionary<string, string>();
@@ -28,29 +30,24 @@ internal static class MediaSearchDialog
         List<MediaRef> projectMedia = received.Project.Media;
         Dictionary<string, MediaManifestEntry> known = received.Media.Where(e => projectMedia.Any(m => m.Id == e.MediaId)).ToDictionary(e => e.MediaId, StringComparer.Ordinal);
         Dictionary<string, string> found = new(StringComparer.Ordinal);
+        // Con copia ligera el medio ya se ve, pero el original sigue interesando: la búsqueda en carpeta lo sigue intentando.
+        HashSet<string> proxied = new(StringComparer.Ordinal);
         List<string> folders = [];
         var rows = new Dictionary<string, TextBlock>(StringComparer.Ordinal);
+        var askButtons = new Dictionary<string, Button>(StringComparer.Ordinal);
 
         var list = new StackPanel { Spacing = 6 };
-        foreach (MediaRef media in projectMedia)
-        {
-            var name = new TextBlock { Text = MediaManifest.DisplayName(media.Name.Length > 0 ? media.Name : media.Id), TextTrimming = TextTrimming.CharacterEllipsis, FontWeight = FontWeights.SemiBold };
-            var state = new TextBlock { Text = known.ContainsKey(media.Id) ? "Buscando…" : "No está en tu equipo", FontSize = ThemeResources.Size("BodyFontSize"), Foreground = ThemeResources.Brush("TextMutedBrush") };
-            rows[media.Id] = state;
-            var item = new StackPanel();
-            item.Children.Add(name);
-            item.Children.Add(state);
-            list.Children.Add(item);
-        }
 
         var summary = new TextBlock { TextWrapping = TextWrapping.Wrap };
         var progress = new Views.Shared.OperationProgressView();
         var choose = new Button { Content = "Elegir carpetas donde buscar…" };
+        var askMissing = new Button { Content = "Pedir copia ligera de los que faltan", Visibility = Visibility.Collapsed };
         var top = new StackPanel { Spacing = 12, MinWidth = 520 };
         top.Children.Add(InviteDialog.Hint("Para editar sin esperas, Rodaje usa los archivos de video y audio que tengas en tu equipo. Los cambios del proyecto se comparten, pero los archivos no viajan por internet."));
         top.Children.Add(new ScrollViewer { Content = list, MaxHeight = 280 });
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         actions.Children.Add(choose);
+        actions.Children.Add(askMissing);
         top.Children.Add(actions);
         top.Children.Add(progress);
         top.Children.Add(summary);
@@ -87,15 +84,122 @@ internal static class MediaSearchDialog
         {
             int total = projectMedia.Count;
             int missing = total - found.Count;
+            int requestable = projectMedia.Count(m => askButtons.ContainsKey(m.Id) && !found.ContainsKey(m.Id));
             summary.Text = total == 0
                 ? "Este proyecto no tiene medios."
                 : $"Encontré {found.Count} de {total} medios."
-                    + (missing > 0 ? $" Los {(missing == 1 ? "que falta queda" : "que faltan quedan")} sin conexión: se ven en la línea de tiempo pero no se pueden reproducir hasta tener el archivo. Pídele a {hostName} el original." : "");
+                    + (missing > 0 ? $" Los {(missing == 1 ? "que falta queda" : "que faltan quedan")} sin conexión: se ven en la línea de tiempo pero no se pueden reproducir hasta tener el archivo. Pídele a {hostName} el original" + (requestable > 0 ? " o pide su copia ligera." : ".") : "");
+            foreach ((string id, Button ask) in askButtons)
+            {
+                ask.Visibility = found.ContainsKey(id) ? Visibility.Collapsed : Visibility.Visible;
+            }
+
+            askMissing.Visibility = requestable > 0 ? Visibility.Visible : Visibility.Collapsed;
+        }
+
+        bool stopAsking = false;
+
+        // Las filas se arman aquí: sus botones usan las funciones de abajo, que leen el diálogo ya montado.
+        askMissing.Click += (_, _) => UiTask.Run(RequestMissingAsync());
+        foreach (MediaRef media in projectMedia)
+        {
+            string title = known.TryGetValue(media.Id, out MediaManifestEntry? entry) && entry.Name.Length > 0
+                ? entry.Name
+                : media.Name.Length > 0 ? media.Name : media.Id;
+            var name = new TextBlock { Text = MediaManifest.DisplayName(title), TextTrimming = TextTrimming.CharacterEllipsis, FontWeight = FontWeights.SemiBold };
+            var state = new TextBlock { Text = known.ContainsKey(media.Id) ? "Buscando…" : "No está en tu equipo", FontSize = ThemeResources.Size("BodyFontSize"), Foreground = ThemeResources.Brush("TextMutedBrush") };
+            rows[media.Id] = state;
+            var item = new StackPanel();
+            item.Children.Add(name);
+            item.Children.Add(state);
+            if (proxies.CanRequest(media.Id))
+            {
+                var ask = new Button { Content = "Pedir la copia ligera" };
+                ask.Click += (_, _) => UiTask.Run(RequestProxyAsync(media.Id));
+                askButtons[media.Id] = ask;
+                item.Children.Add(ask);
+            }
+
+            list.Children.Add(item);
+        }
+
+        /// <summary>Pide a quien hospeda la copia ligera del medio, con el mismo reparto que usa la biblioteca.</summary>
+        async Task RequestProxyAsync(string mediaId)
+        {
+            if (!proxies.CanRequest(mediaId) || found.ContainsKey(mediaId) || cancel.IsCancellationRequested)
+            {
+                return;
+            }
+
+            current?.Cancel();
+            using CancellationTokenSource mine = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token);
+            current = mine;
+            var operation = new OperationProgress();
+            searching = operation;
+            progress.Operation = operation;
+            rows[mediaId].Text = "Pidiendo la copia ligera…";
+            string? problem = null;
+            try
+            {
+                await proxies.RequestAsync(mediaId, operation, mine.Token);
+                if (proxies.AbsolutePathFor(mediaId) is { } file)
+                {
+                    found[mediaId] = file;
+                    proxied.Add(mediaId);
+                    rows[mediaId].Text = "Copia ligera recibida (el original sigue faltando)";
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                stopAsking = true;
+                if (!found.ContainsKey(mediaId))
+                {
+                    rows[mediaId].Text = "No está en tu equipo";
+                }
+            }
+            catch (Exception ex) when (ex is CollabException or InvalidOperationException or IOException)
+            {
+                if (!found.ContainsKey(mediaId))
+                {
+                    rows[mediaId].Text = "No llegó la copia ligera";
+                    problem = ex.Message;
+                }
+            }
+            finally
+            {
+                if (ReferenceEquals(current, mine))
+                {
+                    current = null;
+                    searching = null;
+                    progress.Operation = null;
+                }
+            }
+
+            Summarize();
+            if (problem is not null)
+            {
+                summary.Text += " " + problem;
+            }
+        }
+
+        /// <summary>Pide la copia ligera de cada medio del manifiesto que siga sin archivo; una tras otra, como las sirve el anfitrión.</summary>
+        async Task RequestMissingAsync()
+        {
+            stopAsking = false;
+            foreach (MediaManifestEntry entry in known.Values)
+            {
+                if (stopAsking || found.ContainsKey(entry.MediaId))
+                {
+                    continue;
+                }
+
+                await RequestProxyAsync(entry.MediaId);
+            }
         }
 
         async Task SearchAsync(IReadOnlyList<string> where)
         {
-            List<MediaManifestEntry> wanted = [.. known.Values.Where(e => !found.ContainsKey(e.MediaId))];
+            List<MediaManifestEntry> wanted = [.. known.Values.Where(e => !found.ContainsKey(e.MediaId) || proxied.Contains(e.MediaId))];
             if (wanted.Count == 0 || where.Count == 0)
             {
                 return;
@@ -122,12 +226,15 @@ internal static class MediaSearchDialog
                 foreach ((string id, string path) in report.Found)
                 {
                     found[id] = path;
+                    proxied.Remove(id);
                     rows[id].Text = "Encontrado";
                 }
 
                 foreach (MediaManifestEntry e in report.Missing)
                 {
-                    rows[e.MediaId].Text = "No está en tu equipo";
+                    rows[e.MediaId].Text = proxied.Contains(e.MediaId)
+                        ? "Copia ligera recibida (el original sigue faltando)"
+                        : "No está en tu equipo";
                 }
 
                 Summarize();

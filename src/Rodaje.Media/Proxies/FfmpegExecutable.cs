@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using System.Globalization;
 using System.Text;
 using Rodaje.Packages;
 
@@ -193,7 +194,7 @@ public sealed class FfmpegExecutable
             if (trimmed.StartsWith("libavcodec", StringComparison.Ordinal))
             {
                 string[] parts = trimmed["libavcodec".Length..].Split('.', 2);
-                return int.TryParse(parts[0].Trim(), out int major) && major == expected
+                return int.TryParse(parts[0].Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out int major) && major == expected
                     ? null
                     : $"El ffmpeg.exe usa libavcodec {parts[0].Trim()} y Rodaje necesita la {expected}.x (FFmpeg 9).";
             }
