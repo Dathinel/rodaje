@@ -859,6 +859,7 @@ public static class OriginalNames
 /// El <see cref="IOriginalSource"/> de verdad: busca entre los medios del proyecto del anfitrión el que tiene ese SHA-256 entero
 /// (con la caché por ruta, tamaño y fecha de <see cref="MediaManifestBuilder"/>). Una búsqueda cada vez.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "SemaphoreSlim sin AvailableWaitHandle no reserva nada que liberar.")]
 public sealed class ProjectOriginalSource(Func<IReadOnlyList<MediaRef>> media, Func<MediaRef, string> resolvePath, MediaManifestBuilder? builder = null) : IOriginalSource
 {
     private readonly MediaManifestBuilder _builder = builder ?? new MediaManifestBuilder();

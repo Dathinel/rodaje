@@ -11,6 +11,7 @@ public sealed record OriginalResult(string MediaId, string Name, string? Path, s
 /// SHA-256 entero) sabe qué se puede pedir y cuánto pesa; los pide de uno en uno (los demás esperan su turno) y los deja en
 /// <c>medios\</c> dentro de la carpeta de la sala. La ruta que devuelve es absoluta: es la que se enlaza al medio.
 /// </summary>
+[System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1001", Justification = "SemaphoreSlim sin AvailableWaitHandle no reserva nada que liberar.")]
 public sealed class RoomOriginals
 {
     /// <summary>La subcarpeta de la sala donde se guardan los originales recibidos.</summary>
@@ -149,7 +150,7 @@ public sealed class RoomOriginals
 
     private static string Prefixed(string? label, string text) => label is null ? text : $"{label}: {text}";
 
-    private static IProgress<ShareProgress>? Adapt(OperationProgress? operation, string? label) =>
+    private static ToOperation? Adapt(OperationProgress? operation, string? label) =>
         operation is null ? null : new ToOperation(operation, label);
 
     private sealed class ToOperation(OperationProgress operation, string? label) : IProgress<ShareProgress>

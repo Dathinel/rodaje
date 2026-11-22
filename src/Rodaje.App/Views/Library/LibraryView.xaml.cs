@@ -1063,7 +1063,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             CloseButtonText = "Cerrar",
             DefaultButton = ContentDialogButton.Close,
         };
-        return (view, operation, cancel);
+        return (operation, cancel);
     }
 
     private void ShowProxyStatus(ProxyStatus status)
