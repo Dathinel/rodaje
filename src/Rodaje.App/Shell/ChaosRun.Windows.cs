@@ -62,6 +62,15 @@ internal static partial class ChaosRun
         FileDialogs.FakeSave = chaos.FakeSave;
         using var watchdog = new ChaosWatchdog(window.DispatcherQueue, log, Path.Combine(root, "fallos"));
         int failures = 0;
+        // Si la ventana se cierra antes de tiempo, el bucle no vuelve: la salida queda en 4 (cierre inesperado).
+        Program.ExitCode = 4;
+        window.Closed += (_, _) =>
+        {
+            if (!chaos.Finished)
+            {
+                log.Line($"{watchdog.Step}\tCIERRE\tla ventana se cerró antes de tiempo");
+            }
+        };
         log.Line(string.Create(CultureInfo.InvariantCulture, $"caos: semilla {seed}, {minutes} min, corpus de {corpus.Count} archivos"));
         var clock = Stopwatch.StartNew();
         int step = 0;
@@ -94,6 +103,7 @@ internal static partial class ChaosRun
         log.Line(string.Create(CultureInfo.InvariantCulture, $"caos: fin tras {step} pasos en {clock.Elapsed.TotalSeconds:0} s, {failures} fallos"));
         FileDialogs.FakeOpen = null;
         FileDialogs.FakeSave = null;
+        chaos.Finished = true;
         Program.ExitCode = failures == 0 ? 0 : 2;
         window.Close();
     }
@@ -152,7 +162,7 @@ internal static partial class ChaosRun
             while (!_disposed)
             {
                 Thread.Sleep(500);
-                _queue.TryEnqueue(() => Interlocked.Exchange(ref _lastPong, Stopwatch.GetTimestamp()));
+                _ = _queue.RunLater(() => Interlocked.Exchange(ref _lastPong, Stopwatch.GetTimestamp()));
                 TimeSpan silent = Stopwatch.GetElapsedTime(Interlocked.Read(ref _lastPong));
                 if (silent > Limit && !_disposed)
                 {
@@ -183,6 +193,8 @@ internal static partial class ChaosRun
         public bool Closed { get; private set; }
 
         public bool EngineFailed { get; set; }
+
+        public bool Finished { get; set; }
 
         private EditorSession Session => window.Session;
 
@@ -223,7 +235,8 @@ internal static partial class ChaosRun
         {
             Add(16, "tecla", PressKey);
             Add(14, "acción", InvokeAction);
-            Add(26, "control", () => UseControlAsync());
+            Add(22, "control", () => UseControlAsync(false));
+            Add(8, "página y ráfaga de controles", PageBurstAsync);
             Add(4, "deshacer/rehacer en ráfaga", UndoBurst);
             Add(5, "cabezal en ráfaga", SeekBurst);
             Add(6, "reproducir/pausar", () => Invoke("playback.togglePlay"));
@@ -335,7 +348,8 @@ internal static partial class ChaosRun
             List<(Track Track, Clip Clip)> clips = AllClips();
             if (clips.Count == 0)
             {
-                Note("no hay clips");
+                // Sin clips, lo que haría cualquiera: poner uno de la biblioteca.
+                AppendMedia();
                 return;
             }
 
@@ -354,7 +368,8 @@ internal static partial class ChaosRun
             List<(Track Track, Clip Clip)> clips = AllClips();
             if (clips.Count == 0)
             {
-                Note("no hay clips");
+                // Sin clips, lo que haría cualquiera: poner uno de la biblioteca.
+                AppendMedia();
                 return;
             }
 
@@ -476,7 +491,22 @@ internal static partial class ChaosRun
 
         // ---- Controles ----
 
-        private async Task UseControlAsync()
+        // Abre una página o diálogo (Exportar, Preferencias, Formato, Atajos, Complementos) y toca muchos de sus controles
+        // seguidos, sobre todo desplegables, como quien prueba todas las opciones; a veces lo deja a medias.
+        private async Task PageBurstAsync()
+        {
+            string[] pages = ["file.export", "file.export", "view.preferences", "project.format", "view.shortcuts", "view.plugins", "file.exportFrame"];
+            Invoke(pages[random.Next(pages.Length)]);
+            await Task.Delay(random.Next(50, 400));
+            int count = random.Next(4, 20);
+            for (int i = 0; i < count; i++)
+            {
+                await UseControlAsync(random.Next(2) == 0);
+                await Task.Delay(random.Next(0, 120));
+            }
+        }
+
+        private async Task UseControlAsync(bool preferCombo)
         {
             XamlRoot? xamlRoot = window.Content?.XamlRoot;
             if (xamlRoot is null)
@@ -506,7 +536,8 @@ internal static partial class ChaosRun
                 return;
             }
 
-            FrameworkElement element = found[random.Next(found.Count)];
+            List<FrameworkElement> combos = preferCombo ? [.. found.Where(e => e is ComboBox)] : [];
+            FrameworkElement element = combos.Count > 0 ? combos[random.Next(combos.Count)] : found[random.Next(found.Count)];
             string name = NameOf(element);
             if (Forbidden.IsMatch(name))
             {

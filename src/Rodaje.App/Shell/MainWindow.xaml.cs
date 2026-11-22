@@ -1268,6 +1268,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         _closed = true;
+        Views.Inspector.DispatcherQueueLater.StopAfterWindowClosed();
         _notificationTimer.Stop();
         _services.Collab?.Dispose();
         _revealTimer.Stop();

@@ -10,7 +10,8 @@
 # Sale con 0 si ninguna semilla falló y no quedó rastro.
 [CmdletBinding(PositionalBinding = $false)]
 param(
-    [int[]]$Semillas = @(),
+    # Con -File, «10,12» llega como un solo texto (y como número sería 1012): se separa aquí.
+    [string[]]$Semillas = @(),
     [int]$Desde = 1,
     [int]$Hasta = 30,
     [double]$Minutos = 5,
@@ -34,6 +35,7 @@ $Base = Join-Path ([IO.Path]::GetTempPath()) 'rodaje-caos'
 $Corpus = Join-Path $Base 'corpus'
 # El archivo con el que se reparten el PC los programas de la carpeta de arriba (en la CI no existe).
 $Coordinacion = @((Join-Path (Split-Path -Parent $Raiz) 'medicion-en-curso.txt'), 'D:\Programas de uso libre\medicion-en-curso.txt') | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+$Semillas = @($Semillas -split '[,; ]+' | Where-Object { $_ } | ForEach-Object { [int]$_ })
 if ($Semillas.Count -eq 0) { $Semillas = @($Desde..$Hasta) }
 
 function Preparar-Corpus {
@@ -94,7 +96,8 @@ function Foto-Rastro {
     }
     # De %TEMP% solo lo de arriba (otras apps lo cambian sin parar): lo que no es de la corrida se mira por nombre.
     @([IO.Path]::GetTempPath(), (Join-Path $env:LOCALAPPDATA 'Temp')) | Select-Object -Unique | ForEach-Object { Get-ChildItem -LiteralPath $_ -Force -ErrorAction SilentlyContinue } |
-        Where-Object { $_.Name -notmatch '^rodaje-caos' -and $_.Name -match '(?i)rodaje|ffmpeg|dathinel|caos' } |
+        # rodaje-sala-pruebas y similares son de las pruebas de otros (dotnet test), no de la app.
+        Where-Object { $_.Name -notmatch '^rodaje-caos|^rodaje-sala-pruebas|^rodaje pruebas' -and $_.Name -match '(?i)rodaje|ffmpeg|dathinel|caos' } |
         ForEach-Object { $foto[$_.FullName] = $_.LastWriteTimeUtc.Ticks }
     foreach ($clave in 'HKCU:\Software\Rodaje', 'HKCU:\Software\Classes\.rodaje', 'HKCU:\Software\Classes\rodaje', 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\RecentDocs\.rodaje', 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Explorer\ComDlg32\OpenSavePidlMRU\rodaje') {
         if (Test-Path -LiteralPath $clave) {
