@@ -589,13 +589,11 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
                     await _ui(() =>
                     {
                         ConfirmDuplicate(match.Patch);
-                        if (ResetToConfirmed())
-                        {
-                            foreach (Pending pending in SnapshotPending().Where(p => !p.Confirmed))
-                                if (!Reproject(pending)) Revert(pending, "La copia actual cambió mientras se confirmaba otro paso.");
-                            _baseline = SharedState.Capture(_live);
-                            _liveChanged();
-                        }
+                        if (Remount() is not { } lost) return;
+                        lock (_m) Persist();
+                        _liveChanged();
+                        if (lost.Count > 0)
+                            _notice($"La copia actual cambió mientras se confirmaba otro paso y no entró: {string.Join(", ", lost.Select(p => p.Description))}.", true);
                     }).ConfigureAwait(false);
                     return;
                 }
@@ -752,29 +750,41 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
 
     private void Revert(Pending pending, string text, string? unsettledReason = null)
     {
-        List<Pending> later;
         lock (_m)
         {
-            int index = _pending.IndexOf(pending);
-            if (index < 0)
+            if (!_pending.Remove(pending))
             {
                 return;
             }
-
-            later = _pending.GetRange(index + 1, _pending.Count - index - 1);
-            _pending.RemoveAt(index);
         }
 
         _presence.Done(pending.Keys);
         SaveUnsettled(pending.Patch, unsettledReason ?? "El envío del cambio no se pudo completar. Puedes conservarlo como un cambio nuevo o descartarlo.");
-        if (!ResetToConfirmed())
+        if (Remount() is not { } lost)
         {
             return;
         }
 
-        // Solo se pierde lo rechazado: lo propio que venía detrás se vuelve a montar sobre lo confirmado y, si ya no cabe, se avisa.
+        lock (_m) Persist();
+        _liveChanged();
+        string also = lost.Count == 0 ? "" : $" Tampoco entró lo que hiciste después y dependía de eso ({string.Join(", ", lost.Select(p => p.Description))}).";
+        _notice($"Un cambio tuyo no se pudo aplicar: {text} Lo deshicimos para que sigas igual que los demás.{also}", true);
+    }
+
+    /// <summary>
+    /// Lo vivo vuelve a lo confirmado y se montan encima, en orden, todos los pasos propios sin respuesta (también los que
+    /// salieron antes del que falló: su confirmación da por hecho que ya están en lo vivo). Los que ya no caben se quitan y
+    /// quedan en «Cambios que no entraron». <c>null</c> si no hay vuelta segura. Solo desde <c>ui</c>.
+    /// </summary>
+    private List<Pending>? Remount()
+    {
+        if (!ResetToConfirmed())
+        {
+            return null;
+        }
+
         List<Pending> lost = [];
-        foreach (Pending next in later.Where(p => !p.Confirmed))
+        foreach (Pending next in SnapshotPending().Where(p => !p.Confirmed))
         {
             if (!Reproject(next))
             {
@@ -797,10 +807,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         }
 
         _baseline = SharedState.Capture(_live);
-        lock (_m) Persist();
-        _liveChanged();
-        string also = lost.Count == 0 ? "" : $" Tampoco entró lo que hiciste después y dependía de eso ({string.Join(", ", lost.Select(p => p.Description))}).";
-        _notice($"Un cambio tuyo no se pudo aplicar: {text} Lo deshicimos para que sigas igual que los demás.{also}", true);
+        return lost;
     }
 
     /// <summary>Vuelve a aplicar un paso propio sin respuesta sobre lo vivo: <c>false</c> si ya no cabe. Solo desde <c>ui</c>.</summary>
