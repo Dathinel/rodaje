@@ -163,6 +163,25 @@ public sealed class CollabRecoveryTests
         Assert.Null(journal.Load(() => warnings++));
     }
 
+    [Fact]
+    public async Task Un_guardado_del_registro_que_falla_se_reintenta_solo()
+    {
+        // Un cambio separado quedaba visible pero fuera de registro.jsonl cuando el guardado fallaba una sola vez
+        // (el antivirus o el índice de Windows reteniendo el archivo un instante): nada lo volvía a intentar y,
+        // sin otro disparo que guardara, el archivo no lo recogía nunca.
+        await using RoomService room = new(new CollabEnvironment("sin-red", Path.Combine(CollabHarness.TempFolder(), "id.bin"), "1.0.4"), new LateHandler());
+        using CollabPresence presence = new(room);
+        using UiLoop ui = new();
+        System.Collections.Concurrent.ConcurrentQueue<string> notices = new();
+        using CollabEngine engine = new(ModelSamples.ValidProject(), room, presence, ui.Post, () => { }, (text, _) => notices.Enqueue(text));
+        int calls = 0;
+        engine.SaveJournal = _ => Interlocked.Increment(ref calls) > 2;
+        await ui.Post(() => engine.StartAsHost());
+
+        await CollabHarness.Until(() => Volatile.Read(ref calls) >= 3, "el reintento del registro");
+        Assert.Contains(notices, n => n.Contains("registro", StringComparison.Ordinal));
+    }
+
     [SalaFact]
     public async Task Conservar_crea_ids_nuevos_y_descartar_no_cambia_el_proyecto()
     {
