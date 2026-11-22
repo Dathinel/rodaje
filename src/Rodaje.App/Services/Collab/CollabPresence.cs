@@ -39,6 +39,8 @@ public sealed partial class CollabPresence : IDisposable
     private string _lastSent = "";
     private readonly Dictionary<string, long> _releaseAt = new(StringComparer.Ordinal);
     private readonly HashSet<string> _wanted = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _yielded = new(StringComparer.Ordinal);
+    private ReservationBlock? _lastBlock;
 
     public CollabPresence(RoomService room, Func<long>? clock = null)
     {
@@ -108,8 +110,26 @@ public sealed partial class CollabPresence : IDisposable
 
             _wanted.Clear();
             _wanted.UnionWith(next);
+            _yielded.IntersectWith(next);
         }
     }
+
+    /// <summary>
+    /// La pista se cedió a quien la pidió: deja de reservarse sola aunque siga seleccionada (hasta que la selección deje de
+    /// incluirla) y un cambio que la usaba la suelta al confirmarse, sin esperar los 10 s.
+    /// </summary>
+    public void Yield(string trackId)
+    {
+        string key = KeyForTrack(trackId);
+        lock (_gate)
+        {
+            _yielded.Add(key);
+            _releaseAt.Remove(key);
+        }
+    }
+
+    /// <summary>La última reserva ajena con la que chocó un cambio (para ofrecer «Pedir la pista» en su aviso); se lee una vez.</summary>
+    public ReservationBlock? TakeLastBlock() => Interlocked.Exchange(ref _lastBlock, null);
 
     /// <summary>
     /// Se asegura de que las reservas son nuestras antes de mandar un cambio: pide las que faltan (pistas y <c>proyecto</c>).
@@ -128,7 +148,9 @@ public sealed partial class CollabPresence : IDisposable
                 if (ownerKey is not null && ownerKey != _room.State.MyKey)
                 {
                     string alias = _room.State.Members.FirstOrDefault(m => m.Key == ownerKey)?.Alias ?? "Alguien";
-                    return new ReservationBlock(key, trackId, alias);
+                    ReservationBlock block = new(key, trackId, alias);
+                    Interlocked.Exchange(ref _lastBlock, block);
+                    return block;
                 }
             }
         }
@@ -150,7 +172,7 @@ public sealed partial class CollabPresence : IDisposable
             long at = _clock();
             foreach (string key in keys)
             {
-                if (!key.StartsWith(TrackPrefix, StringComparison.Ordinal))
+                if (!key.StartsWith(TrackPrefix, StringComparison.Ordinal) || _yielded.Contains(key))
                 {
                     now.Add(key);
                 }
@@ -241,7 +263,7 @@ public sealed partial class CollabPresence : IDisposable
                 _releaseAt.Remove(key);
             }
 
-            toReserve = [.. _wanted];
+            toReserve = [.. _wanted.Except(_yielded)];
         }
 
         IReadOnlyDictionary<string, string> held = _room.Reservations;
@@ -310,6 +332,7 @@ public sealed partial class CollabPresence : IDisposable
                 _peers = new Dictionary<string, PeerPresence>(StringComparer.Ordinal);
                 _locks = new Dictionary<string, TrackLock>(StringComparer.Ordinal);
                 _wanted.Clear();
+                _yielded.Clear();
                 _releaseAt.Clear();
                 _lastSent = "";
             }

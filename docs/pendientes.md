@@ -73,7 +73,7 @@ Lo que queda abierto en Rodaje, por prioridad. Cada punto se quita al cerrarlo y
 - **Bloquea publicar la 1.0.4:** repetir la revisión de ChatGPT de la edición compartida (seguridad y convergencia) cuando vuelva su cuota (10:01 del 20-nov) y corregir lo grave en un PR B11-fix.
 - Pasar las barras de progreso propias (`OperationClock`, barras de `JoinDialog`, `SharedProjectFlow` y `MediaSearchDialog`) a `OperationProgress` de B9b (`Rodaje.App.Services.Operations`) cuando se una #662.
 - `PeerLayer` tiene un temporizador de 66 ms siempre activo aunque no haya sala: arrancarlo solo con la sala abierta.
-- «Pedir la pista a Ana» (hoy solo se avisa de quién la tiene) y avisar a quien hospeda con parpadeo en la barra de tareas cuando alguien pide entrar con Rodaje minimizado.
+- Avisar a quien hospeda con parpadeo en la barra de tareas cuando alguien pide entrar con Rodaje minimizado.
 - Rechazar a alguien por descuido no pide confirmación; no hay lista de rechazados recientes.
 - Unir en un solo mensaje las notificaciones repetidas de un cambio que choca (hoy una por cada paso descartado).
 - Proxies (B14): falta generar el proxy de sala con FFmpeg (video bajo con AAC), el almacén aparte por `ContentHash` que la limpieza no toque y el medio «solo proxy» en la reproducción; el reparto por huella ya está en `ProxyShare.cs`.
