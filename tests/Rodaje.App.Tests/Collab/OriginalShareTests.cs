@@ -208,7 +208,8 @@ public sealed class OriginalShareTests
         await using RoomService h = host;
         await using RoomService g = guest;
         (string path, _) = Write(host.RoomFolder, 100_000);
-        string hashOtro = Write(CollabHarness.TempFolder(), 100_000).Hash;
+        // Otro contenido del mismo tamaño (Write siembra el azar con el tamaño: con el mismo saldría el mismo archivo).
+        string hashOtro = Convert.ToHexStringLower(SHA256.HashData(Enumerable.Repeat((byte)7, 100_000).ToArray()));
         FakeSource source = new((_, _) => Task.FromResult<OriginalFile?>(Original(path)));
         using OriginalShareHost share = new(host, source, host.RoomFolder,
             (_, _) => Task.FromResult(OriginalDecision.Send))
