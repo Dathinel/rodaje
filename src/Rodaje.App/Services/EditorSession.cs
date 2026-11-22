@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
@@ -177,8 +178,18 @@ public sealed partial class EditorSession : ObservableObject
     /// </summary>
     public DateTimeOffset? LastSavedAt { get; private set; }
 
-    // La fecha del archivo tras abrirlo o guardarlo aquí; otra distinta al guardar es que lo cambió otra ventana.
-    private DateTimeOffset? _diskWrite;
+    // La fecha del archivo tras abrirlo o guardarlo aquí; otra distinta al guardar es que lo cambió otra ventana. Al abrir se
+    // lee en segundo plano (una carpeta de red caída congelaba la ventana); null si no se supo a tiempo.
+    private Task<DateTimeOffset?> _diskWrite = Task.FromResult<DateTimeOffset?>(null);
+
+    private async Task ShowSavedAtAsync(Task<DateTimeOffset?> diskWrite)
+    {
+        DateTimeOffset? written = await diskWrite;
+        if (ReferenceEquals(diskWrite, _diskWrite))
+        {
+            LastSavedAt = written;
+        }
+    }
 
     private static DateTimeOffset? LastWriteOf(string? path)
     {
@@ -648,7 +659,9 @@ public sealed partial class EditorSession : ObservableObject
         _selectedTransition = null;
         _editVersion++;
         FilePath = filePath;
-        LastSavedAt = _diskWrite = LastWriteOf(filePath);
+        LastSavedAt = null;
+        _diskWrite = filePath is null ? Task.FromResult<DateTimeOffset?>(null) : DiskProbe.WithinAsync(() => LastWriteOf(filePath), null);
+        UiTask.Run(ShowSavedAtAsync(_diskWrite));
         _previewOff.Clear();
         _playbackStale = false;
         _playback.Load(project.Clone(), sequenceId);

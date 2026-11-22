@@ -123,6 +123,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         };
         _visuals = new ClipVisuals(id => session.Project.FindMedia(id)?.Path, new FfmpegVisualsSources(),
             new ClipVisualsOptions { CacheDirectory = ClipVisualsOptions.DefaultCacheDirectory }, SynchronizationContext.Current);
+        _visuals.CloudOnlyFound += (_, path) => session.Notify(NotificationSeverity.Informational, "Medio en la nube",
+            $"«{Path.GetFileName(path)}» está solo en la nube: no se descarga para las miniaturas; se descarga al reproducir.");
         Program.Metrics.Milestone("sesion");
         var packages = new PackageService(PackageService.DefaultLocations(), PackageService.LoadBundledCatalog(), instances: _instance);
         IEffectContent? content = EffectContentFactory.CreateOrNull(packages);
