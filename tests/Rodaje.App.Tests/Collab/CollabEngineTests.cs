@@ -56,8 +56,13 @@ internal sealed class LateHandler : ICollabPayloadHandler
 {
     public ICollabPayloadHandler? Target { get; set; }
 
-    public ValueTask<Veredicto> ValidateAsync(Miembro author, JsonElement payload, CancellationToken cancellationToken) =>
-        Target?.ValidateAsync(author, payload, cancellationToken) ?? ValueTask.FromResult(Veredicto.No("sin-motor"));
+    public Func<CancellationToken, Task>? BeforeValidation { get; set; }
+
+    public async ValueTask<Veredicto> ValidateAsync(Miembro author, JsonElement payload, CancellationToken cancellationToken)
+    {
+        if (BeforeValidation is { } before) await before(cancellationToken);
+        return Target is { } target ? await target.ValidateAsync(author, payload, cancellationToken) : Veredicto.No("sin-motor");
+    }
 
     public void Apply(Ordenado ordered) => Target?.Apply(ordered);
 
@@ -85,11 +90,13 @@ internal sealed class Replica : IAsyncDisposable
 
     private readonly LateHandler _late = new();
 
-    public Replica(string version = "1.0.4")
+    public Replica(string version = "1.0.4", TimeSpan? standbyWait = null)
     {
-        Room = new RoomService(CollabHarness.Env(version), _late);
+        Room = new RoomService(CollabHarness.Env(version) with { StandbyWait = standbyWait }, _late);
         Presence = new CollabPresence(Room);
     }
+
+    public void BeforeValidation(Func<CancellationToken, Task>? before) => _late.BeforeValidation = before;
 
     public void Attach(Project live, Func<bool>? isBusy = null)
     {
@@ -130,9 +137,9 @@ public sealed class CollabEngineTests
     private static Marker MarkerAt(string id, string name, double seconds = 1) => new() { Id = id, Name = name, Time = Time.FromSeconds(seconds) };
 
     /// <summary>Anfitrión con el proyecto de ejemplo y un invitado que lo recibió por el mismo camino que en la app.</summary>
-    private static async Task<(Replica Host, Replica Guest)> StartAsync(Rol role = Rol.Editar)
+    internal static async Task<(Replica Host, Replica Guest)> StartAsync(Rol role = Rol.Editar)
     {
-        Replica host = new(), guest = new();
+        Replica host = new(standbyWait: TimeSpan.FromMilliseconds(100)), guest = new(standbyWait: TimeSpan.FromMilliseconds(100));
         await host.Room.HostAsync("Ana", CollabHarness.TempFolder());
         host.Attach(ModelSamples.ValidProject());
         await host.Ui.Post(() => host.Engine.StartAsHost());
@@ -156,6 +163,40 @@ public sealed class CollabEngineTests
     {
         await CollabHarness.Until(() => a.HashOnUi() == b.HashOnUi(), what);
         Assert.Equal(a.HashOnUi(), b.HashOnUi());
+    }
+
+    [SalaFact]
+    public async Task Tras_el_traspaso_los_tres_editan_sobre_el_mismo_confirmado()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica a = host;
+        await using Replica b = guest;
+        await using Replica c = new();
+        CollabInvitation invite = await a.Room.CreateInviteAsync(TimeSpan.FromMinutes(10));
+        Task joining = c.Room.JoinAsync(invite.Link, "Eva", CollabHarness.TempFolder());
+        await CollabHarness.Until(() => a.Room.State.Requests.Count == 1, "la tercera solicitud");
+        await a.Room.ApproveAsync(a.Room.State.Requests[0].Key, Rol.Editar);
+        await joining.WaitAsync(TimeSpan.FromSeconds(20));
+        (string json, long seq) = a.Engine.CaptureForGuest();
+        ProjectParseResult parsed = ProjectWire.TryParse(json);
+        c.Attach(parsed.Project!);
+        await c.Ui.Post(() => c.Engine.StartAsGuest(parsed.Project!.Clone(), parsed.Versions!, seq));
+        await a.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("antes", "Antes")));
+        await CollabHarness.Until(() => a.Engine.CaptureForGuest() == b.Engine.CaptureForGuest()
+            && a.Engine.CaptureForGuest() == c.Engine.CaptureForGuest() && a.Engine.CaptureForGuest().Seq == 1, "lo confirmado antes de pasar el mando");
+        await a.Room.HandOverAsync(b.Room.State.MyKey);
+        await CollabHarness.Until(() => b.Room.State.IsHost && !a.Room.State.IsHost, "el nuevo anfitrión");
+        Assert.Equal(a.Engine.CaptureForGuest(), b.Engine.CaptureForGuest());
+        await b.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("nuevo", "Nuevo anfitrión")));
+        await CollabHarness.Until(() => a.Engine.CaptureForGuest().Seq == 2 && c.Engine.CaptureForGuest().Seq == 2, "la edición de B");
+        await a.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("anterior", "Anterior anfitrión")));
+        await CollabHarness.Until(() => a.Engine.CaptureForGuest().Seq == 3 && b.Engine.CaptureForGuest().Seq == 3
+            && c.Engine.CaptureForGuest().Seq == 3, "la edición de A después");
+        await Settled(a, b, "A y B convergen");
+        await Settled(b, c, "B y C convergen");
+        Assert.Empty(a.Desyncs);
+        Assert.Empty(b.Desyncs);
+        Assert.Empty(c.Desyncs);
     }
 
     [SalaFact]

@@ -3,6 +3,7 @@ using System.Text.Json;
 using Dathinel.Sala;
 using Rodaje.Core.Model;
 using Rodaje.App.Services.Crashes;
+using Rodaje.Media.Proxies;
 
 namespace Rodaje.App.Services.Collab;
 
@@ -104,6 +105,11 @@ public sealed partial class CollabHost : IDisposable
     public CollabEngine? Engine { get; private set; }
 
     private ProjectShareHost? _share;
+    private ProxyShareHost? _proxyShare;
+    private RoomProxyMaker? _proxyMaker;
+
+    /// <summary>Las copias ligeras que el invitado puede pedir a quien hospeda; nulo en el anfitrión y fuera de la sala.</summary>
+    public RoomProxies? Proxies { get; private set; }
 
     public void Dispose()
     {
@@ -165,10 +171,17 @@ public sealed partial class CollabHost : IDisposable
         if (received is null)
         {
             engine.StartAsHost();
+            IRoomProxyMaker maker = ProxyMakerFor(session) is { } real ? real : new MissingFfmpeg();
+            _proxyShare = new ProxyShareHost(Room, maker, Room.RoomFolder);
         }
         else
         {
             engine.StartAsGuest(received.Project, received.Versions, received.Seq);
+            _share = new ProjectShareHost(Room, new SessionProjectSource(
+                session,
+                work => UiInvoke.Run(_post, work),
+                engine.CaptureForGuest), Room.RoomFolder);
+            Proxies = new RoomProxies(Room, Room.RoomFolder, received.Media);
         }
 
         if (!_switch.TryAttach(engine))
@@ -203,6 +216,11 @@ public sealed partial class CollabHost : IDisposable
 
         _share?.Dispose();
         _share = null;
+        _proxyShare?.Dispose();
+        _proxyShare = null;
+        _proxyMaker?.Dispose();
+        _proxyMaker = null;
+        Proxies = null;
         _switch.Detach();
         Engine?.Dispose();
         Engine = null;
@@ -218,6 +236,26 @@ public sealed partial class CollabHost : IDisposable
         }
 
         engine.OnLocalChange(session.History.UndoDescription ?? "Cambio");
+    }
+
+    /// <summary>El generador de copias ligeras del anfitrión; <c>null</c> sin FFmpeg (el invitado oye por qué).</summary>
+    private RoomProxyMaker? ProxyMakerFor(EditorSession session)
+    {
+        if (FfmpegExecutable.TryLocate(out _) is not { } ffmpeg)
+        {
+            return null;
+        }
+
+        string projectDirectory = session.FilePath is { Length: > 0 } file ? Path.GetDirectoryName(file)! : Room.RoomFolder;
+        return _proxyMaker = new RoomProxyMaker(ffmpeg, () => session.Project.Media, m => m.ResolvePath(projectDirectory));
+    }
+
+    /// <summary>Responde al invitado con el porqué cuando este equipo no puede codificar nada.</summary>
+    private sealed class MissingFfmpeg : IRoomProxyMaker
+    {
+        public Task<RoomProxy?> MakeAsync(string mediaHash, string folder, IProgress<double>? progress, CancellationToken cancellationToken)
+            => Task.FromException<RoomProxy?>(new CollabException(
+                "Este equipo no puede hacer copias ligeras: le falta el componente de video. Pídela otra vez cuando quien hospeda tenga Rodaje completo."));
     }
 
     private async Task<bool> ConfirmLeaveRoomAsync()

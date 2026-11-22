@@ -70,4 +70,56 @@ public sealed class MediaManifestBuilder(Func<string, CancellationToken, Task<st
         progress?.Report((list.Count, list.Count));
         return result;
     }
+
+    /// <summary>
+    /// La ruta del medio cuyo archivo entero tiene este SHA-256 (el mismo cálculo con caché que
+    /// <see cref="BuildAsync"/>); <c>null</c> si ninguno coincide o su archivo no se puede leer. Es cómo una petición
+    /// remota busca un medio sin que viaje ninguna ruta: el hash se comprueba en este equipo.
+    /// </summary>
+    public async Task<string?> FindByHashAsync(
+        IEnumerable<MediaRef> media,
+        Func<MediaRef, string> resolvePath,
+        string hash,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(media);
+        ArgumentNullException.ThrowIfNull(resolvePath);
+        foreach (MediaRef m in media.Take(MediaManifest.MaxEntries))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            FileInfo info;
+            try
+            {
+                info = new FileInfo(resolvePath(m));
+            }
+            catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                continue;
+            }
+
+            if (!info.Exists)
+            {
+                continue;
+            }
+
+            var key = (info.FullName, info.Length, info.LastWriteTimeUtc.Ticks);
+            if (!_cache.TryGetValue(key, out string? found))
+            {
+                found = await _hasher(info.FullName, cancellationToken).ConfigureAwait(false);
+                if (found is null)
+                {
+                    continue;
+                }
+
+                _cache[key] = found;
+            }
+
+            if (found == hash)
+            {
+                return info.FullName;
+            }
+        }
+
+        return null;
+    }
 }

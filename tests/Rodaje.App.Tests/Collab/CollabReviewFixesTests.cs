@@ -177,13 +177,13 @@ public sealed class CollabReviewFixesTests
 
         Project withMedia = ModelSamples.ValidProject();
         withMedia.Media.Add(Medium("m9", "m9.mp4"));
+        Miembro luis = new(new string('a', 64), "Luis", Rol.Editar);
         Patch patch = PatchDiff.Create(
             SharedState.Capture(ModelSamples.ValidProject()),
             SharedState.Capture(withMedia),
             new ElementVersions(),
-            new PatchHeader("id-repetido", 0, "k", "Añadir m9"))!;
+            new PatchHeader(Guid.NewGuid().ToString("N"), 0, luis.Clave, "Añadir m9"))!;
         using JsonDocument doc = JsonDocument.Parse(PatchWire.ToJson(patch));
-        Miembro luis = new(new string('a', 64), "Luis", Rol.Editar);
 
         Assert.True((await engine.ValidateAsync(luis, doc.RootElement, CancellationToken.None)).Aceptada);
         Veredicto again = await engine.ValidateAsync(luis, doc.RootElement, CancellationToken.None);
