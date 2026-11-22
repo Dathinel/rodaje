@@ -235,12 +235,7 @@ internal sealed partial class TextPanel
             MinHeight = 28,
             FontSize = Resource<double>("BodyFontSize"),
             SpinButtonPlacementMode = NumberBoxSpinButtonPlacementMode.Hidden,
-            NumberFormatter = new Windows.Globalization.NumberFormatting.DecimalFormatter
-            {
-                FractionDigits = step < 1 ? 2 : 0,
-                IsDecimalPointAlwaysDisplayed = false,
-                NumberRounder = new Windows.Globalization.NumberFormatting.IncrementNumberRounder { Increment = step < 1 ? 0.01 : 1 },
-            },
+            NumberFormatter = new TypedNumberFormatter(step < 1 ? 2 : 0),
         };
         AutomationProperties.SetName(number, label);
         NumberBoxCommit.CommitBeforeFocusLeaves(number);
