@@ -180,6 +180,10 @@ public sealed partial class CollabHost : IDisposable
         else
         {
             engine.StartAsGuest(received.Project, received.Versions, received.Seq);
+            _share = new ProjectShareHost(Room, new SessionProjectSource(
+                session,
+                work => UiInvoke.Run(_post, work),
+                engine.CaptureForGuest), Room.RoomFolder);
             Proxies = new RoomProxies(Room, Room.RoomFolder, received.Media);
         }
 

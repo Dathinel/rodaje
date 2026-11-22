@@ -17,6 +17,8 @@ public sealed record CollabEnvironment(string RedPath, string IdentityFile, stri
 
     /// <summary>Tiempo máximo para que el anfitrión conteste una carga; el de Sala por defecto es 30 s.</summary>
     public TimeSpan? ValidateTimeout { get; init; }
+
+    public TimeSpan? StandbyWait { get; init; }
 }
 
 /// <summary>Una invitación recién creada.</summary>
@@ -40,6 +42,7 @@ public sealed class RoomService : IAsyncDisposable
     private string _folder = "";
     private string _lastAnchored = "";
     private readonly HashSet<string> _offline = new(StringComparer.Ordinal);
+    private int _superseding;
 
     /// <param name="post">
     /// Cómo se avisa a la interfaz de un cambio (en la app, la cola del hilo de interfaz). Por omisión se avisa en el mismo
@@ -66,6 +69,16 @@ public sealed class RoomService : IAsyncDisposable
     }
 
     public event Action<RoomState>? StateChanged;
+
+    // Se entregan sin pasar por _post: el motor guarda antes de cerrar la sala o de ordenar más cargas.
+    internal event Action? ConnectionLost;
+    internal event Func<Task>? Superseded;
+    internal event Action<long>? SnapshotNeeded;
+
+    public long Epoch => Sala?.Epoca ?? 0;
+
+    public Task ConfirmSnapshotAsync(long epoch, long seq, CancellationToken cancellationToken = default) =>
+        GuardAsync(() => Active().ConfirmarInstantaneaAsync(epoch, seq, cancellationToken));
 
     public event Action<RoomNotice>? Noticed;
 
@@ -271,6 +284,27 @@ public sealed class RoomService : IAsyncDisposable
             Publish(Refreshed);
         });
 
+    /// <summary>Pasa el mando a una persona que ya edita en la sala.</summary>
+    public Task HandOverAsync(string key, CancellationToken cancellationToken = default) =>
+        GuardAsync(async () =>
+        {
+            await HostRoom().TraspasarAsync(key, cancellationToken).ConfigureAwait(false);
+            Publish(st => Refreshed(st) with { Phase = RoomPhase.Connected });
+        });
+
+    /// <summary>El suplente toma el mando tras la espera sin anfitrión que exige Sala.</summary>
+    public Task TakeHostAsync(CancellationToken cancellationToken = default) =>
+        GuardAsync(async () =>
+        {
+            if (State.IsHost) throw new CollabException("Ya estás hospedando esta sala.");
+            if (StandbyKey != State.MyKey) throw new CollabException("Solo el suplente puede tomar el mando. Espera a que lo tome la persona marcada como suplente.");
+            if (State.Phase != RoomPhase.Reconnecting) throw new CollabException("Quien hospeda la sala sigue conectado. Pídele que te pase el mando.");
+            await Active().TomarAnfitrionAsync(cancellationToken).ConfigureAwait(false);
+            Publish(st => Refreshed(st) with { Phase = RoomPhase.Hosting });
+        });
+
+    public string? StandbyKey => Sala?.Suplente;
+
     // ---------- los dos ----------
 
     /// <summary>Propone una carga (un parche) a la sala; la respuesta llega a <see cref="ICollabPayloadHandler"/>.</summary>
@@ -393,12 +427,17 @@ public sealed class RoomService : IAsyncDisposable
 
     private void Subscribe(Dathinel.Sala.Sala s)
     {
+        Interlocked.Exchange(ref _superseding, 0);
         lock (_gate)
         {
             _sala = s;
         }
 
         UiTask.Run(Task.Run(() => WatchMembersAsync(s)));
+        s.MiembrosCambiaron += () => OnSala(s, () => Publish(st => Refreshed(st) with
+        {
+            Phase = s.EsAnfitrion ? RoomPhase.Hosting : st.Phase == RoomPhase.Hosting ? RoomPhase.Connected : st.Phase,
+        }));
         s.SolicitudRecibida += r => OnSala(s, () => Publish(st => st with
         {
             Requests = [.. st.Requests.Where(x => x.Key != r.Clave), new RoomRequest(r.Clave, r.Alias, r.Huella)],
@@ -424,6 +463,7 @@ public sealed class RoomService : IAsyncDisposable
         });
         s.MiembroSale += (k, motivo) => OnSala(s, () =>
         {
+            ConnectionLost?.Invoke();
             string alias = State.Members.FirstOrDefault(x => x.Key == k)?.Alias ?? "Alguien";
             lock (_gate)
             {
@@ -437,7 +477,7 @@ public sealed class RoomService : IAsyncDisposable
         s.Rechazada += r => OnSala(s, () =>
         {
             _handler.Rejected(r);
-            Notify(CollabMessages.Rejected(r.Motivo, r.Detalle), true);
+            if (r.Motivo != "ya-confirmado") Notify(CollabMessages.Rejected(r.Motivo, null), true);
         });
         s.DirectoRecibido += d => OnSala(s, () => DirectReceived?.Invoke(d.De, d.Datos));
         s.BlobAvance += (hash, bytes) => OnSala(s, () => BlobProgress?.Invoke(hash, bytes));
@@ -445,6 +485,7 @@ public sealed class RoomService : IAsyncDisposable
         s.ReservaCambia += (k, owner) => OnSala(s, () => ReservationChanged?.Invoke(k, owner));
         s.Desconectada += () => OnSala(s, () =>
         {
+            ConnectionLost?.Invoke();
             if (State.Phase == RoomPhase.Connected)
             {
                 Publish(st => st with { Phase = RoomPhase.Reconnecting });
@@ -453,13 +494,26 @@ public sealed class RoomService : IAsyncDisposable
         });
         s.Reconectada += () => OnSala(s, () =>
         {
-            Publish(st => Refreshed(st) with { Phase = RoomPhase.Connected });
+            Publish(st => Refreshed(st) with { Phase = s.EsAnfitrion ? RoomPhase.Hosting : RoomPhase.Connected });
             Notify("Se restableció la conexión.", false);
         });
         s.Cerrada += motivo => OnSala(s, () => UiTask.Run(EndAsync(s, CollabMessages.ForClosed(motivo))));
         // Estuvo fuera tanto que la sala ya no guarda lo que se perdió: hace falta una copia nueva del proyecto.
-        s.Desfasada += since => OnSala(s, () => UiTask.Run(EndAsync(s, CollabMessages.ForClosed("desfasada"))));
-        s.Superada += (_, _) => OnSala(s, () => UiTask.Run(EndAsync(s, CollabMessages.ForClosed("traspaso"))));
+        s.Desfasada += since => OnSala(s, () =>
+        {
+            if (SnapshotNeeded is { } recover) recover(s.Epoca);
+            else UiTask.Run(EndAsync(s, CollabMessages.ForClosed("desfasada")));
+        });
+        s.Superada += (_, _) => OnSala(s, () =>
+        {
+            if (Interlocked.CompareExchange(ref _superseding, 1, 0) == 0) UiTask.Run(SupersededAsync(s));
+        });
+    }
+
+    private async Task SupersededAsync(Dathinel.Sala.Sala sala)
+    {
+        if (Superseded is { } save) await save().ConfigureAwait(false);
+        await EndAsync(sala, "Otra copia de la sala quedó al mando. Tus cambios separados están en «Cambios que no entraron». Vuelve a entrar con una invitación de quien hospeda ahora.").ConfigureAwait(false);
     }
 
     /// <summary>
@@ -642,6 +696,11 @@ public sealed class RoomService : IAsyncDisposable
             Red = _env.Red,
             MaxMiembros = _env.MaxMembers,
         };
+        if (_env.StandbyWait is { } wait)
+        {
+            o = o with { EsperaSuplente = wait };
+        }
+
         return _env.ValidateTimeout is { } t ? o with { TopeValidar = t } : o;
     }
 

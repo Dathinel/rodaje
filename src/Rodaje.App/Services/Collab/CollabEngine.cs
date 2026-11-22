@@ -34,6 +34,8 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         // La sala ya lo ordenó (está en lo confirmado); solo falta que la interfaz lo dé por bueno.
         public bool Confirmed { get; set; }
 
+        public bool Attempted { get; set; }
+
         public string Description { get; } = description;
 
         public bool IsUndo { get; } = isUndo;
@@ -85,6 +87,11 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         _ui = ui;
         _liveChanged = liveChanged;
         _notice = notice;
+        _room.ConnectionLost += OnConnectionLost;
+        _room.Superseded += HandleSupersededAsync;
+        _room.SnapshotNeeded += OnSnapshotNeeded;
+        _room.StateChanged += OnRoomChanged;
+        _room.DirectReceived += OnRecoveryDirect;
         UiTask.Run(Task.Run(SendLoopAsync));
     }
 
@@ -101,6 +108,12 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
 
     public void Dispose()
     {
+        _room.ConnectionLost -= OnConnectionLost;
+        _room.Superseded -= HandleSupersededAsync;
+        _room.SnapshotNeeded -= OnSnapshotNeeded;
+        _room.StateChanged -= OnRoomChanged;
+        _room.DirectReceived -= OnRecoveryDirect;
+        lock (_m) { if (_started) Persist(); }
         _outbox.Writer.TryComplete();
         _stop.Cancel();
         _stop.Dispose();
@@ -122,16 +135,35 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         List<Ordenado> early;
         lock (_m)
         {
+            if (_room.RoomFolder.Length > 0)
+            {
+                _journal = new CollabJournal(_room.RoomFolder);
+                _restore = _journal.Load(() => _notice("El registro de la sala está dañado o no se pudo leer y se ignoró. La edición puede continuar; conserva tu copia del proyecto si falta algún cambio.", true));
+            }
             _mirror = mirror;
             _mirrorVersions = versions.Clone();
+            if (_room.State.IsHost && _restore is { } saved)
+            {
+                ProjectParseResult restored = ProjectWire.TryParse(saved.Snapshot);
+                if (restored.Project is { } confirmed && confirmed.Id == mirror.Id && restored.Versions is { } confirmedVersions)
+                {
+                    _mirror = confirmed;
+                    _mirrorVersions = confirmedVersions;
+                }
+            }
             _seq = seq;
-            _liveVersions = versions.Clone();
+            _liveVersions = _mirrorVersions.Clone();
             _started = true;
             early = [.. _early];
             _early.Clear();
         }
 
-        _ = _ui(() => _baseline = SharedState.Capture(_live));
+        _ = _ui(() =>
+        {
+            if (_room.State.IsHost && _restore is not null) ResetToConfirmed();
+            _baseline = SharedState.Capture(_live);
+            RestoreJournal();
+        });
         foreach (Ordenado o in early)
         {
             Apply(o);
@@ -238,6 +270,11 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         lock (_m)
         {
             _pending.Add(pending);
+            if (!Persist())
+            {
+                _notice("No se pudo guardar el registro de la sala. Este cambio sigue en este equipo y no se enviará hasta poder guardarlo. Comprueba el espacio y los permisos de la carpeta del proyecto.", true);
+                return;
+            }
         }
 
         _outbox.Writer.TryWrite(pending);
@@ -274,7 +311,12 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         bool dropped;
         lock (_m)
         {
-            dropped = !_pending.Contains(pending);
+            dropped = !_pending.Contains(pending) || pending.Confirmed;
+            if (!dropped)
+            {
+                if (pending.Attempted || _room.State.Phase == RoomPhase.Reconnecting || _superseded || !Persist()) return;
+                pending.Attempted = true;
+            }
         }
 
         if (dropped)
@@ -291,7 +333,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
             if (blocked is not null)
             {
                 pending.Sent.TrySetResult(Guid.Empty);
-                await _ui(() => Revert(pending, blocked.Describe())).ConfigureAwait(false);
+                await _ui(() => Revert(pending, blocked.Describe(), "Otra persona tiene la pista reservada. Puedes conservar este cambio como uno nuevo en otra pista o descartarlo.")).ConfigureAwait(false);
                 return;
             }
 
@@ -301,6 +343,8 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         }
         catch (Exception ex) when (ex is CollabException or JsonException or OperationCanceledException or ArgumentException)
         {
+            lock (_m) pending.Attempted = false;
+            if (_room.State.Phase == RoomPhase.Reconnecting || ex is OperationCanceledException) return;
             pending.Sent.TrySetResult(Guid.Empty);
             if (ex is not OperationCanceledException)
             {
@@ -320,6 +364,8 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         {
             return ValueTask.FromResult(Veredicto.No("no-valido", parsed.Rejection?.Message ?? "El cambio no es válido."));
         }
+        if (!Guid.TryParse(patch.Id, out _) || patch.Author != author.Clave)
+            return ValueTask.FromResult(Veredicto.No("no-valido", "El identificador o el autor del cambio no son válidos."));
 
         Project candidate;
         ElementVersions versions;
@@ -330,6 +376,12 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
             {
                 return ValueTask.FromResult(Veredicto.No("no-valido", "La sala todavía no está lista."));
             }
+            if (_superseded) return ValueTask.FromResult(Veredicto.No("superada", "Otra copia de la sala quedó al mando. Vuelve a entrar antes de seguir editando."));
+
+            // Un reenvío tras reabrir tiene otro id de transporte. No crea un segundo orden.
+            if (_accepted.Contains(patch.Id)) return ValueTask.FromResult(Veredicto.No("ya-confirmado", "Este cambio ya está en la copia confirmada de la sala."));
+            if (_branch.Count >= CollabJournal.MaxEntries)
+                return ValueTask.FromResult(Veredicto.No("registro-lleno", "El registro de cambios separados está lleno. Vuelve a entrar en la sala actual antes de seguir editando."));
 
             required = PatchReservations.Required(patch, _mirror);
             candidate = _mirror.Clone();
@@ -360,6 +412,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
     {
         Patch? patch = null;
         string? desync = null;
+        bool duplicate = false;
         lock (_m)
         {
             if (!_started)
@@ -387,7 +440,8 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
                 else
                 {
                     patch = parsed.Patch;
-                    PatchResult result = PatchApply.TryApply(_mirror, _mirrorVersions, patch);
+                    duplicate = _accepted.Contains(patch.Id);
+                    PatchResult result = duplicate ? PatchResult.Accepted : PatchApply.TryApply(_mirror, _mirrorVersions, patch);
                     if (!result.IsAccepted)
                     {
                         desync = result.Rejection!.Message;
@@ -395,10 +449,19 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
                     else
                     {
                         _seq = ordered.Seq;
+                        if (!duplicate)
+                        {
+                            RememberAccepted(patch.Id);
+                            if (_separation is not null)
+                                _branch.Add(new JournalEntry("branch", patch with { Author = ordered.Autor }, ordered.Seq));
+                            if (_superseded && ordered.Autor == _room.State.MyKey)
+                                Unsettled.Add(patch, "El cambio se confirmó mientras otra copia de la sala tomaba el mando. Vuelve a entrar para conservarlo como uno nuevo o descartarlo.");
+                        }
                         if (_pending.FirstOrDefault(p => p.Patch.Id == patch.Id) is { } own)
                         {
                             own.Confirmed = true;
                         }
+                        Persist();
                     }
                 }
             }
@@ -411,6 +474,11 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         }
 
         Patch ordered1 = patch;
+        if (duplicate)
+        {
+            _ = _ui(() => ConfirmDuplicate(ordered1));
+            return;
+        }
         _ = _ui(() => ApplyToLive(ordered1));
     }
 
@@ -440,7 +508,23 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
 
             if (match is not null)
             {
-                await _ui(() => Revert(match, CollabMessages.Rejected(rejection.Motivo, rejection.Detalle))).ConfigureAwait(false);
+                if (rejection.Motivo == "ya-confirmado")
+                {
+                    await _ui(() =>
+                    {
+                        ConfirmDuplicate(match.Patch);
+                        if (ResetToConfirmed())
+                        {
+                            foreach (Pending pending in SnapshotPending().Where(p => !p.Confirmed))
+                                if (!Reproject(pending)) Revert(pending, "La copia actual cambió mientras se confirmaba otro paso.");
+                            _baseline = SharedState.Capture(_live);
+                            _liveChanged();
+                        }
+                    }).ConfigureAwait(false);
+                    return;
+                }
+                await _ui(() => Revert(match, CollabMessages.Rejected(rejection.Motivo, null),
+                    CollabMessages.Rejected(rejection.Motivo, null) + " Puedes conservar este cambio como uno nuevo o descartarlo.")).ConfigureAwait(false);
             }
         }));
     }
@@ -464,6 +548,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
             if (own is not null)
             {
                 _pending.Remove(own);
+                Persist();
             }
         }
 
@@ -542,7 +627,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         _liveChanged();
     }
 
-    private void Revert(Pending pending, string text)
+    private void Revert(Pending pending, string text, string? unsettledReason = null)
     {
         List<Pending> later;
         lock (_m)
@@ -558,6 +643,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
         }
 
         _presence.Done(pending.Keys);
+        SaveUnsettled(pending.Patch, unsettledReason ?? "El envío del cambio no se pudo completar. Puedes conservarlo como un cambio nuevo o descartarlo.");
         if (!ResetToConfirmed())
         {
             return;
@@ -583,10 +669,12 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
             foreach (Pending p in lost)
             {
                 _presence.Done(p.Keys);
+                SaveUnsettled(p.Patch, "Este cambio dependía de otro que no entró. Puedes conservarlo como un cambio nuevo o descartarlo.");
             }
         }
 
         _baseline = SharedState.Capture(_live);
+        lock (_m) Persist();
         _liveChanged();
         string also = lost.Count == 0 ? "" : $" Tampoco entró lo que hiciste después y dependía de eso ({string.Join(", ", lost.Select(p => p.Description))}).";
         _notice($"Un cambio tuyo no se pudo aplicar: {text} Lo deshicimos para que sigas igual que los demás.{also}", true);
@@ -595,11 +683,7 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
     /// <summary>Vuelve a aplicar un paso propio sin respuesta sobre lo vivo: <c>false</c> si ya no cabe. Solo desde <c>ui</c>.</summary>
     private bool Reproject(Pending next)
     {
-        Patch? patch = PatchDiff.Create(next.Before, next.After, _liveVersions, new PatchHeader(next.Patch.Id, next.Patch.BaseOrder, next.Patch.Author, next.Patch.Description));
-        if (patch is null)
-        {
-            return false;
-        }
+        Patch patch = next.Patch;
 
         SharedState before = SharedState.Capture(_live);
         if (!PatchApply.TryApply(_live, _liveVersions, patch).IsAccepted)
@@ -619,7 +703,10 @@ public sealed partial class CollabEngine : ICollabPayloadHandler, ICollabHistory
     {
         lock (_m)
         {
+            foreach (Pending pending in _pending.Where(p => !p.Confirmed))
+                SaveUnsettled(pending.Patch, "Otra persona cambió lo mismo. Puedes conservar tu cambio como uno nuevo o descartarlo.");
             _pending.Clear();
+            Persist();
         }
 
         if (ResetToConfirmed())
