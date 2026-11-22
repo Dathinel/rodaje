@@ -5,6 +5,7 @@ using Rodaje.App.Services.Collab;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Operations;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Relink;
 using Rodaje.Core.Model;
 using Rodaje.Core.Serialization;
 
@@ -37,7 +38,12 @@ internal static class SharedProjectFlow
             }
         }
 
-        IReadOnlyDictionary<string, string>? found = await MediaSearchDialog.ShowAsync(services, hwnd, received, host);
+        // El medio se queda con el nombre que trae el manifiesto (el archivo del anfitrión): así lo enseña cualquier
+        // aviso de «Faltan medios» en vez del id interno o de «Medio sin nombre».
+        MediaPlaceholders.FillNames(received.Project, received.Media);
+
+        var proxies = new RoomProxies(room, roomFolder, received.Media);
+        IReadOnlyDictionary<string, string>? found = await MediaSearchDialog.ShowAsync(services, hwnd, received, host, proxies);
         if (found is null)
         {
             // Cerrar «Busca tus archivos» o pulsar «Salir de la sala» es salir: no se abre un proyecto que la persona no quiso abrir.
@@ -67,13 +73,17 @@ internal static class SharedProjectFlow
             return;
         }
 
-        while (!await services.Session.OpenProjectAsync(file))
+        // «Busca tus archivos» ya resolvió estos medios: abrir la copia no debe sacar otro «Faltan medios» con lo mismo.
+        using (RelinkDialog.SkipCheckWhileOpening(file))
         {
-            if (!await AskOpenAgainAsync(services, file))
+            while (!await services.Session.OpenProjectAsync(file))
             {
-                await room.LeaveAsync();
-                services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", $"Tu copia del proyecto está en «{file}»; puedes abrirla cuando quieras.");
-                return;
+                if (!await AskOpenAgainAsync(services, file))
+                {
+                    await room.LeaveAsync();
+                    services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", $"Tu copia del proyecto está en «{file}»; puedes abrirla cuando quieras.");
+                    return;
+                }
             }
         }
 
