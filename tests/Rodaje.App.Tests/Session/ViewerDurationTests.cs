@@ -1,5 +1,6 @@
 using Rodaje.App.Services;
 using Rodaje.App.Tests.Support;
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Engine.Presentation;
 
