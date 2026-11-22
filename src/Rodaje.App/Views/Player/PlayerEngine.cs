@@ -115,6 +115,7 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
     private long _shuttleAnchorStamp;
     private double _zoom;
     private readonly PreviewQualityGovernor _quality = new();
+    private readonly GpuRecovery _gpuRecovery = new();
     private int _previewDivisor = 1;
     private int _previewDowngrades;
     private long _editMark;
@@ -517,55 +518,16 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
             Initialize();
             while (!_stop)
             {
-                ApplyResize();
-                ApplyExternal();
-                ApplyProject();
-                ProcessCommands();
-                ApplyContentChanges();
-                ApplyTitleChanges();
-                RunGpuWork();
-                if (_session is { IsPlaying: false } && _quality.Paused())
+                try
                 {
-                    EnsureCompositor();
-                    _dirty = true;
+                    Loop();
                 }
-
-                if (_session is null || !HasViewer)
+                catch (Exception ex) when (_gpuRecovery.ShouldRecover(IsGpuLost(), Stopwatch.GetTimestamp()))
                 {
-                    PublishSnapshot();
-                    _wake.WaitOne(IdleWaitMs);
-                    continue;
+                    _metrics.Note($"GPU perdida ({ex.GetType().Name}: {ex.Message}); se rehace el dispositivo");
+                    RecoverGpu();
+                    Warning?.Invoke(GpuRecovery.Notice);
                 }
-
-                bool active = _session.IsPlaying || _session.IsSeekPending || _dirty || IsScrubbing;
-                if (active)
-                {
-                    // Uno por refresco: la cadena tiene latencia máxima 1, así que esto marca el ritmo del vsync.
-                    long waitStart = Stopwatch.GetTimestamp();
-                    WaitForRefresh();
-                    _lastWaitMs = Stopwatch.GetElapsedTime(waitStart).TotalMilliseconds;
-
-                    // Una edición que llegó durante la espera entra en este mismo cuadro y no en el siguiente.
-                    ApplyProject();
-                    if (_session is null)
-                    {
-                        continue;
-                    }
-
-                    RenderFrame();
-                }
-                else
-                {
-                    _wake.WaitOne(_scopes is { HasPending: true } ? ScopeWaitMs : IdleWaitMs);
-                    using CompositionFrame frame = _session.Tick();
-                    if (Signature(frame) != _lastSignature)
-                    {
-                        _dirty = true;
-                    }
-                }
-
-                PumpScopes();
-                PublishSnapshot();
             }
         }
 #pragma warning disable CA1031 // El error se muestra en la interfaz en vez de tumbar el proceso desde un hilo de fondo.
@@ -579,6 +541,68 @@ internal sealed partial class PlayerEngine : IPlaybackEngine, IDisposable
         finally
         {
             Shutdown();
+        }
+    }
+
+    private void Loop()
+    {
+        while (!_stop)
+        {
+            // Un TDR o un controlador que se actualiza no siempre lanza: a veces solo deja de dibujar.
+            if (IsGpuLost())
+            {
+                throw new InvalidOperationException("Se perdió la tarjeta gráfica.");
+            }
+
+            ApplyResize();
+            ApplyExternal();
+            ApplyProject();
+            ProcessCommands();
+            ApplyContentChanges();
+            ApplyTitleChanges();
+            RunGpuWork();
+            if (_session is { IsPlaying: false } && _quality.Paused())
+            {
+                EnsureCompositor();
+                _dirty = true;
+            }
+
+            if (_session is null || !HasViewer)
+            {
+                PublishSnapshot();
+                _wake.WaitOne(IdleWaitMs);
+                continue;
+            }
+
+            bool active = _session.IsPlaying || _session.IsSeekPending || _dirty || IsScrubbing;
+            if (active)
+            {
+                // Uno por refresco: la cadena tiene latencia máxima 1, así que esto marca el ritmo del vsync.
+                long waitStart = Stopwatch.GetTimestamp();
+                WaitForRefresh();
+                _lastWaitMs = Stopwatch.GetElapsedTime(waitStart).TotalMilliseconds;
+
+                // Una edición que llegó durante la espera entra en este mismo cuadro y no en el siguiente.
+                ApplyProject();
+                if (_session is null)
+                {
+                    continue;
+                }
+
+                RenderFrame();
+            }
+            else
+            {
+                _wake.WaitOne(_scopes is { HasPending: true } ? ScopeWaitMs : IdleWaitMs);
+                using CompositionFrame frame = _session.Tick();
+                if (Signature(frame) != _lastSignature)
+                {
+                    _dirty = true;
+                }
+            }
+
+            PumpScopes();
+            PublishSnapshot();
         }
     }
 

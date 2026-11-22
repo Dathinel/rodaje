@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using Rodaje.Core.Timing;
 using Rodaje.Media.Gpu;
 using Rodaje.Render;
 using TerraFX.Interop.Windows;
@@ -22,6 +24,73 @@ internal sealed partial class PlayerEngine
         DeviceDescription = _gpu.ToString();
         _presenter = new Presenter(_gpu) { Surround = _surround };
         _gpuTimer = new GpuTimer(_gpu);
+    }
+
+    private bool IsGpuLost() => _gpu is { IsLost: true };
+
+    /// <summary>
+    /// La GPU se perdió (TDR, controlador que se actualiza, DEVICE_REMOVED): todo lo que colgaba del dispositivo viejo se
+    /// suelta y se rehace sobre uno nuevo, con la misma cadena del visor (que la interfaz vuelve a recibir), la misma
+    /// secuencia, el cabezal donde estaba y reproduciendo si reproducía. Corre en el hilo de render.
+    /// </summary>
+    private void RecoverGpu()
+    {
+        Time position = _session?.Position ?? Time.Zero;
+        bool playing = _session?.IsPlaying ?? false;
+        SizeRequest? viewer = _swapChain is { } chain ? new SizeRequest(chain.Width, chain.Height, chain.ScaleX, chain.ScaleY, Stopwatch.GetTimestamp()) : null;
+        SizeRequest? external = _external is { } other ? new SizeRequest(other.Width, other.Height, other.ScaleX, other.ScaleY, Stopwatch.GetTimestamp()) : null;
+
+        CloseSession();
+        _compositor?.Dispose();
+        _compositor = null;
+        _scopes?.Dispose();
+        _scopes = null;
+        _looks?.Dispose();
+        _looks = null;
+        _transitionStills?.Dispose();
+        _transitionStills = null;
+        _titles?.Dispose();
+        _titles = null;
+        _gpuTimer?.Dispose();
+        _gpuTimer = null;
+        _gpuPending = false;
+        _presenter?.Dispose();
+        _presenter = null;
+        _swapChain?.Dispose();
+        _swapChain = null;
+        _external?.Dispose();
+        _external = null;
+        _gpu?.Dispose();
+        _gpu = null;
+
+        OpenGpu();
+        CreateTitles();
+        if (_fontFiles is { } fonts)
+        {
+            _titles!.RegisterFonts(fonts);
+        }
+
+        if (viewer is { } size)
+        {
+            ApplyViewerSize(size);
+        }
+
+        if (external is { } second)
+        {
+            lock (_pendingLock)
+            {
+                _pendingExternal ??= second;
+            }
+        }
+
+        OpenSession();
+        _session?.Seek(position);
+        if (playing)
+        {
+            _session?.Play();
+        }
+
+        _dirty = true;
     }
 
     private void ApplyViewerSize(SizeRequest size)
