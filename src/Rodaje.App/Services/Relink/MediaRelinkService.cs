@@ -11,7 +11,7 @@ namespace Rodaje.App.Services.Relink;
 /// en una carpeta, comprobar un archivo elegido a mano y aplicarlo todo en un paso del historial. Sin WinUI: el diálogo
 /// está en <c>Views/Relink</c>. El disco se lee fuera del hilo de la interfaz.
 /// </summary>
-public sealed class MediaRelinkService
+public sealed partial class MediaRelinkService
 {
     private readonly IMediaProber _prober;
     private readonly IRelinkFileSystem _fileSystem;
@@ -168,7 +168,7 @@ public sealed class MediaRelinkService
         return new SkipScope(this, full);
     }
 
-    private sealed class SkipScope(MediaRelinkService owner, string file) : IDisposable
+    private sealed partial class SkipScope(MediaRelinkService owner, string file) : IDisposable
     {
         public void Dispose()
         {

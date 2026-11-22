@@ -43,13 +43,14 @@ Contrato para quien programa contra los parches (B11: `CollabSession`, `RoomServ
   {"kind":"clip","id":"c-91…","parent":"A2","v":17,"content":{ …Clip en el JSON del .rodaje… }},
   {"kind":"clip","id":"c-02…","parent":"A2","v":4,"content":null},
   {"kind":"track","id":"A2","parent":"s-1","v":9,"content":{ …Track sin clips… }}],
- "orders":[{"container":"vtracks:s-1","ids":["V1","V2"]}],
+ "orders":[{"container":"vtracks:s-1","v":3,"ids":["V1","V2"]}],
  "blobs":[{"sha256":"9F…","size":5242880}]}
 ```
 
 - Las claves son fijas y el orden de los cambios es el canónico (clase y luego identificador), así que un mismo cambio da el mismo texto. El contenido de cada elemento es el JSON del `.rodaje` de esa versión de Rodaje, **con las claves ordenadas** y **sin rutas**: el medio no lleva `path`; una referencia `file:` de una LUT o una máscara viaja como `blob:<sha256>` y llega como blob (§9).
 - **Orden de aplicación** (canónico, no depende del orden del texto): borrados (clip, marcador, región, pista, secuencia, transcripción, medio), altas y cambios (medio, transcripción, secuencia, pista, marcador, región, clip) y, al final, los `orders`. Después, `ModelValidator.Validate` sobre el proyecto entero: si hay un solo error, el parche entero se rechaza.
 - Los clips de una pista no llevan orden: salen ordenados por `Start`. Los medios, secuencias, transcripciones, pistas, marcadores y regiones sí, y `orders` solo los lleva cuando los elementos nuevos añadidos al final no dan el orden buscado.
+- **Precondición de los `orders`:** cada entrada lleva `v`, la versión del contenedor sobre la que se hizo el orden (`ElementVersions` la sube con cada parche que toca esa lista). Un orden hecho sobre otra versión se rechaza con `VersionConflict`, igual que los `ops`: así reenviar un reordenamiento viejo no puede restaurar un orden anterior.
 - **Versiones:** un cambio solo se acepta si `v` es la versión actual del elemento (alta de un identificador nuevo: la que `ElementVersions` tenga para él, 0 si nunca existió). Al aceptar, cada elemento tocado sube a `v + 1`.
 - **Qué se mueve y qué no:** un clip puede cambiar de pista; una pista, un marcador o una región **no** cambian de secuencia (el parche se rechaza con `Invalid`). Borrar una pista o una secuencia exige que todo lo que cuelga de ella se borre o se mueva en el mismo parche (con su propia versión): si otra persona puso algo dentro, se rechaza con `VersionConflict` en lugar de llevárselo.
 - **Opciones de efectos y transiciones:** ningún valor puede ser una ruta (`file:`, UNC, absoluta, relativa, con `..`), tampoco en opciones que Core no conoce (de paquetes); las únicas referencias a archivos son `blob:<SHA-256 en mayúsculas>`. Los rechazos del validador no repiten el valor que los causó (podría ser una ruta local). Las fechas de las transcripciones viajan siempre en UTC (una fecha sin zona se toma como UTC).

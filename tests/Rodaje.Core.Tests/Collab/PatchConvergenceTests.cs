@@ -69,6 +69,37 @@ public sealed class PatchConvergenceTests
     }
 
     [Fact]
+    public void Un_reorden_sobre_un_orden_que_ya_cambio_se_rechaza_por_version()
+    {
+        // Revisión, hallazgo 7: un parche con solo «orders» no tenía precondición; reenviarlo restauraba un orden viejo.
+        Project a = SharedStateTests.Rich();
+        Assert.NotEmpty(a.Media);
+        while (a.Media.Count < 2)
+        {
+            MediaRef extra = a.Media[0].Clone();
+            extra.Id = "m-extra-" + a.Media.Count;
+            a.Media.Add(extra);
+        }
+
+        Project b = a.Clone();
+        var versions = new ElementVersions();
+        var reorder = new Patch("r1", 0, "k:a", "Reordenar", [],
+            [new PatchOrder(PatchContainers.Media, [.. a.Media.Select(m => m.Id).Reverse()])], []);
+
+        PatchResult first = PatchApply.TryApply(b, versions, reorder);
+        Assert.True(first.IsAccepted, first.Rejection?.Message);
+        Assert.Equal(1, versions.GetOrder(PatchContainers.Media));
+
+        PatchResult stale = PatchApply.TryApply(b, versions, reorder);
+
+        Assert.Equal(PatchRejectionReason.VersionConflict, stale.Rejection?.Reason);
+        var back = new Patch("r2", 0, "k:a", "Deshacer orden", [],
+            [new PatchOrder(PatchContainers.Media, [.. a.Media.Select(m => m.Id)], versions.GetOrder(PatchContainers.Media))], []);
+        Assert.True(PatchApply.TryApply(b, versions, back).IsAccepted);
+        Assert.Equal(SharedState.Capture(a).Hash, SharedState.Capture(b).Hash);
+    }
+
+    [Fact]
     public void Un_parche_que_deja_el_proyecto_invalido_se_rechaza_sin_cambiar_nada()
     {
         Project a = SharedStateTests.Rich();
