@@ -197,7 +197,8 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     private static MenuFlyoutItem MenuItem(string text, string glyph, RoutedEventHandler click)
     {
         var item = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph } };
-        item.Click += click;
+        // Quitar, mover o marcar puede rehacer la cuadrícula y quitar el elemento que ancla el menú: después del clic (tarea 91).
+        item.Click += (sender, e) => item.DispatcherQueue.RunAfterEvent(() => click(sender, e));
         return item;
     }
 

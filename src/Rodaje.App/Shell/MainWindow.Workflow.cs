@@ -5,6 +5,7 @@ using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Media;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Engine.Timeline;
 
 namespace Rodaje.App.Shell;
@@ -131,11 +132,12 @@ internal sealed partial class MainWindow
                 row.Children.Add(new TextBlock { Text = folder.Path, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center });
                 var remove = new Button { Content = "Quitar" };
                 Grid.SetColumn(remove, 1);
-                remove.Click += (_, _) =>
+                // Fill quita esta fila y su botón: después del clic (tarea 91).
+                remove.Click += (_, _) => _dispatcher.RunAfterEvent(() =>
                 {
                     s.WatchedFolders.Remove(folder);
                     Fill();
-                };
+                });
                 row.Children.Add(remove);
                 list.Children.Add(row);
             }
