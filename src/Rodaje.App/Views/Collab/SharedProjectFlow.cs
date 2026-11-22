@@ -45,7 +45,8 @@ internal static class SharedProjectFlow
             MediaPlaceholders.FillNames(received.Project, received.Media);
 
             var proxies = new RoomProxies(room, roomFolder, received.Media);
-            IReadOnlyDictionary<string, string>? found = await MediaSearchDialog.ShowAsync(services, hwnd, received, host, proxies);
+            var originals = new RoomOriginals(room, roomFolder, received.Media, () => collab.OriginalCap?.Invoke());
+            IReadOnlyDictionary<string, string>? found = await MediaSearchDialog.ShowAsync(services, hwnd, received, host, proxies, originals);
             if (found is null)
             {
                 // Cerrar «Busca tus archivos» o pulsar «Salir de la sala» es salir: no se abre un proyecto que la persona no quiso abrir.
