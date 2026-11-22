@@ -440,7 +440,8 @@ internal sealed partial class TextPanel
         };
         ToolTipService.SetToolTip(delete, "Quitar");
         AutomationProperties.SetName(delete, "Quitar");
-        delete.Click += (_, _) => _editor?.CommitStyle(field + "-remove", s => remove(s, index));
+        // Quitar rehace la lista de capas (y esta fila con su botón): después del clic (tarea 91).
+        delete.Click += (_, _) => DispatcherQueue.RunAfterEvent(() => _editor?.CommitStyle(field + "-remove", s => remove(s, index)));
         Grid.SetColumn(delete, column);
         row.Children.Add(delete);
         updates.Add(s =>
