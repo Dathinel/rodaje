@@ -650,7 +650,10 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
     }
 
-    private void OnEnabledClick(object sender, RoutedEventArgs e)
+    // Los botones y el menú de una fila editan y la lista se rehace (quita la fila del botón): después del clic (tarea 91).
+    private void OnEnabledClick(object sender, RoutedEventArgs e) => DispatcherQueue.RunAfterEvent(() => SetEnabled(sender));
+
+    private void SetEnabled(object sender)
     {
         if (sender is ToggleButton { Tag: string effectId } toggle)
         {
@@ -663,9 +666,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
     }
 
-    private void OnMoveUpClick(object sender, RoutedEventArgs e) => Move(sender, -1);
+    private void OnMoveUpClick(object sender, RoutedEventArgs e) => DispatcherQueue.RunAfterEvent(() => Move(sender, -1));
 
-    private void OnMoveDownClick(object sender, RoutedEventArgs e) => Move(sender, 1);
+    private void OnMoveDownClick(object sender, RoutedEventArgs e) => DispatcherQueue.RunAfterEvent(() => Move(sender, 1));
 
     private void Move(object sender, int delta)
     {
@@ -675,7 +678,9 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
     }
 
-    private void OnRemoveClick(object sender, RoutedEventArgs e)
+    private void OnRemoveClick(object sender, RoutedEventArgs e) => DispatcherQueue.RunAfterEvent(() => Remove(sender));
+
+    private void Remove(object sender)
     {
         if (sender is FrameworkElement { Tag: string effectId })
         {
@@ -690,14 +695,17 @@ internal sealed partial class FiltersPanel : UserControl, IEditorView
         }
     }
 
-    // La lista ya movió la fila; se pasa al modelo con un comando y la lista se rehace desde ahí.
+    // La lista ya movió la fila; se pasa al modelo con un comando y la lista se rehace desde ahí, después del evento.
     private void OnDragItemsCompleted(ListViewBase sender, DragItemsCompletedEventArgs args)
     {
-        if (args.Items.Count != 1 || args.Items[0] is not FilterItem item)
+        if (args.Items.Count == 1 && args.Items[0] is FilterItem item)
         {
-            return;
+            DispatcherQueue.RunAfterEvent(() => Reorder(item));
         }
+    }
 
+    private void Reorder(FilterItem item)
+    {
         int target = Items.IndexOf(item);
         if (target >= 0 && target != IndexOf(item.EffectId))
         {

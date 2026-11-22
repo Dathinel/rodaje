@@ -546,7 +546,8 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
         void Item(string text, Action action, bool enabled = true)
         {
             var item = new MenuFlyoutItem { Text = text, IsEnabled = enabled };
-            item.Click += (_, _) => action();
+            // Editar rehace la lista y quita la fila que ancla este menú: después del clic (tarea 91).
+            item.Click += (_, _) => DispatcherQueue.RunAfterEvent(action);
             menu.Items.Add(item);
         }
 
@@ -559,7 +560,7 @@ internal sealed partial class MasksPanel : UserControl, IEditorView
                 Text = name,
                 Icon = new FontIcon { Glyph = "", Foreground = new SolidColorBrush(ParseColor(value)) },
             };
-            item.Click += (_, _) => Run(Edits.SetEffectOption(SequenceId, clip.Id, id, O.Color, value));
+            item.Click += (_, _) => DispatcherQueue.RunAfterEvent(() => Run(Edits.SetEffectOption(SequenceId, clip.Id, id, O.Color, value)));
             colors.Items.Add(item);
         }
 
