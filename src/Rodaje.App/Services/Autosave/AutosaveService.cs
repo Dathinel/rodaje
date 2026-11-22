@@ -209,6 +209,7 @@ public sealed partial class AutosaveService : IDisposable
 
         string suggested = $"{recoverable.ProjectName} (recuperado){ProjectSerializer.FileExtension}";
         string? target = RecoveredPathNextTo(recoverable.ProjectPath, recoverable.ProjectName);
+        bool picked = target is null;
         if (target is null)
         {
             string? picked = await _dialogs.PickProjectSavePathAsync(suggested);
@@ -260,6 +261,11 @@ public sealed partial class AutosaveService : IDisposable
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             // Queda Discard, que quita el bloqueo; solo si fallan los dos se vuelve a ofrecer en el próximo arranque.
+        }
+
+        if (picked)
+        {
+            _dialogs.ProjectSavedAs(target);
         }
 
         recoverable.Discard();
