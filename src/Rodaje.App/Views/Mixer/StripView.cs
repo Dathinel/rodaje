@@ -173,7 +173,7 @@ internal sealed partial class StripView : UserControl
             if (e.Items.Count > 0 && e.Items[0] is FrameworkElement { Tag: EffectInstance moved })
             {
                 List<string> order = [.. _inserts.Items.OfType<FrameworkElement>().Select(i => ((EffectInstance)i.Tag).Id)];
-                host.ReorderInserts(Strip, moved.Id, order);
+                DispatcherQueue.RunAfterEvent(() => host.ReorderInserts(Strip, moved.Id, order));
             }
         };
         AutomationProperties.SetName(_inserts, "Inserciones");
@@ -382,7 +382,12 @@ internal sealed partial class StripView : UserControl
         };
         AutomationProperties.SetName(on, "Activar " + EffectUi.Name(effect.Type));
         ToolTipService.SetToolTip(on, "Activar o desactivar (cambia el proyecto)");
-        on.Click += (_, _) => _host.SetInsertEnabled(Strip, effect, on.IsChecked == true);
+        // Los botones de una fila la rehacen (y se quitan a sí mismos): después del clic (tarea 91).
+        on.Click += (_, _) =>
+        {
+            bool enabled = on.IsChecked == true;
+            DispatcherQueue.RunAfterEvent(() => _host.SetInsertEnabled(Strip, effect, enabled));
+        };
         var name = new TextBlock
         {
             Text = EffectUi.Name(effect.Type),
@@ -404,7 +409,11 @@ internal sealed partial class StripView : UserControl
             FontSize = ThemeResources.Size("MicroFontSize"),
         };
         ToolTipService.SetToolTip(ab, "Escuchar sin este efecto (solo la vista previa).");
-        ab.Click += (_, _) => _host.SetBypassed(effect.Id, ab.IsChecked == true);
+        ab.Click += (_, _) =>
+        {
+            bool bypassed = ab.IsChecked == true;
+            DispatcherQueue.RunAfterEvent(() => _host.SetBypassed(effect.Id, bypassed));
+        };
         Grid.SetColumn(name, 1);
         Grid.SetColumn(ab, 2);
         item.Children.Add(on);
@@ -420,7 +429,7 @@ internal sealed partial class StripView : UserControl
             {
                 var entry = new MenuFlyoutItem { Text = preset.Name };
                 ToolTipService.SetToolTip(entry, preset.Description);
-                entry.Click += (_, _) => _host.ApplyPreset(Strip, effect, preset);
+                entry.Click += (_, _) => DispatcherQueue.RunAfterEvent(() => _host.ApplyPreset(Strip, effect, preset));
                 sub.Items.Add(entry);
             }
 
@@ -495,7 +504,11 @@ internal sealed partial class StripView : UserControl
         var pre = new ToggleButton { Content = "Pre", IsChecked = send.PreFader, MinWidth = 0, Padding = new Thickness(3, 0, 3, 0), FontSize = ThemeResources.Size("MicroFontSize") };
         ToolTipService.SetToolTip(pre, "Antes del fader: lo que se manda no depende del volumen de la pista.");
         string busId = send.BusId;
-        pre.Click += (_, _) => _host.SetSendPre(Strip, busId, pre.IsChecked == true);
+        pre.Click += (_, _) =>
+        {
+            bool preFader = pre.IsChecked == true;
+            DispatcherQueue.RunAfterEvent(() => _host.SetSendPre(Strip, busId, preFader));
+        };
         var level = new Slider
         {
             Minimum = AudioSend.MinGainDb,
@@ -602,7 +615,8 @@ internal sealed partial class StripView : UserControl
     private static MenuFlyoutItem Item(string text, Action action)
     {
         var item = new MenuFlyoutItem { Text = text };
-        item.Click += (_, _) => action();
+        // Quitar, añadir o cambiar rehace la tira y quita el ancla del menú: después del clic (tarea 91).
+        item.Click += (_, _) => item.DispatcherQueue.RunAfterEvent(action);
         return item;
     }
 }

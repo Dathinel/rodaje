@@ -97,7 +97,7 @@ internal sealed partial class ParameterRow : UserControl
         ValueSlider.SmallChange = spec.Step;
         ValueSlider.LargeChange = spec.Step * 10;
         ValueBox.SmallChange = spec.Step;
-        ValueBox.NumberFormatter = Formatter(spec.Decimals);
+        ValueBox.NumberFormatter = new TypedNumberFormatter(spec.Decimals);
         KeyframeButton.Visibility = spec.Animatable ? Visibility.Visible : Visibility.Collapsed;
         string keyframeHelp = "Añadir o quitar keyframe de " + char.ToLowerInvariant(spec.Label[0]) + spec.Label[1..] + " en el cursor";
         ToolTipService.SetToolTip(KeyframeButton, keyframeHelp);
@@ -179,18 +179,6 @@ internal sealed partial class ParameterRow : UserControl
         _changing = false;
         ChangeEnded?.Invoke(this, EventArgs.Empty);
     }
-
-    private static Windows.Globalization.NumberFormatting.DecimalFormatter Formatter(int decimals) => new()
-    {
-        FractionDigits = decimals,
-        IntegerDigits = 1,
-        IsGrouped = false,
-        NumberRounder = new Windows.Globalization.NumberFormatting.IncrementNumberRounder
-        {
-            Increment = Math.Pow(10, -decimals),
-            RoundingAlgorithm = Windows.Globalization.NumberFormatting.RoundingAlgorithm.RoundHalfAwayFromZero,
-        },
-    };
 
     // Con el panel ancho todo va en una línea; estrecho, el deslizador ocupa la segunda línea entera.
     private void ApplyLayout(double width)

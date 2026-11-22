@@ -81,7 +81,7 @@ public static class Personalization
     {
         argb = 0;
         string hex = (text ?? "").Trim().TrimStart('#');
-        if (hex.Length is not (6 or 8) || !uint.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out uint value))
+        if (hex.Length is not (6 or 8) || !uint.TryParse(hex, System.Globalization.NumberStyles.HexNumber, System.Globalization.CultureInfo.InvariantCulture, out uint value))
         {
             return false;
         }

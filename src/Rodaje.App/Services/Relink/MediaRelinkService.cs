@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Collab;
 using Rodaje.App.Services.Crashes;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
@@ -10,7 +11,7 @@ namespace Rodaje.App.Services.Relink;
 /// en una carpeta, comprobar un archivo elegido a mano y aplicarlo todo en un paso del historial. Sin WinUI: el diálogo
 /// está en <c>Views/Relink</c>. El disco se lee fuera del hilo de la interfaz.
 /// </summary>
-public sealed class MediaRelinkService
+public sealed partial class MediaRelinkService
 {
     private readonly IMediaProber _prober;
     private readonly IRelinkFileSystem _fileSystem;
@@ -153,13 +154,42 @@ public sealed class MediaRelinkService
         session.ProjectOpened += (_, _) => UiTask.Run(CheckOpenedAsync(session, show));
     }
 
+    private string? _skipped;
+
+    /// <summary>
+    /// Mientras dure, abrir <paramref name="projectFile"/> no muestra «Faltan medios»: sus medios ya los resolvió otro
+    /// diálogo (la copia del proyecto de una sala, con «Busca tus archivos»), y dos diálogos seguidos con lo mismo confunden.
+    /// </summary>
+    public IDisposable SkipCheckWhileOpening(string projectFile)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectFile);
+        string full = Path.GetFullPath(projectFile);
+        _skipped = full;
+        return new SkipScope(this, full);
+    }
+
+    private sealed partial class SkipScope(MediaRelinkService owner, string file) : IDisposable
+    {
+        public void Dispose()
+        {
+            if (owner._skipped == file)
+            {
+                owner._skipped = null;
+            }
+        }
+    }
+
+    private bool IsSkipped(EditorSession session) =>
+        _skipped is { } skipped && session.FilePath is { Length: > 0 } file
+        && string.Equals(Path.GetFullPath(file), skipped, StringComparison.OrdinalIgnoreCase);
+
     /// <summary>Lo que se hace al abrir: si faltan medios y el proyecto sigue siendo el mismo, se muestran.</summary>
     public async Task<IReadOnlyList<MediaRef>> CheckOpenedAsync(EditorSession session, Func<IReadOnlyList<MediaRef>, Task> show)
     {
         ArgumentNullException.ThrowIfNull(session);
         ArgumentNullException.ThrowIfNull(show);
         Project project = session.Project;
-        if (project.Media.Count == 0)
+        if (project.Media.Count == 0 || IsSkipped(session))
         {
             return [];
         }
@@ -193,7 +223,33 @@ public sealed class MediaRelinkService
     {
         ArgumentNullException.ThrowIfNull(missing);
         return missing.Count == 1
-            ? $"No se encuentra «{MediaRelinkSearch.FileName(missing[0].Path)}». Vuelve a enlazarlo para verlo y exportarlo."
+            ? $"No se encuentra «{DisplayName(missing[0])}». Vuelve a enlazarlo para verlo y exportarlo."
             : $"No se encuentran {missing.Count} medios. Vuelve a enlazarlos para verlos y exportarlos.";
+    }
+
+    /// <summary>Lo que se enseña de un medio sin nombre ni archivo que se pueda nombrar.</summary>
+    public const string UnnamedMedia = "Medio sin nombre";
+
+    /// <summary>
+    /// El nombre que se enseña de un medio que falta: su nombre en el proyecto; si no tiene, el del archivo; y si tampoco
+    /// (o la ruta es la de relleno de una sala, que acaba en el id interno), <see cref="UnnamedMedia"/>.
+    /// </summary>
+    public static string DisplayName(MediaRef media)
+    {
+        ArgumentNullException.ThrowIfNull(media);
+        if (!string.IsNullOrWhiteSpace(media.Name))
+        {
+            return media.Name.Trim();
+        }
+
+        string file = MediaRelinkSearch.FileName(media.Path);
+        return file.Length == 0 || MediaPlaceholders.IsPlaceholder(media) ? UnnamedMedia : file;
+    }
+
+    /// <summary>La ruta que se enseña debajo del nombre; <c>null</c> si no hay o es la de relleno de una sala.</summary>
+    public static string? DisplayPath(MediaRef media)
+    {
+        ArgumentNullException.ThrowIfNull(media);
+        return media.Path.Length == 0 || MediaPlaceholders.IsPlaceholder(media) ? null : media.Path;
     }
 }

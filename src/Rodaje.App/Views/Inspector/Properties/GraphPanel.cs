@@ -42,7 +42,8 @@ internal sealed partial class GraphPanel : Grid, IEditorView
                 ShowChosen();
             }
         };
-        _parameters.DropDownClosed += (_, _) => Refresh();
+        // Lo que no se refrescó con la lista abierta puede rehacer sus elementos: después del evento (tarea 91).
+        _parameters.DropDownClosed += (_, _) => DispatcherQueue.RunAfterEvent(Refresh);
     }
 
     public void Attach(EditorServices services)

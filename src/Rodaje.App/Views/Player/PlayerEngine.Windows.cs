@@ -18,7 +18,7 @@ internal sealed partial class PlayerEngine
 
     private void OpenGpu()
     {
-        _gpu = GpuDevice.TryCreate(out string? gpuFailure) ?? throw new InvalidOperationException("Hace falta una GPU con Direct3D 11. " + gpuFailure);
+        _gpu = GpuDevice.Create();
         DeviceDescription = _gpu.ToString();
         _presenter = new Presenter(_gpu) { Surround = _surround };
         _gpuTimer = new GpuTimer(_gpu);

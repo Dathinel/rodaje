@@ -68,7 +68,7 @@ public sealed unsafe class AudioDecoder : IDisposable
         _format = format;
         try
         {
-            Info = MediaProbe.Probe(format, path, scanTimestamps: false);
+            Info = MediaProbe.Probe(format, path, scanTimestamps: true);
             Stream = Info.Audio ?? throw new MediaException($"El archivo {path} no tiene un flujo de audio.");
             _streamIndex = Stream.StreamIndex;
             AVStream* stream = format->streams[_streamIndex];
