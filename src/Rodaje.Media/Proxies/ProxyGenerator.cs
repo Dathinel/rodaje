@@ -402,7 +402,9 @@ public sealed class ProxyGenerator : IDisposable
         }
 
         // Las marcas en ms (Matroska) dan en un clip corto una media un 0,2 % distinta: vale si ningún cuadro se corre medio cuadro.
-        if (!original.IsVariableFrameRate && video.FrameRate != original.FrameRate
+        // Con un cuadro perdido o repetido a mitad del original (celulares, OBS), el promedio del proxy baja o sube aunque copie
+        // las marcas: vale si r_frame_rate sigue siendo la del original. Antes ningún codificador daba proxy de esos archivos.
+        if (!original.IsVariableFrameRate && video.FrameRate != original.FrameRate && video.RealFrameRate != original.FrameRate
             && Math.Abs(video.FrameCount * ((video.FrameRate.ToDouble() / original.FrameRate.ToDouble()) - 1)) >= 0.5)
         {
             throw new ProxyEncodeException($"el proxy quedó a {video.FrameRate} fps y el original es de {original.FrameRate}.");
