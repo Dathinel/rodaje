@@ -8,6 +8,7 @@ using Rodaje.App.Services.Collab;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
+using Rodaje.App.Views.Inspector;
 using Windows.UI.Text;
 
 namespace Rodaje.App.Views.Collab;
@@ -97,15 +98,11 @@ internal sealed class RoomPanel
         OnUnsettledChanged();
     }
 
-    private void OnUnsettledChanged() => UiTask.Run(UiInvoke.Run<int>(action =>
-    {
-        if (!_dispatcher.TryEnqueue(() => action())) throw new InvalidOperationException("La ventana ya no está disponible.");
-    }, () =>
+    private void OnUnsettledChanged() => _ = _dispatcher.RunLater(() =>
     {
         Render(Room.State);
         RecoveryChanged?.Invoke();
-        return 0;
-    }));
+    });
 
     private void AddNotice(RoomNotice notice)
     {
