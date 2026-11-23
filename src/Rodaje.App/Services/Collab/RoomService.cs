@@ -53,7 +53,6 @@ public sealed class RoomService : IAsyncDisposable
     private Dathinel.Sala.Sala? _sala;
     private string _folder = "";
     private string _lastAnchored = "";
-    private readonly HashSet<string> _offline = new(StringComparer.Ordinal);
     private int _superseding;
 
     /// <param name="post">
@@ -522,11 +521,6 @@ public sealed class RoomService : IAsyncDisposable
         });
         s.MiembroEntra += m => OnSala(s, () =>
         {
-            lock (_gate)
-            {
-                _offline.Remove(m.Clave);
-            }
-
             Publish(Refreshed);
             Notify(CollabMessages.Joined(m.Alias), false);
         });
@@ -534,11 +528,6 @@ public sealed class RoomService : IAsyncDisposable
         {
             ConnectionLost?.Invoke();
             string alias = State.Members.FirstOrDefault(x => x.Key == k)?.Alias ?? "Alguien";
-            lock (_gate)
-            {
-                _offline.Add(k);
-            }
-
             Publish(Refreshed);
             Notify(CollabMessages.Left(alias, motivo), false);
         });
@@ -705,11 +694,16 @@ public sealed class RoomService : IAsyncDisposable
         IReadOnlyList<Miembro> raw = sala.Miembros;
         string me = sala.Clave;
         string host = sala.Anfitrion;
-        string? standby = sala.Suplente;
+        // Sala lo sabe de primera mano en el anfitrión y por la última lista en el invitado: vale también tras un traspaso.
+        IReadOnlyCollection<string> online = sala.Conectados;
+        // En el anfitrión, Sala.Suplente se queda con el de cuando era invitado; se aplica su regla (el invitado conectado más antiguo que edita).
+        string? standby = sala.EsAnfitrion
+            ? online.FirstOrDefault(k => k != me && raw.Any(m => m.Clave == k && m.Rol == Rol.Editar))
+            : sala.Suplente;
         List<RoomMember> members =
         [
             .. raw
-                .Select(m => new RoomMember(m.Clave, m.Alias, m.Rol, m.Clave == host, m.Clave == me, Huella.Palabras(m.Clave), MemberColors.IndexFor(m.Clave), !_offline.Contains(m.Clave) || m.Clave == me))
+                .Select(m => new RoomMember(m.Clave, m.Alias, m.Rol, m.Clave == host, m.Clave == me, Huella.Palabras(m.Clave), MemberColors.IndexFor(m.Clave), m.Clave == me || online.Contains(m.Clave)))
                 .OrderByDescending(m => m.IsHost).ThenByDescending(m => m.IsMe).ThenBy(m => m.Alias, StringComparer.OrdinalIgnoreCase),
         ];
         if (sala.EsAnfitrion)
