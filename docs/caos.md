@@ -65,6 +65,9 @@ quedó algo.
 | 1 | 12 × 3 min | `COMException 0x8000FFFF` al cerrar (semilla 12) | Tareas de la cola de la interfaz (`LibraryView.ScanVisibleCovers`) que corrían con el árbol de XAML ya desmontado | `DispatcherQueueLater` descarta lo pendiente desde `MainWindow.OnClosed` (#704) |
 | 1 | | Cierre nativo 0xC000027B al cerrar, sin informe (semilla 10) | No se reprodujo; probable misma familia que la anterior (el error «stowed» no pasa por el filtro de fallos) | El mismo; queda como caso a vigilar |
 | 2 | 18 × 5 min | Fotogramas guardados en la carpeta desde la que se abrió Rodaje («291\», «%\», «1,5\») | «Carpeta de capturas» aceptaba cualquier texto y se resolvía contra el directorio actual | Solo vale una ruta completa (`StillCaptureNaming`, `Personalization.NormalizeFolder` en Preferencias y en el render en caché) (#704) |
+| 3 | 8 + 10 × 5 min | La corrida se quedó parada en «Carpetas vigiladas… › Añadir carpeta…» (semilla 33) | El selector de carpetas de Windows (`FolderDialog`, modal) no tenía respuesta del modo caos | `FolderDialog.FakePick`; el vigilante corta un paso que no termina en 60 s (ATASCADO) (#716) |
+| 3 | | `COMException 0x8000FFFF` en `PluginsView` (x:Bind) al cerrar (semilla 33) | Una instalación de complemento sin red terminaba después de cerrar la ventana | Tras cerrar la ventana, ese error va solo al registro (`Program.IgnoreAfterWindowClosed`) (#716) |
+| 4 | 8 × 4 min | `ArgumentException` «This element does not have a XamlRoot» al abrir el Historial nada más arrancar (semilla 48) | `ShowGlobalPanel` llamaba `Flyout.ShowAt` con el botón aún sin `XamlRoot` (Ctrl+H al arrancar) | Solo se muestra con el botón ya en el árbol |
 
 Repetir una semilla no repite el estado: el reparto de acciones cambia al cambiar la tabla de pesos y el resultado
 depende del tiempo. Por eso los casos fijos son las pruebas (`StillCaptureNamingTests`) y, para lo que solo sale en la
