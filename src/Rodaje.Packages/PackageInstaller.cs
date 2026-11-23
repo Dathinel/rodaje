@@ -389,7 +389,8 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         }
 
         string target = Path.Combine(root, id);
-        if (IsComplete(target, id) || !IsComplete(aside, id))
+        // Un respaldo puede seguir siendo aprovechable con contenido degradado; solo la instalación nueva exige validación estricta.
+        if (IsComplete(target, id) || !IsComplete(aside, id, validateContent: false))
         {
             return TryDelete(aside);
         }
@@ -413,7 +414,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     }
 
     /// <summary>Si la carpeta tiene un manifiesto válido con ese id y todos los archivos que nombra.</summary>
-    private bool IsComplete(string directory, string id)
+    private bool IsComplete(string directory, string id, bool validateContent = true)
     {
         if (!Directory.Exists(directory))
         {
@@ -424,7 +425,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         {
             var manifest = ManifestReader.ReadFile(Path.Combine(directory, PackageManifest.FileName), options: readOptions).Manifest;
             if (manifest?.Id != id) return false;
-            ValidateContent?.Invoke(new InstalledPackage(manifest, directory, PackageOrigin.Installed));
+            if (validateContent) ValidateContent?.Invoke(new InstalledPackage(manifest, directory, PackageOrigin.Installed));
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException or ArgumentException)
