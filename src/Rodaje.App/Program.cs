@@ -158,6 +158,19 @@ internal static partial class Program
     /// Con la ventana cerrada el árbol de XAML está desmontado y tocarlo lanza E_UNEXPECTED: es el final tardío de una tarea
     /// (una descarga que falla, una miniatura), no un fallo de la app. Solo va al registro (modo caos, rondas 1 y 3).
     /// </summary>
+    /// <summary>Cierra la sesión del registro y termina el proceso con <see cref="ExitCode"/> sin desmontar la interfaz.</summary>
+    internal static void ExitAfterWindowClosed()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        Crashes.EndSession();
+        ChaosRun.Mark("salida sin desmontar XAML");
+        Services.Crashes.NativeCrashHandler.TerminateNow(ExitCode);
+    }
+
     internal static bool IgnoreAfterWindowClosed(Exception exception)
     {
         if (!Views.Inspector.DispatcherQueueLater.WindowClosed || exception is not System.Runtime.InteropServices.COMException { HResult: unchecked((int)0x8000FFFF) })
