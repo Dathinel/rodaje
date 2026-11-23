@@ -40,6 +40,13 @@ internal sealed partial class PlayerEngine
 
     partial void CloseGpu() => _vulkan?.Dispose();
 
+    // shortcut: en Linux no se rehace el dispositivo de Vulkan si se pierde (VK_ERROR_DEVICE_LOST); el visor muestra el error.
+    private static bool IsGpuLost() => false;
+
+    private static void RecoverGpu()
+    {
+    }
+
     private void ApplyViewerSize(SizeRequest size)
     {
         if (_viewerWidth == 0)
