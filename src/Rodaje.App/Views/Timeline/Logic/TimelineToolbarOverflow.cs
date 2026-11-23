@@ -7,6 +7,7 @@ namespace Rodaje.App.Views.Timeline.Logic;
 /// </summary>
 public static class TimelineToolbarOverflow
 {
+    public const double NarrowThreshold = 1100;
     public const double CompactThreshold = 1440;
     public const double ExtraCompactThreshold = 1370;
 
@@ -22,6 +23,7 @@ public static class TimelineToolbarOverflow
         bool extraCompact = availableWidth > 0 && availableWidth < ExtraCompactThreshold;
 
         return new ToolbarLayoutState(
+            ShowDirectSettings: !(availableWidth > 0 && availableWidth < NarrowThreshold),
             ShowDirectMarkers: !compact,
             ShowMoreButton: compact,
             ShowDirectSecondaryToggles: !extraCompact,
@@ -33,6 +35,7 @@ public static class TimelineToolbarOverflow
 }
 
 public sealed record ToolbarLayoutState(
+    bool ShowDirectSettings,
     bool ShowDirectMarkers,
     bool ShowMoreButton,
     bool ShowDirectSecondaryToggles,

@@ -170,6 +170,7 @@
                 <MenuFlyoutItem Text="Acerca de Rodaje..." Click="OnAboutClick" />
                 <MenuFlyoutItem Text="Repositorio oficial" Click="OnUpstreamClick" />
             </MenuBarItem>
+            <MenuBarItem x:Name="OverflowMenu" Title="…" Visibility="Collapsed" AutomationProperties.Name="Todos los menús" ToolTipService.ToolTip="Todos los menús" />
         </MenuBar>
         </ScrollViewer>
 

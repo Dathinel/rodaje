@@ -5,6 +5,18 @@ namespace Rodaje.App.Tests.TimelineLogic;
 public sealed class TimelineToolbarOverflowTests
 {
     [Theory]
+    [InlineData(960, false)]
+    [InlineData(1099, false)]
+    [InlineData(1100, true)]
+    [InlineData(1920, true)]
+    public void NarrowSettingsRemainAvailableInOverflow(double width, bool direct)
+    {
+        ToolbarLayoutState state = TimelineToolbarOverflow.Calculate(width);
+        Assert.Equal(direct, state.ShowDirectSettings);
+        Assert.True(state.ShowDirectSettings || state.ShowMoreButton);
+    }
+
+    [Theory]
     [InlineData(1366)]
     [InlineData(1280)]
     [InlineData(1024)]

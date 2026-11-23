@@ -6,6 +6,31 @@ namespace Rodaje.App.Tests.Shell;
 public sealed class NarrowWindowTests
 {
     [Theory]
+    [InlineData(960, true)]
+    [InlineData(1099, true)]
+    [InlineData(1100, false)]
+    [InlineData(1920, false)]
+    public void MenusOverflowBeforeTheirTitlesAreClipped(double width, bool overflow)
+    {
+        Assert.Equal(overflow, TitleBarLayout.UseOverflow(width));
+    }
+
+    [Theory]
+    [InlineData("GapBehaviorBox", "GapSettingsMenu")]
+    [InlineData("RippleModeBox", "RippleSettingsMenu")]
+    public void TimelineOverflowKeepsAllSettingsChoices(string comboName, string submenuName)
+    {
+        XElement timeline = Load("Views/Timeline/TimelineView.xaml");
+        XElement[] choices = Named(timeline, submenuName).Elements().ToArray();
+        Assert.Equal(Named(timeline, comboName).Elements().Count(), choices.Length);
+        for (int i = 0; i < choices.Length; i++)
+        {
+            Assert.Equal(i.ToString(System.Globalization.CultureInfo.InvariantCulture), choices[i].Attribute("Tag")?.Value);
+            Assert.Equal("OnSettingsMenuClick", choices[i].Attribute("Click")?.Value);
+        }
+    }
+
+    [Theory]
     [InlineData(1000, 320, 320)]
     [InlineData(788, 220, 240)]
     [InlineData(787, 320, 0)]
