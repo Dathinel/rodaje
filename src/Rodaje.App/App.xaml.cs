@@ -63,8 +63,15 @@ public partial class App : Application
 
     /// <summary>Lo llama el contexto del hilo de la interfaz: informe «recuperado» y aviso, y la app sigue abierta.</summary>
     // Una ráfaga (el mismo error en cada tick) avisa una vez por intervalo, como el informe.
-    internal bool HandleDispatcherException(Exception exception) =>
-        CrashRouting.OnDispatcherException(exception, ShowUnexpectedError(), Program.ReportException);
+    internal bool HandleDispatcherException(Exception exception)
+    {
+        if (Program.IgnoreAfterWindowClosed(exception))
+        {
+            return true;
+        }
+
+        return CrashRouting.OnDispatcherException(exception, ShowUnexpectedError(), Program.ReportException);
+    }
 
     private Action<string>? ShowUnexpectedError() => _window is { } window ? window.ReportUnexpectedError : null;
 
