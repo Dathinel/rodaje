@@ -28,6 +28,8 @@ internal sealed class RoomPanel
     private readonly List<RoomNotice> _notices = [];
     private readonly StackPanel _root = new() { Spacing = 12, MinWidth = 380, MaxWidth = 460 };
     private string _diagnosis = "";
+    private TextBlock? _diagnosisText;
+    private Button? _copyDiagnosis;
     private DispatcherQueueTimer? _timer;
     private readonly DispatcherQueue _dispatcher = DispatcherQueue.GetForCurrentThread();
     private CollabEngine? _recoveryEngine;
@@ -75,9 +77,21 @@ internal sealed class RoomPanel
     {
         Dathinel.Sala.Diagnostico? d = await Room.DiagnosticAsync();
         string text = d?.ParaTelefono() ?? "";
-        if (text != _diagnosis)
+        if (text == _diagnosis)
         {
-            _diagnosis = text;
+            return;
+        }
+
+        _diagnosis = text;
+        // Cambia cada segundo («Actividad: hace N s»): rehacer el panel entero cerraba el menú «…» de una persona
+        // a medio elegir (y su «Pasar anfitrión a…» no llegaba). Solo se cambia el texto.
+        if (_diagnosisText?.Parent is not null && _copyDiagnosis is not null)
+        {
+            _diagnosisText.Text = text.Length > 0 ? text : "Midiendo la conexión…";
+            _copyDiagnosis.IsEnabled = text.Length > 0;
+        }
+        else
+        {
             Render(Room.State);
         }
     }
@@ -118,6 +132,8 @@ internal sealed class RoomPanel
     public void Render(RoomState state)
     {
         _root.Children.Clear();
+        _diagnosisText = null;
+        _copyDiagnosis = null;
         RenderUnsettled();
         if (state.Phase == RoomPhase.Closed)
         {
@@ -173,8 +189,10 @@ internal sealed class RoomPanel
         if (state.InRoom)
         {
             _root.Children.Add(Text("Conexión", FontWeights.SemiBold));
-            _root.Children.Add(InviteDialog.Hint(_diagnosis.Length > 0 ? _diagnosis : "Midiendo la conexión…"));
+            _diagnosisText = InviteDialog.Hint(_diagnosis.Length > 0 ? _diagnosis : "Midiendo la conexión…");
+            _root.Children.Add(_diagnosisText);
             var copyDiagnosis = new Button { Content = "Copiar diagnóstico", IsEnabled = _diagnosis.Length > 0 };
+            _copyDiagnosis = copyDiagnosis;
             copyDiagnosis.Click += (_, _) =>
             {
                 if (CollabClipboard.TrySetText(_diagnosis))
