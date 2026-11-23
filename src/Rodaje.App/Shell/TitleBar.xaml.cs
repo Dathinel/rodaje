@@ -25,6 +25,18 @@ internal sealed partial class TitleBar : UserControl
     public TitleBar()
     {
         InitializeComponent();
+        // 6 px en vez de los 10 de WinUI (fijados con StaticResource en su plantilla): a media pantalla cabe hasta «Ayuda».
+        foreach (MenuBarItem top in Menu.Items)
+        {
+            top.Loaded += (_, _) =>
+            {
+                if (FindContentButton(top) is { } button)
+                {
+                    button.Padding = new Thickness(6, 4, 6, 4);
+                }
+            };
+        }
+
         UpstreamCredit.Content = UpstreamAttribution.ShortCredit;
         ToolTipService.SetToolTip(UpstreamCredit, UpstreamAttribution.Notice);
         AutomationProperties.SetName(UpstreamCredit, UpstreamAttribution.Notice);
@@ -454,5 +466,24 @@ internal sealed partial class TitleBar : UserControl
             DefaultButton = ContentDialogButton.Close,
         };
         await DialogGate.ShowAsync(dialog);
+    }
+
+    private static Button? FindContentButton(DependencyObject parent)
+    {
+        for (int i = 0; i < Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChildrenCount(parent); i++)
+        {
+            DependencyObject child = Microsoft.UI.Xaml.Media.VisualTreeHelper.GetChild(parent, i);
+            if (child is Button { Name: "ContentButton" } button)
+            {
+                return button;
+            }
+
+            if (FindContentButton(child) is { } found)
+            {
+                return found;
+            }
+        }
+
+        return null;
     }
 }

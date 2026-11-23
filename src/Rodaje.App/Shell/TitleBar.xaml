@@ -24,10 +24,6 @@
         <ScrollViewer Grid.Column="1" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Auto"
                       VerticalScrollMode="Disabled" VerticalScrollBarVisibility="Disabled" ZoomMode="Disabled">
         <MenuBar x:Name="Menu" VerticalAlignment="Center">
-            <MenuBar.Resources>
-                <!-- 6 px en vez de 10 por lado: a media pantalla (960 px) cabe hasta «Ayuda» sin cortarse. -->
-                <Thickness x:Key="MenuBarItemButtonPadding">6,4,6,4</Thickness>
-            </MenuBar.Resources>
             <MenuBarItem Title="Archivo">
                 <MenuFlyoutItem Text="Proyecto nuevo" Tag="file.new" Click="OnActionClick" />
                 <MenuFlyoutSubItem x:Name="TemplatesMenu" Text="Proyecto nuevo desde plantilla" />
