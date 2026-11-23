@@ -381,4 +381,5 @@ public sealed partial class ExportQueueStore(string path)
 [JsonSourceGenerationOptions(WriteIndented = false, PropertyNamingPolicy = JsonKnownNamingPolicy.CamelCase, UseStringEnumConverter = true,
     Converters = [typeof(RationalJsonConverter), typeof(TimeJsonConverter)])]
 [JsonSerializable(typeof(SavedExportFile))]
+[JsonSerializable(typeof(ExportSettings))]
 internal sealed partial class ExportQueueJsonContext : JsonSerializerContext;

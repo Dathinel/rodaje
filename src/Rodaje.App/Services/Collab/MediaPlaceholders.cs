@@ -28,6 +28,17 @@ public static class MediaPlaceholders
         return MediaFolder + Path.DirectorySeparatorChar + (safe.Length > 0 ? safe : "m" + index);
     }
 
+    /// <summary>
+    /// Si al proyecto le faltan originales en este equipo: un medio sin ruta, con el marcador de la sala o apuntando a un
+    /// archivo que ya no está. Con ellos «Exportar» no se ofrece a un invitado: para eso está «Exportar en el anfitrión».
+    /// </summary>
+    public static bool MissingOriginals(Project project)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        return project.Media.Any(m => m.Path.Length == 0 || IsPlaceholder(m)
+            || (Path.IsPathFullyQualified(m.Path) && !File.Exists(m.Path)));
+    }
+
     /// <summary>El medio se queda con el nombre que trae el manifiesto de la sala cuando no tiene: así lo enseña cualquier aviso.</summary>
     public static void FillNames(Project project, IEnumerable<MediaManifestEntry> media)
     {

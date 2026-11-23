@@ -174,6 +174,12 @@ internal sealed partial class MainWindow : Window, IShellHost
             Collab = new Services.Collab.CollabHost(Services.AppDataPaths.Root, post => _dispatcher.RunLater(post), red: () => Services.Collab.CollabNetwork.ForSettings(settings.Current))
             {
                 Confirm = (title, message, confirm) => dialogs.ConfirmAsync(title, message, confirm),
+                ExportQueue = _exports,
+                ApproveExport = ask => dialogs.ConfirmAsync(
+                    "Exportar en el anfitrión",
+                    $"{ask.Alias} pide exportar el proyecto de la sala en este equipo:\n\n{ask.Detail}\n\n"
+                        + "El archivo se guarda en la carpeta de exportaciones de la sala, en este equipo.",
+                    "Exportar aquí"),
                 ApproveOriginal = (ask, cancellationToken) => Views.Collab.OriginalApproval.AskAsync(Root.XamlRoot, ask, cancellationToken),
                 OriginalCap = () => settings.Current.CollabOriginalCapBytes,
             },
