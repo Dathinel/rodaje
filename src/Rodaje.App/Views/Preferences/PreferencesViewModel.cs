@@ -18,7 +18,7 @@ public sealed class PreferencesViewModel(AppSettings settings)
     public bool CheckForUpdates { get => Settings.CheckForUpdates; set => Settings.CheckForUpdates = value; }
     public string GeneratedMediaFolder { get => Settings.GeneratedMediaFolder ?? ""; set => Settings.GeneratedMediaFolder = string.IsNullOrWhiteSpace(value) ? null : value; }
     public string PathMappings { get => PathMappingText.Format(Settings.PathMappings); set => Settings.PathMappings = PathMappingText.Parse(value); }
-    public string StillCaptureFolder { get => Settings.StillCaptureFolder ?? ""; set => Settings.StillCaptureFolder = string.IsNullOrWhiteSpace(value) ? null : value; }
+    public string StillCaptureFolder { get => Settings.StillCaptureFolder ?? ""; set => Settings.StillCaptureFolder = Personalization.NormalizeFolder(value); }
     public IReadOnlyList<int> LinkedAudioVideoTracks => Settings.LinkedAudioTracks.IsAll
         ? Enumerable.Range(1, NewProjectTracks.Max).ToArray()
         : Settings.LinkedAudioTracks.ToSetting() ?? [];
@@ -50,7 +50,7 @@ public sealed class PreferencesViewModel(AppSettings settings)
     public HdrViewer HdrViewer { get => Settings.HdrViewer; set => Settings.HdrViewer = value; }
     public ShortcutPreset ShortcutPreset { get => Settings.ShortcutPreset; set => Settings.ShortcutPreset = value; }
     public Services.RenderCache.RenderCacheMode RenderCacheMode { get => Settings.RenderCacheMode; set => Settings.RenderCacheMode = Enum.IsDefined(value) ? value : Services.RenderCache.RenderCacheMode.Smart; }
-    public string RenderCacheFolder { get => Settings.RenderCacheFolder ?? ""; set => Settings.RenderCacheFolder = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); }
+    public string RenderCacheFolder { get => Settings.RenderCacheFolder ?? ""; set => Settings.RenderCacheFolder = Personalization.NormalizeFolder(value); }
 
     /// <summary>Tope en GB; NaN o menos de 1, el automático.</summary>
     public double RenderCacheCapGb { get => Settings.RenderCacheCapGb ?? double.NaN; set => Settings.RenderCacheCapGb = double.IsFinite(value) && value >= 1 ? Math.Min(value, 100_000) : null; }

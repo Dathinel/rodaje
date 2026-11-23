@@ -64,6 +64,7 @@ public sealed partial class AsyncSafetyTests
     private static readonly Dictionary<string, (int Count, string Reason)> EnqueueInLoopAllowed = new(StringComparer.Ordinal)
     {
         ["Rodaje.App/Shell/MeasurementRun.cs"] = (1, "solo con -Medir: mide la latencia de la cola con un aviso cada 50 ms."),
+        ["Rodaje.App/Shell/ChaosRun.Windows.cs"] = (1, "solo con --caos: el vigilante pone un aviso cada 500 ms para saber si la interfaz atiende."),
     };
 
     // Continuaciones sueltas (descartadas con «_ =» o pasadas a UiTask.Run) que no leen la excepción de su tarea:

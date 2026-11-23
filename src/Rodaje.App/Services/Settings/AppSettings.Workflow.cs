@@ -81,7 +81,8 @@ public sealed partial class AppSettings
             RenderCacheMode = RenderCache.RenderCacheMode.Smart;
         }
 
-        RenderCacheFolder = string.IsNullOrWhiteSpace(RenderCacheFolder) ? null : RenderCacheFolder.Trim();
+        // Una ruta que no es completa se resolvería contra la carpeta desde la que se abrió Rodaje (modo caos, ronda 2).
+        RenderCacheFolder = Personalization.NormalizeFolder(RenderCacheFolder);
         if (RenderCacheCapGb is not (>= 1 and <= 100_000))
         {
             RenderCacheCapGb = null;
