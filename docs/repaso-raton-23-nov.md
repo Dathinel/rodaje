@@ -28,11 +28,11 @@ Exe AOT de `main` (e02b256a, con B16) y después con los dos arreglos de #725. D
 |---|---|---|
 | D1 | «Busca tus archivos»: un segundo botón cancelaba en silencio la petición en curso; el invitado veía «Ya tienes otro original pendiente», el anfitrión aprobaba y no llegaba nada. | Arreglado en #725: una operación a la vez, los demás botones esperan. Comprobado con ratón. |
 | D2 | Panel de la sala: el diagnóstico de cada segundo rehacía el panel entero; el menú «…» de una persona se cerraba solo y «Pasar anfitrión a…» no hacía nada. | Arreglado en #725: solo cambia el texto. Comprobado con ratón. |
-| D3 | Tras pasar el anfitrión, el ex anfitrión ve al nuevo «Desconectado» y «1 persona», y el nuevo anfitrión se ve «quien hospeda · suplente» mientras el otro también se cree suplente. | Encargado (causa en estudio). |
-| D4 | Con la ventana a 960 px, la barra de menús corta «Ayuda» («Ay») y la barra de la línea de tiempo esconde «Ámbito». | Pendiente (menor). |
-| D5 | El recorrido inicial («1 · Importa tus medios») salta sobre el invitado al unirse a una sala y sobre el aviso de tamaño raro. | Pendiente (menor). |
-| D6 | Al pedir exportar en el anfitrión, la fase del invitado sigue en «Pidiendo permiso…» con la barra ya en 1 %. | Pendiente (menor). |
-| D7 | «Mostrar en el Explorador» sigue activo en un medio sin conexión. | Pendiente (menor). |
+| D3 | Tras pasar el anfitrión, el ex anfitrión ve al nuevo «Desconectado» y «1 persona», y el nuevo anfitrión se ve «quien hospeda · suplente» mientras el otro también se cree suplente. | Corregido en #726. |
+| D4 | Con la ventana a 960 px, la barra de menús corta «Ayuda» («Ay») y la barra de la línea de tiempo esconde «Ámbito». | Corregido en #728. |
+| D5 | El recorrido inicial («1 · Importa tus medios») salta sobre el invitado al unirse a una sala y sobre el aviso de tamaño raro. | Corregido en #727. |
+| D6 | Al pedir exportar en el anfitrión, la fase del invitado sigue en «Pidiendo permiso…» con la barra ya en 1 %. | Corregido en #727. |
+| D7 | «Mostrar en el Explorador» sigue activo en un medio sin conexión. | Corregido en #727. |
 
 No probado aquí: relé propio, «Solo por relé» de verdad, otro país, OneDrive «solo en la nube», red caída, reinicio de la GPU y
 la Intel (el portátil la tiene apagada); siguen en `pruebas-a-mano.md`.
