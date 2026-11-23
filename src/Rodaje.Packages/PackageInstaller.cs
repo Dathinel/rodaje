@@ -108,8 +108,6 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     public TimeSpan BusyTimeout { get; init; } = TimeSpan.FromSeconds(10);
     /// <summary>Validación de contenido específica de la aplicación, antes del intercambio atómico.</summary>
     public Action<InstalledPackage>? ValidateContent { get; init; }
-    /// <summary>Lectura completa del contenido recuperable, tolerando recursos degradados. Por defecto usa <see cref="ValidateContent"/>.</summary>
-    public Action<InstalledPackage>? ValidateRecoveryContent { get; init; }
 
     /// <summary>Archivo junto a <see cref="PackageLocations.Packages"/> que se abre sin compartir mientras dura una operación.</summary>
     public string OperationLockPath =>
@@ -172,33 +170,14 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         {
             Extract(archive, staging, cancellationToken);
             PackageIntegrity.Write(staging);
-            ManifestResult read = ManifestReader.ReadFile(Path.Combine(staging, PackageManifest.FileName), options: readOptions);
-            if (read.Manifest is not { } manifest)
-            {
-                throw new PackageInstallException("El paquete no es válido: " + string.Join(" ", read.Errors));
-            }
-
-            if (!manifest.WorksIn(AppId))
-            {
-                throw new PackageInstallException($"«{manifest.Name}» funciona en {string.Join(", ", manifest.Apps)}, no en este programa.");
-            }
-
-            if (!manifest.RunsOn(PackageManifest.ThisPlatform))
-            {
-                throw new PackageInstallException($"«{manifest.Name}» es para {manifest.Platform} y este equipo es {PackageManifest.ThisPlatform}: baja el de tu sistema.");
-            }
-
+            var package = ValidatePackage(staging, out var manifestWarnings);
+            var manifest = package.Manifest;
             if (!OperatingSystem.IsWindows() && manifest.Module is { } module)
             {
                 MakeExecutable(staging, module.Entry);
             }
 
-            if (manifest.Id == PackageLibrary.OwnPackageId)
-            {
-                throw new PackageInstallException($"El id «{PackageLibrary.OwnPackageId}» está reservado para los elementos propios.");
-            }
-
-            List<string> warnings = [.. read.Warnings];
+            List<string> warnings = [.. manifestWarnings];
             if (FontBytes(manifest, staging) is var (families, fontBytes) && families > 0)
             {
                 warnings.Add(families == 1
@@ -212,14 +191,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             string? movedAside = null;
             PackageVersion? previous = null;
             InstallOutcome outcome = InstallOutcome.Installed;
-            string? otherRoot = manifest.Kind == PackageKind.Module ? Locations.Packages : Locations.Modules;
-            if (Directory.Exists(Path.Combine(otherRoot, manifest.Id)))
-            {
-                throw new PackageInstallException($"Ya hay instalado otro complemento con el id «{manifest.Id}» de distinto tipo; desinstálalo primero.");
-            }
-
             beforeCommit?.Invoke(manifest);
-            ValidateContent?.Invoke(new InstalledPackage(manifest, staging, PackageOrigin.Installed));
             if (Directory.Exists(target))
             {
                 previous = ManifestReader.ReadFile(Path.Combine(target, PackageManifest.FileName), checkFiles: false, options: readOptions).Manifest?.Version;
@@ -330,13 +302,13 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     }
 
     /// <summary>
-    /// Resuelve una instalación cortada conservando una copia legible, incluida una extracción aprovechable. Borra los
-    /// restos ilegibles o redundantes y lo que se estaba desinstalando.
+    /// Restaura respaldos que superen la misma validación que una instalación. Descarta extracciones sin su archivo
+    /// original y verificación de procedencia, restos inválidos o redundantes y lo que se estaba desinstalando.
     /// Solo debe llamarse al arrancar, cuando no hay ninguna instalación en curso.
     /// </summary>
     /// <returns>Cuántos restos se resolvieron.</returns>
     /// <exception cref="PackageInstallException">Otro proceso tiene una operación en curso.</exception>
-    public int CleanUpLeftovers()
+    public int CleanUpLeftovers(Action<string>? warning = null)
     {
         using FileStream operation = AcquireOperationLock();
         int resolved = 0;
@@ -360,7 +332,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             // Primero las versiones anteriores: restaurar una puede apartar una nueva incompleta como «desinstalando».
             foreach (string directory in directories.Where(d => Path.GetFileName(d).StartsWith(PreviousPrefix, StringComparison.Ordinal)))
             {
-                if (ResolvePrevious(root, directory))
+                if (ResolvePrevious(root, directory, warning))
                 {
                     resolved++;
                 }
@@ -369,7 +341,8 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             foreach (string directory in directories)
             {
                 string name = Path.GetFileName(directory);
-                if (name.StartsWith(InstallingPrefix, StringComparison.Ordinal) ? ResolveInstalling(directory)
+                if (name.StartsWith(InstallingPrefix, StringComparison.Ordinal)
+                    ? DiscardLeftover(directory, "no se conserva el archivo original ni su verificación; vuelve a instalar el paquete", warning)
                     : name.StartsWith(RemovingPrefix, StringComparison.Ordinal) && TryDelete(directory))
                 {
                     resolved++;
@@ -381,21 +354,24 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     }
 
     /// <summary>Una versión apartada solo sustituye al destino si es legible y el destino no lo es.</summary>
-    private bool ResolvePrevious(string root, string aside)
+    private bool ResolvePrevious(string root, string aside, Action<string>? warning)
     {
         string name = Path.GetFileName(aside);
         int idStart = PreviousPrefix.Length + TagLength + 1;
         string id = name.Length > idStart && name[idStart - 1] == '-' ? name[idStart..] : "";
         if (!Identifiers.IsValid(id))
         {
-            return ReadRecoverable(aside) is null && TryDelete(aside);
+            return DiscardLeftover(aside, "el nombre del respaldo no identifica un paquete válido", warning);
         }
 
         string target = Path.Combine(root, id);
-        var previous = ReadRecoverable(aside);
-        var current = ReadRecoverable(target, id);
-        if (previous is not null && previous.Id != id) return false;
-        if (current is not null || previous is null)
+        var previous = ReadRecoverable(aside, out string? error);
+        if (previous is null)
+            return DiscardLeftover(aside, error!, warning);
+        if (previous.Id != id || !string.Equals(Path.GetFullPath(root), Path.GetFullPath(Locations.InstallRoot(previous.Manifest.Kind)), StringComparison.OrdinalIgnoreCase))
+            return DiscardLeftover(aside, "el manifiesto no corresponde al id o tipo del respaldo", warning);
+        var current = ReadRecoverable(target, out _, id);
+        if (current is not null)
         {
             return TryDelete(aside);
         }
@@ -403,13 +379,11 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         return RestoreLeftover(aside, target);
     }
 
-    private bool ResolveInstalling(string staging)
+    private static bool DiscardLeftover(string directory, string reason, Action<string>? warning)
     {
-        var package = ReadRecoverable(staging);
-        if (package is null) return TryDelete(staging);
-        string target = Path.Combine(Locations.InstallRoot(package.Manifest.Kind), package.Id);
-        if (ReadRecoverable(target, package.Id) is not null) return TryDelete(staging);
-        return RestoreLeftover(staging, target);
+        bool deleted = TryDelete(directory);
+        warning?.Invoke($"{(deleted ? "Se descartó" : "No se pudo descartar")} «{Path.GetFileName(directory)}»: {reason}.");
+        return deleted;
     }
 
     private static bool RestoreLeftover(string aside, string target)
@@ -435,8 +409,9 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     }
 
     /// <summary>Lee manifiesto y contenido enteros antes de decidir qué copia conservar.</summary>
-    private InstalledPackage? ReadRecoverable(string directory, string? id = null)
+    private InstalledPackage? ReadRecoverable(string directory, out string? error, string? id = null)
     {
+        error = null;
         if (!Directory.Exists(directory))
         {
             return null;
@@ -444,16 +419,69 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
 
         try
         {
-            var manifest = ManifestReader.ReadFile(Path.Combine(directory, PackageManifest.FileName), options: readOptions).Manifest;
-            if (manifest is null || (id is not null && manifest.Id != id) || !manifest.WorksIn(AppId)
-                || manifest.Id == PackageLibrary.OwnPackageId) return null;
-            var package = new InstalledPackage(manifest, directory, PackageOrigin.Installed);
-            (ValidateRecoveryContent ?? ValidateContent)?.Invoke(package);
-            return package;
+            var package = ValidatePackage(directory, out _);
+            return id is null || package.Id == id ? package : null;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException or ArgumentException)
+        catch (Exception ex) when (ex is PackageInstallException or IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException or ArgumentException or NotSupportedException or System.Security.SecurityException)
         {
+            error = ex.Message;
             return null;
+        }
+    }
+
+    private InstalledPackage ValidatePackage(string directory, out IReadOnlyList<string> warnings)
+    {
+        ValidateTree(directory);
+        var read = ManifestReader.ReadFile(Path.Combine(directory, PackageManifest.FileName), options: readOptions);
+        if (read.Manifest is not { } manifest)
+            throw new PackageInstallException("El paquete no es válido: " + string.Join(" ", read.Errors));
+        if (!manifest.WorksIn(AppId))
+            throw new PackageInstallException($"«{manifest.Name}» funciona en {string.Join(", ", manifest.Apps)}, no en este programa.");
+        if (!manifest.RunsOn(PackageManifest.ThisPlatform))
+            throw new PackageInstallException($"«{manifest.Name}» es para {manifest.Platform} y este equipo es {PackageManifest.ThisPlatform}: baja el de tu sistema.");
+        if (manifest.Id == PackageLibrary.OwnPackageId)
+            throw new PackageInstallException($"El id «{PackageLibrary.OwnPackageId}» está reservado para los elementos propios.");
+        string otherRoot = manifest.Kind == PackageKind.Module ? Locations.Packages : Locations.Modules;
+        if (Directory.Exists(Path.Combine(otherRoot, manifest.Id)))
+            throw new PackageInstallException($"Ya hay instalado otro complemento con el id «{manifest.Id}» de distinto tipo; desinstálalo primero.");
+        var package = new InstalledPackage(manifest, directory, PackageOrigin.Installed);
+        ValidateContent?.Invoke(package);
+        warnings = read.Warnings;
+        return package;
+    }
+
+    private void ValidateTree(string directory)
+    {
+        var pending = new Stack<string>();
+        pending.Push(directory);
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        long total = 0;
+        while (pending.TryPop(out string? folder))
+        {
+            if ((File.GetAttributes(folder) & FileAttributes.ReparsePoint) != 0)
+                throw new PackageInstallException("El paquete contiene un enlace.");
+            foreach (string path in Directory.EnumerateFileSystemEntries(folder))
+            {
+                string relative = Path.GetRelativePath(directory, path);
+                if (!SafePaths.TryNormalizeRelative(relative, out string? normalized) || !SafePaths.IsInside(path, directory))
+                    throw new PackageInstallException($"El paquete tiene una ruta no permitida: «{relative}».");
+                if (!seen.Add(normalized))
+                    throw new PackageInstallException($"El paquete repite el archivo «{relative}».");
+                if (seen.Count > _limits.MaxEntries)
+                    throw new PackageInstallException($"El paquete tiene más de {_limits.MaxEntries} archivos.");
+                var attributes = File.GetAttributes(path);
+                if ((attributes & FileAttributes.ReparsePoint) != 0)
+                    throw new PackageInstallException("El paquete contiene un enlace.");
+                if ((attributes & FileAttributes.Directory) != 0)
+                    pending.Push(path);
+                else
+                {
+                    long bytes = new FileInfo(path).Length;
+                    if (bytes > _limits.MaxTotalBytes - total)
+                        throw new PackageInstallException($"El paquete descomprimido ocupa más de {FormatBytes(_limits.MaxTotalBytes)}.");
+                    total += bytes;
+                }
+            }
         }
     }
 
