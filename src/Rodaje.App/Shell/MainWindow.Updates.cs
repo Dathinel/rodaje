@@ -81,7 +81,7 @@ internal sealed partial class MainWindow
     {
         try
         {
-            using Process? _ = Process.Start(new ProcessStartInfo(release.Url.AbsoluteUri) { UseShellExecute = true });
+            using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo(release.Url.AbsoluteUri) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
         {

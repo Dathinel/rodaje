@@ -19,6 +19,11 @@ internal static unsafe partial class FileDialogs
     /// <summary>Rutas elegidas, o vacío si se canceló. Desde el hilo de la interfaz (STA).</summary>
     public static IReadOnlyList<string> Open(nint owner, string title, bool multiple, string? folder, params (string Name, string Spec)[] filters)
     {
+        if (FakeOpen is { } fake)
+        {
+            return fake(title, multiple, filters);
+        }
+
         IFileOpenDialog* dialog = null;
         IShellItemArray* items = null;
         try
@@ -70,6 +75,11 @@ internal static unsafe partial class FileDialogs
     /// <summary>Ruta donde guardar, o <c>null</c> si se canceló.</summary>
     public static string? Save(nint owner, string title, string suggestedName, string defaultExtension, string? folder, params (string Name, string Spec)[] filters)
     {
+        if (FakeSave is { } fake)
+        {
+            return fake(title, suggestedName, defaultExtension);
+        }
+
         IFileSaveDialog* dialog = null;
         IShellItem* result = null;
         try

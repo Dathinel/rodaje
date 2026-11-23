@@ -22,9 +22,10 @@ public sealed class ExportJournal
         Path = System.IO.Path.Combine(Directory, FileName);
     }
 
-    /// <summary><c>%LOCALAPPDATA%\Rodaje\exportando.json</c>.</summary>
+    /// <summary><c>%LOCALAPPDATA%\Rodaje\exportando.json</c>, o el de <c>RODAJE_DATOS</c>.</summary>
     public static ExportJournal Default { get; } =
-        new(System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Rodaje"));
+        new(EnvironmentVariables.Read(EnvironmentVariables.Datos)
+            ?? System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Rodaje"));
 
     public string Directory { get; }
 

@@ -793,7 +793,7 @@ internal sealed partial class ExportView : UserControl
 
         var package = new global::Windows.ApplicationModel.DataTransfer.DataPackage();
         package.SetText(text);
-        global::Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        Rodaje.App.Shell.SystemAccess.SetClipboard(package);
         session.Notify(NotificationSeverity.Success, "Línea de ffmpeg copiada",
             "Es lo que recibe ffmpeg.exe: la imagen entra compuesta por la tubería (pipe:0) y la mezcla por «mezcla.wav», sin capítulos ni pistas de subtítulos.");
     }

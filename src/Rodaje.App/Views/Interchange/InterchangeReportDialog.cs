@@ -70,7 +70,7 @@ internal static class InterchangeReportDialog
         {
             var package = new global::Windows.ApplicationModel.DataTransfer.DataPackage();
             package.SetText(text);
-            global::Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+            Rodaje.App.Shell.SystemAccess.SetClipboard(package);
         }
         else if (result == ContentDialogResult.Secondary
             && FileDialogs.Save(InterchangeCommands.Owner(services), "Guardar el informe", $"{sequence.Name} - informe", "txt",
