@@ -8,7 +8,7 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ## [1.0.4] - 2026-11-20
 
-La versión de lo grande: editar por el texto, render en caché, cuadros intermedios, plantillas de movimiento e intercambio con otros editores.
+La versión de lo grande: editar en grupo con otros equipos, editar por el texto, render en caché, cuadros intermedios, plantillas de movimiento e intercambio con otros editores.
 
 ### Añadido
 - **Colaboración en sala (D-067, fase 1c):** Colaborar › «Invitar a otras personas…» hospeda el proyecto y da una invitación (`rodaje://unirse/…`) para copiar; quien la recibe entra con «Unirse a una sala…», el anfitrión lo aprueba siempre (con las cuatro palabras de comprobación de los dos) y le da permiso para editar o solo mirar. El invitado recibe el proyecto sin rutas y busca sus medios por contenido (tamaño y SHA-256) en las carpetas que elija; lo que no tiene queda sin conexión. Se editan los dos a la vez: cada paso sale como un parche que ordena el anfitrión, se ven los cabezales y selecciones de los demás con su color y la pista que tiene cada uno («Ana edita aquí»), y deshacer y rehacer son solo de lo propio. Panel de la sala con quién está, la conexión (directa o por relé, latencia) y «Copiar diagnóstico» para leerlo por teléfono. Todo con barra de progreso y avisos que dicen qué pasó y qué hacer. Necesita la misma versión de Rodaje en todos y `dathinel-red` junto a `Rodaje.exe`.
@@ -45,6 +45,7 @@ La versión de lo grande: editar por el texto, render en caché, cuadros interme
 - **Tarjeta gráfica:** sin Direct3D 11 por hardware el visor y la exportación van por WARP; si la GPU se reinicia a mitad de reproducción, el visor se rehace y sigue en el mismo punto; en portátiles con dos tarjetas se pide la de alto rendimiento (selector «Tarjeta gráfica» en Preferencias › Rendimiento).
 - **Archivos y disco:** los videos solo en la nube de OneDrive no se descargan para sacar miniaturas y una unidad de red caída no congela la ventana; guardar no pisa el proyecto abierto en otra ventana; «Guardar como» solo recuerda la carpeta si se guardó; los ajustes en una USB quitada no tumban la app.
 - **Cierres sin rastro:** las listas, menús e inspector que se rehacían dentro de su propio evento (la familia de la tarea 91) actúan después del evento, con una regla de arquitectura que lo vigila; Ctrl+H recién abierta la ventana ya no cierra la app; cerrar con un desplegable abierto ya no termina en `0xC000027B`.
+- **Colaboración, tras el repaso con el ratón:** dos ventanas de Rodaje abiertas a la vez en el mismo equipo ya pueden estar en la misma sala (cada una usa su propia clave); en «Falta un medio» y «Busca tus archivos» el botón «Elegir…» ya no se corta, y los botones se desactivan mientras se busca.
 - **Audio:** un vaciado del búfer entra y sale del silencio con un fundido de 2,7 ms en vez de un escalón (chasquido).
 
 
