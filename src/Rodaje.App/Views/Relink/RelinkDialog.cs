@@ -90,7 +90,8 @@ internal static class RelinkDialog
         // Encontrados con otro nombre: no se comparó el contenido, así que esperan a que el usuario los confirme.
         var proposed = new Dictionary<string, string>(StringComparer.Ordinal);
         var rows = new List<Row>();
-        var panel = new StackPanel { Spacing = 8, MinWidth = 520 };
+        // 480 y no 520: un ContentDialog deja unos 500 px útiles (548 menos el margen) y lo que sobra se cortaba («Elegir…»).
+        var panel = new StackPanel { Spacing = 8, MinWidth = 480 };
         panel.Children.Add(new TextBlock
         {
             Text = missing.Count == 1
