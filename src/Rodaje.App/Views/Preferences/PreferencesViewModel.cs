@@ -8,6 +8,20 @@ namespace Rodaje.App.Views.Preferences;
 /// <summary>Lectura y escritura de las preferencias persistentes editables desde la ventana de Preferencias.</summary>
 public sealed class PreferencesViewModel(AppSettings settings)
 {
+    /// <summary>Alto de las pestañas cuando la ventana sobra: el de la pestaña más alta.</summary>
+    public const double FullTabsHeight = 600;
+
+    /// <summary>Lo que el diálogo ocupa fuera de las pestañas: título, botones, márgenes y el borde de la ventana.</summary>
+    public const double DialogChrome = 200;
+
+    /// <summary>
+    /// Alto de las pestañas para una ventana de <paramref name="windowHeight"/> píxeles de diseño. Con 1280×720 al 150 %
+    /// (480 de alto) las 600 fijas desbordaban el diálogo y salían dos barras de desplazamiento; ahora cabe y solo se
+    /// desplaza la pestaña.
+    /// </summary>
+    public static double TabsHeight(double windowHeight) =>
+        double.IsFinite(windowHeight) && windowHeight > 0 ? Math.Clamp(windowHeight - DialogChrome, 160, FullTabsHeight) : FullTabsHeight;
+
     public AppSettings Settings { get; } = settings ?? throw new ArgumentNullException(nameof(settings));
 
     public int VideoTracks { get => Settings.DefaultVideoTracks; set => Settings.DefaultVideoTracks = Math.Clamp(value, NewProjectTracks.Min, NewProjectTracks.Max); }

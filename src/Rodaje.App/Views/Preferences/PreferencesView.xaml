@@ -2,7 +2,7 @@
     x:Class="Rodaje.App.Views.Preferences.PreferencesView"
     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
-    <!-- Alto fijo (el de la pestaña más alta): el diálogo no cambia de tamaño ni se mueve al cambiar de pestaña. -->
+    <!-- Alto fijo (el de la pestaña más alta, o lo que quepa en la ventana; PreferencesViewModel.TabsHeight): el diálogo no cambia de tamaño ni se mueve al cambiar de pestaña. -->
     <TabView x:Name="Tabs" IsAddTabButtonVisible="False" Height="600" MinWidth="520">
         <TabViewItem Header="General" IsClosable="False">
             <ScrollViewer><StackPanel Spacing="16" Padding="12">
