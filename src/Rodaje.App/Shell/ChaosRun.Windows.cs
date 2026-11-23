@@ -622,7 +622,16 @@ internal static partial class ChaosRun
                 return;
             }
 
-            await UseAsync(element, name);
+            try
+            {
+                await UseAsync(element, name);
+            }
+            catch (System.Runtime.InteropServices.COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+            {
+                // E_FAIL del propio proveedor de automatización (el control dejó de estar disponible a mitad): un clic de
+                // verdad no lanza; lo que hiciera su manejador iría por Application.UnhandledException (ronda 9, semilla 87).
+                Note($"la automatización de {element.GetType().Name} falló (E_FAIL)");
+            }
         }
 
         private static void Collect(DependencyObject node, List<FrameworkElement> found)
