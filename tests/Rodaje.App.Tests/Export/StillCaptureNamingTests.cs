@@ -71,4 +71,18 @@ public sealed class StillCaptureNamingTests
         string folder = StillCaptureNaming.ResolveCaptureFolder(settings, @"D:\Proyectos\Test.rodaje");
         Assert.Equal(@"D:\Proyectos\Capturas", folder);
     }
+
+    [Theory]
+    [InlineData("291")]
+    [InlineData("%")]
+    [InlineData("1,5")]
+    [InlineData(@"\sin unidad")]
+    [InlineData("C:relativa")]
+    public void ResolveCaptureFolder_IgnoraLaPreferenciaQueNoEsRutaCompleta(string configured)
+    {
+        // Modo caos, ronda 2: un texto cualquiera en Preferencias dejaba las capturas en la carpeta desde la que se abrió Rodaje.
+        var settings = new AppSettings { StillCaptureFolder = configured };
+        string folder = StillCaptureNaming.ResolveCaptureFolder(settings, @"D:\Proyectos\Test.rodaje");
+        Assert.Equal(@"D:\Proyectos\Capturas", folder);
+    }
 }

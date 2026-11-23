@@ -70,14 +70,14 @@ Lo que queda abierto en Rodaje, por prioridad. Cada punto se quita al cerrarlo y
 56. **Sin probar con ratón real:** selección por arrastre y Supr sobre una frase entera en el panel Transcripción (F2/F4), alta de keyframes con la reproducción en marcha, el zoom de la gráfica con la rueda, el recorrido del visor con X e Y, cancelar una exportación, F6 desde el buscador, importar FCPXML y «Borrar el render en caché».
 
 ### Colaboración (B11): de la revisión de Gemini y de la propia
-- **Bloquea publicar la 1.0.4:** repetir la revisión de ChatGPT de la edición compartida (seguridad y convergencia) cuando vuelva su cuota (10:01 del 20-nov) y corregir lo grave en un PR B11-fix.
-- Repaso con ratón de las barras de la colaboración: las propias (`OperationClock`, `JoinDialog`, `SharedProjectFlow`, `MediaSearchDialog`) pasaron a `OperationProgress`/`OperationProgressView` con `JoinFlowProgress` (fases 1-5 del camino y Cancelar real); falta verlo entrando en una sala de verdad.
+- **Bloquea publicar la 1.0.4:** la revisión independiente de bloque de toda la colaboración (ChatGPT, `gpt-6-astra`; encargo en `mesa-agentes/datos/encargos/revcolab.md`) no se pudo hacer el 22-nov: la semana de ChatGPT está al 100 % hasta el 24-nov (quedan 3 restablecimientos manuales, que usa Daniel). Lanzarla en cuanto haya cuota y corregir lo grave.
+- Pruebas intermitentes de la colaboración en Windows: `El_anfitrion_superado_avisa_al_autor…` (arreglada con el reintento del registro, #703) y `Deshacer_solo_deshace_lo_propio…` (la prueba miraba «rehacer» antes de la confirmación, #707). Si vuelven, investigar con `dathinel-red` local.
+- «Interfaz Uno en Linux»: dos violaciones de segmento en `--arranque 1` el 22-nov (#683 y #692), las dos pasaron al repetir; vigilar si siguen tras subir Sala (#683 quitó la fijación de ILCompiler).
+- «Pedir la pista»: si la confirmación de un arrastre tarda más de 1 s, quien pidió la pista puede ver «Ya puedes editar» y chocar un instante después (#686).
 - `PeerLayer` tiene un temporizador de 66 ms siempre activo aunque no haya sala: arrancarlo solo con la sala abierta.
 - Avisar a quien hospeda con parpadeo en la barra de tareas cuando alguien pide entrar con Rodaje minimizado.
 - Rechazar a alguien por descuido no pide confirmación; no hay lista de rechazados recientes.
 - Unir en un solo mensaje las notificaciones repetidas de un cambio que choca (hoy una por cada paso descartado).
-- Proxies (B14): falta generar el proxy de sala con FFmpeg (video bajo con AAC), el almacén aparte por `ContentHash` que la limpieza no toque y el medio «solo proxy» en la reproducción; el reparto por huella ya está en `ProxyShare.cs`.
-- `dathinel-red.exe` no va todavía en la distribución (B13): sin él la colaboración no abre.
 
 ### Colaboración (B12): lo que dejó fuera la segunda revisión independiente
 
