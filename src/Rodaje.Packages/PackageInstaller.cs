@@ -108,6 +108,8 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     public TimeSpan BusyTimeout { get; init; } = TimeSpan.FromSeconds(10);
     /// <summary>Validación de contenido específica de la aplicación, antes del intercambio atómico.</summary>
     public Action<InstalledPackage>? ValidateContent { get; init; }
+    /// <summary>Lectura completa del contenido recuperable, tolerando recursos degradados. Por defecto usa <see cref="ValidateContent"/>.</summary>
+    public Action<InstalledPackage>? ValidateRecoveryContent { get; init; }
 
     /// <summary>Archivo junto a <see cref="PackageLocations.Packages"/> que se abre sin compartir mientras dura una operación.</summary>
     public string OperationLockPath =>
@@ -328,8 +330,8 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     }
 
     /// <summary>
-    /// Resuelve lo que dejó una instalación o desinstalación cortada (por ejemplo, por un apagón): borra las extracciones a
-    /// medias y lo que se estaba desinstalando, y devuelve la versión anterior a su sitio si la nueva no quedó completa.
+    /// Resuelve una instalación cortada conservando una copia legible, incluida una extracción aprovechable. Borra los
+    /// restos ilegibles o redundantes y lo que se estaba desinstalando.
     /// Solo debe llamarse al arrancar, cuando no hay ninguna instalación en curso.
     /// </summary>
     /// <returns>Cuántos restos se resolvieron.</returns>
@@ -367,7 +369,8 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             foreach (string directory in directories)
             {
                 string name = Path.GetFileName(directory);
-                if ((name.StartsWith(InstallingPrefix, StringComparison.Ordinal) || name.StartsWith(RemovingPrefix, StringComparison.Ordinal)) && TryDelete(directory))
+                if (name.StartsWith(InstallingPrefix, StringComparison.Ordinal) ? ResolveInstalling(directory)
+                    : name.StartsWith(RemovingPrefix, StringComparison.Ordinal) && TryDelete(directory))
                 {
                     resolved++;
                 }
@@ -377,7 +380,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         return resolved;
     }
 
-    /// <summary>Una versión apartada durante una actualización: sobra si la nueva está completa; si no, vuelve a su sitio.</summary>
+    /// <summary>Una versión apartada solo sustituye al destino si es legible y el destino no lo es.</summary>
     private bool ResolvePrevious(string root, string aside)
     {
         string name = Path.GetFileName(aside);
@@ -385,18 +388,36 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         string id = name.Length > idStart && name[idStart - 1] == '-' ? name[idStart..] : "";
         if (!Identifiers.IsValid(id))
         {
-            return TryDelete(aside);
+            return ReadRecoverable(aside) is null && TryDelete(aside);
         }
 
         string target = Path.Combine(root, id);
-        // Un respaldo puede seguir siendo aprovechable con contenido degradado; solo la instalación nueva exige validación estricta.
-        if (IsComplete(target, id) || !IsComplete(aside, id, validateContent: false))
+        var previous = ReadRecoverable(aside);
+        var current = ReadRecoverable(target, id);
+        if (previous is not null && previous.Id != id) return false;
+        if (current is not null || previous is null)
         {
             return TryDelete(aside);
         }
 
+        return RestoreLeftover(aside, target);
+    }
+
+    private bool ResolveInstalling(string staging)
+    {
+        var package = ReadRecoverable(staging);
+        if (package is null) return TryDelete(staging);
+        string target = Path.Combine(Locations.InstallRoot(package.Manifest.Kind), package.Id);
+        if (ReadRecoverable(target, package.Id) is not null) return TryDelete(staging);
+        return RestoreLeftover(staging, target);
+    }
+
+    private static bool RestoreLeftover(string aside, string target)
+    {
         try
         {
+            string root = Path.GetDirectoryName(target)!;
+            Directory.CreateDirectory(root);
             if (Directory.Exists(target))
             {
                 string broken = Path.Combine(root, RemovingPrefix + NewTag());
@@ -413,24 +434,26 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         }
     }
 
-    /// <summary>Si la carpeta tiene un manifiesto válido con ese id y todos los archivos que nombra.</summary>
-    private bool IsComplete(string directory, string id, bool validateContent = true)
+    /// <summary>Lee manifiesto y contenido enteros antes de decidir qué copia conservar.</summary>
+    private InstalledPackage? ReadRecoverable(string directory, string? id = null)
     {
         if (!Directory.Exists(directory))
         {
-            return false;
+            return null;
         }
 
         try
         {
             var manifest = ManifestReader.ReadFile(Path.Combine(directory, PackageManifest.FileName), options: readOptions).Manifest;
-            if (manifest?.Id != id) return false;
-            if (validateContent) ValidateContent?.Invoke(new InstalledPackage(manifest, directory, PackageOrigin.Installed));
-            return true;
+            if (manifest is null || (id is not null && manifest.Id != id) || !manifest.WorksIn(AppId)
+                || manifest.Id == PackageLibrary.OwnPackageId) return null;
+            var package = new InstalledPackage(manifest, directory, PackageOrigin.Installed);
+            (ValidateRecoveryContent ?? ValidateContent)?.Invoke(package);
+            return package;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException or ArgumentException)
         {
-            return false;
+            return null;
         }
     }
 
