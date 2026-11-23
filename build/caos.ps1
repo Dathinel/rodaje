@@ -90,7 +90,8 @@ function Foto-Rastro {
     )
     foreach ($c in $carpetas) {
         if (-not $c -or -not (Test-Path -LiteralPath $c)) { continue }
-        Get-ChildItem -LiteralPath $c -Recurse -File -Force -ErrorAction SilentlyContinue |
+        # Hasta 3 niveles: lo que guarda la app cae arriba (Vídeos, Documentos\Rodaje); recorrer Documentos entero tardaba minutos.
+        Get-ChildItem -LiteralPath $c -Recurse -Depth 3 -File -Force -ErrorAction SilentlyContinue |
             Where-Object { $_.FullName -notmatch '\\(node_modules|\.git)\\' } |
             ForEach-Object { $foto[$_.FullName] = $_.LastWriteTimeUtc.Ticks }
     }
@@ -120,7 +121,8 @@ function Comparar-Rastro($antes, $despues) {
 function Coordinar([string]$linea) {
     if (-not $Coordinacion) { return }
     for ($i = 0; $i -lt 120; $i++) {
-        $texto = if (Test-Path -LiteralPath $Coordinacion) { Get-Content -LiteralPath $Coordinacion -Raw -Encoding UTF8 } else { '' }
+        # [string]: con el archivo vacío, Get-Content -Raw no devuelve nada y -notmatch daría vacío (falso): esperaría para siempre.
+        $texto = [string](Get-Content -LiteralPath $Coordinacion -Raw -Encoding UTF8 -ErrorAction SilentlyContinue)
         # Unicomp mide (no solo autoprueba): las cifras se estropean con otra carga pesada.
         if ($texto -notmatch '(?im)^.*unicomp.*medici[oó]n(?!.*autoprueba).*$') { break }
         Nota 'Unicomp está midiendo; espero un minuto.'

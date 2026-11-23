@@ -128,7 +128,9 @@ internal static partial class ChaosRun
         }
 
         log.Line(string.Create(CultureInfo.InvariantCulture, $"caos: fin tras {step} pasos en {clock.Elapsed.TotalSeconds:0} s, {failures} fallos"));
-        // Cerrar con trabajo pendiente: una ráfaga de deshacer y rehacer justo antes (las semillas 10 y 49 cerraron así con 0xC000027B).
+        // Cerrar con trabajo pendiente: un desplegable abierto y una ráfaga de deshacer y rehacer justo antes (las semillas 10,
+        // 49 y 75 cerraron con 0xC000027B con una lista abierta y tras deshacer).
+        await chaos.OpenSomeComboAsync();
         int burst = 0;
         for (int i = 0; i < 30; i++)
         {
@@ -492,6 +494,28 @@ internal static partial class ChaosRun
             Note(string.Join(' ', pressed));
         }
 
+        /// <summary>Deja abierta la lista de un desplegable a la vista (para el cierre), y lo anota.</summary>
+        public async Task OpenSomeComboAsync()
+        {
+            var found = new List<FrameworkElement>();
+            if (window.Content is { } content)
+            {
+                Collect(content, found);
+            }
+
+            List<ComboBox> combos = [.. found.OfType<ComboBox>()];
+            if (combos.Count == 0)
+            {
+                log.Line("caos: cierre sin desplegables a la vista");
+                return;
+            }
+
+            ComboBox combo = combos[random.Next(combos.Count)];
+            log.Line($"caos: cierre con la lista de «{NameOf(combo)}» abierta");
+            combo.IsDropDownOpen = true;
+            await Task.Delay(150);
+        }
+
         private void InspectorTab()
         {
             InspectorView.Tab[] tabs = Enum.GetValues<InspectorView.Tab>();
@@ -598,7 +622,16 @@ internal static partial class ChaosRun
                 return;
             }
 
-            await UseAsync(element, name);
+            try
+            {
+                await UseAsync(element, name);
+            }
+            catch (System.Runtime.InteropServices.COMException ex) when (ex.HResult == unchecked((int)0x80004005))
+            {
+                // E_FAIL del propio proveedor de automatización (el control dejó de estar disponible a mitad): un clic de
+                // verdad no lanza; lo que hiciera su manejador iría por Application.UnhandledException (ronda 9, semilla 87).
+                Note($"la automatización de {element.GetType().Name} falló (E_FAIL)");
+            }
         }
 
         private static void Collect(DependencyObject node, List<FrameworkElement> found)
