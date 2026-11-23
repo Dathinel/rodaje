@@ -64,7 +64,14 @@ internal sealed class LateHandler : ICollabPayloadHandler
         return Target is { } target ? await target.ValidateAsync(author, payload, cancellationToken) : Veredicto.No("sin-motor");
     }
 
-    public void Apply(Ordenado ordered) => Target?.Apply(ordered);
+    /// <summary>Si no es nulo, lo ordenado se retiene aquí en vez de llegar al motor (una confirmación que tarda).</summary>
+    public ConcurrentQueue<Ordenado>? Held { get; set; }
+
+    public void Apply(Ordenado ordered)
+    {
+        if (Held is { } held) held.Enqueue(ordered);
+        else Target?.Apply(ordered);
+    }
 
     public void Rejected(Rechazo rejection) => Target?.Rejected(rejection);
 }
@@ -97,6 +104,25 @@ internal sealed class Replica : IAsyncDisposable
     }
 
     public void BeforeValidation(Func<CancellationToken, Task>? before) => _late.BeforeValidation = before;
+
+    /// <summary>Retiene lo que confirma la sala hasta <see cref="ReleaseHeld"/>.</summary>
+    public ConcurrentQueue<Ordenado> Hold() => _late.Held = new();
+
+    public void ReleaseHeld()
+    {
+        ConcurrentQueue<Ordenado> held = _late.Held!;
+        _late.Held = null;
+        while (held.TryDequeue(out Ordenado? ordered)) Engine.Apply(ordered);
+    }
+
+    public void Rejected(Rechazo rejection) => Engine.Rejected(rejection);
+
+    public async Task<bool> ClipEnabled(string id)
+    {
+        bool enabled = false;
+        await Ui.Post(() => enabled = Live.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == id).Enabled);
+        return enabled;
+    }
 
     public void Attach(Project live, Func<bool>? isBusy = null)
     {
@@ -366,5 +392,62 @@ public sealed class CollabEngineTests
         Assert.DoesNotContain(guest.Live.Sequences[0].Markers, m => m.Id == "mk-no-entra");
         Assert.False(guest.Live.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled);
         await Settled(host, guest, "mismo estado compartido");
+    }
+
+    [SalaFact]
+    public async Task Un_rechazo_por_reserva_no_borra_lo_propio_que_salio_antes_y_sigue_sin_respuesta()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica h = host;
+        await using Replica g = guest;
+        Assert.True(await host.Room.ReserveAsync(PatchReservations.Project), "el anfitrión tiene la reserva de lo global");
+        await CollabHarness.Until(() => guest.Room.Reservations.ContainsKey(PatchReservations.Project), "la reserva a la vista del invitado");
+
+        // El anfitrión retiene el clip apagado sin responder mientras el marcador (reserva ajena) se deshace.
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.BeforeValidation(_ => release.Task);
+        await guest.Ui.Post(() =>
+        {
+            guest.Live.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled = false;
+            guest.Engine.OnLocalChange("Apagar clip");
+            guest.Live.Sequences[0].Markers.Add(MarkerAt("mk-no-entra", "no entra"));
+            guest.Engine.OnLocalChange("Añadir marcador");
+        });
+
+        await CollabHarness.Until(() => !guest.Notices.IsEmpty, "el aviso del marcador que no entró");
+        Assert.False(await guest.ClipEnabled("c3"), "el clip sigue apagado en el invitado mientras espera respuesta");
+        host.BeforeValidation(null);
+        release.SetResult();
+
+        await CollabHarness.Until(() => host.Live.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled == false, "el clip apagado en el anfitrión");
+        await Settled(host, guest, "mismo estado compartido");
+        Assert.Single(guest.Engine.Unsettled.Items);
+    }
+
+    [SalaFact]
+    public async Task Ya_confirmado_con_un_pendiente_que_no_cabe_conserva_los_independientes()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica h = host;
+        await using Replica g = guest;
+        ConcurrentQueue<Ordenado> held = guest.Hold();
+
+        // p0 apaga c3, p1 lo vuelve a encender (depende de p0) y p2 apaga c2 (independiente).
+        await guest.Edit(p => p.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled = false, "Apagar c3");
+        await guest.Edit(p => p.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled = true, "Encender c3");
+        await guest.Edit(p => p.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c2").Enabled = false, "Apagar c2");
+        await CollabHarness.Until(() => held.Count == 3, "las tres confirmaciones retenidas");
+
+        // La sala responde «ya-confirmado» a p0 antes de que llegue su confirmación: p1 ya no cabe, p2 sí.
+        held.TryPeek(out Ordenado? first);
+        guest.Rejected(new Rechazo(first!.Id, "ya-confirmado", null));
+        await CollabHarness.Until(() => guest.Engine.Unsettled.Items.Count > 0, "el pendiente que no cabe, apartado");
+        await Task.Delay(300);
+        Assert.Equal(["Encender c3"], guest.Engine.Unsettled.Items.Select(i => i.Description));
+        Assert.False(await guest.ClipEnabled("c2"), "el cambio independiente sigue en lo vivo");
+
+        guest.ReleaseHeld();
+        await Settled(host, guest, "mismo estado compartido");
+        Assert.Empty(guest.Desyncs);
     }
 }
