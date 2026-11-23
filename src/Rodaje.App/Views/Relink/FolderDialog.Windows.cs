@@ -14,9 +14,17 @@ internal static unsafe class FolderDialog
     private const uint FosNoChangeDir = 0x8;
     private const uint FosPathMustExist = 0x800;
 
+    /// <summary>En el modo caos, responde en lugar del diálogo (título): no se abre ninguna ventana.</summary>
+    public static Func<string, string?>? FakePick { get; set; }
+
     /// <summary>La carpeta elegida, o <c>null</c> si se canceló. Desde el hilo de la interfaz (STA).</summary>
     public static string? Pick(nint owner, string title, string? folder)
     {
+        if (FakePick is { } fake)
+        {
+            return fake(title);
+        }
+
         IFileOpenDialog* dialog = null;
         IShellItem* result = null;
         try

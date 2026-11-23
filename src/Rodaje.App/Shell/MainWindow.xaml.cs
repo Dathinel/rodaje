@@ -376,7 +376,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             }
         }
 
-        if (options.Files.Count > 0 || options.SelfTest)
+        if (options.Files.Count > 0 || options.SelfTest || options.ChaosSeed is not null)
         {
             UiTask.Run(OpenStartupFilesAsync(options.Files));
         }
@@ -630,7 +630,12 @@ internal sealed partial class MainWindow : Window, IShellHost
             element.Visibility = chrome;
         }
 
-        AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
+        // De fondo (autoprueba, caos) la ventana no puede saltar a la pantalla: solo cambia el diseño.
+        if (!_options.RunsInBackground)
+        {
+            AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
+        }
+
         Player.SetFullScreen(fullScreen);
         FitSidePanels();
         if (fullScreen)
@@ -702,6 +707,13 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private async Task OpenStartupFilesAsync(IReadOnlyList<string> files)
     {
+        if (_options.ChaosSeed is { } seed)
+        {
+            // Los archivos son el corpus: los importa el propio caos, como un usuario.
+            await ChaosRun.RunAsync(this, _engine, seed, _options.ChaosMinutes, files);
+            return;
+        }
+
         if (files.Count > 0)
         {
             await Session.OpenFilesAsync(files);
@@ -1255,6 +1267,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         _closed = true;
+        Views.Inspector.DispatcherQueueLater.StopAfterWindowClosed();
         _notificationTimer.Stop();
         _services.Collab?.Dispose();
         _revealTimer.Stop();

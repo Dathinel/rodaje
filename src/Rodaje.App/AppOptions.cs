@@ -13,7 +13,8 @@ namespace Rodaje.App;
 /// seleccionado, reproduce un momento y sale con 0 (la usa <c>probar.ps1</c> con el exe de Native AOT);
 /// <c>--arranque</c> escribe las marcas de arranque en el registro en cuanto la interfaz responde (con archivos, cuando se
 /// ve el primer cuadro) y cierra (la usa <c>build\medir-arranque.ps1</c>); <c>--visible</c> deja a la vista la ventana de
-/// esas tres, que si no van de fondo.
+/// esas tres, que si no van de fondo; <c>--caos semilla minutos</c> castiga la interfaz con acciones al azar durante esos
+/// minutos (<see cref="Shell.ChaosRun"/>; los archivos son el corpus que importa) y sale con 0 si nada falló.
 /// </summary>
 internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSeconds, string? LogPath, bool EnableAudio, int UiHz)
 {
@@ -25,11 +26,16 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
 
     public bool StartupProbe { get; init; }
 
+    /// <summary>La semilla de <c>--caos</c>; nula fuera del modo caos.</summary>
+    public int? ChaosSeed { get; init; }
+
+    public double ChaosMinutes { get; init; }
+
     /// <summary>La maneja una herramienta (medida, autoprueba, arranque): sin autoguardado ni preguntas al cerrar.</summary>
     /// <summary>El enlace <c>rodaje://unirse/…</c> con el que se abrió Rodaje: abre «Unirse a una sala» con él ya pegado.</summary>
     public string? InviteLink { get; init; }
 
-    public bool IsAutomated => MeasureSeconds is not null || SelfTest || StartupProbe;
+    public bool IsAutomated => MeasureSeconds is not null || SelfTest || StartupProbe || ChaosSeed is not null;
 
     public bool Visible { get; init; }
 
@@ -51,6 +57,8 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
         bool selfTest = false;
         bool startup = false;
         bool visible = false;
+        int? chaosSeed = null;
+        double chaosMinutes = 0;
         for (int i = 0; i < args.Length; i++)
         {
             string a = args[i];
@@ -77,6 +85,11 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             else if (a.Equals("--autoprueba", StringComparison.OrdinalIgnoreCase))
             {
                 selfTest = true;
+            }
+            else if (a.Equals("--caos", StringComparison.OrdinalIgnoreCase) && i + 2 < args.Length)
+            {
+                chaosSeed = int.Parse(args[++i], CultureInfo.InvariantCulture);
+                chaosMinutes = double.Parse(args[++i], CultureInfo.InvariantCulture);
             }
             else if (a.Equals("--arranque", StringComparison.OrdinalIgnoreCase))
             {
@@ -112,7 +125,7 @@ internal sealed record AppOptions(IReadOnlyList<string> Files, double? MeasureSe
             files.Add(clip);
         }
 
-        return new AppOptions(files, measure, log, audio, uiHz) { Scenario = scenario, NoProxies = noProxies, SelfTest = selfTest, StartupProbe = startup, Visible = visible, InviteLink = invite };
+        return new AppOptions(files, measure, log, audio, uiHz) { Scenario = scenario, NoProxies = noProxies, SelfTest = selfTest, StartupProbe = startup, ChaosSeed = chaosSeed, ChaosMinutes = chaosMinutes, Visible = visible, InviteLink = invite };
     }
 
     private static string? FindTestClip()

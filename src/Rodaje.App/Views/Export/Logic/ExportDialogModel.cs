@@ -43,7 +43,7 @@ public sealed class ExportDialogModel
 
         string folder = preferences.Folder is { } f && Directory.Exists(f) ? f
             : projectFolder is { } p && Directory.Exists(p) ? p
-            : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+            : Services.AppDataPaths.UserFolder(Environment.SpecialFolder.MyVideos);
         OutputPath = Path.Combine(folder, ExportRanges.SuggestFileName(projectName, Settings));
     }
 
@@ -414,7 +414,7 @@ public sealed class ExportDialogModel
             throw new InvalidOperationException(string.Join(" ", problems));
         }
 
-        string folder = Path.GetDirectoryName(OutputPath) is { Length: > 0 } dir ? dir : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+        string folder = Path.GetDirectoryName(OutputPath) is { Length: > 0 } dir ? dir : Services.AppDataPaths.UserFolder(Environment.SpecialFolder.MyVideos);
         string baseName = Path.GetFileNameWithoutExtension(OutputPath);
         var requests = new List<ExportRequest>();
         var used = new HashSet<string>(PendingOutputs, StringComparer.OrdinalIgnoreCase);
