@@ -44,7 +44,7 @@ internal static class MediaSearchDialog
         var progress = new Views.Shared.OperationProgressView();
         var choose = new Button { Content = "Elegir carpetas donde buscar…" };
         var askMissing = new Button { Content = "Pedir copia ligera de los que faltan", Visibility = Visibility.Collapsed };
-        var top = new StackPanel { Spacing = 12, MinWidth = 520 };
+        var top = new StackPanel { Spacing = 12, MinWidth = 480 };
         top.Children.Add(InviteDialog.Hint("Para editar sin esperas, Rodaje usa los archivos de video y audio que tengas en tu equipo. Los cambios del proyecto se comparten, pero los archivos no viajan por internet."));
         top.Children.Add(new ScrollViewer { Content = list, MaxHeight = 280 });
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
