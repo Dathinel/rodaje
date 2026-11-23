@@ -300,9 +300,10 @@ public sealed partial class CollabEngine
             {
                 JournalEntry? entry = _separated.FirstOrDefault(e => e.Patch.Id == id.GetString() && (custody || e.Patch.Author == from));
                 if (entry is null) return;
-                int index = _separated.IndexOf(entry);
+                // Sin reponerla si el guardado falla: el acuse no se repite y la entrega repuesta se quedaba para
+                // siempre (y volvía a mandarse aunque el autor ya la hubiera resuelto). El reintento de Persist la quita.
                 RemoveSeparated(entry);
-                if (!Persist()) { _separated.Insert(index, entry); _separatedBytes += SeparatedBytes(entry.Patch); }
+                Persist();
             }
             return;
         }
