@@ -422,9 +422,12 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
 
         try
         {
-            return ManifestReader.ReadFile(Path.Combine(directory, PackageManifest.FileName), options: readOptions).Manifest?.Id == id;
+            var manifest = ManifestReader.ReadFile(Path.Combine(directory, PackageManifest.FileName), options: readOptions).Manifest;
+            if (manifest?.Id != id) return false;
+            ValidateContent?.Invoke(new InstalledPackage(manifest, directory, PackageOrigin.Installed));
+            return true;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException or System.Text.Json.JsonException or ArgumentException)
         {
             return false;
         }
