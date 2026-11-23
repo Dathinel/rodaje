@@ -39,9 +39,13 @@ otra pantalla, actualizaciones, carpetas vigiladas, grabar voz (micrófono) ni e
 
 - `caos.log` en `RODAJE_DATOS`: cada paso con su número antes de ejecutarse (`n<TAB>acción`) y su detalle
   (`n<TAB>  …`), escrito hasta el disco: un cierre nativo no se lo lleva.
-- Excepción de una acción: informe en `fallos\`, se sigue y la app sale con 2. Cierre nativo (0xC000027B, 0xC0000005):
-  el filtro de `NativeCrashHandler` deja informe y minivolcado. Cuelgue: el vigilante, si el hilo de la interfaz no
-  atiende en 10 s, anota `CUELGUE`, deja `cuelgue-paso-N.dmp` y termina el proceso.
+- Al terminar, una ráfaga de 30 deshacer/rehacer y el cierre; `OnClosed` y `Program.Main` anotan sus etapas en
+  `caos.log` (`ChaosRun.Mark`).
+- Excepción de una acción: informe en `fallos\`, se sigue y la app sale con 2. Cierre nativo (0xC0000005): el filtro
+  de `NativeCrashHandler` deja informe y minivolcado; el 0xC000027B de WinUI sale por `RaiseFailFastException` y solo
+  deja el código de salida. Cuelgue: el vigilante, si el hilo de la interfaz no atiende en 10 s, anota `CUELGUE`, deja
+  `cuelgue-paso-N.dmp` y termina el proceso; si un paso no termina en 60 s aunque la interfaz atienda (un diálogo modal),
+  anota `ATASCADO` y hace lo mismo.
 - `caos.ps1` guarda de cada semilla que falla `caos.log`, `fallos\*` y `rodaje-error.txt` en `-Resultados` y sigue con
   la siguiente; al final resume semilla, código, pasos y causa (excepción y primer marco de Rodaje).
 
@@ -68,6 +72,7 @@ quedó algo.
 | 3 | 8 + 10 × 5 min | La corrida se quedó parada en «Carpetas vigiladas… › Añadir carpeta…» (semilla 33) | El selector de carpetas de Windows (`FolderDialog`, modal) no tenía respuesta del modo caos | `FolderDialog.FakePick`; el vigilante corta un paso que no termina en 60 s (ATASCADO) (#716) |
 | 3 | | `COMException 0x8000FFFF` en `PluginsView` (x:Bind) al cerrar (semilla 33) | Una instalación de complemento sin red terminaba después de cerrar la ventana | Tras cerrar la ventana, ese error va solo al registro (`Program.IgnoreAfterWindowClosed`) (#716) |
 | 4 | 8 × 4 min | `ArgumentException` «This element does not have a XamlRoot» al abrir el Historial nada más arrancar (semilla 48) | `ShowGlobalPanel` llamaba `Flyout.ShowAt` con el botón aún sin `XamlRoot` (Ctrl+H al arrancar) | Solo se muestra con el botón ya en el árbol |
+| 5 | 8 × 4 min | Cierre nativo 0xC000027B al cerrar, sin informe ni minivolcado (semilla 49; antes la 10) | Sin diagnosticar: en las dos el último paso fue una ráfaga de deshacer justo antes de cerrar. El error «stowed» de WinUI sale por `RaiseFailFastException` y no pasa por el filtro de fallos | Abierto. Cada corrida cierra ahora tras 30 deshacer/rehacer y anota en `caos.log` las etapas del cierre (`cierre<TAB>…`): la próxima vez se sabrá dónde cae. 30 cierres forzados así (0,3 min por semilla) no lo repitieron |
 
 Repetir una semilla no repite el estado: el reparto de acciones cambia al cambiar la tabla de pesos y el resultado
 depende del tiempo. Por eso los casos fijos son las pruebas (`StillCaptureNamingTests`) y, para lo que solo sale en la

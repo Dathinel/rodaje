@@ -53,10 +53,36 @@ internal static partial class ChaosRun
         0x20, 0x0D, 0x1B, 0x2E, 0x08, 0x24, 0x23, 0x21, 0x22, 0x25, 0x26, 0x27, 0x28, 0x09, 0xBB, 0xBD, 0xBC, 0xBE,
     ];
 
+    private static string? s_logPath;
+
+    /// <summary>
+    /// Marca una etapa del cierre en <c>caos.log</c> (solo en el modo caos): un cierre nativo sin informe (0xC000027B) deja
+    /// así la última etapa a la que llegó.
+    /// </summary>
+    public static void Mark(string stage)
+    {
+        if (s_logPath is not { } path)
+        {
+            return;
+        }
+
+        try
+        {
+            // El registro del caos puede seguir abierto (ChaosLog): se comparte la escritura.
+            using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite | FileShare.Delete);
+            stream.Write(Encoding.UTF8.GetBytes("cierre\t" + stage + "\n"));
+            stream.Flush(flushToDisk: true);
+        }
+        catch (IOException)
+        {
+        }
+    }
+
     public static async Task RunAsync(MainWindow window, PlayerEngine engine, int seed, double minutes, IReadOnlyList<string> corpus)
     {
         string root = AppDataPaths.Sandbox ?? throw new InvalidOperationException("El modo caos exige su carpeta (AppDataPaths.Sandbox).");
-        using var log = new ChaosLog(Path.Combine(root, "caos.log"));
+        s_logPath = Path.Combine(root, "caos.log");
+        using var log = new ChaosLog(s_logPath);
         var chaos = new Chaos(window, new Random(seed), corpus, log, root);
         FileDialogs.FakeOpen = chaos.FakeOpen;
         FileDialogs.FakeSave = chaos.FakeSave;
@@ -102,6 +128,14 @@ internal static partial class ChaosRun
         }
 
         log.Line(string.Create(CultureInfo.InvariantCulture, $"caos: fin tras {step} pasos en {clock.Elapsed.TotalSeconds:0} s, {failures} fallos"));
+        // Cerrar con trabajo pendiente: una ráfaga de deshacer y rehacer justo antes (las semillas 10 y 49 cerraron así con 0xC000027B).
+        int burst = 0;
+        for (int i = 0; i < 30; i++)
+        {
+            burst += window.Router.Invoke(i % 3 == 2 ? "edit.redo" : "edit.undo") ? 1 : 0;
+        }
+
+        log.Line($"caos: cierre tras {burst} deshacer/rehacer");
         FileDialogs.FakeOpen = null;
         FileDialogs.FakeSave = null;
         Views.Relink.FolderDialog.FakePick = null;
