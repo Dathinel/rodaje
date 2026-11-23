@@ -431,6 +431,10 @@ public sealed class CollabRecoveryTests
             b.Attach(live);
             b.Engine.StartAsHost(1);
         });
+        // La retirada tras el acuse falla una vez, como cuando el sondeo de esta prueba (o el antivirus) retiene
+        // registro.jsonl en Windows: antes la entrega se reponía y el acuse no se repetía, y la prueba fallaba al azar.
+        int failedSaves = 0;
+        b.Engine.SaveJournal = s => (s.Entries.Any(e => e.Kind == "separated") || Interlocked.Exchange(ref failedSaves, 1) == 1) && winner.Save(s);
         Assert.Equal(author, Assert.Single(winner.Load(() => Assert.Fail("registro válido"))!.Entries, e => e.Kind == "separated").Patch.Author);
         CollabInvitation invite = await b.Room.CreateInviteAsync(TimeSpan.FromMinutes(10));
         Task joining = c.Room.JoinAsync(invite.Link, "Eva", folder);
@@ -445,6 +449,7 @@ public sealed class CollabRecoveryTests
         });
         await CollabHarness.Until(() => c.Engine.Unsettled.Items.Count == 1, "el autor guarda su cambio al volver");
         await CollabHarness.Until(() => winner.Load(() => { })?.Entries.All(e => e.Kind != "separated") == true, "el acuse del autor retira la entrega");
+        Assert.Equal(1, Volatile.Read(ref failedSaves));
         JsonElement delivery = JsonSerializer.SerializeToElement(new { tipo = "cambio-separado", patch = JsonSerializer.Deserialize<JsonElement>(PatchWire.ToJson(separated.Patch)) });
         TaskCompletionSource duplicateAck = new(TaskCreationOptions.RunContinuationsAsynchronously);
         b.Room.DirectReceived += (from, data) =>
