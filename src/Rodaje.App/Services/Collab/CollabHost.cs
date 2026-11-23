@@ -41,8 +41,9 @@ public sealed partial class CollabHost : IDisposable
             // Sin carpeta de datos, abrir una sala dirá que no pudo leer la clave del equipo; el resto de Rodaje no se entera.
         }
 
+        (string identity, _identityLock) = IdentitySlot.Take(_folder);
         Room = new RoomService(
-            new CollabEnvironment(redPath ?? FindRed() ?? Path.Combine(AppContext.BaseDirectory, RedFileName), Path.Combine(_folder, "identidad.bin"), appVersion ?? CurrentVersion())
+            new CollabEnvironment(redPath ?? FindRed() ?? Path.Combine(AppContext.BaseDirectory, RedFileName), identity, appVersion ?? CurrentVersion())
             {
                 Locate = redPath is null ? FindRed : null,
                 RedSource = red,
@@ -55,6 +56,8 @@ public sealed partial class CollabHost : IDisposable
         TrackRequests.Requested += request => _post(() => ShowTrackRequest(request));
         TrackRequests.Told += text => _post(() => _session?.Notify(NotificationSeverity.Informational, "Colaboración", text));
     }
+
+    private readonly FileStream? _identityLock;
 
     public RoomService Room { get; }
 
@@ -218,6 +221,7 @@ public sealed partial class CollabHost : IDisposable
         StopEditing();
         TrackRequests.Dispose();
         Presence.Dispose();
+        _identityLock?.Dispose();
     }
 
     private void OnRoomState(RoomState state)
