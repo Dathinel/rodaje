@@ -6,16 +6,6 @@ namespace Rodaje.App.Tests.Shell;
 public sealed class NarrowWindowTests
 {
     [Theory]
-    [InlineData(960, true)]
-    [InlineData(1099, true)]
-    [InlineData(1100, false)]
-    [InlineData(1920, false)]
-    public void MenusOverflowBeforeTheirTitlesAreClipped(double width, bool overflow)
-    {
-        Assert.Equal(overflow, TitleBarLayout.UseOverflow(width));
-    }
-
-    [Theory]
     [InlineData("GapBehaviorBox", "GapSettingsMenu")]
     [InlineData("RippleModeBox", "RippleSettingsMenu")]
     public void TimelineOverflowKeepsAllSettingsChoices(string comboName, string submenuName)

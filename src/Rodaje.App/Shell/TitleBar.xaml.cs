@@ -22,57 +22,21 @@ internal sealed partial class TitleBar : UserControl
     private EditorServices? _services;
     private ProjectTemplateStore? _templates;
 
-    private readonly List<(MenuBarItem Menu, MenuFlyoutSubItem Overflow)> _overflowMenus = [];
-    private bool _menusOverflow;
-
     public TitleBar()
     {
         InitializeComponent();
-        foreach (MenuBarItem top in Menu.Items.Where(item => item != OverflowMenu))
-        {
-            var submenu = new MenuFlyoutSubItem { Text = top.Title };
-            _overflowMenus.Add((top, submenu));
-            OverflowMenu.Items.Add(submenu);
-        }
-
         UpstreamCredit.Content = UpstreamAttribution.ShortCredit;
         ToolTipService.SetToolTip(UpstreamCredit, UpstreamAttribution.Notice);
         AutomationProperties.SetName(UpstreamCredit, UpstreamAttribution.Notice);
         SizeChanged += (_, e) =>
         {
-            bool narrow = TitleBarLayout.UseOverflow(e.NewSize.Width);
-            DispatcherQueue.RunAfterEvent(() => UpdateMenuOverflow(TitleBarLayout.UseOverflow(ActualWidth)));
+            bool narrow = e.NewSize.Width < 1100;
             StatsText.Visibility = e.NewSize.Width < 1500 ? Visibility.Collapsed : Visibility.Visible;
             CreditArea.Visibility = Brand.Visibility = ProjectInfo.Visibility =
                 narrow ? Visibility.Collapsed : Visibility.Visible;
             ProjectColumn.Width = narrow ? new GridLength(24) : new GridLength(1, GridUnitType.Star);
             MenuColumn.Width = narrow ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
         };
-    }
-
-    private void UpdateMenuOverflow(bool overflow)
-    {
-        if (_menusOverflow == overflow)
-        {
-            return;
-        }
-
-        _menusOverflow = overflow;
-        foreach ((MenuBarItem top, MenuFlyoutSubItem submenu) in _overflowMenus)
-        {
-            IList<MenuFlyoutItemBase> source = overflow ? top.Items : submenu.Items;
-            IList<MenuFlyoutItemBase> destination = overflow ? submenu.Items : top.Items;
-            MenuFlyoutItemBase[] items = source.ToArray();
-            source.Clear();
-            foreach (MenuFlyoutItemBase item in items)
-            {
-                destination.Add(item);
-            }
-
-            top.Visibility = overflow ? Visibility.Collapsed : Visibility.Visible;
-        }
-
-        OverflowMenu.Visibility = overflow ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>Se pidió una pestaña del panel derecho desde el menú Ver.</summary>
@@ -139,9 +103,9 @@ internal sealed partial class TitleBar : UserControl
             return;
         }
 
-        foreach ((MenuBarItem top, MenuFlyoutSubItem submenu) in _overflowMenus)
+        foreach (MenuBarItem top in Menu.Items)
         {
-            foreach (MenuFlyoutItemBase item in _menusOverflow ? submenu.Items : top.Items)
+            foreach (MenuFlyoutItemBase item in top.Items)
             {
                 if (item is MenuFlyoutItem { Tag: string id } entry && !id.Contains(':', StringComparison.Ordinal) && _services.ShortcutRegistry.Find(id) is not null)
                 {
