@@ -44,7 +44,18 @@ internal sealed class FakeSources : IVisualsSources
     public IAudioSampleReader? OpenAudio(string path) => path.EndsWith(".mudo", StringComparison.Ordinal) ? null
         : Faulty.Contains(path) ? throw new ArgumentOutOfRangeException(nameof(path), "Fallo inesperado.") : new Audio(AudioSeconds);
 
-    public string Fingerprint(string path) => "f" + Math.Abs(StringComparer.OrdinalIgnoreCase.GetHashCode(path)).ToString("x8", System.Globalization.CultureInfo.InvariantCulture);
+    /// <summary>Archivos que están solo en la nube: leerlos los descargaría.</summary>
+    public HashSet<string> CloudOnly { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public ConcurrentDictionary<string, int> Fingerprinted { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+    public bool IsCloudOnly(string path) => CloudOnly.Contains(path);
+
+    public string Fingerprint(string path)
+    {
+        Fingerprinted.AddOrUpdate(path, 1, (_, n) => n + 1);
+        return "f" + Math.Abs(StringComparer.OrdinalIgnoreCase.GetHashCode(path)).ToString("x8", System.Globalization.CultureInfo.InvariantCulture);
+    }
 
     private sealed class Reader(FakeSources owner, string path) : IThumbnailReader
     {
@@ -212,6 +223,58 @@ public sealed class ClipVisualsTests : IDisposable
         Assert.Null(urgent);
         Assert.InRange(position, 0, 1);
         Assert.Equal(51, _sources.Decoded.Count);
+    }
+
+    /// <summary>
+    /// OneDrive con «Liberar espacio»: pedir miniaturas u onda de un medio que solo está en la nube lo descargaba entero, uno
+    /// tras otro. Ahora no se lee (ni la huella), queda el marcador con su motivo y se avisa una sola vez.
+    /// </summary>
+    [Fact]
+    public void A_cloud_only_file_is_not_read_for_thumbnails_or_waveform_and_is_reported_once()
+    {
+        string cloud = _media["m3"];
+        _sources.CloudOnly.Add(cloud);
+        _sources.CloudOnly.Add(_media["a1"]);
+        using ClipVisuals visuals = Create();
+        var found = new ConcurrentQueue<string>();
+        visuals.CloudOnlyFound += (_, path) => found.Enqueue(path);
+
+        visuals.GetFilmstrip("m3", Time.Zero, Time.FromSeconds(5), 4, 32);
+        Assert.Equal(ClipVisuals.CloudOnlyProblem, WaitFor(() => visuals.ThumbnailProblem(cloud)));
+        Filmstrip after = visuals.GetFilmstrip("m3", Time.Zero, Time.FromSeconds(5), 4, 32);
+        visuals.GetWaveform("a1", Time.Zero, Time.FromSeconds(3), 10);
+        WaitFor(() => found.Count >= 2 ? found : null);
+        Thread.Sleep(50);
+
+        Assert.True(after.IsComplete);
+        Assert.All(after.Frames, Assert.Null);
+        Assert.False(_sources.Opened.ContainsKey(cloud));
+        Assert.False(_sources.Fingerprinted.ContainsKey(cloud));
+        Assert.False(_sources.Fingerprinted.ContainsKey(_media["a1"]));
+        Assert.Equal(new[] { cloud, _media["a1"] }.Order(StringComparer.Ordinal), found.Order(StringComparer.Ordinal));
+
+        // Ya descargado (se reprodujo), el reintento de siempre lo lee.
+        _sources.CloudOnly.Clear();
+        visuals.Forget(cloud);
+        visuals.GetFilmstrip("m3", Time.Zero, Time.FromSeconds(5), 4, 32);
+        WaitFor(() => visuals.GetFilmstrip("m3", Time.Zero, Time.FromSeconds(5), 4, 32) is { IsComplete: true } f ? f : null);
+        Assert.True(_sources.Opened.ContainsKey(cloud));
+    }
+
+    [Fact]
+    public void Ffmpeg_sources_see_a_file_marked_offline_as_cloud_only()
+    {
+        string local = _folder.File("local.mp4");
+        string offline = _folder.File("nube.mp4");
+        File.WriteAllBytes(local, [0]);
+        File.WriteAllBytes(offline, [0]);
+        File.SetAttributes(offline, FileAttributes.Offline);
+        var sources = new FfmpegVisualsSources();
+
+        Assert.False(sources.IsCloudOnly(local));
+        Assert.True(sources.IsCloudOnly(offline));
+        Assert.False(sources.IsCloudOnly(_folder.File("no existe.mp4")));
+        File.SetAttributes(offline, FileAttributes.Normal);
     }
 
     [Fact]
