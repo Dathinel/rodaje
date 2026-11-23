@@ -1263,6 +1263,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         _closed = true;
+        ChaosRun.Mark("OnClosed");
         Views.Inspector.DispatcherQueueLater.StopAfterWindowClosed();
         _notificationTimer.Stop();
         _services.Collab?.Dispose();
@@ -1286,6 +1287,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         SaveLayout();
         _settings.Save();
 
+        ChaosRun.Mark("ajustes guardados");
         Player.CloseExternal();
         _autosave?.Complete();
         _exports.Dispose();
@@ -1304,11 +1306,15 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         // El panel suelta la cadena de intercambio antes de que el motor libere la GPU y su hilo de render.
+        ChaosRun.Mark("módulos cerrados");
         Player.DetachViewer();
+        ChaosRun.Mark("visor suelto");
         _engine.Dispose();
+        ChaosRun.Mark("motor liberado");
         _visuals.Dispose();
         _instance.Dispose();
         MeasurementRun.WriteReportIfMeasuring(_options, _engine, Program.Metrics, VideoPanel.CompositionScaleX);
+        ChaosRun.Mark("OnClosed terminado");
     }
 
     /// <summary>Un módulo de GPU baja la vista previa como una exportación con poca VRAM (proxies y Mitad), con el mismo contador.</summary>

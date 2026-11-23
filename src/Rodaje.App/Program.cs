@@ -67,6 +67,7 @@ internal static partial class Program
             var prober = new PrefetchingProber(new FfmpegMediaProber());
             prober.Prefetch(options.Files.Where(f => !ProjectPaths.IsProjectFile(f)));
             RunInterface(() => Instance = new App(options, engine, prober, settings, settingsWarning));
+            ChaosRun.Mark("interfaz terminada");
             // Application.Exit (o la última ventana cerrada) vuelve aquí: cierre limpio antes de soltar el motor, que
             // puede tardar o quedar a medias si alguien mata el proceso mientras tanto.
             Crashes.EndSession();
@@ -82,6 +83,7 @@ internal static partial class Program
         }
 
         Crashes.EndSession();
+        ChaosRun.Mark("Main termina");
         return ExitCode;
     }
 
