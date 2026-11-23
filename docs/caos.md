@@ -57,3 +57,15 @@ externos no se usan (`SystemAccess`) y la pantalla completa no cambia el present
 puerto cerrado. Al final, `caos.ps1` compara antes y después `%LOCALAPPDATA%\Rodaje`, Documentos, Vídeos, Escritorio,
 lo de Rodaje en `%TEMP%` y las claves de Rodaje en HKCU (`Software\Rodaje`, `.rodaje`, recientes y diálogos), y falla si
 quedó algo.
+
+## Lo que encontró
+
+| Ronda | Semillas | Síntoma | Causa | Arreglo |
+|---|---|---|---|---|
+| 1 | 12 × 3 min | `COMException 0x8000FFFF` al cerrar (semilla 12) | Tareas de la cola de la interfaz (`LibraryView.ScanVisibleCovers`) que corrían con el árbol de XAML ya desmontado | `DispatcherQueueLater` descarta lo pendiente desde `MainWindow.OnClosed` (#704) |
+| 1 | | Cierre nativo 0xC000027B al cerrar, sin informe (semilla 10) | No se reprodujo; probable misma familia que la anterior (el error «stowed» no pasa por el filtro de fallos) | El mismo; queda como caso a vigilar |
+| 2 | 18 × 5 min | Fotogramas guardados en la carpeta desde la que se abrió Rodaje («291\», «%\», «1,5\») | «Carpeta de capturas» aceptaba cualquier texto y se resolvía contra el directorio actual | Solo vale una ruta completa (`StillCaptureNaming`, `Personalization.NormalizeFolder` en Preferencias y en el render en caché) (#704) |
+
+Repetir una semilla no repite el estado: el reparto de acciones cambia al cambiar la tabla de pesos y el resultado
+depende del tiempo. Por eso los casos fijos son las pruebas (`StillCaptureNamingTests`) y, para lo que solo sale en la
+app real, el cierre de cada corrida con trabajo pendiente en la cola (todas las semillas lo hacen al terminar).
