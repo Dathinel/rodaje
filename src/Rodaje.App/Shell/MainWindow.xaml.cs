@@ -1086,13 +1086,11 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private void ShowGlobalPanel(Views.Inspector.InspectorView.Tab tab)
     {
-        if (tab == Views.Inspector.InspectorView.Tab.History)
+        Button button = tab == Views.Inspector.InspectorView.Tab.History ? HistoryButton : JobsButton;
+        // Recién abierta la ventana el botón aún no tiene XamlRoot y ShowAt lanza (Ctrl+H al arrancar; modo caos, ronda 4).
+        if (tab is Views.Inspector.InspectorView.Tab.History or Views.Inspector.InspectorView.Tab.Jobs && button.XamlRoot is not null)
         {
-            HistoryButton.Flyout?.ShowAt(HistoryButton);
-        }
-        else if (tab == Views.Inspector.InspectorView.Tab.Jobs)
-        {
-            JobsButton.Flyout?.ShowAt(JobsButton);
+            button.Flyout?.ShowAt(button);
         }
     }
 
