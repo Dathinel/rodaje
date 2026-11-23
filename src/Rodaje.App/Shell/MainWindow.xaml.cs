@@ -213,7 +213,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(_router.Bind(ActionIds.ShowPreferences, ShowPreferences));
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
         _bindings.Add(_router.Bind(ActionIds.ShowMixer, ToggleMixer));
-        _bindings.Add(_router.Bind(ActionIds.ShowHistory, () => HistoryButton.Flyout.ShowAt(HistoryButton)));
+        _bindings.Add(_router.Bind(ActionIds.ShowHistory, () => ShowGlobalPanel(Views.Inspector.InspectorView.Tab.History)));
         _bindings.Add(_router.Bind(TimelineShortcuts.RenderCache, RequestRenderCache));
         _bindings.Add(Views.Analysis.AnalysisCommands.Bind(_router, _services));
         _bindings.Add(Views.Timeline.TransitionCommands.Bind(_router, _services));
@@ -1257,6 +1257,34 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
     }
 
+    // Cerrar la ventana con la lista de un desplegable abierta (o un menú) terminaba a veces en 0xC000027B al
+    // desmontar XAML, sin informe (modo caos: semillas 10, 49, 75 y 3010). Se cierran antes.
+    private void CloseOpenPopups()
+    {
+        if (Content?.XamlRoot is not { } root)
+        {
+            return;
+        }
+
+        foreach (Microsoft.UI.Xaml.Controls.Primitives.Popup popup in Microsoft.UI.Xaml.Media.VisualTreeHelper.GetOpenPopupsForXamlRoot(root))
+        {
+            // Un diálogo no: ocultarlo despierta a quien lo esperaba (Preferencias aplicaría el tema sobre la ventana ya cerrada).
+            if (popup.Child is ContentDialog)
+            {
+                continue;
+            }
+
+            try
+            {
+                popup.IsOpen = false;
+            }
+            catch (System.Runtime.InteropServices.COMException ex)
+            {
+                Program.Log.Append("Al cerrar, un emergente no se dejó cerrar: " + ex.Message);
+            }
+        }
+    }
+
     private void OnClosed(object sender, WindowEventArgs args)
     {
         if (_closed)
@@ -1267,6 +1295,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _closed = true;
         ChaosRun.Mark("OnClosed");
         Views.Inspector.DispatcherQueueLater.StopAfterWindowClosed();
+        CloseOpenPopups();
         _notificationTimer.Stop();
         _services.Collab?.Dispose();
         _revealTimer.Stop();
