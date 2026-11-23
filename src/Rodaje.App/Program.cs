@@ -134,11 +134,31 @@ internal static partial class Program
     /// </summary>
     private static void ReportHandlerException(Exception exception, bool notify)
     {
+        if (IgnoreAfterWindowClosed(exception))
+        {
+            return;
+        }
+
         string? path = ReportException(CrashKind.DispatcherCallback, exception, fatal: false, out bool repeated);
         if (notify && !repeated)
         {
             Instance?.NotifyUnexpectedError(path);
         }
+    }
+
+    /// <summary>
+    /// Con la ventana cerrada el árbol de XAML está desmontado y tocarlo lanza E_UNEXPECTED: es el final tardío de una tarea
+    /// (una descarga que falla, una miniatura), no un fallo de la app. Solo va al registro (modo caos, rondas 1 y 3).
+    /// </summary>
+    internal static bool IgnoreAfterWindowClosed(Exception exception)
+    {
+        if (!Views.Inspector.DispatcherQueueLater.WindowClosed || exception is not System.Runtime.InteropServices.COMException { HResult: unchecked((int)0x8000FFFF) })
+        {
+            return false;
+        }
+
+        Log.Append("Tras cerrar la ventana: " + exception.Message);
+        return true;
     }
 
     internal static bool OnDispatcherException(Exception exception) =>
