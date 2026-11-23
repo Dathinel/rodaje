@@ -277,7 +277,8 @@ public static class ProjectSerializer
     private static bool IsReservedDeviceName(string fileName)
     {
         string stem = fileName.Split('.')[0].TrimEnd(' ').ToUpperInvariant();
-        return stem is "CON" or "PRN" or "AUX" or "NUL"
+        return WindowsFileNames.IsReserved(fileName)
+            || stem is "CON" or "PRN" or "AUX" or "NUL"
             || (stem.Length == 4 && (stem.StartsWith("COM", StringComparison.Ordinal) || stem.StartsWith("LPT", StringComparison.Ordinal))
                 && stem[3] is (>= '0' and <= '9') or '¹' or '²' or '³');
     }
