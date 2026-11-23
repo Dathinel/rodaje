@@ -60,6 +60,7 @@ internal static partial class ChaosRun
         var chaos = new Chaos(window, new Random(seed), corpus, log, root);
         FileDialogs.FakeOpen = chaos.FakeOpen;
         FileDialogs.FakeSave = chaos.FakeSave;
+        Views.Relink.FolderDialog.FakePick = chaos.FakePick;
         using var watchdog = new ChaosWatchdog(window.DispatcherQueue, log, Path.Combine(root, "fallos"));
         int failures = 0;
         // Si la ventana se cierra antes de tiempo, el bucle no vuelve: la salida queda en 4 (cierre inesperado).
@@ -103,6 +104,7 @@ internal static partial class ChaosRun
         log.Line(string.Create(CultureInfo.InvariantCulture, $"caos: fin tras {step} pasos en {clock.Elapsed.TotalSeconds:0} s, {failures} fallos"));
         FileDialogs.FakeOpen = null;
         FileDialogs.FakeSave = null;
+        Views.Relink.FolderDialog.FakePick = null;
         chaos.Finished = true;
         Program.ExitCode = failures == 0 ? 0 : 2;
         window.Close();
@@ -141,7 +143,10 @@ internal static partial class ChaosRun
         private readonly ChaosLog _log;
         private readonly string _folder;
         private readonly Thread _thread;
+        private static readonly TimeSpan StuckLimit = TimeSpan.FromSeconds(60);
         private long _lastPong = Stopwatch.GetTimestamp();
+        private long _stepStarted = Stopwatch.GetTimestamp();
+        private volatile int _step;
         private volatile bool _disposed;
 
         public ChaosWatchdog(Microsoft.UI.Dispatching.DispatcherQueue queue, ChaosLog log, string folder)
@@ -153,7 +158,16 @@ internal static partial class ChaosRun
             _thread.Start();
         }
 
-        public int Step { get; set; }
+        /// <summary>El paso en curso; si no cambia en <see cref="StuckLimit"/>, la corrida quedó atascada (un diálogo modal, una espera sin fin).</summary>
+        public int Step
+        {
+            get => _step;
+            set
+            {
+                _step = value;
+                Interlocked.Exchange(ref _stepStarted, Stopwatch.GetTimestamp());
+            }
+        }
 
         public void Dispose() => _disposed = true;
 
@@ -164,22 +178,27 @@ internal static partial class ChaosRun
                 Thread.Sleep(500);
                 _ = _queue.RunLater(() => Interlocked.Exchange(ref _lastPong, Stopwatch.GetTimestamp()));
                 TimeSpan silent = Stopwatch.GetElapsedTime(Interlocked.Read(ref _lastPong));
-                if (silent > Limit && !_disposed)
+                TimeSpan stuck = Stopwatch.GetElapsedTime(Interlocked.Read(ref _stepStarted));
+                if (_disposed || (silent <= Limit && stuck <= StuckLimit))
                 {
-                    _log.Line(string.Create(CultureInfo.InvariantCulture, $"{Step}\tCUELGUE\tel hilo de la interfaz no responde desde hace {silent.TotalSeconds:0} s"));
-                    Directory.CreateDirectory(_folder);
-                    string dump = Path.Combine(_folder, $"cuelgue-paso-{Step}.dmp");
-                    var writer = new Thread(() =>
-                    {
-                        using var self = Process.GetCurrentProcess();
-                        _ = Services.Crashes.NativeCrashHandler.WriteMinidump(dump, self, out _);
-                    }) { IsBackground = true };
-                    writer.Start();
-                    writer.Join(TimeSpan.FromSeconds(20));
-                    using var process = Process.GetCurrentProcess();
-                    process.Kill();
-                    return;
+                    continue;
                 }
+
+                _log.Line(silent > Limit
+                    ? string.Create(CultureInfo.InvariantCulture, $"{Step}\tCUELGUE\tel hilo de la interfaz no responde desde hace {silent.TotalSeconds:0} s")
+                    : string.Create(CultureInfo.InvariantCulture, $"{Step}\tATASCADO\tel paso no termina desde hace {stuck.TotalSeconds:0} s (la interfaz sí responde: ¿un diálogo modal?)"));
+                Directory.CreateDirectory(_folder);
+                string dump = Path.Combine(_folder, $"cuelgue-paso-{Step}.dmp");
+                var writer = new Thread(() =>
+                {
+                    using var self = Process.GetCurrentProcess();
+                    _ = Services.Crashes.NativeCrashHandler.WriteMinidump(dump, self, out _);
+                }) { IsBackground = true };
+                writer.Start();
+                writer.Join(TimeSpan.FromSeconds(20));
+                using var process = Process.GetCurrentProcess();
+                process.Kill();
+                return;
             }
         }
     }
@@ -719,6 +738,18 @@ internal static partial class ChaosRun
             };
             log.Line($"{_step}\t  diálogo «{title}» → {(picked.Count == 0 ? "cancelado" : string.Join(", ", picked.Select(Path.GetFileName)))}");
             return picked;
+        }
+
+        public string? FakePick(string title)
+        {
+            string? folder = random.Next(4) == 0 ? null : Path.Combine(root, "carpetas", random.Next(3).ToString(CultureInfo.InvariantCulture));
+            if (folder is not null)
+            {
+                Directory.CreateDirectory(folder);
+            }
+
+            log.Line($"{_step}\t  carpeta «{title}» → {(folder is null ? "cancelado" : Path.GetFileName(folder))}");
+            return folder;
         }
 
         public string? FakeSave(string title, string suggestedName, string defaultExtension)

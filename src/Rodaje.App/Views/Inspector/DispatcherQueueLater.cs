@@ -20,6 +20,9 @@ internal static class DispatcherQueueLater
     /// </summary>
     public static void StopAfterWindowClosed() => s_windowClosed = true;
 
+    /// <summary>Si la ventana ya se cerró (ver <see cref="StopAfterWindowClosed"/>).</summary>
+    public static bool WindowClosed => s_windowClosed;
+
     /// <summary>
     /// Hace <paramref name="action"/> después del evento en curso (si la cola no la acepta, al cerrar, se descarta). Si lanza,
     /// deja informe (<c>CrashKind.DispatcherCallback</c>) y aviso en la ventana en vez de cerrar la app sin rastro.

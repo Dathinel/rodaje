@@ -137,7 +137,7 @@ function Descoordinar([string]$linea) {
 
 function Causa([string]$carpeta, [int]$codigo, [string]$registro) {
     $log = if (Test-Path -LiteralPath $registro) { @(Get-Content -LiteralPath $registro -Encoding UTF8) } else { @() }
-    $cuelgue = $log | Where-Object { $_ -match "`tCUELGUE`t" } | Select-Object -First 1
+    $cuelgue = $log | Where-Object { $_ -match "`t(CUELGUE|ATASCADO)`t" } | Select-Object -First 1
     if ($cuelgue) { return "cuelgue: $cuelgue" }
     $informe = Get-ChildItem -LiteralPath $carpeta -Filter '*.txt' -Recurse -ErrorAction SilentlyContinue | Where-Object { $_.Name -ne 'caos.log' -and $_.Name -ne 'rodaje-error.txt' } | Sort-Object Name | Select-Object -First 1
     if ($informe) {
