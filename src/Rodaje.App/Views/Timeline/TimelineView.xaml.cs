@@ -933,6 +933,26 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         TakeKeyboardFocus();
     }
 
+    private void OnSettingsMenuClick(object sender, RoutedEventArgs e)
+    {
+        if (Session is null || sender is not RadioMenuFlyoutItem { Tag: string value } item)
+        {
+            return;
+        }
+
+        int index = int.Parse(value, System.Globalization.CultureInfo.InvariantCulture);
+        if (item.GroupName == "RippleSettingsMenu")
+        {
+            State.RippleMode = (RippleMode)index;
+        }
+        else
+        {
+            State.GapBehavior = (TimelineGapBehavior)index;
+        }
+
+        UpdateToolbar();
+    }
+
     private void OnRippleModeChanged(object sender, SelectionChangedEventArgs e)
     {
         if (Session is not null && RippleModeBox.SelectedIndex >= 0)
@@ -976,6 +996,14 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         IgnoreGroupsMenuItem.IsChecked = state.IgnoreGroups;
         GapBehaviorBox.SelectedIndex = (int)state.GapBehavior;
         RippleModeBox.SelectedIndex = (int)state.RippleMode;
+        RadioMenuFlyoutItem[] gapItems = [GapSettingsMenu0, GapSettingsMenu1, GapSettingsMenu2];
+        RadioMenuFlyoutItem[] rippleItems = [RippleSettingsMenu0, RippleSettingsMenu1, RippleSettingsMenu2];
+        for (int i = 0; i < gapItems.Length; i++)
+        {
+            gapItems[i].IsChecked = i == (int)state.GapBehavior;
+            rippleItems[i].IsChecked = i == (int)state.RippleMode;
+        }
+
         // Con la barra plegada el texto elegido se corta: la ayuda lo dice entero.
         ToolTipService.SetToolTip(GapBehaviorBox, $"{(GapBehaviorBox.SelectedItem as ComboBoxItem)?.Content as string}. Qué hacen Supr, el recorte y el arrastre si queda un hueco");
         ToolTipService.SetToolTip(RippleModeBox, $"{(RippleModeBox.SelectedItem as ComboBoxItem)?.Content as string}. Qué pistas, marcadores y regiones se desplazan cuando el modo activo usa ripple");
@@ -1013,6 +1041,12 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         MarkersSeparator.Visibility = layout.ShowDirectMarkers ? Visibility.Visible : Visibility.Collapsed;
         MoreActionsButton.Visibility = layout.ShowMoreButton ? Visibility.Visible : Visibility.Collapsed;
 
+        GapBehaviorBox.Visibility = RippleModeBox.Visibility = layout.ShowDirectSettings ? Visibility.Visible : Visibility.Collapsed;
+        GapSettingsMenu.Visibility = RippleSettingsMenu.Visibility = layout.ShowDirectSettings ? Visibility.Collapsed : Visibility.Visible;
+        // A media pantalla, el zoom necesita su propia fila para no pisar las herramientas.
+        Grid.SetRow(ZoomControls, layout.ShowDirectSettings ? 0 : 1);
+        Grid.SetColumn(ZoomControls, layout.ShowDirectSettings ? 1 : 0);
+        ZoomControls.HorizontalAlignment = HorizontalAlignment.Right;
         GapBehaviorBox.Width = layout.GapBoxWidth;
         RippleModeBox.Width = layout.RippleBoxWidth;
 

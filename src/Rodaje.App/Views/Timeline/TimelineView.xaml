@@ -13,12 +13,16 @@
 
     <Grid Background="{StaticResource PanelBrush}">
         <Grid.RowDefinitions>
-            <RowDefinition Height="36" />
+            <RowDefinition Height="Auto" MinHeight="36" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
         </Grid.RowDefinitions>
 
         <Grid Background="{StaticResource BarBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,0,0,1" Padding="8,0">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" MinHeight="35" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition Width="Auto" />
@@ -65,9 +69,19 @@
                 <Rectangle x:Name="MarkersSeparator" Style="{StaticResource ToolbarSeparatorStyle}" />
                 <Button x:Name="MarkerButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE7C1;" Click="OnActionClick" />
                 <Button x:Name="RegionButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE8EC;" Click="OnActionClick" />
-                <Button x:Name="MoreActionsButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE712;" Visibility="Collapsed" ToolTipService.ToolTip="Más acciones">
+                <Button x:Name="MoreActionsButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE712;" Visibility="Collapsed" ToolTipService.ToolTip="Más acciones y ajustes de edición" AutomationProperties.Name="Más acciones y ajustes de edición">
                     <Button.Flyout>
                         <MenuFlyout>
+                            <MenuFlyoutSubItem x:Name="GapSettingsMenu" Text="Comportamiento de huecos" Visibility="Collapsed">
+                                <RadioMenuFlyoutItem x:Name="GapSettingsMenu0" Text="Dejar huecos" GroupName="GapSettingsMenu" Tag="0" Click="OnSettingsMenuClick" />
+                                <RadioMenuFlyoutItem x:Name="GapSettingsMenu1" Text="Pista principal magnética" GroupName="GapSettingsMenu" Tag="1" Click="OnSettingsMenuClick" />
+                                <RadioMenuFlyoutItem x:Name="GapSettingsMenu2" Text="Ripple global" GroupName="GapSettingsMenu" Tag="2" Click="OnSettingsMenuClick" />
+                            </MenuFlyoutSubItem>
+                            <MenuFlyoutSubItem x:Name="RippleSettingsMenu" Text="Ámbito" Visibility="Collapsed">
+                                <RadioMenuFlyoutItem x:Name="RippleSettingsMenu0" Text="Pistas afectadas" GroupName="RippleSettingsMenu" Tag="0" Click="OnSettingsMenuClick" />
+                                <RadioMenuFlyoutItem x:Name="RippleSettingsMenu1" Text="Todas las pistas" GroupName="RippleSettingsMenu" Tag="1" Click="OnSettingsMenuClick" />
+                                <RadioMenuFlyoutItem x:Name="RippleSettingsMenu2" Text="Pistas, marcadores y regiones" GroupName="RippleSettingsMenu" Tag="2" Click="OnSettingsMenuClick" />
+                            </MenuFlyoutSubItem>
                             <MenuFlyoutItem x:Name="AddMarkerMenuItem" Click="OnFlyoutClick">
                                 <MenuFlyoutItem.Icon>
                                     <FontIcon Glyph="&#xE7C1;" />
@@ -87,7 +101,7 @@
                 </Button>
             </StackPanel>
 
-            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="2">
+            <StackPanel x:Name="ZoomControls" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center" Spacing="2">
                 <Button x:Name="ZoomOutButton" Style="{StaticResource ToolButtonStyle}" Content="&#xE71F;" Click="OnActionClick" />
                 <Slider x:Name="ZoomSlider" Width="120" Minimum="0" Maximum="1000" StepFrequency="1" VerticalAlignment="Center"
                         IsThumbToolTipEnabled="False" ValueChanged="OnZoomSliderChanged" />
