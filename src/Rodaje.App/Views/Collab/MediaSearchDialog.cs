@@ -104,6 +104,16 @@ internal static class MediaSearchDialog
             askMissing.Visibility = requestable > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        // Una operación a la vez: antes, un segundo clic cancelaba en silencio la que seguía en curso (un original ya aprobado
+        // por quien hospeda se perdía). Mientras dura, los demás botones esperan; la barra de progreso trae Cancelar.
+        void Busy(bool on)
+        {
+            foreach (Button b in askButtons.Values.Concat(originalButtons.Values).Append(askMissing).Append(choose))
+            {
+                b.IsEnabled = !on;
+            }
+        }
+
         bool stopAsking = false;
 
         // Las filas se arman aquí: sus botones usan las funciones de abajo, que leen el diálogo ya montado.
@@ -149,6 +159,7 @@ internal static class MediaSearchDialog
             current?.Cancel();
             using CancellationTokenSource mine = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token);
             current = mine;
+            Busy(true);
             var operation = new OperationProgress();
             searching = operation;
             progress.Operation = operation;
@@ -187,6 +198,7 @@ internal static class MediaSearchDialog
                     current = null;
                     searching = null;
                     progress.Operation = null;
+                    Busy(false);
                 }
             }
 
@@ -208,6 +220,7 @@ internal static class MediaSearchDialog
             current?.Cancel();
             using CancellationTokenSource mine = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token);
             current = mine;
+            Busy(true);
             var operation = new OperationProgress();
             searching = operation;
             progress.Operation = operation;
@@ -236,6 +249,7 @@ internal static class MediaSearchDialog
                     current = null;
                     searching = null;
                     progress.Operation = null;
+                    Busy(false);
                 }
             }
 
@@ -272,6 +286,7 @@ internal static class MediaSearchDialog
             current?.Cancel();
             using CancellationTokenSource mine = CancellationTokenSource.CreateLinkedTokenSource(cancel.Token);
             current = mine;
+            Busy(true);
             var operation = new OperationProgress();
             operation.SetCancellable(true);
             JoinFlowProgress.Searching(operation);
@@ -319,6 +334,7 @@ internal static class MediaSearchDialog
                     current = null;
                     searching = null;
                     progress.Operation = null;
+                    Busy(false);
                 }
             }
         }
