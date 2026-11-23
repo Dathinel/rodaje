@@ -253,6 +253,24 @@ public sealed class RoomServiceTests
     }
 
     [SalaFact]
+    public async Task Tras_pasar_el_anfitrion_las_dos_vistas_coinciden_en_quien_esta_y_quien_es_suplente()
+    {
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService ana = host;
+        await using RoomService luis = guest;
+        string anaKey = ana.State.MyKey, luisKey = luis.State.MyKey;
+
+        await ana.HandOverAsync(luisKey);
+
+        static bool Coherent(RoomState s, string hostKey, string standbyKey) =>
+            s.Members.Count == 2 && s.Members.All(m => m.Online) && s.OnlineCount == 2
+            && s.Members.Single(m => m.IsHost).Key == hostKey && s.StandbyKey == standbyKey;
+        await CollabHarness.Until(() => luis.State.IsHost && ana.State.Phase == RoomPhase.Connected, "el traspaso hecho");
+        await CollabHarness.Until(() => Coherent(ana.State, luisKey, anaKey) && Coherent(luis.State, luisKey, anaKey),
+            "las dos vistas con Luis hospedando, las dos personas conectadas y Ana de suplente");
+    }
+
+    [SalaFact]
     public async Task Quien_vuelve_tras_cerrar_el_anfitrion_la_sala_no_necesita_aprobacion_de_nuevo()
     {
         RecordingHandler hh = new();
