@@ -388,6 +388,9 @@ internal sealed class CpuExportCaseAttribute : DataAttribute
         Skip = CpuExportEnvironment.Encoders(video, audio);
     }
 
+    /// <summary>Motivo para omitir la fila solo en macOS.</summary>
+    public string? MacSkip { get => null; set => Skip ??= OperatingSystem.IsMacOS() ? value : null; }
+
     public override IEnumerable<object[]> GetData(MethodInfo testMethod) => [_row];
 }
 
