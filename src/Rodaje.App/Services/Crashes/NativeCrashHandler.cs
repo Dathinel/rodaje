@@ -146,6 +146,9 @@ public static unsafe partial class NativeCrashHandler
         return s_previous != 0 ? ((delegate* unmanaged<ExceptionPointers*, int>)s_previous)(pointers) : ExceptionContinueSearch;
     }
 
+    /// <summary>Termina el proceso ya, sin descargar DLL ni desmontar nada.</summary>
+    internal static void TerminateNow(int exitCode) => TerminateProcess(GetCurrentProcess(), unchecked((uint)exitCode));
+
     [LibraryImport("kernel32.dll")]
     [DefaultDllImportSearchPaths(DllImportSearchPath.System32)]
     private static partial nint SetUnhandledExceptionFilter(nint filter);

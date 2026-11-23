@@ -1346,6 +1346,9 @@ internal sealed partial class MainWindow : Window, IShellHost
         _instance.Dispose();
         MeasurementRun.WriteReportIfMeasuring(_options, _engine, Program.Metrics, VideoPanel.CompositionScaleX);
         ChaosRun.Mark("OnClosed terminado");
+        // Desmontar XAML con un desplegable abierto tumbaba a veces el proceso con 0xC000027B, sin informe (modo caos,
+        // semillas 10, 49, 75, 84 y 3010). Aquí ya está todo guardado y liberado: no queda nada que desmontar que importe.
+        Program.ExitAfterWindowClosed();
     }
 
     /// <summary>Un módulo de GPU baja la vista previa como una exportación con poca VRAM (proxies y Mitad), con el mismo contador.</summary>
