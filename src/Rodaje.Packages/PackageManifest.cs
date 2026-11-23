@@ -29,6 +29,9 @@ public enum ItemKind
 
     /// <summary>Plantilla de movimiento <c>rodaje.template</c>; distinta de la plantilla de proyecto.</summary>
     MotionTemplate,
+
+    /// <summary>Tipo declarado por la aplicación en ReadOptions.ExtraKinds.</summary>
+    Other,
 }
 
 /// <summary>
@@ -49,7 +52,8 @@ public sealed record PackageItem(
     string? License = null,
     string? Preview = null,
     IReadOnlyList<string>? Files = null,
-    string? LegacyId = null)
+    string? LegacyId = null,
+    string? OtherKind = null)
 {
     /// <summary>Tope de un archivo de fuente (D-029).</summary>
     public const long MaxFontFileBytes = 20L * 1024 * 1024;

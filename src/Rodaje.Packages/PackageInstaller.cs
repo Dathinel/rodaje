@@ -89,7 +89,7 @@ public sealed record InstallLimits
 /// Instalar, desinstalar y limpiar restos toman <see cref="OperationLockPath"/>, un bloqueo entre procesos: así dos
 /// programas (o dos ventanas) con la misma carpeta nunca se cruzan, y la limpieza no ve como resto lo que otro está extrayendo.
 /// </summary>
-public sealed class PackageInstaller(PackageLocations locations, string appId, InstallLimits? limits = null)
+public sealed class PackageInstaller(PackageLocations locations, string appId, InstallLimits? limits = null, ReadOptions? readOptions = null)
 {
     private const string InstallingPrefix = ".instalando-";
     private const string RemovingPrefix = ".desinstalando-";
@@ -106,6 +106,8 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
 
     /// <summary>Cuánto se espera a que otro proceso termine su operación antes de rendirse.</summary>
     public TimeSpan BusyTimeout { get; init; } = TimeSpan.FromSeconds(10);
+    /// <summary>Validación de contenido específica de la aplicación, antes del intercambio atómico.</summary>
+    public Action<InstalledPackage>? ValidateContent { get; init; }
 
     /// <summary>Archivo junto a <see cref="PackageLocations.Packages"/> que se abre sin compartir mientras dura una operación.</summary>
     public string OperationLockPath =>
@@ -168,7 +170,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
         {
             Extract(archive, staging, cancellationToken);
             PackageIntegrity.Write(staging);
-            ManifestResult read = ManifestReader.ReadFile(Path.Combine(staging, PackageManifest.FileName));
+            ManifestResult read = ManifestReader.ReadFile(Path.Combine(staging, PackageManifest.FileName), options: readOptions);
             if (read.Manifest is not { } manifest)
             {
                 throw new PackageInstallException("El paquete no es válido: " + string.Join(" ", read.Errors));
@@ -215,9 +217,10 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
             }
 
             beforeCommit?.Invoke(manifest);
+            ValidateContent?.Invoke(new InstalledPackage(manifest, staging, PackageOrigin.Installed));
             if (Directory.Exists(target))
             {
-                previous = ManifestReader.ReadFile(Path.Combine(target, PackageManifest.FileName), checkFiles: false).Manifest?.Version;
+                previous = ManifestReader.ReadFile(Path.Combine(target, PackageManifest.FileName), checkFiles: false, options: readOptions).Manifest?.Version;
                 if (!allowReplace)
                 {
                     throw new PackageReplaceBlockedException(manifest.Id, manifest.Name, previous);
@@ -375,7 +378,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     }
 
     /// <summary>Una versión apartada durante una actualización: sobra si la nueva está completa; si no, vuelve a su sitio.</summary>
-    private static bool ResolvePrevious(string root, string aside)
+    private bool ResolvePrevious(string root, string aside)
     {
         string name = Path.GetFileName(aside);
         int idStart = PreviousPrefix.Length + TagLength + 1;
@@ -410,7 +413,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
     }
 
     /// <summary>Si la carpeta tiene un manifiesto válido con ese id y todos los archivos que nombra.</summary>
-    private static bool IsComplete(string directory, string id)
+    private bool IsComplete(string directory, string id)
     {
         if (!Directory.Exists(directory))
         {
@@ -419,7 +422,7 @@ public sealed class PackageInstaller(PackageLocations locations, string appId, I
 
         try
         {
-            return ManifestReader.ReadFile(Path.Combine(directory, PackageManifest.FileName)).Manifest?.Id == id;
+            return ManifestReader.ReadFile(Path.Combine(directory, PackageManifest.FileName), options: readOptions).Manifest?.Id == id;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {

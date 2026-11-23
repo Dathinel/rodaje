@@ -91,7 +91,7 @@ public static class PackageLibrary
 {
     public const string OwnPackageId = "propios";
 
-    public static PackageScan Scan(PackageLocations locations, string appId)
+    public static PackageScan Scan(PackageLocations locations, string appId, ReadOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(locations);
         ArgumentException.ThrowIfNullOrEmpty(appId);
@@ -99,12 +99,12 @@ public static class PackageLibrary
         var problems = new List<PackageProblem>();
         foreach (string bundled in locations.Bundled)
         {
-            ScanRoot(bundled, PackageOrigin.Bundled, appId, found, problems);
+            ScanRoot(bundled, PackageOrigin.Bundled, appId, found, problems, options);
         }
 
-        ScanRoot(locations.Packages, PackageOrigin.Installed, appId, found, problems);
-        ScanRoot(locations.Modules, PackageOrigin.Installed, appId, found, problems);
-        if (ScanOwn(locations.Own, appId, problems) is { } own)
+        ScanRoot(locations.Packages, PackageOrigin.Installed, appId, found, problems, options);
+        ScanRoot(locations.Modules, PackageOrigin.Installed, appId, found, problems, options);
+        if (ScanOwn(locations.Own, appId, problems, options) is { } own)
         {
             found[own.Id] = own;
         }
@@ -113,7 +113,7 @@ public static class PackageLibrary
         return new PackageScan(packages, problems);
     }
 
-    private static void ScanRoot(string root, PackageOrigin origin, string appId, Dictionary<string, InstalledPackage> found, List<PackageProblem> problems)
+    private static void ScanRoot(string root, PackageOrigin origin, string appId, Dictionary<string, InstalledPackage> found, List<PackageProblem> problems, ReadOptions? options)
     {
         IEnumerable<string> directories;
         try
@@ -140,7 +140,7 @@ public static class PackageLibrary
                 continue;
             }
 
-            ManifestResult result = ManifestReader.ReadFile(Path.Combine(directory, PackageManifest.FileName));
+            ManifestResult result = ManifestReader.ReadFile(Path.Combine(directory, PackageManifest.FileName), options: options);
             if (result.Manifest is not { } manifest)
             {
                 problems.Add(new PackageProblem(directory, string.Join(" ", result.Errors)));
@@ -165,7 +165,7 @@ public static class PackageLibrary
     /// Los elementos propios: un <c>paquete.json</c> en la carpeta, o archivos <c>*.json</c> sueltos (uno por elemento, en
     /// cualquier subcarpeta) con <c>kind</c> y <c>name</c>, y opcionalmente <c>id</c> y <c>description</c>.
     /// </summary>
-    private static InstalledPackage? ScanOwn(string root, string appId, List<PackageProblem> problems)
+    private static InstalledPackage? ScanOwn(string root, string appId, List<PackageProblem> problems, ReadOptions? options)
     {
         if (!Directory.Exists(root))
         {
@@ -175,7 +175,7 @@ public static class PackageLibrary
         string manifestPath = Path.Combine(root, PackageManifest.FileName);
         if (File.Exists(manifestPath))
         {
-            ManifestResult result = ManifestReader.ReadFile(manifestPath);
+            ManifestResult result = ManifestReader.ReadFile(manifestPath, options: options);
             if (result.Manifest is { } manifest)
             {
                 return new InstalledPackage(manifest with { Id = OwnPackageId }, Path.GetFullPath(root), PackageOrigin.Own);
