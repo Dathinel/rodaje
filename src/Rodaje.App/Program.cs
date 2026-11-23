@@ -53,6 +53,12 @@ internal static partial class Program
             var settings = new SettingsStore(SettingsStore.DefaultPath);
             string? settingsWarning = settings.Load();
             Metrics.Milestone("ajustes");
+            if (OperatingSystem.IsWindowsVersionAtLeast(7))
+            {
+                // Antes del primer dispositivo y del perfil de la GPU: los dos usan el adaptador elegido.
+                Rodaje.Media.Gpu.GpuAdapterChoice.Preferred = settings.Current.GpuAdapter;
+            }
+
             StartupSplash.Show(settings.Current, options.RunsInBackground);
             // Sin archivos que abrir, el motor (FFmpeg y la GPU) arranca después del primer cuadro de la ventana (MainWindow):
             // cargar sus DLL a la vez que las de WinUI se disputa el cargador de Windows y el disco, y en frío retrasaba la

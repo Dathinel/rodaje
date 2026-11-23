@@ -110,7 +110,7 @@ public sealed unsafe class GpuDevice : IDisposable
     public const string ForceWarpVariable = "RODAJE_FORZAR_WARP";
 
     /// <summary>
-    /// Crea el dispositivo sobre el adaptador de hardware por defecto y, si no hay Direct3D 11 por hardware (una GPU de nivel
+    /// Crea el dispositivo sobre el adaptador de <see cref="GpuAdapterChoice"/> y, si no hay Direct3D 11 por hardware (una GPU de nivel
     /// 10, un controlador roto), sobre WARP: el visor y la exportación van lentos pero funcionan.
     /// </summary>
     /// <exception cref="MediaException">Tampoco hay WARP.</exception>
@@ -352,8 +352,14 @@ public sealed unsafe class GpuDevice : IDisposable
         ID3D11Device* d = null;
         ID3D11DeviceContext* c = null;
         D3D_FEATURE_LEVEL level;
-        HRESULT hr = D3D11CreateDevice(null, D3D_DRIVER_TYPE.D3D_DRIVER_TYPE_HARDWARE, HMODULE.NULL, flags,
-            levels, 2, D3D11_SDK_VERSION, &d, &level, &c);
+        IDXGIAdapter1* adapter = GpuAdapterChoice.Open();
+        HRESULT hr = D3D11CreateDevice((IDXGIAdapter*)adapter, adapter == null ? D3D_DRIVER_TYPE.D3D_DRIVER_TYPE_HARDWARE : D3D_DRIVER_TYPE.D3D_DRIVER_TYPE_UNKNOWN,
+            HMODULE.NULL, flags, levels, 2, D3D11_SDK_VERSION, &d, &level, &c);
+        if (adapter != null)
+        {
+            adapter->Release();
+        }
+
         device = d;
         context = c;
         return hr;

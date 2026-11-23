@@ -138,6 +138,15 @@ internal sealed partial class PreferencesView : UserControl
         PreviewQualityBox.SelectedIndex = (int)_model.PreviewQuality;
         TenBitViewerBox.SelectedIndex = (int)_model.TenBitViewer;
         HdrViewerBox.SelectedIndex = (int)_model.HdrViewer;
+        GpuAdapterBox.Items.Clear();
+        IReadOnlyList<string> gpus = PreferencesViewModel.GpuAdapterOptions(OperatingSystem.IsWindowsVersionAtLeast(7)
+            ? Rodaje.Media.Gpu.GpuProfileReader.Current.Adapters.Where(a => !a.IsSoftware).Select(a => a.Name) : Enumerable.Empty<string>(), _model.GpuAdapter);
+        foreach (string gpu in gpus)
+        {
+            GpuAdapterBox.Items.Add(gpu);
+        }
+
+        GpuAdapterBox.SelectedIndex = Math.Max(0, gpus.Skip(1).ToList().FindIndex(n => string.Equals(n, _model.GpuAdapter, StringComparison.OrdinalIgnoreCase)) + 1);
         ShortcutPresetBox.SelectedIndex = (int)_model.ShortcutPreset;
         RenderCacheModeBox.SelectedIndex = (int)_model.RenderCacheMode;
         RenderCacheFolderBox.Text = _model.RenderCacheFolder;
@@ -267,6 +276,7 @@ internal sealed partial class PreferencesView : UserControl
         model.PreviewQuality = (PreviewQuality)Math.Max(0, PreviewQualityBox.SelectedIndex);
         model.TenBitViewer = (TenBitViewer)Math.Max(0, TenBitViewerBox.SelectedIndex);
         model.HdrViewer = (HdrViewer)Math.Max(0, HdrViewerBox.SelectedIndex);
+        model.GpuAdapter = GpuAdapterBox.SelectedIndex > 0 ? GpuAdapterBox.SelectedItem as string ?? "" : "";
         model.RenderCacheMode = (Services.RenderCache.RenderCacheMode)Math.Max(0, RenderCacheModeBox.SelectedIndex);
         model.RenderCacheFolder = RenderCacheFolderBox.Text;
         model.RenderCacheCapGb = RenderCacheCapBox.Value;

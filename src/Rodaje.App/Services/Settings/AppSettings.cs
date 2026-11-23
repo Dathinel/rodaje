@@ -91,6 +91,12 @@ public sealed partial class AppSettings
 
     public ProxyUsage ProxyUsage { get; set; } = ProxyUsage.Auto;
 
+    /// <summary>
+    /// Parte del nombre del adaptador para el visor y la exportación (Preferencias › Rendimiento); <c>null</c>, automática: el
+    /// de alto rendimiento de DXGI, o el de ahorro si así lo eligió la persona en Windows. Se aplica al volver a abrir Rodaje.
+    /// </summary>
+    public string? GpuAdapter { get; set; }
+
     /// <summary>Resolución de la vista previa; Auto baja sola al reproducir si la GPU no llega.</summary>
     public PreviewQuality PreviewQuality { get; set; } = PreviewQuality.Auto;
 
