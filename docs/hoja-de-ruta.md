@@ -100,7 +100,9 @@ Rodaje usa `Dathinel/sala`, que ya trae lo central (red, roles, reservas, traspa
 | B15 | 5 | Anfitrión que se va: traspaso, suplente, parches pendientes y «Cambios que no entraron» | Apagar el anfitrión a mitad: nadie pierde cambios y, al volver, converge |
 | B16 | 6 | Render del anfitrión: «Exportar en el anfitrión» y caché compartido | Un invitado lanza la exportación y sale en el anfitrión |
 
-B15b vistas hechas: traspaso con confirmación, suplente y recuperación de «Cambios que no entraron»; pendiente validar con ratón y en CI.
+**B15 ✔ en código (22-nov):** motor (#671), pantallas de traspaso, suplente y «Cambios que no entraron» (#677), borrados y reordenaciones que se recuperan y acuse de entrega de cambios separados (#690), y el registro que reintenta guardar (#703). Falta la prueba con ratón: apagar el anfitrión a mitad, tomar la sala como suplente y conservar o descartar lo que no entró (`pruebas-a-mano.md`, Colaboración 14 a 17).
+
+**Repaso con ratón del 22-nov (arreglado):** la copia ligera no se veía (#684), cerrar la sala dejaba a los invitados reintentando (#685), EXPORTAR desaparecía a media pantalla (#682), dos diálogos de medios con ids (#689), «Pedir la pista» (#686), `dathinel-red` en `dist` (#679) y Sala al día (#683). Nuevo por petición de Daniel: «Pedir el original» y Preferencias › Colaboración (#705). Hallazgos 4, 9 y 10 de la revisión de B12 (#692); progreso común de la colaboración (#678).
 
 **B10 ✔ hecho el 20-nov** (#648 tipos y huella de contenido, #649 implementación): `Rodaje.Core.Collab` con `SharedState`, `PatchDiff`, `PatchApply`, `PatchWire`, `WireSanitizer`, `PatchReservations`, `CollabHistory` y `ProjectWire`; `MediaRef.ContentKey/ContentHash` en el formato 16 (solo si existen). 10 000 secuencias aleatorias de ediciones convergen en dos réplicas (y con parches independientes reordenados); contrato en `propuestas/colaboracion-api-parches.md`. Queda en `pendientes.md`: coste de `Capture` con 5 000 clips y la conversión `file:` ↔ `blob:` con archivos reales (de `Rodaje.App`).
 

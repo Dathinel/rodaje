@@ -32,7 +32,7 @@ public sealed partial class AsyncSafetyTests
         ["Rodaje.App/Views/Inspector/Transition/TransitionPanel.xaml.cs"] = (1, "el degradado tiene elementos fijos y está fuera de las filas que se rehacen."),
         ["Rodaje.App/Views/Mixer/StripView.cs"] = (1, "el clic en una inserción solo abre su editor."),
         ["Rodaje.App/Views/Player/PlayerView.Format.cs"] = (4, "el refresco del diálogo de formato solo cambia textos y estados, no los elementos."),
-        ["Rodaje.App/Views/Preferences/PreferencesView.xaml.cs"] = (2, "el tema se aplica sin rehacer los desplegables de tema (se llenan desde botones de fuera)."),
+        ["Rodaje.App/Views/Preferences/PreferencesView.xaml.cs"] = (3, "el tema se aplica sin rehacer los desplegables de tema (se llenan desde botones de fuera); el del relé de Colaboración solo muestra u oculta su panel y su texto."),
         ["Rodaje.App/Views/Subtitles/AutoSubtitlesDialog.cs"] = (2, "el idioma solo activa un botón; el clic en la lista solo mueve el cursor."),
         ["Rodaje.App/Views/Timeline/TimelineView.xaml.cs"] = (2, "los modos de onda y de huecos solo cambian el estado de la sesión."),
         ["Rodaje.App/Views/Translate/TranslateDialog.cs"] = (3, "su Refresh solo cambia textos y botones, no los elementos."),

@@ -12,6 +12,17 @@ namespace Rodaje.App.Views.Inspector;
 /// </summary>
 internal static class DispatcherQueueLater
 {
+    private static volatile bool s_windowClosed;
+
+    /// <summary>
+    /// La ventana se cerró: lo que ya estaba en la cola no se hace. Con el árbol de XAML desmontado, leer cualquier
+    /// propiedad de un control lanza E_UNEXPECTED (0x8000FFFF; modo caos, semilla 12 de la ronda 1).
+    /// </summary>
+    public static void StopAfterWindowClosed() => s_windowClosed = true;
+
+    /// <summary>Si la ventana ya se cerró (ver <see cref="StopAfterWindowClosed"/>).</summary>
+    public static bool WindowClosed => s_windowClosed;
+
     /// <summary>
     /// Hace <paramref name="action"/> después del evento en curso (si la cola no la acepta, al cerrar, se descarta). Si lanza,
     /// deja informe (<c>CrashKind.DispatcherCallback</c>) y aviso en la ventana en vez de cerrar la app sin rastro.
@@ -43,7 +54,15 @@ internal static class DispatcherQueueLater
         box.DropDownClosed += (_, _) => retry.Closed(TryEnqueue(box.DispatcherQueue), refresh, Program.OnDispatcherException);
     }
 
-    private static Func<Action, bool> TryEnqueue(DispatcherQueue queue) => guarded => queue.TryEnqueue(() => guarded());
+    private static Func<Action, bool> TryEnqueue(DispatcherQueue queue) => guarded => queue.TryEnqueue(() => RunIfOpen(guarded));
+
+    private static void RunIfOpen(Action guarded)
+    {
+        if (!s_windowClosed)
+        {
+            guarded();
+        }
+    }
 
     /// <summary>
     /// <c>TryEnqueue</c> con el registro de fallos: pone <paramref name="action"/> en la cola y devuelve si la aceptó; si no, no
@@ -55,6 +74,6 @@ internal static class DispatcherQueueLater
     public static bool RunLater(this DispatcherQueue queue, DispatcherQueuePriority priority, Action action)
     {
         ArgumentNullException.ThrowIfNull(queue);
-        return UiDeferral.TryRunLater(guarded => queue.TryEnqueue(priority, () => guarded()), action, Program.OnDispatcherException);
+        return UiDeferral.TryRunLater(guarded => queue.TryEnqueue(priority, () => RunIfOpen(guarded)), action, Program.OnDispatcherException);
     }
 }

@@ -53,7 +53,7 @@ internal sealed partial class MainWindow
         {
             try
             {
-                using Process? _ = Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
+                using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo(path) { UseShellExecute = true });
             }
             catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
             {
