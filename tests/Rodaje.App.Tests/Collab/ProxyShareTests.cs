@@ -1,6 +1,17 @@
 using System.Security.Cryptography;
 using Dathinel.Sala;
+using Rodaje.App.Services;
 using Rodaje.App.Services.Collab;
+using Rodaje.App.Services.Media;
+using Rodaje.App.Tests.Media;
+using Rodaje.App.Tests.Support;
+using Rodaje.App.Views.Library;
+using Rodaje.Core.Collab;
+using Rodaje.Core.Commands;
+using Rodaje.Core.Editing;
+using Rodaje.Core.Model;
+using Rodaje.Core.Timing;
+using Rodaje.Media.Proxies;
 
 namespace Rodaje.App.Tests.Collab;
 
@@ -33,6 +44,93 @@ public sealed class ProxyShareTests
     }
 
     private static readonly string MediaHash = new('a', 64);
+
+    [SalaFact]
+    public void La_copia_recibida_reemplaza_el_origen_ausente_sin_reabrir_el_proyecto() => UiThread.Run(async () =>
+    {
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        FakeMaker maker = new((_, folder) => Write(folder, 300_000));
+        using ProxyShareHost share = new(host, maker, host.RoomFolder);
+
+        string missing = Path.Combine(guest.RoomFolder, "original-ausente.mp4");
+        var playback = new FakePlayback();
+        var session = new EditorSession(playback, new FakeProber().Video(missing), new FakeDialogs(), new SequentialIdGenerator());
+        string id = Assert.Single((await session.ImportMediaAsync([missing])).MediaIds);
+        Assert.True(session.AppendToTimeline(id));
+        MediaRef original = session.Project.GetMedia(id).Clone();
+        string sharedBefore = ProjectWire.ToJson(session.Project);
+        var proxies = new RoomProxies(guest, guest.RoomFolder, [new MediaManifestEntry(id, "clip-a", 100, MediaHash)]);
+        using var resolver = new MediaSourceResolver(new ProxyStore(Path.Combine(guest.RoomFolder, "preview-cache")), generator: null);
+        MediaSourceResolution unavailable = resolver.Resolve(original, Environment.CurrentDirectory, MediaPurpose.Preview);
+        Assert.False(File.Exists(unavailable.VideoPath));
+        Assert.False(File.Exists(unavailable.AudioPath));
+
+        // Las mismas suscripciones que usa la ventana: renovar los visuales y volver a revisar la biblioteca tras editar.
+        var sources = new FakeSources();
+        using var sourceGate = sources.Gate;
+        using var sourceStuck = sources.Stuck;
+        sources.Broken.Add(missing);
+        using var visuals = new ClipVisuals(mediaId => session.Project.FindMedia(mediaId)?.Path, sources,
+            new ClipVisualsOptions { ThumbnailWorkers = 1 }, SynchronizationContext.Current);
+        IReadOnlyList<string> offline = MediaDuplicates.Offline(session.Project.Media.Select(m => new MediaFile(m.Id, m.Path)));
+        int edits = 0;
+        session.ProjectEdited += (_, _) =>
+        {
+            visuals.ForgetRemovedMedia();
+            offline = MediaDuplicates.Offline(session.Project.Media.Select(m => new MediaFile(m.Id, m.Path)));
+            edits++;
+        };
+        Assert.Contains(id, offline);
+        Assert.Null(visuals.GetThumbnail(id, Time.Zero, 48));
+        await CollabHarness.Until(() => visuals.ThumbnailProblem(missing) is not null, "el fallo del original", seconds: 60);
+        playback.Loads.Clear();
+        playback.Reloads.Clear();
+
+        // RequestAsync devolvía proxies/proxy-… relativo a la sala, que los consumidores buscaban desde el proceso.
+        string path = await proxies.RequestAsync(id).WaitAsync(TimeSpan.FromSeconds(30));
+        Assert.True(proxies.Has(id));
+        Assert.True(session.Execute(new RelinkMediaCommand([new MediaRelinkTarget(id, path)])));
+
+        Assert.Empty(offline);
+        Assert.Equal(1, edits);
+        Assert.Empty(playback.Loads);
+        Project reloaded = Assert.Single(playback.Reloads);
+        MediaRef media = reloaded.GetMedia(id);
+        string expected = Path.Combine(guest.RoomFolder, "proxies", RoomProxies.FileName(MediaHash));
+        Assert.Equal(expected, path);
+        Assert.True(Path.IsPathFullyQualified(media.Path));
+        Assert.Equal(expected, media.ResolvePath(Environment.CurrentDirectory));
+        // Tampoco depende de que el proyecto esté guardado en la carpeta de la sala.
+        string projectFolder = Path.Combine(guest.RoomFolder, "recibido");
+        Assert.Equal(expected, media.ResolvePath(projectFolder));
+        Assert.True(File.Exists(media.Path));
+        Assert.True(RoomProxies.IsRoomProxyPath(media.Path));
+        Assert.True(media.HasVideo && media.HasAudio);
+        Assert.Equal(original.Duration, media.Duration);
+        Assert.Equal(original.FrameRate, media.FrameRate);
+        Assert.Equal(original.Width, media.Width);
+        Assert.Equal(original.Height, media.Height);
+        Assert.Equal(original.SampleRate, media.SampleRate);
+        Assert.Equal(original.AudioChannels, media.AudioChannels);
+        Assert.Equal(sharedBefore, ProjectWire.ToJson(session.Project));
+
+        // El resolvedor de la vista previa no necesita un proxy registrado del original ausente: abre la copia con audio.
+        MediaSourceResolution available = resolver.Resolve(media, Environment.CurrentDirectory, MediaPurpose.Preview);
+        Assert.Equal(expected, available.VideoPath);
+        Assert.Equal(expected, available.AudioPath);
+        Assert.Null(available.Proxy);
+
+        Assert.Null(visuals.ThumbnailProblem(missing));
+        await CollabHarness.Until(() => visuals.GetThumbnail(id, Time.Zero, 48) is not null, "la miniatura de la copia ligera", seconds: 60);
+        Assert.Contains(sources.Decoded, frame => frame.Path == expected);
+
+        Project saved = ProjectPaths.ForSaving(session.Project, projectFolder);
+        Assert.False(Path.IsPathFullyQualified(saved.GetMedia(id).Path));
+        Assert.Equal(expected, saved.GetMedia(id).ResolvePath(projectFolder));
+        Assert.Equal(expected, session.Project.GetMedia(id).Path);
+    });
 
     [SalaFact]
     public async Task El_invitado_recibe_la_copia_ligera_con_su_avance_y_se_hace_una_sola_vez()
@@ -156,6 +254,33 @@ public sealed class ProxyShareTests
             ProxyShareGuest.RequestAsync(guest, MediaHash, Path.Combine(guest.RoomFolder, "x.mp4")).WaitAsync(TimeSpan.FromSeconds(30)));
 
         Assert.Contains("componente de video", ex.Message, StringComparison.Ordinal);
+    }
+
+    [SalaFact]
+    public async Task Con_la_cola_llena_la_peticion_de_mas_se_niega_en_el_acto()
+    {
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        FakeMaker maker = new((_, folder) => Write(folder, 300_000));
+        TaskCompletionSource<Diagnostico?> hold = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        int reads = 0;
+        using ProxyShareHost share = new(host, maker, host.RoomFolder, _ => { Interlocked.Increment(ref reads); return hold.Task; });
+        using CancellationTokenSource stop = new();
+
+        static string Hash(int i) => new string('b', 62) + i.ToString("x2", System.Globalization.CultureInfo.InvariantCulture);
+        List<Task> waiting = [.. Enumerable.Range(0, ProxyShareHost.MaxQueued).Select(i =>
+            ProxyShareGuest.RequestAsync(guest, Hash(i), Path.Combine(guest.RoomFolder, $"{i}.mp4"), cancellationToken: stop.Token))];
+        await CollabHarness.Until(() => Volatile.Read(ref reads) == ProxyShareHost.MaxQueued, "las peticiones en cola");
+
+        CollabException ex = await Assert.ThrowsAsync<CollabException>(() =>
+            ProxyShareGuest.RequestAsync(guest, Hash(99), Path.Combine(guest.RoomFolder, "de-mas.mp4")).WaitAsync(TimeSpan.FromSeconds(30)));
+
+        Assert.Contains("muchas peticiones", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(ProxyShareHost.MaxQueued, Volatile.Read(ref reads));
+        await stop.CancelAsync();
+        hold.SetResult(null);
+        await Task.WhenAll(waiting.Select(t => t.ContinueWith(_ => { }, TaskScheduler.Default)));
     }
 
     private sealed class Sync<T>(Action<T> add) : IProgress<T>

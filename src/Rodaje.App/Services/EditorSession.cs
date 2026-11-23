@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
@@ -59,6 +60,7 @@ public sealed partial class EditorSession : ObservableObject
     private readonly int _threadId;
     private List<string> _selection = [];
     private PlaybackSnapshot _transport = PlaybackSnapshot.Empty;
+    private string _durationText = Timecode.Format(Time.Zero);
     private string _originDescription = "Proyecto nuevo";
     private string? _filePath;
     private int _busy;
@@ -95,6 +97,19 @@ public sealed partial class EditorSession : ObservableObject
         History = new UndoStack(project);
         History.Changed += OnHistoryChanged;
         _playback.Load(project.Clone(), SequenceId);
+        ProjectOpened += (_, _) => RefreshDurationText();
+        ProjectEdited += (_, _) => RefreshDurationText();
+        SourceChanged += (_, _) => RefreshDurationText();
+    }
+
+    private void RefreshDurationText()
+    {
+        string text = Timecode.Format(PlaybackDuration);
+        if (text != _durationText)
+        {
+            _durationText = text;
+            OnPropertyChanged(nameof(DurationText));
+        }
     }
 
     /// <summary>Se abrió otro proyecto (nuevo o desde archivo): las vistas deben reconstruirse enteras.</summary>
@@ -162,6 +177,19 @@ public sealed partial class EditorSession : ObservableObject
     /// <c>null</c> si el proyecto nunca se guardó. La barra de estado lo muestra como «Guardado hace N min».
     /// </summary>
     public DateTimeOffset? LastSavedAt { get; private set; }
+
+    // La fecha del archivo tras abrirlo o guardarlo aquí; otra distinta al guardar es que lo cambió otra ventana. Al abrir se
+    // lee en segundo plano (una carpeta de red caída congelaba la ventana); null si no se supo a tiempo.
+    private Task<DateTimeOffset?> _diskWrite = Task.FromResult<DateTimeOffset?>(null);
+
+    private async Task ShowSavedAtAsync(Task<DateTimeOffset?> diskWrite)
+    {
+        DateTimeOffset? written = await diskWrite;
+        if (ReferenceEquals(diskWrite, _diskWrite))
+        {
+            LastSavedAt = written;
+        }
+    }
 
     private static DateTimeOffset? LastWriteOf(string? path)
     {
@@ -250,7 +278,11 @@ public sealed partial class EditorSession : ObservableObject
 
     public string PositionText => Timecode.Format(_transport.Position);
 
-    public string DurationText => Timecode.Format(_transport.Duration);
+    /// <summary>
+    /// La duración que muestra el visor: la de lo que se reproduce (la secuencia o el medio de origen), al día tras abrir y
+    /// tras cada edición sin esperar a que el reproductor publique la suya (en pausa podía quedarse en 0:00.000).
+    /// </summary>
+    public string DurationText => _durationText;
 
     /// <summary>Aplica el comando y lo guarda en el historial. Si la edición no es posible, avisa y devuelve <c>false</c>.</summary>
     public bool Execute(ICommand command)
@@ -489,7 +521,7 @@ public sealed partial class EditorSession : ObservableObject
         if (snapshot.Duration != previous.Duration)
         {
             OnPropertyChanged(nameof(Duration));
-            OnPropertyChanged(nameof(DurationText));
+            RefreshDurationText();
         }
 
         if (snapshot.IsPlaying != previous.IsPlaying)
@@ -627,7 +659,9 @@ public sealed partial class EditorSession : ObservableObject
         _selectedTransition = null;
         _editVersion++;
         FilePath = filePath;
-        LastSavedAt = LastWriteOf(filePath);
+        LastSavedAt = null;
+        _diskWrite = filePath is null ? Task.FromResult<DateTimeOffset?>(null) : DiskProbe.WithinAsync(() => LastWriteOf(filePath), null);
+        UiTask.Run(ShowSavedAtAsync(_diskWrite));
         _previewOff.Clear();
         _playbackStale = false;
         _playback.Load(project.Clone(), sequenceId);

@@ -75,10 +75,14 @@ internal sealed partial class ShortcutRowView : UserControl
 
     private void OnRemoveClick(object sender, RoutedEventArgs e)
     {
+        // Quitar rehace las fichas de la fila (y quita este botón): después del clic (tarea 91).
         if ((sender as FrameworkElement)?.DataContext is KeyChip chip)
         {
-            _host.RemoveKey(Row, chip.Chord);
-            ChangeButton.Focus(FocusState.Keyboard);
+            DispatcherQueue.RunAfterEvent(() =>
+            {
+                _host.RemoveKey(Row, chip.Chord);
+                ChangeButton.Focus(FocusState.Keyboard);
+            });
         }
     }
 

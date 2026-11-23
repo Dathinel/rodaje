@@ -1,3 +1,4 @@
+using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Services.Collab;
@@ -23,15 +24,9 @@ public static class MediaPlaceholders
     /// <summary>Una ruta relativa que no existe ni apunta fuera de la carpeta del proyecto.</summary>
     public static string PlaceholderFor(MediaRef media, int index)
     {
-        string safe = new([.. media.Id.Where(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_').Take(48)]);
+        string safe = SafeId(media);
         return MediaFolder + Path.DirectorySeparatorChar + (safe.Length > 0 ? safe : "m" + index);
     }
-
-    /// <summary>Si la ruta del medio es el marcador de la sala (<c>medios\…</c>): no hay archivo detrás en este equipo.</summary>
-    public static bool IsPlaceholder(string? path) =>
-        path is { Length: > 0 } p
-        && (p.StartsWith(MediaFolder + Path.DirectorySeparatorChar, StringComparison.Ordinal)
-            || p.StartsWith(MediaFolder + '/', StringComparison.Ordinal));
 
     /// <summary>
     /// Si al proyecto le faltan originales en este equipo: un medio sin ruta, con el marcador de la sala o apuntando a un
@@ -40,7 +35,44 @@ public static class MediaPlaceholders
     public static bool MissingOriginals(Project project)
     {
         ArgumentNullException.ThrowIfNull(project);
-        return project.Media.Any(m => m.Path.Length == 0 || IsPlaceholder(m.Path)
+        return project.Media.Any(m => m.Path.Length == 0 || IsPlaceholder(m)
             || (Path.IsPathFullyQualified(m.Path) && !File.Exists(m.Path)));
     }
+
+    /// <summary>El medio se queda con el nombre que trae el manifiesto de la sala cuando no tiene: así lo enseña cualquier aviso.</summary>
+    public static void FillNames(Project project, IEnumerable<MediaManifestEntry> media)
+    {
+        ArgumentNullException.ThrowIfNull(project);
+        ArgumentNullException.ThrowIfNull(media);
+        foreach (MediaManifestEntry entry in media)
+        {
+            if (project.FindMedia(entry.MediaId) is { } mediaRef && string.IsNullOrWhiteSpace(mediaRef.Name))
+            {
+                mediaRef.Name = entry.Name;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Si la ruta del medio (relativa o ya resuelta contra la carpeta del proyecto) es la de <see cref="PlaceholderFor"/>:
+    /// entonces su último tramo es el id interno, que nunca se enseña.
+    /// </summary>
+    public static bool IsPlaceholder(MediaRef media)
+    {
+        ArgumentNullException.ThrowIfNull(media);
+        string path = media.Path;
+        int cut = path.AsSpan().LastIndexOfAny('\\', '/');
+        if (cut < 0)
+        {
+            return false;
+        }
+
+        string file = path[(cut + 1)..];
+        string parent = MediaRelinkSearch.FileName(path[..cut]);
+        string safe = SafeId(media);
+        return string.Equals(parent, MediaFolder, StringComparison.OrdinalIgnoreCase)
+            && (safe.Length > 0 ? file == safe : file.Length > 1 && file[0] == 'm' && file.Skip(1).All(char.IsAsciiDigit));
+    }
+
+    private static string SafeId(MediaRef media) => new([.. media.Id.Where(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_').Take(48)]);
 }

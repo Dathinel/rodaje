@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 
@@ -86,7 +87,8 @@ internal sealed partial class TimelineView
 
             int depth = i;
             var link = new HyperlinkButton { Content = name, Padding = new Thickness(4, 0, 4, 0), MinHeight = 0 };
-            link.Click += (_, _) => Session?.LeaveCompound(depth);
+            // Salir rehace estas migas y quita el enlace pulsado: después del clic (tarea 91).
+            link.Click += (_, _) => DispatcherQueue.RunAfterEvent(() => Session?.LeaveCompound(depth));
             BreadcrumbPanel.Children.Add(link);
         }
 

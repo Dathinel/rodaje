@@ -10,6 +10,7 @@ public sealed class SettingsStore
     public const string FileName = "ajustes.json";
 
     private string? _written;
+    private bool _failureReported;
 
     public SettingsStore(string path)
     {
@@ -22,6 +23,12 @@ public sealed class SettingsStore
     public string Path { get; }
 
     public AppSettings Current { get; private set; } = new();
+
+    /// <summary>
+    /// No se pudo escribir (la USB de <c>RODAJE_DATOS</c> se quitó, carpeta de solo lectura): el aviso en español, una vez
+    /// hasta que vuelva a guardar bien. Los ajustes siguen valiendo en memoria.
+    /// </summary>
+    public event Action<string>? SaveFailed;
 
     /// <summary>
     /// Lee el archivo; sin archivo quedan los de fábrica. Devuelve <c>null</c> si todo fue bien o el aviso en español si
@@ -72,8 +79,23 @@ public sealed class SettingsStore
             return false;
         }
 
-        AppDataPaths.WriteAllTextAtomic(Path, text);
+        try
+        {
+            AppDataPaths.WriteAllTextAtomic(Path, text);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            if (!_failureReported)
+            {
+                _failureReported = true;
+                SaveFailed?.Invoke($"No se pudieron guardar los ajustes en {Path} ({ex.Message}); siguen valiendo hasta cerrar Rodaje.");
+            }
+
+            return false;
+        }
+
         _written = text;
+        _failureReported = false;
         return true;
     }
 }

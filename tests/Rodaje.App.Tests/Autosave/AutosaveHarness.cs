@@ -23,9 +23,10 @@ internal sealed class ManualClock : TimeProvider
 /// </summary>
 internal sealed class AutosaveHarness : IDisposable
 {
-    public AutosaveHarness()
+    /// <param name="root">Carpeta de autoguardado; sin ella, una dentro de <see cref="Temp"/>.</param>
+    public AutosaveHarness(string? root = null)
     {
-        Root = Temp.File("Autoguardado");
+        Root = root ?? Temp.File("Autoguardado");
         Session = new EditorSession(new FakePlayback(), new FakeProber(), Dialogs, new SequentialIdGenerator());
         Session.Notified += (_, n) => OnNotified(n);
         Service = new AutosaveService(Session, Dialogs, Root, new AutosaveSchedule(), Clock);

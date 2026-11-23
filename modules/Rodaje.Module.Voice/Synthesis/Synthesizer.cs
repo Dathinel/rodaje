@@ -93,7 +93,7 @@ internal sealed class Synthesizer(string root) : IDisposable
 
     /// <summary>Trozos que se sintetizan a la vez: los LSTM de Kokoro son secuenciales y un solo trozo no llena la CPU.</summary>
     public static int DefaultParallelism() =>
-        int.TryParse(Environment.GetEnvironmentVariable("RODAJE_VOZ_PARALELO"), out int n) && n > 0 ? n : Math.Clamp(Environment.ProcessorCount / 5, 1, 3);
+        int.TryParse(Environment.GetEnvironmentVariable("RODAJE_VOZ_PARALELO"), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out int n) && n > 0 ? n : Math.Clamp(Environment.ProcessorCount / 5, 1, 3);
 
     public int Parallelism { get; init; } = DefaultParallelism();
 

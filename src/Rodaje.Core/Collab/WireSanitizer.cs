@@ -39,7 +39,7 @@ public static class WireSanitizer
 
     private static readonly HashSet<string> PatchKeys = new(["id", "base", "author", "desc", "ops", "orders", "blobs"], StringComparer.Ordinal);
     private static readonly HashSet<string> OpKeys = new(["kind", "id", "parent", "v", "content"], StringComparer.Ordinal);
-    private static readonly HashSet<string> OrderKeys = new(["container", "ids"], StringComparer.Ordinal);
+    private static readonly HashSet<string> OrderKeys = new(["container", "v", "ids"], StringComparer.Ordinal);
     private static readonly HashSet<string> BlobKeys = new(["sha256", "size"], StringComparer.Ordinal);
 
     /// <summary>Comprueba el texto de un parche; <see langword="null"/> si es aceptable.</summary>
@@ -219,9 +219,10 @@ public static class WireSanitizer
     {
         if (item.ValueKind != JsonValueKind.Object || UnknownKey(item, OrderKeys) is not null
             || !TryString(item, "container", limits.MaxIdLength + 8, out string? container) || !IsContainer(container!, limits)
+            || !item.TryGetProperty("v", out JsonElement version) || version.ValueKind != JsonValueKind.Number || !version.TryGetInt32(out int v) || v < 0 || v == int.MaxValue
             || !item.TryGetProperty("ids", out JsonElement ids) || ids.ValueKind != JsonValueKind.Array)
         {
-            return Malformed("Una lista ordenada del parche no tiene un contenedor y una lista de identificadores válidos.");
+            return Malformed("Una lista ordenada del parche no tiene un contenedor, una versión y una lista de identificadores válidos.");
         }
 
         if (!containers.Add(container!))
@@ -386,12 +387,13 @@ public static class WireSanitizer
         return null;
     }
 
-    // Una opción que no es una referencia a un paquete ni a un blob no puede ser una ruta: ni de red, ni absoluta, ni relativa, ni con «..».
+    // Una opción que no es una referencia a un paquete ni a un blob no puede ser una ruta: ni de red, ni absoluta, ni
+    // relativa, ni con «..». Cualquier barra la delata (revisión, hallazgo 10: «carpeta/archivo.cube» se escapaba).
     private static bool LooksLikePath(string text) =>
-        text.StartsWith('/') || text.StartsWith('\\')
-        || (text.Length >= 2 && char.IsAsciiLetter(text[0]) && text[1] == ':')
-        || text.Contains("../", StringComparison.Ordinal) || text.Contains("..\\", StringComparison.Ordinal)
-        || text.StartsWith("./", StringComparison.Ordinal) || text.StartsWith(".\\", StringComparison.Ordinal);
+        !text.StartsWith(ElementCodec.BlobPrefix, StringComparison.Ordinal)
+        && !Effects.OptionDefinition.IsWellFormedReference(text)
+        && (text.Contains('/', StringComparison.Ordinal) || text.Contains('\\', StringComparison.Ordinal)
+            || (text.Length >= 2 && char.IsAsciiLetter(text[0]) && text[1] == ':'));
 
     private static bool IsContainer(string container, WireLimits limits)
     {

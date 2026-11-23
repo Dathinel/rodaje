@@ -49,6 +49,9 @@ public sealed class WireSanitizerTests
         "file-en-mayusculas",
         "unc-en-opciones",
         "absoluta-en-opciones",
+        "relativa-en-opciones",
+        "relativa-windows-en-opciones",
+        "relativa-profunda-en-opciones",
         "blob-mal-formado",
         "id-distinto-dentro",
         "clase-desconocida",
@@ -64,6 +67,8 @@ public sealed class WireSanitizerTests
         "base-negativa",
         "orden-repetido",
         "orden-id-repetido",
+        "orden-sin-version",
+        "orden-version-negativa",
         "contenedor-desconocido",
         "blob-sin-huella",
         "texto-gigante",
@@ -88,6 +93,10 @@ public sealed class WireSanitizerTests
             case "file-en-mayusculas": clip["content"]!["effects"]![0]!["options"] = new JsonObject { ["lut"] = "FILE:../a.cube" }; break;
             case "unc-en-opciones": clip["content"]!["effects"]![0]!["options"] = new JsonObject { ["lut"] = @"\\atacante\recurso\a.cube" }; break;
             case "absoluta-en-opciones": clip["content"]!["effects"]![0]!["options"] = new JsonObject { ["lut"] = "C:/Windows/a.cube" }; break;
+            // Revisión, hallazgo 10: una ruta relativa ordinaria tampoco es una opción admitida.
+            case "relativa-en-opciones": clip["content"]!["effects"]![0]!["options"] = new JsonObject { ["lut"] = "carpeta/archivo.cube" }; break;
+            case "relativa-windows-en-opciones": clip["content"]!["effects"]![0]!["options"] = new JsonObject { ["lut"] = @"carpeta\archivo.cube" }; break;
+            case "relativa-profunda-en-opciones": clip["content"]!["effects"]![0]!["options"] = new JsonObject { ["lut"] = "a/b/c/d/e.cube" }; break;
             case "blob-mal-formado": clip["content"]!["effects"]![0]!["options"] = new JsonObject { ["lut"] = "blob:../../etc" }; break;
             case "id-distinto-dentro": clip["content"]!["id"] = "otro"; break;
             case "clase-desconocida": first["kind"] = "script"; break;
@@ -103,6 +112,8 @@ public sealed class WireSanitizerTests
             case "base-negativa": tree["base"] = -5; break;
             case "orden-repetido": tree["orders"]!.AsArray().Add(tree["orders"]![0]!.DeepClone()); break;
             case "orden-id-repetido": tree["orders"]![0]!["ids"]!.AsArray().Add("m-dup"); tree["orders"]![0]!["ids"]!.AsArray().Add("m-dup"); break;
+            case "orden-sin-version": tree["orders"]![0]!.AsObject().Remove("v"); break;
+            case "orden-version-negativa": tree["orders"]![0]!["v"] = -1; break;
             case "contenedor-desconocido": tree["orders"]![0]!["container"] = "../../x"; break;
             case "blob-sin-huella": tree["blobs"] = new JsonArray(new JsonObject { ["sha256"] = "123", ["size"] = 1 }); break;
             case "texto-gigante": clip["content"]!["color"] = new string('x', 200_000); break;
@@ -177,6 +188,20 @@ public sealed class WireSanitizerTests
         PatchRejection? rejection = WireSanitizer.Check(ValidJson(), new WireLimits { MaxOps = 2 });
 
         Assert.Equal(PatchRejectionReason.TooLarge, rejection?.Reason);
+    }
+
+    [Fact]
+    public void A_package_or_blob_reference_in_options_is_not_a_path()
+    {
+        // Lo que el contrato sí admite con barras: referencias «paquete@versión/elemento» y «blob:<sha256>».
+        JsonNode tree = Tree();
+        Op(tree, "clip")["content"]!["effects"]![0]!["options"] = new JsonObject
+        {
+            ["preset"] = "rodaje-transiciones@1.0.0/disuelve",
+            ["lut"] = "blob:" + new string('A', 64),
+        };
+
+        Assert.Null(WireSanitizer.Check(tree.ToJsonString()));
     }
 
     [Fact]

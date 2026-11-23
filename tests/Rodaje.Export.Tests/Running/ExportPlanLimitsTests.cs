@@ -16,6 +16,9 @@ public sealed class ExportPlanLimitsTests
 
     private static ExportSettings Web { get; } = ExportPresets.YouTube1080p.Settings;
 
+    // H.264 por GPU llega a 4096 px por lado (EncoderSpec.MaxSide): los tamaños extremos se prueban en HEVC.
+    private static ExportSettings WebHevc { get; } = Web with { Video = Web.Video! with { Codec = ExportCodec.Hevc, Profile = null } };
+
     [Fact]
     public void A_sequence_larger_than_a_texture_says_why_instead_of_throwing_out_of_range()
     {
@@ -34,7 +37,7 @@ public sealed class ExportPlanLimitsTests
         Invalid(() => ExportPlan.Create(Request(Sized(1080, 1920), Web with { Video = Web.Video! with { Width = 16384, Height = null } }), Encoders));
         Invalid(() => ExportPlan.Create(Request(Sized(2, 16384), ExportPresets.Gif.Settings), Encoders));
 
-        ExportPlan fits = ExportPlan.Create(Request(Sized(1080, 1920), Web with { Video = Web.Video! with { Width = null, Height = 16384 } }), Encoders);
+        ExportPlan fits = ExportPlan.Create(Request(Sized(1080, 1920), WebHevc with { Video = WebHevc.Video! with { Width = null, Height = 16384 } }), Encoders);
         Assert.Equal((9216, 16384), (fits.Video!.Width, fits.Video.Height));
     }
 
@@ -338,7 +341,7 @@ public sealed class ExportPlanLimitsTests
 
         yield return Web with { Video = Web.Video! with { Projection = ExportProjection.Equirectangular, Width = 3840, Height = 1920 } };
         yield return Web with { Video = Web.Video! with { Projection = ExportProjection.Equirectangular, Width = null, Height = null } };
-        yield return Web with { Video = Web.Video! with { Width = 16384, Height = null } };
+        yield return WebHevc with { Video = WebHevc.Video! with { Width = 16384, Height = null } };
         yield return Web with { Video = Web.Video! with { Width = null, Height = 2 } };
         yield return Web with { Video = Web.Video! with { RateControl = RateControl.TargetSize(4_000_000_000) }, Audio = null };
         yield return Web with { Video = Web.Video! with { FrameRate = new Rational(1000, 1) } };

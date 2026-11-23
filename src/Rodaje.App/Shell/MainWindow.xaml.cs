@@ -123,6 +123,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         };
         _visuals = new ClipVisuals(id => session.Project.FindMedia(id)?.Path, new FfmpegVisualsSources(),
             new ClipVisualsOptions { CacheDirectory = ClipVisualsOptions.DefaultCacheDirectory }, SynchronizationContext.Current);
+        _visuals.CloudOnlyFound += (_, path) => session.Notify(NotificationSeverity.Informational, "Medio en la nube",
+            $"«{Path.GetFileName(path)}» está solo en la nube: no se descarga para las miniaturas; se descarga al reproducir.");
         Program.Metrics.Milestone("sesion");
         var packages = new PackageService(PackageService.DefaultLocations(), PackageService.LoadBundledCatalog(), instances: _instance);
         IEffectContent? content = EffectContentFactory.CreateOrNull(packages);
@@ -169,7 +171,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             AutoProxies = CreateAutoProxies(session),
             WatchedFolders = new WatchedFolderInbox(session, () => settings.Current),
             RenderCache = _renderCache,
-            Collab = new Services.Collab.CollabHost(Services.AppDataPaths.Root, post => _dispatcher.RunLater(post))
+            Collab = new Services.Collab.CollabHost(Services.AppDataPaths.Root, post => _dispatcher.RunLater(post), red: () => Services.Collab.CollabNetwork.ForSettings(settings.Current))
             {
                 Confirm = (title, message, confirm) => dialogs.ConfirmAsync(title, message, confirm),
                 ExportQueue = _exports,
@@ -178,6 +180,8 @@ internal sealed partial class MainWindow : Window, IShellHost
                     $"{ask.Alias} pide exportar el proyecto de la sala en este equipo:\n\n{ask.Detail}\n\n"
                         + "El archivo se guarda en la carpeta de exportaciones de la sala, en este equipo.",
                     "Exportar aquí"),
+                ApproveOriginal = (ask, cancellationToken) => Views.Collab.OriginalApproval.AskAsync(Root.XamlRoot, ask, cancellationToken),
+                OriginalCap = () => settings.Current.CollabOriginalCapBytes,
             },
         };
         engine.SetContent(content);
@@ -215,7 +219,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         _bindings.Add(_router.Bind(ActionIds.ShowPreferences, ShowPreferences));
         _bindings.Add(_router.Bind(ActionIds.ShowPlugins, () => ShowPage(ShellPage.Plugins)));
         _bindings.Add(_router.Bind(ActionIds.ShowMixer, ToggleMixer));
-        _bindings.Add(_router.Bind(ActionIds.ShowHistory, () => HistoryButton.Flyout.ShowAt(HistoryButton)));
+        _bindings.Add(_router.Bind(ActionIds.ShowHistory, () => ShowGlobalPanel(Views.Inspector.InspectorView.Tab.History)));
         _bindings.Add(_router.Bind(TimelineShortcuts.RenderCache, RequestRenderCache));
         _bindings.Add(Views.Analysis.AnalysisCommands.Bind(_router, _services));
         _bindings.Add(Views.Timeline.TransitionCommands.Bind(_router, _services));
@@ -369,6 +373,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         AppWindow.Closing += OnClosing;
         Closed += OnClosed;
 
+        settings.SaveFailed += warning => _dispatcher.RunLater(() => session.Notify(NotificationSeverity.Warning, "Ajustes", warning));
         foreach (string? warning in new[] { settingsWarning, shortcutsWarning })
         {
             if (warning is not null)
@@ -377,7 +382,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             }
         }
 
-        if (options.Files.Count > 0 || options.SelfTest)
+        if (options.Files.Count > 0 || options.SelfTest || options.ChaosSeed is not null)
         {
             UiTask.Run(OpenStartupFilesAsync(options.Files));
         }
@@ -631,7 +636,12 @@ internal sealed partial class MainWindow : Window, IShellHost
             element.Visibility = chrome;
         }
 
-        AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
+        // De fondo (autoprueba, caos) la ventana no puede saltar a la pantalla: solo cambia el diseño.
+        if (!_options.RunsInBackground)
+        {
+            AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
+        }
+
         Player.SetFullScreen(fullScreen);
         FitSidePanels();
         if (fullScreen)
@@ -703,6 +713,13 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private async Task OpenStartupFilesAsync(IReadOnlyList<string> files)
     {
+        if (_options.ChaosSeed is { } seed)
+        {
+            // Los archivos son el corpus: los importa el propio caos, como un usuario.
+            await ChaosRun.RunAsync(this, _engine, seed, _options.ChaosMinutes, files);
+            return;
+        }
+
         if (files.Count > 0)
         {
             await Session.OpenFilesAsync(files);
@@ -867,13 +884,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         SaveLayout();
-        try
-        {
-            _settings.SaveIfChanged();
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-        }
+        _settings.SaveIfChanged();
     }
 
     /// <summary>«Guardado hace N min» en la barra de estado; con cambios sin guardar y una copia más nueva, la copia.</summary>
@@ -1083,13 +1094,11 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private void ShowGlobalPanel(Views.Inspector.InspectorView.Tab tab)
     {
-        if (tab == Views.Inspector.InspectorView.Tab.History)
+        Button button = tab == Views.Inspector.InspectorView.Tab.History ? HistoryButton : JobsButton;
+        // Recién abierta la ventana el botón aún no tiene XamlRoot y ShowAt lanza (Ctrl+H al arrancar; modo caos, ronda 4).
+        if (tab is Views.Inspector.InspectorView.Tab.History or Views.Inspector.InspectorView.Tab.Jobs && button.XamlRoot is not null)
         {
-            HistoryButton.Flyout?.ShowAt(HistoryButton);
-        }
-        else if (tab == Views.Inspector.InspectorView.Tab.Jobs)
-        {
-            JobsButton.Flyout?.ShowAt(JobsButton);
+            button.Flyout?.ShowAt(button);
         }
     }
 
@@ -1254,6 +1263,34 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
     }
 
+    // Cerrar la ventana con la lista de un desplegable abierta (o un menú) terminaba a veces en 0xC000027B al
+    // desmontar XAML, sin informe (modo caos: semillas 10, 49, 75 y 3010). Se cierran antes.
+    private void CloseOpenPopups()
+    {
+        if (Content?.XamlRoot is not { } root)
+        {
+            return;
+        }
+
+        foreach (Microsoft.UI.Xaml.Controls.Primitives.Popup popup in Microsoft.UI.Xaml.Media.VisualTreeHelper.GetOpenPopupsForXamlRoot(root))
+        {
+            // Un diálogo no: ocultarlo despierta a quien lo esperaba (Preferencias aplicaría el tema sobre la ventana ya cerrada).
+            if (popup.Child is ContentDialog)
+            {
+                continue;
+            }
+
+            try
+            {
+                popup.IsOpen = false;
+            }
+            catch (System.Runtime.InteropServices.COMException ex)
+            {
+                Program.Log.Append("Al cerrar, un emergente no se dejó cerrar: " + ex.Message);
+            }
+        }
+    }
+
     private void OnClosed(object sender, WindowEventArgs args)
     {
         if (_closed)
@@ -1262,6 +1299,9 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         _closed = true;
+        ChaosRun.Mark("OnClosed");
+        Views.Inspector.DispatcherQueueLater.StopAfterWindowClosed();
+        CloseOpenPopups();
         _notificationTimer.Stop();
         _services.Collab?.Dispose();
         _revealTimer.Stop();
@@ -1282,17 +1322,9 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         SaveLayout();
-        try
-        {
-            _settings.Save();
-        }
-        catch (IOException)
-        {
-        }
-        catch (UnauthorizedAccessException)
-        {
-        }
+        _settings.Save();
 
+        ChaosRun.Mark("ajustes guardados");
         Player.CloseExternal();
         _autosave?.Complete();
         _exports.Dispose();
@@ -1311,11 +1343,15 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         // El panel suelta la cadena de intercambio antes de que el motor libere la GPU y su hilo de render.
+        ChaosRun.Mark("módulos cerrados");
         Player.DetachViewer();
+        ChaosRun.Mark("visor suelto");
         _engine.Dispose();
+        ChaosRun.Mark("motor liberado");
         _visuals.Dispose();
         _instance.Dispose();
         MeasurementRun.WriteReportIfMeasuring(_options, _engine, Program.Metrics, VideoPanel.CompositionScaleX);
+        ChaosRun.Mark("OnClosed terminado");
     }
 
     /// <summary>Un módulo de GPU baja la vista previa como una exportación con poca VRAM (proxies y Mitad), con el mismo contador.</summary>

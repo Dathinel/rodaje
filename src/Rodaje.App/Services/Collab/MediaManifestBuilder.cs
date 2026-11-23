@@ -24,25 +24,47 @@ public sealed class MediaManifestBuilder(Func<string, CancellationToken, Task<st
         {
             cancellationToken.ThrowIfCancellationRequested();
             progress?.Report((done++, list.Count));
-            FileInfo info = new(resolvePath(m));
-            if (!info.Exists)
+            string? path;
+            try
+            {
+                // Un medio que llegó de otra persona puede no tener ruta en este equipo: sin ella ni archivo, se omite y se sigue.
+                path = resolvePath(m);
+                if (string.IsNullOrWhiteSpace(path))
+                {
+                    continue;
+                }
+            }
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException or System.Security.SecurityException)
             {
                 continue;
             }
 
-            var key = (info.FullName, info.Length, info.LastWriteTimeUtc.Ticks);
-            if (!_cache.TryGetValue(key, out string? hash))
+            try
             {
-                hash = await _hasher(info.FullName, cancellationToken).ConfigureAwait(false);
-                if (hash is null)
+                FileInfo info = new(path);
+                if (!info.Exists)
                 {
                     continue;
                 }
 
-                _cache[key] = hash;
-            }
+                var key = (info.FullName, info.Length, info.LastWriteTimeUtc.Ticks);
+                if (!_cache.TryGetValue(key, out string? hash))
+                {
+                    hash = await _hasher(info.FullName, cancellationToken).ConfigureAwait(false);
+                    if (hash is null)
+                    {
+                        continue;
+                    }
 
-            result.Add(new MediaManifestEntry(m.Id, string.IsNullOrWhiteSpace(m.Name) ? MediaManifest.DisplayName(m.Path) : MediaManifest.DisplayName(m.Name), info.Length, hash));
+                    _cache[key] = hash;
+                }
+
+                result.Add(new MediaManifestEntry(m.Id, string.IsNullOrWhiteSpace(m.Name) ? MediaManifest.DisplayName(m.Path) : MediaManifest.DisplayName(m.Name), info.Length, hash));
+            }
+            catch (Exception ex) when (ex is ArgumentException or IOException or UnauthorizedAccessException or NotSupportedException or System.Security.SecurityException)
+            {
+                // Un medio que no se puede leer no impide compartir el proyecto: entra sin su archivo.
+            }
         }
 
         progress?.Report((list.Count, list.Count));
@@ -55,6 +77,14 @@ public sealed class MediaManifestBuilder(Func<string, CancellationToken, Task<st
     /// remota busca un medio sin que viaje ninguna ruta: el hash se comprueba en este equipo.
     /// </summary>
     public async Task<string?> FindByHashAsync(
+        IEnumerable<MediaRef> media,
+        Func<MediaRef, string> resolvePath,
+        string hash,
+        CancellationToken cancellationToken = default) =>
+        (await FindMediaByHashAsync(media, resolvePath, hash, cancellationToken).ConfigureAwait(false))?.Path;
+
+    /// <summary>Como <see cref="FindByHashAsync"/>, con el medio del proyecto al que pertenece el archivo.</summary>
+    public async Task<(MediaRef Media, string Path)?> FindMediaByHashAsync(
         IEnumerable<MediaRef> media,
         Func<MediaRef, string> resolvePath,
         string hash,
@@ -94,7 +124,7 @@ public sealed class MediaManifestBuilder(Func<string, CancellationToken, Task<st
 
             if (found == hash)
             {
-                return info.FullName;
+                return (m, info.FullName);
             }
         }
 

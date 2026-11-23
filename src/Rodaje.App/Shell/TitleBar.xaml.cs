@@ -32,7 +32,7 @@ internal sealed partial class TitleBar : UserControl
         {
             bool narrow = e.NewSize.Width < 1100;
             StatsText.Visibility = e.NewSize.Width < 1500 ? Visibility.Collapsed : Visibility.Visible;
-            CreditArea.Visibility = Brand.Visibility = ExportButton.Visibility = ProjectInfo.Visibility =
+            CreditArea.Visibility = Brand.Visibility = ProjectInfo.Visibility =
                 narrow ? Visibility.Collapsed : Visibility.Visible;
             ProjectColumn.Width = narrow ? new GridLength(24) : new GridLength(1, GridUnitType.Star);
             MenuColumn.Width = narrow ? new GridLength(1, GridUnitType.Star) : GridLength.Auto;
@@ -164,11 +164,12 @@ internal sealed partial class TitleBar : UserControl
 
         RecentMenu.Items.Add(new MenuFlyoutSeparator());
         var clear = new MenuFlyoutItem { Text = "Vaciar la lista" };
-        clear.Click += (_, _) =>
+        // Vaciar rehace este menú: después del clic de su elemento (tarea 91).
+        clear.Click += (_, _) => DispatcherQueue.RunAfterEvent(() =>
         {
             settings.RecentProjects.Clear();
             RefreshRecentProjects(settings);
-        };
+        });
         RecentMenu.Items.Add(clear);
     }
 
@@ -384,7 +385,7 @@ internal sealed partial class TitleBar : UserControl
     {
         try
         {
-            using Process? _ = Process.Start(new ProcessStartInfo(UpstreamAttribution.RepositoryUrl) { UseShellExecute = true });
+            using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo(UpstreamAttribution.RepositoryUrl) { UseShellExecute = true });
         }
         catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
         {

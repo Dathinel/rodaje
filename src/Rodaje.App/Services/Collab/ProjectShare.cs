@@ -56,11 +56,16 @@ internal static class ShareMessages
 /// </summary>
 public sealed partial class ProjectShareHost : IDisposable
 {
+    /// <summary>Miembros a la vez con una petición esperando su turno o sirviéndose; las de más se rechazan en el acto.</summary>
+    internal const int MaxPending = 8;
+
     private readonly RoomService _room;
     private readonly ICollabProjectSource _source;
     private readonly string _folder;
     private readonly SemaphoreSlim _one = new(1, 1);
     private readonly CancellationTokenSource _stop = new();
+    private readonly Lock _gate = new();
+    private readonly HashSet<string> _pending = new(StringComparer.Ordinal);
 
     public ProjectShareHost(RoomService room, ICollabProjectSource source, string roomFolder)
     {
@@ -79,10 +84,29 @@ public sealed partial class ProjectShareHost : IDisposable
 
     private void OnDirect(string from, JsonElement message)
     {
-        if (ShareMessages.Type(message) == ShareMessages.Ask && _room.State is { IsHost: true, Phase: RoomPhase.Hosting })
+        if (ShareMessages.Type(message) != ShareMessages.Ask || _room.State is not { IsHost: true, Phase: RoomPhase.Hosting or RoomPhase.Connected })
         {
-            UiTask.Run(Task.Run(() => ServeAsync(from)));
+            return;
         }
+
+        lock (_gate)
+        {
+            if (_pending.Contains(from))
+            {
+                // Una petición pendiente por miembro: la que está en marcha ya sale con lo último confirmado.
+                return;
+            }
+
+            if (_pending.Count >= MaxPending)
+            {
+                UiTask.Run(Task.Run(() => Fail(from, "Hay varias personas recibiendo el proyecto a la vez. Espera un momento y vuelve a pedirlo.")));
+                return;
+            }
+
+            _pending.Add(from);
+        }
+
+        UiTask.Run(Task.Run(() => ServeAsync(from)));
     }
 
     private async Task ServeAsync(string to)
@@ -93,11 +117,22 @@ public sealed partial class ProjectShareHost : IDisposable
         }
         catch (OperationCanceledException)
         {
+            lock (_gate)
+            {
+                _pending.Remove(to);
+            }
+
             return;
         }
 
         try
         {
+            if (!_room.State.Members.Any(m => m.Key == to && m.Online))
+            {
+                // Se fue mientras esperaba el turno: no se prepara una copia que nadie va a recibir.
+                return;
+            }
+
             ProjectSnapshot snapshot = await _source.CaptureAsync(new ThrottledProgress(this, to), _stop.Token).ConfigureAwait(false);
             if (snapshot.Json.Length is 0 or > (int)ShareMessages.MaxProjectBytes)
             {
@@ -144,6 +179,11 @@ public sealed partial class ProjectShareHost : IDisposable
         }
         finally
         {
+            lock (_gate)
+            {
+                _pending.Remove(to);
+            }
+
             _one.Release();
         }
     }
@@ -248,6 +288,7 @@ public static class ProjectShareGuest
             await room.SendDirectAsync(ShareMessages.Make(ShareMessages.Ask), host, cancellationToken).ConfigureAwait(false);
             while (!answer.Task.IsCompleted)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 // Cada señal de vida del anfitrión reinicia la espera: preparar archivos enormes puede llevar minutos.
                 TimeSpan left = AnswerTimeout - TimeSpan.FromMilliseconds(Environment.TickCount64 - Interlocked.Read(ref lastSign));
                 if (left <= TimeSpan.Zero)
@@ -255,7 +296,9 @@ public static class ProjectShareGuest
                     throw new CollabException("Quien hospeda la sala no mandó el proyecto a tiempo. Comprueba que Rodaje sigue abierto allí y vuelve a entrar.");
                 }
 
-                await Task.WhenAny(answer.Task, Task.Delay(left < TimeSpan.FromSeconds(1) ? left : TimeSpan.FromSeconds(1), cancellationToken)).ConfigureAwait(false);
+                Task winner = await Task.WhenAny(answer.Task, Task.Delay(left < TimeSpan.FromSeconds(1) ? left : TimeSpan.FromSeconds(1), cancellationToken)).ConfigureAwait(false);
+                // La demora cancelada acaba la espera en el acto: sin esperarla el bucle seguiría girando hasta el plazo.
+                await winner.ConfigureAwait(false);
             }
 
             reply = answer.Task.Result;
@@ -314,7 +357,7 @@ public static class ProjectShareGuest
             throw new CollabException("El proyecto llegó dañado. Vuelve a entrar en la sala.");
         }
 
-        ProjectParseResult parsed = ProjectWire.TryParse(System.Text.Encoding.UTF8.GetString(bytes));
+        ProjectParseResult parsed = ProjectWire.TryParse(System.Text.Encoding.UTF8.GetString(bytes), cancellationToken: cancellationToken);
         if (parsed.Project is not { } project || parsed.Versions is not { } versions)
         {
             throw new CollabException("El proyecto que mandó la otra persona no se puede abrir con esta versión de Rodaje. Comprueba que las dos usáis la misma.");
@@ -344,7 +387,8 @@ public static class ProjectShareGuest
     {
         string clean = MediaManifest.DisplayName(name);
         clean = new string([.. clean.Where(c => Array.IndexOf(Path.GetInvalidFileNameChars(), c) < 0)]).Trim(' ', '.');
-        return clean.Length is > 0 and <= 80 ? clean : clean.Length > 80 ? clean[..80].TrimEnd(' ', '.') : "Proyecto de la sala";
+        clean = clean.Length is > 0 and <= 80 ? clean : clean.Length > 80 ? clean[..80].TrimEnd(' ', '.') : "Proyecto de la sala";
+        return OriginalNames.IsReserved(clean) ? "_" + clean : clean;
     }
 
     private static JsonElement ReWrap(JsonElement reply) =>

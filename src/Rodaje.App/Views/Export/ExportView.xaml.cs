@@ -66,6 +66,11 @@ internal sealed partial class ExportView : UserControl
         _jobs = jobs;
         _hwnd = hwnd;
         InitializeComponent();
+        // El formato de WinRT sigue el idioma de Windows: en es-CO rechazaba «1.5» y leía «1.000» como mil.
+        RateValueBox.NumberFormatter = new TypedNumberFormatter(2);
+        RateMaxBox.NumberFormatter = new TypedNumberFormatter(2);
+        KeyframeBox.NumberFormatter = new TypedNumberFormatter(1);
+        AudioRateBox.NumberFormatter = new TypedNumberFormatter(0);
         PerformanceFastTitle.Text = ExportText.Performance(ExportPerformance.Fastest);
         PerformanceFastDetail.Text = ExportText.PerformanceDetail(ExportPerformance.Fastest);
         PerformanceLowTitle.Text = ExportText.Performance(ExportPerformance.Background);
@@ -207,15 +212,16 @@ internal sealed partial class ExportView : UserControl
     private void RefreshPresets(ExportDialogModel model)
     {
         var cards = model.Presets
-            .Select(p => (Id: p.Id, Name: p.Name, Description: p.Origin == ExportPresetOrigin.User ? "Propio · " + p.Description : p.Description))
-            .Append((Id: ExportPresetLibrary.CustomId, Name: "Personalizado", Description: "Lo que elijas en Avanzado."))
+            .Select(p => (Id: p.Id, Name: p.Name, Description: p.Origin == ExportPresetOrigin.User ? "Propio · " + p.Description : p.Description,
+                Size: model.PresetSizeLabel(p)))
+            .Append((Id: ExportPresetLibrary.CustomId, Name: "Personalizado", Description: "Lo que elijas en Avanzado.", Size: ""))
             .ToList();
         if (ComboChoices.NeedsRebuild(PresetCards.Children.Select(c => (c as Button)?.Tag as string ?? ""), cards.Select(c => c.Id)))
         {
             PresetCards.Children.Clear();
-            foreach ((string id, string name, string description) in cards)
+            foreach ((string id, string name, string description, string size) in cards)
             {
-                PresetCards.Children.Add(PresetCard(id, name, description));
+                PresetCards.Children.Add(PresetCard(id, name, description, size));
             }
         }
 
@@ -232,14 +238,21 @@ internal sealed partial class ExportView : UserControl
         ExportPresetButton.IsEnabled = model.PresetId != ExportPresetLibrary.CustomId;
     }
 
-    private Button PresetCard(string id, string name, string description)
+    // El tamaño real depende solo de la secuencia: la tarjeta no cambia de texto al elegirla.
+    private Button PresetCard(string id, string name, string description, string size)
     {
-        var text = new StackPanel { Spacing = 4 };
+        var text = new StackPanel { Spacing = 2 };
         text.Children.Add(new TextBlock { Text = name, Style = (Style)Application.Current.Resources["PanelTitleTextStyle"], TextTrimming = TextTrimming.CharacterEllipsis });
+        if (size.Length > 0)
+        {
+            text.Children.Add(new TextBlock { Text = size, Style = (Style)Application.Current.Resources["CaptionTextStyle"], TextTrimming = TextTrimming.CharacterEllipsis });
+            description = $"{size}. {description}";
+        }
+
         text.Children.Add(new TextBlock
         {
             Text = description, Style = (Style)Application.Current.Resources["CaptionTextStyle"], TextWrapping = TextWrapping.Wrap,
-            TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 2,
+            TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = size.Length > 0 ? 1 : 2,
         });
         var card = new Button
         {
@@ -264,6 +277,18 @@ internal sealed partial class ExportView : UserControl
 
         Fill(RangeBox, model.Ranges.Select(r => r.Label), model.RangeIndex);
         SummaryText.Text = Summary(model);
+
+        if (model.StandardSuggestion is var (w, h))
+        {
+            (int ow, int oh) = model.OutputSize;
+            StandardSizeText.Text = $"{ow}×{oh} no es un tamaño estándar: algunas plataformas lo reescalan.";
+            StandardSizeButton.Content = $"Usar {w}×{h}";
+            StandardSizePanel.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            StandardSizePanel.Visibility = Visibility.Collapsed;
+        }
 
         string? presetNote = model.PresetShapeNote;
         PresetShapeText.Text = presetNote ?? "";
@@ -307,20 +332,11 @@ internal sealed partial class ExportView : UserControl
         Fill(RateBox, _rates.Select(ExportChoices.RateChoiceName), Index(_rates, rate));
         ShowRateValues(video.RateControl, rate, encoder);
 
-        _sizes = ExportGeometry.Sizes(model.SequenceWidth, model.SequenceHeight);
-        int sizeIndex = IndexOf(_sizes, z => z.Width == video.Width && z.Height == video.Height);
-        if (sizeIndex < 0)
-        {
-            (int w, int h) = model.OutputSize;
-            _sizes = [.. _sizes, new SizeChoice($"{w}×{h} (del preajuste)", video.Width, video.Height)];
-            sizeIndex = _sizes.Count - 1;
-        }
-
-        Fill(SizeBox, _sizes.Select(z => z.Label), sizeIndex);
+        _sizes = model.SizeChoices;
+        Fill(SizeBox, _sizes.Select(z => z.Label), IndexOf(_sizes, z => z.Width == video.Width && z.Height == video.Height));
         Fill(FitBox, FitChoices.Select(f => f.Label), Array.FindIndex(FitChoices, f => f.Value == video.Fit));
         FitBox.IsEnabled = model.ShapeDiffers;
-        Fill(FrameRateBox, ExportGeometry.FrameRates.Select(f => f.Rate is null ? $"Como la secuencia ({ExportText.Number(model.FrameRate.ToDouble(), 3)})" : f.Label),
-            IndexOf(ExportGeometry.FrameRates, f => f.Rate == video.FrameRate));
+        Fill(FrameRateBox, model.FrameRateLabels, IndexOf(ExportGeometry.FrameRates, f => f.Rate == video.FrameRate));
 
         _bitDepths = ExportChoices.BitDepths(encoder);
         Fill(BitDepthBox, _bitDepths.Select(b => $"{b} bits"), Index(_bitDepths, video.BitDepth));
@@ -437,8 +453,7 @@ internal sealed partial class ExportView : UserControl
         {
             string where = encoder.IsHardware ? "por GPU" : encoder.Vendor == EncoderVendor.Microsoft ? "por Windows" : "por CPU";
             parts.Add($"{ExportChoices.CodecName(video.Codec)} {where} ({encoder.Id})");
-            (int w, int h) = model.OutputSize;
-            parts.Add($"{w}×{h}");
+            parts.Add(model.SizeLabel(model.OutputSize));
             parts.Add($"{ExportText.Number(model.FrameRate.ToDouble(), 3)} fps");
             if (video.BitDepth != 8)
             {
@@ -710,6 +725,8 @@ internal sealed partial class ExportView : UserControl
 
     private static int Kbps(double mbps) => (int)Math.Max(1, Math.Round(mbps * 1000));
 
+    private void OnUseStandardSizeClick(object sender, RoutedEventArgs e) => _model?.UseStandardSize();
+
     private void OnSizeChanged(object sender, SelectionChangedEventArgs e)
     {
         if (TryChange(SizeBox, out int index))
@@ -786,7 +803,7 @@ internal sealed partial class ExportView : UserControl
 
         var package = new global::Windows.ApplicationModel.DataTransfer.DataPackage();
         package.SetText(text);
-        global::Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        Rodaje.App.Shell.SystemAccess.SetClipboard(package);
         session.Notify(NotificationSeverity.Success, "Línea de ffmpeg copiada",
             "Es lo que recibe ffmpeg.exe: la imagen entra compuesta por la tubería (pipe:0) y la mezcla por «mezcla.wav», sin capítulos ni pistas de subtítulos.");
     }

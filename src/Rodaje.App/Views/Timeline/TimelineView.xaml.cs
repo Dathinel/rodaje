@@ -125,6 +125,8 @@ internal sealed partial class TimelineView : UserControl, IEditorView
         if (services.Collab is { } collab)
         {
             _peerLayer = new Collab.PeerLayer(CollabLayer, collab.Presence, services.Session, _renderer, DispatcherQueue);
+            _headers.TrackOwnerToAsk = collab.TrackOwnerToAsk;
+            _headers.AskTrackRequested += collab.AskTrack;
         }
 
         _headers.Toggled += OnTrackToggled;

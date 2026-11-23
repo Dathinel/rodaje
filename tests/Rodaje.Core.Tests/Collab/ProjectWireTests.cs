@@ -77,6 +77,33 @@ public sealed class ProjectWireTests
     }
 
     [Fact]
+    public void Reading_or_capturing_the_copy_honors_a_canceled_token()
+    {
+        // Revisión, hallazgo 4: recorrer decenas de miles de elementos no admitía cancelación.
+        Project project = SharedStateTests.Rich();
+        string json = ProjectWire.ToJson(project);
+        var canceled = new CancellationToken(canceled: true);
+
+        Assert.Throws<OperationCanceledException>(() => ProjectWire.TryParse(json, cancellationToken: canceled));
+        Assert.Throws<OperationCanceledException>(() => ProjectWire.ToJson(project, cancellationToken: canceled));
+        Assert.Throws<OperationCanceledException>(() => SharedState.Capture(project, cancellationToken: canceled));
+        Assert.True(ProjectWire.TryParse(json).IsValid);
+    }
+
+    [Fact]
+    public void A_copy_with_more_elements_than_the_cap_is_rejected()
+    {
+        // Revisión, hallazgo 4: la copia inicial admitía hasta un millón de cambios (64 MiB) sin tope de elementos.
+        string json = ProjectWire.ToJson(SharedStateTests.Rich());
+
+        ProjectParseResult parsed = ProjectWire.TryParse(json, maxElements: 1);
+
+        Assert.False(parsed.IsValid);
+        Assert.Equal(PatchRejectionReason.TooLarge, parsed.Rejection?.Reason);
+        Assert.True(ProjectWire.TryParse(json).IsValid);
+    }
+
+    [Fact]
     public void A_copy_that_would_leave_the_project_invalid_is_rejected()
     {
         JsonNode copy = JsonNode.Parse(ProjectWire.ToJson(SharedStateTests.Rich()))!;

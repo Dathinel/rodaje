@@ -11,4 +11,10 @@ internal static partial class FileDialogs
         ("Videos, audios e imágenes", string.Join(';', WatchedFolderScanner.MediaExtensions.Select(e => "*" + e)));
 
     public static readonly (string Name, string Spec) AllFilter = ("Todos los archivos", "*.*");
+
+    /// <summary>En el modo caos, responde en lugar del diálogo de abrir (título, varios, filtros): no se abre ninguna ventana.</summary>
+    public static Func<string, bool, (string Name, string Spec)[], IReadOnlyList<string>>? FakeOpen { get; set; }
+
+    /// <summary>En el modo caos, responde en lugar del diálogo de guardar (título, nombre sugerido, extensión).</summary>
+    public static Func<string, string, string, string?>? FakeSave { get; set; }
 }

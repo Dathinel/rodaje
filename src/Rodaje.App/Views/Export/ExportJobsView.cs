@@ -8,6 +8,7 @@ using Rodaje.App.Services.Operations;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Shared;
 using Rodaje.Export;
 using Rodaje.Media.Video;
@@ -188,7 +189,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
             return;
         }
 
-        using Process? _ = Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{Path.TrimEndingDirectorySeparator(entry.OutputPath)}\"") { UseShellExecute = false });
+        using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{Path.TrimEndingDirectorySeparator(entry.OutputPath)}\"") { UseShellExecute = false });
     }
 
     // Una secuencia de imágenes es una carpeta: el shell la abre en el Explorador.
@@ -202,7 +203,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
 
         try
         {
-            using Process? _ = Process.Start(new ProcessStartInfo(entry.OutputPath) { UseShellExecute = true });
+            using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo(entry.OutputPath) { UseShellExecute = true });
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
@@ -214,6 +215,12 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         _jobs?.Runner.IsSimulation == true
             ? "Esta exportación fue una simulación: no se escribió ningún archivo."
             : $"«{entry.Title}» ya no está en su carpeta; quizá se movió o se borró.");
+
+    /// <summary>
+    /// La acción de un botón de una tarjeta, después de su clic: quitar o reintentar quita la tarjeta (y su botón) del árbol, y
+    /// hacerlo dentro del propio clic es lo que WinUI no tolera (ver <c>ExportView.QueueRefresh</c>). Si lanza, queda informe y aviso.
+    /// </summary>
+    private void AfterClick(Action action) => DispatcherQueue.RunAfterEvent(action);
 
     private static T Resource<T>(string key) => (T)Application.Current.Resources[key];
 
@@ -246,7 +253,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
             _error.Foreground = Resource<Brush>("MeterHighBrush");
             _cancel.Style = Resource<Style>("ToolButtonStyle");
             ToolTipService.SetToolTip(_cancel, "Cancelar la exportación");
-            _cancel.Click += (_, _) => owner._jobs?.Cancel(entry);
+            _cancel.Click += (_, _) => owner.AfterClick(() => owner._jobs?.Cancel(entry));
 
             var thumbFrame = new Border
             {
@@ -377,7 +384,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         private void AddAction(string text, Action run)
         {
             var button = new Button { Content = text, Padding = new Thickness(8, 3, 8, 3) };
-            button.Click += (_, _) => run();
+            button.Click += (_, _) => _owner.AfterClick(run);
             _actions.Children.Add(button);
         }
     }

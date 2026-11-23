@@ -58,8 +58,9 @@ internal static class VoiceDialog
 
         // Los desplegables llevan textos y se elige por posición: mostrar una propiedad del elemento enlaza por reflexión, que con Native AOT
         // no encuentra la propiedad de un record de C# y deja los elementos en blanco.
-        var language = new ComboBox { Header = "Idioma", Width = AnalysisUi.PreviewWidth };
-        var voice = new ComboBox { Header = "Voz", Width = AnalysisUi.PreviewWidth };
+        // Desactivados hasta tener las voces: llenarlos con la lista abierta cierra WinUI (tarea 91).
+        var language = new ComboBox { Header = "Idioma", Width = AnalysisUi.PreviewWidth, IsEnabled = false };
+        var voice = new ComboBox { Header = "Voz", Width = AnalysisUi.PreviewWidth, IsEnabled = false };
         VoiceLanguage[] langs = [];
         VoiceChoice[] choices = [];
         panel.Children.Add(language);
@@ -349,6 +350,7 @@ internal static class VoiceDialog
             language.ItemsSource = langs.Select(l => l.Name).ToArray();
             language.SelectedIndex = langs.Length == 0 ? -1 : Math.Max(0, Array.FindIndex(langs, l => l.Id == start.Language));
             FillVoices();
+            language.IsEnabled = voice.IsEnabled = true;
             status.Text = existing is null ? "" : "Cambia el texto o la voz y pulsa «Regenerar».";
             Refresh();
         }

@@ -1,3 +1,5 @@
+using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
@@ -157,13 +159,31 @@ public sealed partial class EditorSession
     public async Task<bool> SaveAsAsync(string? path = null)
     {
         VerifyAccess();
+        bool picked = path is null;
         path ??= await _dialogs.PickProjectSavePathAsync(SuggestedFileName);
         if (path is null)
         {
             return false;
         }
 
-        return await SaveToAsync(Path.GetFullPath(ProjectPaths.WithProjectExtension(path)));
+        string full;
+        try
+        {
+            full = Path.GetFullPath(ProjectPaths.WithProjectExtension(path));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
+        {
+            Notify(NotificationSeverity.Error, "No se pudo guardar", ex.Message);
+            return false;
+        }
+
+        bool saved = await SaveToAsync(full);
+        if (saved && picked)
+        {
+            _dialogs.ProjectSavedAs(full);
+        }
+
+        return saved;
     }
 
     /// <summary>
@@ -279,6 +299,7 @@ public sealed partial class EditorSession
         var added = new List<Rodaje.Media.Probe.MediaInfo>();
         var skipped = new List<SkippedMedia>();
         bool changed = false;
+        bool adopted = false;
         History.BeginGroup(files.Length == 1 ? "Importar medio" : "Importar medios");
         try
         {
@@ -298,7 +319,11 @@ public sealed partial class EditorSession
 
                 try
                 {
-                    changed |= AdoptFormatIfEmpty(probe.Info!);
+                    if (AdoptFormatIfEmpty(probe.Info!))
+                    {
+                        adopted = changed = true;
+                    }
+
                     var media = new MediaRef { Id = _ids.NewId("media"), Path = probe.Path };
                     probe.Info!.ApplyTo(media);
                     History.Execute(new AddMediaCommand(media));
@@ -326,6 +351,11 @@ public sealed partial class EditorSession
         if (added.Count > 0)
         {
             MediaImported?.Invoke(this, added);
+        }
+
+        if (adopted)
+        {
+            OfferStandardFormat();
         }
 
         if (Sequence.ColorSpace == SequenceColorSpace.Sdr709
@@ -458,7 +488,7 @@ public sealed partial class EditorSession
         }
     }
 
-    private async Task<bool> SaveToAsync(string path)
+    private async Task<bool> SaveToAsync(string path, bool overwrite = false)
     {
         VerifyAccess();
         // Los guardados van en fila: dos Ctrl+S seguidos no escriben a la vez el mismo temporal, y uno viejo que termina
@@ -470,7 +500,7 @@ public sealed partial class EditorSession
         try
         {
             await previous;
-            return await WriteProjectAsync(path);
+            return await WriteProjectAsync(path, overwrite);
         }
         finally
         {
@@ -479,7 +509,7 @@ public sealed partial class EditorSession
         }
     }
 
-    private async Task<bool> WriteProjectAsync(string path)
+    private async Task<bool> WriteProjectAsync(string path, bool overwrite)
     {
         if (IsInGesture)
         {
@@ -495,13 +525,37 @@ public sealed partial class EditorSession
         string? previousFolder = FilePath is null ? null : Path.GetDirectoryName(FilePath);
         Project copy = ProjectPaths.ForSaving(Project, folder, previousFolder);
         copy.Name = name;
+        // El mismo proyecto abierto en otra ventana (u otro equipo, en una carpeta compartida): si el archivo cambió desde
+        // que se abrió o guardó aquí, no se pisa sin preguntar. La fecha se mira fuera del hilo de la interfaz (UNC).
+        DateTimeOffset? expected = await _diskWrite;
+        bool changedOutside = false;
+        DateTimeOffset? written = null;
         try
         {
-            await Task.Run(() => ProjectSerializer.Save(copy, path));
+            await Task.Run(() =>
+            {
+                if (!rename && !overwrite && expected is { } known && LastWriteOf(path) is { } onDisk && onDisk != known)
+                {
+                    changedOutside = true;
+                    return;
+                }
+
+                ProjectSerializer.Save(copy, path);
+                written = LastWriteOf(path);
+            });
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException or ArgumentException or NotSupportedException)
         {
             Notify(NotificationSeverity.Error, "No se pudo guardar", ex.Message);
+            return false;
+        }
+
+        if (changedOutside)
+        {
+            Notify(NotificationSeverity.Warning, "El proyecto cambió fuera de esta ventana",
+                $"Otra ventana o programa guardó «{Path.GetFileName(path)}» después de abrirlo aquí. Guardar encima borra esos cambios; «Guardar como…» los conserva.",
+                new NotificationAction("Guardar encima", () => UiTask.Run(SaveToAsync(path, overwrite: true))),
+                new NotificationAction("Guardar como…", () => UiTask.Run(SaveAsAsync())));
             return false;
         }
 
@@ -519,6 +573,7 @@ public sealed partial class EditorSession
         // Las referencias «file:» en memoria son absolutas (LutReference.ForFile y al abrir): no hay que tocarlas al
         // cambiar de carpeta, ni en el proyecto ni en la pila de deshacer.
         FilePath = path;
+        _diskWrite = Task.FromResult(written);
         LastSavedAt = DateTimeOffset.UtcNow;
         if (version == _editVersion && !IsInGesture)
         {
@@ -538,6 +593,26 @@ public sealed partial class EditorSession
 
         Notify(NotificationSeverity.Informational, "Todavía no", "Espera a que termine lo que está en curso: abrir, guardar o importar.");
         return true;
+    }
+
+    /// <summary>
+    /// La secuencia tomó del primer clip un tamaño raro (la pantalla de un celular, 1080×2400): se ofrece el estándar más
+    /// cercano rellenando el cuadro, en un paso que se deshace. El aviso caduca si el tamaño cambia por otro lado.
+    /// </summary>
+    private void OfferStandardFormat()
+    {
+        (int width, int height) = (Sequence.Width, Sequence.Height);
+        if (ProjectFormats.IsStandard(width, height))
+        {
+            return;
+        }
+
+        (int w, int h) = ProjectFormats.NearestStandard(width, height);
+        string sequenceId = SequenceId;
+        Notify(NotificationSeverity.Informational, "Formato del proyecto", $"La secuencia tomó {width}×{height} del clip.",
+            new NotificationAction($"Usar {w}×{h} ({ProjectFormats.StandardName(w, h)})", () => ChangeFormat(w, h, Sequence.FrameRate, ClipFit.Fill)),
+            new NotificationAction("Dejar así", static () => { }),
+            () => SequenceId != sequenceId || Sequence.Width != width || Sequence.Height != height);
     }
 
     private bool AdoptFormatIfEmpty(MediaInfo info)

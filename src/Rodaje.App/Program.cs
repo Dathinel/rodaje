@@ -34,6 +34,14 @@ internal static partial class Program
         try
         {
             AppOptions options = AppOptions.Parse(args);
+            if (options.ChaosSeed is not null)
+            {
+                // El caos no deja rastro fuera de su carpeta: sin RODAJE_DATOS escribiría en los datos del usuario.
+                AppDataPaths.Sandbox = Rodaje.Media.EnvironmentVariables.Read(AppDataPaths.OverrideVariable) is not null
+                    ? AppDataPaths.Root
+                    : throw new InvalidOperationException("--caos exige RODAJE_DATOS (la carpeta de la corrida).");
+            }
+
             // Con las opciones ya leídas: una corrida automática no abre la copia del registro ni recupera sesiones.
             _ = Crashes.BeginSession(options.IsAutomated);
             if (options.SelfTest && Crashes.Version == "?")
@@ -45,6 +53,12 @@ internal static partial class Program
             var settings = new SettingsStore(SettingsStore.DefaultPath);
             string? settingsWarning = settings.Load();
             Metrics.Milestone("ajustes");
+            if (OperatingSystem.IsWindowsVersionAtLeast(7))
+            {
+                // Antes del primer dispositivo y del perfil de la GPU: los dos usan el adaptador elegido.
+                Rodaje.Media.Gpu.GpuAdapterChoice.Preferred = settings.Current.GpuAdapter;
+            }
+
             StartupSplash.Show(settings.Current, options.RunsInBackground);
             // Sin archivos que abrir, el motor (FFmpeg y la GPU) arranca después del primer cuadro de la ventana (MainWindow):
             // cargar sus DLL a la vez que las de WinUI se disputa el cargador de Windows y el disco, y en frío retrasaba la
@@ -59,6 +73,7 @@ internal static partial class Program
             var prober = new PrefetchingProber(new FfmpegMediaProber());
             prober.Prefetch(options.Files.Where(f => !ProjectPaths.IsProjectFile(f)));
             RunInterface(() => Instance = new App(options, engine, prober, settings, settingsWarning));
+            ChaosRun.Mark("interfaz terminada");
             // Application.Exit (o la última ventana cerrada) vuelve aquí: cierre limpio antes de soltar el motor, que
             // puede tardar o quedar a medias si alguien mata el proceso mientras tanto.
             Crashes.EndSession();
@@ -74,6 +89,7 @@ internal static partial class Program
         }
 
         Crashes.EndSession();
+        ChaosRun.Mark("Main termina");
         return ExitCode;
     }
 
@@ -126,11 +142,31 @@ internal static partial class Program
     /// </summary>
     private static void ReportHandlerException(Exception exception, bool notify)
     {
+        if (IgnoreAfterWindowClosed(exception))
+        {
+            return;
+        }
+
         string? path = ReportException(CrashKind.DispatcherCallback, exception, fatal: false, out bool repeated);
         if (notify && !repeated)
         {
             Instance?.NotifyUnexpectedError(path);
         }
+    }
+
+    /// <summary>
+    /// Con la ventana cerrada el árbol de XAML está desmontado y tocarlo lanza E_UNEXPECTED: es el final tardío de una tarea
+    /// (una descarga que falla, una miniatura), no un fallo de la app. Solo va al registro (modo caos, rondas 1 y 3).
+    /// </summary>
+    internal static bool IgnoreAfterWindowClosed(Exception exception)
+    {
+        if (!Views.Inspector.DispatcherQueueLater.WindowClosed || exception is not System.Runtime.InteropServices.COMException { HResult: unchecked((int)0x8000FFFF) })
+        {
+            return false;
+        }
+
+        Log.Append("Tras cerrar la ventana: " + exception.Message);
+        return true;
     }
 
     internal static bool OnDispatcherException(Exception exception) =>

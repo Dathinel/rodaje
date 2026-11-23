@@ -11,11 +11,17 @@ public sealed record PatchApplyOptions
 
     /// <summary>Traduce las referencias <c>blob:</c> del parche a archivos de este equipo; sin él, quedan vacías.</summary>
     public IBlobMap? Blobs { get; init; }
+
+    /// <summary>Cancela la aplicación de un parche grande (la copia inicial le pasa el suyo); por omisión no cancela.</summary>
+    public CancellationToken CancellationToken { get; init; }
 }
 
 /// <summary>Aplica parches a un proyecto con todas las comprobaciones.</summary>
 public static class PatchApply
 {
+    /// <summary>Medios como máximo en el proyecto compartido, sumando lo que traigan todos los parches (revisión, hallazgo 4).</summary>
+    public const int MaxMedia = 20_000;
+
     /// <summary>
     /// Aplica <paramref name="patch"/> sobre una copia candidata: forma, versiones, padres y <c>ModelValidator.Validate</c> del
     /// proyecto entero. Si todo pasa, <paramref name="project"/> cambia (los objetos que el parche no toca siguen siendo los
@@ -36,6 +42,7 @@ public static class PatchApply
 
         foreach (PatchOp op in patch.Ops)
         {
+            options.CancellationToken.ThrowIfCancellationRequested();
             int current = versions.Get(op.Key);
             if (op.BaseVersion != current)
             {
@@ -46,8 +53,18 @@ public static class PatchApply
             }
         }
 
+        foreach (PatchOrder order in patch.Orders)
+        {
+            if (order.BaseVersion != versions.GetOrder(order.Container))
+            {
+                return PatchResult.Reject(
+                    PatchRejectionReason.VersionConflict,
+                    "Otra persona cambió el orden de esa lista antes que tú. Tu cambio no entró; vuelve a hacerlo.");
+            }
+        }
+
         PatchOp[] ordered = [.. patch.Ops.Order(Comparer<PatchOp>.Create(PatchCanon.Compare))];
-        PatchRejection? rejected = DecodeAll(ordered, options.Blobs, out Decoded[] decoded);
+        PatchRejection? rejected = DecodeAll(ordered, options.Blobs, options.CancellationToken, out Decoded[] decoded);
         if (rejected is not null)
         {
             return new PatchResult(rejected);
@@ -60,9 +77,15 @@ public static class PatchApply
         {
             forLive = [.. decoded.Select(d => d.Copy())];
             Project candidate = project.Clone();
-            if (Apply(candidate, ordered, decoded, patch.Orders) is { } failed)
+            if (Apply(candidate, ordered, decoded, patch.Orders, options.CancellationToken) is { } failed)
             {
                 return new PatchResult(failed);
+            }
+
+            // El tope por mensaje no basta: lo acumulado por parches sucesivos también tiene presupuesto (revisión, hallazgo 4).
+            if (CheckBudget(candidate) is { } overBudget)
+            {
+                return new PatchResult(overBudget);
             }
 
             if (ProjectSerializer.FindNullItems(candidate).Count > 0)
@@ -79,23 +102,56 @@ public static class PatchApply
                     $"El cambio dejaría el proyecto con {problems.Count} dato(s) inconsistente(s) y no se aplicó.");
             }
         }
-        catch (Exception ex) when (ex is not OutOfMemoryException)
+        catch (Exception ex) when (ex is not OutOfMemoryException and not OperationCanceledException)
         {
             // Datos hostiles que pasan el formato pero rompen una operación (un null dentro de una lista, por ejemplo).
             return WireSanitizer.Reject("El cambio trae datos que no se pudieron comprobar y no se aplicó.");
         }
 
         // La copia candidata salió bien: el mismo cambio sobre el proyecto vivo no puede fallar (es el mismo algoritmo sobre lo mismo).
-        Apply(project, ordered, forLive, patch.Orders);
+        // No se le pasa el token: cancelar aquí dejaría el proyecto vivo a medias.
+        Apply(project, ordered, forLive, patch.Orders, CancellationToken.None);
         versions.Advance(patch);
         return PatchResult.Accepted;
     }
 
-    private static PatchRejection? DecodeAll(PatchOp[] ordered, IBlobMap? blobs, out Decoded[] decoded)
+    /// <summary>Elementos del proyecto como los cuenta <see cref="SharedState"/> (lo que se comparte), sobre la copia ya aplicada.</summary>
+    private static int CountElements(Project project)
+    {
+        int count = project.Media.Count + project.Transcripts.Count + project.Sequences.Count;
+        foreach (Sequence sequence in project.Sequences)
+        {
+            count += sequence.Markers.Count + sequence.Regions.Count;
+            foreach (Track track in sequence.AllTracks)
+            {
+                count += 1 + track.Clips.Count;
+            }
+        }
+
+        return count;
+    }
+
+    private static PatchRejection? CheckBudget(Project project)
+    {
+        if (project.Media.Count > MaxMedia)
+        {
+            return new PatchRejection(PatchRejectionReason.TooLarge, $"El cambio dejaría el proyecto compartido con más de {MaxMedia} medios y no se aplicó.");
+        }
+
+        if (CountElements(project) > ProjectWire.MaxElements)
+        {
+            return new PatchRejection(PatchRejectionReason.TooLarge, $"El cambio dejaría el proyecto compartido con más de {ProjectWire.MaxElements} elementos y no se aplicó.");
+        }
+
+        return null;
+    }
+
+    private static PatchRejection? DecodeAll(PatchOp[] ordered, IBlobMap? blobs, CancellationToken cancellationToken, out Decoded[] decoded)
     {
         decoded = [.. ordered.Select(_ => new Decoded())];
         for (int i = 0; i < ordered.Length; i++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (ordered[i].Content is { } content)
             {
                 (decoded[i], PatchRejection? rejection) = Decode(ordered[i], content, blobs);
@@ -185,12 +241,21 @@ public static class PatchApply
         return (result, null);
     }
 
-    private static PatchRejection? Apply(Project project, PatchOp[] ops, Decoded[] decoded, IReadOnlyList<PatchOrder> orders)
+    private static PatchRejection? Apply(Project project, PatchOp[] ops, Decoded[] decoded, IReadOnlyList<PatchOrder> orders, CancellationToken cancellationToken)
     {
         var touched = new HashSet<ElementKey>(ops.Select(o => o.Key));
+        Dictionary<string, int>? mediaIndex = null;
         for (int i = 0; i < ops.Length; i++)
         {
-            PatchRejection? rejection = ops[i].Content is null ? Delete(project, ops[i], touched) : Upsert(project, ops[i], decoded[i]);
+            cancellationToken.ThrowIfCancellationRequested();
+            if (ops[i].Kind == ElementKind.Media && ops[i].Content is not null)
+            {
+                mediaIndex ??= IndexById(project.Media);
+            }
+
+            PatchRejection? rejection = ops[i].Content is null
+                ? Delete(project, ops[i], touched)
+                : Upsert(project, ops[i], decoded[i], mediaIndex);
             if (rejection is not null)
             {
                 return rejection;
@@ -203,6 +268,18 @@ public static class PatchApply
         }
 
         return null;
+    }
+
+    // Id → sitio en la lista: dar de alta muchos medios sin él sale cuadrático (buscar cada id recorriéndola entera).
+    private static Dictionary<string, int> IndexById(List<MediaRef> media)
+    {
+        var index = new Dictionary<string, int>(media.Count, StringComparer.Ordinal);
+        for (int i = 0; i < media.Count; i++)
+        {
+            index.TryAdd(media[i].Id, i);
+        }
+
+        return index;
     }
 
     private static PatchRejection Occupied(PatchOp op) =>
@@ -261,16 +338,17 @@ public static class PatchApply
     private static PatchRejection Clash(PatchOp op) =>
         new(PatchRejectionReason.Invalid, "El cambio mueve un elemento a un sitio donde no puede estar.", op.Key);
 
-    private static PatchRejection? Upsert(Project project, PatchOp op, Decoded decoded)
+    private static PatchRejection? Upsert(Project project, PatchOp op, Decoded decoded, Dictionary<string, int>? mediaIndex)
     {
         switch (op.Kind)
         {
             case ElementKind.Media:
             {
                 MediaRef media = decoded.Media!;
-                int at = project.Media.FindIndex(m => m.Id == op.Id);
+                int at = mediaIndex is null ? project.Media.FindIndex(m => m.Id == op.Id) : mediaIndex.GetValueOrDefault(op.Id, -1);
                 if (at < 0)
                 {
+                    mediaIndex?.Add(op.Id, project.Media.Count);
                     project.Media.Add(media);
                 }
                 else

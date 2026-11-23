@@ -272,7 +272,49 @@ public sealed class RoomServiceTests
 
         await host.LeaveAsync();
         await host.DisposeAsync();
-        await CollabHarness.Until(() => guest.State.Phase is RoomPhase.Ended or RoomPhase.Reconnecting, "el aviso de que el anfitrión se fue");
+        await CollabHarness.Until(() => guest.State.Phase == RoomPhase.Ended, "el aviso de que el anfitrión se fue");
+    }
+
+    [SalaFact]
+    public async Task Si_el_anfitrion_cierra_la_sala_el_invitado_termina_y_no_reintenta()
+    {
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        await CollabHarness.Until(() => guest.State.Members.Any(m => m is { IsHost: true, Alias: "Ana" }), "el nombre del anfitrión en el invitado");
+        string folder = guest.RoomFolder;
+
+        await host.LeaveAsync();
+
+        // Sin el directo «sala-cerrada» el invitado se quedaba reintentando la conexión para siempre.
+        await CollabHarness.Until(() => guest.State.Phase == RoomPhase.Ended, "la sala terminada en el invitado");
+        Assert.Contains("Ana cerró la sala", guest.State.Problem, StringComparison.Ordinal);
+        Assert.Contains(folder, guest.State.Problem, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void El_diagnostico_usa_el_alias_del_miembro_cuando_el_par_no_lo_trae()
+    {
+        // Al invitado el proceso de red le da el par sin alias: sin el relleno, «Versión: de …» enseñaba sus palabras.
+        string clave = new('a', 64);
+        DiagnosticoPar par = new(clave, "", Camino.Directo, null, TimeSpan.FromMilliseconds(12), 0.5, "1.0.4", 3, null, DateTimeOffset.UtcNow, 0, 0, 0);
+        Diagnostico d = new(new('b', 64), false, "1.0.4", new DiagnosticoRed("ninguno", null, false, true, true), [par], null, 0, null, null);
+
+        Diagnostico filled = RoomService.FillMemberAliases(d, [new Miembro(clave, "Ana", Rol.Editar)]);
+
+        Assert.Equal("Ana", filled.Pares[0].Alias);
+        Assert.Contains("de Ana 1.0.4", filled.ParaTelefono(), StringComparison.Ordinal);
+        Assert.DoesNotContain(par.Huella, filled.ParaTelefono(), StringComparison.Ordinal);
+        Assert.Same(d, RoomService.FillMemberAliases(d, []));
+    }
+
+    [Fact]
+    public void El_texto_del_cierre_avisado_lleva_el_nombre_y_la_carpeta()
+    {
+        Assert.Equal("Ana cerró la sala. Tu copia del proyecto queda guardada en D:\\Cosas\\sala.",
+            CollabMessages.ForHostClosed("Ana", "D:\\Cosas\\sala"));
+        Assert.Equal("Quien hospedaba la sala la cerró. Tu copia del proyecto sigue en este equipo.",
+            CollabMessages.ForHostClosed(null, ""));
     }
 
     [SalaFact]

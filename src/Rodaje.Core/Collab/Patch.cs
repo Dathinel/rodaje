@@ -23,7 +23,12 @@ public sealed record PatchOp(ElementKind Kind, string Id, string? Parent, int Ba
 /// los elementos nuevos van al final, los borrados se quitan y los que no aparecen en <see cref="Ids"/> conservan su
 /// sitio al final. Las claves de contenedor están en <see cref="PatchContainers"/>.
 /// </summary>
-public sealed record PatchOrder(string Container, IReadOnlyList<string> Ids);
+/// <param name="Container">La lista ordenada («media», «atracks:sec1»…), con las claves de <see cref="PatchContainers"/>.</param>
+/// <param name="Ids">Los identificadores en el orden nuevo; los que falten conservan su sitio al final.</param>
+/// <param name="BaseVersion">Versión del contenedor de la que partió quien lo hizo (en <see cref="ElementVersions"/>); el
+/// anfitrión solo lo acepta si coincide, igual que con <see cref="PatchOp.BaseVersion"/>: reordenar sobre un orden ya
+/// cambiado es un conflicto, no una mezcla.</param>
+public sealed record PatchOrder(string Container, IReadOnlyList<string> Ids, int BaseVersion = 0);
 
 /// <summary>Un archivo que el parche necesita y que viaja aparte (LUT, máscara, análisis): se pide por su huella.</summary>
 public sealed record PatchBlob(string Sha256, long Size);

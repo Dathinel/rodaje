@@ -8,8 +8,13 @@ namespace Rodaje.App.Tests.Collab;
 
 public sealed class ProjectShareTests
 {
-    private sealed class FakeSource(Func<ProjectSnapshot> make, int steps = 0) : ICollabProjectSource
+    private sealed class FakeSource(Func<Task<ProjectSnapshot>> make, int steps = 0) : ICollabProjectSource
     {
+        public FakeSource(Func<ProjectSnapshot> make, int steps = 0)
+            : this(() => Task.FromResult(make()), steps)
+        {
+        }
+
         public async Task<ProjectSnapshot> CaptureAsync(IProgress<(int Done, int Total)>? progress, CancellationToken cancellationToken)
         {
             for (int i = 1; i <= steps; i++)
@@ -18,7 +23,7 @@ public sealed class ProjectShareTests
                 progress?.Report((i, steps));
             }
 
-            return make();
+            return await make().WaitAsync(cancellationToken);
         }
     }
 
@@ -80,6 +85,44 @@ public sealed class ProjectShareTests
     }
 
     [SalaFact]
+    public async Task Pedir_el_proyecto_muchas_veces_no_acumula_trabajo_en_el_anfitrion()
+    {
+        // Revisión, hallazgo 5: cada «pedir-proyecto» creaba otra tarea que esperaba al semáforo sin límite; un miembro
+        // insistente acumulaba trabajo por delante de los invitados legítimos.
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int captures = 0;
+        int projects = 0;
+        var source = new FakeSource(async () =>
+        {
+            Interlocked.Increment(ref captures);
+            await gate.Task;
+            return Snapshot();
+        });
+        using ProjectShareHost share = new(host, source, host.RoomFolder);
+        guest.DirectReceived += (_, m) =>
+        {
+            if (ShareMessages.Type(m) == ShareMessages.Project)
+            {
+                Interlocked.Increment(ref projects);
+            }
+        };
+
+        for (int i = 0; i < 6; i++)
+        {
+            await guest.SendDirectAsync(ShareMessages.Make(ShareMessages.Ask), guest.HostKey);
+        }
+
+        await CollabHarness.Until(() => Volatile.Read(ref captures) >= 1, "la primera copia");
+        gate.TrySetResult();
+        await CollabHarness.Until(() => Volatile.Read(ref projects) >= 1, "la copia recibida");
+        await Task.Delay(1500);
+        Assert.True(Volatile.Read(ref captures) <= 2, $"se prepararon {captures} copias para 6 peticiones del mismo miembro");
+    }
+
+    [SalaFact]
     public async Task Un_anfitrion_que_manda_una_ruta_de_red_en_un_medio_no_entra_en_el_proyecto_del_invitado()
     {
         (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
@@ -93,6 +136,25 @@ public sealed class ProjectShareTests
         CollabException ex = await Assert.ThrowsAsync<CollabException>(() => ProjectShareGuest.ReceiveAsync(guest, guest.RoomFolder).WaitAsync(TimeSpan.FromSeconds(30)));
 
         Assert.Contains("no se puede abrir", ex.Message, StringComparison.Ordinal);
+    }
+
+    [SalaFact]
+    public async Task Cancelar_mientras_se_espera_la_respuesta_termina_la_tarea_cancelada()
+    {
+        // Revisión, hallazgo 9: el bucle de espera no comprobaba el token y seguía girando hasta agotar el plazo.
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        // Sin ProjectShareHost: nadie contesta el «pedir-proyecto» y el invitado solo espera.
+        using var cancel = new CancellationTokenSource();
+
+        Task receive = ProjectShareGuest.ReceiveAsync(guest, guest.RoomFolder, cancellationToken: cancel.Token);
+        await Task.Delay(300);
+        cancel.Cancel();
+
+        Task winner = await Task.WhenAny(receive, Task.Delay(TimeSpan.FromSeconds(1)));
+        Assert.Same(receive, winner);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => receive);
     }
 
     [SalaFact]
@@ -121,6 +183,8 @@ public sealed class ProjectShareTests
     [InlineData("a<b>c:d?e", "de")]
     [InlineData("   ", "Proyecto de la sala")]
     [InlineData("con\u0000nulo", "connulo")]
+    [InlineData("CON", "_CON")]
+    [InlineData("com1.v2", "_com1.v2")]
     public void El_nombre_del_archivo_nunca_trae_carpetas_ni_caracteres_prohibidos(string entrada, string esperado) =>
         Assert.Equal(esperado, ProjectShareGuest.ProjectFileName(entrada));
 

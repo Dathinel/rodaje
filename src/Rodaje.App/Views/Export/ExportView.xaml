@@ -83,6 +83,13 @@
                         <TextBlock x:Name="SummaryText" Grid.Row="1" Grid.Column="1" Style="{StaticResource BodyTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
                     </Grid>
 
+                    <!-- La salida tiene un tamaño raro (1080×2400 de un celular): se ofrece el estándar solo para esta exportación. -->
+                    <StackPanel x:Name="StandardSizePanel" Visibility="Collapsed" Spacing="0">
+                        <TextBlock x:Name="StandardSizeText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />
+                        <HyperlinkButton x:Name="StandardSizeButton" Padding="0,2" Click="OnUseStandardSizeClick"
+                                         ToolTipService.ToolTip="Solo esta exportación: llena el cuadro recortando un poco. Barras en Avanzado › Forma." />
+                    </StackPanel>
+
                     <!-- El preajuste es para otra forma (Reels 9:16 con un proyecto 16:9): se exporta con la del proyecto. -->
                     <StackPanel x:Name="PresetShapePanel" Visibility="Collapsed" Spacing="0">
                         <TextBlock x:Name="PresetShapeText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />

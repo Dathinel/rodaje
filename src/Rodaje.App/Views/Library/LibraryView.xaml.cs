@@ -48,6 +48,8 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     private readonly MenuFlyoutItem _replaceItem;
     private readonly MenuFlyoutItem _proxyItem;
     private readonly MenuFlyoutItem _roomProxyItem;
+    private readonly MenuFlyoutItem _roomOriginalItem;
+    private readonly MenuFlyoutItem _roomOriginalsAllItem;
     private readonly MenuFlyoutItem _revealItem;
     private readonly MenuFlyoutItem _removeItem;
     private readonly MenuFlyoutItem _favoriteItem;
@@ -89,6 +91,10 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         _mediaMenu.Items.Add(_proxyItem);
         _roomProxyItem = MenuItem("Pedir la copia ligera a quien hospeda", "\uE8C4", (_, _) => UiTask.Run(RequestRoomProxyAsync()));
         _mediaMenu.Items.Add(_roomProxyItem);
+        _roomOriginalItem = MenuItem("Pedir el original a quien hospeda", "\uE896", (_, _) => UiTask.Run(RequestRoomOriginalAsync()));
+        _mediaMenu.Items.Add(_roomOriginalItem);
+        _roomOriginalsAllItem = MenuItem("Pedir todos los originales", "\uE896", (_, _) => UiTask.Run(RequestAllOriginalsAsync()));
+        _mediaMenu.Items.Add(_roomOriginalsAllItem);
         _favoriteItem = MenuItem("Añadir a favoritos", "\uE734", (_, _) => ToggleFavoriteTarget());
         _moveItem = new MenuFlyoutSubItem { Text = "Mover a", Icon = new FontIcon { Glyph = "\uE8DE" } };
         _mediaMenu.Items.Add(_revealItem);
@@ -197,7 +203,8 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     private static MenuFlyoutItem MenuItem(string text, string glyph, RoutedEventHandler click)
     {
         var item = new MenuFlyoutItem { Text = text, Icon = new FontIcon { Glyph = glyph } };
-        item.Click += click;
+        // Quitar, mover o marcar puede rehacer la cuadrícula y quitar el elemento que ancla el menú: después del clic (tarea 91).
+        item.Click += (sender, e) => item.DispatcherQueue.RunAfterEvent(() => click(sender, e));
         return item;
     }
 
@@ -644,20 +651,41 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
         _menuTarget = item;
         _replaceItem.IsEnabled = ReplaceTargetClip() is not null;
+        _proxyItem.IsEnabled = MediaDetails.CanGenerateProxy(item.IsStillImage, item.HasVideo, item.IsOffline);
         if (item.IsStillImage)
         {
-            _proxyItem.IsEnabled = false;
             _proxyItem.Text = "Generar proxy (no aplica a imágenes fijas)";
             ToolTipService.SetToolTip(_proxyItem, "No aplica a imágenes fijas.");
         }
+        else if (item.IsOffline)
+        {
+            _proxyItem.Text = "Generar proxy (falta el archivo)";
+            ToolTipService.SetToolTip(_proxyItem, "El archivo original no está donde dice el proyecto. Vuelve a enlazarlo primero.");
+        }
         else
         {
-            _proxyItem.IsEnabled = item.HasVideo;
             _proxyItem.Text = "Generar proxy";
             ToolTipService.SetToolTip(_proxyItem, null);
         }
         _roomProxyItem.Visibility = item.IsOffline && !item.IsSubclip && _services?.Collab?.Proxies?.CanRequest(item.Id) == true
             ? Visibility.Visible : Visibility.Collapsed;
+        RoomOriginals? originals = _services?.Collab?.Originals;
+        bool canOriginal = originals is not null && !item.IsSubclip && originals.CanRequest(item.Id) && NeedsOriginal(item);
+        _roomOriginalItem.Visibility = canOriginal ? Visibility.Visible : Visibility.Collapsed;
+        if (canOriginal && originals!.MenuText(item.Id) is { } menuText)
+        {
+            _roomOriginalItem.Text = menuText;
+        }
+
+        List<string> missing = originals is null ? [] : OriginalsNeeded(originals);
+        _roomOriginalsAllItem.Visibility = missing.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
+        if (missing.Count > 0)
+        {
+            long total = missing.Sum(id => originals!.SizeOf(id) ?? 0);
+            _roomOriginalsAllItem.Text = total > 0
+                ? $"Pedir todos los originales ({missing.Count} {(missing.Count == 1 ? "medio" : "medios")}, {PackageService.FormatSize(total)})"
+                : $"Pedir todos los originales ({missing.Count} {(missing.Count == 1 ? "medio" : "medios")})";
+        }
         _removeItem.IsEnabled = !item.IsUsed;
         _removeItem.Text = item.IsUsed ? "Quitar del proyecto (está en uso)" : "Quitar del proyecto";
         bool favorite = _organization.IsFavorite(item.Id);
@@ -773,7 +801,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
         try
         {
-            using Process? _ = Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.Path}\"") { UseShellExecute = false });
+            using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{item.Path}\"") { UseShellExecute = false });
         }
         catch (System.ComponentModel.Win32Exception ex)
         {
@@ -791,7 +819,7 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
     private async Task GenerateProxyAsync()
     {
-        if (_menuTarget is not { HasVideo: true } item || _services is null)
+        if (_menuTarget is not { HasVideo: true } item || _services is null || item.IsOffline)
         {
             return;
         }
@@ -827,7 +855,8 @@ internal sealed partial class LibraryView : UserControl, IEditorView
     /// <summary>«Pedir la copia ligera a quien hospeda»: el medio sin original se queda con su proxy de sala (B14).</summary>
     private async Task RequestRoomProxyAsync()
     {
-        if (_menuTarget is not { } item || _services?.Collab?.Proxies is not { } proxies || !proxies.CanRequest(item.Id) || XamlRoot is null)
+        if (_menuTarget is not { } item || _services?.Collab?.Proxies is not { } proxies || !proxies.CanRequest(item.Id)
+            || XamlRoot is null || DialogGate.IsOpen)
         {
             return;
         }
@@ -858,17 +887,18 @@ internal sealed partial class LibraryView : UserControl, IEditorView
             _ = t.Exception;
             _dispatcher?.RunLater(dialog.Hide);
         }));
-        if (DialogGate.IsOpen)
-        {
-            return;
-        }
-
         await DialogGate.ShowAsync(dialog);
         try
         {
-            string relative = await work;
-            // La ruta queda relativa a la carpeta de la sala, sin los datos del archivo: los del medio ya son los del original.
-            session.Execute(new RelinkMediaCommand([new MediaRelinkTarget(item.Id, relative)]));
+            string path = await work;
+            // Absoluta en memoria: biblioteca, miniaturas y reproductor no resuelven desde la carpeta de la sala.
+            // Solo cambia la ruta local (no viaja en los parches); se conservan los datos del original.
+            // Execute recarga el reproductor y avisa a las vistas para renovar el estado y las cachés del archivo anterior.
+            if (!session.Execute(new RelinkMediaCommand([new MediaRelinkTarget(item.Id, path)])))
+            {
+                return;
+            }
+
             session.Notify(NotificationSeverity.Success, "Copia ligera lista",
                 $"«{item.Name}» ya se ve y se oye con la copia ligera de la sala. El original sigue faltando: la exportación se hace en el anfitrión.");
         }
@@ -884,6 +914,163 @@ internal sealed partial class LibraryView : UserControl, IEditorView
         {
             session.Notify(NotificationSeverity.Error, $"No llegó la copia ligera de «{item.Name}»", ex.Message);
         }
+    }
+
+    /// <summary>A este medio le falta su original: no está en el equipo o solo tiene la copia ligera de la sala.</summary>
+    private static bool NeedsOriginal(MediaItem item) => item.IsOffline || RoomProxies.IsRoomProxyPath(item.Path);
+
+    /// <summary>Los medios del proyecto de la sala a los que les falta el original y se puede pedir (en el manifiesto).</summary>
+    private List<string> OriginalsNeeded(RoomOriginals originals) =>
+        [.. _services!.Session.Project.Media.Where(m => originals.CanRequest(m.Id) && (_offline.Contains(m.Id) || RoomProxies.IsRoomProxyPath(m.Path))).Select(m => m.Id)];
+
+    /// <summary>«Pedir el original a quien hospeda»: el medio se enlaza con el archivo entero recibido y ya se exporta aquí.</summary>
+    private async Task RequestRoomOriginalAsync()
+    {
+        if (_menuTarget is not { } item || _services?.Collab?.Originals is not { } originals || !originals.CanRequest(item.Id) || XamlRoot is null)
+        {
+            return;
+        }
+
+        EditorSession session = _services.Session;
+        (OperationProgress operation, CancellationTokenSource cancel) = ProgressDialog(out ContentDialog dialog, "Original de la sala");
+        Task<string> work = originals.RequestOriginalAsync(item.Id, operation, cancel.Token);
+        UiTask.Run(work.ContinueWith(t =>
+        {
+            _ = t.Exception;
+            _dispatcher?.RunLater(dialog.Hide);
+        }));
+        if (DialogGate.IsOpen)
+        {
+            cancel.Dispose();
+            return;
+        }
+
+        await DialogGate.ShowAsync(dialog);
+        try
+        {
+            string path = await work;
+            // La ruta es absoluta y dentro de la carpeta de la sala: el medio ya es un original, no una copia ligera.
+            session.Execute(new RelinkMediaCommand([new MediaRelinkTarget(item.Id, path)]));
+            session.Notify(NotificationSeverity.Success, "Original recibido",
+                $"«{item.Name}» ya usa su archivo original, igual que el de quien hospeda. Ya se puede exportar desde este equipo.");
+        }
+        catch (OperationCanceledException)
+        {
+            session.Notify(NotificationSeverity.Informational, "Pedido cancelado",
+                $"«{item.Name}» sigue sin su original. Al pedirlo otra vez se sigue por donde iba.");
+        }
+        catch (EditException ex)
+        {
+            session.Notify(NotificationSeverity.Warning, $"«{item.Name}» no quedó enlazado", ex.Message);
+        }
+        catch (CollabException ex)
+        {
+            session.Notify(NotificationSeverity.Error, $"No llegó el original de «{item.Name}»", ex.Message);
+        }
+        finally
+        {
+            cancel.Dispose();
+        }
+    }
+
+    /// <summary>«Pedir todos los originales»: cada medio que llega se enlaza con su archivo; los fallos no paran a los demás.</summary>
+    private async Task RequestAllOriginalsAsync()
+    {
+        if (_services?.Collab?.Originals is not { } originals || XamlRoot is null)
+        {
+            return;
+        }
+
+        List<string> ids = OriginalsNeeded(originals);
+        if (ids.Count == 0)
+        {
+            return;
+        }
+
+        EditorSession session = _services.Session;
+        (OperationProgress operation, CancellationTokenSource cancel) = ProgressDialog(out ContentDialog dialog, "Originales de la sala");
+        Task<IReadOnlyList<OriginalResult>> work = originals.RequestAllAsync(ids, operation, cancel.Token);
+        UiTask.Run(work.ContinueWith(t =>
+        {
+            _ = t.Exception;
+            _dispatcher?.RunLater(dialog.Hide);
+        }));
+        if (DialogGate.IsOpen)
+        {
+            cancel.Dispose();
+            return;
+        }
+
+        await DialogGate.ShowAsync(dialog);
+        try
+        {
+            IReadOnlyList<OriginalResult> results = await work;
+            List<MediaRelinkTarget> targets = [.. results.Where(r => r.Path is not null).Select(r => new MediaRelinkTarget(r.MediaId, r.Path!))];
+            if (targets.Count > 0)
+            {
+                session.Execute(new RelinkMediaCommand(targets));
+            }
+
+            bool cancelled = cancel.IsCancellationRequested;
+            var failed = results.Where(r => r.Path is null).ToList();
+            if (cancelled)
+            {
+                session.Notify(NotificationSeverity.Informational, "Pedido cancelado",
+                    $"Llegaron {targets.Count} de {ids.Count} originales y quedaron enlazados. Los demás siguen por donde iban al pedirlos otra vez.");
+            }
+            else if (failed.Count > 0)
+            {
+                session.Notify(targets.Count > 0 ? NotificationSeverity.Warning : NotificationSeverity.Error,
+                    targets.Count > 0 ? $"Llegaron {targets.Count} de {ids.Count} originales" : "No llegó ningún original",
+                    failed[0].Problem ?? "Vuelve a pedirlo en un momento.");
+            }
+            else
+            {
+                session.Notify(NotificationSeverity.Success, "Originales recibidos",
+                    $"Los {targets.Count} medios ya usan su archivo original y se pueden exportar desde este equipo.");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            session.Notify(NotificationSeverity.Informational, "Pedido cancelado", "Los originales que no llegaron siguen por donde iban al pedirlos otra vez.");
+        }
+        catch (EditException ex)
+        {
+            session.Notify(NotificationSeverity.Warning, "No todos los originales quedaron enlazados", ex.Message);
+        }
+        catch (CollabException ex)
+        {
+            session.Notify(NotificationSeverity.Error, "No llegaron los originales", ex.Message);
+        }
+        finally
+        {
+            cancel.Dispose();
+        }
+    }
+
+    /// <summary>El diálogo con barra de fases, porcentaje, último avance y Cancelar de una operación de la sala.</summary>
+    private (OperationProgress Operation, CancellationTokenSource Cancel) ProgressDialog(out ContentDialog dialog, string title)
+    {
+        var operation = new OperationProgress();
+        var cancel = new CancellationTokenSource();
+        var view = new OperationProgressView
+        {
+            Operation = operation,
+            OnCancel = () =>
+            {
+                operation.MarkCancelling();
+                cancel.Cancel();
+            },
+        };
+        dialog = new ContentDialog
+        {
+            XamlRoot = XamlRoot,
+            Title = title,
+            Content = view,
+            CloseButtonText = "Cerrar",
+            DefaultButton = ContentDialogButton.Close,
+        };
+        return (operation, cancel);
     }
 
     private void ShowProxyStatus(ProxyStatus status)

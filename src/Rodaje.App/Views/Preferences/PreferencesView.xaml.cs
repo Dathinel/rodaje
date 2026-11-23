@@ -2,11 +2,15 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Collab;
+using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
+using Rodaje.App.Views.Inspector;
+using Rodaje.App.Views.Relink;
 using Rodaje.Engine.Timeline;
 
 namespace Rodaje.App.Views.Preferences;
@@ -23,10 +27,17 @@ internal sealed partial class PreferencesView : UserControl
     private uint? _accent;
     private string? _pendingWorkspaceName;
     private bool _loading;
+    private CancellationTokenSource? _relayProbe;
 
     public PreferencesView()
     {
         InitializeComponent();
+        StillImageDurationBox.NumberFormatter = new TypedNumberFormatter(1);
+        AutosaveMinutesBox.NumberFormatter = new TypedNumberFormatter(0);
+        RenderCacheCapBox.NumberFormatter = new TypedNumberFormatter(1);
+        VideoTracksBox.NumberFormatter = new TypedNumberFormatter(0);
+        AudioTracksBox.NumberFormatter = new TypedNumberFormatter(0);
+        CollabOriginalCapBox.NumberFormatter = new TypedNumberFormatter(1);
         ProxyUsageBox.Items.Add("Automático");
         ProxyUsageBox.Items.Add("Siempre que haya");
         ProxyUsageBox.Items.Add("Nunca (originales)");
@@ -46,6 +57,8 @@ internal sealed partial class PreferencesView : UserControl
         ShortcutPresetBox.Items.Add("Estilo Rodaje");
         ShortcutPresetBox.Items.Add("Estilo Ágil");
         ShortcutPresetBox.Items.Add("Estilo Clásico");
+        CollabRelayBox.Items.Add("Relé de pruebas de n0 (por defecto)");
+        CollabRelayBox.Items.Add("Relé propio");
         foreach (int scale in Personalization.Scales)
         {
             ScaleBox.Items.Add($"{scale} %");
@@ -68,7 +81,26 @@ internal sealed partial class PreferencesView : UserControl
         {
             FrameRateBox.Items.Add(label);
         }
+
+        Loaded += (_, _) =>
+        {
+            if (XamlRoot is { } root)
+            {
+                FitHeight(root, null);
+                root.Changed += FitHeight;
+            }
+        };
+        Unloaded += (_, _) =>
+        {
+            if (XamlRoot is { } root)
+            {
+                root.Changed -= FitHeight;
+            }
+        };
     }
+
+    /// <summary>Alto fijo de las pestañas, pero que quepa en la ventana: si no, el diálogo añade su propio desplazamiento.</summary>
+    private void FitHeight(XamlRoot root, XamlRootChangedEventArgs? args) => Tabs.Height = PreferencesViewModel.TabsHeight(root.Size.Height);
 
     /// <summary>El espacio de trabajo elegido en la pestaña, para que la ventana lo aplique al guardar.</summary>
     public string? WorkspaceToApply { get; private set; }
@@ -106,10 +138,25 @@ internal sealed partial class PreferencesView : UserControl
         PreviewQualityBox.SelectedIndex = (int)_model.PreviewQuality;
         TenBitViewerBox.SelectedIndex = (int)_model.TenBitViewer;
         HdrViewerBox.SelectedIndex = (int)_model.HdrViewer;
+        GpuAdapterBox.Items.Clear();
+        IReadOnlyList<string> gpus = PreferencesViewModel.GpuAdapterOptions(OperatingSystem.IsWindowsVersionAtLeast(7)
+            ? Rodaje.Media.Gpu.GpuProfileReader.Current.Adapters.Where(a => !a.IsSoftware).Select(a => a.Name) : Enumerable.Empty<string>(), _model.GpuAdapter);
+        foreach (string gpu in gpus)
+        {
+            GpuAdapterBox.Items.Add(gpu);
+        }
+
+        GpuAdapterBox.SelectedIndex = Math.Max(0, gpus.Skip(1).ToList().FindIndex(n => string.Equals(n, _model.GpuAdapter, StringComparison.OrdinalIgnoreCase)) + 1);
         ShortcutPresetBox.SelectedIndex = (int)_model.ShortcutPreset;
         RenderCacheModeBox.SelectedIndex = (int)_model.RenderCacheMode;
         RenderCacheFolderBox.Text = _model.RenderCacheFolder;
         RenderCacheCapBox.Value = _model.RenderCacheCapGb;
+        CollabOriginalCapBox.Value = _model.CollabOriginalCapGb;
+        CollabRelayUrlBox.Text = _model.CollabRelayUrl;
+        CollabRelayBox.SelectedIndex = _model.CollabRelayUrl.Length > 0 ? 1 : 0;
+        CollabRelayOnlyBox.IsChecked = _model.CollabRelayOnly;
+        CollabAliasBox.Text = _model.CollabAlias;
+        CollabRoomsFolderBox.Text = _model.CollabRoomsFolder;
         LoadPersonalization(settings);
         _loading = false;
     }
@@ -130,6 +177,88 @@ internal sealed partial class PreferencesView : UserControl
         RenderCacheClearButton.IsEnabled = true;
     }
 
+    // Colaboración
+
+    private void OnCollabRelayChanged(object sender, SelectionChangedEventArgs e)
+    {
+        CollabRelayOwnPanel.Visibility = CollabRelayBox.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+        UpdateCollabRelayHint();
+    }
+
+    private void OnCollabRelayUrlChanged(object sender, TextChangedEventArgs e)
+    {
+        CollabRelayProbeText.Text = "";
+        UpdateCollabRelayHint();
+    }
+
+    private void UpdateCollabRelayHint()
+    {
+        if (CollabRelayBox.SelectedIndex != 1 || CollabNetwork.TryNormalizeRelayUrl(CollabRelayUrlBox.Text, out _, out string? problem))
+        {
+            CollabRelayUrlHint.Visibility = Visibility.Collapsed;
+        }
+        else
+        {
+            CollabRelayUrlHint.Text = problem ?? "";
+            CollabRelayUrlHint.Visibility = Visibility.Visible;
+        }
+    }
+
+    private void OnCollabRelayProbeClick(object sender, RoutedEventArgs e)
+    {
+        if (_relayProbe is { } probing)
+        {
+            probing.Cancel();
+            return;
+        }
+
+        if (!CollabNetwork.TryNormalizeRelayUrl(CollabRelayUrlBox.Text, out string? url, out string? problem) || url is null)
+        {
+            CollabRelayProbeText.Text = problem ?? "";
+            return;
+        }
+
+        var cancel = new CancellationTokenSource();
+        _relayProbe = cancel;
+        CollabRelayProbeButton.Content = "Cancelar";
+        CollabRelayProbeText.Text = "Probando…";
+        UiTask.Run(ProbeCollabRelayAsync(url, cancel));
+    }
+
+    // La petición sale de la interfaz y vuelve con el texto: no se bloquea ni se manda nada del usuario (solo la versión de Rodaje en la cabecera).
+    private async Task ProbeCollabRelayAsync(string url, CancellationTokenSource cancel)
+    {
+        string text;
+        try
+        {
+            text = (await CollabNetwork.ProbeAsync(new Uri(url), cancel.Token)).Text;
+        }
+        catch (OperationCanceledException)
+        {
+            text = "Prueba cancelada.";
+        }
+        finally
+        {
+            if (ReferenceEquals(_relayProbe, cancel))
+            {
+                _relayProbe = null;
+            }
+
+            CollabRelayProbeButton.Content = "Probar conexión";
+            cancel.Dispose();
+        }
+
+        CollabRelayProbeText.Text = text;
+    }
+
+    private void OnCollabRoomsFolderClick(object sender, RoutedEventArgs e)
+    {
+        if (FolderDialog.Pick(Owner(), "Carpeta para las copias de sala", Directory.Exists(CollabRoomsFolderBox.Text) ? CollabRoomsFolderBox.Text : null) is { } picked)
+        {
+            CollabRoomsFolderBox.Text = picked;
+        }
+    }
+
     public void Apply()
     {
         if (_model is not { } model || _draft is not { } draft || _registry is not { } registry) return;
@@ -147,9 +276,16 @@ internal sealed partial class PreferencesView : UserControl
         model.PreviewQuality = (PreviewQuality)Math.Max(0, PreviewQualityBox.SelectedIndex);
         model.TenBitViewer = (TenBitViewer)Math.Max(0, TenBitViewerBox.SelectedIndex);
         model.HdrViewer = (HdrViewer)Math.Max(0, HdrViewerBox.SelectedIndex);
+        model.GpuAdapter = GpuAdapterBox.SelectedIndex > 0 ? GpuAdapterBox.SelectedItem as string ?? "" : "";
         model.RenderCacheMode = (Services.RenderCache.RenderCacheMode)Math.Max(0, RenderCacheModeBox.SelectedIndex);
         model.RenderCacheFolder = RenderCacheFolderBox.Text;
         model.RenderCacheCapGb = RenderCacheCapBox.Value;
+        model.CollabOriginalCapGb = CollabOriginalCapBox.Value;
+        model.CollabRelayUrl = CollabRelayBox.SelectedIndex == 1 ? CollabRelayUrlBox.Text : "";
+        model.CollabRelayOnly = CollabRelayOnlyBox.IsChecked == true;
+        model.CollabAlias = CollabAliasBox.Text;
+        model.CollabRoomsFolder = CollabRoomsFolderBox.Text;
+        _relayProbe?.Cancel();
         model.SetLinkedAudioVideoTracks(LinkedAudioTracksPanel.Children.OfType<CheckBox>()
             .Where(checkBox => checkBox.IsChecked == true)
             .Select(checkBox => (int)checkBox.Tag));
@@ -214,6 +350,7 @@ internal sealed partial class PreferencesView : UserControl
     /// <summary>Cancelar: fuera la vista previa, los temas editados, borrados o renombrados y lo importado o restablecido.</summary>
     public void Discard()
     {
+        _relayProbe?.Cancel();
         if (_model is not { } model) return;
         ThemeResources.Store.Load();
         ThemeResources.ApplyCurrent(model.Settings);

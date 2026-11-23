@@ -65,11 +65,13 @@ public static class StillCaptureNaming
 
     /// <summary>
     /// Resuelve la carpeta destino para las capturas: la configurada en preferencias o «Capturas» junto al proyecto.
+    /// Una carpeta configurada que no es una ruta completa («291», «%») no vale: se resolvería contra la carpeta desde la
+    /// que se abrió Rodaje (modo caos, ronda 2).
     /// </summary>
     public static string ResolveCaptureFolder(AppSettings settings, string? projectFilePath)
     {
         ArgumentNullException.ThrowIfNull(settings);
-        if (!string.IsNullOrWhiteSpace(settings.StillCaptureFolder))
+        if (!string.IsNullOrWhiteSpace(settings.StillCaptureFolder) && Path.IsPathFullyQualified(settings.StillCaptureFolder))
         {
             return settings.StillCaptureFolder;
         }

@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Settings;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -14,6 +15,7 @@ public sealed class ExportDialogModel
 {
     private readonly ExportPreferences _preferences;
     private readonly Sequence _sequence;
+    private readonly List<SizeChoice> _presetSizes = [];
 
     /// <param name="marks">Las marcas I y O de la secuencia: con ellas, el rango propuesto es «Entre la entrada y la salida».</param>
     /// <param name="proxyOnlyMedia">Los medios del proyecto que solo tienen la copia ligera de la sala; con ellos no se exporta.</param>
@@ -41,7 +43,7 @@ public sealed class ExportDialogModel
 
         string folder = preferences.Folder is { } f && Directory.Exists(f) ? f
             : projectFolder is { } p && Directory.Exists(p) ? p
-            : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+            : Services.AppDataPaths.UserFolder(Environment.SpecialFolder.MyVideos);
         OutputPath = Path.Combine(folder, ExportRanges.SuggestFileName(projectName, Settings));
     }
 
@@ -121,6 +123,49 @@ public sealed class ExportDialogModel
     public (int Width, int Height) OutputSize => Settings.Video is { } v ? ExportGeometry.OutputSize(v, SequenceWidth, SequenceHeight) : (0, 0);
 
     /// <summary>
+    /// El tamaño que saldría con ese preajuste en esta secuencia: «1080×2400, como la secuencia» o «1920×1080»; vacío si
+    /// el preajuste es solo audio. Depende solo de la secuencia, no de lo elegido.
+    /// </summary>
+    public string PresetSizeLabel(ExportPreset preset)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+        return ExportGeometry.FollowSequence(preset.Settings, SequenceWidth, SequenceHeight).Video is { } video
+            ? SizeLabel(ExportGeometry.OutputSize(video, SequenceWidth, SequenceHeight))
+            : "";
+    }
+
+    /// <summary>«1080×2400, como la secuencia» o «1920×1080».</summary>
+    public string SizeLabel((int Width, int Height) size) =>
+        size == (SequenceWidth, SequenceHeight) ? $"{size.Width}×{size.Height}, como la secuencia" : $"{size.Width}×{size.Height}";
+
+    /// <summary>El estándar más cercano si la salida tiene un tamaño raro (1080×2400 → 1080×1920); nulo si ya es estándar o no hay video.</summary>
+    public (int Width, int Height)? StandardSuggestion =>
+        Settings.Video is null || OutputSize is var (w, h) && ProjectFormats.IsStandard(w, h) ? null : ProjectFormats.NearestStandard(OutputSize.Width, OutputSize.Height);
+
+    /// <summary>Exporta al estándar sugerido sin tocar el proyecto, rellenando el cuadro (Barras se elige en Avanzado › Forma).</summary>
+    public void UseStandardSize()
+    {
+        if (StandardSuggestion is var (w, h))
+        {
+            Update(s => s with { Video = s.Video! with { Width = w, Height = h, Fit = ExportFit.Crop } });
+        }
+    }
+
+    // Ni los textos ni los elementos de estas dos listas dependen de lo elegido en ellas: elegir no puede rehacer el desplegable
+    // que se acaba de usar, porque WinUI cierra la app sin rastro (tarea 91). Pasaba con «Como la secuencia (60)» al elegir
+    // 60 fps y con el tamaño «del preajuste» de las secuencias de tamaño raro, que desaparecía al elegir otro.
+
+    /// <summary>Los textos del desplegable de tasas, en el orden de <see cref="ExportGeometry.FrameRates"/>.</summary>
+    public IReadOnlyList<string> FrameRateLabels =>
+        [.. ExportGeometry.FrameRates.Select(f => f.Rate is null ? $"Como la secuencia ({ExportText.Number(SequenceFrameRate.ToDouble(), 3)})" : f.Label)];
+
+    /// <summary>
+    /// Los tamaños del desplegable: los de <see cref="ExportGeometry.Sizes"/> y, al final, los que trajo algún preajuste
+    /// mientras el diálogo está abierto (se quedan aunque se elija otro).
+    /// </summary>
+    public IReadOnlyList<SizeChoice> SizeChoices => [.. ExportGeometry.Sizes(SequenceWidth, SequenceHeight), .. _presetSizes];
+
+    /// <summary>
     /// El preajuste elegido es de redes con otra forma que la del proyecto (Reels 9:16 con un proyecto 16:9): la salida
     /// sigue al proyecto y la vista ofrece cambiar el formato del proyecto. Los de 16:9 (YouTube, maestros) no avisan.
     /// También avisa si el preajuste fija otra cadencia que la del proyecto (Vertical 9:16 a 30 fps). Nulo si no.
@@ -179,7 +224,12 @@ public sealed class ExportDialogModel
             : check;
 
     /// <summary>Lo que impide exportar (vacío si se puede); la ruta que ya existe no impide, pide confirmar.</summary>
-    public IReadOnlyList<string> Problems => [.. ExportSettingsEditor.Validate(Settings, Encoders).Select(p => p.Message), .. VersionProblems];
+    public IReadOnlyList<string> Problems => [.. ExportSettingsEditor.Validate(Settings, Encoders).Select(p => p.Message), .. OutputProblems, .. VersionProblems];
+
+    /// <summary>Lo que el codificador no hace con el tamaño y la tasa reales (H.264 por GPU sobre una secuencia 8K, 240 fps).</summary>
+    private IEnumerable<string> OutputProblems => Settings.Video is not null && VideoEncoder is { } encoder
+        ? ExportSettingsValidator.CheckOutput(encoder, OutputSize.Width, OutputSize.Height, FrameRate).Select(p => p.Message)
+        : [];
 
     /// <summary>Los nombres de los medios del proyecto que solo tienen la copia ligera de la sala (B14).</summary>
     public IReadOnlyList<string> ProxyOnlyMedia { get; }
@@ -398,7 +448,7 @@ public sealed class ExportDialogModel
             throw new InvalidOperationException(string.Join(" ", problems));
         }
 
-        string folder = Path.GetDirectoryName(OutputPath) is { Length: > 0 } dir ? dir : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+        string folder = Path.GetDirectoryName(OutputPath) is { Length: > 0 } dir ? dir : Services.AppDataPaths.UserFolder(Environment.SpecialFolder.MyVideos);
         string baseName = Path.GetFileNameWithoutExtension(OutputPath);
         var requests = new List<ExportRequest>();
         var used = new HashSet<string>(PendingOutputs, StringComparer.OrdinalIgnoreCase);
@@ -458,6 +508,12 @@ public sealed class ExportDialogModel
         CoercedSettings coerced = ExportSettingsEditor.Coerce(settings, Encoders);
         Settings = coerced.Settings;
         Adjustments = coerced.Changes;
+        if (Settings.Video is { } video && !SizeChoices.Any(z => z.Width == video.Width && z.Height == video.Height))
+        {
+            (int w, int h) = OutputSize;
+            _presetSizes.Add(new SizeChoice($"{w}×{h} (del preajuste)", video.Width, video.Height));
+        }
+
         if (!keepPreset && ExportPresetLibrary.Find(_preferences, PresetId) is { } preset && !PresetMatches(preset, Settings))
         {
             PresetId = ExportPresetLibrary.CustomId;

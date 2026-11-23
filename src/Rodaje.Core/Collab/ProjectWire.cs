@@ -20,6 +20,9 @@ public static class ProjectWire
     /// <summary>Tamaño máximo del texto de una copia inicial (64 MiB, el límite del diseño).</summary>
     public const int MaxBytes = 64 << 20;
 
+    /// <summary>Elementos compartidos como máximo en una copia inicial: cada uno llega como un cambio del parche.</summary>
+    public const int MaxElements = 100_000;
+
     private static WireLimits InitialLimits { get; } = new() { MaxPatchBytes = MaxBytes, MaxOps = 1_000_000 };
 
     /// <summary>
@@ -27,10 +30,10 @@ public static class ProjectWire
     /// ellas, todo empieza en la versión 0.
     /// </summary>
     /// <exception cref="Rodaje.Core.Serialization.ProjectFormatException">Si el proyecto tiene un valor que el archivo no puede guardar.</exception>
-    public static string ToJson(Project project, ElementVersions? versions = null, IBlobMap? blobs = null)
+    public static string ToJson(Project project, ElementVersions? versions = null, IBlobMap? blobs = null, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(project);
-        SharedState full = SharedState.Capture(project, blobs);
+        SharedState full = SharedState.Capture(project, blobs, cancellationToken);
         var empty = new SharedState(project.Id, new Dictionary<ElementKey, ElementState>(), new Dictionary<string, IReadOnlyList<string>>());
         Patch patch = PatchDiff.Create(empty, full, new ElementVersions(), new PatchHeader("inicial", 0, "anfitrion", "Proyecto inicial"))
             ?? new Patch("inicial", 0, "anfitrion", "Proyecto inicial", [], [], []);
@@ -54,8 +57,14 @@ public static class ProjectWire
     /// Lee la copia inicial que llegó del anfitrión y arma el proyecto (sin nombre y con los medios sin ruta). Nunca lanza: un
     /// texto hostil, demasiado grande o que dejaría el proyecto inválido devuelve el rechazo.
     /// </summary>
-    public static ProjectParseResult TryParse(string json, IBlobMap? blobs = null)
+    /// <param name="json">El texto de la copia inicial.</param>
+    /// <param name="blobs">Dónde están los archivos por huella que el parche referencia.</param>
+    /// <param name="maxElements">Tope de elementos de la copia (los cambios del parche): las pruebas lo bajan para provocar el rechazo.</param>
+    /// <param name="cancellationToken">Cancela la lectura y la aplicación de la copia (puede llevar decenas de miles de elementos).</param>
+    /// <exception cref="OperationCanceledException">Si se cancela mientras se lee o se aplica.</exception>
+    public static ProjectParseResult TryParse(string json, IBlobMap? blobs = null, int maxElements = MaxElements, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (json is null || Encoding.UTF8.GetByteCount(json) > MaxBytes)
         {
             return Rejected(PatchRejectionReason.TooLarge, "La copia inicial del proyecto es más grande de lo que admite la sala.");
@@ -85,14 +94,20 @@ public static class ProjectWire
                 return Rejected(PatchRejectionReason.Malformed, "La copia inicial trae versiones que no son válidas.");
             }
 
-            PatchParseResult parsed = PatchWire.TryParse(patchJson.GetRawText(), InitialLimits);
+            PatchParseResult parsed = PatchWire.TryParse(patchJson.GetRawText(), InitialLimits, cancellationToken);
             if (parsed.Patch is null)
             {
                 return new ProjectParseResult(null, null, parsed.Rejection);
             }
 
+            if (parsed.Patch.Ops.Count > maxElements)
+            {
+                return Rejected(PatchRejectionReason.TooLarge, $"La copia inicial del proyecto trae más de {maxElements} elementos.");
+            }
+
             var project = new Project { Id = projectId };
-            PatchResult applied = PatchApply.TryApply(project, new ElementVersions(), parsed.Patch, new PatchApplyOptions { Limits = InitialLimits, Blobs = blobs });
+            PatchResult applied = PatchApply.TryApply(project, new ElementVersions(), parsed.Patch,
+                new PatchApplyOptions { Limits = InitialLimits, Blobs = blobs, CancellationToken = cancellationToken });
             return applied.IsAccepted
                 ? new ProjectParseResult(project, versions, null)
                 : new ProjectParseResult(null, null, applied.Rejection);

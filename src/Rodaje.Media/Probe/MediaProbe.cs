@@ -70,8 +70,14 @@ public static unsafe class MediaProbe
     public static Rational? ResolveFrameRate(Rational? average, Rational? real, Rational? measured, bool variable)
     {
         Rational? chosen = ChooseFrameRate(average, real);
-        // Con tasa variable el promedio (29,87…) numeraría mal; el intervalo más común es la tasa nominal.
-        return Sane(measured) is { } m && (chosen is null || variable) ? m : chosen;
+        // Con tasa variable el promedio (29,87…) numeraría mal; el intervalo más común es la tasa nominal. Lo mismo si el
+        // intervalo coincide con r_frame_rate: un cuadro perdido a mitad del archivo baja el promedio sin cambiar la tasa.
+        // Pero no si el intervalo más común es el de cuadros repetidos a 1-2 ms (capturas de pantalla): daba 500 fps y 1493
+        // cuadros en un clip de 3 s.
+        Rational? r = Sane(real);
+        return Sane(measured) is { } m && (chosen is null || variable || m == r) && !(r is { } nominal && m.ToDouble() > nominal.ToDouble() * 1.5)
+            ? m
+            : chosen;
     }
 
     private static Rational? Sane(Rational? rate) => rate is { } v && v.ToDouble() is >= 1 and <= 1000 ? SnapFrameRate(v) : null;
@@ -211,16 +217,27 @@ public static unsafe class MediaProbe
         Rational? real = ToRational(stream->r_frame_rate);
         bool vfr = average is { } a && real is { } r && Math.Abs(a.ToDouble() - r.ToDouble()) / r.ToDouble() > 0.02;
         Rational? measured = null;
+        long? firstPts = null;
+        int hidden = 0;
         if (scan)
         {
-            (measured, bool irregular) = ScanTimestamps(format, index);
+            (measured, bool irregular, firstPts, hidden) = ScanTimestamps(format, index);
             vfr |= irregular;
         }
 
         Rational rate = ResolveFrameRate(average, real, measured, vfr) ?? Rational.Fps30;
         Time start = StreamStart(stream, containerStart);
+        // En MPEG-TS con cuadros B, start_time es el primer dts y el primer cuadro se muestra uno o dos después: con ese
+        // origen el cuadro 0 no existía y no se veía ni se exportaba nada. Solo se sube: una lista de edición deja marcas antes.
+        if (firstPts is { } pts && Av.TryToTime(pts, stream->time_base, out Time first) && first > start)
+        {
+            start = first;
+        }
+
         Time? streamDuration = StreamDuration(stream, start, containerStart, containerDuration);
-        long frameCount = SafeFrameCount(stream->nb_frames > 0
+        // nb_frames cuenta también las muestras que una lista de edición oculta al principio (un MP4 recortado sin recodificar):
+        // el clip salía más largo, con el último cuadro congelado al final. Con muestras ocultas manda la duración de la edición.
+        long frameCount = SafeFrameCount(stream->nb_frames > 0 && hidden == 0
             ? stream->nb_frames
             : streamDuration is { } sd ? Math.Max(1, (long)Av.RoundDiv((Int128)sd.Ticks * rate.Num, (Int128)Time.TicksPerSecond * rate.Den)) : 0, rate);
         Time duration = vfr && streamDuration is { } vd ? vd : Time.FromFrames(frameCount, rate);
@@ -363,6 +380,14 @@ public static unsafe class MediaProbe
             start = Math.Min(start, dts);
         }
 
+        // image2 (una foto) acepta la búsqueda por marca, pero después ya no entrega su único paquete: la foto no daba
+        // cuadro ni miniatura y no se exportaba. A byte 0 sí lo vuelve a leer.
+        string name = Marshal.PtrToStringUTF8((nint)format->iformat->name) ?? "";
+        if (MediaSupport.IsStillImageDemuxer(name) && ffmpeg.av_seek_frame(format, -1, 0, ffmpeg.AVSEEK_FLAG_BYTE) >= 0)
+        {
+            return;
+        }
+
         if (ffmpeg.avformat_seek_file(format, index, long.MinValue, start, start, 0) < 0)
         {
             ffmpeg.av_seek_frame(format, index, start, ffmpeg.AVSEEK_FLAG_BACKWARD);
@@ -371,7 +396,7 @@ public static unsafe class MediaProbe
 
     // Lee (sin decodificar) los primeros paquetes del flujo: los intervalos entre marcas de presentación
     // revelan si la tasa es variable y sirven de tasa de reserva cuando el contenedor no declara ninguna.
-    private static (Rational? Measured, bool Irregular) ScanTimestamps(AVFormatContext* format, int index)
+    private static (Rational? Measured, bool Irregular, long? FirstPts, int Hidden) ScanTimestamps(AVFormatContext* format, int index)
     {
         AVStream* stream = format->streams[index];
         var timestamps = new List<long>(VfrScanPackets);
@@ -403,12 +428,27 @@ public static unsafe class MediaProbe
             RewindToStart(format, index, firstDts);
         }
 
-        if (timestamps.Count < 3)
+        if (timestamps.Count == 0)
         {
-            return (null, false);
+            return (null, false, null, 0);
+        }
+
+        // shortcut: solo ve las ocultas entre los primeros paquetes leídos; una lista de edición que oculte más se queda corta.
+        long start = stream->start_time == ffmpeg.AV_NOPTS_VALUE ? long.MinValue : stream->start_time;
+        int hidden = timestamps.Count(t => t < start);
+        timestamps.RemoveAll(t => t < start);
+        if (timestamps.Count == 0)
+        {
+            return (null, false, null, hidden);
         }
 
         timestamps.Sort();
+        long firstPts = timestamps[0];
+        if (timestamps.Count < 3)
+        {
+            return (null, false, firstPts, hidden);
+        }
+
         // Los paquetes llegan en orden de decodificación: con B-frames, los últimos leídos pueden dejar
         // huecos en el orden de presentación que no son de la tasa.
         if (timestamps.Count > 32)
@@ -426,7 +466,7 @@ public static unsafe class MediaProbe
         long median = deltas[deltas.Count / 2];
         if (median <= 0)
         {
-            return (null, false);
+            return (null, false, firstPts, hidden);
         }
 
         // Una marca redondeada a la base de tiempo puede bailar ±1 unidad sin que la tasa cambie.
@@ -435,6 +475,6 @@ public static unsafe class MediaProbe
         Rational? measured = Av.IsValid(stream->time_base)
             ? SnapFrameRate(new Rational(stream->time_base.den, median * stream->time_base.num))
             : null;
-        return (measured, irregular);
+        return (measured, irregular, firstPts, hidden);
     }
 }

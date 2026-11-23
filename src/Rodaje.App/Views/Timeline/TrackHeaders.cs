@@ -8,6 +8,7 @@ using Microsoft.UI.Xaml.Shapes;
 using Rodaje.App.Services.Audio;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Theme;
+using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Model;
 
 namespace Rodaje.App.Views.Timeline;
@@ -57,6 +58,12 @@ internal sealed class TrackHeaders
     public Func<string, string>? KeyText { get; set; }
 
     private string Key(string actionId) => KeyText?.Invoke(actionId) ?? "";
+
+    /// <summary>
+    /// Lo que pide un botón o el menú de una cabecera, después de su clic: cambiar M/S/L, subir, bajar o borrar rehace las
+    /// cabeceras y quita del árbol el botón pulsado (o el ancla del menú), lo que WinUI no tolera dentro del clic (tarea 91).
+    /// </summary>
+    private void Later(Action action) => _canvas.DispatcherQueue.RunAfterEvent(action);
 
     public TrackHeaders(Canvas canvas, TimelineBrushes brushes, Style toggleStyle)
     {
@@ -113,6 +120,12 @@ internal sealed class TrackHeaders
 
     /// <summary>Se soltó una cabecera arrastrada: la posición nueva dentro de su tipo.</summary>
     public event Action<string, int>? ReorderRequested;
+
+    /// <summary>Del menú de una cabecera, en una sala: pedir la pista a quien la tiene reservada.</summary>
+    public event Action<string>? AskTrackRequested;
+
+    /// <summary>Quién tiene la pista reservada si se le puede pedir (otra persona de la sala); <c>null</c> oculta «Pedir la pista».</summary>
+    public Func<string, string?>? TrackOwnerToAsk { get; set; }
 
     /// <summary>Si la pista puede subir (true) o bajar; la da la vista, que conoce la secuencia.</summary>
     public Func<string, bool, bool>? CanStep { get; set; }
@@ -443,27 +456,28 @@ internal sealed class TrackHeaders
     private MenuFlyout Menu(TrackRow row)
     {
         var menu = new MenuFlyout();
+        AddAskItem(menu, row.TrackId);
         var height = new MenuFlyoutSubItem { Text = "Alto de la pista", Icon = new FontIcon { Glyph = "" } };
         foreach ((string text, int? value) in Heights)
         {
             var item = new RadioMenuFlyoutItem { Text = text, GroupName = "alto-" + row.TrackId, IsChecked = row.Track.Height == value };
-            item.Click += (_, _) =>
+            item.Click += (_, _) => Later(() =>
             {
                 HeightChanging?.Invoke(row.TrackId, value);
                 HeightCommitted?.Invoke(row.TrackId);
-            };
+            });
             height.Items.Add(item);
         }
 
         menu.Items.Add(height);
         AddOrderItems(menu, row);
         var gaps = new MenuFlyoutItem { Text = "Cerrar todos los huecos de la pista", Icon = new FontIcon { Glyph = "" }, IsEnabled = !row.Track.Locked };
-        gaps.Click += (_, _) => CloseGapsRequested?.Invoke(row.TrackId);
+        gaps.Click += (_, _) => Later(() => CloseGapsRequested?.Invoke(row.TrackId));
         gaps.KeyboardAcceleratorTextOverride = Key(TimelineShortcuts.CloseGaps);
         menu.Items.Add(gaps);
         menu.Items.Add(new MenuFlyoutSeparator());
         var add = new MenuFlyoutItem { Text = "Añadir pista de subtítulos", Icon = new FontIcon { Glyph = "" } };
-        add.Click += (_, _) => SubtitleTrackRequested?.Invoke();
+        add.Click += (_, _) => Later(() => SubtitleTrackRequested?.Invoke());
         add.KeyboardAcceleratorTextOverride = Key(ActionIds.AddSubtitleTrack);
         menu.Items.Add(add);
         if (row.Kind == TrackKind.Video && !row.IsMain)
@@ -471,7 +485,7 @@ internal sealed class TrackHeaders
             bool subtitles = row.Track.Role == TrackRoles.Subtitles;
             var role = new ToggleMenuFlyoutItem { Text = "Usar para subtítulos", IsChecked = subtitles, IsEnabled = !row.Track.Locked };
             string trackId = row.TrackId;
-            role.Click += (_, _) => SubtitleRoleRequested?.Invoke(trackId, !subtitles);
+            role.Click += (_, _) => Later(() => SubtitleRoleRequested?.Invoke(trackId, !subtitles));
             menu.Items.Add(role);
             if (subtitles)
             {
@@ -491,10 +505,10 @@ internal sealed class TrackHeaders
         {
             var solo = new ToggleMenuFlyoutItem { Text = "Solo", IsChecked = row.Track.Solo };
             string soloTrack = row.TrackId;
-            solo.Click += (_, _) => Toggled?.Invoke(soloTrack, TrackToggle.Solo);
+            solo.Click += (_, _) => Later(() => Toggled?.Invoke(soloTrack, TrackToggle.Solo));
             solo.KeyboardAcceleratorTextOverride = Key(TimelineShortcuts.SoloTrack);
             var exclusive = new MenuFlyoutItem { Text = "Solo exclusivo (solo esta pista)" };
-            exclusive.Click += (_, _) => Toggled?.Invoke(soloTrack, TrackToggle.SoloExclusive);
+            exclusive.Click += (_, _) => Later(() => Toggled?.Invoke(soloTrack, TrackToggle.SoloExclusive));
             menu.Items.Add(new MenuFlyoutSeparator());
             menu.Items.Add(solo);
             menu.Items.Add(exclusive);
@@ -535,6 +549,27 @@ internal sealed class TrackHeaders
         return menu;
     }
 
+    /// <summary>«Pedir la pista a Ana»: solo se ve al abrir el menú si otra persona de la sala tiene la pista reservada.</summary>
+    private void AddAskItem(MenuFlyout menu, string trackId)
+    {
+        if (TrackOwnerToAsk is null)
+        {
+            return;
+        }
+
+        var ask = new MenuFlyoutItem { Text = "Pedir la pista", Icon = new FontIcon { Glyph = "\uE77B" }, Visibility = Visibility.Collapsed };
+        ask.Click += (_, _) => AskTrackRequested?.Invoke(trackId);
+        var separator = new MenuFlyoutSeparator { Visibility = Visibility.Collapsed };
+        menu.Items.Add(ask);
+        menu.Items.Add(separator);
+        menu.Opening += (_, _) =>
+        {
+            string? owner = TrackOwnerToAsk?.Invoke(trackId);
+            ask.Visibility = separator.Visibility = owner is null ? Visibility.Collapsed : Visibility.Visible;
+            ask.Text = owner is null ? "Pedir la pista" : $"Pedir la pista a {owner}";
+        };
+    }
+
     private void AddOrderItems(MenuFlyout menu, TrackRow row)
     {
         string trackId = row.TrackId;
@@ -546,9 +581,9 @@ internal sealed class TrackHeaders
             ToolTipService.SetToolTip(delete, "La pista principal no se elimina");
         }
 
-        up.Click += (_, _) => StepRequested?.Invoke(trackId, true);
-        down.Click += (_, _) => StepRequested?.Invoke(trackId, false);
-        delete.Click += (_, _) => DeleteRequested?.Invoke(trackId);
+        up.Click += (_, _) => Later(() => StepRequested?.Invoke(trackId, true));
+        down.Click += (_, _) => Later(() => StepRequested?.Invoke(trackId, false));
+        delete.Click += (_, _) => Later(() => DeleteRequested?.Invoke(trackId));
         delete.KeyboardAcceleratorTextOverride = Key(ActionIds.Delete);
         menu.Opening += (_, _) =>
         {
@@ -569,7 +604,7 @@ internal sealed class TrackHeaders
             ToolTipService.SetToolTip(item, preset.Description);
         }
 
-        item.Click += (_, _) => AudioPresetRequested?.Invoke(trackId, preset);
+        item.Click += (_, _) => Later(() => AudioPresetRequested?.Invoke(trackId, preset));
         return item;
     }
 
@@ -671,7 +706,7 @@ internal sealed class TrackHeaders
         TimelineView.KeepOffFocus(button);
         ToolTipService.SetToolTip(button, tip);
         string trackId = track.Id;
-        button.Click += (_, _) => Toggled?.Invoke(trackId, which);
+        button.Click += (_, _) => Later(() => Toggled?.Invoke(trackId, which));
         return button;
     }
 
@@ -700,7 +735,7 @@ internal sealed class TrackHeaders
         {
             bool ctrl = Microsoft.UI.Input.InputKeyboardSource.GetKeyStateForCurrentThread(Windows.System.VirtualKey.Control)
                 .HasFlag(Windows.UI.Core.CoreVirtualKeyStates.Down);
-            Toggled?.Invoke(trackId, ctrl ? TrackToggle.SoloExclusive : TrackToggle.Solo);
+            Later(() => Toggled?.Invoke(trackId, ctrl ? TrackToggle.SoloExclusive : TrackToggle.Solo));
         };
         return button;
     }

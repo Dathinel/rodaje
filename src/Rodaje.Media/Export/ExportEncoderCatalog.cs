@@ -20,6 +20,9 @@ public static class ExportEncoderCatalog
     private const string UntestedAmdNote = "Sin probar en un equipo AMD; la sonda decide si se ofrece.";
     private const string UntestedIntelNote = "Sin probar en un equipo Intel; la sonda decide si se ofrece.";
 
+    // H.264 por GPU (NVENC, AMF y QSV) llega a 4096 px por lado; HEVC y AV1 llegan a 8K, y su límite lo pone la sonda.
+    private const int GpuH264MaxSide = 4096;
+
     private static readonly IReadOnlyList<RateControlMode> GpuRates =
         [RateControlMode.ConstantQuality, RateControlMode.Vbr, RateControlMode.Cbr, RateControlMode.Abr];
 
@@ -39,6 +42,7 @@ public static class ExportEncoderCatalog
     private static EncoderSpec NvencH264 { get; } = new()
     {
         Id = "h264_nvenc", Codec = ExportCodec.H264, IsHardware = true, Vendor = EncoderVendor.Nvidia, License = EncoderLicense.SystemOrDriver,
+        MaxSide = GpuH264MaxSide,
         PixelFormats = [ExportPixelFormat.Nv12, ExportPixelFormat.Yuv444P],
         Profiles =
         [
@@ -56,7 +60,7 @@ public static class ExportEncoderCatalog
 
     private static EncoderSpec NvencHevc { get; } = NvencH264 with
     {
-        Id = "hevc_nvenc", Codec = ExportCodec.Hevc,
+        Id = "hevc_nvenc", Codec = ExportCodec.Hevc, MaxSide = null,
         PixelFormats = [ExportPixelFormat.Nv12, ExportPixelFormat.P010, ExportPixelFormat.Yuv444P],
         Profiles =
         [
@@ -70,7 +74,7 @@ public static class ExportEncoderCatalog
 
     private static EncoderSpec NvencAv1 { get; } = NvencH264 with
     {
-        Id = "av1_nvenc", Codec = ExportCodec.Av1,
+        Id = "av1_nvenc", Codec = ExportCodec.Av1, MaxSide = null,
         Note = "Solo RTX 40 (Ada) o posterior.",
         PixelFormats = [ExportPixelFormat.Nv12, ExportPixelFormat.P010],
         // AV1 solo tiene el perfil Main en la GPU: sin -profile:v (av1_nvenc no admite «main» como valor).
@@ -84,6 +88,7 @@ public static class ExportEncoderCatalog
     private static EncoderSpec AmfH264 { get; } = new()
     {
         Id = "h264_amf", Codec = ExportCodec.H264, IsHardware = true, Vendor = EncoderVendor.Amd, License = EncoderLicense.SystemOrDriver,
+        MaxSide = GpuH264MaxSide,
         Note = UntestedAmdNote,
         PixelFormats = [ExportPixelFormat.Nv12],
         Profiles = [new("high", "High"), new("main", "Main"), new("constrained_baseline", "Constrained Baseline")],
@@ -96,7 +101,7 @@ public static class ExportEncoderCatalog
 
     private static EncoderSpec AmfHevc { get; } = AmfH264 with
     {
-        Id = "hevc_amf", Codec = ExportCodec.Hevc,
+        Id = "hevc_amf", Codec = ExportCodec.Hevc, MaxSide = null,
         PixelFormats = [ExportPixelFormat.Nv12, ExportPixelFormat.P010],
         Profiles =
         [
@@ -119,6 +124,7 @@ public static class ExportEncoderCatalog
     private static EncoderSpec QsvH264 { get; } = new()
     {
         Id = "h264_qsv", Codec = ExportCodec.H264, IsHardware = true, Vendor = EncoderVendor.Intel, License = EncoderLicense.SystemOrDriver,
+        MaxSide = GpuH264MaxSide,
         Note = UntestedIntelNote,
         PixelFormats = [ExportPixelFormat.Nv12],
         Profiles = [new("high", "High"), new("main", "Main"), new("baseline", "Baseline")],
@@ -131,7 +137,7 @@ public static class ExportEncoderCatalog
 
     private static EncoderSpec QsvHevc { get; } = QsvH264 with
     {
-        Id = "hevc_qsv", Codec = ExportCodec.Hevc,
+        Id = "hevc_qsv", Codec = ExportCodec.Hevc, MaxSide = null,
         PixelFormats = [ExportPixelFormat.Nv12, ExportPixelFormat.P010],
         Profiles =
         [
@@ -160,13 +166,15 @@ public static class ExportEncoderCatalog
         Note = "Codificador de Windows por CPU; falta en las ediciones N sin el Media Feature Pack.",
         PixelFormats = [ExportPixelFormat.Nv12],
         BaseArguments = ["-hw_encoding", "0"],
+        // Medido con el MFT de Microsoft: 172 cuadros por segundo abre, 173 no (a cualquier tamaño; 8K sí abre).
+        MaxFrameRate = 172,
         RateControls = [RateControlMode.ConstantQuality, RateControlMode.Vbr, RateControlMode.Cbr, RateControlMode.Abr],
         Quality = new("Calidad", "-quality", 0, 100, 60, LowerIsBetter: false),
     };
 
     private static EncoderSpec MfHevc { get; } = MfH264 with
     {
-        Id = "hevc_mf", Codec = ExportCodec.Hevc,
+        Id = "hevc_mf", Codec = ExportCodec.Hevc, MaxFrameRate = null,
         Note = "Codificador de Windows por CPU; necesita las «Extensiones de video HEVC» de Microsoft Store.",
     };
 

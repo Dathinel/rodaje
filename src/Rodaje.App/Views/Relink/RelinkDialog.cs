@@ -21,12 +21,14 @@ namespace Rodaje.App.Views.Relink;
 internal static class RelinkDialog
 {
     private static Func<Task>? s_reopen;
+    private static MediaRelinkService? s_relink;
 
     /// <summary>Muestra el diálogo cada vez que se abre un proyecto con medios que faltan.</summary>
     public static void Attach(EditorServices services, nint hwnd)
     {
         ArgumentNullException.ThrowIfNull(services);
         var relink = new MediaRelinkService(new FfmpegMediaProber());
+        s_relink = relink;
         relink.Attach(services.Session, missing => ShowAsync(services, hwnd, relink, missing));
         s_reopen = async () =>
         {
@@ -50,6 +52,13 @@ internal static class RelinkDialog
 
     /// <summary>«Volver a enlazar…» de la biblioteca: mira qué falta ahora y abre el diálogo.</summary>
     public static Task ReopenAsync() => s_reopen?.Invoke() ?? Task.CompletedTask;
+
+    /// <summary>Mientras dure, abrir ese proyecto no lanza este diálogo (ver <see cref="MediaRelinkService.SkipCheckWhileOpening"/>).</summary>
+    public static IDisposable? SkipCheckWhileOpening(string projectFile)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectFile);
+        return s_relink?.SkipCheckWhileOpening(projectFile);
+    }
 
     private sealed class Row(MediaRef media, TextBlock status, Button pick, Button confirm)
     {
@@ -98,8 +107,12 @@ internal static class RelinkDialog
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var text = new StackPanel();
             int clips = MediaRelinkEdits.CountClips(project, media.Id);
-            text.Children.Add(new TextBlock { Text = MediaRelinkSearch.FileName(media.Path), FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-            text.Children.Add(new TextBlock { Text = media.Path, FontSize = ThemeResources.Size("BodyFontSize"), Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis });
+            text.Children.Add(new TextBlock { Text = MediaRelinkService.DisplayName(media), FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+            if (MediaRelinkService.DisplayPath(media) is { } shownPath)
+            {
+                text.Children.Add(new TextBlock { Text = shownPath, FontSize = ThemeResources.Size("BodyFontSize"), Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis });
+            }
+
             var status = new TextBlock { Text = clips == 1 ? "Falta · en 1 clip" : $"Falta · en {clips} clips", FontSize = ThemeResources.Size("BodyFontSize"), TextWrapping = TextWrapping.Wrap };
             text.Children.Add(status);
             var pick = new Button { Content = "Elegir…", VerticalAlignment = VerticalAlignment.Center };
@@ -254,8 +267,8 @@ internal static class RelinkDialog
 
         async Task PickAsync(Row row)
         {
-            string name = MediaRelinkSearch.FileName(row.Media.Path);
-            string extension = Path.GetExtension(name);
+            string name = MediaRelinkService.DisplayName(row.Media);
+            string extension = MediaRelinkService.DisplayPath(row.Media) is { } shown ? Path.GetExtension(MediaRelinkSearch.FileName(shown)) : "";
             (string Name, string Spec)[] filters = extension.Length > 1
                 ? [($"Archivos {extension}", "*" + extension), FileDialogs.MediaFilter, FileDialogs.AllFilter]
                 : [FileDialogs.MediaFilter, FileDialogs.AllFilter];
@@ -287,7 +300,7 @@ internal static class RelinkDialog
                 && string.Equals(p, target.Path, StringComparison.OrdinalIgnoreCase)).ToList())
             {
                 proposed.Remove(other.Media.Id);
-                other.Status.Text = $"El archivo que se proponía se eligió para «{MediaRelinkSearch.FileName(row.Media.Path)}»: busca este de nuevo o elígelo.";
+                other.Status.Text = $"El archivo que se proponía se eligió para «{name}»: busca este de nuevo o elígelo.";
             }
 
             row.Status.Text = target.Probe is null

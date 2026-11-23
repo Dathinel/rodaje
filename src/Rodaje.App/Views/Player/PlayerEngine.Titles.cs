@@ -27,6 +27,9 @@ internal sealed partial class PlayerEngine
     private ITitleRasterizer? _titles;
     private int _titleReady;
     private IReadOnlyList<string>? _pendingFonts;
+
+    /// <summary>Las fuentes ya registradas en <see cref="_titles"/>, para volver a darlas al rehacer el dispositivo.</summary>
+    private IReadOnlyList<string>? _fontFiles;
     private IReadOnlyList<MissingFont> _missingFonts = [];
     private TitleBox[] _titleBoxes = [];
     private TaskCompletionSource<FrameCapture>? _pendingCapture;
@@ -153,6 +156,7 @@ internal sealed partial class PlayerEngine
             _titles.Dispose();
             CreateTitles();
             IReadOnlyList<string> rejected = _titles!.RegisterFonts(fonts);
+            _fontFiles = fonts;
             if (rejected.Count > 0)
             {
                 _metrics.Note($"fuentes rechazadas por DirectWrite: {string.Join(", ", rejected.Select(Path.GetFileName))}");

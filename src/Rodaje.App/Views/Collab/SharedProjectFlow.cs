@@ -1,10 +1,11 @@
-using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Collab;
 using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.Operations;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Relink;
 using Rodaje.Core.Model;
 using Rodaje.Core.Serialization;
 
@@ -25,67 +26,90 @@ internal static class SharedProjectFlow
 
         RoomService room = collab.Room;
         string host = room.State.Members.FirstOrDefault(m => m.IsHost)?.Alias ?? "quien hospeda la sala";
-        ReceivedProject? received = null;
-        while (received is null)
+        for (int attempt = 1; ; attempt++)
         {
-            (received, bool retry) = await ReceiveWithDialogAsync(services, room, roomFolder);
-            if (received is null && !retry)
+            ReceivedProject? received = null;
+            while (received is null)
+            {
+                (received, bool retry) = await ReceiveWithDialogAsync(services, room, roomFolder);
+                if (received is null && !retry)
+                {
+                    await room.LeaveAsync();
+                    services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", "No se recibió el proyecto. Puedes volver a entrar con la invitación o pedir otra.");
+                    return;
+                }
+            }
+
+            // El medio se queda con el nombre que trae el manifiesto (el archivo del anfitrión): así lo enseña cualquier
+            // aviso de «Faltan medios» en vez del id interno o de «Medio sin nombre».
+            MediaPlaceholders.FillNames(received.Project, received.Media);
+
+            var proxies = new RoomProxies(room, roomFolder, received.Media);
+            var originals = new RoomOriginals(room, roomFolder, received.Media, () => collab.OriginalCap?.Invoke());
+            IReadOnlyDictionary<string, string>? found = await MediaSearchDialog.ShowAsync(services, hwnd, received, host, proxies, originals);
+            if (found is null)
+            {
+                // Cerrar «Busca tus archivos» o pulsar «Salir de la sala» es salir: no se abre un proyecto que la persona no quiso abrir.
+                await room.LeaveAsync();
+                services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", "Todavía no se abrió ningún proyecto. Puedes volver a entrar con la invitación.");
+                return;
+            }
+
+            foreach ((string id, string path) in found)
+            {
+                if (received.Project.FindMedia(id) is { } media)
+                {
+                    media.Path = path;
+                }
+            }
+
+            string file = UniquePath(roomFolder, received.Name);
+            try
+            {
+                Project copy = ProjectPaths.ForSaving(received.Project, roomFolder);
+                await Task.Run(() => ProjectSerializer.Save(copy, file));
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException)
+            {
+                services.Session.Notify(NotificationSeverity.Error, "No se pudo guardar tu copia del proyecto", ex.Message);
+                await room.LeaveAsync();
+                return;
+            }
+
+            // «Busca tus archivos» ya resolvió estos medios: abrir la copia no debe sacar otro «Faltan medios» con lo mismo.
+            using (RelinkDialog.SkipCheckWhileOpening(file))
+            {
+                while (!await services.Session.OpenProjectAsync(file))
+                {
+                    if (!await AskOpenAgainAsync(services, file))
+                    {
+                        await room.LeaveAsync();
+                        services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", $"Tu copia del proyecto está en «{file}»; puedes abrirla cuando quieras.");
+                        return;
+                    }
+                }
+            }
+
+            if (collab.StartEditing(received))
+            {
+                int lost = received.Project.Media.Count - found.Count;
+                services.Session.Notify(
+                    lost > 0 ? NotificationSeverity.Warning : NotificationSeverity.Success,
+                    "Estás en la sala",
+                    lost > 0
+                        ? $"{lost} {(lost == 1 ? "medio no está" : "medios no están")} en tu equipo: se ven en la línea de tiempo, pero no se pueden reproducir hasta tener el archivo."
+                        : "Ya tienes el proyecto y todos sus medios.");
+                return;
+            }
+
+            // Mientras llegaba la copia se perdieron cambios de la sala: la copia nueva que se pida ya los trae.
+            if (attempt >= 3)
             {
                 await room.LeaveAsync();
-                services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", "No se recibió el proyecto. Puedes volver a entrar con la invitación o pedir otra.");
+                services.Session.Notify(NotificationSeverity.Warning, "Saliste de la sala", "La sala no paraba de cambiar y tu copia no llegó entera varias veces seguidas. Vuelve a entrar con la invitación cuando veas que está más tranquila.");
                 return;
             }
         }
-
-        IReadOnlyDictionary<string, string>? found = await MediaSearchDialog.ShowAsync(services, hwnd, received, host);
-        if (found is null)
-        {
-            // Cerrar «Busca tus archivos» o pulsar «Salir de la sala» es salir: no se abre un proyecto que la persona no quiso abrir.
-            await room.LeaveAsync();
-            services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", "Todavía no se abrió ningún proyecto. Puedes volver a entrar con la invitación.");
-            return;
-        }
-
-        foreach ((string id, string path) in found)
-        {
-            if (received.Project.FindMedia(id) is { } media)
-            {
-                media.Path = path;
-            }
-        }
-
-        string file = UniquePath(roomFolder, received.Name);
-        try
-        {
-            Project copy = ProjectPaths.ForSaving(received.Project, roomFolder);
-            await Task.Run(() => ProjectSerializer.Save(copy, file));
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException)
-        {
-            services.Session.Notify(NotificationSeverity.Error, "No se pudo guardar tu copia del proyecto", ex.Message);
-            await room.LeaveAsync();
-            return;
-        }
-
-        while (!await services.Session.OpenProjectAsync(file))
-        {
-            if (!await AskOpenAgainAsync(services, file))
-            {
-                await room.LeaveAsync();
-                services.Session.Notify(NotificationSeverity.Informational, "Saliste de la sala", $"Tu copia del proyecto está en «{file}»; puedes abrirla cuando quieras.");
-                return;
-            }
-        }
-
-        collab.StartEditing(received);
-
-        int lost = received.Project.Media.Count - found.Count;
-        services.Session.Notify(
-            lost > 0 ? NotificationSeverity.Warning : NotificationSeverity.Success,
-            "Estás en la sala",
-            lost > 0
-                ? $"{lost} {(lost == 1 ? "medio no está" : "medios no están")} en tu equipo: se ven en la línea de tiempo, pero no se pueden reproducir hasta tener el archivo."
-                : "Ya tienes el proyecto y todos sus medios.");
     }
 
     private static async Task<(ReceivedProject? Received, bool Retry)> ReceiveWithDialogAsync(EditorServices services, RoomService room, string roomFolder)
@@ -95,39 +119,13 @@ internal static class SharedProjectFlow
             return (null, false);
         }
 
-        var bar = new ProgressBar { IsIndeterminate = true, MinWidth = 440 };
-        var text = new TextBlock { Text = "Paso 2 de 4: pidiendo el proyecto a quien hospeda la sala…", TextWrapping = TextWrapping.Wrap };
-        var clockText = InviteDialog.Hint("");
-        var panel = new StackPanel { Spacing = 12 };
-        panel.Children.Add(text);
-        panel.Children.Add(bar);
-        panel.Children.Add(clockText);
-        var dialog = new ContentDialog { XamlRoot = root, Title = "Entrando en la sala", Content = panel, CloseButtonText = "Cancelar y salir de la sala" };
+        // Los pasos del reparto llegan como fases 2 a 4 del camino («Paso 3 de 5: …»); el diálogo ya ofrece Cancelar abajo.
+        var operation = new OperationProgress();
+        var view = new Views.Shared.OperationProgressView { Operation = operation, MinWidth = 440 };
+        var dialog = new ContentDialog { XamlRoot = root, Title = "Entrando en la sala", Content = view, CloseButtonText = "Cancelar y salir de la sala" };
 
         using var cancel = new CancellationTokenSource();
-        var clock = new OperationClock();
-        ShareProgress? last = null;
-        var progress = new Progress<ShareProgress>(p =>
-        {
-            clock.Progressed();
-            last = p;
-            bar.IsIndeterminate = p.Fraction is null;
-            if (p.Fraction is { } f)
-            {
-                bar.Value = f * 100;
-            }
-
-            text.Text = $"Paso {p.Step + 1} de {p.Steps + 1}: {char.ToLowerInvariant(p.Text[0])}{p.Text[1..]}";
-        });
-        DispatcherQueueTimer ticker = DispatcherQueue.GetForCurrentThread().CreateTimer();
-        ticker.Interval = TimeSpan.FromSeconds(1);
-        ticker.Tick += (_, _) =>
-        {
-            string? left = last?.Fraction is { } f ? OperationClock.Remaining(f, clock.Elapsed) : null;
-            clockText.Text = clock.Describe() + (left is null ? "" : $" Faltan {left}.");
-        };
-        ticker.Start();
-        Task<ReceivedProject> work = ProjectShareGuest.ReceiveAsync(room, roomFolder, progress, cancel.Token);
+        Task<ReceivedProject> work = ProjectShareGuest.ReceiveAsync(room, roomFolder, JoinFlowProgress.Receive(operation), cancel.Token);
         string? problem = null;
         _ = work.ContinueWith(
             t =>
@@ -147,7 +145,6 @@ internal static class SharedProjectFlow
             }
         };
         await DialogGate.ShowAsync(dialog);
-        ticker.Stop();
         if (!work.IsCompleted)
         {
             await cancel.CancelAsync();
@@ -156,6 +153,7 @@ internal static class SharedProjectFlow
 
         if (work.IsCompletedSuccessfully)
         {
+            operation.Complete();
             return (await work, false);
         }
 

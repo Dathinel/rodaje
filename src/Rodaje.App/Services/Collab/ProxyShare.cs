@@ -36,13 +36,19 @@ internal static class ProxyMessages
 /// </summary>
 public sealed partial class ProxyShareHost : IDisposable
 {
+    /// <summary>Peticiones esperando su turno o sirviéndose; las de más se niegan en el acto (cada una lee el diagnóstico de la red).</summary>
+    internal const int MaxQueued = 16;
+
     private readonly RoomService _room;
     private readonly IRoomProxyMaker _maker;
     private readonly string _folder;
     private readonly Func<CancellationToken, Task<Diagnostico?>> _diagnostic;
     private readonly SemaphoreSlim _one = new(1, 1);
     private readonly CancellationTokenSource _stop = new();
+    // Leído una vez: los avisos sueltos pueden llegar después de Dispose, cuando _stop ya no da su token.
+    private readonly CancellationToken _token;
     private readonly Dictionary<string, RoomProxy> _made = new(StringComparer.Ordinal);
+    private int _queued;
 
     /// <param name="diagnostic">Cómo leer el diagnóstico de la sala (el de <see cref="RoomService"/> salvo en las pruebas).</param>
     public ProxyShareHost(RoomService room, IRoomProxyMaker maker, string roomFolder,
@@ -52,6 +58,7 @@ public sealed partial class ProxyShareHost : IDisposable
         _maker = maker;
         _folder = Path.Combine(Path.GetFullPath(roomFolder), "proxies");
         _diagnostic = diagnostic ?? room.DiagnosticAsync;
+        _token = _stop.Token;
         room.DirectReceived += OnDirect;
     }
 
@@ -67,7 +74,24 @@ public sealed partial class ProxyShareHost : IDisposable
         if (ShareMessages.Type(message) == ProxyMessages.Ask && _room.State is { IsHost: true, Phase: RoomPhase.Hosting }
             && message.TryGetProperty("sha256", out JsonElement h) && h.ValueKind == JsonValueKind.String && h.GetString() is { } hash && MediaManifest.IsHash(hash))
         {
-            UiTask.Run(Task.Run(() => ServeAsync(from, hash)));
+            if (Interlocked.Increment(ref _queued) > MaxQueued)
+            {
+                Interlocked.Decrement(ref _queued);
+                UiTask.Run(Task.Run(() => Fail(from, hash, "Quien hospeda la sala está atendiendo muchas peticiones a la vez. Vuelve a pedirlo en un momento.")));
+                return;
+            }
+
+            UiTask.Run(Task.Run(async () =>
+            {
+                try
+                {
+                    await ServeAsync(from, hash).ConfigureAwait(false);
+                }
+                finally
+                {
+                    Interlocked.Decrement(ref _queued);
+                }
+            }));
         }
     }
 
@@ -75,40 +99,31 @@ public sealed partial class ProxyShareHost : IDisposable
     public const string RelayRefusal = "Por internet con el relé de pruebas no se mandan proxies.";
 
     /// <summary>
-    /// Si el camino hasta <paramref name="peer"/> pasa por el relé público de n0: los proxies no van por ahí (son
-    /// archivos grandes y el relé es de pruebas). Solo se mandan por conexión directa o por un relé propio; un relé
-    /// propio se conoce por <see cref="DiagnosticoRed.ReleSolicitado"/> que ya no es «n0».
+    /// Si el camino hasta <paramref name="peer"/> puede pasar por el relé público de n0: los proxies y los originales no
+    /// van por ahí (son archivos grandes y el relé es de pruebas). Solo se mandan por conexión directa o por un relé
+    /// propio; un relé propio se conoce por <see cref="DiagnosticoRed.ReleSolicitado"/> que ya no es «n0». Ante la duda
+    /// (sin diagnóstico, o con n0 y un camino que no consta como directo) se niega.
     /// </summary>
     public static bool OverPublicRelay(Diagnostico? diagnostic, string peer)
     {
-        if (diagnostic is null || diagnostic.Red.ReleSolicitado != "n0")
-        {
-            return false;
-        }
-
-        if (diagnostic.Red.SoloRele)
+        if (diagnostic is null)
         {
             return true;
         }
 
-        return diagnostic.Pares.FirstOrDefault(p => p.Clave == peer)?.Camino == Camino.Rele;
+        if (diagnostic.Red.ReleSolicitado != "n0")
+        {
+            return false;
+        }
+
+        return diagnostic.Red.SoloRele || diagnostic.Pares.FirstOrDefault(p => p.Clave == peer)?.Camino != Camino.Directo;
     }
 
     private async Task ServeAsync(string to, string mediaHash)
     {
         try
         {
-            Diagnostico? diagnostic;
-            try
-            {
-                diagnostic = await _diagnostic(_stop.Token).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is not OutOfMemoryException and not OperationCanceledException)
-            {
-                diagnostic = null;
-            }
-
-            if (OverPublicRelay(diagnostic, to))
+            if (OverPublicRelay(await DirectShare.ReadDiagnosticAsync(_diagnostic, _stop.Token).ConfigureAwait(false), to))
             {
                 await Fail(to, mediaHash, RelayRefusal).ConfigureAwait(false);
                 return;
@@ -149,7 +164,7 @@ public sealed partial class ProxyShareHost : IDisposable
                     return;
                 }
 
-                if (!IsInside(_folder, proxy.Path) || proxy.Size is <= 0 or > ProxyMessages.MaxProxyBytes || !MediaManifest.IsHash(proxy.Sha256))
+                if (!DirectShare.IsInside(_folder, proxy.Path) || proxy.Size is <= 0 or > ProxyMessages.MaxProxyBytes || !MediaManifest.IsHash(proxy.Sha256))
                 {
                     await Fail(to, mediaHash, "No se pudo preparar la copia ligera.").ConfigureAwait(false);
                     return;
@@ -182,12 +197,6 @@ public sealed partial class ProxyShareHost : IDisposable
         }
     }
 
-    private static bool IsInside(string folder, string path)
-    {
-        string full = Path.GetFullPath(path);
-        return full.StartsWith(Path.GetFullPath(folder) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase);
-    }
-
     private sealed class Throttled(ProxyShareHost host, string to, string mediaHash) : IProgress<double>
     {
         private long _last;
@@ -205,37 +214,19 @@ public sealed partial class ProxyShareHost : IDisposable
         }
     }
 
-    private async Task TellAsync(string to, string mediaHash, double fraction)
-    {
-        try
+    private Task TellAsync(string to, string mediaHash, double fraction) =>
+        DirectShare.TrySendAsync(_room, ShareMessages.Make(ProxyMessages.Preparing, w =>
         {
-            await _room.SendDirectAsync(ShareMessages.Make(ProxyMessages.Preparing, w =>
-            {
-                w.WriteString("sha256", mediaHash);
-                w.WriteNumber("fraccion", fraction);
-            }), to, _stop.Token).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is CollabException or OperationCanceledException or ObjectDisposedException)
-        {
-            // Es un aviso de ánimo.
-        }
-    }
+            w.WriteString("sha256", mediaHash);
+            w.WriteNumber("fraccion", fraction);
+        }), to, _token);
 
-    private async Task Fail(string to, string mediaHash, string text)
-    {
-        try
+    private Task Fail(string to, string mediaHash, string text) =>
+        DirectShare.TrySendAsync(_room, ShareMessages.Make(ProxyMessages.Failed, w =>
         {
-            await _room.SendDirectAsync(ShareMessages.Make(ProxyMessages.Failed, w =>
-            {
-                w.WriteString("sha256", mediaHash);
-                w.WriteString("texto", text);
-            }), to, _stop.Token).ConfigureAwait(false);
-        }
-        catch (Exception ex) when (ex is CollabException or OperationCanceledException or ObjectDisposedException)
-        {
-            // Si ni siquiera se puede avisar, el invitado verá que no llegó a tiempo.
-        }
-    }
+            w.WriteString("sha256", mediaHash);
+            w.WriteString("texto", text);
+        }), to, _token);
 }
 
 /// <summary>El lado del invitado: pide el proxy de un medio que no tiene, lo baja por huella y comprueba lo que llega.</summary>
@@ -261,58 +252,37 @@ public static class ProxyShareGuest
             throw new CollabException("Esto solo lo puede hacer quien se une a la sala de otra persona.");
         }
 
-        TaskCompletionSource<JsonElement> answer = new(TaskCreationOptions.RunContinuationsAsynchronously);
-        long lastSign = Environment.TickCount64;
-        void OnDirect(string from, JsonElement message)
+        bool? Classify(JsonElement message)
         {
-            if (from != host || !message.TryGetProperty("sha256", out JsonElement h) || h.GetString() != mediaHash)
+            if (!DirectShare.IsAbout(message, mediaHash))
             {
-                return;
+                return null;
             }
 
             string? type = ShareMessages.Type(message);
             if (type is ProxyMessages.Ready or ProxyMessages.Failed)
             {
-                answer.TrySetResult(message.Clone());
+                return true;
             }
-            else if (type == ProxyMessages.Preparing && message.TryGetProperty("fraccion", out JsonElement f) && f.TryGetDouble(out double fraction) && double.IsFinite(fraction))
+
+            if (type == ProxyMessages.Preparing && message.TryGetProperty("fraccion", out JsonElement f) && f.TryGetDouble(out double fraction) && double.IsFinite(fraction))
             {
-                Interlocked.Exchange(ref lastSign, Environment.TickCount64);
                 double clamped = Math.Clamp(fraction, 0, 1);
                 progress?.Report(new ShareProgress(1, Steps, $"Quien hospeda la sala está preparando la copia ligera ({(int)(clamped * 100)} %)…", clamped));
-            }
-        }
-
-        room.DirectReceived += OnDirect;
-        JsonElement reply;
-        try
-        {
-            progress?.Report(new ShareProgress(1, Steps, "Pidiendo la copia ligera a quien hospeda la sala…", null));
-            await room.SendDirectAsync(ShareMessages.Make(ProxyMessages.Ask, w => w.WriteString("sha256", mediaHash)), host, cancellationToken).ConfigureAwait(false);
-            while (!answer.Task.IsCompleted)
-            {
-                TimeSpan left = ProjectShareGuest.AnswerTimeout - TimeSpan.FromMilliseconds(Environment.TickCount64 - Interlocked.Read(ref lastSign));
-                if (left <= TimeSpan.Zero)
-                {
-                    throw new CollabException("Quien hospeda la sala no mandó la copia ligera a tiempo. Comprueba que Rodaje sigue abierto allí y vuelve a pedirla.");
-                }
-
-                await Task.WhenAny(answer.Task, Task.Delay(left < TimeSpan.FromSeconds(1) ? left : TimeSpan.FromSeconds(1), cancellationToken)).ConfigureAwait(false);
+                return false;
             }
 
-            reply = answer.Task.Result;
+            return null;
         }
-        finally
-        {
-            room.DirectReceived -= OnDirect;
-        }
+
+        progress?.Report(new ShareProgress(1, Steps, "Pidiendo la copia ligera a quien hospeda la sala…", null));
+        JsonElement reply = await DirectShare.AwaitReplyAsync(room, host, ShareMessages.Make(ProxyMessages.Ask, w => w.WriteString("sha256", mediaHash)), Classify,
+            ProjectShareGuest.AnswerTimeout, "Quien hospeda la sala no mandó la copia ligera a tiempo. Comprueba que Rodaje sigue abierto allí y vuelve a pedirla.",
+            cancellationToken).ConfigureAwait(false);
 
         if (ShareMessages.Type(reply) == ProxyMessages.Failed)
         {
-            string text = reply.TryGetProperty("texto", out JsonElement t) && t.ValueKind == JsonValueKind.String
-                ? new string([.. (t.GetString() ?? "").Where(c => !char.IsControl(c)).Take(300)])
-                : "";
-            throw new CollabException(text.Length > 3 ? text : "Quien hospeda la sala no pudo mandarte la copia ligera.");
+            throw new CollabException(DirectShare.ErrorText(reply, "Quien hospeda la sala no pudo mandarte la copia ligera."));
         }
 
         if (!reply.TryGetProperty("huella", out JsonElement hh) || hh.GetString() is not { } hash || !MediaManifest.IsHash(hash)
