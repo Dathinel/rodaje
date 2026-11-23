@@ -159,6 +159,7 @@ public sealed partial class EditorSession
     public async Task<bool> SaveAsAsync(string? path = null)
     {
         VerifyAccess();
+        bool picked = path is null;
         path ??= await _dialogs.PickProjectSavePathAsync(SuggestedFileName);
         if (path is null)
         {
@@ -176,7 +177,13 @@ public sealed partial class EditorSession
             return false;
         }
 
-        return await SaveToAsync(full);
+        bool saved = await SaveToAsync(full);
+        if (saved && picked)
+        {
+            _dialogs.ProjectSavedAs(full);
+        }
+
+        return saved;
     }
 
     /// <summary>
@@ -520,14 +527,14 @@ public sealed partial class EditorSession
         copy.Name = name;
         // El mismo proyecto abierto en otra ventana (u otro equipo, en una carpeta compartida): si el archivo cambió desde
         // que se abrió o guardó aquí, no se pisa sin preguntar. La fecha se mira fuera del hilo de la interfaz (UNC).
-        DateTimeOffset? expected = _diskWrite;
+        DateTimeOffset? expected = await _diskWrite;
         bool changedOutside = false;
         DateTimeOffset? written = null;
         try
         {
             await Task.Run(() =>
             {
-                if (!rename && !overwrite && LastWriteOf(path) is { } onDisk && onDisk != expected)
+                if (!rename && !overwrite && expected is { } known && LastWriteOf(path) is { } onDisk && onDisk != known)
                 {
                     changedOutside = true;
                     return;
@@ -566,7 +573,7 @@ public sealed partial class EditorSession
         // Las referencias «file:» en memoria son absolutas (LutReference.ForFile y al abrir): no hay que tocarlas al
         // cambiar de carpeta, ni en el proyecto ni en la pila de deshacer.
         FilePath = path;
-        _diskWrite = written;
+        _diskWrite = Task.FromResult(written);
         LastSavedAt = DateTimeOffset.UtcNow;
         if (version == _editVersion && !IsInGesture)
         {

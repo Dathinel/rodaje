@@ -97,6 +97,35 @@ public class TypedNumbersCultureTests
         Assert.Empty(found);
     }
 
+    /// <summary>
+    /// Un <c>NumberBox</c> de XAML sin formato propio usa el <c>DecimalFormatter</c> de Windows: en es-CO, Exportar rechazaba
+    /// «1.5» Mbps y leía «1.000» como mil. Cada uno recibe <c>TypedNumberFormatter</c> en el código de su carpeta.
+    /// </summary>
+    [Fact]
+    public void CadaCuadroNumericoDeXamlTieneElFormatoDeLaApp()
+    {
+        string root = Path.Combine(RepositoryRoot(), "src", "Rodaje.App");
+        string obj = $"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}";
+        var missing = new List<string>();
+        int seen = 0;
+        foreach (string xaml in Directory.EnumerateFiles(root, "*.xaml", SearchOption.AllDirectories).Where(f => !f.Contains(obj, StringComparison.Ordinal)))
+        {
+            string code = string.Concat(Directory.EnumerateFiles(Path.GetDirectoryName(xaml)!, "*.cs").Select(File.ReadAllText));
+            foreach (System.Text.RegularExpressions.Match m in System.Text.RegularExpressions.Regex.Matches(File.ReadAllText(xaml), "<NumberBox\\s+x:Name=\"(\\w+)\""))
+            {
+                seen++;
+                string name = m.Groups[1].Value;
+                if (!code.Contains($"{name}.NumberFormatter = new TypedNumberFormatter(", StringComparison.Ordinal))
+                {
+                    missing.Add($"{Path.GetRelativePath(root, xaml)}: {name}");
+                }
+            }
+        }
+
+        Assert.True(seen >= 10, $"la vigilancia solo vio {seen} cuadros");
+        Assert.Empty(missing);
+    }
+
     private static string RepositoryRoot()
     {
         for (DirectoryInfo? dir = new(AppContext.BaseDirectory); dir is not null; dir = dir.Parent)

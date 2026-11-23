@@ -65,6 +65,11 @@ internal sealed partial class ExportView : UserControl
         _jobs = jobs;
         _hwnd = hwnd;
         InitializeComponent();
+        // El formato de WinRT sigue el idioma de Windows: en es-CO rechazaba «1.5» y leía «1.000» como mil.
+        RateValueBox.NumberFormatter = new TypedNumberFormatter(2);
+        RateMaxBox.NumberFormatter = new TypedNumberFormatter(2);
+        KeyframeBox.NumberFormatter = new TypedNumberFormatter(1);
+        AudioRateBox.NumberFormatter = new TypedNumberFormatter(0);
         PerformanceFastTitle.Text = ExportText.Performance(ExportPerformance.Fastest);
         PerformanceFastDetail.Text = ExportText.PerformanceDetail(ExportPerformance.Fastest);
         PerformanceLowTitle.Text = ExportText.Performance(ExportPerformance.Background);
@@ -788,7 +793,7 @@ internal sealed partial class ExportView : UserControl
 
         var package = new global::Windows.ApplicationModel.DataTransfer.DataPackage();
         package.SetText(text);
-        global::Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        Rodaje.App.Shell.SystemAccess.SetClipboard(package);
         session.Notify(NotificationSeverity.Success, "Línea de ffmpeg copiada",
             "Es lo que recibe ffmpeg.exe: la imagen entra compuesta por la tubería (pipe:0) y la mezcla por «mezcla.wav», sin capítulos ni pistas de subtítulos.");
     }

@@ -387,7 +387,8 @@ public static class ProjectShareGuest
     {
         string clean = MediaManifest.DisplayName(name);
         clean = new string([.. clean.Where(c => Array.IndexOf(Path.GetInvalidFileNameChars(), c) < 0)]).Trim(' ', '.');
-        return clean.Length is > 0 and <= 80 ? clean : clean.Length > 80 ? clean[..80].TrimEnd(' ', '.') : "Proyecto de la sala";
+        clean = clean.Length is > 0 and <= 80 ? clean : clean.Length > 80 ? clean[..80].TrimEnd(' ', '.') : "Proyecto de la sala";
+        return OriginalNames.IsReserved(clean) ? "_" + clean : clean;
     }
 
     private static JsonElement ReWrap(JsonElement reply) =>

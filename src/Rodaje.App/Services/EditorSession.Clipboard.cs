@@ -114,7 +114,14 @@ public sealed partial class EditorSession
             return copied.WithMediaRenamed(resolution.Renamed);
         }
 
-        List<MediaRef> missing = [.. resolution.ToImport.Where(m => m.Path.Length == 0 || !File.Exists(m.Path))];
+        // Fuera del hilo de la interfaz y con tope: un medio en una carpeta de red caída congelaba la ventana al pegar.
+        List<MediaRef> missing = await DiskProbe.WithinAsync(
+            () => resolution.ToImport.Where(m => m.Path.Length == 0 || !File.Exists(m.Path)).ToList(), [.. resolution.ToImport]);
+        if (!isCurrent())
+        {
+            return null;
+        }
+
         if (missing.Count > 0)
         {
             Notify(NotificationSeverity.Warning, "No se pudo pegar", MissingMediaMessage(missing));

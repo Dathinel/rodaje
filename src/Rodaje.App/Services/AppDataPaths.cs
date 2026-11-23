@@ -15,6 +15,15 @@ public static class AppDataPaths
             : Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Rodaje");
 
     /// <summary>
+    /// En el modo caos, la carpeta de datos de la corrida: los diálogos de archivo, las carpetas del usuario, el
+    /// portapapeles y los programas externos no salen de ella (<see cref="UserFolder"/> y <c>Shell.SystemAccess</c>).
+    /// </summary>
+    public static string? Sandbox { get; set; }
+
+    /// <summary>Una carpeta del usuario (Vídeos, Documentos), o la de <see cref="Sandbox"/> en el modo caos.</summary>
+    public static string UserFolder(Environment.SpecialFolder folder) => Sandbox ?? Environment.GetFolderPath(folder);
+
+    /// <summary>
     /// Escribe a un temporal, lo lleva al disco y lo pone en su lugar: un apagón deja el archivo anterior o el nuevo,
     /// nunca uno cortado.
     /// </summary>

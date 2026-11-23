@@ -19,6 +19,12 @@ public interface IEditorDialogs
     /// <summary>Dónde guardar el proyecto, o <c>null</c> si se canceló.</summary>
     Task<string?> PickProjectSavePathAsync(string suggestedFileName);
 
+    /// <summary>
+    /// Se guardó en la ruta que dio <see cref="PickProjectSavePathAsync"/>: ahora sí se recuerda su carpeta. Una ruta
+    /// elegida que no se pudo escribir no se recuerda.
+    /// </summary>
+    void ProjectSavedAs(string path);
+
     /// <summary>Videos o audios para importar; vacío si se canceló.</summary>
     Task<IReadOnlyList<string>> PickMediaFilesAsync();
 

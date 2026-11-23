@@ -8,6 +8,20 @@ namespace Rodaje.App.Views.Preferences;
 /// <summary>Lectura y escritura de las preferencias persistentes editables desde la ventana de Preferencias.</summary>
 public sealed class PreferencesViewModel(AppSettings settings)
 {
+    /// <summary>Alto de las pestañas cuando la ventana sobra: el de la pestaña más alta.</summary>
+    public const double FullTabsHeight = 600;
+
+    /// <summary>Lo que el diálogo ocupa fuera de las pestañas: título, botones, márgenes y el borde de la ventana.</summary>
+    public const double DialogChrome = 200;
+
+    /// <summary>
+    /// Alto de las pestañas para una ventana de <paramref name="windowHeight"/> píxeles de diseño. Con 1280×720 al 150 %
+    /// (480 de alto) las 600 fijas desbordaban el diálogo y salían dos barras de desplazamiento; ahora cabe y solo se
+    /// desplaza la pestaña.
+    /// </summary>
+    public static double TabsHeight(double windowHeight) =>
+        double.IsFinite(windowHeight) && windowHeight > 0 ? Math.Clamp(windowHeight - DialogChrome, 160, FullTabsHeight) : FullTabsHeight;
+
     public AppSettings Settings { get; } = settings ?? throw new ArgumentNullException(nameof(settings));
 
     public int VideoTracks { get => Settings.DefaultVideoTracks; set => Settings.DefaultVideoTracks = Math.Clamp(value, NewProjectTracks.Min, NewProjectTracks.Max); }
@@ -18,7 +32,7 @@ public sealed class PreferencesViewModel(AppSettings settings)
     public bool CheckForUpdates { get => Settings.CheckForUpdates; set => Settings.CheckForUpdates = value; }
     public string GeneratedMediaFolder { get => Settings.GeneratedMediaFolder ?? ""; set => Settings.GeneratedMediaFolder = string.IsNullOrWhiteSpace(value) ? null : value; }
     public string PathMappings { get => PathMappingText.Format(Settings.PathMappings); set => Settings.PathMappings = PathMappingText.Parse(value); }
-    public string StillCaptureFolder { get => Settings.StillCaptureFolder ?? ""; set => Settings.StillCaptureFolder = string.IsNullOrWhiteSpace(value) ? null : value; }
+    public string StillCaptureFolder { get => Settings.StillCaptureFolder ?? ""; set => Settings.StillCaptureFolder = Personalization.NormalizeFolder(value); }
     public IReadOnlyList<int> LinkedAudioVideoTracks => Settings.LinkedAudioTracks.IsAll
         ? Enumerable.Range(1, NewProjectTracks.Max).ToArray()
         : Settings.LinkedAudioTracks.ToSetting() ?? [];
@@ -50,7 +64,7 @@ public sealed class PreferencesViewModel(AppSettings settings)
     public HdrViewer HdrViewer { get => Settings.HdrViewer; set => Settings.HdrViewer = value; }
     public ShortcutPreset ShortcutPreset { get => Settings.ShortcutPreset; set => Settings.ShortcutPreset = value; }
     public Services.RenderCache.RenderCacheMode RenderCacheMode { get => Settings.RenderCacheMode; set => Settings.RenderCacheMode = Enum.IsDefined(value) ? value : Services.RenderCache.RenderCacheMode.Smart; }
-    public string RenderCacheFolder { get => Settings.RenderCacheFolder ?? ""; set => Settings.RenderCacheFolder = string.IsNullOrWhiteSpace(value) ? null : value.Trim(); }
+    public string RenderCacheFolder { get => Settings.RenderCacheFolder ?? ""; set => Settings.RenderCacheFolder = Personalization.NormalizeFolder(value); }
 
     /// <summary>Tope en GB; NaN o menos de 1, el automático.</summary>
     public double RenderCacheCapGb { get => Settings.RenderCacheCapGb ?? double.NaN; set => Settings.RenderCacheCapGb = double.IsFinite(value) && value >= 1 ? Math.Min(value, 100_000) : null; }

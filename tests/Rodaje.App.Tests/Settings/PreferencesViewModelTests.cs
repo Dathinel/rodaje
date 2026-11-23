@@ -9,6 +9,23 @@ namespace Rodaje.App.Tests.Settings;
 [Collection("StillImageDefaults")]
 public sealed class PreferencesViewModelTests
 {
+    [Theory]
+    [InlineData(480, 280)] // 1280×720 al 150 %
+    [InlineData(540, 340)] // 1920×1080 al 200 %
+    [InlineData(1040, 600)]
+    [InlineData(300, 160)]
+    [InlineData(0, 600)]
+    [InlineData(double.NaN, 600)]
+    public void Las_pestanas_caben_en_la_ventana(double windowHeight, double expected)
+    {
+        double tabs = PreferencesViewModel.TabsHeight(windowHeight);
+        Assert.Equal(expected, tabs);
+        if (windowHeight >= 360)
+        {
+            Assert.True(tabs + PreferencesViewModel.DialogChrome <= windowHeight);
+        }
+    }
+
     [Fact]
     public void Preferences_read_and_write_persisted_settings()
     {

@@ -45,6 +45,7 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
     private readonly ConcurrentDictionary<string, string> _failedThumbnails = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string> _noWaveform = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, string> _fingerprints = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, byte> _cloudOnlyNoticed = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HashSet<string>> _idsByPath = new(StringComparer.OrdinalIgnoreCase);
 
     /// <summary>Sube con cada <see cref="Forget"/>: los hilos cierran el decodificador que abrieron con una generación anterior.</summary>
@@ -92,6 +93,15 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
     }
 
     public event EventHandler<ClipVisualsChangedEventArgs>? Changed;
+
+    /// <summary>
+    /// Un medio está solo en la nube y no se descarga para las miniaturas ni la onda; una vez por archivo, en el hilo de
+    /// <c>context</c>.
+    /// </summary>
+    public event EventHandler<string>? CloudOnlyFound;
+
+    /// <summary>Por qué un medio en la nube no tiene miniaturas (<see cref="ThumbnailProblem"/>).</summary>
+    public const string CloudOnlyProblem = "Está solo en la nube; se descarga al reproducir.";
 
     /// <summary>Miniaturas hechas desde que se creó (para medir).</summary>
     public long ThumbnailsDecoded => Interlocked.Read(ref _decodedCount);
@@ -192,6 +202,7 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
         _noWaveform.TryRemove(path, out _);
         _waveforms.TryRemove(path, out _);
         _fingerprints.TryRemove(path, out _);
+        _cloudOnlyNoticed.TryRemove(path, out _);
         _thumbnails.RemoveFile(path);
         string indexPrefix = path.ToUpperInvariant() + "|";
         lock (_gate)
@@ -383,6 +394,18 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
 
     private string FingerprintOf(string path)
     {
+        // La huella y el decodificador leerían el archivo: OneDrive bajaba uno a uno todos los medios en la nube solo para
+        // las miniaturas. Se quedan con el marcador hasta que se reproduzcan (eso sí lo descarga) y se reintente.
+        if (_sources.IsCloudOnly(path))
+        {
+            if (_cloudOnlyNoticed.TryAdd(path, 0))
+            {
+                Post(() => CloudOnlyFound?.Invoke(this, path));
+            }
+
+            throw new IOException(CloudOnlyProblem);
+        }
+
         if (_fingerprints.TryGetValue(path, out string? known))
         {
             return known;
@@ -415,6 +438,18 @@ public sealed partial class ClipVisuals : IClipVisuals, IDisposable
         else
         {
             _context.Post(Flush, null);
+        }
+    }
+
+    private void Post(Action action)
+    {
+        if (_context is null)
+        {
+            action();
+        }
+        else
+        {
+            _context.Post(_ => action(), null);
         }
     }
 

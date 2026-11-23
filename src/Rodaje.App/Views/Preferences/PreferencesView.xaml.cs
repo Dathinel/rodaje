@@ -9,6 +9,7 @@ using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Relink;
 using Rodaje.Engine.Timeline;
 
@@ -31,6 +32,12 @@ internal sealed partial class PreferencesView : UserControl
     public PreferencesView()
     {
         InitializeComponent();
+        StillImageDurationBox.NumberFormatter = new TypedNumberFormatter(1);
+        AutosaveMinutesBox.NumberFormatter = new TypedNumberFormatter(0);
+        RenderCacheCapBox.NumberFormatter = new TypedNumberFormatter(1);
+        VideoTracksBox.NumberFormatter = new TypedNumberFormatter(0);
+        AudioTracksBox.NumberFormatter = new TypedNumberFormatter(0);
+        CollabOriginalCapBox.NumberFormatter = new TypedNumberFormatter(1);
         ProxyUsageBox.Items.Add("Automático");
         ProxyUsageBox.Items.Add("Siempre que haya");
         ProxyUsageBox.Items.Add("Nunca (originales)");
@@ -74,7 +81,26 @@ internal sealed partial class PreferencesView : UserControl
         {
             FrameRateBox.Items.Add(label);
         }
+
+        Loaded += (_, _) =>
+        {
+            if (XamlRoot is { } root)
+            {
+                FitHeight(root, null);
+                root.Changed += FitHeight;
+            }
+        };
+        Unloaded += (_, _) =>
+        {
+            if (XamlRoot is { } root)
+            {
+                root.Changed -= FitHeight;
+            }
+        };
     }
+
+    /// <summary>Alto fijo de las pestañas, pero que quepa en la ventana: si no, el diálogo añade su propio desplazamiento.</summary>
+    private void FitHeight(XamlRoot root, XamlRootChangedEventArgs? args) => Tabs.Height = PreferencesViewModel.TabsHeight(root.Size.Height);
 
     /// <summary>El espacio de trabajo elegido en la pestaña, para que la ventana lo aplique al guardar.</summary>
     public string? WorkspaceToApply { get; private set; }

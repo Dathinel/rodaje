@@ -183,6 +183,8 @@ public sealed class ProjectShareTests
     [InlineData("a<b>c:d?e", "de")]
     [InlineData("   ", "Proyecto de la sala")]
     [InlineData("con\u0000nulo", "connulo")]
+    [InlineData("CON", "_CON")]
+    [InlineData("com1.v2", "_com1.v2")]
     public void El_nombre_del_archivo_nunca_trae_carpetas_ni_caracteres_prohibidos(string entrada, string esperado) =>
         Assert.Equal(esperado, ProjectShareGuest.ProjectFileName(entrada));
 

@@ -1,0 +1,81 @@
+# Modo caos (build\caos.ps1): el exe de Native AOT de fondo con WARP, castigado con acciones al azar por semilla. No
+# bloquea los PR: corre de noche, a mano (workflow_dispatch con semillas y minutos) y, corto, en el PR que lo cambia.
+# Los registros, informes y minivolcados de las semillas que fallan quedan en el artefacto «caos».
+
+name: Caos
+
+on:
+  schedule:
+    - cron: '0 4 * * *'
+  workflow_dispatch:
+    inputs:
+      desde:
+        description: Primera semilla
+        default: '1'
+      hasta:
+        description: Última semilla
+        default: '6'
+      minutos:
+        description: Minutos por semilla
+        default: '5'
+  pull_request:
+    paths:
+      - .github/workflows/caos.yml
+      - build/caos.ps1
+      - src/Rodaje.App/Shell/ChaosRun.Windows.cs
+
+permissions:
+  contents: read
+
+concurrency:
+  group: caos-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
+
+jobs:
+  windows:
+    name: Windows (caos de fondo con WARP)
+    runs-on: windows-latest
+    timeout-minutes: 90
+    continue-on-error: true
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}\.entorno\nuget
+      DOTNET_ROOT: ${{ github.workspace }}\.entorno\dotnet
+      DOTNET_CLI_HOME: ${{ github.workspace }}\.entorno
+      DOTNET_MULTILEVEL_LOOKUP: '0'
+      DOTNET_CLI_FORCE_UTF8_ENCODING: '1'
+      RODAJE_FORZAR_WARP: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: ./.github/actions/preparar-windows
+
+      - name: Publicar AOT
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\app.ps1 -SoloPublicar
+          exit $LASTEXITCODE
+
+      - name: Caos
+        shell: pwsh
+        env:
+          DESDE: ${{ github.event.inputs.desde || (github.event_name == 'pull_request' && '1') || '1' }}
+          HASTA: ${{ github.event.inputs.hasta || (github.event_name == 'pull_request' && '2') || '6' }}
+          MINUTOS: ${{ github.event.inputs.minutos || (github.event_name == 'pull_request' && '1') || '5' }}
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\caos.ps1 -SinPublicar -Desde $env:DESDE -Hasta $env:HASTA -Minutos $env:MINUTOS -Resultados "$env:GITHUB_WORKSPACE\TestResults\caos"
+          exit $LASTEXITCODE
+
+      - name: Resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: caos
+          path: TestResults/caos/**
+          if-no-files-found: ignore

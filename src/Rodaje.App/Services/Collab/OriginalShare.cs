@@ -90,6 +90,7 @@ public sealed partial class OriginalShareHost : IDisposable
     private readonly HashSet<string> _asking = new(StringComparer.Ordinal);
     private readonly HashSet<(string Member, string Hash)> _approved = [];
     private readonly HashSet<string> _sendAll = new(StringComparer.Ordinal);
+    private readonly HashSet<(string Member, string Hash)> _downloading = [];
     private readonly List<(string Hash, int Index, string Path, string Sha256, long Size)> _chunks = [];
     private int _queued;
 
@@ -157,7 +158,7 @@ public sealed partial class OriginalShareHost : IDisposable
                 UiTask.Run(Task.Run(() => ChunkAsync(from, hash, index)));
                 break;
             case OriginalMessages.Done:
-                UiTask.Run(Task.Run(() => DropChunksAsync(hash)));
+                UiTask.Run(Task.Run(() => DoneAsync(from, hash)));
                 break;
         }
     }
@@ -336,6 +337,10 @@ public sealed partial class OriginalShareHost : IDisposable
         lock (_gate)
         {
             approved = _approved.Contains((from, hash));
+            if (approved)
+            {
+                _downloading.Add((from, hash));
+            }
         }
 
         if (!approved)
@@ -418,30 +423,40 @@ public sealed partial class OriginalShareHost : IDisposable
         string path = Path.Combine(_folder, $"{hash}-{index}.trozo");
         string temp = path + ".tmp";
         using IncrementalHash sha = IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        await using (FileStream input = new(file.Path, new FileStreamOptions
+        try
         {
-            Mode = FileMode.Open, Access = FileAccess.Read, Share = FileShare.ReadWrite | FileShare.Delete, BufferSize = 1 << 20, Options = FileOptions.Asynchronous,
-        }))
-        await using (FileStream output = new(temp, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 20, FileOptions.Asynchronous))
-        {
-            input.Seek(index * ChunkBytes, SeekOrigin.Begin);
-            byte[] buffer = new byte[1 << 20];
-            long left = length;
-            while (left > 0)
+            await using (FileStream input = new(file.Path, new FileStreamOptions
             {
-                int read = await input.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, left)), _token).ConfigureAwait(false);
-                if (read == 0)
+                Mode = FileMode.Open, Access = FileAccess.Read, Share = FileShare.ReadWrite | FileShare.Delete, BufferSize = 1 << 20, Options = FileOptions.Asynchronous,
+            }))
+            await using (FileStream output = new(temp, FileMode.Create, FileAccess.Write, FileShare.None, 1 << 20, FileOptions.Asynchronous))
+            {
+                input.Seek(index * ChunkBytes, SeekOrigin.Begin);
+                byte[] buffer = new byte[1 << 20];
+                long left = length;
+                while (left > 0)
                 {
-                    throw new IOException("El original se acortó mientras se leía.");
-                }
+                    int read = await input.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, left)), _token).ConfigureAwait(false);
+                    if (read == 0)
+                    {
+                        throw new IOException("El original se acortó mientras se leía.");
+                    }
 
-                sha.AppendData(buffer, 0, read);
-                await output.WriteAsync(buffer.AsMemory(0, read), _token).ConfigureAwait(false);
-                left -= read;
+                    sha.AppendData(buffer, 0, read);
+                    await output.WriteAsync(buffer.AsMemory(0, read), _token).ConfigureAwait(false);
+                    left -= read;
+                }
             }
+
+            File.Move(temp, path, overwrite: true);
+        }
+        catch
+        {
+            // Un trozo a medias (corte, cancelación, original que cambió) no se queda ocupando hasta 64 MiB.
+            TryDelete(temp);
+            throw;
         }
 
-        File.Move(temp, path, overwrite: true);
         string digest = Convert.ToHexStringLower(sha.GetHashAndReset());
         List<(string Hash, int Index, string Path, string Sha256, long Size)> evicted;
         lock (_gate)
@@ -454,6 +469,20 @@ public sealed partial class OriginalShareHost : IDisposable
 
         await RetractAsync(evicted).ConfigureAwait(false);
         return (path, digest, length);
+    }
+
+    /// <summary>Solo quien bajaba ese original lo da por terminado; sus trozos se retiran cuando nadie más lo está bajando.</summary>
+    private Task DoneAsync(string from, string hash)
+    {
+        lock (_gate)
+        {
+            if (!_downloading.Remove((from, hash)) || _downloading.Any(d => d.Hash == hash))
+            {
+                return Task.CompletedTask;
+            }
+        }
+
+        return DropChunksAsync(hash);
     }
 
     private async Task DropChunksAsync(string hash)
@@ -826,13 +855,16 @@ public static class OriginalNames
         {
             clean = "medio";
         }
-        else if (Reserved.Contains(stem, StringComparer.OrdinalIgnoreCase))
+        else if (IsReserved(stem))
         {
             clean = "_" + clean;
         }
 
         return clean + ext;
     }
+
+    /// <summary>«CON», «nul.txt», «Com1.algo»: Windows lo abre como un dispositivo y no como un archivo.</summary>
+    public static bool IsReserved(string name) => Reserved.Contains(name.Split('.')[0], StringComparer.OrdinalIgnoreCase);
 
     /// <summary>La ruta dentro de <paramref name="folder"/>; si ya existe, «nombre (2).ext», «nombre (3).ext»…</summary>
     public static string UniquePath(string folder, string fileName)

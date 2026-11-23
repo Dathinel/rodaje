@@ -189,7 +189,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
             return;
         }
 
-        using Process? _ = Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{Path.TrimEndingDirectorySeparator(entry.OutputPath)}\"") { UseShellExecute = false });
+        using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{Path.TrimEndingDirectorySeparator(entry.OutputPath)}\"") { UseShellExecute = false });
     }
 
     // Una secuencia de imágenes es una carpeta: el shell la abre en el Explorador.
@@ -203,7 +203,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
 
         try
         {
-            using Process? _ = Process.Start(new ProcessStartInfo(entry.OutputPath) { UseShellExecute = true });
+            using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo(entry.OutputPath) { UseShellExecute = true });
         }
         catch (System.ComponentModel.Win32Exception ex)
         {

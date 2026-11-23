@@ -153,6 +153,57 @@ public sealed class OriginalShareTests
     }
 
     [SalaFact]
+    public async Task Un_trozo_que_falla_a_medias_no_deja_su_temporal()
+    {
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        // El original dice pesar 200 000 bytes pero solo tiene 70 000: el segundo trozo se corta a mitad de copia.
+        (string path, string hash) = Write(host.RoomFolder, 70_000);
+        FakeSource source = new((_, _) => Task.FromResult<OriginalFile?>(new OriginalFile(path, 200_000, "clip-a")));
+        using OriginalShareHost share = new(host, source, host.RoomFolder, (_, _) => Task.FromResult(OriginalDecision.Send)) { ChunkBytes = Chunk };
+
+        await Assert.ThrowsAsync<CollabException>(() => OriginalShareGuest.RequestAsync(guest, new MediaManifestEntry("m1", "clip-a", 200_000, hash),
+            Path.Combine(guest.RoomFolder, RoomOriginals.FolderName), options: Quick).WaitAsync(TimeSpan.FromSeconds(30)));
+
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(host.RoomFolder, "originales"), "*.tmp"));
+    }
+
+    [SalaFact]
+    public async Task Solo_quien_baja_el_original_retira_sus_trozos_al_terminar()
+    {
+        (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();
+        await using RoomService h = host;
+        await using RoomService g = guest;
+        await using RoomService eva = new(CollabHarness.Env(), new RecordingHandler());
+        CollabInvitation invite = await host.CreateInviteAsync(TimeSpan.FromMinutes(10));
+        Task joining = eva.JoinAsync(invite.Link, "Eva", CollabHarness.TempFolder());
+        await CollabHarness.Until(() => host.State.Requests.Count == 1, "la solicitud de Eva");
+        await host.ApproveAsync(host.State.Requests[0].Key, Rol.Editar);
+        await joining.WaitAsync(TimeSpan.FromSeconds(20));
+        await CollabHarness.Until(() => eva.HostKey.Length > 0 && guest.State.Members.Count == 3, "tres en la sala");
+
+        (string path, string hash) = Write(host.RoomFolder, 200_000);
+        FakeSource source = new((_, _) => Task.FromResult<OriginalFile?>(Original(path)));
+        using OriginalShareHost share = new(host, source, host.RoomFolder, (_, _) => Task.FromResult(OriginalDecision.Send)) { ChunkBytes = Chunk };
+
+        // Luis pide el original y su primer trozo, y se queda a mitad.
+        string chunk = Path.Combine(host.RoomFolder, "originales", hash + "-0.trozo");
+        await guest.SendDirectAsync(ShareMessages.Make(OriginalMessages.Ask, w => w.WriteString("sha256", hash)), guest.HostKey);
+        await Task.Delay(500);
+        await guest.SendDirectAsync(ShareMessages.Make(OriginalMessages.ChunkAsk, w => { w.WriteString("sha256", hash); w.WriteNumber("i", 0); }), guest.HostKey);
+        await CollabHarness.Until(() => File.Exists(chunk), "el primer trozo preparado");
+
+        // Eva no lo estaba bajando: su «terminado» no toca los trozos de Luis.
+        await eva.SendDirectAsync(ShareMessages.Make(OriginalMessages.Done, w => w.WriteString("sha256", hash)), eva.HostKey);
+        await Task.Delay(1000);
+        Assert.True(File.Exists(chunk), "el trozo de Luis sigue ahí");
+
+        await guest.SendDirectAsync(ShareMessages.Make(OriginalMessages.Done, w => w.WriteString("sha256", hash)), guest.HostKey);
+        await CollabHarness.Until(() => !File.Exists(chunk), "los trozos retirados cuando Luis termina");
+    }
+
+    [SalaFact]
     public async Task Un_corte_en_un_trozo_se_reintenta_solo()
     {
         (RoomService host, RoomService guest, _, _) = await CollabHarness.RoomAsync();

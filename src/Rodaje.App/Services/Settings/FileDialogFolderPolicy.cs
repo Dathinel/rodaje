@@ -73,7 +73,7 @@ public static class FileDialogFolderPolicy
         Environment.SpecialFolder preferred = kind is SaveDialogKind.Export or SaveDialogKind.Still
             ? Environment.SpecialFolder.MyVideos
             : Environment.SpecialFolder.MyDocuments;
-        string folder = Environment.GetFolderPath(preferred);
+        string folder = AppDataPaths.UserFolder(preferred);
         if (Directory.Exists(folder))
         {
             return folder;

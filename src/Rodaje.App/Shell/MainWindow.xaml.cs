@@ -123,6 +123,8 @@ internal sealed partial class MainWindow : Window, IShellHost
         };
         _visuals = new ClipVisuals(id => session.Project.FindMedia(id)?.Path, new FfmpegVisualsSources(),
             new ClipVisualsOptions { CacheDirectory = ClipVisualsOptions.DefaultCacheDirectory }, SynchronizationContext.Current);
+        _visuals.CloudOnlyFound += (_, path) => session.Notify(NotificationSeverity.Informational, "Medio en la nube",
+            $"«{Path.GetFileName(path)}» está solo en la nube: no se descarga para las miniaturas; se descarga al reproducir.");
         Program.Metrics.Milestone("sesion");
         var packages = new PackageService(PackageService.DefaultLocations(), PackageService.LoadBundledCatalog(), instances: _instance);
         IEffectContent? content = EffectContentFactory.CreateOrNull(packages);
@@ -374,7 +376,7 @@ internal sealed partial class MainWindow : Window, IShellHost
             }
         }
 
-        if (options.Files.Count > 0 || options.SelfTest)
+        if (options.Files.Count > 0 || options.SelfTest || options.ChaosSeed is not null)
         {
             UiTask.Run(OpenStartupFilesAsync(options.Files));
         }
@@ -628,7 +630,12 @@ internal sealed partial class MainWindow : Window, IShellHost
             element.Visibility = chrome;
         }
 
-        AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
+        // De fondo (autoprueba, caos) la ventana no puede saltar a la pantalla: solo cambia el diseño.
+        if (!_options.RunsInBackground)
+        {
+            AppWindow.SetPresenter(fullScreen ? AppWindowPresenterKind.FullScreen : AppWindowPresenterKind.Overlapped);
+        }
+
         Player.SetFullScreen(fullScreen);
         FitSidePanels();
         if (fullScreen)
@@ -700,6 +707,13 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private async Task OpenStartupFilesAsync(IReadOnlyList<string> files)
     {
+        if (_options.ChaosSeed is { } seed)
+        {
+            // Los archivos son el corpus: los importa el propio caos, como un usuario.
+            await ChaosRun.RunAsync(this, _engine, seed, _options.ChaosMinutes, files);
+            return;
+        }
+
         if (files.Count > 0)
         {
             await Session.OpenFilesAsync(files);
@@ -1074,13 +1088,11 @@ internal sealed partial class MainWindow : Window, IShellHost
 
     private void ShowGlobalPanel(Views.Inspector.InspectorView.Tab tab)
     {
-        if (tab == Views.Inspector.InspectorView.Tab.History)
+        Button button = tab == Views.Inspector.InspectorView.Tab.History ? HistoryButton : JobsButton;
+        // Recién abierta la ventana el botón aún no tiene XamlRoot y ShowAt lanza (Ctrl+H al arrancar; modo caos, ronda 4).
+        if (tab is Views.Inspector.InspectorView.Tab.History or Views.Inspector.InspectorView.Tab.Jobs && button.XamlRoot is not null)
         {
-            HistoryButton.Flyout?.ShowAt(HistoryButton);
-        }
-        else if (tab == Views.Inspector.InspectorView.Tab.Jobs)
-        {
-            JobsButton.Flyout?.ShowAt(JobsButton);
+            button.Flyout?.ShowAt(button);
         }
     }
 
@@ -1253,6 +1265,7 @@ internal sealed partial class MainWindow : Window, IShellHost
         }
 
         _closed = true;
+        Views.Inspector.DispatcherQueueLater.StopAfterWindowClosed();
         _notificationTimer.Stop();
         _services.Collab?.Dispose();
         _revealTimer.Stop();
