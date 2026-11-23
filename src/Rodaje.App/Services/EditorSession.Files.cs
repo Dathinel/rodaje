@@ -159,6 +159,7 @@ public sealed partial class EditorSession
     public async Task<bool> SaveAsAsync(string? path = null)
     {
         VerifyAccess();
+        bool picked = path is null;
         path ??= await _dialogs.PickProjectSavePathAsync(SuggestedFileName);
         if (path is null)
         {
@@ -176,7 +177,13 @@ public sealed partial class EditorSession
             return false;
         }
 
-        return await SaveToAsync(full);
+        bool saved = await SaveToAsync(full);
+        if (saved && picked)
+        {
+            _dialogs.ProjectSavedAs(full);
+        }
+
+        return saved;
     }
 
     /// <summary>

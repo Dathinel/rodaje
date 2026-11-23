@@ -27,6 +27,32 @@ public class SaveOnDiskTests
         return session;
     }
 
+    /// <summary>
+    /// La carpeta elegida en «Guardar como» se recordaba (para el siguiente diálogo) aunque no se pudiera escribir ahí;
+    /// ahora solo se recuerda la de un guardado que salió.
+    /// </summary>
+    [Fact]
+    public void GuardarComo_SoloRecuerdaLaCarpetaSiSeGuardo() => UiThread.Run(async () =>
+    {
+        using var dir = new TempDirectory();
+        string blocker = dir.File("no-es-carpeta");
+        File.WriteAllText(blocker, "");
+        var dialogs = new FakeDialogs { SavePath = Path.Combine(blocker, "corto.rodaje") };
+        (EditorSession session, _) = NewSession(dialogs);
+
+        Assert.False(await session.SaveAsAsync());
+        Assert.Empty(dialogs.SavedAs);
+
+        string good = dir.File("corto.rodaje");
+        dialogs.SavePath = good;
+        Assert.True(await session.SaveAsAsync());
+        Assert.Equal(good, Assert.Single(dialogs.SavedAs));
+
+        // Una ruta que no salió del diálogo (Ctrl+S sobre el mismo archivo) no pasa por él.
+        Assert.True(await session.SaveAsAsync(good));
+        Assert.Single(dialogs.SavedAs);
+    });
+
     [Fact]
     public void DosVentanasConElMismoProyecto_LaSegundaNoPisaLoDeLaPrimeraSinPreguntar() => UiThread.Run(async () =>
     {
