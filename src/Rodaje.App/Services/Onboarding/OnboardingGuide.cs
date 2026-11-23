@@ -56,6 +56,9 @@ public static class OnboardingGuide
         new(FirstWatchedFolder, "Carpetas vigiladas", "Lo nuevo que llegue a la carpeta aparece al pie de la biblioteca para importarlo con un clic."),
     ];
 
+    /// <summary>Si el recorrido puede salir: ni dentro de una sala de colaboración ni con un diálogo o un aviso abierto encima.</summary>
+    public static bool TourMayStart(bool inRoom, bool dialogOrNoticeOpen) => !inRoom && !dialogOrNoticeOpen;
+
     /// <summary>La pista <paramref name="id"/> si todavía no se mostró (y la anota como mostrada); nula si no toca.</summary>
     public static Hint? TakeHint(AppSettings settings, string id)
     {

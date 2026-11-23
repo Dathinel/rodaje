@@ -36,6 +36,15 @@ public class OnboardingTests
     }
 
     [Fact]
+    public void ElRecorridoNoSaleEnUnaSalaNiConAlgoAbierto()
+    {
+        Assert.True(OnboardingGuide.TourMayStart(inRoom: false, dialogOrNoticeOpen: false));
+        Assert.False(OnboardingGuide.TourMayStart(inRoom: true, dialogOrNoticeOpen: false));
+        Assert.False(OnboardingGuide.TourMayStart(inRoom: false, dialogOrNoticeOpen: true));
+        Assert.False(OnboardingGuide.TourMayStart(inRoom: true, dialogOrNoticeOpen: true));
+    }
+
+    [Fact]
     public void CadaPistaUnaSolaVezHastaReactivarlas()
     {
         var settings = new AppSettings();

@@ -740,6 +740,8 @@ public static class ExportShareGuest
                     (double? fraction, string phase, bool waiting) = ExportShareMessages.ReadProgress(message);
                     progress?.Pulse();
                     progress?.SetWaiting(waiting);
+                    // El primer avance confirma que quien hospeda aceptó: la fase deja de ser «pidiendo permiso».
+                    progress?.SetPhase(2, 2, "Exportando en el equipo de quien hospeda…");
                     if (phase.Length > 0 || fraction is not null)
                     {
                         progress?.Report(fraction, phase.Length > 0 ? phase : null);
@@ -781,6 +783,7 @@ public static class ExportShareGuest
             progress?.SetCancellable(true);
             progress?.SetWaiting(true);
             progress?.Report(null, "Pidiendo permiso a quien hospeda la sala…");
+            progress?.SetPhase(1, 2, "Pidiendo permiso a quien hospeda la sala…");
             // El nombre sugerido viaja ya reducido a nombre de archivo: por el cable no pasa ninguna ruta.
             suggestedName = ExportShareMessages.SafeFileName(suggestedName);
             await room.SendDirectAsync(

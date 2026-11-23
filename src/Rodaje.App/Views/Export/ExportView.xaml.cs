@@ -1085,7 +1085,7 @@ internal sealed partial class ExportView : UserControl
         // Se cierra ya: la espera y el avance siguen en la barra de avisos, con Cancelar.
         CloseRequested?.Invoke(this, EventArgs.Empty);
         using LongActionScope? scope = _services.LongActions.TryBegin(
-            "exportar.anfitrion", "Exportar en el anfitrión", "Pidiendo permiso a quien hospeda la sala…",
+            "exportar.anfitrion", "Exportar en el anfitrión", "La exportación se hace en el equipo de quien hospeda la sala.",
             canCancel: true, showAfter: LongActionService.QuickOperationDelay);
         try
         {
