@@ -22,7 +22,7 @@
 
 La última versión es la **[1.0.4](https://github.com/Dathinel/rodaje/releases/latest)**. Hay tres descargas: el **instalador** (recomendado, por usuario y sin permisos de administrador), el **portable** (descomprimir y abrir) y el **completo** (portable con los complementos y los módulos de IA ya dentro). Detalle en [Instalar Rodaje](docs/guia/instalar.md).
 
-Lo nuevo de la 1.0.4: editar el video por el texto de su transcripción, render en caché de los tramos pesados de la línea de tiempo, cuadros intermedios con flujo óptico para la cámara lenta, plantillas de movimiento, importar y exportar la línea de tiempo en EDL, FCPXML y OpenTimelineIO, y CinemaDNG en HDR sin recortar. Todo en el [historial de cambios](CHANGELOG.md).
+Lo nuevo de la 1.0.4: editar en grupo con otros equipos (en la misma red o por internet, cifrado de extremo a extremo), editar el video por el texto de su transcripción, render en caché de los tramos pesados de la línea de tiempo, cuadros intermedios con flujo óptico para la cámara lenta, plantillas de movimiento, importar y exportar la línea de tiempo en EDL, FCPXML y OpenTimelineIO, y CinemaDNG en HDR sin recortar. Todo en el [historial de cambios](CHANGELOG.md).
 
 ## Qué es y qué hace
 
