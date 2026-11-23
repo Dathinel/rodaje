@@ -6,7 +6,7 @@ El formato sigue los principios de [Keep a Changelog](https://keepachangelog.com
 
 ---
 
-## [1.0.4] - 2026-11-20
+## [1.0.4] - 2026-11-23
 
 La versión de lo grande: editar en grupo con otros equipos, editar por el texto, render en caché, cuadros intermedios, plantillas de movimiento e intercambio con otros editores.
 
