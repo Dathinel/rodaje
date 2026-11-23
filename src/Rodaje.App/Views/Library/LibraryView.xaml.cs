@@ -651,6 +651,8 @@ internal sealed partial class LibraryView : UserControl, IEditorView
 
         _menuTarget = item;
         _replaceItem.IsEnabled = ReplaceTargetClip() is not null;
+        _revealItem.IsEnabled = !item.IsOffline;
+        _revealItem.Text = item.IsOffline ? "Mostrar en el Explorador (falta el archivo)" : "Mostrar en el Explorador";
         _proxyItem.IsEnabled = MediaDetails.CanGenerateProxy(item.IsStillImage, item.HasVideo, item.IsOffline);
         if (item.IsStillImage)
         {

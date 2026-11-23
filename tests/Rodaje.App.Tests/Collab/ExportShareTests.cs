@@ -173,6 +173,8 @@ public sealed class ExportShareTests
         }
 
         Assert.Equal(1.0, progress.Snapshot().Fraction);
+        // Aceptada la exportación, la fase ya no es «pidiendo permiso».
+        Assert.Equal("Exportando en el equipo de quien hospeda…", progress.Snapshot().PhaseText);
     }
 
     [SalaFact]

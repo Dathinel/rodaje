@@ -65,12 +65,15 @@ internal sealed partial class MainWindow
         }
 
         await Task.Delay(800).ConfigureAwait(true);
-        while (DialogGate.IsOpen && !_closed)
+        // El aviso del tamaño raro (y los demás) va por la InfoBar, no por DialogGate: se espera igual, y en una sala no se ofrece.
+        bool Open() => DialogGate.IsOpen || Notification.IsOpen;
+        bool InRoom() => _services.Collab?.Room.State.InRoom == true;
+        while (!_closed && !InRoom() && Open())
         {
             await Task.Delay(500).ConfigureAwait(true);
         }
 
-        if (!_closed)
+        if (!_closed && OnboardingGuide.TourMayStart(InRoom(), Open()))
         {
             StartTour();
         }
