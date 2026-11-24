@@ -76,7 +76,7 @@ public sealed class FfmpegTool
     {
         get
         {
-            string candidate = Path.Combine(Path.GetDirectoryName(ExecutablePath)!, "ffprobe.exe");
+            string candidate = Path.Combine(Path.GetDirectoryName(ExecutablePath)!, Rodaje.Media.FfmpegLocator.ExecutableName("ffprobe"));
             return File.Exists(candidate) ? candidate : null;
         }
     }
@@ -93,7 +93,7 @@ public sealed class FfmpegTool
         string? configured = environment(EnvironmentVariable);
         if (!string.IsNullOrWhiteSpace(configured))
         {
-            string candidate = Directory.Exists(configured) ? Path.Combine(configured, "ffmpeg.exe") : configured;
+            string candidate = Directory.Exists(configured) ? Path.Combine(configured, Rodaje.Media.FfmpegLocator.ExecutableName("ffmpeg")) : configured;
             return File.Exists(candidate)
                 ? (new FfmpegTool(candidate, EnvironmentVariable), null)
                 : (null, $"{EnvironmentVariable} apunta a \"{configured}\", pero ahí no hay ffmpeg.exe.");
@@ -112,7 +112,7 @@ public sealed class FfmpegTool
             string candidate;
             try
             {
-                candidate = Path.Combine(directory.Trim().Trim('"'), "ffmpeg.exe");
+                candidate = Path.Combine(directory.Trim().Trim('"'), Rodaje.Media.FfmpegLocator.ExecutableName("ffmpeg"));
             }
             catch (ArgumentException)
             {
@@ -258,7 +258,7 @@ public sealed class FfmpegTool
         string? entorno = environment(Rodaje.Media.EnvironmentVariables.Entorno);
         if (!string.IsNullOrWhiteSpace(entorno))
         {
-            yield return Path.Combine(entorno, "ffmpeg", "bin", "ffmpeg.exe");
+            yield return Path.Combine(entorno, "ffmpeg", "bin", Rodaje.Media.FfmpegLocator.ExecutableName("ffmpeg"));
         }
 
         // Sube por las carpetas: desde un worktree en .claude\worktrees también encuentra el repositorio principal.
@@ -266,7 +266,7 @@ public sealed class FfmpegTool
         {
             if (File.Exists(Path.Combine(dir.FullName, "Rodaje.slnx")))
             {
-                yield return Path.Combine(dir.FullName, ".entorno", "ffmpeg", "bin", "ffmpeg.exe");
+                yield return Path.Combine(dir.FullName, ".entorno", "ffmpeg", "bin", Rodaje.Media.FfmpegLocator.ExecutableName("ffmpeg"));
             }
         }
     }
@@ -390,9 +390,16 @@ public sealed class FfmpegTool
             {
                 Stream stdout = process.StandardOutput.BaseStream;
                 readOutput(stdout);
-                if (stdout.CanRead)
+                try
                 {
-                    stdout.CopyTo(Stream.Null);
+                    if (stdout.CanRead)
+                    {
+                        stdout.CopyTo(Stream.Null);
+                    }
+                }
+                catch (ObjectDisposedException)
+                {
+                    // readOutput cerró la tubería; en Linux CanRead sigue diciendo que se puede leer.
                 }
             }
 

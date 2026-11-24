@@ -17,6 +17,7 @@ namespace Rodaje.Audio;
 /// dispositivo el audio retoma en la posición del reloj; lo que estaba en cola sin oírse se repite si el reloj
 /// aún no lo pasó. Sin ningún dispositivo se reintenta cada segundo y con cada aviso de Windows.</para>
 /// </remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 public sealed unsafe class WasapiOutput : IAudioOutput, IRenderTransport
 {
     private const int ControlTimeoutMilliseconds = 2000;
@@ -861,6 +862,7 @@ public sealed unsafe class WasapiOutput : IAudioOutput, IRenderTransport
 }
 
 [GeneratedComClass]
+[System.Runtime.Versioning.SupportedOSPlatform("windows")]
 internal sealed partial class DeviceNotificationSink(WasapiOutput owner) : IMMNotificationClient
 {
     public int OnDeviceStateChanged(nint deviceId, uint newState)

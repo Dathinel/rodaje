@@ -14,6 +14,7 @@ namespace Rodaje.Media.Gpu;
 /// perfiles de decodificación que declara el principal. Lo guarda en <c>gpu-perfil.json</c> de la carpeta de datos con
 /// la clave de los adaptadores y sus controladores: si nada cambió, no vuelve a abrir la GPU para enumerar perfiles.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public static unsafe class GpuProfileReader
 {
     private const string CacheFileName = "gpu-perfil.json";
@@ -149,16 +150,30 @@ public static unsafe class GpuProfileReader
             factory->Release();
         }
 
+        // El de Rodaje primero (GpuProfile.Primary): en un híbrido, el que elige GpuAdapterChoice y no el de por defecto.
+        if (GpuAdapterChoice.Describe() is { } chosen && adapters.FindIndex(a => a.Name == chosen) is > 0 and int index)
+        {
+            GpuAdapter first = adapters[index];
+            adapters.RemoveAt(index);
+            adapters.Insert(0, first);
+        }
+
         return adapters;
     }
 
-    // El adaptador de por defecto, como GpuDevice: es el que decodifica en Rodaje.
+    // El adaptador de GpuDevice (GpuAdapterChoice): es el que decodifica en Rodaje.
     private static HardwareDecodeProfiles ReadPrimaryDecodeProfiles()
     {
         ID3D11Device* device = null;
         D3D_FEATURE_LEVEL level;
-        HRESULT hr = D3D11CreateDevice(null, D3D_DRIVER_TYPE.D3D_DRIVER_TYPE_HARDWARE, HMODULE.NULL,
-            (uint)D3D11_CREATE_DEVICE_FLAG.D3D11_CREATE_DEVICE_VIDEO_SUPPORT, null, 0, D3D11_SDK_VERSION, &device, &level, null);
+        IDXGIAdapter1* adapter = GpuAdapterChoice.Open();
+        HRESULT hr = D3D11CreateDevice((IDXGIAdapter*)adapter, adapter == null ? D3D_DRIVER_TYPE.D3D_DRIVER_TYPE_HARDWARE : D3D_DRIVER_TYPE.D3D_DRIVER_TYPE_UNKNOWN,
+            HMODULE.NULL, (uint)D3D11_CREATE_DEVICE_FLAG.D3D11_CREATE_DEVICE_VIDEO_SUPPORT, null, 0, D3D11_SDK_VERSION, &device, &level, null);
+        if (adapter != null)
+        {
+            adapter->Release();
+        }
+
         if (hr.FAILED)
         {
             return HardwareDecodeProfiles.None;

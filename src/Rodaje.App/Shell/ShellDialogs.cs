@@ -24,7 +24,6 @@ internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore setti
             SecondaryButtonText = "No guardar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
         return await DialogGate.ShowAsync(dialog) switch
         {
@@ -50,7 +49,6 @@ internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore setti
             PrimaryButtonText = confirmText,
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
         };
         return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary;
     }
@@ -69,9 +67,13 @@ internal sealed class ShellDialogs(Window window, nint hwnd, SettingsStore setti
         string? path = FileDialogs.Save(hwnd, "Guardar proyecto", suggestedFileName, "rodaje",
             FileDialogFolderPolicy.SaveFolder(settings.Current, SaveDialogKind.Project,
                 currentProjectPath() is { } project ? Path.GetDirectoryName(project) : null), FileDialogs.ProjectFilter);
+        return Task.FromResult(path);
+    }
+
+    public void ProjectSavedAs(string path)
+    {
         FileDialogFolderPolicy.RememberSave(settings.Current, SaveDialogKind.Project, path);
         Remember(path, project: true, updateOpen: false);
-        return Task.FromResult(path);
     }
 
     public Task<IReadOnlyList<string>> PickMediaFilesAsync()

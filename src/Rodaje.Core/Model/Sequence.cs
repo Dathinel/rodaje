@@ -3,6 +3,22 @@ using Rodaje.Core.Timing;
 
 namespace Rodaje.Core.Model;
 
+/// <summary>Espacio de color en que se trabaja, se ve y se exporta una secuencia (formato 15).</summary>
+public enum SequenceColorSpace
+{
+    /// <summary>SDR BT.709: lo de siempre. Los medios HDR se convierten al entrar (D-052).</summary>
+    [JsonStringEnumMemberName("sdr-709")]
+    Sdr709,
+
+    /// <summary>HDR10: BT.2020 con curva PQ (ST 2084).</summary>
+    [JsonStringEnumMemberName("hdr-pq")]
+    HdrPq,
+
+    /// <summary>BT.2020 con curva HLG (ARIB STD-B67).</summary>
+    [JsonStringEnumMemberName("hdr-hlg")]
+    HdrHlg,
+}
+
 /// <summary>Línea de tiempo; el índice 0 de <see cref="VideoTracks"/> es la capa de más abajo.</summary>
 public sealed class Sequence
 {
@@ -45,6 +61,17 @@ public sealed class Sequence
     public int Height { get; set; } = 1080;
 
     public int SampleRate { get; set; } = 48000;
+
+    /// <summary>Por defecto SDR; no se escribe en el archivo (y el formato se queda en 13 o 14) si todas las secuencias son SDR.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public SequenceColorSpace ColorSpace { get; set; }
+
+    /// <summary>
+    /// Código de tiempo del primer cuadro, <c>HH:MM:SS:FF</c> o <c>HH:MM:SS;FF</c> (formato 16, D-062); nulo es
+    /// <c>00:00:00:00</c>. Lo usan la EDL, el FCPXML y el OTIO.
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    public string? StartTimecode { get; set; }
 
     public const double MinMasterGainDb = -60;
 
@@ -98,6 +125,33 @@ public sealed class Sequence
     /// <summary>Final del último clip de cualquier pista.</summary>
     [JsonIgnore]
     public Time Duration => AllTracks.SelectMany(t => t.Clips).Select(c => c.End).DefaultIfEmpty(Time.Zero).Max();
+
+    /// <summary>Una copia con la cabecera (formato, mezcla maestra, buses) y sin pistas, marcadores ni regiones; comparte efectos y buses: es para serializar, no para editar.</summary>
+    internal Sequence WithoutContents()
+    {
+        Sequence copy = (Sequence)MemberwiseClone();
+        copy.VideoTracks = [];
+        copy.AudioTracks = [];
+        copy.Markers = [];
+        copy.Regions = [];
+        return copy;
+    }
+
+    /// <summary>Copia la cabecera de <paramref name="other"/> (todo menos pistas, marcadores y regiones).</summary>
+    internal void CopyHeaderFrom(Sequence other)
+    {
+        Id = other.Id;
+        Name = other.Name;
+        FrameRate = other.FrameRate;
+        Width = other.Width;
+        Height = other.Height;
+        SampleRate = other.SampleRate;
+        ColorSpace = other.ColorSpace;
+        StartTimecode = other.StartTimecode;
+        MasterGainDb = other.MasterGainDb;
+        MasterEffects = other.MasterEffects.ConvertAll(e => e.Clone());
+        AudioBuses = other.AudioBuses.ConvertAll(b => b.Clone());
+    }
 
     public Sequence Clone()
     {

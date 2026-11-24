@@ -4,6 +4,7 @@ using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.LongActions;
+using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Translate;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
@@ -66,16 +67,18 @@ internal static class TranslateDialog
         int last = targets.ToList().FindIndex(l => l.Code == _lastTarget);
         target.SelectedIndex = last >= 0 ? last : 1;
 
-        var busy = new ProgressRing { IsActive = false, Width = 20, Height = 20 };
+        const string Intro = "Se crea una pista nueva encima con los mismos tiempos; la original no cambia.";
+        const string SameLanguage = "Elige un idioma distinto del original.";
+        var busy = new Views.Shared.OperationProgressView { Width = AnalysisUi.PreviewWidth, ShowMessage = false, ShowCancel = false };
         var status = new TextBlock
         {
-            Text = "Se crea una pista nueva encima con los mismos tiempos; la original no cambia.",
+            Text = Intro,
             TextWrapping = TextWrapping.Wrap,
-            Width = AnalysisUi.PreviewWidth - 30,
+            Width = AnalysisUi.PreviewWidth,
         };
-        var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
-        row.Children.Add(busy);
+        var row = new StackPanel { Spacing = 4, Margin = new Thickness(0, 8, 0, 0) };
         row.Children.Add(status);
+        row.Children.Add(busy);
         panel.Children.Add(track);
         panel.Children.Add(source);
         panel.Children.Add(target);
@@ -87,8 +90,15 @@ internal static class TranslateDialog
         using var work = new DialogWork();
         bool running = false;
 
-        void Refresh() => dialog.IsPrimaryButtonEnabled = !running && Chosen(track, trackChoices) is not null && Chosen(target, targets) is { } to
-            && Chosen(source, sources)?.Code != to.Code;
+        void Refresh()
+        {
+            bool same = Chosen(target, targets) is { } to && Chosen(source, sources)?.Code == to.Code;
+            dialog.IsPrimaryButtonEnabled = !running && Chosen(track, trackChoices) is not null && Chosen(target, targets) is not null && !same;
+            if (same || status.Text == SameLanguage)
+            {
+                status.Text = same ? SameLanguage : Intro;
+            }
+        }
 
         void Estimate() => advice.Show(Chosen(track, trackChoices) is { } c && session.Sequence.FindTrack(c.TrackId) is { } chosen
             ? translator.Estimate(SubtitleTrackTranslation.Collect(chosen))
@@ -110,7 +120,6 @@ internal static class TranslateDialog
         {
             ContentDialogButtonClickDeferral deferral = args.GetDeferral();
             running = true;
-            busy.IsActive = true;
             Refresh();
             try
             {
@@ -119,7 +128,18 @@ internal static class TranslateDialog
                 string? from = Chosen(source, sources) is { Code: not "auto" } s ? s.Code : null;
                 IReadOnlyList<SubtitleText> texts = session.Sequence.FindTrack(chosenTrack.TrackId) is { } t ? SubtitleTrackTranslation.Collect(t) : [];
                 status.Text = Fmt($"Traduciendo {texts.Count} textos al {to.Name.ToLower(CultureInfo.CurrentCulture)}… (sigue en Trabajos si cierras)");
-                TrackTranslation result = await translator.TranslateAsync(texts, from, to.Code, "Traducir subtítulos", work.Token);
+                Task<TrackTranslation> call;
+                // El avance del trabajo de módulo (etapa, porcentaje, tiempo restante) va al diálogo y a la barra de avisos.
+                using (ModuleJobList.CaptureNext(j =>
+                {
+                    busy.Operation = j.Operation;
+                    scope?.Follow(j.Operation);
+                }))
+                {
+                    call = translator.TranslateAsync(texts, from, to.Code, "Traducir subtítulos", work.Token);
+                }
+
+                TrackTranslation result = await call;
                 done = (chosenTrack.TrackId, to, result);
             }
             catch (OperationCanceledException)
@@ -131,7 +151,12 @@ internal static class TranslateDialog
             catch (Exception ex)
 #pragma warning restore CA1031
             {
-                status.Text = ex is TranslationException or ModuleException ? ex.Message : "No se pudo traducir. El proyecto no cambió.";
+                status.Text = ex switch
+                {
+                    ModuleException error when modules.Find(SubtitleTrackTranslation.ModuleId) is { } module => ModuleManager.Friendly(module, error),
+                    TranslationException or ModuleException => ex.Message,
+                    _ => "No se pudo traducir. El proyecto no cambió.",
+                };
                 if (ex is not (TranslationException or ModuleException))
                 {
                     UiTask.Report(ex, notify: false);
@@ -142,7 +167,7 @@ internal static class TranslateDialog
             finally
             {
                 running = false;
-                busy.IsActive = false;
+                busy.Operation = null;
                 Refresh();
                 deferral.Complete();
             }

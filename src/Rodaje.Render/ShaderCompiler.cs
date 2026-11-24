@@ -6,6 +6,7 @@ using static TerraFX.Interop.DirectX.DirectX;
 namespace Rodaje.Render;
 
 /// <summary>Compila HLSL en ejecución con <c>d3dcompiler_47.dll</c>, que viene con Windows (decisión D-015).</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public static unsafe class ShaderCompiler
 {
     private const uint D3DCOMPILE_OPTIMIZATION_LEVEL3 = 1 << 15;

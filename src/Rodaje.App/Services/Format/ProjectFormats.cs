@@ -69,7 +69,7 @@ public static class ProjectFormats
     public static IReadOnlyList<(ClipFit Fit, string Label, string Help)> FitChoices { get; } =
     [
         (ClipFit.Fit, "Encajar", "Cada clip entero, con barras si no tiene la forma del proyecto."),
-        (ClipFit.Fill, "Rellenar", "Cada clip llena el cuadro; lo que sobra queda fuera."),
+        (ClipFit.Fill, "Rellenar", "Cada clip llena el fotograma; lo que sobra queda fuera."),
         (ClipFit.Keep, "Mantener tamaño", "Cada clip conserva su tamaño en píxeles."),
     ];
 
@@ -120,16 +120,80 @@ public static class ProjectFormats
         return aspect.Custom ? (width, height) : aspect.Size(shortSide);
     }
 
+    /// <summary>Tamaños que se aceptan como estándar (tabla en <c>docs/resoluciones-estandar.md</c>).</summary>
+    public static IReadOnlyList<(int Width, int Height)> StandardSizes { get; } =
+    [
+        (1280, 720), (1920, 1080), (2560, 1440), (3840, 2160), (7680, 4320),
+        (720, 1280), (1080, 1920), (1440, 2560), (2160, 3840),
+        (1080, 1080), (1080, 1350), (4096, 2160), (2048, 1080),
+    ];
+
+    public static bool IsStandard(int width, int height) => StandardSizes.Contains((width, height));
+
+    /// <summary>
+    /// El estándar que se ofrece en lugar de un tamaño raro: casi cuadrado → 1080×1080; vertical más cerca de 4:5 que de
+    /// 9:16 → 1080×1350; si no, 16:9 o 9:16 con el menor lado corto que no baje del de origen (2 % de margen, tope 4320).
+    /// Así 1080×2400 → 1080×1920, 1366×768 → 1920×1080 y el ultrapanorámico 2560×1080 → 1920×1080 (con barras o recorte).
+    /// Un tamaño que ya es estándar se devuelve igual.
+    /// </summary>
+    public static (int Width, int Height) NearestStandard(int width, int height)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(width);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(height);
+        if (IsStandard(width, height))
+        {
+            return (width, height);
+        }
+
+        if (Match(width, height).Label == "1:1")
+        {
+            return (1080, 1080);
+        }
+
+        // Frontera entre 9:16 (0,5625) y 4:5 (0,8) en escala logarítmica.
+        if (width < height && (double)width / height > Math.Sqrt(0.5625 * 0.8))
+        {
+            return (1080, 1350);
+        }
+
+        int shortSide = Math.Min(width, height);
+        int[] sides = [720, 1080, 1440, 2160, 4320];
+        int side = sides.FirstOrDefault(s => s >= shortSide * 0.98, sides[^1]);
+        int longSide = side * 16 / 9;
+        return width >= height ? (longSide, side) : (side, longSide);
+    }
+
+    /// <summary>«estándar vertical», «estándar horizontal», «cuadrado» o «retrato 4:5», para el texto del botón.</summary>
+    public static string StandardName(int width, int height) => (width, height) switch
+    {
+        (1080, 1080) => "cuadrado",
+        (1080, 1350) => "retrato 4:5",
+        _ when width < height => "estándar vertical",
+        _ => "estándar horizontal",
+    };
+
     /// <summary>Si las medidas sirven para una secuencia (pares y entre <see cref="MinSide"/> y <see cref="MaxSide"/>).</summary>
     public static bool IsValidSize(int width, int height) =>
         width is >= MinSide and <= MaxSide && height is >= MinSide and <= MaxSide && width % 2 == 0 && height % 2 == 0;
 
-    /// <summary>«9:16 · 1080×1920 · 30 fps».</summary>
+    /// <summary>«9:16 · 1080×1920 · 30 fps», más « · HDR10 (PQ)» o « · HLG» si la secuencia es HDR.</summary>
     public static string Describe(Sequence sequence)
     {
         ArgumentNullException.ThrowIfNull(sequence);
-        return $"{AspectName(sequence.Width, sequence.Height)} · {sequence.Width}×{sequence.Height} · {Fps(sequence.FrameRate)} fps";
+        string color = sequence.ColorSpace == SequenceColorSpace.Sdr709 ? "" : $" · {ColorSpaceName(sequence.ColorSpace)}";
+        return $"{AspectName(sequence.Width, sequence.Height)} · {sequence.Width}×{sequence.Height} · {Fps(sequence.FrameRate)} fps{color}";
     }
+
+    /// <summary>Los espacios de color que ofrece «Formato del proyecto…», en el orden de <see cref="SequenceColorSpace"/>.</summary>
+    public static IReadOnlyList<(SequenceColorSpace Space, string Label, string Help)> ColorSpaces { get; } =
+    [
+        (SequenceColorSpace.Sdr709, "SDR BT.709", "Lo de siempre; los videos HDR se convierten a SDR al entrar."),
+        (SequenceColorSpace.HdrPq, "HDR10 (PQ)", "Se trabaja en HDR: luz lineal BT.2020 con el blanco SDR en 203 nits; exporta HDR10 en HEVC, AV1 o ProRes de 10 bits."),
+        (SequenceColorSpace.HdrHlg, "HLG", "Como HDR10, pero la salida va en HLG (BT.2100), sin metadatos de masterizado."),
+    ];
+
+    /// <summary>«SDR BT.709», «HDR10 (PQ)» o «HLG».</summary>
+    public static string ColorSpaceName(SequenceColorSpace space) => ColorSpaces.FirstOrDefault(c => c.Space == space).Label ?? space.ToString();
 
     /// <summary>«16:9», «9:16», «4:5» o «2,35:1».</summary>
     public static string AspectName(int width, int height)

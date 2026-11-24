@@ -1,3 +1,4 @@
+using Rodaje.Core.Editing;
 using Rodaje.Core.Timing;
 using Rodaje.Media;
 using Rodaje.Media.Audio;
@@ -37,6 +38,12 @@ public interface IVisualsSources
 
     /// <summary>Huella del contenido (cambia si el archivo cambia), para la caché en disco.</summary>
     string Fingerprint(string path);
+
+    /// <summary>
+    /// El archivo está solo en la nube (OneDrive «Liberar espacio»): leerlo lo descarga entero. Mira solo los atributos,
+    /// que no lo descargan.
+    /// </summary>
+    bool IsCloudOnly(string path);
 }
 
 /// <summary>Con FFmpeg: <see cref="ThumbnailDecoder"/>, <see cref="AudioDecoder"/> y <see cref="SourceFingerprint"/>.</summary>
@@ -58,6 +65,18 @@ public sealed partial class FfmpegVisualsSources : IVisualsSources
     }
 
     public string Fingerprint(string path) => SourceFingerprint.Compute(path).Key;
+
+    public bool IsCloudOnly(string path)
+    {
+        try
+        {
+            return (File.GetAttributes(path) & DiskRelinkFileSystem.CloudOnlyAttributes) != 0;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException)
+        {
+            return false;
+        }
+    }
 
     private sealed partial class Thumbnails(ThumbnailDecoder decoder) : IThumbnailReader
     {

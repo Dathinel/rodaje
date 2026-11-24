@@ -44,6 +44,14 @@ public static class ExportChoices
     public static IReadOnlyList<ChromaSubsampling> Chromas(EncoderSpec encoder, int bitDepth) =>
         [.. encoder.PixelFormats.Where(f => f.BitDepth() == bitDepth && !f.HasAlpha()).Select(f => f.Chroma()).Distinct().Order()];
 
+    /// <summary>«4:2:0», «4:2:2» o «4:4:4».</summary>
+    public static string ChromaName(ChromaSubsampling chroma) => chroma switch
+    {
+        ChromaSubsampling.Chroma422 => "4:2:2",
+        ChromaSubsampling.Chroma444 => "4:4:4",
+        _ => "4:2:0",
+    };
+
     /// <summary>Perfiles que valen con este formato de píxel.</summary>
     public static IReadOnlyList<EncoderProfile> Profiles(EncoderSpec encoder, ExportPixelFormat? pixels) =>
         [.. encoder.Profiles.Where(p => pixels is not { } f || p.Allows(f))];

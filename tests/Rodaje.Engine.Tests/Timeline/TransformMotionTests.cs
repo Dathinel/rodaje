@@ -11,6 +11,23 @@ namespace Rodaje.Engine.Tests.Timeline;
 /// <summary>La transformación ampliada en el motor: mismas curvas que el núcleo, forma de la capa y muestras del obturador.</summary>
 public sealed class TransformMotionTests
 {
+    [Fact]
+    public void Hdr_reference_uses_the_existing_keyframe_curve_and_defaults_to_automatic()
+    {
+        Assert.Equal(0, EffectPlan.Transform(null, S(1)).HdrReferenceNits);
+        EffectInstance effect = TimelineEffectsTests.Effect(BuiltInEffects.Transform);
+        effect.Parameters[T.HdrReferenceNits] = new Parameter
+        {
+            Keyframes = [new Keyframe(S(0), 100), new Keyframe(S(2), 1000)],
+        };
+        EffectPlan plan = EffectPlan.From([effect])!;
+        Assert.Equal(100, EffectPlan.Transform(plan, S(0)).HdrReferenceNits);
+        Assert.Equal(550, EffectPlan.Transform(plan, S(1)).HdrReferenceNits);
+        Assert.Equal(1000, EffectPlan.Transform(plan, S(2)).HdrReferenceNits);
+        effect.Enabled = false;
+        Assert.Equal(0, EffectPlan.Transform(EffectPlan.From([effect]), S(1)).HdrReferenceNits);
+    }
+
     private static readonly Interpolation[] Kinds = Enum.GetValues<Interpolation>();
 
     private static Keyframe KeyAt(Random random, long ticks)

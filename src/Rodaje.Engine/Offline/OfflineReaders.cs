@@ -64,6 +64,8 @@ internal sealed class OfflineReaders : IDisposable
     private readonly List<Slot> _gone = [];
     private readonly List<DecodedFrame> _released = [];
     private readonly List<Reader> _closingNow = [];
+    private readonly List<(Reader Reader, long LastIndex, long Stamp, int Needed)> _sim = [];
+    private readonly List<(Source Source, long Index)> _simNew = [];
     private long _stamp;
     private long _reserved;
     private bool _disposed;
@@ -129,6 +131,44 @@ internal sealed class OfflineReaders : IDisposable
     /// <summary>Lectores cuyo pool no cabía en el presupuesto y se abrieron con la capacidad mínima.</summary>
     public int VramOverruns { get; private set; }
 
+    public Slot? RequestSample(VideoClipPlan clip, Time time, bool mustHave)
+    {
+        FrameSample sample = clip.SampleAt(time);
+        Slot? first = Request(clip.Source, sample.A, time, mustHave, clip);
+        if (first is null || (sample.T > 0 && Request(clip.Source, sample.B, time, mustHave, clip) is null))
+        {
+            return null;
+        }
+
+        return first;
+    }
+
+    public bool HasRoomForSample(VideoClipPlan clip, Time time)
+    {
+        FrameSample sample = clip.SampleAt(time);
+        if (sample.T == 0)
+        {
+            return HasRoom(clip.Source, sample.A, clip);
+        }
+
+        lock (_gate)
+        {
+            if (!_sources.TryGetValue(clip.Source, out Source? source))
+            {
+                return true;
+            }
+
+            bool hasA = source.Slots.ContainsKey(sample.A);
+            bool hasB = source.Slots.ContainsKey(sample.B);
+            if (hasA && hasB)
+            {
+                return true;
+            }
+
+            return HasRoomLocked(source, hasA ? sample.B : sample.A, clip, hasA || hasB ? 1 : 2);
+        }
+    }
+
     /// <summary>
     /// Pide el cuadro <paramref name="index"/> de <paramref name="key"/>, que se usará hasta <paramref name="lastUse"/>.
     /// Con <paramref name="mustHave"/> falso (lectura por adelantado) no se pide si el lector elegido está lleno.
@@ -179,19 +219,154 @@ internal sealed class OfflineReaders : IDisposable
         return slot;
     }
 
+    /// <summary>
+    /// Pide todo lo de <paramref name="requests"/> por delante o nada: antes de pedir se suman los cuadros nuevos que
+    /// caerían en cada lector, de modo que los carriles que comparten uno cuenten sus huecos juntos. Si la tanda entera
+    /// no cabe, no se pide nada.
+    /// </summary>
+    /// <returns>Verdadero si se pidió todo; falso si no cabía.</returns>
+    public bool RequestSamples(IReadOnlyList<(VideoClipPlan Clip, Time Time)> requests)
+    {
+        lock (_gate)
+        {
+            _sim.Clear();
+            _simNew.Clear();
+            for (int i = 0; i < requests.Count; i++)
+            {
+                (VideoClipPlan clip, Time time) = requests[i];
+                FrameSample sample = clip.SampleAt(time);
+                if (!Fits(clip, sample.A) || (sample.T > 0 && !Fits(clip, sample.B)))
+                {
+                    return false;
+                }
+            }
+        }
+
+        for (int i = 0; i < requests.Count; i++)
+        {
+            (VideoClipPlan clip, Time time) = requests[i];
+            FrameSample sample = clip.SampleAt(time);
+            if (Request(clip.Source, sample.A, time, mustHave: false, clip) is null
+                || (sample.T > 0 && Request(clip.Source, sample.B, time, mustHave: false, clip) is null))
+            {
+                return false;
+            }
+        }
+
+        return true;
+
+        bool Fits(VideoClipPlan clip, long index)
+        {
+            if (!_sources.TryGetValue(clip.Source, out Source? source) || source.Slots.ContainsKey(index)
+                || _simNew.Contains((source, index)))
+            {
+                return true;
+            }
+
+            Reader? reader = clip is { Forward: false } ? source.Reversed.GetValueOrDefault(clip.ClipId) : PeekSim(source, index);
+            if (reader is null)
+            {
+                // Lector nuevo: empieza vacío.
+                _simNew.Add((source, index));
+                return true;
+            }
+
+            for (int i = 0; i < _sim.Count; i++)
+            {
+                if (_sim[i].Reader == reader)
+                {
+                    int needed = _sim[i].Needed + 1;
+                    if (reader.Assigned + needed > reader.Capacity)
+                    {
+                        return false;
+                    }
+
+                    _sim[i] = (reader, index, ++_stamp, needed);
+                    _simNew.Add((source, index));
+                    return true;
+                }
+            }
+
+            if (reader.Assigned + 1 > reader.Capacity)
+            {
+                return false;
+            }
+
+            _sim.Add((reader, index, ++_stamp, 1));
+            _simNew.Add((source, index));
+            return true;
+        }
+    }
+
+    /// <summary>Como <see cref="Peek"/> pero con el <see cref="Reader.LastIndex"/> y <see cref="Reader.Stamp"/> que dejarían las peticiones ya simuladas de la tanda.</summary>
+    private Reader? PeekSim(Source source, long index)
+    {
+        Reader? forward = null;
+        Reader? backward = null;
+        Reader? fresh = null;
+        Reader? oldest = null;
+        long forwardIndex = 0;
+        long backwardIndex = 0;
+        long oldestStamp = 0;
+        foreach (Reader reader in source.Readers)
+        {
+            long lastIndex = reader.LastIndex;
+            long stamp = reader.Stamp;
+            foreach ((Reader simulated, long simIndex, long simStamp, _) in _sim)
+            {
+                if (simulated == reader)
+                {
+                    (lastIndex, stamp) = (simIndex, simStamp);
+                    break;
+                }
+            }
+
+            if (lastIndex < 0)
+            {
+                fresh ??= reader;
+            }
+            else if (index > lastIndex && index - lastIndex <= ForwardReach)
+            {
+                if (forward is null || lastIndex > forwardIndex)
+                {
+                    (forward, forwardIndex) = (reader, lastIndex);
+                }
+            }
+            else if (index < lastIndex && lastIndex - index <= ForwardReach)
+            {
+                if (backward is null || lastIndex < backwardIndex)
+                {
+                    (backward, backwardIndex) = (reader, lastIndex);
+                }
+            }
+
+            if (oldest is null || stamp < oldestStamp)
+            {
+                (oldest, oldestStamp) = (reader, stamp);
+            }
+        }
+
+        return forward ?? backward ?? fresh ?? (source.Readers.Count < _maxPerSource ? null : oldest);
+    }
+
     /// <summary>Hay lugar para pedir <paramref name="index"/> por delante sin pasar la capacidad del lector que lo tomaría.</summary>
     public bool HasRoom(SourceKey key, long index, VideoClipPlan? clip = null)
     {
         lock (_gate)
         {
-            if (!_sources.TryGetValue(key, out Source? source) || source.Slots.ContainsKey(index))
-            {
-                return true;
-            }
-
-            Reader? reader = clip is { Forward: false } ? source.Reversed.GetValueOrDefault(clip.ClipId) : Peek(source, index);
-            return reader is null || reader.Assigned < reader.Capacity;
+            return !_sources.TryGetValue(key, out Source? source) || HasRoomLocked(source, index, clip, 1);
         }
+    }
+
+    private bool HasRoomLocked(Source source, long index, VideoClipPlan? clip, int needed)
+    {
+        if (source.Slots.ContainsKey(index))
+        {
+            return true;
+        }
+
+        Reader? reader = clip is { Forward: false } ? source.Reversed.GetValueOrDefault(clip.ClipId) : Peek(source, index);
+        return reader is null || reader.Assigned + needed <= reader.Capacity;
     }
 
     /// <summary>Espera a que el cuadro esté decodificado y devuelve una referencia propia (que desecha quien la recibe).</summary>

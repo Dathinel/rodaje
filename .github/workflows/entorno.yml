@@ -1,0 +1,69 @@
+# Fase 2 de Linux y macOS (D-066): comprueba que build/preparar-entorno.ps1 crea .entorno igual en Windows,
+# Linux y macOS con las mismas huellas fijadas, y que dotnet-local (.cmd en Windows, .sh en Unix) levanta el
+# SDK 10.0.403 y compila Rodaje.Core. Corre a mano y en los PR que toquen el instalador del entorno.
+
+name: Entorno en Windows, Linux y macOS
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - 'build/preparar-entorno.ps1'
+      - 'build/dotnet-local.cmd'
+      - 'build/dotnet-local.sh'
+      - 'global.json'
+      - '.github/workflows/entorno.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: entorno-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  entorno:
+    name: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-15, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      # pwsh 7 en Unix; PowerShell 5.1 (powershell.exe) en Windows, como lo llama dotnet-local.cmd.
+      - name: Preparar el entorno
+        if: runner.os != 'Windows'
+        run: |
+          echo '### Huellas SHA-256 de los paquetes descargados' >> "$GITHUB_STEP_SUMMARY"
+          pwsh -NoProfile -File build/preparar-entorno.ps1
+
+      - name: Preparar el entorno
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          [IO.File]::AppendAllText($env:GITHUB_STEP_SUMMARY, "### Huellas SHA-256 de los paquetes descargados`n", (New-Object Text.UTF8Encoding($false)))
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\preparar-entorno.ps1
+
+      - name: dotnet-local --version
+        if: runner.os != 'Windows'
+        run: |
+          v="$(bash build/dotnet-local.sh --version)"
+          echo "$v"
+          [ "$v" = "10.0.403" ]
+
+      - name: dotnet-local --version
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: build\dotnet-local.cmd --version | findstr /r /c:"^10\.0\.403"
+
+      - name: Compilar Rodaje.Core
+        if: runner.os != 'Windows'
+        run: bash build/dotnet-local.sh build src/Rodaje.Core/Rodaje.Core.csproj
+
+      - name: Compilar Rodaje.Core
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: build\dotnet-local.cmd build src\Rodaje.Core\Rodaje.Core.csproj

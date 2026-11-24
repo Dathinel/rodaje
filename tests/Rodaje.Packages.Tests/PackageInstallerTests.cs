@@ -348,6 +348,55 @@ public sealed class PackageInstallerTests : IDisposable
         return _installer.Install(archive).Package.Directory;
     }
 
+    [Fact]
+    public void Recovery_applies_the_same_entry_limit_as_installation_and_warns()
+    {
+        string archive = Samples.ValidPackage(_folder.Combine("limite.paquete"));
+        var installer = new PackageInstaller(_locations, "rodaje", new InstallLimits { MaxEntries = 1 });
+        Assert.Throws<PackageInstallException>(() => installer.Install(archive));
+        string aside = Path.Combine(_locations.Packages, ".anterior-0123456789ab-rodaje-transiciones");
+        ZipFile.ExtractToDirectory(archive, aside);
+        var warnings = new List<string>();
+
+        Assert.Equal(1, installer.CleanUpLeftovers(warnings.Add));
+
+        Assert.Contains("más de 1 archivos", Assert.Single(warnings), StringComparison.Ordinal);
+        Assert.False(Directory.Exists(aside));
+        Assert.Null(InstalledVersion());
+    }
+
+    [Fact]
+    public void Recovery_invokes_the_installation_content_validator()
+    {
+        string archive = Samples.ValidPackage(_folder.Combine("contenido.paquete"));
+        int validations = 0;
+        var installer = new PackageInstaller(_locations, "rodaje")
+        {
+            ValidateContent = package =>
+            {
+                validations++;
+                if (File.ReadAllText(Path.Combine(package.Directory, "transiciones", "deslizar.json")) == "rechazado")
+                    throw new InvalidDataException("Contenido rechazado por la aplicación");
+            },
+        };
+        string target = installer.Install(archive).Package.Directory;
+        string aside = Path.Combine(_locations.Packages, ".anterior-0123456789ab-rodaje-transiciones");
+        Directory.Move(target, aside);
+        var warnings = new List<string>();
+        Assert.Equal(1, installer.CleanUpLeftovers(warnings.Add));
+        Assert.Equal(2, validations);
+        Assert.Empty(warnings);
+        Directory.Move(target, aside);
+        File.WriteAllText(Path.Combine(aside, "transiciones", "deslizar.json"), "rechazado");
+
+        Assert.Equal(1, installer.CleanUpLeftovers(warnings.Add));
+
+        Assert.Equal(3, validations);
+        Assert.Contains("Contenido rechazado", Assert.Single(warnings), StringComparison.Ordinal);
+        Assert.False(Directory.Exists(aside));
+        Assert.False(Directory.Exists(target));
+    }
+
     private string? InstalledVersion() =>
         ManifestReader.ReadFile(Path.Combine(_locations.Packages, "rodaje-transiciones", "paquete.json")).Manifest?.Version.ToString();
 

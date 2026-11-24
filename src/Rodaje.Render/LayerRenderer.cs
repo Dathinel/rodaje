@@ -4,6 +4,7 @@ using Rodaje.Media.Video;
 using Rodaje.Playback.Composition;
 using Rodaje.Render.Effects;
 using TerraFX.Interop.DirectX;
+using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render;
 
@@ -28,9 +29,9 @@ internal readonly unsafe struct Destination(RenderTarget target, int width, int 
 /// Lo que dibuja una capa: los planos Y'CbCr de un cuadro decodificado o el intermedio RGBA premultiplicado de una capa
 /// compuesta, que ocupa el cuadro de la secuencia.
 /// </summary>
-internal readonly record struct LayerSource(D3D11TexturePayload? Planes, ImageView Image)
+internal readonly record struct LayerSource(IDecoderSurface? Planes, ImageView Image)
 {
-    public static LayerSource Of(D3D11TexturePayload payload) => new(payload, default);
+    public static LayerSource Of(IDecoderSurface payload) => new(payload, default);
 
     public static LayerSource Of(ImageView image) => new(null, image);
 
@@ -75,13 +76,12 @@ internal struct FrameStats
 /// <remarks>Lo que no se puede aplicar en este cuadro (shader sin compilar, pool lleno) se salta y se cuenta; nunca se espera.</remarks>
 internal sealed unsafe partial class LayerRenderer : IDisposable
 {
-    internal const DXGI_FORMAT IntermediateFormat = DXGI_FORMAT.DXGI_FORMAT_R16G16B16A16_FLOAT;
+    internal const GpuFormat IntermediateFormat = GpuFormat.Rgba16Float;
 
-    private readonly GpuDevice _gpu;
-    private readonly ID3D11DeviceContext* _context;
+    private readonly GpuDevice? _gpu;
     private readonly QuadPipeline _quad;
     private readonly EffectPipeline _effects;
-    private readonly PlaneViewCache _views;
+    private readonly GpuSurfaceCache _views;
     private readonly RenderTargetPool _pool;
     private readonly LutTextures _luts;
     private readonly List<SpatialStep> _spatial = [];
@@ -90,22 +90,23 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     private LayerTransform? _motionTransform;
     private float _motionWeight;
 
-    public LayerRenderer(GpuDevice gpu, QuadPipeline quad, EffectPipeline effects, PlaneViewCache views, RenderTargetPool pool, LutTextures luts)
+    /// <param name="gpu">El dispositivo D3D11 de las superficies de D3D11VA; <c>null</c> en otro motor.</param>
+    public LayerRenderer(GpuDevice? gpu, QuadPipeline quad, EffectPipeline effects, GpuSurfaceCache views, RenderTargetPool pool, LutTextures luts)
     {
         _gpu = gpu;
-        _context = (ID3D11DeviceContext*)gpu.NativeContext;
         _quad = quad;
         _effects = effects;
         _views = views;
         _pool = pool;
         _luts = luts;
-        _maskTextures = new MaskTextures((ID3D11Device*)gpu.NativeDevice, _context);
-        _curves = new CurveTextures((ID3D11Device*)gpu.NativeDevice, _context);
+        _maskTextures = new MaskTextures(_quad.Engine);
+        _curves = new CurveTextures(_quad.Engine);
     }
 
     public void Dispose()
     {
         ReleaseHistory();
+        Uploads?.Dispose();
         _maskTextures.Dispose();
         _curves.Dispose();
     }
@@ -115,17 +116,20 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
     public IEffectResources? Resources { get; set; }
 
+    /// <summary>Sube los cuadros decodificados en la CPU (motores sin decodificación en la GPU); <c>null</c> los salta, como en D3D11.</summary>
+    public CpuFrameUploads? Uploads { get; init; }
+
     /// <summary>La textura de la capa si se puede dibujar; <c>null</c> si hay que saltarla.</summary>
     /// <exception cref="ArgumentException">La textura es de otro dispositivo.</exception>
-    public D3D11TexturePayload? Usable(LayerFrame layer)
+    public IDecoderSurface? Usable(LayerFrame layer)
     {
-        if (layer.Frame.Payload is not D3D11TexturePayload payload || payload.IsReleased
-            || payload.PixelFormat is not (FramePixelFormat.Nv12 or FramePixelFormat.P010))
+        IDecoderSurface? payload = Surface(layer.Frame.Payload);
+        if (payload is null)
         {
             return null;
         }
 
-        if (payload.Device != _gpu)
+        if (OtherDevice(payload, _gpu))
         {
             throw new ArgumentException($"La capa de la pista {layer.TrackIndex} ({layer.ClipId}) es una textura de otro dispositivo.");
         }
@@ -133,8 +137,42 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         return payload;
     }
 
+    /// <summary>La superficie del cuadro que sigue a la capa (para interpolar), por el mismo camino que <see cref="Usable"/> pero sin lanzar: <c>null</c> si no hay, no vale o es de otro dispositivo.</summary>
+    public IDecoderSurface? UsableNext(LayerFrame layer)
+    {
+        IDecoderSurface? payload;
+        try
+        {
+            payload = Surface(layer.Next?.Payload);
+        }
+        catch (Rodaje.Media.MediaException)
+        {
+            // Un cuadro de CPU que no se sabe convertir: falla cuando le toque ser la capa (Usable), no al interpolar hacia él.
+            return null;
+        }
+
+        return payload is null || OtherDevice(payload, _gpu) ? null : payload;
+    }
+
+    /// <summary>El contenido de un cuadro como superficie dibujable (subida de CPU si hay <see cref="Uploads"/>); <c>null</c> si no es utilizable.</summary>
+    private IDecoderSurface? Surface(object? payload)
+    {
+        object? content = payload is CpuFramePayload cpu && Uploads is { } uploads ? uploads.Get(cpu) : payload;
+        if (content is not IDecoderSurface surface || surface.IsReleased
+            || surface.PixelFormat is not (FramePixelFormat.Nv12 or FramePixelFormat.P010 or FramePixelFormat.P016 or FramePixelFormat.Bgra8 or FramePixelFormat.Rgba16))
+        {
+            return null;
+        }
+
+        return surface;
+    }
+
+    // Una textura de D3D11VA de otro dispositivo (o en un motor que no es ese D3D11) no se puede leer.
+    private static bool OtherDevice(IDecoderSurface surface, GpuDevice? gpu) =>
+        OperatingSystem.IsWindowsVersionAtLeast(7) && surface is D3D11TexturePayload payload && payload.Device != gpu;
+
     /// <summary>El camino rápido: dibuja con el pipeline ya enlazado (<c>PsLayer</c> y "over").</summary>
-    public bool DrawPlain(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight, float pixelScale)
+    public bool DrawPlain(LayerFrame layer, IDecoderSurface payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight, float pixelScale)
     {
         geometry = geometry with { Crop = CropOf(layer) };
         if (Place(layer, payload, geometry, sequenceWidth, sequenceHeight) is not { } placement)
@@ -143,26 +181,11 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         }
 
         QuadConstants constants = LayerQuad(payload, placement, geometry, Opacity(layer), sequenceWidth, sequenceHeight, pixelScale);
-        PlaneViews views = _views.Get(payload, out bool owned);
-        try
-        {
-            ID3D11ShaderResourceView** srvs = stackalloc ID3D11ShaderResourceView*[2] { views.Luma, views.Chroma };
-            _context->PSSetShaderResources(0, 2, srvs);
-            _quad.Draw(constants);
-            if (owned)
-            {
-                srvs[0] = null;
-                srvs[1] = null;
-                _context->PSSetShaderResources(0, 2, srvs);
-            }
-        }
-        finally
-        {
-            if (owned)
-            {
-                views.Release();
-            }
-        }
+        SetHdr(ref constants, payload, layer.Transform);
+        GpuDecoderPlanes planes = _quad.CurrentFrame.Acquire(_views, payload);
+        _quad.SetInput(0, planes.Luma);
+        _quad.SetInput(1, planes.Chroma);
+        _quad.Draw(constants);
 
         return true;
     }
@@ -210,9 +233,9 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
     private BlendMode BlendOf(LayerFrame layer) => _motionWeight > 0 ? BlendMode.Normal : layer.Blend;
 
-    private ID3D11BlendState* StateFor(BlendMode blend) => _motionWeight > 0 ? _effects.Accumulate : _effects.BlendState(blend);
+    private GpuBlend StateFor(BlendMode blend) => _motionWeight > 0 ? EffectPipeline.Accumulate : EffectPipeline.BlendState(blend);
 
-    private LayerPlacement? Place(LayerFrame layer, D3D11TexturePayload payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight) =>
+    private LayerPlacement? Place(LayerFrame layer, IDecoderSurface payload, SourceGeometry geometry, int sequenceWidth, int sequenceHeight) =>
         Place(layer, LayerSource.Of(payload), geometry, sequenceWidth, sequenceHeight);
 
     private LayerPlacement? Place(LayerFrame layer, LayerSource source, SourceGeometry geometry, int sequenceWidth, int sequenceHeight)
@@ -272,11 +295,11 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         }
 
         bool shaderBlend = EffectPipeline.IsShaderBlend(blend);
-        ID3D11PixelShader* shader = _effects.TryGetShader(EffectShader.Graded, plan.Flags | (shaderBlend ? EffectShaders.Blend : 0));
+        GpuShader? shader = _effects.TryGetShader(EffectShader.Graded, plan.Flags | (shaderBlend ? EffectShaders.Blend : 0));
         if (shader == null)
         {
             // Variante todavía sin compilar: la capa sale sin efectos y con mezcla normal.
-            _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, QuadPipeline.Shader.Layer);
+            _quad.Bind(destination.Target.Gpu, destination.Width, destination.Height, QuadPipeline.Shader.Layer);
             stats.EffectsSkipped += plan.PerPixelCount + blendCount;
             if (payload.Planes is not { } planes)
             {
@@ -289,6 +312,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
         QuadConstants quad = LayerQuad(payload, placement, geometry, Opacity(layer), destination.SequenceWidth, destination.SequenceHeight,
             destination.PixelScale);
+        SetHdr(ref quad, payload.Planes, layer.Transform);
         RenderTarget? background = null;
         if (shaderBlend)
         {
@@ -308,7 +332,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
         effects.BlendInfo.X = (float)blend;
         PrepareSource(payload, ref effects);
-        _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, shader, StateFor(blend));
+        _quad.Bind(destination.Target.Gpu, destination.Width, destination.Height, shader, StateFor(blend));
         BindInputs(background, plan.Lut, null, null, mask, plan.Curves);
         _effects.Set(effects);
         DrawPlanes(payload, quad);
@@ -324,8 +348,8 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     {
         blendDropped = false;
         bool shaderBlend = EffectPipeline.IsShaderBlend(blend);
-        ID3D11PixelShader* graded = _effects.TryGetShader(EffectShader.Graded, plan.Flags);
-        ID3D11PixelShader* image = _effects.TryGetShader(EffectShader.Image, shaderBlend ? EffectShaders.Blend : 0);
+        GpuShader? graded = _effects.TryGetShader(EffectShader.Graded, plan.Flags);
+        GpuShader? image = _effects.TryGetShader(EffectShader.Image, shaderBlend ? EffectShaders.Blend : 0);
         if (graded == null || image == null)
         {
             return false;
@@ -353,8 +377,9 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
         var local = new LayerPlacement(Matrix3x2.CreateScale(firstScaleX, firstScaleY), placement.LocalWidth, placement.LocalHeight,
             Math.Min(firstScaleX, firstScaleY));
         QuadConstants toIntermediate = LayerQuad(payload, local, geometry, 1, firstWidth, firstHeight, 1);
+        SetHdr(ref toIntermediate, payload.Planes, layer.Transform);
         PrepareSource(payload, ref effects);
-        _quad.Bind(first.Rtv, firstWidth, firstHeight, graded, null);
+        _quad.Bind(first.Gpu, firstWidth, firstHeight, graded, GpuBlend.Opaque);
         BindInputs(null, plan.Lut, null, null, mask, plan.Curves);
         _effects.Set(effects);
         DrawPlanes(payload, toIntermediate);
@@ -430,7 +455,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
         effects.BlendInfo.X = (float)blend;
         effects.MapA = view.Map;
-        _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, image, StateFor(blend));
+        _quad.Bind(destination.Target.Gpu, destination.Width, destination.Height, image, StateFor(blend));
         BindInputs(background, null, view.Target, null);
         _effects.Set(effects);
         _quad.Draw(quad);
@@ -448,7 +473,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     {
         _effects.BindConstants();
         bool shaderBlend = EffectPipeline.IsShaderBlend(blend);
-        ID3D11PixelShader* image = _effects.TryGetShader(EffectShader.Image, shaderBlend ? EffectShaders.Blend : 0);
+        GpuShader? image = _effects.TryGetShader(EffectShader.Image, shaderBlend ? EffectShaders.Blend : 0);
         if (image == null)
         {
             return false;
@@ -476,7 +501,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
 
         effects.BlendInfo.X = (float)blend;
         effects.MapA = view.Map;
-        _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, image, _effects.BlendState(blend));
+        _quad.Bind(destination.Target.Gpu, destination.Width, destination.Height, image, EffectPipeline.BlendState(blend));
         BindInputs(background, null, view.Target, null);
         _effects.Set(effects);
         _quad.Draw(quad);
@@ -499,51 +524,40 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
     {
         if (source.Planes is not { } payload)
         {
-            ID3D11ShaderResourceView* srv = source.Image.Target.Srv;
-            _context->PSSetShaderResources(5, 1, &srv);
+            _quad.SetInput(5, source.Image.Target.Gpu);
             _quad.Draw(quad);
-            srv = null;
-            _context->PSSetShaderResources(5, 1, &srv);
+            _quad.SetInput(5, null);
             return;
         }
 
-        PlaneViews views = _views.Get(payload, out bool owned);
-        try
-        {
-            ID3D11ShaderResourceView** srvs = stackalloc ID3D11ShaderResourceView*[2] { views.Luma, views.Chroma };
-            _context->PSSetShaderResources(0, 2, srvs);
-            _quad.Draw(quad);
-            srvs[0] = null;
-            srvs[1] = null;
-            _context->PSSetShaderResources(0, 2, srvs);
-        }
-        finally
-        {
-            if (owned)
-            {
-                views.Release();
-            }
-        }
+        GpuDecoderPlanes planes = _quad.CurrentFrame.Acquire(_views, payload);
+        _quad.SetInput(0, planes.Luma);
+        _quad.SetInput(1, planes.Chroma);
+        _quad.Draw(quad);
+        _quad.SetInput(0, null);
+        _quad.SetInput(1, null);
     }
 
     /// <summary>Enlaza t3 (fondo), t4 (LUT), t5 y t6 (intermedios), t7 (máscaras) y t10 (curvas). Va después de enlazar el destino.</summary>
-    private void BindInputs(RenderTarget? background, ID3D11ShaderResourceView* lut, RenderTarget? imageA, RenderTarget? imageB,
-        RenderTarget? mask = null, ID3D11ShaderResourceView* curves = null)
+    private void BindInputs(RenderTarget? background, GpuTexture? lut, RenderTarget? imageA, RenderTarget? imageB,
+        RenderTarget? mask = null, GpuTexture? curves = null)
     {
-        ID3D11ShaderResourceView** srvs = stackalloc ID3D11ShaderResourceView*[8];
-        srvs[0] = background is null ? null : background.Srv;
-        srvs[1] = lut;
-        srvs[2] = imageA is null ? null : imageA.Srv;
-        srvs[3] = imageB is null ? null : imageB.Srv;
-        srvs[4] = mask is null ? null : mask.Srv;
-        srvs[7] = curves;
-        _context->PSSetShaderResources(3, 8, srvs);
+        _quad.SetInput(3, background?.Gpu);
+        _quad.SetInput(4, lut);
+        _quad.SetInput(5, imageA?.Gpu);
+        _quad.SetInput(6, imageB?.Gpu);
+        _quad.SetInput(7, mask?.Gpu);
+        _quad.SetInput(8, null);
+        _quad.SetInput(9, null);
+        _quad.SetInput(10, curves);
     }
 
     private void UnbindInputs()
     {
-        ID3D11ShaderResourceView** none = stackalloc ID3D11ShaderResourceView*[8];
-        _context->PSSetShaderResources(3, 8, none);
+        for (int register = 3; register <= 10; register++)
+        {
+            _quad.SetInput(register, null);
+        }
     }
 
     /// <summary>Copia del destino en <paramref name="rect"/> para las mezclas por shader; <c>null</c> si no cabe en el pool.</summary>
@@ -560,16 +574,7 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
             return null;
         }
 
-        var box = new D3D11_BOX
-        {
-            left = (uint)rect.X,
-            top = (uint)rect.Y,
-            right = (uint)(rect.X + rect.Width),
-            bottom = (uint)(rect.Y + rect.Height),
-            front = 0,
-            back = 1,
-        };
-        _context->CopySubresourceRegion((ID3D11Resource*)copy.Texture, 0, 0, 0, 0, (ID3D11Resource*)destination.Target.Texture, 0, &box);
+        _quad.CurrentFrame.Copy(destination.Target.Gpu, new GpuBox(rect.X, rect.Y, rect.Width, rect.Height), copy.Gpu, 0, 0);
         effects.BlendInfo.Y = rect.X;
         effects.BlendInfo.Z = rect.Y;
         return copy;
@@ -596,24 +601,53 @@ internal sealed unsafe partial class LayerRenderer : IDisposable
             : PlacedQuad(placement, VideoLayout.Crop(VideoLayout.Corners(0, 1, 1), geometry.Crop), opacity, sequenceWidth, sequenceHeight, pixelScale);
 
     /// <summary>Constantes de una capa YUV: colocación, rango, matriz y recorte del relleno del decodificador.</summary>
-    internal static QuadConstants LayerQuad(D3D11TexturePayload payload, in LayerPlacement placement, SourceGeometry geometry,
+    internal static QuadConstants LayerQuad(IDecoderSurface payload, in LayerPlacement placement, SourceGeometry geometry,
         float opacity, float sequenceWidth, float sequenceHeight, float pixelScale)
     {
-        bool tenBit = payload.PixelFormat == FramePixelFormat.P010;
-        YuvRange range = YuvRange.For(tenBit, payload.Color.FullRange);
+        YuvRange range = YuvRange.For(payload.PixelFormat, payload.Color.FullRange);
         YuvToRgb toRgb = YuvToRgb.For(payload.Color.Matrix);
         float uMax = (float)payload.Width / payload.CodedWidth;
         float vMax = (float)payload.Height / payload.CodedHeight;
         QuadConstants constants = PlacedQuad(placement, VideoLayout.Crop(VideoLayout.Corners(geometry.Rotation, uMax, vMax), geometry.Crop), opacity,
             sequenceWidth, sequenceHeight, pixelScale);
         constants.Range = new(range.LumaScale, range.LumaBias, range.ChromaScale, range.ChromaBias);
+        if (payload.PixelFormat is FramePixelFormat.Bgra8 or FramePixelFormat.Rgba16)
+        {
+            constants.Range = new(-1, 0, 0, 0);
+        }
         constants.ToRgb = new(toRgb.RedFromCr, toRgb.GreenFromCb, toRgb.GreenFromCr, toRgb.BlueFromCb);
         constants.Limits = new(
             (payload.Width - 0.5f) / payload.CodedWidth,
             (payload.Height - 0.5f) / payload.CodedHeight,
             (payload.Width - 1f) / payload.CodedWidth,
             (payload.Height - 1f) / payload.CodedHeight);
+        SetHdr(ref constants, payload, LayerTransform.Identity);
         return constants;
+    }
+
+    // Una capa SDR solo lleva hdr.y con «Expandir a HDR» (el pico, 203–1000 nits): en una secuencia SDR ningún shader lo lee.
+    private static void SetHdr(ref QuadConstants constants, IDecoderSurface? payload, in LayerTransform transform)
+    {
+        if (payload is null)
+        {
+            return;
+        }
+
+        if (payload.Color.Transfer == HdrTransfer.None)
+        {
+            if (transform.HdrExpandNits > 0)
+            {
+                constants.Hdr = new(0, (float)transform.HdrExpandNits, 0, 0);
+            }
+
+            return;
+        }
+
+        double referenceNits = transform.HdrReferenceNits;
+        float white = referenceNits > 0 && double.IsFinite(referenceNits)
+            ? (float)Math.Clamp(referenceNits, 1, 10000)
+            : payload.Color.Transfer == HdrTransfer.Pq ? 100 : 1000;
+        constants.Hdr = new((float)payload.Color.Transfer, white, payload.Color.Bt2020Primaries ? 1 : 0, 0);
     }
 
     /// <summary>Esquinas, coordenadas locales y forma de un rectángulo colocado, con un píxel de margen para suavizar el borde.</summary>

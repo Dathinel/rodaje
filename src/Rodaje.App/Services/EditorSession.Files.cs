@@ -1,3 +1,5 @@
+using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Services.Titles;
 using Rodaje.Core.Commands;
@@ -26,7 +28,7 @@ public sealed partial class EditorSession
     public async Task<bool> NewProjectAsync()
     {
         VerifyAccess();
-        if (RefuseWhileBusy() || !await ConfirmDiscardChangesAsync())
+        if (RefuseWhileBusy() || !await ConfirmDiscardChangesAsync() || !await ConfirmLeavingRoomAsync())
         {
             return false;
         }
@@ -36,11 +38,13 @@ public sealed partial class EditorSession
         return true;
     }
 
+    private Task<bool> ConfirmLeavingRoomAsync() => BeforeProjectReplaced?.Invoke() ?? Task.FromResult(true);
+
     /// <summary>Abre un <c>.rodaje</c>; sin ruta, se le pide a la persona.</summary>
     public async Task<bool> OpenProjectAsync(string? path = null)
     {
         VerifyAccess();
-        if (RefuseWhileBusy() || !await ConfirmDiscardChangesAsync())
+        if (RefuseWhileBusy() || !await ConfirmDiscardChangesAsync() || !await ConfirmLeavingRoomAsync())
         {
             return false;
         }
@@ -57,6 +61,9 @@ public sealed partial class EditorSession
             return false;
         }
 
+        using LongActions.LongActionScope? progress = ProgressHost?.TryBegin(
+            "proyecto.abrir", "Abriendo el proyecto", Path.GetFileName(full), showAfter: LongActions.LongActionService.QuickOperationDelay);
+        progress?.Operation.SetPhase(1, 2, "Leyendo el archivo");
         BeginBusy();
         Project loaded;
         ClampSummary clamped;
@@ -86,6 +93,8 @@ public sealed partial class EditorSession
             return false;
         }
 
+        progress?.Operation.SetPhase(2, 2, "Preparando la línea de tiempo");
+
         // Un proyecto de la v1.0.0 con valores más allá del límite de hoy (posición, ancla, giro, tasa, clips tras el final)
         // se acota al leerlo. Antes era en silencio y el proyecto quedaba «Guardado» aunque ya no era igual al archivo:
         // ahora queda con cambios y el aviso dice qué se acotó y cuánto de cada clase.
@@ -111,8 +120,8 @@ public sealed partial class EditorSession
         if (clamped.FrameRates > 0)
         {
             parts.Add(clamped.FrameRates == 1
-                ? $"la tasa de cuadros de 1 secuencia se llevó al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps"
-                : $"las tasas de cuadros de {clamped.FrameRates} secuencias se llevaron al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps");
+                ? $"la tasa de fotogramas de 1 secuencia se llevó al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps"
+                : $"las tasas de fotogramas de {clamped.FrameRates} secuencias se llevaron al rango de {Sequence.MinFrameRate} a {Sequence.MaxFrameRate} fps");
         }
 
         if (clamped.TrimmedClips > 0)
@@ -150,13 +159,31 @@ public sealed partial class EditorSession
     public async Task<bool> SaveAsAsync(string? path = null)
     {
         VerifyAccess();
+        bool picked = path is null;
         path ??= await _dialogs.PickProjectSavePathAsync(SuggestedFileName);
         if (path is null)
         {
             return false;
         }
 
-        return await SaveToAsync(Path.GetFullPath(ProjectPaths.WithProjectExtension(path)));
+        string full;
+        try
+        {
+            full = Path.GetFullPath(ProjectPaths.WithProjectExtension(path));
+        }
+        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or IOException)
+        {
+            Notify(NotificationSeverity.Error, "No se pudo guardar", ex.Message);
+            return false;
+        }
+
+        bool saved = await SaveToAsync(full);
+        if (saved && picked)
+        {
+            _dialogs.ProjectSavedAs(full);
+        }
+
+        return saved;
     }
 
     /// <summary>
@@ -188,11 +215,19 @@ public sealed partial class EditorSession
     /// del historial. Un archivo que ya estaba en la biblioteca no se repite: se devuelve su medio. Lo que no entra se
     /// avisa con el motivo.
     /// </summary>
-    /// <remarks>Si la secuencia está vacía, toma la tasa y el tamaño del primer video.</remarks>
-    public async Task<ImportResult> ImportMediaAsync(IEnumerable<string> paths)
+    /// <remarks>
+    /// Si la secuencia está vacía, toma la tasa y el tamaño del primer video. Cancelar impide iniciar análisis pendientes
+    /// y descarta el lote; espera a que terminen los análisis síncronos que ya estaban en curso.
+    /// </remarks>
+    public Task<ImportResult> ImportMediaAsync(IEnumerable<string> paths, CancellationToken cancellationToken = default) =>
+        ImportMediaAsync(paths, canApply: null, cancellationToken);
+
+    /// <summary>Permite descartar una importación si su destino cambió durante la lectura, antes de tocar el historial.</summary>
+    private async Task<ImportResult> ImportMediaAsync(IEnumerable<string> paths, Func<bool>? canApply, CancellationToken cancellationToken)
     {
         VerifyAccess();
         ArgumentNullException.ThrowIfNull(paths);
+        cancellationToken.ThrowIfCancellationRequested();
         string[] files = [.. paths.Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase)];
         if (files.Length == 0)
         {
@@ -200,20 +235,63 @@ public sealed partial class EditorSession
         }
 
         Project target = Project;
+        using LongActions.LongActionScope? progress = ProgressHost?.TryBegin(
+            "medios.importar", files.Length == 1 ? "Importando el medio" : "Importando medios", "", canCancel: true,
+            showAfter: LongActions.LongActionService.QuickOperationDelay);
+        using CancellationTokenSource linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, progress?.Token ?? default);
+        CancellationToken token = linked.Token;
         BeginBusy();
         MediaProbeResult[] probes;
         try
         {
-            probes = await Task.WhenAll(files.Select(f => Task.Run(() => _prober.Probe(f))));
+            // Limita las lecturas simultáneas del disco sin bloquear hilos del pool mientras esperan su turno.
+            int concurrency = Math.Clamp(Environment.ProcessorCount, 2, 8);
+            using var slots = new SemaphoreSlim(concurrency, concurrency);
+            int read = 0;
+            probes = await Task.WhenAll(files.Select(async file =>
+            {
+                await slots.WaitAsync(token).ConfigureAwait(false);
+                try
+                {
+                    MediaProbeResult probe = await Task.Run(() => _prober.Probe(file), token).ConfigureAwait(false);
+                    int done = Interlocked.Increment(ref read);
+                    progress?.Report(done / (double)files.Length, $"Leyendo los medios: {done} de {files.Length}");
+                    return probe;
+                }
+                finally
+                {
+                    slots.Release();
+                }
+            }));
+            token.ThrowIfCancellationRequested();
+        }
+        catch (OperationCanceledException) when (progress is { Token.IsCancellationRequested: true } && !cancellationToken.IsCancellationRequested)
+        {
+            Notify(NotificationSeverity.Informational, "Importación cancelada", "No se añadió ningún medio.");
+            return ImportResult.Empty;
         }
         finally
         {
             EndBusy();
         }
 
-        if (!ReferenceEquals(target, Project) || IsInGesture)
+        // Un gesto en curso (arrastrar un clip, un deslizador) no admite otro paso del historial: se espera a que acabe.
+        try
         {
-            // Mientras se leía se abrió otro proyecto o empezó un gesto: no se mezcla.
+            while (IsInGesture && ReferenceEquals(target, Project) && canApply?.Invoke() != false)
+            {
+                await Task.Delay(100, token);
+            }
+        }
+        catch (OperationCanceledException) when (progress is { Token.IsCancellationRequested: true } && !cancellationToken.IsCancellationRequested)
+        {
+            Notify(NotificationSeverity.Informational, "Importación cancelada", "No se añadió ningún medio.");
+            return ImportResult.Empty;
+        }
+
+        if (!ReferenceEquals(target, Project) || canApply?.Invoke() == false)
+        {
+            // Mientras se leía cambió el destino: no se incorpora el lote.
             return ImportResult.Empty;
         }
 
@@ -221,6 +299,7 @@ public sealed partial class EditorSession
         var added = new List<Rodaje.Media.Probe.MediaInfo>();
         var skipped = new List<SkippedMedia>();
         bool changed = false;
+        bool adopted = false;
         History.BeginGroup(files.Length == 1 ? "Importar medio" : "Importar medios");
         try
         {
@@ -240,7 +319,11 @@ public sealed partial class EditorSession
 
                 try
                 {
-                    changed |= AdoptFormatIfEmpty(probe.Info!);
+                    if (AdoptFormatIfEmpty(probe.Info!))
+                    {
+                        adopted = changed = true;
+                    }
+
                     var media = new MediaRef { Id = _ids.NewId("media"), Path = probe.Path };
                     probe.Info!.ApplyTo(media);
                     History.Execute(new AddMediaCommand(media));
@@ -270,10 +353,16 @@ public sealed partial class EditorSession
             MediaImported?.Invoke(this, added);
         }
 
-        if (added.Where(i => i.Video?.HdrTransfer is not null).Select(i => $"{Path.GetFileName(i.Path)} ({i.Video!.HdrTransfer})").ToList() is { Count: > 0 } hdr)
+        if (adopted)
         {
-            Notify(NotificationSeverity.Warning, hdr.Count == 1 ? "Video HDR" : "Videos HDR",
-                $"{string.Join(", ", hdr)}: Rodaje todavía no convierte HDR a SDR, así que se verá y se exportará con los colores apagados.");
+            OfferStandardFormat();
+        }
+
+        if (Sequence.ColorSpace == SequenceColorSpace.Sdr709
+            && added.Where(i => i.Video?.HdrTransfer is not null).Select(i => $"{Path.GetFileName(i.Path)} ({i.Video!.HdrTransfer})").ToList() is { Count: > 0 } hdr)
+        {
+            Notify(NotificationSeverity.Informational, hdr.Count == 1 ? "Video HDR" : "Videos HDR",
+                $"{string.Join(", ", hdr)}: HDR: se convierte a SDR; ajusta el brillo en Propiedades");
         }
 
         if (skipped.Count > 0)
@@ -325,8 +414,8 @@ public sealed partial class EditorSession
             return false;
         }
 
-        Time from = sourceIn is { } a && a >= Time.Zero && a < media.Duration ? a : Time.Zero;
-        Time to = sourceOut is { } b && b > from && b <= media.Duration ? b : media.Duration;
+        Time from = sourceIn is { } a && a >= Time.Zero && (media.IsStillImage || a < media.Duration) ? a : Time.Zero;
+        Time to = sourceOut is { } b && b > from && (media.IsStillImage || b <= media.Duration) ? b : media.InitialClipDuration;
 
         Sequence sequence = Sequence;
         string? videoTrack = media.HasVideo ? sequence.VideoTracks.FirstOrDefault()?.Id : null;
@@ -399,7 +488,7 @@ public sealed partial class EditorSession
         }
     }
 
-    private async Task<bool> SaveToAsync(string path)
+    private async Task<bool> SaveToAsync(string path, bool overwrite = false)
     {
         VerifyAccess();
         // Los guardados van en fila: dos Ctrl+S seguidos no escriben a la vez el mismo temporal, y uno viejo que termina
@@ -411,7 +500,7 @@ public sealed partial class EditorSession
         try
         {
             await previous;
-            return await WriteProjectAsync(path);
+            return await WriteProjectAsync(path, overwrite);
         }
         finally
         {
@@ -420,7 +509,7 @@ public sealed partial class EditorSession
         }
     }
 
-    private async Task<bool> WriteProjectAsync(string path)
+    private async Task<bool> WriteProjectAsync(string path, bool overwrite)
     {
         if (IsInGesture)
         {
@@ -436,13 +525,37 @@ public sealed partial class EditorSession
         string? previousFolder = FilePath is null ? null : Path.GetDirectoryName(FilePath);
         Project copy = ProjectPaths.ForSaving(Project, folder, previousFolder);
         copy.Name = name;
+        // El mismo proyecto abierto en otra ventana (u otro equipo, en una carpeta compartida): si el archivo cambió desde
+        // que se abrió o guardó aquí, no se pisa sin preguntar. La fecha se mira fuera del hilo de la interfaz (UNC).
+        DateTimeOffset? expected = await _diskWrite;
+        bool changedOutside = false;
+        DateTimeOffset? written = null;
         try
         {
-            await Task.Run(() => ProjectSerializer.Save(copy, path));
+            await Task.Run(() =>
+            {
+                if (!rename && !overwrite && expected is { } known && LastWriteOf(path) is { } onDisk && onDisk != known)
+                {
+                    changedOutside = true;
+                    return;
+                }
+
+                ProjectSerializer.Save(copy, path);
+                written = LastWriteOf(path);
+            });
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException)
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ProjectFormatException or ArgumentException or NotSupportedException)
         {
             Notify(NotificationSeverity.Error, "No se pudo guardar", ex.Message);
+            return false;
+        }
+
+        if (changedOutside)
+        {
+            Notify(NotificationSeverity.Warning, "El proyecto cambió fuera de esta ventana",
+                $"Otra ventana o programa guardó «{Path.GetFileName(path)}» después de abrirlo aquí. Guardar encima borra esos cambios; «Guardar como…» los conserva.",
+                new NotificationAction("Guardar encima", () => UiTask.Run(SaveToAsync(path, overwrite: true))),
+                new NotificationAction("Guardar como…", () => UiTask.Run(SaveAsAsync())));
             return false;
         }
 
@@ -460,6 +573,8 @@ public sealed partial class EditorSession
         // Las referencias «file:» en memoria son absolutas (LutReference.ForFile y al abrir): no hay que tocarlas al
         // cambiar de carpeta, ni en el proyecto ni en la pila de deshacer.
         FilePath = path;
+        _diskWrite = Task.FromResult(written);
+        LastSavedAt = DateTimeOffset.UtcNow;
         if (version == _editVersion && !IsInGesture)
         {
             // Si se editó mientras se escribía, lo guardado ya es viejo y el proyecto sigue con cambios.
@@ -480,10 +595,30 @@ public sealed partial class EditorSession
         return true;
     }
 
+    /// <summary>
+    /// La secuencia tomó del primer clip un tamaño raro (la pantalla de un celular, 1080×2400): se ofrece el estándar más
+    /// cercano rellenando el cuadro, en un paso que se deshace. El aviso caduca si el tamaño cambia por otro lado.
+    /// </summary>
+    private void OfferStandardFormat()
+    {
+        (int width, int height) = (Sequence.Width, Sequence.Height);
+        if (ProjectFormats.IsStandard(width, height))
+        {
+            return;
+        }
+
+        (int w, int h) = ProjectFormats.NearestStandard(width, height);
+        string sequenceId = SequenceId;
+        Notify(NotificationSeverity.Informational, "Formato del proyecto", $"La secuencia tomó {width}×{height} del clip.",
+            new NotificationAction($"Usar {w}×{h} ({ProjectFormats.StandardName(w, h)})", () => ChangeFormat(w, h, Sequence.FrameRate, ClipFit.Fill)),
+            new NotificationAction("Dejar así", static () => { }),
+            () => SequenceId != sequenceId || Sequence.Width != width || Sequence.Height != height);
+    }
+
     private bool AdoptFormatIfEmpty(MediaInfo info)
     {
         Sequence sequence = Sequence;
-        if (info.Video is not { } video || KeepsTemplateFormat || Project.Media.Count > 0 || sequence.AllTracks.Any(t => t.Clips.Count > 0))
+        if (info.IsStillImage || info.Video is not { } video || KeepsTemplateFormat || Project.Media.Exists(m => m.HasVideo && !m.IsStillImage) || sequence.AllTracks.Any(t => t.Clips.Count > 0))
         {
             return false;
         }

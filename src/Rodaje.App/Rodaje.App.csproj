@@ -46,7 +46,13 @@
     <ProjectReference Include="..\Rodaje.Export\Rodaje.Export.csproj" />
     <ProjectReference Include="..\Rodaje.Render\Rodaje.Render.csproj" />
     <ProjectReference Include="..\Rodaje.Packages\Rodaje.Packages.csproj" />
-    <ProjectReference Include="..\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <ProjectReference Include="..\..\externo\sala\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <ProjectReference Include="..\..\externo\sala\src\Dathinel.Sala\Dathinel.Sala.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lo de Linux (Uno, src\Rodaje.App.Desktop) va en *.Desktop.cs; lo de Windows, en *.Windows.cs y en el resto. -->
+    <Compile Remove="**\*.Desktop.cs" />
   </ItemGroup>
 
   <ItemGroup>

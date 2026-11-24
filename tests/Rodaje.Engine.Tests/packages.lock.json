@@ -1,7 +1,7 @@
 {
   "version": 1,
   "dependencies": {
-    "net10.0-windows7.0": {
+    "net10.0": {
       "coverlet.collector": {
         "type": "Direct",
         "requested": "[10.1.0, )",
@@ -79,6 +79,30 @@
         "dependencies": {
           "FFmpeg.AutoGen.Abstractions": "9.0.1.1"
         }
+      },
+      "HarfBuzzSharp": {
+        "type": "Transitive",
+        "resolved": "14.4.0.100",
+        "contentHash": "dXd6KIt5t9JWazLHX4ldj+NzI3U1kZv77PWcqCvzxDHAz8Kw1dtz96N5WzhIFcZYfRz96L3ejGXNhJo6sI6TUQ==",
+        "dependencies": {
+          "HarfBuzzSharp.NativeAssets.Win32": "14.4.0.100",
+          "HarfBuzzSharp.NativeAssets.macOS": "14.4.0.100"
+        }
+      },
+      "HarfBuzzSharp.NativeAssets.Linux": {
+        "type": "Transitive",
+        "resolved": "14.4.0.100",
+        "contentHash": "LioVXCvaFssh3FiALo6f/f2lQTNf4vgkrxEJxM3CS5MsYqWKHtRjyacgebYkVxSzbGTy2yBjbiT3D/nK8hZdkw=="
+      },
+      "HarfBuzzSharp.NativeAssets.macOS": {
+        "type": "Transitive",
+        "resolved": "14.4.0.100",
+        "contentHash": "uuX4UStoXz1WSXWWJp474E4Mfog4yE0YbK4dWzWbTiXv777xf8/+qjNQeTsf+kDUlLNDqoMsXv1fTb67+YzWRA=="
+      },
+      "HarfBuzzSharp.NativeAssets.Win32": {
+        "type": "Transitive",
+        "resolved": "14.4.0.100",
+        "contentHash": "WHOFEO1cgtQKq57Lt1qDoI4waG7Lrnla0DxempL+M9YwKeSSBsbYO5XnFGe2nzjQqjntiRZJjAtZkFpPw0FSeQ=="
       },
       "Microsoft.Bcl.AsyncInterfaces": {
         "type": "Transitive",
@@ -197,6 +221,30 @@
           "Microsoft.TestPlatform.ObjectModel": "18.10.1"
         }
       },
+      "SkiaSharp": {
+        "type": "Transitive",
+        "resolved": "4.156.0",
+        "contentHash": "bdBfG346spQvqwvdz7w8yoqquN7MmU89O+TJ9TwnwyFuqhHkBOQnLJ57euu+4XWi99a5uXikDMZmcM4q58HUXw==",
+        "dependencies": {
+          "SkiaSharp.NativeAssets.Win32": "4.156.0",
+          "SkiaSharp.NativeAssets.macOS": "4.156.0"
+        }
+      },
+      "SkiaSharp.NativeAssets.Linux": {
+        "type": "Transitive",
+        "resolved": "4.156.0",
+        "contentHash": "H+s60e8mNUO8jiRuQQpMXQjcPnFTYb168t59mB/UAewSHNv5hXLfP8xiKeSDc4jAF/aMusjamXx9Di2FIurl/w=="
+      },
+      "SkiaSharp.NativeAssets.macOS": {
+        "type": "Transitive",
+        "resolved": "4.156.0",
+        "contentHash": "pBJ4ARN6ekiBqh+G697sMQmZd4igIEtSdxx9mfxR3nUTxErkrx0JeaU1+IQ4dX8qobG9Fcskv6azW3zPbAEqXQ=="
+      },
+      "SkiaSharp.NativeAssets.Win32": {
+        "type": "Transitive",
+        "resolved": "4.156.0",
+        "contentHash": "D4q5I+N/IBH3LTC/SK51MkfdjuX5JZVSS4gTJHbLPZ9btgga3xSC/gL/lyh18mfpwFmnm6b61DsEv6zrhTy0Ow=="
+      },
       "System.ClientModel": {
         "type": "Transitive",
         "resolved": "1.10.0",
@@ -217,6 +265,11 @@
         "type": "Transitive",
         "resolved": "4.5.0",
         "contentHash": "wLBKzFnDCxP12VL9ANydSYhk59fC4cvOr9ypYQLPnAj48NQIhqnjdD2yhP8yEKyBJEjERWS9DisKL7rX5eU25Q=="
+      },
+      "TerraFX.Interop.Vulkan": {
+        "type": "Transitive",
+        "resolved": "1.4.328.1",
+        "contentHash": "VrnoKBa/HhTm3TrBoMyoUcdEQQvmCnCfWpm//qaQvitYtQ5BS8alejcHzp2b93ROdI5fib0cegI6OkNfsC8dIw=="
       },
       "TerraFX.Interop.Windows": {
         "type": "Transitive",
@@ -266,7 +319,7 @@
       "rodaje.audio": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Playback": "[1.0.0, )"
+          "Rodaje.Playback": "[1.0.3, )"
         }
       },
       "rodaje.core": {
@@ -275,41 +328,61 @@
       "rodaje.engine": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Audio": "[1.0.0, )",
-          "Rodaje.Media": "[1.0.0, )",
-          "Rodaje.Playback": "[1.0.0, )"
+          "Rodaje.Audio": "[1.0.3, )",
+          "Rodaje.Media": "[1.0.3, )",
+          "Rodaje.Playback": "[1.0.3, )"
         }
       },
       "rodaje.media": {
         "type": "Project",
         "dependencies": {
           "FFmpeg.AutoGen.Bindings.DynamicallyLinked": "[9.0.1.1, )",
-          "Rodaje.Core": "[1.0.0, )",
-          "Rodaje.Playback": "[1.0.0, )",
+          "Rodaje.Core": "[1.0.3, )",
+          "Rodaje.Packages": "[1.0.3, )",
+          "Rodaje.Playback": "[1.0.3, )",
           "TerraFX.Interop.Windows": "[10.0.26100.6, )"
         }
+      },
+      "rodaje.packages": {
+        "type": "Project"
       },
       "rodaje.playback": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Core": "[1.0.0, )"
+          "Rodaje.Core": "[1.0.3, )"
         }
       },
       "rodaje.render": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Media": "[1.0.0, )",
-          "Rodaje.Playback": "[1.0.0, )",
+          "Rodaje.Media": "[1.0.3, )",
+          "Rodaje.Playback": "[1.0.3, )",
+          "Rodaje.Render.Spirv": "[1.0.3, )",
+          "Rodaje.Text": "[1.0.3, )",
+          "SkiaSharp": "[4.156.0, )",
+          "SkiaSharp.NativeAssets.Linux": "[4.156.0, )",
+          "TerraFX.Interop.Vulkan": "[1.4.328.1, )",
           "TerraFX.Interop.Windows": "[10.0.26100.6, )"
         }
+      },
+      "rodaje.render.spirv": {
+        "type": "Project"
       },
       "rodaje.testmedia": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Audio": "[1.0.0, )",
-          "Rodaje.Core": "[1.0.0, )",
-          "Rodaje.Media": "[1.0.0, )",
+          "Rodaje.Audio": "[1.0.3, )",
+          "Rodaje.Core": "[1.0.3, )",
+          "Rodaje.Media": "[1.0.3, )",
           "xunit.extensibility.core": "[2.9.3, )"
+        }
+      },
+      "rodaje.text": {
+        "type": "Project",
+        "dependencies": {
+          "HarfBuzzSharp": "[14.4.0.100, )",
+          "HarfBuzzSharp.NativeAssets.Linux": "[14.4.0.100, )",
+          "Rodaje.Playback": "[1.0.3, )"
         }
       }
     }

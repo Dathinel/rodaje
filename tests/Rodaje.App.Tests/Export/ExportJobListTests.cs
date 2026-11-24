@@ -18,6 +18,27 @@ public class ExportJobListTests
         new() { FramesPerSecond = 3000, Step = TimeSpan.FromMilliseconds(5), FailWith = failWith };
 
     [Fact]
+    public void LaSalidaExiste_SiEsArchivoOCarpetaDeSecuencia()
+    {
+        string folder = Path.Combine(Path.GetTempPath(), "rodaje-salida-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        try
+        {
+            string file = Path.Combine(folder, "uno.mp4");
+            File.WriteAllBytes(file, [1]);
+
+            Assert.True(ExportEntry.OutputExists(file));
+            Assert.True(ExportEntry.OutputExists(folder));
+            Assert.True(ExportEntry.OutputExists(folder + Path.DirectorySeparatorChar));
+            Assert.False(ExportEntry.OutputExists(Path.Combine(folder, "no.mp4")));
+        }
+        finally
+        {
+            Directory.Delete(folder, recursive: true);
+        }
+    }
+
+    [Fact]
     public void UnaALaVez_LaSegundaEsperaALaPrimera() => UiThread.Run(async () =>
     {
         SimulatedExportRunner runner = FastRunner();
@@ -90,6 +111,31 @@ public class ExportJobListTests
     });
 
     [Fact]
+    public void Reintentar_LaQueYaSeReintento_NoLaEncolaOtraVez() => UiThread.Run(async () =>
+    {
+        using var list = new ExportJobList(FastRunner(new ExportException(ExportErrorCode.MediaMissing, "Falta")), SynchronizationContext.Current);
+        ExportEntry entry = list.Enqueue(Request("falla.mp4"));
+        await WaitAsync(() => entry.IsFinished);
+
+        ExportEntry retried = list.Retry(entry);
+
+        Assert.Same(entry, list.Retry(entry));
+        Assert.Same(retried, Assert.Single(list.Entries));
+        await WaitAsync(() => retried.IsFinished);
+    });
+
+    [Fact]
+    public void NoSePuedeEscribir_DiceElMotivoReal()
+    {
+        const string reason = "La carpeta fotos ya tiene archivos; elige una vacía.";
+
+        string message = ExportErrorText.For(new ExportException(ExportErrorCode.OutputNotWritable, reason)).Message;
+
+        Assert.StartsWith(reason, message, StringComparison.Ordinal);
+        Assert.DoesNotContain("solo lectura", message, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Reintentar_ExportaElProyectoDeAhoraSiEsElMismo() => UiThread.Run(async () =>
     {
         var damaged = new ExportException(ExportErrorCode.DecodeFailed, "x") { Culprit = @"C:\medios\clip.mp4" };
@@ -138,7 +184,7 @@ public class ExportJobListTests
 
         string message = ExportErrorText.For(error).Message;
 
-        Assert.StartsWith("No se pudo decodificar el cuadro 430 de «parte 6.mp4» (cuadro 9430 de la exportación).", message, StringComparison.Ordinal);
+        Assert.StartsWith("No se pudo decodificar el fotograma 430 de «parte 6.mp4» (fotograma 9430 de la exportación).", message, StringComparison.Ordinal);
         Assert.DoesNotContain("está dañado", message, StringComparison.Ordinal);
     }
 

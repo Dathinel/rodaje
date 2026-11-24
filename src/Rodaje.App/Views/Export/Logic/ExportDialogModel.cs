@@ -1,3 +1,4 @@
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Settings;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -14,9 +15,13 @@ public sealed class ExportDialogModel
 {
     private readonly ExportPreferences _preferences;
     private readonly Sequence _sequence;
+    private readonly List<SizeChoice> _presetSizes = [];
 
+    /// <param name="marks">Las marcas I y O de la secuencia: con ellas, el rango propuesto es «Entre la entrada y la salida».</param>
+    /// <param name="proxyOnlyMedia">Los medios del proyecto que solo tienen la copia ligera de la sala; con ellos no se exporta.</param>
     public ExportDialogModel(ExportPreferences preferences, Sequence sequence, IReadOnlyCollection<string> selectedClipIds,
-        IReadOnlyList<EncoderSpec> encoders, string projectName, string? projectFolder)
+        IReadOnlyList<EncoderSpec> encoders, string projectName, string? projectFolder, SequenceMarks marks = default,
+        IReadOnlyList<string>? proxyOnlyMedia = null)
     {
         ArgumentNullException.ThrowIfNull(preferences);
         ArgumentNullException.ThrowIfNull(sequence);
@@ -24,7 +29,9 @@ public sealed class ExportDialogModel
         _preferences = preferences;
         _sequence = sequence;
         Encoders = encoders;
-        Ranges = ExportRanges.Choices(sequence, selectedClipIds ?? []);
+        ProxyOnlyMedia = proxyOnlyMedia ?? [];
+        Ranges = ExportRanges.Choices(sequence, selectedClipIds ?? [], marks);
+        RangeIndex = ExportRanges.DefaultIndex(Ranges);
         Performance = preferences.Performance;
 
         ExportPreset? remembered = ExportPresetLibrary.Find(preferences, preferences.PresetId);
@@ -36,7 +43,7 @@ public sealed class ExportDialogModel
 
         string folder = preferences.Folder is { } f && Directory.Exists(f) ? f
             : projectFolder is { } p && Directory.Exists(p) ? p
-            : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+            : Services.AppDataPaths.UserFolder(Environment.SpecialFolder.MyVideos);
         OutputPath = Path.Combine(folder, ExportRanges.SuggestFileName(projectName, Settings));
     }
 
@@ -69,6 +76,35 @@ public sealed class ExportDialogModel
 
     public Rational SequenceFrameRate => _sequence.FrameRate;
 
+    public SequenceColorSpace SequenceColorSpace => _sequence.ColorSpace;
+
+    /// <summary>
+    /// Con una secuencia HDR: si la salida va en HDR10 o HLG (misma regla que <c>ExportPlan</c>: HEVC, AV1 o ProRes en Y'CbCr de 10 bits) o
+    /// por qué cae a SDR. Nulo en una secuencia SDR o sin video.
+    /// </summary>
+    public string? HdrNote
+    {
+        get
+        {
+            if (_sequence.ColorSpace == SequenceColorSpace.Sdr709 || Settings.Video is not { } video || VideoEncoder is not { } encoder)
+            {
+                return null;
+            }
+
+            bool hdrCodec = encoder.Codec is ExportCodec.Hevc or ExportCodec.Av1 or ExportCodec.ProRes;
+            (int width, int height) = OutputSize;
+            ExportColor color = video.Color ?? (encoder.PixelFormatFor(video.BitDepth, video.Chroma, video.Alpha) is { } pixels
+                ? ExportColor.For(width, height, pixels, hdrCodec ? _sequence.ColorSpace : SequenceColorSpace.Sdr709)
+                : ExportColor.Bt709Limited);
+            return color.IsHdr
+                ? $"Sale en {(color.Transfer == ExportTransfer.Pq ? "HDR10 (PQ)" : "HLG")}, BT.2020 de 10 bits."
+                : "Sale en SDR: el HDR necesita HEVC, AV1 o ProRes con 10 bits y sin alfa.";
+        }
+    }
+
+    /// <summary>La salida va en HDR10 (PQ): se ofrece medir MaxCLL/MaxFALL en una pasada previa en vez de declararlos.</summary>
+    public bool OffersLightMeasurement => HdrNote is { } note && note.Contains("HDR10", StringComparison.Ordinal);
+
     /// <summary>Si alguna pista de subtítulos visible tiene texto: solo entonces se ofrece cómo exportarlos.</summary>
     public bool HasSubtitles => _sequence.VideoTracks.Any(t => t.Role == TrackRoles.Subtitles && !t.Hidden
         && t.Clips.Any(c => c.Generator is { Kind: GeneratorKinds.Text }));
@@ -87,15 +123,79 @@ public sealed class ExportDialogModel
     public (int Width, int Height) OutputSize => Settings.Video is { } v ? ExportGeometry.OutputSize(v, SequenceWidth, SequenceHeight) : (0, 0);
 
     /// <summary>
-    /// El preajuste elegido es de redes con otra forma que la del proyecto (Reels 9:16 con un proyecto 16:9): la salida
-    /// sigue al proyecto y la vista ofrece cambiar el formato del proyecto. Los de 16:9 (YouTube, maestros) no avisan. Nulo si no.
+    /// El tamaño que saldría con ese preajuste en esta secuencia: «1080×2400, como la secuencia» o «1920×1080»; vacío si
+    /// el preajuste es solo audio. Depende solo de la secuencia, no de lo elegido.
     /// </summary>
-    public string? PresetShapeNote =>
-        ExportPresetLibrary.Find(_preferences, PresetId) is { Settings.Video: { Width: { } w, Height: { } h } } preset
-        && ExportGeometry.ShapeDiffers(w, h, SequenceWidth, SequenceHeight) && ExportGeometry.ShapeDiffers(w, h, 16, 9)
-            ? $"«{preset.Name}» es para {ExportGeometry.AspectName(w, h)} y el proyecto es {ExportGeometry.AspectName(SequenceWidth, SequenceHeight)}: "
-              + "se exporta con la forma del proyecto."
-            : null;
+    public string PresetSizeLabel(ExportPreset preset)
+    {
+        ArgumentNullException.ThrowIfNull(preset);
+        return ExportGeometry.FollowSequence(preset.Settings, SequenceWidth, SequenceHeight).Video is { } video
+            ? SizeLabel(ExportGeometry.OutputSize(video, SequenceWidth, SequenceHeight))
+            : "";
+    }
+
+    /// <summary>«1080×2400, como la secuencia» o «1920×1080».</summary>
+    public string SizeLabel((int Width, int Height) size) =>
+        size == (SequenceWidth, SequenceHeight) ? $"{size.Width}×{size.Height}, como la secuencia" : $"{size.Width}×{size.Height}";
+
+    /// <summary>El estándar más cercano si la salida tiene un tamaño raro (1080×2400 → 1080×1920); nulo si ya es estándar o no hay video.</summary>
+    public (int Width, int Height)? StandardSuggestion =>
+        Settings.Video is null || OutputSize is var (w, h) && ProjectFormats.IsStandard(w, h) ? null : ProjectFormats.NearestStandard(OutputSize.Width, OutputSize.Height);
+
+    /// <summary>Exporta al estándar sugerido sin tocar el proyecto, rellenando el cuadro (Barras se elige en Avanzado › Forma).</summary>
+    public void UseStandardSize()
+    {
+        if (StandardSuggestion is var (w, h))
+        {
+            Update(s => s with { Video = s.Video! with { Width = w, Height = h, Fit = ExportFit.Crop } });
+        }
+    }
+
+    // Ni los textos ni los elementos de estas dos listas dependen de lo elegido en ellas: elegir no puede rehacer el desplegable
+    // que se acaba de usar, porque WinUI cierra la app sin rastro (tarea 91). Pasaba con «Como la secuencia (60)» al elegir
+    // 60 fps y con el tamaño «del preajuste» de las secuencias de tamaño raro, que desaparecía al elegir otro.
+
+    /// <summary>Los textos del desplegable de tasas, en el orden de <see cref="ExportGeometry.FrameRates"/>.</summary>
+    public IReadOnlyList<string> FrameRateLabels =>
+        [.. ExportGeometry.FrameRates.Select(f => f.Rate is null ? $"Como la secuencia ({ExportText.Number(SequenceFrameRate.ToDouble(), 3)})" : f.Label)];
+
+    /// <summary>
+    /// Los tamaños del desplegable: los de <see cref="ExportGeometry.Sizes"/> y, al final, los que trajo algún preajuste
+    /// mientras el diálogo está abierto (se quedan aunque se elija otro).
+    /// </summary>
+    public IReadOnlyList<SizeChoice> SizeChoices => [.. ExportGeometry.Sizes(SequenceWidth, SequenceHeight), .. _presetSizes];
+
+    /// <summary>
+    /// El preajuste elegido es de redes con otra forma que la del proyecto (Reels 9:16 con un proyecto 16:9): la salida
+    /// sigue al proyecto y la vista ofrece cambiar el formato del proyecto. Los de 16:9 (YouTube, maestros) no avisan.
+    /// También avisa si el preajuste fija otra cadencia que la del proyecto (Vertical 9:16 a 30 fps). Nulo si no.
+    /// </summary>
+    public string? PresetShapeNote
+    {
+        get
+        {
+            if (ExportPresetLibrary.Find(_preferences, PresetId) is not { Settings.Video: { } video } preset)
+            {
+                return null;
+            }
+
+            string? shape = video is { Width: { } w, Height: { } h }
+                && ExportGeometry.ShapeDiffers(w, h, SequenceWidth, SequenceHeight) && ExportGeometry.ShapeDiffers(w, h, 16, 9)
+                    ? $"«{preset.Name}» es para {ExportGeometry.AspectName(w, h)} y el proyecto es {ExportGeometry.AspectName(SequenceWidth, SequenceHeight)}: "
+                      + "se exporta con la forma del proyecto"
+                    : null;
+            string? rate = video.FrameRate is { } fps && fps != SequenceFrameRate
+                ? $"a {ExportText.Number(fps.ToDouble(), 3)} fps (el proyecto va a {ExportText.Number(SequenceFrameRate.ToDouble(), 3)})"
+                : null;
+            return (shape, rate) switch
+            {
+                (null, null) => null,
+                (null, _) => $"«{preset.Name}» se exporta {rate}.",
+                (_, null) => $"{shape}.",
+                _ => $"{shape}, {rate}.",
+            };
+        }
+    }
 
     /// <summary>La salida tiene otra forma que la secuencia (solo si se eligió en Avanzado): barras, recorte o estirar.</summary>
     public bool ShapeDiffers => Settings.Video is not null && OutputSize is var (w, h) && ExportGeometry.ShapeDiffers(w, h, SequenceWidth, SequenceHeight);
@@ -103,17 +203,55 @@ public sealed class ExportDialogModel
     public ExportEstimate Estimate => ExportEstimator.Estimate(Settings with { Performance = Performance }, VideoEncoder, OutputSize.Width,
         OutputSize.Height, FrameRate.ToDouble(), TimeSpan.FromSeconds(Duration.ToSeconds()));
 
-    public OutputCheck OutputCheck => ExportRanges.Check(OutputPath);
+    /// <summary>
+    /// Las salidas de la cola que aún no terminaron: su archivo todavía no está en el disco, pero cuentan como si ya
+    /// existiera (se pide confirmar y las versiones no las repiten).
+    /// </summary>
+    public IReadOnlyCollection<string> PendingOutputs { get; init; } = [];
+
+    /// <summary>Se unió a la sala de otra persona (no la hospeda): además de «Exportar» se ofrece «Exportar en el anfitrión».</summary>
+    public bool RoomGuest { get; init; }
+
+    /// <summary>Puede pedir la exportación al anfitrión: está en la sala, conectado y con rol de editar.</summary>
+    public bool CanAskHostExport { get; init; }
+
+    /// <summary>A la copia de la sala le faltan archivos originales en este equipo: «Exportar» no se ofrece, «Exportar en el anfitrión» sí.</summary>
+    public bool MissingOriginals { get; init; }
+
+    public OutputCheck OutputCheck => ExportRanges.Check(OutputPath, Settings.Container) is var check && check == OutputCheck.Ok
+        && PendingOutputs.Contains(OutputPath, StringComparer.OrdinalIgnoreCase)
+            ? OutputCheck.Exists
+            : check;
 
     /// <summary>Lo que impide exportar (vacío si se puede); la ruta que ya existe no impide, pide confirmar.</summary>
-    public IReadOnlyList<string> Problems
+    public IReadOnlyList<string> Problems => [.. ExportSettingsEditor.Validate(Settings, Encoders).Select(p => p.Message), .. OutputProblems, .. VersionProblems];
+
+    /// <summary>Lo que el codificador no hace con el tamaño y la tasa reales (H.264 por GPU sobre una secuencia 8K, 240 fps).</summary>
+    private IEnumerable<string> OutputProblems => Settings.Video is not null && VideoEncoder is { } encoder
+        ? ExportSettingsValidator.CheckOutput(encoder, OutputSize.Width, OutputSize.Height, FrameRate).Select(p => p.Message)
+        : [];
+
+    /// <summary>Los nombres de los medios del proyecto que solo tienen la copia ligera de la sala (B14).</summary>
+    public IReadOnlyList<string> ProxyOnlyMedia { get; }
+
+    /// <summary>Lo que impide exportar sea cual sea el preajuste (duración y destino): es lo que frena «Varias versiones».</summary>
+    public IReadOnlyList<string> VersionProblems
     {
         get
         {
-            var problems = ExportSettingsEditor.Validate(Settings, Encoders).Select(p => p.Message).ToList();
+            var problems = new List<string>();
             if (Duration.Ticks <= 0)
             {
                 problems.Add("La secuencia está vacía: no hay nada que exportar.");
+            }
+
+            // La copia ligera es para editar, no para sacar la película: con el original faltando, exportar aquí
+            // produciría un archivo con la calidad del proxy. B16 traerá la exportación encargada al anfitrión.
+            if (ProxyOnlyMedia.Count > 0)
+            {
+                problems.Add(ProxyOnlyMedia.Count == 1
+                    ? $"«{ProxyOnlyMedia[0]}» solo tiene su copia ligera de la sala. Exporta en el anfitrión."
+                    : $"{ProxyOnlyMedia.Count} medios solo tienen su copia ligera de la sala. Exporta en el anfitrión.");
             }
 
             if (OutputCheck is not (OutputCheck.Ok or OutputCheck.Exists))
@@ -121,11 +259,54 @@ public sealed class ExportDialogModel
                 problems.Add(ExportRanges.Describe(OutputCheck)!);
             }
 
+            if (RoomGuest && MissingOriginals)
+            {
+                problems.Add("No están los archivos originales de los medios en este equipo: exportar aquí no se ofrece. "
+                    + "Usa «Exportar en el anfitrión»: sale en el equipo de quien hospeda la sala, con la copia compartida del proyecto.");
+            }
+
+            return problems;
+        }
+    }
+
+    /// <summary>Lo que impide «Exportar en el anfitrión» (los ajustes y la duración; el destino lo elige el anfitrión, no la ruta de aquí).</summary>
+    public IReadOnlyList<string> HostProblems
+    {
+        get
+        {
+            var problems = new List<string>();
+            if (Duration.Ticks <= 0)
+            {
+                problems.Add("La secuencia está vacía: no hay nada que exportar.");
+            }
+
+            problems.AddRange(ExportSettingsEditor.Validate(Settings, Encoders).Select(p => p.Message));
             return problems;
         }
     }
 
     public bool CanExport => Problems.Count == 0;
+
+    /// <summary>El botón «Exportar en el anfitrión» está disponible: invitado de la sala, con rol y conexión, y ajustes que valen.</summary>
+    public bool CanExportOnHost => RoomGuest && CanAskHostExport && HostProblems.Count == 0;
+
+    /// <summary>
+    /// Aviso para «Varias versiones»: los preajustes cuyo contenedor no lleva subtítulos aparte cuando se eligió ese modo
+    /// (saldrán quemados). Nulo si no hay nada que avisar.
+    /// </summary>
+    public string? VersionsNote(IEnumerable<string> presetIds)
+    {
+        ArgumentNullException.ThrowIfNull(presetIds);
+        if (Settings.Subtitles == SubtitleExport.Burned || !HasSubtitles)
+        {
+            return null;
+        }
+
+        string[] names = [.. presetIds.Select(id => ExportPresetLibrary.Find(_preferences, id))
+            .Where(p => p is { Settings.Video: not null } && !FfmpegPipeSinkOptions.AllowsSoftSubtitles(p.Settings.Container))
+            .Select(p => $"«{p!.Name}»")];
+        return names.Length == 0 ? null : $"{string.Join(", ", names)}: el formato no admite subtítulos aparte; irán quemados en la imagen.";
+    }
 
     public void SelectPreset(string id)
     {
@@ -208,6 +389,33 @@ public sealed class ExportDialogModel
             throw new InvalidOperationException(string.Join(" ", Problems));
         }
 
+        ExportPresetLibrary.Remember(_preferences, PresetId == ExportPresetLibrary.CustomId ? null : PresetId, Settings with { Performance = Performance },
+            OutputPath);
+        return new ExportRequest(projectCopy, sequenceId, OutputPath, ResolvedSettings(), Ranges[RangeIndex].Range) { ProjectDirectory = projectDirectory };
+    }
+
+    /// <summary>
+    /// La misma petición que <see cref="CreateRequest"/> pero sin recordar nada: para armar la línea de ffmpeg o para
+    /// exportar otros proyectos con estos ajustes. <see cref="CanExport"/> debe ser cierto.
+    /// </summary>
+    public ExportRequest CreatePreviewRequest(Project projectCopy, string sequenceId, string? projectDirectory, string? outputPath = null,
+        ExportRange? range = null)
+    {
+        ArgumentNullException.ThrowIfNull(projectCopy);
+        if (!CanExport)
+        {
+            throw new InvalidOperationException(string.Join(" ", Problems));
+        }
+
+        return new ExportRequest(projectCopy, sequenceId, outputPath ?? OutputPath, ResolvedSettings(), range ?? Ranges[RangeIndex].Range)
+        {
+            ProjectDirectory = projectDirectory,
+        };
+    }
+
+    /// <summary>Los ajustes con el rendimiento y los codificadores concretos que se usarán.</summary>
+    public ExportSettings ResolvedSettings()
+    {
         ExportSettings settings = Settings with { Performance = Performance };
         if (settings.Video is { } video && settings.Container is not ExportContainer.ImageSequence && VideoEncoder is { } encoder)
         {
@@ -219,30 +427,46 @@ public sealed class ExportDialogModel
             settings = settings with { Audio = audio with { EncoderId = audioEncoder.Id } };
         }
 
-        ExportPresetLibrary.Remember(_preferences, PresetId == ExportPresetLibrary.CustomId ? null : PresetId, Settings with { Performance = Performance },
-            OutputPath);
-        return new ExportRequest(projectCopy, sequenceId, OutputPath, settings, Ranges[RangeIndex].Range) { ProjectDirectory = projectDirectory };
+        return settings;
     }
 
     /// <summary>
-    /// «Exportar varias versiones»: una petición por preajuste, con el rango, el rendimiento y la carpeta de ahora y el nombre
-    /// del archivo más el del preajuste («Viaje - YouTube 1080p.mp4»). Un preajuste de otra forma que el proyecto (Reels 9:16
-    /// sobre un proyecto 16:9) conserva su forma y llena el cuadro recortando al centro; los demás siguen al proyecto.
+    /// «Exportar varias versiones»: una petición por preajuste, con el rango, el rendimiento, los subtítulos y la carpeta de
+    /// ahora y el nombre del archivo más el del preajuste («Viaje - YouTube 1080p.mp4»; con un número si ya existe). Un
+    /// preajuste de otra forma que el proyecto (Reels 9:16 sobre un proyecto 16:9) conserva su forma y llena el cuadro
+    /// recortando al centro; los demás siguen al proyecto.
     /// </summary>
+    /// <exception cref="InvalidOperationException"><see cref="VersionProblems"/> no está vacío.</exception>
+    /// <exception cref="ArgumentException">Un preajuste no existe o no se puede exportar en este equipo.</exception>
     public IReadOnlyList<ExportRequest> CreateVersionRequests(IEnumerable<string> presetIds, Project projectCopy, string sequenceId,
         string? projectDirectory)
     {
         ArgumentNullException.ThrowIfNull(presetIds);
         ArgumentNullException.ThrowIfNull(projectCopy);
-        string folder = Path.GetDirectoryName(OutputPath) is { Length: > 0 } dir ? dir : Environment.GetFolderPath(Environment.SpecialFolder.MyVideos);
+        if (VersionProblems is { Count: > 0 } problems)
+        {
+            throw new InvalidOperationException(string.Join(" ", problems));
+        }
+
+        string folder = Path.GetDirectoryName(OutputPath) is { Length: > 0 } dir ? dir : Services.AppDataPaths.UserFolder(Environment.SpecialFolder.MyVideos);
         string baseName = Path.GetFileNameWithoutExtension(OutputPath);
         var requests = new List<ExportRequest>();
-        var used = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var used = new HashSet<string>(PendingOutputs, StringComparer.OrdinalIgnoreCase);
         foreach (string id in presetIds)
         {
             ExportPreset preset = ExportPresetLibrary.Find(_preferences, id) ?? throw new ArgumentException($"No hay un preajuste «{id}».", nameof(presetIds));
-            ExportSettings settings = VersionSettings(preset.Settings);
+            ExportSettings settings = VersionSettings(preset.Settings) with { Subtitles = Settings.Subtitles };
             settings = ExportSettingsEditor.Coerce(settings, Encoders).Settings with { Performance = Performance };
+            if (settings.Video is null || !FfmpegPipeSinkOptions.AllowsSoftSubtitles(settings.Container))
+            {
+                settings = settings with { Subtitles = SubtitleExport.Burned };
+            }
+
+            if (ExportSettingsEditor.Validate(settings, Encoders) is { Count: > 0 } invalid)
+            {
+                throw new ArgumentException($"«{preset.Name}»: {string.Join(" ", invalid.Select(p => p.Message))}", nameof(presetIds));
+            }
+
             (EncoderSpec? video, EncoderSpec? audio) = ExportSettingsEditor.Encoders(settings, Encoders);
             if (settings.Video is { } v && settings.Container is not ExportContainer.ImageSequence && video is not null)
             {
@@ -255,10 +479,12 @@ public sealed class ExportDialogModel
             }
 
             string name = string.Concat($"{baseName} - {preset.Name}".Select(c => Path.GetInvalidFileNameChars().Contains(c) ? '_' : c)).Trim();
-            string path = ExportRanges.WithExtension(Path.Combine(folder, name), settings);
-            for (int n = 2; !used.Add(path); n++)
+            // La extensión se añade, no se cambia: en «Boda 24.10.2026 - Web 1080p» el último punto es del nombre.
+            string extension = "." + ExportRanges.Extension(settings);
+            string path = Path.Combine(folder, name + extension);
+            for (int n = 2; !used.Add(path) || File.Exists(path) || Directory.Exists(path); n++)
             {
-                path = ExportRanges.WithExtension(Path.Combine(folder, $"{name} ({n})"), settings);
+                path = Path.Combine(folder, $"{name} ({n}){extension}");
             }
 
             requests.Add(new ExportRequest(projectCopy, sequenceId, path, settings, Ranges[RangeIndex].Range) { ProjectDirectory = projectDirectory });
@@ -282,6 +508,12 @@ public sealed class ExportDialogModel
         CoercedSettings coerced = ExportSettingsEditor.Coerce(settings, Encoders);
         Settings = coerced.Settings;
         Adjustments = coerced.Changes;
+        if (Settings.Video is { } video && !SizeChoices.Any(z => z.Width == video.Width && z.Height == video.Height))
+        {
+            (int w, int h) = OutputSize;
+            _presetSizes.Add(new SizeChoice($"{w}×{h} (del preajuste)", video.Width, video.Height));
+        }
+
         if (!keepPreset && ExportPresetLibrary.Find(_preferences, PresetId) is { } preset && !PresetMatches(preset, Settings))
         {
             PresetId = ExportPresetLibrary.CustomId;

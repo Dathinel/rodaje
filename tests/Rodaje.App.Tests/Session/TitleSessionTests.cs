@@ -31,7 +31,7 @@ public class TitleSessionTests
         session.UpdateTransport(PlaybackSnapshot.Empty with { Position = S(seconds) });
 
     private static LibraryElement Style(string reference) =>
-        new("Estilo", "", "", reference, true, reference == TitleStyles.BuiltInReference ? null : PackageOrigin.Installed, ItemKind.TextStyle);
+        new("Estilo", "", "", reference, true, BuiltInStyles.Find(reference) is not null ? null : PackageOrigin.Installed, ItemKind.TextStyle);
 
     private static TextStylePreset Preset() => new(
         "neon", "Neón", new TextStyleFont("Inter", 800, false, "rodaje-fuentes@1.0.0/inter", ["Arial"]), 120, 1920, 1080, 1.1, 2,

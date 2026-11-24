@@ -1,0 +1,453 @@
+using System.Collections.Concurrent;
+using System.Text.Json;
+using System.Threading.Channels;
+using Dathinel.Sala;
+using Rodaje.App.Services.Collab;
+using Rodaje.Core.Collab;
+using Rodaje.Core.Model;
+using Rodaje.Core.Tests.Model;
+using Rodaje.Core.Timing;
+
+namespace Rodaje.App.Tests.Collab;
+
+/// <summary>Un hilo que ejecuta acciones de a una y en orden, como el hilo de la interfaz.</summary>
+internal sealed class UiLoop : IDisposable
+{
+    private readonly Channel<Action> _queue = Channel.CreateUnbounded<Action>();
+    private readonly Task _loop;
+
+    public UiLoop() => _loop = Task.Factory.StartNew(Run, TaskCreationOptions.LongRunning);
+
+    public Task Post(Action action)
+    {
+        TaskCompletionSource done = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        _queue.Writer.TryWrite(() =>
+        {
+            try
+            {
+                action();
+                done.TrySetResult();
+            }
+            catch (Exception ex)
+            {
+                done.TrySetException(ex);
+            }
+        });
+        return done.Task;
+    }
+
+    public void Dispose()
+    {
+        _queue.Writer.TryComplete();
+        _loop.Wait(TimeSpan.FromSeconds(5));
+    }
+
+    private void Run()
+    {
+        foreach (Action a in _queue.Reader.ReadAllAsync().ToBlockingEnumerable())
+        {
+            a();
+        }
+    }
+}
+
+/// <summary>El manejador que se rellena después de crear la sala (el motor necesita la sala y la sala necesita el manejador).</summary>
+internal sealed class LateHandler : ICollabPayloadHandler
+{
+    public ICollabPayloadHandler? Target { get; set; }
+
+    public Func<CancellationToken, Task>? BeforeValidation { get; set; }
+
+    public async ValueTask<Veredicto> ValidateAsync(Miembro author, JsonElement payload, CancellationToken cancellationToken)
+    {
+        if (BeforeValidation is { } before) await before(cancellationToken);
+        return Target is { } target ? await target.ValidateAsync(author, payload, cancellationToken) : Veredicto.No("sin-motor");
+    }
+
+    /// <summary>Si no es nulo, lo ordenado se retiene aquí en vez de llegar al motor (una confirmación que tarda).</summary>
+    public ConcurrentQueue<Ordenado>? Held { get; set; }
+
+    public void Apply(Ordenado ordered)
+    {
+        if (Held is { } held) held.Enqueue(ordered);
+        else Target?.Apply(ordered);
+    }
+
+    public void Rejected(Rechazo rejection) => Target?.Rejected(rejection);
+}
+
+/// <summary>Un equipo de una sala: su sala, su presencia, su proyecto «vivo», su hilo de interfaz y su motor.</summary>
+internal sealed class Replica : IAsyncDisposable
+{
+    public RoomService Room { get; }
+
+    public CollabPresence Presence { get; }
+
+    public UiLoop Ui { get; } = new();
+
+    public Project Live { get; private set; } = new();
+
+    public CollabEngine Engine { get; private set; } = null!;
+
+    public ConcurrentQueue<string> Notices { get; } = new();
+
+    public ConcurrentQueue<string> Desyncs { get; } = new();
+
+    public int Refreshes;
+
+    private readonly LateHandler _late = new();
+
+    public Replica(string version = "1.0.4", TimeSpan? standbyWait = null)
+    {
+        Room = new RoomService(CollabHarness.Env(version) with { StandbyWait = standbyWait }, _late);
+        Presence = new CollabPresence(Room);
+    }
+
+    public void BeforeValidation(Func<CancellationToken, Task>? before) => _late.BeforeValidation = before;
+
+    /// <summary>Retiene lo que confirma la sala hasta <see cref="ReleaseHeld"/>.</summary>
+    public ConcurrentQueue<Ordenado> Hold() => _late.Held = new();
+
+    public void ReleaseHeld()
+    {
+        ConcurrentQueue<Ordenado> held = _late.Held!;
+        _late.Held = null;
+        while (held.TryDequeue(out Ordenado? ordered)) Engine.Apply(ordered);
+    }
+
+    public void Rejected(Rechazo rejection) => Engine.Rejected(rejection);
+
+    public async Task<bool> ClipEnabled(string id)
+    {
+        bool enabled = false;
+        await Ui.Post(() => enabled = Live.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == id).Enabled);
+        return enabled;
+    }
+
+    public void Attach(Project live, Func<bool>? isBusy = null)
+    {
+        Live = live;
+        Engine = new CollabEngine(live, Room, Presence, Ui.Post, () => Interlocked.Increment(ref Refreshes), (text, problem) => Notices.Enqueue(text), isBusy);
+        Engine.Desynced += Desyncs.Enqueue;
+        _late.Target = Engine;
+    }
+
+    /// <summary>Hace un cambio local en el hilo de la interfaz y lo deja salir como parche.</summary>
+    public Task Edit(Action<Project> change, string description = "Cambio de prueba") =>
+        Ui.Post(() =>
+        {
+            change(Live);
+            Engine.OnLocalChange(description);
+        });
+
+    public string Hash() => SharedState.Capture(Live).Hash;
+
+    public string HashOnUi()
+    {
+        string hash = "";
+        Ui.Post(() => hash = SharedState.Capture(Live).Hash).Wait(TimeSpan.FromSeconds(10));
+        return hash;
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        Engine?.Dispose();
+        Presence.Dispose();
+        await Room.DisposeAsync();
+        Ui.Dispose();
+    }
+}
+
+public sealed class CollabEngineTests
+{
+    private static Marker MarkerAt(string id, string name, double seconds = 1) => new() { Id = id, Name = name, Time = Time.FromSeconds(seconds) };
+
+    /// <summary>Anfitrión con el proyecto de ejemplo y un invitado que lo recibió por el mismo camino que en la app.</summary>
+    internal static async Task<(Replica Host, Replica Guest)> StartAsync(Rol role = Rol.Editar)
+    {
+        Replica host = new(standbyWait: TimeSpan.FromMilliseconds(100)), guest = new(standbyWait: TimeSpan.FromMilliseconds(100));
+        await host.Room.HostAsync("Ana", CollabHarness.TempFolder());
+        host.Attach(ModelSamples.ValidProject());
+        await host.Ui.Post(() => host.Engine.StartAsHost());
+
+        CollabInvitation invite = await host.Room.CreateInviteAsync(TimeSpan.FromMinutes(10));
+        Task joining = guest.Room.JoinAsync(invite.Link, "Luis", CollabHarness.TempFolder());
+        await CollabHarness.Until(() => host.Room.State.Requests.Count == 1, "la solicitud de Luis");
+        await host.Room.ApproveAsync(host.Room.State.Requests[0].Key, role);
+        await joining.WaitAsync(TimeSpan.FromSeconds(20));
+
+        (string json, long seq) = host.Engine.CaptureForGuest();
+        ProjectParseResult parsed = ProjectWire.TryParse(json);
+        Assert.True(parsed.IsValid, parsed.Rejection?.Message);
+        guest.Attach(parsed.Project!);
+        await guest.Ui.Post(() => guest.Engine.StartAsGuest(parsed.Project!.Clone(), parsed.Versions!, seq));
+        await CollabHarness.Until(() => host.Room.State.Members.Count == 2 && guest.Room.State.Members.Count == 2, "dos miembros");
+        return (host, guest);
+    }
+
+    private static async Task Settled(Replica a, Replica b, string what)
+    {
+        await CollabHarness.Until(() => a.HashOnUi() == b.HashOnUi(), what);
+        Assert.Equal(a.HashOnUi(), b.HashOnUi());
+    }
+
+    [SalaFact]
+    public async Task Tras_el_traspaso_los_tres_editan_sobre_el_mismo_confirmado()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica a = host;
+        await using Replica b = guest;
+        await using Replica c = new();
+        CollabInvitation invite = await a.Room.CreateInviteAsync(TimeSpan.FromMinutes(10));
+        Task joining = c.Room.JoinAsync(invite.Link, "Eva", CollabHarness.TempFolder());
+        await CollabHarness.Until(() => a.Room.State.Requests.Count == 1, "la tercera solicitud");
+        await a.Room.ApproveAsync(a.Room.State.Requests[0].Key, Rol.Editar);
+        await joining.WaitAsync(TimeSpan.FromSeconds(20));
+        (string json, long seq) = a.Engine.CaptureForGuest();
+        ProjectParseResult parsed = ProjectWire.TryParse(json);
+        c.Attach(parsed.Project!);
+        await c.Ui.Post(() => c.Engine.StartAsGuest(parsed.Project!.Clone(), parsed.Versions!, seq));
+        await a.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("antes", "Antes")));
+        await CollabHarness.Until(() => a.Engine.CaptureForGuest() == b.Engine.CaptureForGuest()
+            && a.Engine.CaptureForGuest() == c.Engine.CaptureForGuest() && a.Engine.CaptureForGuest().Seq == 1, "lo confirmado antes de pasar el mando");
+        await a.Room.HandOverAsync(b.Room.State.MyKey);
+        await CollabHarness.Until(() => b.Room.State.IsHost && !a.Room.State.IsHost, "el nuevo anfitrión");
+        Assert.Equal(a.Engine.CaptureForGuest(), b.Engine.CaptureForGuest());
+        await b.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("nuevo", "Nuevo anfitrión")));
+        await CollabHarness.Until(() => a.Engine.CaptureForGuest().Seq == 2 && c.Engine.CaptureForGuest().Seq == 2, "la edición de B");
+        await a.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("anterior", "Anterior anfitrión")));
+        await CollabHarness.Until(() => a.Engine.CaptureForGuest().Seq == 3 && b.Engine.CaptureForGuest().Seq == 3
+            && c.Engine.CaptureForGuest().Seq == 3, "la edición de A después");
+        await Settled(a, b, "A y B convergen");
+        await Settled(b, c, "B y C convergen");
+        Assert.Empty(a.Desyncs);
+        Assert.Empty(b.Desyncs);
+        Assert.Empty(c.Desyncs);
+    }
+
+    [SalaFact]
+    public async Task Un_cambio_del_anfitrion_llega_al_invitado_y_el_estado_compartido_es_igual()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica h = host;
+        await using Replica g = guest;
+        Assert.Equal(host.HashOnUi(), guest.HashOnUi());
+
+        await host.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("mk-host", "del anfitrión")));
+
+        await CollabHarness.Until(() => guest.Live.Sequences[0].Markers.Any(m => m.Id == "mk-host"), "el marcador en el invitado");
+        await Settled(host, guest, "mismo estado compartido");
+        Assert.True(guest.Refreshes > 0, "la vista del invitado se rehízo");
+    }
+
+    [SalaFact]
+    public async Task Un_cambio_del_invitado_llega_al_anfitrion_con_su_reserva_del_proyecto()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica h = host;
+        await using Replica g = guest;
+
+        await guest.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("mk-guest", "del invitado")));
+
+        await CollabHarness.Until(() => host.Live.Sequences[0].Markers.Any(m => m.Id == "mk-guest"), "el marcador en el anfitrión");
+        await Settled(host, guest, "mismo estado compartido");
+        Assert.Empty(guest.Notices);
+    }
+
+    [SalaFact]
+    public async Task Cambios_de_los_dos_a_la_vez_convergen_y_lo_que_choca_se_deshace_con_un_aviso()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica h = host;
+        await using Replica g = guest;
+
+        // Los dos piden la reserva «proyecto» (marcadores): uno la tiene y el otro espera su turno o se deshace.
+        Task a = host.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("mk-a", "A", 2)));
+        Task b = guest.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("mk-b", "B", 3)));
+        await Task.WhenAll(a, b);
+
+        try
+        {
+            await CollabHarness.Until(() => host.HashOnUi() == guest.HashOnUi() && host.Live.Sequences[0].Markers.Count == guest.Live.Sequences[0].Markers.Count, "convergen", 30);
+        }
+        catch (Xunit.Sdk.XunitException ex)
+        {
+            // Si pasa en la CI, el informe trae lo que había en cada lado para encontrar la causa.
+            string Dump(Replica r) => string.Join(",", r.Live.Sequences[0].Markers.Select(m => m.Id)) + " | avisos: " + string.Join(" / ", r.Notices) + " | desinc: " + string.Join(" / ", r.Desyncs);
+            Assert.Fail(string.Join(Environment.NewLine, ex.Message, "anfitrión: " + Dump(host), "invitado: " + Dump(guest)));
+        }
+
+        int markers = host.Live.Sequences[0].Markers.Count(m => m.Id is "mk-a" or "mk-b");
+        Assert.InRange(markers, 1, 2);
+        if (markers == 1)
+        {
+            Assert.True(!host.Notices.IsEmpty || !guest.Notices.IsEmpty, "quien perdió recibió un aviso");
+        }
+    }
+
+    [SalaFact]
+    public async Task Quien_solo_mira_no_cambia_nada_y_se_le_dice()
+    {
+        (Replica host, Replica guest) = await StartAsync(Rol.Mirar);
+        await using Replica h = host;
+        await using Replica g = guest;
+        string before = host.HashOnUi();
+
+        await guest.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("mk-no", "no debería entrar")));
+
+        Assert.DoesNotContain(guest.Live.Sequences[0].Markers, m => m.Id == "mk-no");
+        Assert.Contains(guest.Notices, n => n.Contains("Solo puedes mirar", StringComparison.Ordinal));
+        await Task.Delay(300);
+        Assert.Equal(before, host.HashOnUi());
+    }
+
+    [SalaFact]
+    public async Task Deshacer_solo_deshace_lo_propio_y_llega_a_todos()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica h = host;
+        await using Replica g = guest;
+        await guest.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("mk-undo", "para deshacer")), "Añadir marcador");
+        await CollabHarness.Until(() => guest.Engine.CanUndo, "el paso propio confirmado");
+        await host.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("mk-otro", "del otro", 5)));
+        await CollabHarness.Until(() => guest.Live.Sequences[0].Markers.Any(m => m.Id == "mk-otro"), "el cambio del otro en el invitado");
+
+        bool undone = false;
+        await guest.Ui.Post(() => undone = guest.Engine.Undo());
+
+        Assert.True(undone);
+        await CollabHarness.Until(() => host.Live.Sequences[0].Markers.All(m => m.Id != "mk-undo"), "el marcador deshecho en el anfitrión");
+        Assert.Contains(host.Live.Sequences[0].Markers, m => m.Id == "mk-otro");
+        Assert.Contains(guest.Live.Sequences[0].Markers, m => m.Id == "mk-otro");
+        await Settled(host, guest, "mismo estado compartido");
+        // Lo vivo coincide en cuanto el anfitrión aplica el deshacer; rehacer se habilita al llegar la confirmación al invitado.
+        await CollabHarness.Until(() => guest.Engine.CanRedo, "el deshacer confirmado en el invitado");
+    }
+
+    [SalaFact]
+    public async Task No_se_puede_deshacer_lo_que_otra_persona_cambio_despues()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica h = host;
+        await using Replica g = guest;
+        await guest.Edit(p => p.Sequences[0].Markers.Add(MarkerAt("mk-tocado", "mío")), "Añadir marcador");
+        await CollabHarness.Until(() => guest.Engine.CanUndo, "el paso propio confirmado");
+        await CollabHarness.Until(() => host.Live.Sequences[0].Markers.Any(m => m.Id == "mk-tocado"), "el marcador en el anfitrión");
+        await host.Edit(p => p.Sequences[0].Markers.First(m => m.Id == "mk-tocado").Name = "cambiado por Ana");
+        await CollabHarness.Until(() => guest.Live.Sequences[0].Markers.First(m => m.Id == "mk-tocado").Name == "cambiado por Ana", "el cambio de Ana en el invitado");
+
+        bool undone = true;
+        await guest.Ui.Post(() => undone = guest.Engine.Undo());
+
+        Assert.False(undone);
+        Assert.Contains(guest.Notices, n => n.Contains("otra persona cambió ese elemento", StringComparison.Ordinal));
+        await Settled(host, guest, "mismo estado compartido");
+    }
+
+    [SalaFact]
+    public async Task El_anfitrion_rechaza_un_parche_hostil_sin_cambiar_nada()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica h = host;
+        await using Replica g = guest;
+        string before = host.HashOnUi();
+        Miembro luis = new(guest.Room.State.MyKey, "Luis", Rol.Editar);
+
+        foreach (string hostile in new[]
+        {
+            "\"no es un parche\"",
+            "{}",
+            "[]",
+            "{\"id\":\"x\",\"base\":0,\"author\":\"k\",\"desc\":\"d\",\"ops\":[{\"kind\":\"media\",\"id\":\"m9\",\"parent\":null,\"v\":0,\"content\":{\"id\":\"m9\",\"path\":\"\\\\\\\\evil\\\\share\\\\x.mp4\",\"name\":\"x\"}}],\"orders\":[],\"blobs\":[]}",
+        })
+        {
+            using JsonDocument doc = JsonDocument.Parse(hostile);
+            Veredicto verdict = await host.Engine.ValidateAsync(luis, doc.RootElement, CancellationToken.None);
+            Assert.False(verdict.Aceptada, hostile);
+        }
+
+        Assert.Equal(before, host.HashOnUi());
+    }
+
+    [SalaFact]
+    public async Task Si_un_cambio_propio_no_entra_lo_que_vino_despues_sigue_adelante()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica h = host;
+        await using Replica g = guest;
+        Assert.True(await host.Room.ReserveAsync(PatchReservations.Project), "el anfitrión tiene la reserva de lo global");
+        await CollabHarness.Until(() => guest.Room.Reservations.ContainsKey(PatchReservations.Project), "la reserva a la vista del invitado");
+
+        // El marcador pide «proyecto» (ajena: no entra); apagar el clip c3 solo pide su pista y sí cabe.
+        await guest.Ui.Post(() =>
+        {
+            guest.Live.Sequences[0].Markers.Add(MarkerAt("mk-no-entra", "no entra"));
+            guest.Engine.OnLocalChange("Añadir marcador");
+            guest.Live.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled = false;
+            guest.Engine.OnLocalChange("Apagar clip");
+        });
+
+        await CollabHarness.Until(() => !guest.Notices.IsEmpty, "el aviso del cambio que no entró");
+        await CollabHarness.Until(() => host.Live.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled == false, "el clip apagado en el anfitrión");
+        Assert.DoesNotContain(guest.Live.Sequences[0].Markers, m => m.Id == "mk-no-entra");
+        Assert.False(guest.Live.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled);
+        await Settled(host, guest, "mismo estado compartido");
+    }
+
+    [SalaFact]
+    public async Task Un_rechazo_por_reserva_no_borra_lo_propio_que_salio_antes_y_sigue_sin_respuesta()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica h = host;
+        await using Replica g = guest;
+        Assert.True(await host.Room.ReserveAsync(PatchReservations.Project), "el anfitrión tiene la reserva de lo global");
+        await CollabHarness.Until(() => guest.Room.Reservations.ContainsKey(PatchReservations.Project), "la reserva a la vista del invitado");
+
+        // El anfitrión retiene el clip apagado sin responder mientras el marcador (reserva ajena) se deshace.
+        TaskCompletionSource release = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        host.BeforeValidation(_ => release.Task);
+        await guest.Ui.Post(() =>
+        {
+            guest.Live.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled = false;
+            guest.Engine.OnLocalChange("Apagar clip");
+            guest.Live.Sequences[0].Markers.Add(MarkerAt("mk-no-entra", "no entra"));
+            guest.Engine.OnLocalChange("Añadir marcador");
+        });
+
+        await CollabHarness.Until(() => !guest.Notices.IsEmpty, "el aviso del marcador que no entró");
+        Assert.False(await guest.ClipEnabled("c3"), "el clip sigue apagado en el invitado mientras espera respuesta");
+        host.BeforeValidation(null);
+        release.SetResult();
+
+        await CollabHarness.Until(() => host.Live.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled == false, "el clip apagado en el anfitrión");
+        await Settled(host, guest, "mismo estado compartido");
+        Assert.Single(guest.Engine.Unsettled.Items);
+    }
+
+    [SalaFact]
+    public async Task Ya_confirmado_con_un_pendiente_que_no_cabe_conserva_los_independientes()
+    {
+        (Replica host, Replica guest) = await StartAsync();
+        await using Replica h = host;
+        await using Replica g = guest;
+        ConcurrentQueue<Ordenado> held = guest.Hold();
+
+        // p0 apaga c3, p1 lo vuelve a encender (depende de p0) y p2 apaga c2 (independiente).
+        await guest.Edit(p => p.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled = false, "Apagar c3");
+        await guest.Edit(p => p.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c3").Enabled = true, "Encender c3");
+        await guest.Edit(p => p.Sequences[0].VideoTracks.SelectMany(t => t.Clips).First(c => c.Id == "c2").Enabled = false, "Apagar c2");
+        await CollabHarness.Until(() => held.Count == 3, "las tres confirmaciones retenidas");
+
+        // La sala responde «ya-confirmado» a p0 antes de que llegue su confirmación: p1 ya no cabe, p2 sí.
+        held.TryPeek(out Ordenado? first);
+        guest.Rejected(new Rechazo(first!.Id, "ya-confirmado", null));
+        await CollabHarness.Until(() => guest.Engine.Unsettled.Items.Count > 0, "el pendiente que no cabe, apartado");
+        await Task.Delay(300);
+        Assert.Equal(["Encender c3"], guest.Engine.Unsettled.Items.Select(i => i.Description));
+        Assert.False(await guest.ClipEnabled("c2"), "el cambio independiente sigue en lo vivo");
+
+        guest.ReleaseHeld();
+        await Settled(host, guest, "mismo estado compartido");
+        Assert.Empty(guest.Desyncs);
+    }
+}

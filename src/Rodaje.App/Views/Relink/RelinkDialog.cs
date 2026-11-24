@@ -21,12 +21,14 @@ namespace Rodaje.App.Views.Relink;
 internal static class RelinkDialog
 {
     private static Func<Task>? s_reopen;
+    private static MediaRelinkService? s_relink;
 
     /// <summary>Muestra el diálogo cada vez que se abre un proyecto con medios que faltan.</summary>
     public static void Attach(EditorServices services, nint hwnd)
     {
         ArgumentNullException.ThrowIfNull(services);
         var relink = new MediaRelinkService(new FfmpegMediaProber());
+        s_relink = relink;
         relink.Attach(services.Session, missing => ShowAsync(services, hwnd, relink, missing));
         s_reopen = async () =>
         {
@@ -50,6 +52,13 @@ internal static class RelinkDialog
 
     /// <summary>«Volver a enlazar…» de la biblioteca: mira qué falta ahora y abre el diálogo.</summary>
     public static Task ReopenAsync() => s_reopen?.Invoke() ?? Task.CompletedTask;
+
+    /// <summary>Mientras dure, abrir ese proyecto no lanza este diálogo (ver <see cref="MediaRelinkService.SkipCheckWhileOpening"/>).</summary>
+    public static IDisposable? SkipCheckWhileOpening(string projectFile)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(projectFile);
+        return s_relink?.SkipCheckWhileOpening(projectFile);
+    }
 
     private sealed class Row(MediaRef media, TextBlock status, Button pick, Button confirm)
     {
@@ -81,7 +90,8 @@ internal static class RelinkDialog
         // Encontrados con otro nombre: no se comparó el contenido, así que esperan a que el usuario los confirme.
         var proposed = new Dictionary<string, string>(StringComparer.Ordinal);
         var rows = new List<Row>();
-        var panel = new StackPanel { Spacing = 8, MinWidth = 520 };
+        // 480 y no 520: un ContentDialog deja unos 500 px útiles (548 menos el margen) y lo que sobra se cortaba («Elegir…»).
+        var panel = new StackPanel { Spacing = 8, MinWidth = 480 };
         panel.Children.Add(new TextBlock
         {
             Text = missing.Count == 1
@@ -98,8 +108,12 @@ internal static class RelinkDialog
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
             var text = new StackPanel();
             int clips = MediaRelinkEdits.CountClips(project, media.Id);
-            text.Children.Add(new TextBlock { Text = MediaRelinkSearch.FileName(media.Path), FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
-            text.Children.Add(new TextBlock { Text = media.Path, FontSize = ThemeResources.Size("BodyFontSize"), Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis });
+            text.Children.Add(new TextBlock { Text = MediaRelinkService.DisplayName(media), FontWeight = FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis });
+            if (MediaRelinkService.DisplayPath(media) is { } shownPath)
+            {
+                text.Children.Add(new TextBlock { Text = shownPath, FontSize = ThemeResources.Size("BodyFontSize"), Opacity = 0.7, TextTrimming = TextTrimming.CharacterEllipsis });
+            }
+
             var status = new TextBlock { Text = clips == 1 ? "Falta · en 1 clip" : $"Falta · en {clips} clips", FontSize = ThemeResources.Size("BodyFontSize"), TextWrapping = TextWrapping.Wrap };
             text.Children.Add(status);
             var pick = new Button { Content = "Elegir…", VerticalAlignment = VerticalAlignment.Center };
@@ -116,13 +130,13 @@ internal static class RelinkDialog
 
         panel.Children.Add(new ScrollViewer { Content = list, MaxHeight = 320 });
         var search = new Button { Content = "Buscar en carpeta…" };
-        var progress = new ProgressRing { IsActive = false, Width = 20, Height = 20 };
+        var progress = new Views.Shared.OperationProgressView { Width = 360, ShowMessage = false, ShowCancel = false };
         var summary = new TextBlock { TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12 };
         actions.Children.Add(search);
-        actions.Children.Add(progress);
         actions.Children.Add(summary);
         panel.Children.Add(actions);
+        panel.Children.Add(progress);
 
         var dialog = new ContentDialog
         {
@@ -133,17 +147,17 @@ internal static class RelinkDialog
             CloseButtonText = "Más tarde",
             DefaultButton = ContentDialogButton.Primary,
             IsPrimaryButtonEnabled = false,
-            RequestedTheme = ElementTheme.Dark,
         };
 
         var cancel = new CancellationTokenSource();
         bool searching = false;
+        Rodaje.App.Services.Operations.OperationProgress? searchProgress = null;
 
         void Refresh()
         {
             dialog.IsPrimaryButtonEnabled = pending.Count > 0 && !searching;
             search.IsEnabled = !searching && pending.Count + proposed.Count < missing.Count;
-            progress.IsActive = searching;
+            progress.Operation = searching ? searchProgress : null;
             foreach (Row row in rows)
             {
                 row.Pick.IsEnabled = !searching;
@@ -168,10 +182,16 @@ internal static class RelinkDialog
 
             searching = true;
             summary.Text = "Buscando…";
+            searchProgress = new Rodaje.App.Services.Operations.OperationProgress();
+            searchProgress.Report(null, "Buscando…");
             Refresh();
             try
             {
-                var scanned = new Progress<int>(n => summary.Text = $"Buscando… {n} archivos");
+                var scanned = new Progress<int>(n =>
+                {
+                    summary.Text = $"Buscando… {n} archivos";
+                    searchProgress?.Report(null, $"{n} archivos");
+                });
                 RelinkSearchResult result = await relink.SearchAsync(
                     project, wanted, folder, scanned, MediaRelinkService.TakenPaths(pending.Values, proposed.Values), cancel.Token);
                 foreach (RelinkMatch match in result.Found)
@@ -185,7 +205,7 @@ internal static class RelinkDialog
                         continue;
                     }
 
-                    pending[match.MediaId] = new MediaRelinkTarget(match.MediaId, match.Path);
+                    pending[match.MediaId] = match.Target;
                     row.Status.Text = $"Encontrado: {match.Path}";
                 }
 
@@ -248,8 +268,8 @@ internal static class RelinkDialog
 
         async Task PickAsync(Row row)
         {
-            string name = MediaRelinkSearch.FileName(row.Media.Path);
-            string extension = Path.GetExtension(name);
+            string name = MediaRelinkService.DisplayName(row.Media);
+            string extension = MediaRelinkService.DisplayPath(row.Media) is { } shown ? Path.GetExtension(MediaRelinkSearch.FileName(shown)) : "";
             (string Name, string Spec)[] filters = extension.Length > 1
                 ? [($"Archivos {extension}", "*" + extension), FileDialogs.MediaFilter, FileDialogs.AllFilter]
                 : [FileDialogs.MediaFilter, FileDialogs.AllFilter];
@@ -281,7 +301,7 @@ internal static class RelinkDialog
                 && string.Equals(p, target.Path, StringComparison.OrdinalIgnoreCase)).ToList())
             {
                 proposed.Remove(other.Media.Id);
-                other.Status.Text = $"El archivo que se proponía se eligió para «{MediaRelinkSearch.FileName(row.Media.Path)}»: busca este de nuevo o elígelo.";
+                other.Status.Text = $"El archivo que se proponía se eligió para «{name}»: busca este de nuevo o elígelo.";
             }
 
             row.Status.Text = target.Probe is null
@@ -324,8 +344,7 @@ internal static class RelinkDialog
     private static void NotifyRemaining(EditorServices services, nint hwnd, MediaRelinkService relink, IReadOnlyList<MediaRef> missing)
     {
         EditorSession session = services.Session;
-        session.Notify(NotificationSeverity.Warning, missing.Count == 1 ? "Falta un medio" : "Faltan medios", MediaRelinkService.Describe(missing),
-            new NotificationAction("Volver a enlazar", () => UiTask.Run(ReopenAsync())));
+        MediaRelinkService.NotifyMissing(session, missing, new NotificationAction("Volver a enlazar", () => UiTask.Run(ReopenAsync())));
 
         async Task ReopenAsync()
         {

@@ -14,6 +14,7 @@ namespace Rodaje.Media.Gpu;
 /// secuencias de varias llamadas (copiar y luego <c>Map</c>) van dentro del candado del contexto, que es
 /// el mismo que usa FFmpeg al decodificar en otro hilo.
 /// </remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe class GpuDevice : IDisposable
 {
     private readonly Lock _managedLock = new();
@@ -35,6 +36,7 @@ public sealed unsafe class GpuDevice : IDisposable
         FeatureLevel = FormatFeatureLevel(device->GetFeatureLevel());
         SupportsNv12Textures = SupportsShaderTexture(DXGI_FORMAT.DXGI_FORMAT_NV12);
         SupportsP010Textures = SupportsShaderTexture(DXGI_FORMAT.DXGI_FORMAT_P010);
+        SupportsP016Textures = SupportsShaderTexture(DXGI_FORMAT.DXGI_FORMAT_P016);
         if (videoSupport && FfmpegLibrary.TryInitialize(out _))
         {
             CreateHardwareDeviceContext();
@@ -50,6 +52,8 @@ public sealed unsafe class GpuDevice : IDisposable
     public bool SupportsNv12Textures { get; }
 
     public bool SupportsP010Textures { get; }
+
+    public bool SupportsP016Textures { get; }
 
     public string AdapterName { get; }
 
@@ -71,6 +75,9 @@ public sealed unsafe class GpuDevice : IDisposable
     public long DedicatedVideoMemory { get; }
 
     public bool IsDisposed => _device == null;
+
+    /// <summary>Cerrado o perdido (TDR, controlador actualizado, GPU que se apaga): ya no sirve y hay que crear otro.</summary>
+    public bool IsLost => _device == null || _device->GetDeviceRemovedReason().FAILED;
 
     /// <summary><c>ID3D11Device*</c> para el renderizador, sin referencia propia: vale hasta <see cref="Dispose"/>.</summary>
     public nint NativeDevice => (nint)Device;
@@ -99,13 +106,17 @@ public sealed unsafe class GpuDevice : IDisposable
         }
     }
 
-    /// <summary>Con valor <c>1</c>, <see cref="TryCreate"/> y <see cref="Create"/> dan WARP en vez del adaptador por defecto.</summary>
+    /// <summary>Con valor <c>1</c>, <see cref="TryCreate"/> y <see cref="Create()"/> dan WARP en vez del adaptador por defecto.</summary>
     public const string ForceWarpVariable = "RODAJE_FORZAR_WARP";
 
-    /// <summary>Crea el dispositivo sobre el adaptador de hardware por defecto.</summary>
-    /// <exception cref="MediaException">No hay Direct3D 11 por hardware.</exception>
-    public static GpuDevice Create() =>
-        TryCreate(out string? reason) ?? throw new MediaException(reason!);
+    /// <summary>
+    /// Crea el dispositivo sobre el adaptador de <see cref="GpuAdapterChoice"/> y, si no hay Direct3D 11 por hardware (una GPU de nivel
+    /// 10, un controlador roto), sobre WARP: el visor y la exportación van lentos pero funcionan.
+    /// </summary>
+    /// <exception cref="MediaException">Tampoco hay WARP.</exception>
+    public static GpuDevice Create() => Create(() => TryCreate(out _));
+
+    internal static GpuDevice Create(Func<GpuDevice?> hardware) => hardware() ?? CreateWarp();
 
     /// <summary>
     /// Crea el dispositivo sobre WARP, el rasterizador de software de Direct3D (en la CPU, sin decodificación por
@@ -251,12 +262,12 @@ public sealed unsafe class GpuDevice : IDisposable
         return texture;
     }
 
-    /// <summary>Copia el plano Y de una capa de la textura a la CPU, en 8 bits (P010 se reduce con <c>&gt;&gt; 8</c>).</summary>
+    /// <summary>Copia el plano Y de una capa de la textura a la CPU, en 8 bits (P010 y P016 se reducen con <c>&gt;&gt; 8</c>).</summary>
     internal byte[] ReadLuma(ID3D11Texture2D* texture, uint arraySlice, int width, int height)
     {
         D3D11_TEXTURE2D_DESC source;
         texture->GetDesc(&source);
-        bool tenBit = source.Format == DXGI_FORMAT.DXGI_FORMAT_P010;
+        bool tenBit = source.Format is DXGI_FORMAT.DXGI_FORMAT_P010 or DXGI_FORMAT.DXGI_FORMAT_P016;
         if (!tenBit && source.Format != DXGI_FORMAT.DXGI_FORMAT_NV12)
         {
             throw new NotSupportedException($"La lectura de luma no admite el formato {source.Format}.");
@@ -341,8 +352,14 @@ public sealed unsafe class GpuDevice : IDisposable
         ID3D11Device* d = null;
         ID3D11DeviceContext* c = null;
         D3D_FEATURE_LEVEL level;
-        HRESULT hr = D3D11CreateDevice(null, D3D_DRIVER_TYPE.D3D_DRIVER_TYPE_HARDWARE, HMODULE.NULL, flags,
-            levels, 2, D3D11_SDK_VERSION, &d, &level, &c);
+        IDXGIAdapter1* adapter = GpuAdapterChoice.Open();
+        HRESULT hr = D3D11CreateDevice((IDXGIAdapter*)adapter, adapter == null ? D3D_DRIVER_TYPE.D3D_DRIVER_TYPE_HARDWARE : D3D_DRIVER_TYPE.D3D_DRIVER_TYPE_UNKNOWN,
+            HMODULE.NULL, flags, levels, 2, D3D11_SDK_VERSION, &d, &level, &c);
+        if (adapter != null)
+        {
+            adapter->Release();
+        }
+
         device = d;
         context = c;
         return hr;
@@ -396,6 +413,50 @@ public sealed unsafe class GpuDevice : IDisposable
             HRESULT hr = adapter3->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP.DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &info);
             adapter3->Release();
             return hr.SUCCEEDED ? (long)info.CurrentUsage : null;
+        }
+        finally
+        {
+            adapter->Release();
+        }
+    }
+
+    /// <summary>Bits por color del monitor que más tenga entre los del adaptador (<c>DXGI_OUTPUT_DESC1</c>); 8 si no hay monitores (WARP) o no se puede leer.</summary>
+    /// <remarks>shortcut: mira todos los monitores del adaptador y no el que tiene la ventana; afinar si alguien mezcla uno de 10 bits con otro de 8.</remarks>
+    [System.Runtime.Versioning.SupportedOSPlatform("windows10.0")]
+    public int MaxOutputBitsPerColor()
+    {
+        ObjectDisposedException.ThrowIf(_device == null, this);
+        IDXGIAdapter* adapter = GetAdapter();
+        int bits = 8;
+        if (adapter == null)
+        {
+            return bits;
+        }
+
+        try
+        {
+            for (uint i = 0; ; i++)
+            {
+                IDXGIOutput* output;
+                if (adapter->EnumOutputs(i, &output).FAILED)
+                {
+                    return bits;
+                }
+
+                IDXGIOutput6* output6;
+                if (output->QueryInterface(__uuidof<IDXGIOutput6>(), (void**)&output6).SUCCEEDED)
+                {
+                    DXGI_OUTPUT_DESC1 desc;
+                    if (output6->GetDesc1(&desc).SUCCEEDED)
+                    {
+                        bits = Math.Max(bits, (int)desc.BitsPerColor);
+                    }
+
+                    output6->Release();
+                }
+
+                output->Release();
+            }
         }
         finally
         {

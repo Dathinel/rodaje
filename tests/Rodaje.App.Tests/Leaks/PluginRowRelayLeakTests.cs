@@ -139,6 +139,12 @@ public sealed class PluginRowRelayLeakTests
         string row = File.ReadAllText(Path.Combine(RepositoryRoot(), "src/Rodaje.App/Views/Plugins/PluginRow.cs"));
         Assert.Contains("public void UpdateCanUninstallNow(bool canUninstallNow)", row, StringComparison.Ordinal);
         Assert.Contains("_notices.Raise(this, nameof(CanUninstallNow));", row, StringComparison.Ordinal);
+        Assert.Contains("_notices.Raise(this, nameof(CanDownload));", row, StringComparison.Ordinal);
+
+        // x:Bind es OneTime por defecto: sin OneWay el aviso no llega a los botones.
+        string xaml = File.ReadAllText(Path.Combine(RepositoryRoot(), "src/Rodaje.App/Views/Plugins/PluginsView.xaml"));
+        Assert.Contains("IsEnabled=\"{x:Bind CanUninstallNow, Mode=OneWay}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("IsEnabled=\"{x:Bind CanDownload, Mode=OneWay}\"", xaml, StringComparison.Ordinal);
     }
 
     [Fact]

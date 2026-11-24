@@ -1,3 +1,5 @@
+using System.Text;
+using System.Text.Json;
 using Rodaje.Core.Effects;
 using Rodaje.Core.Text;
 
@@ -50,21 +52,7 @@ public static partial class ModelValidator
         }
 
         string text = generator.Text;
-        if (text.Length > MaxTextLength)
-        {
-            errors.Add($"{where} tiene un texto de más de {MaxTextLength} caracteres.");
-        }
-
-        // DirectWrite también parte la línea en los separadores de Unicode, que no son de control.
-        if (text.Count(c => c is '\n' or '\u2028' or '\u2029') >= MaxTextLines)
-        {
-            errors.Add($"{where} tiene un texto de más de {MaxTextLines} líneas.");
-        }
-
-        if (text.Any(c => char.IsControl(c) && c is not '\n' and not '\t'))
-        {
-            errors.Add($"{where} tiene un texto con caracteres de control (solo admite saltos de línea y tabulaciones).");
-        }
+        ValidateText(text, where, errors);
 
         if (!InRange(generator.Edges.Before.ToSeconds(), 0, MaxEdgeOffsetSeconds) || !InRange(generator.Edges.After.ToSeconds(), 0, MaxEdgeOffsetSeconds))
         {
@@ -81,17 +69,17 @@ public static partial class ModelValidator
             ValidateStyle(style, where, errors);
         }
 
-        if (generator.Box is { } box
-            && ((box.Width is { } width && !InRange(width, double.Epsilon, MaxReferenceSide))
-                || (box.WidthFraction is { } fraction && !InRange(fraction, double.Epsilon, 1))))
+        if ((generator.Kind == GeneratorKinds.Template) != (generator.Template is not null))
         {
-            errors.Add($"{where} tiene una caja de texto con un ancho fuera de rango.");
+            errors.Add($"{where} tiene una plantilla sin ser de tipo plantilla, o al revés.");
         }
 
-        if (generator.Box?.HeightFraction is { } heightFraction && !InRange(heightFraction, double.Epsilon, 1))
+        if (generator.Template is { } template)
         {
-            errors.Add($"{where} tiene una caja de texto con un alto fuera de rango.");
+            ValidateTemplate(template, where, errors);
         }
+
+        ValidateBox(generator.Box, where, errors);
 
         if (generator.Spans is { } spans)
         {
@@ -99,6 +87,144 @@ public static partial class ModelValidator
         }
 
         ValidateWords(generator, where, errors);
+    }
+
+    /// <summary>
+    /// Plantilla (D-064): cada capa con las reglas de un título; el documento solo se mide (el núcleo no lo interpreta) y
+    /// los valores son escalares u objetos de un nivel, como el de una fuente.
+    /// </summary>
+    private static void ValidateTemplate(GeneratorTemplate template, string where, List<string> errors)
+    {
+        if (template.Source is not null && !OptionDefinition.IsWellFormedReference(template.Source))
+        {
+            errors.Add($"{where} tiene una plantilla con un origen que no es una referencia de paquete.");
+        }
+
+        if (!IsDisplayText(template.Name, MaxNameLength))
+        {
+            errors.Add($"{where} tiene una plantilla con un nombre no válido.");
+        }
+
+        if (!InRange(template.MinSeconds, 0, GeneratorTemplate.MaxSeconds))
+        {
+            errors.Add($"{where} tiene una plantilla con una duración mínima fuera de 0 a {GeneratorTemplate.MaxSeconds} s.");
+        }
+
+        if (template.Document is null || Encoding.UTF8.GetByteCount(template.Document) > GeneratorTemplate.MaxDocumentBytes)
+        {
+            errors.Add($"{where} tiene una plantilla sin documento o de más de {GeneratorTemplate.MaxDocumentBytes / 1024} KB.");
+        }
+
+        if (template.Values is null || template.Values.Count > GeneratorTemplate.MaxValues
+            || template.Values.Any(p => !IsToken(p.Key, 64, allowDot: false) || !IsTemplateValue(p.Value)))
+        {
+            errors.Add($"{where} tiene una plantilla con más de {GeneratorTemplate.MaxValues} valores o con un valor no válido.");
+        }
+
+        List<TemplateLayer> layers = template.Layers ?? [];
+        if (layers.Count is 0 or > GeneratorTemplate.MaxLayers)
+        {
+            errors.Add($"{where} tiene una plantilla sin capas o con más de {GeneratorTemplate.MaxLayers}.");
+        }
+
+        var ids = new HashSet<string>(StringComparer.Ordinal);
+        for (int i = 0; i < layers.Count; i++)
+        {
+            TemplateLayer layer = layers[i];
+            string at = $"{where} (capa {i + 1} de la plantilla)";
+            if (layer is null)
+            {
+                errors.Add($"{at} está vacía.");
+                continue;
+            }
+
+            if (!IsToken(layer.Id, 64, allowDot: false) || !ids.Add(layer.Id))
+            {
+                errors.Add($"{at} tiene un id vacío, no válido o repetido.");
+            }
+
+            ValidateText(layer.Text, at, errors);
+            if (layer.Style is null)
+            {
+                errors.Add($"{at} no tiene estilo.");
+            }
+            else
+            {
+                ValidateStyle(layer.Style, at, errors);
+            }
+
+            ValidateBox(layer.Box, at, errors);
+            if (!InRange(layer.X, -MaxReferenceSide, MaxReferenceSide) || !InRange(layer.Y, -MaxReferenceSide, MaxReferenceSide))
+            {
+                errors.Add($"{at} tiene una posición fuera de ±{MaxReferenceSide} px.");
+            }
+
+            if (!InRange(layer.Start, 0, GeneratorTemplate.MaxSeconds) || !InRange(layer.End, 0, GeneratorTemplate.MaxSeconds))
+            {
+                errors.Add($"{at} tiene un desfase de entrada o de salida fuera de 0 a {GeneratorTemplate.MaxSeconds} s.");
+            }
+        }
+    }
+
+    private static long TemplateTextLength(Clip clip) =>
+        clip.Generator?.Template?.Layers?.Sum(l => (long)(l?.Text?.Length ?? 0)) ?? 0;
+
+    private static bool IsTemplateValue(JsonElement value) => value.ValueKind switch
+    {
+        JsonValueKind.String => value.GetString()!.Length <= MaxTextLength,
+        JsonValueKind.Number => double.IsFinite(value.GetDouble()),
+        JsonValueKind.True or JsonValueKind.False => true,
+        JsonValueKind.Object => value.EnumerateObject().Count() <= MaxStyleKeys
+            && value.EnumerateObject().All(p => p.Value.ValueKind is JsonValueKind.Number or JsonValueKind.True or JsonValueKind.False
+                || IsShortText(p.Value)
+                || (p.Value.ValueKind == JsonValueKind.Array && p.Value.GetArrayLength() <= MaxStyleKeys && p.Value.EnumerateArray().All(IsShortText))),
+        _ => false,
+    };
+
+    private static bool IsShortText(JsonElement value) => value.ValueKind == JsonValueKind.String && value.GetString()!.Length <= MaxTextLength;
+
+    private static void ValidateText(string? text, string where, List<string> errors)
+    {
+        if (text is null)
+        {
+            errors.Add($"{where} no tiene texto.");
+            return;
+        }
+
+        if (text.Length > MaxTextLength)
+        {
+            errors.Add($"{where} tiene un texto de más de {MaxTextLength} caracteres.");
+        }
+
+        // DirectWrite también parte la línea en los separadores de Unicode, que no son de control.
+        if (text.Count(c => c is '\n' or '\u2028' or '\u2029') >= MaxTextLines)
+        {
+            errors.Add($"{where} tiene un texto de más de {MaxTextLines} líneas.");
+        }
+
+        if (text.Any(c => char.IsControl(c) && c is not '\n' and not '\t'))
+        {
+            errors.Add($"{where} tiene un texto con caracteres de control (solo admite saltos de línea y tabulaciones).");
+        }
+    }
+
+    private static void ValidateBox(TextFrame? box, string where, List<string> errors)
+    {
+        if (box is null)
+        {
+            return;
+        }
+
+        if ((box.Width is { } width && !InRange(width, double.Epsilon, MaxReferenceSide))
+            || (box.WidthFraction is { } fraction && !InRange(fraction, double.Epsilon, 1)))
+        {
+            errors.Add($"{where} tiene una caja de texto con un ancho fuera de rango.");
+        }
+
+        if (box.HeightFraction is { } heightFraction && !InRange(heightFraction, double.Epsilon, 1))
+        {
+            errors.Add($"{where} tiene una caja de texto con un alto fuera de rango.");
+        }
     }
 
     private static void ValidateStyle(TextStyle style, string where, List<string> errors)
@@ -109,6 +235,13 @@ public static partial class ModelValidator
             {
                 errors.Add($"{where} tiene en su estilo {what}.");
             }
+        }
+
+        if (style.Loop is { } loop)
+        {
+            Check(Enum.IsDefined(loop.Kind), "un movimiento continuo desconocido");
+            Check(InRange(loop.Amount, StyleLoop.MinAmount, StyleLoop.MaxAmount), "una cantidad de movimiento continuo fuera de 0,1 a 2");
+            Check(InRange(loop.Speed, StyleLoop.MinSpeed, StyleLoop.MaxSpeed), "una velocidad de movimiento continuo fuera de 0,1 a 20 Hz");
         }
 
         Check(style.Source is null || OptionDefinition.IsWellFormedReference(style.Source), "un origen que no es una referencia de paquete");

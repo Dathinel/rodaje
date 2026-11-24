@@ -4,6 +4,7 @@ using Rodaje.Playback.Composition;
 using Rodaje.Render.Effects;
 using Rodaje.Render.Text;
 using TerraFX.Interop.DirectX;
+using Rodaje.Render.Gpu;
 
 namespace Rodaje.Render;
 
@@ -60,7 +61,7 @@ internal sealed unsafe partial class LayerRenderer
 
         BlendMode blend = BlendOf(layer);
         bool shaderBlend = EffectPipeline.IsShaderBlend(blend);
-        ID3D11PixelShader* image = _effects.TryGetShader(EffectShader.Image, shaderBlend ? EffectShaders.Blend : 0);
+        GpuShader? image = _effects.TryGetShader(EffectShader.Image, shaderBlend ? EffectShaders.Blend : 0);
         EffectConstants effects = default;
         QuadConstants quad = PlacedQuad(placement, VideoLayout.Corners(0, 1, 1), Opacity(layer), destination.SequenceWidth,
             destination.SequenceHeight, destination.PixelScale);
@@ -86,7 +87,7 @@ internal sealed unsafe partial class LayerRenderer
 
         effects.BlendInfo.X = (float)blend;
         effects.MapA = view.Map;
-        _quad.Bind(destination.Target.Rtv, destination.Width, destination.Height, image, StateFor(blend));
+        _quad.Bind(destination.Target.Gpu, destination.Width, destination.Height, image, StateFor(blend));
         BindInputs(background, null, view.Target, null);
         _effects.Set(effects);
         _quad.Draw(quad);
@@ -104,7 +105,7 @@ internal sealed unsafe partial class LayerRenderer
     private (ImageView View, LayerPlacement Placement)? TitleThroughIntermediate(LayerFrame layer, TitleImage title, LayerPlacement placement,
         LayerTransform transform, in Destination destination, ref FrameStats stats)
     {
-        ID3D11PixelShader* copy = _effects.TryGetShader(EffectShader.Image, 0);
+        GpuShader? copy = _effects.TryGetShader(EffectShader.Image, 0);
         if (copy == null)
         {
             return null;
@@ -136,13 +137,12 @@ internal sealed unsafe partial class LayerRenderer
         localHeight = height / s;
         float marginX = (localWidth - (float)title.LocalWidth) / 2;
         float marginY = (localHeight - (float)title.LocalHeight) / 2;
-        float* clear = stackalloc float[4];
-        _context->ClearRenderTargetView(first.Rtv, clear);
+        _quad.CurrentFrame.Clear(first.Gpu, GpuColor.TransparentBlack);
         var inside = new LayerPlacement(Matrix3x2.CreateScale(s) * Matrix3x2.CreateTranslation(marginX * s, marginY * s),
             (float)title.LocalWidth, (float)title.LocalHeight, s);
         EffectConstants constants = default;
         constants.MapA = new ImageView(title.Target, title.Width, title.Height).Map;
-        _quad.Bind(first.Rtv, width, height, copy, _effects.BlendState(BlendMode.Normal));
+        _quad.Bind(first.Gpu, width, height, copy, EffectPipeline.BlendState(BlendMode.Normal));
         BindInputs(null, null, title.Target, null);
         _effects.Set(constants);
         _quad.Draw(PlacedQuad(inside, VideoLayout.Corners(0, 1, 1), 1, width, height, 1));

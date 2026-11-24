@@ -1,10 +1,10 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <InvariantGlobalization>true</InvariantGlobalization>
-    <NoWarn>$(NoWarn);CA1707;CA1515;CA1716;CA1861;CA2007;CA1849</NoWarn>
+    <NoWarn>$(NoWarn);CA1416;CA1707;CA1515;CA1716;CA1861;CA2007;CA1849</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -19,7 +19,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Core\Rodaje.Core.csproj" />
     <ProjectReference Include="..\..\src\Rodaje.Packages\Rodaje.Packages.csproj" />
-    <ProjectReference Include="..\..\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
+    <ProjectReference Include="..\..\externo\sala\src\Rodaje.Modules.Protocol\Rodaje.Modules.Protocol.csproj" />
     <!-- Para el traductor y para que Rodaje.Module.Translate.exe y sus DLL nativas queden junto a las pruebas. -->
     <ProjectReference Include="..\..\modules\Rodaje.Module.Translate\Rodaje.Module.Translate.csproj" />
   </ItemGroup>

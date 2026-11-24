@@ -17,6 +17,9 @@ public enum LibraryCategory
     Transitions,
     Filters,
     Ai,
+
+    /// <summary>Plantillas de movimiento (D-064).</summary>
+    MotionTemplates,
 }
 
 /// <summary>
@@ -48,15 +51,16 @@ public static class LibraryElements
         LibraryCategory.Effects => [ItemKind.Effect],
         LibraryCategory.Transitions => [ItemKind.Transition],
         LibraryCategory.Filters => [ItemKind.Filter, ItemKind.Lut],
+        LibraryCategory.MotionTemplates => [ItemKind.MotionTemplate],
         _ => [],
     };
 
-    /// <summary>Lo que trae el motor en cada categoría, sacado del registro de efectos; en Texto, el estilo de fábrica.</summary>
+    /// <summary>Lo que trae el motor en cada categoría, sacado del registro de efectos; en Texto, los estilos de fábrica.</summary>
     public static IReadOnlyList<LibraryElement> BuiltIn(LibraryCategory category) => category switch
     {
         LibraryCategory.Text =>
         [
-            new("Texto", "Un título en el cursor: blanco, en negrita y con sombra.", Engine, TitleStyles.BuiltInReference, true, null, ItemKind.TextStyle),
+            .. BuiltInStyles.All.Select(s => new LibraryElement(s.Name, s.Description, Engine, s.Reference, true, null, ItemKind.TextStyle)),
         ],
         LibraryCategory.Effects =>
         [
@@ -87,6 +91,7 @@ public static class LibraryElements
         LibraryCategory.Effects => "Mis efectos",
         LibraryCategory.Filters => "Mis filtros",
         LibraryCategory.Audio => "Mis sonidos",
+        LibraryCategory.MotionTemplates => "Mis plantillas",
         _ => "Mis transiciones",
     };
 

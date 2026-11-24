@@ -11,9 +11,15 @@ public sealed record ManifestResult(PackageManifest? Manifest, IReadOnlyList<str
 }
 
 /// <summary>
-/// Lee y valida el manifiesto. Los campos desconocidos se ignoran; un elemento de un tipo que este programa no conoce se
-/// omite con un aviso (un paquete más nuevo sigue sirviendo en parte).
+/// Opciones que una aplicación declara para ampliar los tipos de contenido y permitir autor vacío.
 /// </summary>
+public sealed record ReadOptions
+{
+    public IReadOnlySet<string> ExtraKinds { get; init; } = new HashSet<string>(StringComparer.Ordinal);
+    public bool AllowEmptyAuthor { get; init; }
+}
+
+/// <summary>Lee y valida el manifiesto. Un tipo no declarado se omite con un aviso.</summary>
 public static class ManifestReader
 {
     public const int MaxManifestBytes = 1 << 20;
@@ -29,7 +35,7 @@ public static class ManifestReader
         MaxDepth = 32,
     };
 
-    public static ManifestResult ReadFile(string path, bool checkFiles = true)
+    public static ManifestResult ReadFile(string path, bool checkFiles = true, ReadOptions? options = null)
     {
         ArgumentException.ThrowIfNullOrEmpty(path);
         var info = new FileInfo(path);
@@ -57,12 +63,13 @@ public static class ManifestReader
             return Fail($"No se pudo leer {PackageManifest.FileName}: {ex.Message}");
         }
 
-        return Read(text, checkFiles ? Path.GetDirectoryName(Path.GetFullPath(path)) : null);
+        return Read(text, checkFiles ? Path.GetDirectoryName(Path.GetFullPath(path)) : null, options);
     }
 
     /// <param name="json">Contenido del manifiesto.</param>
     /// <param name="packageDirectory">Si se da, se comprueba que los archivos de los elementos existan dentro de la carpeta.</param>
-    public static ManifestResult Read(string json, string? packageDirectory = null)
+    /// <param name="options">Tipos adicionales declarados por la aplicación.</param>
+    public static ManifestResult Read(string json, string? packageDirectory = null, ReadOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(json);
         JsonDocument document;
@@ -90,7 +97,7 @@ public static class ManifestReader
             var errors = new List<string>();
             var warnings = new List<string>();
             PackageManifest? manifest = document.RootElement.ValueKind == JsonValueKind.Object
-                ? Build(document.RootElement, packageDirectory, errors, warnings)
+                ? Build(document.RootElement, packageDirectory, errors, warnings, options)
                 : null;
             if (document.RootElement.ValueKind != JsonValueKind.Object)
             {
@@ -103,7 +110,7 @@ public static class ManifestReader
 
     private static ManifestResult Fail(string error) => new(null, [error], []);
 
-    private static PackageManifest? Build(JsonElement root, string? directory, List<string> errors, List<string> warnings)
+    private static PackageManifest? Build(JsonElement root, string? directory, List<string> errors, List<string> warnings, ReadOptions? options)
     {
         int? formatValue = Integer(root, "formatVersion", errors);
         if (formatValue > PackageManifest.CurrentFormatVersion)
@@ -151,7 +158,8 @@ public static class ManifestReader
         }
 
         string? name = Text(root, "name", errors, SafeText.MaxName);
-        string? author = Text(root, "author", errors, SafeText.MaxName);
+        string? author = options?.AllowEmptyAuthor == true && root.TryGetProperty("author", out var a) && a.ValueKind == JsonValueKind.String && a.GetString() == ""
+            ? "" : Text(root, "author", errors, SafeText.MaxName);
         string? license = Text(root, "license", errors, SafeText.MaxLicense);
         string? description = OptionalText(root, "description", errors, SafeText.MaxDescription, multiline: true);
         Uri? repository = null;
@@ -172,7 +180,8 @@ public static class ManifestReader
             errors.Add($"El programa «{app}» de apps no es un identificador válido.");
         }
 
-        List<PackageItem> items = Items(root, directory, errors, warnings);
+        string? platform = Platform(root, format, kind, errors);
+        List<PackageItem> items = Items(root, directory, errors, warnings, options);
         ModuleInfo? module = null;
         if (kind == PackageKind.Module)
         {
@@ -207,10 +216,13 @@ public static class ManifestReader
             Apps = apps,
             Items = items,
             Module = module,
+            Platform = platform,
+            DeclaresModuleEntry = root.TryGetProperty("module", out JsonElement executable)
+                && executable.ValueKind == JsonValueKind.Object && executable.TryGetProperty("entry", out _),
         };
     }
 
-    private static List<PackageItem> Items(JsonElement root, string? directory, List<string> errors, List<string> warnings)
+    private static List<PackageItem> Items(JsonElement root, string? directory, List<string> errors, List<string> warnings, ReadOptions? options)
     {
         var items = new List<PackageItem>();
         if (!root.TryGetProperty("items", out JsonElement array))
@@ -269,6 +281,7 @@ public static class ManifestReader
             }
 
             ItemKind? kind = kindText is null ? null : ParseItemKind(kindText);
+            if (kind is null && kindText is not null && kindText != "module" && options?.ExtraKinds.Contains(kindText) == true) kind = ItemKind.Other;
             if (kindText is not null && kind is null)
             {
                 if (kindText == "module")
@@ -296,7 +309,7 @@ public static class ManifestReader
             }
 
             items.Add(new PackageItem(id!, kind!.Value, name!, file, OptionalText(element, "description", errors, SafeText.MaxDescription, multiline: true),
-                OptionalText(element, "license", errors, SafeText.MaxLicense), preview, fonts));
+                OptionalText(element, "license", errors, SafeText.MaxLicense), preview, fonts, OtherKind: kind == ItemKind.Other ? kindText : null));
         }
 
         return items;
@@ -367,6 +380,29 @@ public static class ManifestReader
         }
 
         return files;
+    }
+
+    /// <summary>
+    /// <c>platform</c> (formato 2): el RID del módulo. Va solo con el formato 2 o más, para que un editor que solo entiende
+    /// el 1 rechace el paquete entero en vez de instalar un ejecutable de otro sistema; y un módulo del formato 2 lo lleva siempre.
+    /// </summary>
+    private static string? Platform(JsonElement root, int format, PackageKind kind, List<string> errors)
+    {
+        string? platform = OptionalText(root, "platform", errors);
+        if (platform is not null && format < PackageManifest.PlatformFormatVersion)
+        {
+            errors.Add($"«platform» necesita «formatVersion» {PackageManifest.PlatformFormatVersion} o más.");
+        }
+        else if (platform is not null && !PackageManifest.KnownPlatforms.Contains(platform, StringComparer.Ordinal))
+        {
+            errors.Add($"«platform» «{platform}» no se conoce: usa {string.Join(", ", PackageManifest.KnownPlatforms)}.");
+        }
+        else if (platform is null && kind == PackageKind.Module && format >= PackageManifest.PlatformFormatVersion)
+        {
+            errors.Add($"Un módulo con «formatVersion» {format} lleva «platform» ({string.Join(", ", PackageManifest.KnownPlatforms)}).");
+        }
+
+        return platform;
     }
 
     private static ModuleInfo? Module(JsonElement root, string? directory, List<string> errors)
@@ -543,6 +579,7 @@ public static class ManifestReader
         "filter" => ItemKind.Filter,
         "lut" => ItemKind.Lut,
         "template" => ItemKind.Template,
+        "motion-template" => ItemKind.MotionTemplate,
         "sound" => ItemKind.Sound,
         "font" => ItemKind.Font,
         "safe-zones" => ItemKind.SafeZones,
@@ -558,6 +595,7 @@ public static class ManifestReader
         ItemKind.Filter => "filter",
         ItemKind.Lut => "lut",
         ItemKind.Template => "template",
+        ItemKind.MotionTemplate => "motion-template",
         ItemKind.Sound => "sound",
         ItemKind.Font => "font",
         ItemKind.SafeZones => "safe-zones",

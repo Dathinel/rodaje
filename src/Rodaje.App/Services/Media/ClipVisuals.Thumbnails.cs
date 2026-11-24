@@ -46,12 +46,15 @@ public sealed partial class ClipVisuals
                 Batch? batch;
                 lock (_gate)
                 {
+                    CloseStale(readers);
                     while (_batches.Count == 0 && !_disposed)
                     {
                         if (!Monitor.Wait(_gate, TimeSpan.FromSeconds(2)))
                         {
                             CloseIdle(readers);
                         }
+
+                        CloseStale(readers);
                     }
 
                     if (_disposed)
@@ -114,7 +117,7 @@ public sealed partial class ClipVisuals
                     if (image is null)
                     {
                         // Sin ningún cuadro decodificable: se recuerda para no volver a abrirlo en cada redibujo.
-                        Fail(batch.Path, "El archivo no tiene cuadros de video.", readers);
+                        Fail(batch.Path, "El archivo no tiene fotogramas de video.", readers);
                         return;
                     }
 
@@ -239,8 +242,14 @@ public sealed partial class ClipVisuals
             readers.Remove(oldest);
         }
 
+        int generation;
+        lock (_gate)
+        {
+            generation = _readerGeneration.GetValueOrDefault(path);
+        }
+
         IThumbnailReader reader = _sources.OpenThumbnails(path);
-        readers.Add(new OpenReader(path, reader, Stopwatch.GetTimestamp()));
+        readers.Add(new OpenReader(path, reader, Stopwatch.GetTimestamp(), generation));
         return reader;
     }
 
@@ -279,6 +288,19 @@ public sealed partial class ClipVisuals
         }
     }
 
+    /// <summary>Cierra los decodificadores de archivos olvidados (<see cref="Forget"/>) para soltarlos en disco. Con <c>_gate</c> tomado.</summary>
+    private void CloseStale(List<OpenReader> readers)
+    {
+        for (int i = readers.Count - 1; i >= 0; i--)
+        {
+            if (readers[i].Generation != _readerGeneration.GetValueOrDefault(readers[i].Path))
+            {
+                DisposeQuietly(readers[i].Reader);
+                readers.RemoveAt(i);
+            }
+        }
+    }
+
     private sealed class Batch(string path, int height, long[] times, long sequence, string signature)
     {
         public string Path { get; } = path;
@@ -294,5 +316,5 @@ public sealed partial class ClipVisuals
         public int Next { get; set; }
     }
 
-    private sealed record OpenReader(string Path, IThumbnailReader Reader, long LastUsed);
+    private sealed record OpenReader(string Path, IThumbnailReader Reader, long LastUsed, int Generation);
 }

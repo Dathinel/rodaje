@@ -6,8 +6,26 @@ using Rodaje.Engine.Timeline;
 
 namespace Rodaje.App.Tests.Settings;
 
+[Collection("StillImageDefaults")]
 public sealed class PreferencesViewModelTests
 {
+    [Theory]
+    [InlineData(480, 280)] // 1280×720 al 150 %
+    [InlineData(540, 340)] // 1920×1080 al 200 %
+    [InlineData(1040, 600)]
+    [InlineData(300, 160)]
+    [InlineData(0, 600)]
+    [InlineData(double.NaN, 600)]
+    public void Las_pestanas_caben_en_la_ventana(double windowHeight, double expected)
+    {
+        double tabs = PreferencesViewModel.TabsHeight(windowHeight);
+        Assert.Equal(expected, tabs);
+        if (windowHeight >= 360)
+        {
+            Assert.True(tabs + PreferencesViewModel.DialogChrome <= windowHeight);
+        }
+    }
+
     [Fact]
     public void Preferences_read_and_write_persisted_settings()
     {
@@ -54,5 +72,36 @@ public sealed class PreferencesViewModelTests
         model.SetLinkedAudioVideoTracks(Enumerable.Range(1, NewProjectTracks.Max));
         Assert.Null(settings.LinkedAudioVideoTracks);
         Assert.Equal(Enumerable.Range(1, NewProjectTracks.Max), model.LinkedAudioVideoTracks);
+    }
+
+    [Fact]
+    public void StillImageDuration_clamps_to_valid_range_and_updates_MediaRef()
+    {
+        double original = Rodaje.Core.Model.MediaRef.DefaultStillImageDuration.ToSeconds();
+        try
+        {
+            var settings = new AppSettings();
+            var model = new PreferencesViewModel(settings);
+
+            model.StillImageDurationSeconds = 10;
+            Assert.Equal(10, settings.StillImageDurationSeconds);
+            Assert.Equal(10, Rodaje.Core.Model.MediaRef.DefaultStillImageDuration.ToSeconds());
+
+            var photoMedia = new Rodaje.Core.Model.MediaRef { IsStillImage = true };
+            Assert.Equal(10, photoMedia.InitialClipDuration.ToSeconds());
+
+            model.StillImageDurationSeconds = 999;
+            Assert.Equal(60, settings.StillImageDurationSeconds);
+
+            model.StillImageDurationSeconds = -5;
+            Assert.Equal(1, settings.StillImageDurationSeconds);
+
+            model.StillCaptureFolder = @"D:\Capturas";
+            Assert.Equal(@"D:\Capturas", settings.StillCaptureFolder);
+        }
+        finally
+        {
+            Rodaje.Core.Model.MediaRef.DefaultStillImageDuration = Rodaje.Core.Timing.Time.FromSeconds(original);
+        }
     }
 }

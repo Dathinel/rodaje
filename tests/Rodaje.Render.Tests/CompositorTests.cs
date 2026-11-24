@@ -5,6 +5,7 @@ using Rodaje.Playback;
 using Rodaje.Playback.Composition;
 using Rodaje.Render.Tests.Support;
 using Rodaje.TestMedia;
+using TerraFX.Interop.DirectX;
 
 namespace Rodaje.Render.Tests;
 
@@ -31,7 +32,7 @@ public sealed class CompositorTests
         return data;
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(ColorCases))]
     public void Converts_each_matrix_and_range_to_the_reference_rgb(YuvMatrix matrix, bool fullRange, bool tenBit, CompositeFormat format)
     {
@@ -50,7 +51,7 @@ public sealed class CompositorTests
             image.Fill(i * 64, 0, 64, 64, codes[i]);
         }
 
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         RgbaImage result = Compose(gpu, image.Width, image.Height, format, Layers.From(gpu, image, color));
 
         for (int i = 0; i < samples.Length; i++)
@@ -61,10 +62,10 @@ public sealed class CompositorTests
         }
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Limited_range_bt709_primaries_land_on_the_nominal_values()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         // Códigos publicados de las barras de color BT.709 al 100 %: rojo (63, 102, 240), verde (173, 42, 26), azul (32, 240, 118).
         var image = new YuvImage(192, 64, tenBit: false)
             .Fill(0, 0, 64, 64, new YuvCode(63, 102, 240))
@@ -77,10 +78,10 @@ public sealed class CompositorTests
         result.AssertColor(160, 32, new Rgb(0, 0, 255), 3);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Empty_frame_is_opaque_black()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         RgbaImage result = Compose(gpu, 320, 180, CompositeFormat.Rgba16Float);
         for (int y = 0; y < 180; y += 7)
         {
@@ -91,10 +92,10 @@ public sealed class CompositorTests
         }
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Top_layer_covers_the_bottom_one()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvCode red = ReferenceColor.Encode(220, 20, 20, Bt709, false);
         YuvCode blue = ReferenceColor.Encode(20, 20, 220, Bt709, false);
         LayerFrame bottom = Layers.From(gpu, YuvImage.Solid(1920, 1080, false, red), Bt709, track: 0);
@@ -108,12 +109,12 @@ public sealed class CompositorTests
         result.AssertColor(910, 540, ReferenceColor.Decode(blue, Bt709, false));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(CompositeFormat.Rgba16Float)]
     [InlineData(CompositeFormat.Rgba8Unorm)]
     public void Half_opacity_mixes_both_layers_evenly(CompositeFormat format)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvCode red = ReferenceColor.Encode(200, 30, 10, Bt709, false);
         YuvCode blue = ReferenceColor.Encode(10, 60, 230, Bt709, false);
         LayerFrame bottom = Layers.From(gpu, YuvImage.Solid(64, 64, false, red), Bt709, track: 0);
@@ -125,23 +126,23 @@ public sealed class CompositorTests
         result.AssertColor(32, 32, expected);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Zero_opacity_draws_nothing()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(64, 64, false, new YuvCode(235, 128, 128)), Bt709,
             LayerTransform.Identity with { Opacity = 0 });
-        using var compositor = new Compositor(gpu, 64, 64);
+        using var compositor = gpu.NewCompositor(64, 64);
         using CompositionFrame frame = Layers.Frame(64, 64, layer);
 
         Assert.Equal(new CompositeResult(0, 0), compositor.Render(frame));
         new RgbaImage(compositor.ReadbackRgba(), 64, 64).AssertBlack(32, 32);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Translated_layer_lands_on_the_expected_pixels()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvCode white = new(235, 128, 128);
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(100, 100, false, white), Bt709, new LayerTransform(300, -200, 100 / 1080.0, 0, 1));
 
@@ -160,13 +161,13 @@ public sealed class CompositorTests
         }
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_smaller_compositor_renders_a_scaled_preview_of_the_sequence()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(100, 100, false, new YuvCode(235, 128, 128)), Bt709,
             new LayerTransform(300, -200, 100 / 1080.0, 0, 1));
-        using var compositor = new Compositor(gpu, 960, 540);
+        using var compositor = gpu.NewCompositor(960, 540);
         using CompositionFrame frame = Layers.Frame(1920, 1080, layer);
         compositor.Render(frame);
         var result = new RgbaImage(compositor.ReadbackRgba(), 960, 540);
@@ -177,12 +178,12 @@ public sealed class CompositorTests
         result.AssertBlack(655, 170);
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(false)]
     [InlineData(true)]
     public void Rotating_a_quarter_turn_puts_the_left_half_on_top(bool fromMetadata)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvCode red = ReferenceColor.Encode(230, 20, 20, Bt709, false);
         YuvCode blue = ReferenceColor.Encode(20, 20, 230, Bt709, false);
         YuvImage image = new YuvImage(200, 100, false).Fill(0, 0, 100, 100, red).Fill(100, 0, 100, 100, blue);
@@ -203,10 +204,10 @@ public sealed class CompositorTests
         result.AssertBlack(300, 300);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Sample_aspect_ratio_widens_the_image()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(100, 100, false, new YuvCode(235, 128, 128)), Bt709);
         var geometry = new SourceGeometry(new Rational(2, 1), 0);
 
@@ -220,10 +221,10 @@ public sealed class CompositorTests
         result.AssertBlack(200, 300);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_4x3_source_is_pillarboxed_in_a_16x9_sequence()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(640, 480, false, new YuvCode(235, 128, 128)), Bt709);
 
         RgbaImage result = Compose(gpu, 1920, 1080, CompositeFormat.Rgba16Float, layer);
@@ -240,7 +241,7 @@ public sealed class CompositorTests
     [GpuArrayFact]
     public void Draws_the_requested_slice_of_a_texture_array()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvCode[] codes =
         [
             ReferenceColor.Encode(250, 10, 10, Bt709, false),
@@ -257,12 +258,12 @@ public sealed class CompositorTests
         }
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(false)]
     [InlineData(true)]
     public void The_decoder_padding_never_reaches_the_image(bool tenBit)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvCode gray = ReferenceColor.Encode(120, 120, 120, Bt709, tenBit);
         YuvCode green = ReferenceColor.Encode(0, 255, 0, Bt709, tenBit);
         // Visible 100×100 dentro de una textura de 128×112 con el relleno en verde puro.
@@ -278,10 +279,10 @@ public sealed class CompositorTests
         }
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_1080p_frame_in_a_1088_line_surface_keeps_its_last_row()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvCode gray = ReferenceColor.Encode(90, 90, 90, Bt709, false);
         YuvImage image = YuvImage.Solid(1920, 1088, false, new YuvCode(235, 16, 16)).Fill(0, 0, 1920, 1080, gray);
         LayerFrame layer = Layers.From(gpu, [image], 0, 1920, 1080, Bt709, LayerTransform.Identity);
@@ -294,10 +295,10 @@ public sealed class CompositorTests
         result.AssertColor(1919, 1079, expected);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Rotated_edges_are_antialiased()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(64, 64, false, new YuvCode(235, 128, 128)), Bt709,
             new LayerTransform(0, 0, 0.5, 45, 1));
 
@@ -310,32 +311,72 @@ public sealed class CompositorTests
         result.AssertBlack(272, 127);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("carga D3D11TexturePayload")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public void Layers_without_a_usable_texture_are_skipped()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         var cpuOnly = new LayerFrame(0, "sin-textura", new DecodedFrame(0, Time.Zero, Time.FromTicks(1), null, 0), LayerTransform.Identity);
         LayerFrame released = Layers.From(gpu, YuvImage.Solid(64, 64, false, new YuvCode(235, 128, 128)), Bt709);
         ((D3D11TexturePayload)released.Frame.Payload!).Dispose();
-        using var compositor = new Compositor(gpu, 64, 64);
+        using var compositor = gpu.NewCompositor(64, 64);
         using CompositionFrame frame = Layers.Frame(64, 64, cpuOnly, released);
 
         Assert.Equal(new CompositeResult(0, 2), compositor.Render(frame));
         new RgbaImage(compositor.ReadbackRgba(), 64, 64).AssertBlack(32, 32);
     }
 
-    [GpuFact]
+    [D3D11GpuFact("texturas de otro dispositivo D3D11")]
     public void A_texture_from_another_device_is_rejected()
     {
-        using GpuDevice gpu = GpuDevice.Create();
-        using GpuDevice other = GpuDevice.Create();
-        using var compositor = new Compositor(gpu, 64, 64);
+        using TestGpu gpu = TestGpu.Create();
+        using TestGpu other = TestGpu.Create();
+        using var compositor = gpu.NewCompositor(64, 64);
         using CompositionFrame frame = Layers.Frame(64, 64, Layers.From(other, YuvImage.Solid(64, 64, false, new YuvCode(235, 128, 128)), Bt709));
 
         Assert.Throws<ArgumentException>(() => compositor.Render(frame));
     }
 
-    [GpuFact]
+    /// <summary>El visor de 10 bits (R10G10B10A2) y el de 8 (B8G8R8A8) reciben la misma imagen, también en WARP.</summary>
+    [D3D11Fact("presentación por cadena de intercambio (Presenter)")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
+    public void Presenter_draws_into_8_and_10_bit_targets_on_warp()
+    {
+        using GpuDevice gpu = GpuDevice.CreateWarp();
+        YuvCode gray = ReferenceColor.Encode(150, 150, 150, Bt709, false);
+        using var compositor = new Compositor(gpu, 64, 36);
+        using (CompositionFrame frame = Layers.Frame(64, 36, Layers.From(gpu, YuvImage.Solid(64, 36, false, gray), Bt709)))
+        {
+            compositor.Render(frame);
+        }
+
+        using var presenter = new Presenter(gpu);
+        Rgb expected = ReferenceColor.Decode(gray, Bt709, false);
+        foreach (DXGI_FORMAT format in new[] { DXGI_FORMAT.DXGI_FORMAT_B8G8R8A8_UNORM, DXGI_FORMAT.DXGI_FORMAT_R10G10B10A2_UNORM })
+        {
+            using var target = new OffscreenTarget(gpu, 64, 36, format);
+            Assert.Equal(new PixelRect(0, 0, 64, 36), presenter.Draw(target.RenderTargetView, 64, 36, compositor));
+            target.Read().AssertColor(32, 18, expected);
+        }
+    }
+
+    /// <summary>En scRGB el gris de alrededor pasa a lineal con la escala de la imagen (en gamma salía más claro que el marco); en SDR va tal cual.</summary>
+    [D3D11Fact("presentación por cadena de intercambio (Presenter)")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
+    public void Presenter_surround_is_linear_in_scrgb_and_untouched_otherwise()
+    {
+        (float R, float G, float B) gray = (0x24 / 255f, 0x24 / 255f, 0x24 / 255f);
+        Assert.Equal(gray, Presenter.SurroundFor(gray, scRgb: false));
+        (float r, float g, float b) = Presenter.SurroundFor(gray, scRgb: true);
+        Assert.InRange(r, 0.085f, 0.088f);
+        Assert.Equal(r, g);
+        Assert.Equal(r, b);
+        Assert.Equal((0f, 0f, 0f), Presenter.SurroundFor((0f, 0f, 0f), scRgb: true));
+        Assert.InRange(Presenter.SurroundFor((1f, 1f, 1f), scRgb: true).R, 2.537f, 2.538f);
+    }
+
+    [D3D11GpuFact("presentación por cadena de intercambio (Presenter)")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public void Presenter_letterboxes_the_composition_in_the_back_buffer()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -375,7 +416,8 @@ public sealed class CompositorTests
         }
     }
 
-    [GpuFact]
+    [D3D11GpuFact("temporizador de GPU (GpuTimer)")]
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     public void Gpu_timer_measures_a_composition()
     {
         using GpuDevice gpu = GpuDevice.Create();
@@ -397,12 +439,12 @@ public sealed class CompositorTests
         Assert.InRange(ms.Value, 0.0001, 5000);
     }
 
-    private static RgbaImage Compose(GpuDevice gpu, int width, int height, CompositeFormat format, params LayerFrame[] layers) =>
+    private static RgbaImage Compose(TestGpu gpu, int width, int height, CompositeFormat format, params LayerFrame[] layers) =>
         Compose(gpu, width, height, format, SourceGeometry.Square, layers);
 
-    private static RgbaImage Compose(GpuDevice gpu, int width, int height, CompositeFormat format, SourceGeometry geometry, params LayerFrame[] layers)
+    private static RgbaImage Compose(TestGpu gpu, int width, int height, CompositeFormat format, SourceGeometry geometry, params LayerFrame[] layers)
     {
-        using var compositor = new Compositor(gpu, width, height, format);
+        using var compositor = gpu.NewCompositor(width, height, format);
         using CompositionFrame frame = Layers.Frame(width, height, layers);
         CompositeResult result = compositor.Render(frame, _ => geometry);
         Assert.Equal(layers.Count(l => l.Transform.Opacity > 0), result.LayersDrawn);

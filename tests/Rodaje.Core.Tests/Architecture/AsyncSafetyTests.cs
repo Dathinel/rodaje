@@ -64,6 +64,7 @@ public sealed partial class AsyncSafetyTests
     private static readonly Dictionary<string, (int Count, string Reason)> EnqueueInLoopAllowed = new(StringComparer.Ordinal)
     {
         ["Rodaje.App/Shell/MeasurementRun.cs"] = (1, "solo con -Medir: mide la latencia de la cola con un aviso cada 50 ms."),
+        ["Rodaje.App/Shell/ChaosRun.Windows.cs"] = (1, "solo con --caos: el vigilante pone un aviso cada 500 ms para saber si la interfaz atiende."),
     };
 
     // Continuaciones sueltas (descartadas con «_ =» o pasadas a UiTask.Run) que no leen la excepción de su tarea:
@@ -484,18 +485,21 @@ public sealed partial class AsyncSafetyTests
 
     private static List<(string File, string Code)> Sources(string prefix = "")
     {
-        string src = Path.Combine(RepoRoot(), "src");
         var list = new List<(string, string)>();
-        foreach (string path in Directory.EnumerateFiles(src, "*.cs", SearchOption.AllDirectories))
+        // El protocolo de módulos vive en el submódulo externo/sala: se sigue analizando con el mismo nombre relativo.
+        foreach ((string src, string only) in new[] { (Path.Combine(RepoRoot(), "src"), ""), (Path.Combine(RepoRoot(), "externo", "sala", "src"), "Rodaje.Modules.Protocol/") })
         {
-            string relative = Path.GetRelativePath(src, path).Replace('\\', '/');
-            if (relative.Contains("/obj/", StringComparison.Ordinal) || relative.Contains("/bin/", StringComparison.Ordinal)
-                || !relative.StartsWith(prefix, StringComparison.Ordinal))
+            foreach (string path in Directory.EnumerateFiles(src, "*.cs", SearchOption.AllDirectories))
             {
-                continue;
-            }
+                string relative = Path.GetRelativePath(src, path).Replace('\\', '/');
+                if (relative.Contains("/obj/", StringComparison.Ordinal) || relative.Contains("/bin/", StringComparison.Ordinal)
+                    || !relative.StartsWith(only, StringComparison.Ordinal) || !relative.StartsWith(prefix, StringComparison.Ordinal))
+                {
+                    continue;
+                }
 
-            list.Add((relative, Strip(File.ReadAllText(path))));
+                list.Add((relative, Strip(File.ReadAllText(path))));
+            }
         }
 
         Assert.NotEmpty(list);

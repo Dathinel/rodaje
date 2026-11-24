@@ -1,7 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Herramientas rápidas encima de la línea de tiempo: las que se usan a cada rato, con ícono y nombre, a un clic. Las que
-    no aplican a lo seleccionado se ven atenuadas y dicen por qué (en la ayuda y al pulsarlas). Los menús siguen igual.
+    Herramientas rápidas en la barra de la línea de tiempo: un botón «Herramientas ▾» que abre las que se usan a cada rato,
+    por grupos, con ícono y nombre. Las que no aplican a lo seleccionado se ven atenuadas y dicen por qué (en la ayuda y
+    al pulsarlas). Los menús siguen igual.
 -->
 <UserControl
     x:Class="Rodaje.App.Views.Tools.ToolsBar"
@@ -13,21 +14,27 @@
             <Setter Property="Height" Value="30" />
             <Setter Property="MinHeight" Value="0" />
             <Setter Property="Padding" Value="8,0" />
+            <Setter Property="HorizontalAlignment" Value="Stretch" />
+            <Setter Property="HorizontalContentAlignment" Value="Left" />
             <Setter Property="Background" Value="Transparent" />
             <Setter Property="BorderBrush" Value="Transparent" />
             <Setter Property="BorderThickness" Value="0" />
         </Style>
     </UserControl.Resources>
 
-    <Grid Background="{StaticResource PanelBrush}" BorderBrush="{StaticResource StrokeBrush}" BorderThickness="0,1,0,0" Padding="8,4" ColumnSpacing="8">
-        <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="Auto" />
-            <ColumnDefinition Width="*" />
-        </Grid.ColumnDefinitions>
-        <TextBlock Text="Herramientas" Style="{StaticResource PanelTitleTextStyle}" VerticalAlignment="Center" Margin="4,0,8,0" />
-        <ScrollViewer x:Name="Scroller" Grid.Column="1" HorizontalScrollMode="Enabled" HorizontalScrollBarVisibility="Hidden" VerticalScrollMode="Disabled"
-                      VerticalScrollBarVisibility="Disabled">
-            <StackPanel x:Name="Buttons" Orientation="Horizontal" Spacing="2" />
-        </ScrollViewer>
-    </Grid>
+    <DropDownButton x:Name="MenuButton" Height="28" MinHeight="0" Padding="8,0" VerticalAlignment="Center"
+                    AutomationProperties.Name="Herramientas" ToolTipService.ToolTip="Herramientas rápidas: silencios, ritmo, color, subtítulos, voz…">
+        <StackPanel Orientation="Horizontal" Spacing="6">
+            <Grid Width="16" Height="16">
+                <FontIcon x:Name="MenuIcon" Glyph="&#xE90F;" FontSize="{StaticResource IconFontSize}" />
+                <ProgressRing x:Name="MenuRing" Width="14" Height="14" MinWidth="0" MinHeight="0" IsActive="False" Visibility="Collapsed" />
+            </Grid>
+            <TextBlock Text="Herramientas" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" />
+        </StackPanel>
+        <DropDownButton.Flyout>
+            <Flyout x:Name="ToolsFlyout" Placement="BottomEdgeAlignedLeft">
+                <StackPanel x:Name="Buttons" MinWidth="260" Spacing="2" />
+            </Flyout>
+        </DropDownButton.Flyout>
+    </DropDownButton>
 </UserControl>

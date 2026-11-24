@@ -26,6 +26,12 @@ public enum ItemKind
 
     /// <summary>Un preajuste de exportación (<c>rodaje.exportpreset</c>): contenedor, códecs, tamaño, tasa y sonoridad.</summary>
     ExportPreset,
+
+    /// <summary>Plantilla de movimiento <c>rodaje.template</c>; distinta de la plantilla de proyecto.</summary>
+    MotionTemplate,
+
+    /// <summary>Tipo declarado por la aplicación en ReadOptions.ExtraKinds.</summary>
+    Other,
 }
 
 /// <summary>
@@ -46,7 +52,8 @@ public sealed record PackageItem(
     string? License = null,
     string? Preview = null,
     IReadOnlyList<string>? Files = null,
-    string? LegacyId = null)
+    string? LegacyId = null,
+    string? OtherKind = null)
 {
     /// <summary>Tope de un archivo de fuente (D-029).</summary>
     public const long MaxFontFileBytes = 20L * 1024 * 1024;
@@ -70,7 +77,24 @@ public sealed record ModuleInfo(string Entry, int Protocol, IReadOnlyList<string
 public sealed record PackageManifest
 {
     /// <summary>Versión del formato del manifiesto que entiende este código.</summary>
-    public const int CurrentFormatVersion = 1;
+    /// <remarks>
+    /// La 2 añade <see cref="Platform"/> (D-066): los módulos de Linux y macOS la usan, y un editor que solo entiende la 1
+    /// los rechaza. Los de Windows siguen en la 1, sin plataforma, para que los editores ya publicados los instalen.
+    /// </remarks>
+    public const int CurrentFormatVersion = 2;
+
+    /// <summary>Primer formato con <see cref="Platform"/>.</summary>
+    public const int PlatformFormatVersion = 2;
+
+    /// <summary>Los RID para los que se publican módulos.</summary>
+    public static IReadOnlyList<string> KnownPlatforms { get; } = ["win-x64", "linux-x64", "osx-arm64"];
+
+    /// <summary>El RID de este sistema, en la misma forma que <see cref="Platform"/>.</summary>
+    public static string ThisPlatform { get; } =
+        OperatingSystem.IsWindows() ? "win-x64"
+        : OperatingSystem.IsLinux() ? "linux-x64"
+        : OperatingSystem.IsMacOS() ? "osx-arm64"
+        : System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier;
 
     public const string FileName = "paquete.json";
 
@@ -103,6 +127,16 @@ public sealed record PackageManifest
 
     /// <summary>Solo en los módulos.</summary>
     public ModuleInfo? Module { get; init; }
+
+    /// <summary>RID del sistema para el que se compiló (<c>linux-x64</c>…); nulo en el formato 1, que es de Windows o de contenido.</summary>
+    public string? Platform { get; init; }
+
+    /// <summary>Se puede instalar en el sistema de <paramref name="runtimeIdentifier"/>: el contenido y lo que no declara plataforma, siempre.</summary>
+    public bool RunsOn(string runtimeIdentifier) =>
+        Platform is null || string.Equals(Platform, runtimeIdentifier, StringComparison.Ordinal);
+
+    /// <summary>Declara un programa, incluso si el tipo del paquete dice contenido.</summary>
+    public bool DeclaresModuleEntry { get; init; }
 
     public bool WorksIn(string appId) => Apps.Contains(appId, StringComparer.OrdinalIgnoreCase);
 

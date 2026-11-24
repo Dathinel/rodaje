@@ -30,13 +30,22 @@ namespace Rodaje.Core.Serialization;
         typeof(CamelCaseEnumConverter<TextFit>),
         typeof(CamelCaseEnumConverter<GradientKind>),
         typeof(CamelCaseEnumConverter<TextUnit>),
+        typeof(CamelCaseEnumConverter<TextLoopKind>),
         typeof(CamelCaseEnumConverter<UnitOrder>),
         typeof(CamelCaseEnumConverter<HighlightMode>),
         typeof(CamelCaseEnumConverter<TextPathKind>),
         typeof(CamelCaseEnumConverter<TransitionAlignment>),
+        typeof(CamelCaseEnumConverter<SequenceColorSpace>),
 
     ])]
 [JsonSerializable(typeof(Project))]
+[JsonSerializable(typeof(MediaRef))]
+[JsonSerializable(typeof(MediaTranscript))]
+[JsonSerializable(typeof(Sequence))]
+[JsonSerializable(typeof(Track))]
+[JsonSerializable(typeof(Clip))]
+[JsonSerializable(typeof(Marker))]
+[JsonSerializable(typeof(Region))]
 public sealed partial class ProjectJsonContext : JsonSerializerContext
 {
 }
@@ -68,11 +77,18 @@ internal static class ProjectJson
     public static JsonTypeInfo<Project> LocateInfo { get; } =
         (JsonTypeInfo<Project>)CreateFileOptions(checkedWrites: true, locate: true).GetTypeInfo(typeof(Project));
 
-    private static JsonSerializerOptions CreateFileOptions(bool checkedWrites = false, bool locate = false, bool checkedReads = false)
+    /// <summary>Para escribir un elemento suelto (clip, pista, medio…) de un parche de colaboración: compacto y con los mismos controles que al guardar.</summary>
+    public static JsonSerializerOptions ElementWriteOptions { get; } = CreateFileOptions(checkedWrites: true, compact: true);
+
+    /// <summary>Para leer un elemento suelto de un parche: compacto y con el control de números que desbordan.</summary>
+    public static JsonSerializerOptions ElementReadOptions { get; } = CreateFileOptions(checkedReads: true, compact: true);
+
+    private static JsonSerializerOptions CreateFileOptions(bool checkedWrites = false, bool locate = false, bool checkedReads = false, bool compact = false)
     {
         var options = new JsonSerializerOptions(ProjectJsonContext.Default.Options)
         {
             Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
+            WriteIndented = !compact,
         };
         if (checkedReads)
         {
@@ -83,6 +99,13 @@ internal static class ProjectJson
         {
             options.Converters.Add(new FiniteDoubleConverter(locate));
             options.Converters.Add(new WellFormedStringConverter(locate));
+        }
+
+        if (checkedWrites || checkedReads)
+        {
+            // En las opciones de archivo (ReadInfo, WriteInfo, LocateInfo), no en FileOptions: el esquema se
+            // genera con esta última y sigue describiendo las palabras como objetos con su forma.
+            options.Converters.Add(new SpokenWordsJsonConverter());
         }
 
         options.MakeReadOnly();

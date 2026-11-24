@@ -65,6 +65,16 @@ public class TransitionProTests
     });
 
     [Fact]
+    public void Build_ConElUltimoClipDeLaPistaOUnoSinSiguiente_NoLanzaYNoCreaNada() => UiThread.Run(async () =>
+    {
+        EditorSession session = await EffectCommandsTests.TwoClips();
+        Clip last = session.MainTrack!.Clips[^1];
+        SequenceEditCommand command = DefaultTransition.Build(session.SequenceId, [last.Id], new TransitionPreferences());
+        Assert.Null(Record.Exception(() => session.Execute(command)));
+        Assert.Empty(session.MainTrack.Transitions);
+    });
+
+    [Fact]
     public void CtrlT_SinCortesAvisaYNoCambiaNada() => UiThread.Run(async () =>
     {
         EditorSession session = await EffectCommandsTests.TwoClips();

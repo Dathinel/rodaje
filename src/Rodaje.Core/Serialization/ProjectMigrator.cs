@@ -29,6 +29,9 @@ public sealed class ProjectMigrator
         [10] = AllowTimelineOrganization,
         [11] = AllowTransitionTiming,
         [12] = AllowTracking,
+        [13] = AllowStillImages,
+        [14] = AllowHdrSequences,
+        [15] = AllowFormat16,
     };
 
     private readonly IReadOnlyDictionary<int, Action<JsonObject>> _chain;
@@ -269,6 +272,15 @@ public sealed class ProjectMigrator
     /// (<c>rodaje.cornerpin</c>); un Rodaje anterior rechaza el 13 en vez de dibujar la capa sin su perspectiva.
     /// </summary>
     internal static void AllowTracking(JsonObject root) => root[VersionProperty] = 13;
+
+    /// <summary>13 → 14: permite imágenes fijas; el indicador opcional vale falso en los medios anteriores.</summary>
+    internal static void AllowStillImages(JsonObject root) => root[VersionProperty] = 14;
+
+    /// <summary>14 → 15: solo el número. Una secuencia sin <c>colorSpace</c> es SDR (<c>sdr-709</c>), como eran todas.</summary>
+    internal static void AllowHdrSequences(JsonObject root) => root[VersionProperty] = 15;
+
+    /// <summary>15 → 16: solo el número. Los campos del 16 son opcionales y un 15 no tiene ninguno.</summary>
+    internal static void AllowFormat16(JsonObject root) => root[VersionProperty] = 16;
 
     private static void RemoveSpeed(JsonNode? effects)
     {

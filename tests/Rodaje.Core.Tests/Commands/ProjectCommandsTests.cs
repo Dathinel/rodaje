@@ -9,6 +9,16 @@ public class ProjectCommandsTests
 {
     private static MediaRef Media(string id) => new() { Id = id, Name = id, Path = $"{id}.wav", Duration = S(3), HasAudio = true };
 
+    private static MediaTranscript TranscriptOf(string id, string mediaId) => new()
+    {
+        Id = id,
+        MediaId = mediaId,
+        Language = "es",
+        Model = "whisper",
+        MediaDuration = S(3),
+        Words = [new SpokenWord { Start = S(0), End = S(1), Text = "hola", Confidence = 0.9 }],
+    };
+
     [Fact]
     public void AddMedia_AgregaYAlDeshacerLoQuita()
     {
@@ -71,6 +81,61 @@ public class ProjectCommandsTests
         command.Revert(project);
 
         Assert.Equal("media-2", Assert.Single(project.Media).Id);
+    }
+
+    [Fact]
+    public void RemoveMedia_QuitaSuTranscripcionYLaDevuelveEnSuSitio()
+    {
+        Project project = Create();
+        project.Media.Insert(0, Media("media-0"));
+        project.Media.Add(Media("media-2"));
+        project.Transcripts.Add(TranscriptOf("tr-0", "media-0"));
+        project.Transcripts.Add(TranscriptOf("tr-1", "media-1"));
+        project.Transcripts.Add(TranscriptOf("tr-2", "media-2"));
+        string before = ProjectDump.Of(project);
+        MediaTranscript removed = project.Transcripts[0];
+        var command = new RemoveMediaCommand("media-0");
+
+        command.Apply(project);
+        Assert.Equal(["tr-1", "tr-2"], project.Transcripts.Select(t => t.Id));
+        Assert.Null(project.FindTranscript("media-0"));
+        command.Revert(project);
+
+        Assert.Equal(before, ProjectDump.Of(project));
+        Assert.Same(removed, project.Transcripts[0]);
+    }
+
+    [Fact]
+    public void RemoveMedia_ConLaPila_LaTranscripcionVaYVuelve()
+    {
+        Project project = Create();
+        project.Media.Add(Media("media-2"));
+        project.Transcripts.Add(TranscriptOf("tr-2", "media-2"));
+        string before = ProjectDump.Of(project);
+        var stack = new UndoStack(project);
+
+        stack.Execute(new RemoveMediaCommand("media-2"));
+        Assert.Empty(project.Transcripts);
+        Assert.Null(project.FindMedia("media-2"));
+
+        Assert.True(stack.Undo());
+        Assert.Equal(before, ProjectDump.Of(project));
+        Assert.True(stack.Redo());
+        Assert.Empty(project.Transcripts);
+    }
+
+    [Fact]
+    public void RemoveMedia_SinTranscripcion_NoCambiaLasDeOtros()
+    {
+        Project project = Create();
+        project.Media.Add(Media("media-2"));
+        project.Transcripts.Add(TranscriptOf("tr-1", "media-1"));
+        var command = new RemoveMediaCommand("media-2");
+
+        command.Apply(project);
+        Assert.Equal(["tr-1"], project.Transcripts.Select(t => t.Id));
+        command.Revert(project);
+        Assert.Equal(["tr-1"], project.Transcripts.Select(t => t.Id));
     }
 
     [Fact]

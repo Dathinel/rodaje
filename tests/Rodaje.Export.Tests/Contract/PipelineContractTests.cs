@@ -94,7 +94,7 @@ public sealed class PipelineContractTests
     public void Frame_converter_checks_its_arguments()
     {
         var format = new ExportVideoFormat(1920, 1080, Rational.Fps30, ExportPixelFormat.Nv12, ExportColor.Bt709Limited);
-        Assert.Throws<ArgumentNullException>(() => new ExportFrameConverter(null!, 1920, 1080, format));
+        Assert.Throws<ArgumentNullException>(() => new ExportFrameConverter((Rodaje.Media.Gpu.GpuDevice)null!, 1920, 1080, format));
     }
 
     [Fact]

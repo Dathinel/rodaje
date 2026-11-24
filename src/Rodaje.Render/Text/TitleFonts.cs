@@ -6,6 +6,7 @@ using static Rodaje.Render.RenderException;
 namespace Rodaje.Render.Text;
 
 /// <summary>Una fuente ya elegida para un estilo: la colección donde está, el nombre de la familia y si es la pedida.</summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal readonly unsafe struct ResolvedFont(IDWriteFontCollection* collection, string family, bool missing)
 {
     public IDWriteFontCollection* Collection { get; } = collection;
@@ -20,6 +21,7 @@ internal readonly unsafe struct ResolvedFont(IDWriteFontCollection* collection, 
 /// <c>IDWriteFactory5::CreateFontSetBuilder</c>, nunca instaladas en Windows) y la del sistema como respaldo.
 /// </summary>
 /// <remarks>Solo se usa con el candado del rasterizador tomado.</remarks>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 internal sealed unsafe class TitleFonts : IDisposable
 {
     /// <summary>Tope de un archivo de fuente (D-029: 20 MB por archivo).</summary>

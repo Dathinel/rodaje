@@ -1,7 +1,7 @@
 {
   "version": 1,
   "dependencies": {
-    "net10.0-windows7.0": {
+    "net10.0": {
       "xunit.extensibility.core": {
         "type": "Direct",
         "requested": "[2.9.3, )",
@@ -37,7 +37,7 @@
       "rodaje.audio": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Playback": "[1.0.0, )"
+          "Rodaje.Playback": "[1.0.3, )"
         }
       },
       "rodaje.core": {
@@ -47,15 +47,19 @@
         "type": "Project",
         "dependencies": {
           "FFmpeg.AutoGen.Bindings.DynamicallyLinked": "[9.0.1.1, )",
-          "Rodaje.Core": "[1.0.0, )",
-          "Rodaje.Playback": "[1.0.0, )",
+          "Rodaje.Core": "[1.0.3, )",
+          "Rodaje.Packages": "[1.0.3, )",
+          "Rodaje.Playback": "[1.0.3, )",
           "TerraFX.Interop.Windows": "[10.0.26100.6, )"
         }
+      },
+      "rodaje.packages": {
+        "type": "Project"
       },
       "rodaje.playback": {
         "type": "Project",
         "dependencies": {
-          "Rodaje.Core": "[1.0.0, )"
+          "Rodaje.Core": "[1.0.3, )"
         }
       }
     }

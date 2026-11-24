@@ -55,7 +55,7 @@ public sealed unsafe class ThumbnailDecoder : IDisposable
         _format = format;
         try
         {
-            Info = MediaProbe.Probe(format, path, scanTimestamps: false);
+            Info = MediaProbe.Probe(format, path, scanTimestamps: true);
             Stream = Info.Video ?? throw new MediaException($"El archivo {path} no tiene un flujo de video.");
             _streamIndex = Stream.StreamIndex;
             for (int i = 0; i < format->nb_streams; i++)
@@ -130,6 +130,21 @@ public sealed unsafe class ThumbnailDecoder : IDisposable
         }
 
         PromoteAhead(target);
+        DecodeAround(target, cancellationToken);
+        if (!_hasBest && !_hasAhead && !continueForward)
+        {
+            // MPEG-TS con un solo keyframe: la búsqueda por marca cae después de él y no salía ninguna miniatura.
+            Seek(target, fromFileStart: true);
+            DecodeAround(target, cancellationToken);
+        }
+
+        // Si la búsqueda cayó después del instante (un GOP abierto, o antes del primer cuadro), sirve el primero que hay.
+        AVFrame* source = _hasBest ? _best : _hasAhead ? _ahead : null;
+        return source == null ? null : Convert(source, height);
+    }
+
+    private void DecodeAround(long target, CancellationToken cancellationToken)
+    {
         int decoded = 0;
         while (!_hasAhead && !_drained && decoded < MaxFramesPerRequest)
         {
@@ -155,10 +170,6 @@ public sealed unsafe class ThumbnailDecoder : IDisposable
                 Keep(_ahead, ref _hasAhead, ref _aheadPts, pts);
             }
         }
-
-        // Si la búsqueda cayó después del instante (un GOP abierto, o antes del primer cuadro), sirve el primero que hay.
-        AVFrame* source = _hasBest ? _best : _hasAhead ? _ahead : null;
-        return source == null ? null : Convert(source, height);
     }
 
     public void Dispose()
@@ -221,7 +232,7 @@ public sealed unsafe class ThumbnailDecoder : IDisposable
         Av.Check(ffmpeg.avcodec_open2(_codec, codec, null), "avcodec_open2");
     }
 
-    private void Seek(long target)
+    private void Seek(long target, bool fromFileStart = false)
     {
         Seeks++;
         ffmpeg.avcodec_flush_buffers(_codec);
@@ -229,7 +240,8 @@ public sealed unsafe class ThumbnailDecoder : IDisposable
         ffmpeg.av_frame_unref(_ahead);
         _hasBest = _hasAhead = false;
         _inputEnded = _drained = false;
-        int r = ffmpeg.av_seek_frame(_format, _streamIndex, target, ffmpeg.AVSEEK_FLAG_BACKWARD);
+        int r = fromFileStart ? ffmpeg.av_seek_frame(_format, -1, 0, ffmpeg.AVSEEK_FLAG_BYTE)
+            : ffmpeg.av_seek_frame(_format, _streamIndex, target, ffmpeg.AVSEEK_FLAG_BACKWARD);
         if (r < 0)
         {
             r = ffmpeg.avformat_seek_file(_format, _streamIndex, long.MinValue, target, target, 0);
@@ -327,6 +339,10 @@ public sealed unsafe class ThumbnailDecoder : IDisposable
             source->color_range = AVColorRange.AVCOL_RANGE_MPEG;
         }
 
+        // Con la marca de entrelazado, sws_scale_frame escala por campos y rechaza (EINVAL) alturas de destino que no
+        // reparte en dos: los MPEG-2 de DVD y los MTS 1080i de cámara se caían al pedir su miniatura.
+        source->flags &= ~ffmpeg.AV_FRAME_FLAG_INTERLACED;
+
         if (_sws == null)
         {
             _sws = ffmpeg.sws_alloc_context();
@@ -365,11 +381,14 @@ public sealed unsafe class ThumbnailDecoder : IDisposable
                         270 => (y, scaledWidth - 1 - x),
                         _ => (x, y),
                     };
-                    dst[(ty * width) + tx] = row[x] | 0xFF000000u;
+                    dst[(ty * width) + tx] = IsStill ? row[x] : (row[x] | 0xFF000000u);
                 }
             }
         }
 
+        // El compositor convierte el HDR al componer (D-052); aquí no hay compositor, así que se convierte en la CPU.
+        AVCodecParameters* par = _format->streams[_streamIndex]->codecpar;
+        HdrToneMap.ToSdrInPlace(pixels, VideoColor.Resolve(source, par->color_space, par->color_range, par->color_trc, par->color_primaries));
         ffmpeg.av_frame_unref(_scaled);
         return new BgraImage(width, height, pixels);
     }

@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <IsPackable>false</IsPackable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <!-- Las pruebas de GPU se omiten con el motivo si no hay Direct3D 11 por hardware -->
@@ -13,7 +13,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Los casos de aceptación de títulos: DirectWrite escribe aquí la referencia que HarfBuzz compara en Linux y macOS (D-066). -->
+    <Compile Include="..\Rodaje.Text.Tests\TitleLayoutCases.cs" Link="Text\TitleLayoutCases.cs" />
+    <!-- Lo que todo motor de IGpu cumple igual: aquí con D3D11 (WARP), en Rodaje.Render.Vulkan.Tests con Vulkan. -->
+    <Compile Include="..\Rodaje.Render.Vulkan.Tests\Gpu\GpuEngineChecks.cs" Link="Gpu\GpuEngineChecks.cs" />
+    <!-- VulkanTestGpu y [VulkanFact]/[VulkanTheory], compartidos con las pruebas del motor Vulkan. -->
+    <Compile Include="..\Rodaje.Render.Vulkan.Tests\Gpu\VulkanFact.cs" Link="Gpu\VulkanFact.cs" />
+    <EmbeddedResource Include="..\Rodaje.Render.Vulkan.Tests\Gpu\igpu-pruebas.hlsl" Link="Gpu\igpu-pruebas.hlsl" LogicalName="igpu-pruebas.hlsl" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\..\src\Rodaje.Render\Rodaje.Render.csproj" />
+    <ProjectReference Include="..\..\src\Rodaje.Analysis\Rodaje.Analysis.csproj" />
     <ProjectReference Include="..\Rodaje.TestMedia\Rodaje.TestMedia.csproj" />
   </ItemGroup>
 

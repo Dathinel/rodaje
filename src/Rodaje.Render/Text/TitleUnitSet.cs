@@ -20,7 +20,7 @@ internal struct TitleCell
     /// <summary>Unidad a la que pertenece; −1 el fondo del bloque.</summary>
     public int Unit;
     public TitleCellKind Kind;
-    public TitleRasterizer.Rect Rest;
+    public TitleRect Rest;
 
     /// <summary>Rectángulo útil en el atlas, en uv (sin el margen de separación).</summary>
     public Vector4 Uv;

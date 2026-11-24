@@ -11,6 +11,10 @@ public class MotionPresetsCazaTests
         var presetIds = MotionPresets.All.Select(p => p.Id).ToArray();
 
         Assert.Contains(MotionPresets.KenBurns, presetIds);
+        Assert.Contains(MotionPresets.KenBurnsZoomIn, presetIds);
+        Assert.Contains(MotionPresets.KenBurnsZoomOut, presetIds);
+        Assert.Contains(MotionPresets.KenBurnsPanLeft, presetIds);
+        Assert.Contains(MotionPresets.KenBurnsPanRight, presetIds);
         Assert.Contains(MotionPresets.SlowZoom, presetIds);
         Assert.Contains(MotionPresets.SlideIn, presetIds);
         Assert.Contains(MotionPresets.SlideOut, presetIds);

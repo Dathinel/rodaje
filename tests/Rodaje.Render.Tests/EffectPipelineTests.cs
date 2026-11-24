@@ -63,11 +63,11 @@ public sealed class EffectPipelineTests
     }
 
     /// <summary>Con el pool lleno, los efectos espaciales se saltan y se cuentan, y el cuadro sale igual.</summary>
-    [GpuFact]
+    [EngineFact]
     public void A_full_pool_skips_spatial_effects_without_failing()
     {
-        using GpuDevice gpu = GpuDevice.Create();
-        using var compositor = new Compositor(gpu, 256, 128, CompositeFormat.Rgba16Float, ShaderCache.Default, poolCapBytes: 1024);
+        using TestGpu gpu = TestGpu.Create();
+        using var compositor = gpu.NewCompositor(256, 128, CompositeFormat.Rgba16Float, ShaderCache.Default, poolCapBytes: 1024);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(256, 128, false, new YuvCode(120, 128, 128)), Bt709,
             new LayerLook([Fx.Blur(20), Fx.Color((BuiltInEffectsColor.Exposure, 1))], BlendMode.Overlay));
@@ -82,13 +82,15 @@ public sealed class EffectPipelineTests
     }
 
     /// <summary>Un cuadro nunca espera a que compile un shader: lo que falta se salta y se cuenta.</summary>
-    [GpuFact]
+    [EngineFact(VulkanSkip = "los shaders SPIR-V de Vulkan siempre están listos (VulkanGpu.CreateShader carga el bytecode y no usa la caché perezosa, src/Rodaje.Render/Gpu/Vulkan/VulkanGpu.cs:258)")]
     public void A_frame_never_waits_for_a_shader()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using var gate = new ManualResetEventSlim(false);
-        var cache = new ShaderCache(null) { BeforeCompile = () => gate.Wait() };
-        using var compositor = new Compositor(gpu, 256, 128, CompositeFormat.Rgba16Float, cache);
+        // Un shader vacío en vez de compilar en frío las variantes: al abrir la puerta solo quedan sus CreatePixelShader
+        // (la CI pasó de los 60 s). Que cada variante compila y pinta bien lo prueban ShaderCompileTests y EffectFidelityTests.
+        var cache = new ShaderCache(null) { Compile = _ => { gate.Wait(); return OperatingSystem.IsWindowsVersionAtLeast(7) ? TrivialShader.Code : []; } };
+        using var compositor = gpu.NewCompositor(256, 128, CompositeFormat.Rgba16Float, cache);
         YuvCode gray = ReferenceColor.Encode(120, 120, 120, Bt709, false);
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(256, 128, false, gray), Bt709,
             new LayerLook([Fx.Color((BuiltInEffectsColor.Exposure, 1)), Fx.Blur(5)], BlendMode.Overlay));
@@ -103,10 +105,10 @@ public sealed class EffectPipelineTests
         Assert.Equal(3, compositor.Render(frame).EffectsApplied);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Unknown_and_repeated_effects_are_counted_as_skipped()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerEffect unknown = new(9999, default, null);
         LayerEffect speed = Fx.Make(Rodaje.Core.Model.BuiltInEffects.Speed);
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(64, 64, false, new YuvCode(120, 128, 128)), Bt709,
@@ -118,11 +120,11 @@ public sealed class EffectPipelineTests
         Assert.Equal(3, result.EffectsSkipped);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Intermediates_are_reused_frame_after_frame()
     {
-        using GpuDevice gpu = GpuDevice.Create();
-        using var compositor = new Compositor(gpu, 512, 256);
+        using TestGpu gpu = TestGpu.Create();
+        using var compositor = gpu.NewCompositor(512, 256);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         var bytes = new List<long>();
         for (int i = 0; i < 5; i++)

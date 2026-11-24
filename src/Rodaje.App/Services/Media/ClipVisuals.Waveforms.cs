@@ -79,7 +79,7 @@ public sealed partial class ClipVisuals
         using IAudioSampleReader? reader = _sources.OpenAudio(path);
         if (reader is null)
         {
-            _noWaveform[path] = "sin audio";
+            _noWaveform[path] = NoAudio;
             return;
         }
 

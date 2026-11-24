@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Rodaje.Core.Timing;
+using Rodaje.Core.Model;
 using Rodaje.Playback.Composition;
 using Rodaje.Render;
 using Rodaje.Render.Text;
@@ -7,7 +8,14 @@ using Rodaje.Render.Text;
 namespace Rodaje.App.Views.Player;
 
 /// <summary>Un cuadro compuesto bajado a la CPU, RGBA de 8 bits fila tras fila.</summary>
-internal sealed record FrameCapture(byte[] Rgba, int Width, int Height);
+internal sealed record FrameCapture(byte[] Rgba, int Width, int Height)
+{
+    public CompositeResult Composition { get; init; }
+    public Time TimelineTime { get; init; }
+    public IReadOnlyList<CapturedSample> Samples { get; init; } = [];
+}
+
+internal readonly record struct CapturedSample(string ClipId, FrameSampling Sampling, float Fraction, bool HasNext);
 
 /// <summary>
 /// Títulos del reproductor: un <see cref="TitleRasterizer"/> sobre el dispositivo del hilo de render, conectado a la
@@ -16,9 +24,12 @@ internal sealed record FrameCapture(byte[] Rgba, int Width, int Height);
 /// </summary>
 internal sealed partial class PlayerEngine
 {
-    private TitleRasterizer? _titles;
+    private ITitleRasterizer? _titles;
     private int _titleReady;
     private IReadOnlyList<string>? _pendingFonts;
+
+    /// <summary>Las fuentes ya registradas en <see cref="_titles"/>, para volver a darlas al rehacer el dispositivo.</summary>
+    private IReadOnlyList<string>? _fontFiles;
     private IReadOnlyList<MissingFont> _missingFonts = [];
     private TitleBox[] _titleBoxes = [];
     private TaskCompletionSource<FrameCapture>? _pendingCapture;
@@ -48,7 +59,7 @@ internal sealed partial class PlayerEngine
             _pendingFonts = fontFiles;
         }
 
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>
@@ -62,15 +73,20 @@ internal sealed partial class PlayerEngine
         Volatile.Write(ref _captureBypass, (int)bypass);
         Interlocked.Exchange(ref _pendingCapture, capture)?.TrySetCanceled();
         _dirty = true;
-        _wake.Set();
+        Wake();
         return capture.Task;
     }
 
-    private void CompleteCapture()
+    private void CompleteCapture(CompositionFrame frame, CompositeResult result)
     {
         if (_compositor is { } compositor && Interlocked.Exchange(ref _pendingCapture, null) is { } capture)
         {
-            capture.TrySetResult(new FrameCapture(compositor.ReadbackRgba(), compositor.Width, compositor.Height));
+            capture.TrySetResult(new FrameCapture(compositor.ReadbackRgba(), compositor.Width, compositor.Height)
+            {
+                Composition = result,
+                TimelineTime = frame.TimelineTime,
+                Samples = [.. frame.Layers.Select(l => new CapturedSample(l.ClipId, l.Sampling, l.Fraction, l.Next is not null))],
+            });
             if (Volatile.Read(ref _captureBypass) != 0)
             {
                 // El cuadro sin efectos no se queda en pantalla: se vuelve a componer enseguida.
@@ -85,7 +101,7 @@ internal sealed partial class PlayerEngine
     {
         Volatile.Write(ref _compareSplit, split is { } s and > 0 ? Math.Clamp(s, 0, 1) : -1);
         _dirty = true;
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>Efectos que la vista previa deja fuera (el recorte mientras se ajusta). Desde cualquier hilo.</summary>
@@ -93,7 +109,7 @@ internal sealed partial class PlayerEngine
     {
         Volatile.Write(ref _viewBypass, (int)bypass);
         _dirty = true;
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>Solo vista previa: una máscara en gris o superpuesta mientras se edita (nula, como se exporta). Desde cualquier hilo.</summary>
@@ -101,7 +117,7 @@ internal sealed partial class PlayerEngine
     {
         Volatile.Write(ref _maskView, view is { } v ? new StrongBox<MaskPreview>(v) : null);
         _dirty = true;
-        _wake.Set();
+        Wake();
     }
 
     private void ApplyViewOptions(Compositor compositor)
@@ -116,11 +132,11 @@ internal sealed partial class PlayerEngine
 
     private void CreateTitles()
     {
-        _titles = new TitleRasterizer(_gpu!);
+        _titles = CreateTitleRasterizer();
         _titles.Changed += (_, _) =>
         {
             Interlocked.Exchange(ref _titleReady, 1);
-            _wake.Set();
+            Wake();
         };
     }
 
@@ -140,6 +156,7 @@ internal sealed partial class PlayerEngine
             _titles.Dispose();
             CreateTitles();
             IReadOnlyList<string> rejected = _titles!.RegisterFonts(fonts);
+            _fontFiles = fonts;
             if (rejected.Count > 0)
             {
                 _metrics.Note($"fuentes rechazadas por DirectWrite: {string.Join(", ", rejected.Select(Path.GetFileName))}");

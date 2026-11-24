@@ -1,5 +1,19 @@
 Rodaje {{VERSION}} ({{FECHA}}): editor de video nativo para Windows, compilado de antemano (Native AOT). No necesita .NET ni nada instalado aparte.
 
+## Novedades de la {{VERSION}}
+
+- **Editar en grupo:** Colaborar › «Invitar a otras personas…» abre una sala para editar el mismo proyecto a la vez desde otro equipo, en la misma red o por internet, cifrado de extremo a extremo. Se ven los cabezales y las pistas de los demás, cada uno deshace lo suyo, el anfitrión puede pasar el puesto a otro y quien se une recibe el proyecto, busca sus medios por contenido y puede pedir la copia ligera o el original a quien hospeda. Los archivos solo viajan por conexión directa o por un relé propio, nunca por el relé público.
+- **Barras de progreso en todo lo que tarda:** abrir, importar, exportar, proxies, módulos, descargas y la sala dicen la fase, el porcentaje, el tiempo que falta y hace cuánto llegó el último avance, con Cancelar.
+- **Textos animados:** cuatro estilos de subtítulo de fábrica («Palabra a palabra», «Karaoke», «Pop», «Líneas») y movimiento continuo para cualquier texto (Tambaleo, Temblor, Pulso y Flotar).
+- **Más robusto en otros equipos:** exportar a 60 fps o cambiar la resolución ya no cierra la app; los tamaños raros avisan del estándar más cercano; abre MPEG-TS/AVCHD, video entrelazado, fotos de cámara y videos de celular con cuadros perdidos; sin Direct3D 11 por hardware usa WARP; si la tarjeta gráfica se reinicia, el visor sigue; en portátiles con dos tarjetas elige la potente (se cambia en Preferencias › Rendimiento); OneDrive y discos de red no congelan la ventana, y los números se leen igual con coma o punto en cualquier idioma de Windows.
+- **Editar por el texto:** el panel Transcripción muestra lo que se dice; borrar palabras o frases corta el video con ripple, Ctrl+X y Ctrl+V mueven frases, «Quitar muletillas…» y las pausas largas se limpian en un paso, y cada clip del mismo medio reutiliza la transcripción.
+- **Render en caché:** los tramos pesados se calculan solos mientras no editas y se reproducen como un solo clip; una franja sobre la regla dice qué va lento, justo o ya calculado, y se puede usar al exportar.
+- **Cuadros intermedios:** mezcla de cuadros y flujo óptico propio (sin descargar modelos) para la cámara lenta y para pasar de 24 a 30 cuadros.
+- **Plantillas de movimiento:** rótulos y títulos de varias capas con campos para rellenar en el inspector, que se guardan, exportan e importan como paquetes.
+- **Intercambio con otros editores:** Archivo › Importar y Exportar línea de tiempo en EDL, FCPXML y OpenTimelineIO, con aviso previo de lo que no llega igual; los medios guardan su código de tiempo y su carrete.
+- **HDR:** «Importar CinemaDNG…» ofrece un intermedio FFV1 de 16 bits en PQ BT.2020 que conserva las luces por encima del blanco.
+- **Por dentro:** capa de GPU común con los mismos píxeles, mapeo de rutas en Preferencias y SDK de .NET 10.0.403. Esta versión es solo para Windows.
+
 ## Qué trae
 
 - **Edición por capas** al cuadro exacto: cuchilla, ripple, roll, slip, slide y rango; edición de tres y cuatro puntos con insertar, sobrescribir, reemplazar, ajustar y superponer; grupos, colores de clip, búsqueda y cierre de huecos, aviso y arreglo de desincronía; multicámara y sincronía de audio externo por forma de onda. Todo se deshace con Ctrl+Z, con autoguardado y recuperación.

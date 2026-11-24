@@ -1,4 +1,5 @@
 using System.Globalization;
+using Rodaje.Engine.Presentation;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
@@ -10,6 +11,12 @@ public static class MediaDetails
     /// <summary>Lo que se ve mientras el códec se está leyendo del archivo.</summary>
     public const string Pending = "…";
 
+    public static string DurationText(MediaRef media, Subclip? subclip = null)
+    {
+        ArgumentNullException.ThrowIfNull(media);
+        return media.IsStillImage ? "Imagen" : Timecode.Format(subclip?.Duration ?? media.Duration);
+    }
+
     /// <summary>«1920×1080», o «—» si es solo audio.</summary>
     public static string Resolution(MediaRef media)
     {
@@ -18,6 +25,12 @@ public static class MediaDetails
             ? string.Create(CultureInfo.InvariantCulture, $"{media.Width}×{media.Height}")
             : "—";
     }
+
+    /// <summary>
+    /// Si «Generar proxy» aplica al medio: con video, no imagen fija y con el archivo original a mano (sin él no hay
+    /// nada de donde sacar la copia ligera).
+    /// </summary>
+    public static bool CanGenerateProxy(bool isStillImage, bool hasVideo, bool offline) => hasVideo && !isStillImage && !offline;
 
     /// <summary>«30 fps», «29,97 fps», «23,976 fps»; «—» en una foto o un audio.</summary>
     public static string FrameRate(MediaRef media)

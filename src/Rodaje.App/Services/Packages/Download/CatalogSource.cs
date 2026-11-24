@@ -16,7 +16,7 @@ public static class CatalogSource
     /// <summary>Versión del programa que se compara con el <c>minApp</c> de cada entrada (la de <c>Directory.Build.props</c>).</summary>
     public static PackageVersion AppVersion { get; } = PackageVersion.Parse(typeof(CatalogSource).Assembly.GetName().Version?.ToString(3) ?? "0.0.0");
 
-    public static Uri IndexUrl { get; } = new("https://github.com/Dathinel/rodaje-catalogo/releases/latest/download/indice.json");
+    public static Uri IndexUrl { get; } = new("https://github.com/Dathinel/rodaje-catalogo/releases/latest/download/" + CatalogIndex.ForThisSystem);
 
     /// <summary>Descargas y parciales (se reanudan) junto a los complementos.</summary>
     public static string DownloadFolder(PackageLocations locations)
@@ -51,12 +51,12 @@ public static class CatalogSource
     {
         var handler = new SocketsHttpHandler
         {
-            AllowAutoRedirect = true,
+            AllowAutoRedirect = false,
             MaxAutomaticRedirections = 10,
             AutomaticDecompression = DecompressionMethods.None,
             ConnectTimeout = TimeSpan.FromSeconds(20),
         };
-        var http = new HttpClient(handler) { Timeout = TimeSpan.FromSeconds(60) };
+        var http = new HttpClient(new HttpsRedirectHandler(handler)) { Timeout = TimeSpan.FromSeconds(60) };
         http.DefaultRequestHeaders.UserAgent.ParseAdd($"Rodaje/{AppVersion}");
         return http;
     }
@@ -70,7 +70,7 @@ public static class CatalogSource
         ArgumentNullException.ThrowIfNull(locations);
         HttpClient http = CreateHttpClient();
         http.Timeout = Timeout.InfiniteTimeSpan;
-        return new ModelStore(ModelFolder(locations), new FileDownloader(http) { MaxAttempts = 20, RetryDelay = TimeSpan.FromSeconds(2) });
+        return new ModelStore(ModelFolder(locations), new FileDownloader(http, SignedIndex.MaxEntrySize) { MaxAttempts = 20, RetryDelay = TimeSpan.FromSeconds(2) });
     }
 
     /// <summary>El descargador de la app, o uno no disponible si falta la clave.</summary>

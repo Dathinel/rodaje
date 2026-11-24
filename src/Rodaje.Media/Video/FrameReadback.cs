@@ -24,7 +24,7 @@ public static unsafe class FrameReadback
         {
             return frame.Payload switch
             {
-                D3D11TexturePayload texture => ReadTexture(texture),
+                D3D11TexturePayload texture when OperatingSystem.IsWindowsVersionAtLeast(7) => ReadTexture(texture),
                 CpuFramePayload cpu => ReadCpu(cpu),
                 _ => throw new NotSupportedException("El cuadro no tiene un contenido que Rodaje.Media sepa leer."),
             };
@@ -35,6 +35,7 @@ public static unsafe class FrameReadback
         }
     }
 
+    [System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
     private static LumaImage ReadTexture(D3D11TexturePayload texture)
     {
         if (!texture.AddRef())

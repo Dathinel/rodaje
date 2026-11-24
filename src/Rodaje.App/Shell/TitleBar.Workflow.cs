@@ -2,6 +2,7 @@ using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Settings;
+using Rodaje.App.Views.Inspector;
 
 namespace Rodaje.App.Shell;
 
@@ -32,13 +33,14 @@ internal sealed partial class TitleBar
         foreach (WorkspaceProfile profile in WorkspaceProfiles.All(settings))
         {
             var item = new RadioMenuFlyoutItem { Text = profile.Name, GroupName = "Workspace", Tag = profile.Id, IsChecked = profile.Id == settings.Workspace };
-            item.Click += (_, _) => WorkspaceChosen?.Invoke(this, profile.Id);
+            // Elegir o guardar rehace este menú: después del clic de su elemento (tarea 91).
+            item.Click += (_, _) => DispatcherQueue.RunAfterEvent(() => WorkspaceChosen?.Invoke(this, profile.Id));
             WorkspaceMenu.Items.Add(item);
         }
 
         WorkspaceMenu.Items.Add(new MenuFlyoutSeparator());
         var save = new MenuFlyoutItem { Text = "Guardar la distribución actual como…" };
-        save.Click += (_, _) => SaveWorkspaceRequested?.Invoke(this, EventArgs.Empty);
+        save.Click += (_, _) => DispatcherQueue.RunAfterEvent(() => SaveWorkspaceRequested?.Invoke(this, EventArgs.Empty));
         WorkspaceMenu.Items.Add(save);
         if (settings.Workspaces.Count > 0)
         {
@@ -70,7 +72,6 @@ internal sealed partial class TitleBar
             PrimaryButtonText = "Quitar espacio",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
         };
         if (await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary
             && services.Settings.Current.Workspaces.Any(p => p.Id == profile.Id))

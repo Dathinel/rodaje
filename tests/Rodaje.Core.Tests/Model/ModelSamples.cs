@@ -27,6 +27,32 @@ internal static class ModelSamples
         Generator = new ClipGenerator { Text = text, Style = FullStyle() },
     };
 
+    /// <summary>Rótulo de plantilla (formato 16) con dos capas: nombre y cargo.</summary>
+    public static Clip MakeTemplate(string id, double start, double duration) => new()
+    {
+        Id = id,
+        Start = Sec(start),
+        SourceIn = Sec(0),
+        SourceOut = Sec(duration),
+        Generator = new ClipGenerator
+        {
+            Kind = GeneratorKinds.Template,
+            Template = new GeneratorTemplate
+            {
+                Source = "rodaje-plantillas@1.0.0/barra",
+                Name = "Barra",
+                MinSeconds = 1.5,
+                Document = "{\"format\":\"rodaje.template\",\"version\":1}",
+                Values = { ["nombre"] = System.Text.Json.JsonDocument.Parse("\"Ana Ruiz\"").RootElement },
+                Layers =
+                [
+                    new TemplateLayer { Id = "nombre", Text = "Ana Ruiz", Style = FullStyle(), X = -560, Y = 380, Box = new TextFrame { WidthFraction = 0.5 } },
+                    new TemplateLayer { Id = "cargo", Text = "Directora", Style = FullStyle(), X = -560, Y = 450, Start = 0.2, End = 0.1 },
+                ],
+            },
+        },
+    };
+
     /// <summary>Un estilo con todos los campos opcionales y animaciones de entrada y salida.</summary>
     public static TextStyle FullStyle() => new()
     {

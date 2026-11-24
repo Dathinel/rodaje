@@ -297,7 +297,6 @@ internal sealed partial class PluginsView : UserControl, IEditorView
             PrimaryButtonText = "Desinstalar",
             SecondaryButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Secondary,
-            RequestedTheme = ElementTheme.Dark,
         };
         ContentDialogResult? result = await DialogGate.ShowAsync(dialog);
         return PluginUninstallDecision.IsConfirmed(result?.ToString());
@@ -346,7 +345,7 @@ internal sealed partial class PluginsView : UserControl, IEditorView
     {
         try
         {
-            using Process? _ = Process.Start(new ProcessStartInfo(target) { UseShellExecute = true });
+            using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo(target) { UseShellExecute = true });
         }
         catch (System.ComponentModel.Win32Exception ex)
         {

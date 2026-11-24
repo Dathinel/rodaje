@@ -184,7 +184,7 @@ public sealed class ExportScanTests : IDisposable
     private static Task<string> FfmpegAsync(params string[] args) => RunAsync(Skip.ProxyExecutable!.Path, ["-hide_banner", "-loglevel", "error", "-y", .. args]);
 
     private static Task<string> ProbeAsync(params string[] args) =>
-        RunAsync(Path.Combine(Path.GetDirectoryName(Skip.ProxyExecutable!.Path)!, "ffprobe.exe"), ["-v", "error", .. args]);
+        RunAsync(Path.Combine(Path.GetDirectoryName(Skip.ProxyExecutable!.Path)!, Rodaje.Media.FfmpegLocator.ExecutableName("ffprobe")), ["-v", "error", .. args]);
 
     private static async Task<string> RunAsync(string exe, string[] args)
     {

@@ -104,6 +104,67 @@ internal sealed partial class StillExportFlow : IDisposable
         }
     }
 
+    /// <summary>Lanza una captura rápida directa (sin diálogo de guardar) y notifica al terminar.</summary>
+    public async Task CaptureAsync(StillRequest request, Action<StillResult> onCompleted)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        ArgumentNullException.ThrowIfNull(onCompleted);
+        if (_disposed)
+        {
+            return;
+        }
+
+        if (_running is { } current)
+        {
+            if (current.IsCancellationRequested)
+            {
+                _notify(new EditorNotification(NotificationSeverity.Informational, "Cancelando el fotograma…",
+                    "La exportación anterior aún se está deteniendo; vuelve a intentarlo cuando termine."));
+            }
+            else
+            {
+                NotifyExporting(current);
+            }
+
+            return;
+        }
+
+        using var cancel = new CancellationTokenSource();
+        _running = cancel;
+        try
+        {
+            NotifyExporting(cancel);
+            StillResult result = await _export(request, cancel.Token);
+            onCompleted(result);
+        }
+        catch (Exception error) when (cancel.IsCancellationRequested
+            && error is OperationCanceledException or ExportException { Code: ExportErrorCode.Canceled })
+        {
+            if (!_disposed)
+            {
+                _notify(new EditorNotification(NotificationSeverity.Informational, "Fotograma cancelado", "No se guardó ningún archivo."));
+            }
+        }
+        catch (ExportException error)
+        {
+            ExportErrorView view = ExportErrorText.For(error);
+            NotificationAction? action = view.Action == ExportErrorAction.ContinueWithout && !request.ContinueWithoutMissing
+                ? new NotificationAction(view.ActionText ?? "Exportar sin él", () => UiTask.Run(CaptureAsync(request with { ContinueWithoutMissing = true }, onCompleted)))
+                : null;
+            _notify(new EditorNotification(NotificationSeverity.Error, view.Title, view.Message, action));
+        }
+#pragma warning disable CA1031
+        catch (Exception ex)
+#pragma warning restore CA1031
+        {
+            _notify(new EditorNotification(NotificationSeverity.Error, "No se pudo capturar el fotograma", ex.Message));
+        }
+        finally
+        {
+            _running = null;
+        }
+    }
+
     private async Task ExportAsync(StillRequest request, CancellationTokenSource cancel)
     {
         NotifyExporting(cancel);
@@ -111,7 +172,7 @@ internal sealed partial class StillExportFlow : IDisposable
         {
             StillResult result = await _export(request, cancel.Token);
             _notify(new EditorNotification(NotificationSeverity.Success, "Fotograma exportado",
-                string.Create(SpanishNumbers.Format, $"Cuadro {result.Frame} guardado en «{result.OutputPath}» ({result.Width}×{result.Height}).")));
+                string.Create(SpanishNumbers.Format, $"Fotograma {result.Frame} guardado en «{result.OutputPath}» ({result.Width}×{result.Height}).")));
         }
         // Solo la cancelación de verdad: un disco lleno justo al pulsar «Cancelar» se avisa como lo que es.
         catch (Exception error) when (cancel.IsCancellationRequested
@@ -135,7 +196,7 @@ internal sealed partial class StillExportFlow : IDisposable
     /// <summary>El indicador de «exportando»: un aviso con el botón para cancelar.</summary>
     private void NotifyExporting(CancellationTokenSource cancel) =>
         _notify(new EditorNotification(NotificationSeverity.Informational, "Exportando fotograma…",
-            "Se guarda el cuadro del cursor; el atajo no lanza otro hasta que termine.",
+            "Se guarda el fotograma del cursor; el atajo no lanza otro hasta que termine.",
             new NotificationAction("Cancelar", () =>
             {
                 if (ReferenceEquals(_running, cancel))

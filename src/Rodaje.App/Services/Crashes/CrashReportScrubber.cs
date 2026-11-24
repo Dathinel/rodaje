@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Text;
 using Rodaje.App.Services.Media;
 
@@ -34,7 +33,8 @@ namespace Rodaje.App.Services.Crashes;
 /// <para>
 /// Se aplica a todo el informe, línea a línea y con código propio de costo lineal (sin expresiones regulares). Una línea
 /// de más de <see cref="MaxLineLength"/> caracteres se recorta. Nunca lanza ni falla abierto: si una línea no se puede
-/// limpiar o se agota <see cref="Budget"/>, la línea se tapa en vez de quedar como estaba.
+/// limpiar o se agota <see cref="Budget"/> (trabajo, no tiempo: el resultado no depende de la carga del equipo), la
+/// línea se tapa en vez de quedar como estaba.
 /// </para>
 /// </summary>
 public sealed class CrashReportScrubber
@@ -45,8 +45,8 @@ public sealed class CrashReportScrubber
     /// <summary>Lo que sustituye a una línea que no se pudo limpiar.</summary>
     public const string HiddenLine = "[línea omitida: no se pudo limpiar]";
 
-    /// <summary>Lo que sustituye a las líneas que quedan cuando se agota el tiempo.</summary>
-    public const string OutOfTimeLine = "[línea omitida: se agotó el tiempo del limpiador]";
+    /// <summary>Lo que sustituye a las líneas que quedan cuando se agota <see cref="Budget"/>.</summary>
+    public const string OutOfTimeLine = "[línea omitida: se agotó el tope del limpiador]";
 
     // Raíces de una unidad que no son del usuario: la ruta queda entera.
     private static readonly string[] SystemRoots = ["Windows", "Program Files", "Program Files (x86)", "ProgramData"];
@@ -99,8 +99,12 @@ public sealed class CrashReportScrubber
     /// <summary>El de este usuario, con las variables de entorno de este proceso.</summary>
     public static CrashReportScrubber Default { get; } = FromEnvironment();
 
-    /// <summary>Tiempo máximo de una llamada a <see cref="Scrub"/>; las líneas que quedan después se tapan.</summary>
-    public TimeSpan Budget { get; init; } = TimeSpan.FromSeconds(2);
+    /// <summary>
+    /// Trabajo máximo de una llamada a <see cref="Scrub"/>, en las unidades de su <c>work</c>; las líneas que quedan
+    /// después se tapan. Con un tope de reloj (2 s), un PC sin CPU justo al fallar tapaba el error y la pila del informe.
+    /// Unas 2,4 veces el peor informe realista: 200 líneas de registro de <see cref="MaxLineLength"/> a 4 por carácter.
+    /// </summary>
+    public long Budget { get; init; } = 16_000_000;
 
     /// <summary>
     /// Con las carpetas de las variables de entorno de este proceso, el usuario y el equipo. <c>%TEMP%</c> se reconoce
@@ -180,7 +184,6 @@ public sealed class CrashReportScrubber
             return text ?? string.Empty;
         }
 
-        var watch = Stopwatch.StartNew();
         var result = new StringBuilder(text.Length);
         int start = 0;
         while (start <= text.Length)
@@ -189,7 +192,7 @@ public sealed class CrashReportScrubber
             int end = newline < 0 ? text.Length : newline;
             if (end > start || newline >= 0)
             {
-                result.Append(watch.Elapsed >= Budget ? OutOfTimeLine : SafeScrubLine(text[start..end], ref work));
+                result.Append(work >= Budget ? OutOfTimeLine : SafeScrubLine(text[start..end], ref work));
             }
 
             if (newline < 0)

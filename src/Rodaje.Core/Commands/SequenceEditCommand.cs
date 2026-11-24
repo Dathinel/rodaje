@@ -63,7 +63,16 @@ public sealed class SequenceEditCommand : ICommand
 
     public bool HasRun => _after is not null;
 
-    public void Apply(Project project)
+    /// <summary>Cómo quedó la secuencia la primera vez que se aplicó (tras fundirse, la del último comando fundido).</summary>
+    internal SequenceSnapshot? After => _after;
+
+    public void Apply(Project project) => Apply(project, null);
+
+    /// <summary>
+    /// Como <see cref="Apply(Project)"/>; las pistas y los clips que siguen iguales que en <paramref name="previous"/> (la
+    /// instantánea de la edición anterior o del inicio del gesto) no se copian otra vez.
+    /// </summary>
+    public void Apply(Project project, SequenceSnapshot? previous)
     {
         ArgumentNullException.ThrowIfNull(project);
         Sequence sequence = FindSequence(project);
@@ -75,7 +84,7 @@ public sealed class SequenceEditCommand : ICommand
             return;
         }
 
-        SequenceSnapshot before = SequenceSnapshot.Capture(sequence);
+        SequenceSnapshot before = SequenceSnapshot.Capture(sequence, previous);
         List<Sequence> sequencesBefore = [.. project.Sequences];
         IReadOnlyList<string> created;
         try
@@ -100,7 +109,7 @@ public sealed class SequenceEditCommand : ICommand
         }
 
         _before = before;
-        _after = SequenceSnapshot.Capture(sequence);
+        _after = SequenceSnapshot.Capture(sequence, before);
         if (!project.Sequences.SequenceEqual(sequencesBefore))
         {
             _sequencesBefore = sequencesBefore;

@@ -40,6 +40,26 @@ public sealed class TimelineSessionTests
     }
 
     [Fact]
+    public void Each_delivered_frame_signals_so_the_render_thread_can_sleep_until_then()
+    {
+        var backend = new FakeTimelineBackend { ManualDecoding = true };
+        var b = new TimelineBuilder(1, 0);
+        b.AddMedia("m0", Rational.Fps30, 3000, backend: backend);
+        b.AddVideo(0, "m0", Time.Zero, Time.Zero, S(4));
+        using TimelineSession session = Open(b, backend);
+        int delivered = 0;
+        session.FrameDelivered += (_, _) => delivered++;
+
+        session.Tick().Dispose();
+        Assert.Equal(0, delivered);
+
+        backend.RunDecoders();
+        Assert.True(delivered > 0);
+        using CompositionFrame frame = session.Tick();
+        Assert.Single(frame.Layers);
+    }
+
+    [Fact]
     public void Each_layer_carries_the_pixel_shape_and_rotation_of_its_source()
     {
         var backend = new FakeTimelineBackend();
@@ -242,6 +262,65 @@ public sealed class TimelineSessionTests
         Assert.Equal((1L, 0L, 1L), (layer.Cuts, layer.PreRollHits, layer.PreRollMisses));
         Assert.True(layer.LateAtCuts >= 1);
         Assert.Equal(layer.LateAtCuts, layer.LateRefreshes);
+        Assert.NotEmpty(session.Stats.LateFrames);
+    }
+
+    [Fact]
+    public void Late_frames_apunta_una_vez_el_cuadro_con_varias_capas_tarde()
+    {
+        var backend = new FakeTimelineBackend { ManualDecoding = true };
+        var b = new TimelineBuilder(3, 0, Rational.Fps30);
+        for (int t = 0; t < 3; t++)
+        {
+            b.AddMedia($"m{t}", Rational.Fps30, 3000, backend: backend);
+            b.AddVideo(t, $"m{t}", Time.Zero, Time.Zero, S(20), $"c{t}");
+        }
+
+        using TimelineSession session = Open(b, backend, new TimelineSessionOptions { PreRoll = TimeSpan.Zero });
+        Settle(session, backend);
+
+        session.Play();
+        for (int i = 0; i < 40; i++)
+        {
+            backend.Clock.Advance(Refresh60);
+            session.Tick().Dispose();
+        }
+
+        TimelineStats stats = session.Stats;
+        Assert.True(stats.LateRefreshes > stats.LateFrames.Count);
+        Assert.Equal(stats.LateFrames.Distinct().Count(), stats.LateFrames.Count);
+    }
+
+    [Fact]
+    public void Late_frames_recoge_el_cuadro_de_un_refresco_tarde_y_no_pasa_de_256()
+    {
+        var backend = new FakeTimelineBackend { ManualDecoding = true };
+        var b = new TimelineBuilder(1, 0, Rational.Fps30);
+        b.AddMedia("m", Rational.Fps30, 3000, backend: backend);
+        b.AddVideo(0, "m", Time.Zero, Time.Zero, S(20), "m");
+        using TimelineSession session = Open(b, backend, new TimelineSessionOptions { PreRoll = TimeSpan.Zero });
+        Settle(session, backend);
+
+        Time refresh30 = Time.FromFrames(1, Rational.Fps30);
+        session.Play();
+        for (int i = 0; i < 300; i++)
+        {
+            backend.Clock.Advance(refresh30);
+            session.Tick().Dispose();
+        }
+
+        TimelineStats stats = session.Stats;
+        Assert.True(stats.LateRefreshes > 256);
+        Assert.Equal(256, stats.LateFrames.Count);
+        Assert.Equal(300, stats.LateFrames[^1]);
+
+        for (int i = 1; i < stats.LateFrames.Count; i++)
+        {
+            Assert.True(stats.LateFrames[i] >= stats.LateFrames[i - 1]);
+        }
+
+        session.ResetStats();
+        Assert.Empty(session.Stats.LateFrames);
     }
 
     [Fact]
@@ -521,6 +600,13 @@ public sealed class TimelineSessionTests
         session.SeekToFrame(1000);
         Assert.Equal(49, session.CurrentFrame);
         Assert.Equal(50, session.FrameCount);
+
+        // Fin deja la posición a mitad del último cuadro: un paso adelante no la lleva hacia atrás.
+        session.Seek(S(2));
+        Time end = session.Position;
+        Assert.True(end > F(49, Rational.Fps25));
+        session.StepFrame(1);
+        Assert.Equal(end, session.Position);
     }
 
     [Fact]

@@ -74,6 +74,7 @@ public sealed record ProxyThresholds
 /// <param name="Layers">Capas que se espera reproducir a la vez (1 si es la única).</param>
 /// <param name="PlaybackRate">Mayor velocidad a la que se reproduce el clip (la de la curva en su punto más rápido).</param>
 /// <param name="Reverse">El clip va en reversa.</param>
+/// <param name="IsStillImage">Una imagen fija no necesita proxy de video.</param>
 public sealed record ProxyCandidate(
     int Width,
     int Height,
@@ -85,7 +86,8 @@ public sealed record ProxyCandidate(
     double? DecodeSpeed = null,
     int Layers = 1,
     double PlaybackRate = 1,
-    bool Reverse = false)
+    bool Reverse = false,
+    bool IsStillImage = false)
 {
     /// <summary>Candidato con los metadatos del archivo y, si se tienen, las medidas.</summary>
     public static ProxyCandidate From(MediaInfo info, StreamStructure? structure = null, double? decodeSpeed = null, int layers = 1,
@@ -104,7 +106,8 @@ public sealed record ProxyCandidate(
             decodeSpeed,
             layers,
             playbackRate,
-            reverse);
+            reverse,
+            info.IsStillImage);
     }
 }
 
@@ -126,6 +129,11 @@ public sealed class ProxyPolicy(ProxyThresholds? thresholds = null)
     public ProxyRecommendation Evaluate(ProxyCandidate candidate)
     {
         ArgumentNullException.ThrowIfNull(candidate);
+        if (candidate.IsStillImage)
+        {
+            return new ProxyRecommendation(ProxyReasons.None, []);
+        }
+
         ArgumentOutOfRangeException.ThrowIfLessThan(candidate.Layers, 1);
         ArgumentOutOfRangeException.ThrowIfNegativeOrZero(candidate.PlaybackRate);
         ProxyThresholds t = Thresholds;

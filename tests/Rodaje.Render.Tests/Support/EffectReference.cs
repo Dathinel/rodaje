@@ -53,11 +53,14 @@ internal static class EffectReference
     }
 
     /// <summary>Ruedas: lift <c>c + l·(1 − c)</c>, gain <c>c·(1 + g)</c> y gamma <c>c^(2^−γ)</c>, por canal con el general sumado.</summary>
-    public static C3 Wheels(C3 c, C3 lift, C3 gamma, C3 gain)
+    public static C3 Wheels(C3 c, C3 lift, C3 gamma, C3 gain) => Wheels(c, lift, gamma, gain, new C3(0, 0, 0));
+
+    /// <summary>Con el desplazamiento, que se suma al color antes de las tres ruedas.</summary>
+    public static C3 Wheels(C3 c, C3 lift, C3 gamma, C3 gain, C3 offset)
     {
-        static double One(double v, double l, double y, double g) =>
-            Saturate(Math.Pow(Math.Max((v + (l * (1 - v))) * (1 + g), 0), Math.Pow(2, -y)));
-        return new C3(One(c.R, lift.R, gamma.R, gain.R), One(c.G, lift.G, gamma.G, gain.G), One(c.B, lift.B, gamma.B, gain.B));
+        static double One(double v, double l, double y, double g, double o) =>
+            Saturate(Math.Pow(Math.Max((v + o + (l * (1 - (v + o)))) * (1 + g), 0), Math.Pow(2, -y)));
+        return new C3(One(c.R, lift.R, gamma.R, gain.R, offset.R), One(c.G, lift.G, gamma.G, gain.G, offset.G), One(c.B, lift.B, gamma.B, gain.B, offset.B));
     }
 
     /// <summary>

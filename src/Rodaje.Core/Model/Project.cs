@@ -10,7 +10,7 @@ public sealed class Project
     /// <summary>Versión del formato JSON; los archivos antiguos se migran al cargarlos.</summary>
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
-    public const int CurrentSchemaVersion = 13;
+    public const int CurrentSchemaVersion = 16;
 
     public string Id { get; set; } = "";
 
@@ -19,6 +19,22 @@ public sealed class Project
     public List<MediaRef> Media { get; set; } = [];
 
     public List<Sequence> Sequences { get; set; } = [];
+
+    /// <summary>Transcripciones de los medios (formato 16, D-061): como mucho una por medio.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public List<MediaTranscript> Transcripts { get; set; } = [];
+
+    // Solo en el JSON: sin transcripciones no se escribe «transcripts» y el archivo sigue igual que en el 15.
+    [System.Text.Json.Serialization.JsonInclude]
+    [System.Text.Json.Serialization.JsonPropertyName("transcripts")]
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    internal List<MediaTranscript>? StoredTranscripts
+    {
+        get => Transcripts.Count > 0 ? Transcripts : null;
+        set => Transcripts = value ?? [];
+    }
+
+    public MediaTranscript? FindTranscript(string mediaId) => Transcripts.Find(t => t.MediaId == mediaId);
 
     public MediaRef? FindMedia(string mediaId) => Media.Find(m => m.Id == mediaId);
 
@@ -38,5 +54,6 @@ public sealed class Project
         Name = Name,
         Media = Media.ConvertAll(m => m.Clone()),
         Sequences = Sequences.ConvertAll(s => s.Clone()),
+        Transcripts = Transcripts.ConvertAll(t => t.Clone()),
     };
 }

@@ -7,12 +7,12 @@ namespace Rodaje.App.Tests.Matrix;
 
 /// <summary>
 /// Regresión de la matriz: un HDR10 (PQ) o HLG entraba sin aviso y se veía y exportaba como SDR, con los colores
-/// apagados. Rodaje no hace mapeo de tonos: al importarlo lo dice.
+/// apagados. La importación informa ahora de la conversión y del control de brillo.
 /// </summary>
 public sealed class HdrImportTests
 {
     [HdrFact]
-    public void Importing_hdr_warns_that_it_is_shown_as_sdr() => UiThread.Run(async () =>
+    public void Importing_hdr_informs_that_it_is_converted_to_sdr() => UiThread.Run(async () =>
     {
         string pq = MatrixMedia.GetOrCreate(FfmpegTool.Default!, MatrixCases.Get("mp4-hdr10-pq")).Path!;
         string hlg = MatrixMedia.GetOrCreate(FfmpegTool.Default!, MatrixCases.Get("mov-hlg")).Path!;
@@ -26,7 +26,8 @@ public sealed class HdrImportTests
 
         await session.ImportMediaAsync([pq, hlg]);
         EditorNotification notice = Assert.Single(notices);
-        Assert.Equal(NotificationSeverity.Warning, notice.Severity);
+        Assert.Equal(NotificationSeverity.Informational, notice.Severity);
+        Assert.Contains("HDR: se convierte a SDR; ajusta el brillo en Propiedades", notice.Message, StringComparison.Ordinal);
         Assert.Contains(Path.GetFileName(pq) + " (PQ)", notice.Message, StringComparison.Ordinal);
         Assert.Contains(Path.GetFileName(hlg) + " (HLG)", notice.Message, StringComparison.Ordinal);
         Assert.Equal(3, session.Project.Media.Count);

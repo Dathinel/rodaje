@@ -19,31 +19,47 @@ public static class EffectCommands
     /// </summary>
     /// <remarks><see cref="SequenceEditCommand.CreatedIds"/>: el efecto creado, si hizo falta.</remarks>
     public static SequenceEditCommand SetOption(
-        string sequenceId, string clipId, string effectType, string? effectId, string option, string value, string description)
+        string sequenceId, string clipId, string effectType, string? effectId, string option, string value, string description) =>
+        SetOption(sequenceId, [clipId], effectType, effectId, option, value, description);
+
+    /// <summary>
+    /// Fija la opción del efecto en varios clips en un solo paso del historial.
+    /// </summary>
+    public static SequenceEditCommand SetOption(
+        string sequenceId, IEnumerable<string> clipIds, string effectType, string? effectId, string option, string value, string description)
     {
+        ArgumentNullException.ThrowIfNull(clipIds);
         ArgumentNullException.ThrowIfNull(value);
+        string[] ids = [.. clipIds];
         return new SequenceEditCommand(description, sequenceId, ctx =>
         {
             List<string> created = [];
-            string target = effectId ?? "";
-            if (effectId is null)
+            foreach (string clipId in ids)
             {
-                if (EffectEdits.EnsureEffect(ctx, clipId, effectType) is { } id)
+                string target = effectId ?? "";
+                if (effectId is null)
                 {
-                    created.Add(id);
+                    if (EffectEdits.EnsureEffect(ctx, clipId, effectType) is { } id)
+                    {
+                        created.Add(id);
+                    }
+
+                    Clip clip = EditableClip(ctx, clipId);
+                    target = (clip.Effects.Find(e => e.Type == effectType && e.Enabled) ?? clip.Effects.Find(e => e.Type == effectType))!.Id;
                 }
 
-                Clip clip = EditableClip(ctx, clipId);
-                target = (clip.Effects.Find(e => e.Type == effectType && e.Enabled) ?? clip.Effects.Find(e => e.Type == effectType)!).Id;
+                EffectEdits.SetOption(ctx, clipId, target, option, value);
             }
 
-            EffectEdits.SetOption(ctx, clipId, target, option, value);
             return created;
         });
     }
 
     public static SequenceEditCommand SetBlendMode(string sequenceId, string clipId, string mode) =>
-        SetOption(sequenceId, clipId, BuiltInEffects.Blend, null, BuiltInEffects.BlendOptions.Mode, mode, "Cambiar modo de mezcla");
+        SetBlendMode(sequenceId, [clipId], mode);
+
+    public static SequenceEditCommand SetBlendMode(string sequenceId, IEnumerable<string> clipIds, string mode) =>
+        SetOption(sequenceId, clipIds, BuiltInEffects.Blend, null, BuiltInEffects.BlendOptions.Mode, mode, "Cambiar modo de mezcla");
 
     /// <summary>Pone (o quita, con vacío) la LUT del efecto de color indicado o del primero del clip.</summary>
     public static SequenceEditCommand SetLut(string sequenceId, string clipId, string? effectId, string reference) =>
@@ -73,7 +89,12 @@ public static class EffectCommands
     /// posiciones se escalan del tamaño de referencia al de la secuencia. Los tiempos de la animación son de la línea de
     /// tiempo: a 2× una entrada de 1 s sigue durando 1 s en pantalla.
     /// </summary>
-    public static SequenceEditCommand ApplyEffect(string sequenceId, string clipId, EffectPreset preset, string reference)
+    /// <remarks>
+    /// Con <paramref name="templateValues"/> (efecto de plantilla, D-064) cada efecto copiado los guarda en
+    /// <see cref="BuiltInEffects.CommonOptions.TemplateValues"/>; volver a aplicarlo con otros valores reemplaza lo que puso
+    /// la aplicación anterior (por <c>source</c>), retoques incluidos.
+    /// </remarks>
+    public static SequenceEditCommand ApplyEffect(string sequenceId, string clipId, EffectPreset preset, string reference, string? templateValues = null)
     {
         ArgumentNullException.ThrowIfNull(preset);
         ArgumentException.ThrowIfNullOrEmpty(reference);
@@ -117,6 +138,11 @@ public static class EffectCommands
 
                 List<Keyframe> list = [.. keys.Values];
                 effect.Parameters[curve.Parameter] = new Parameter { Value = list[0].Value, Keyframes = list };
+            }
+
+            if (templateValues is not null)
+            {
+                added.ForEach(e => e.Options[BuiltInEffects.CommonOptions.TemplateValues] = templateValues);
             }
 
             return [.. added.Select(e => e.Id)];

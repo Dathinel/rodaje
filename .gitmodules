@@ -1,0 +1,3 @@
+[submodule "externo/sala"]
+	url = https://github.com/Dathinel/sala.git
+	path = externo/sala

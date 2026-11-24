@@ -9,6 +9,7 @@ namespace Rodaje.Render.Export;
 /// Prioridad con que el planificador de la GPU atiende al dispositivo de la exportación (<c>IDXGIDevice::SetGPUThreadPriority</c>,
 /// de −7 a 7). En «Bajo rendimiento» se baja para que la vista previa, en su propio dispositivo, pase antes.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public static unsafe class ExportGpuPriority
 {
     public const int Lowest = -7;

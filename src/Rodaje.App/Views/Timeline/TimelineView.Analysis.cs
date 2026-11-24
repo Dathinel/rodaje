@@ -38,13 +38,24 @@ internal sealed partial class TimelineView
         {
             (string _, string label, string glyph) = actions[id];
             QuickToolState state = QuickTools.State(id, session.Project, session.Sequence, selection, noiseModule, visionModule);
-            var item = new MenuFlyoutItem { Text = label, Icon = new FontIcon { Glyph = glyph }, IsEnabled = state.Available };
+            // Atenuado pero pulsable, como en la barra de Herramientas: un elemento desactivado no muestra su porqué.
+            var item = new MenuFlyoutItem { Text = label, Icon = new FontIcon { Glyph = glyph }, Opacity = state.Available ? 1 : 0.45 };
             if (!state.Available && state.Reason is { } reason)
             {
                 ToolTipService.SetToolTip(item, reason);
             }
 
-            item.Click += (_, _) => services.Shortcuts.Invoke(id);
+            item.Click += (_, _) =>
+            {
+                if (state.Available)
+                {
+                    services.Shortcuts.Invoke(id);
+                }
+                else
+                {
+                    session.Notify(NotificationSeverity.Informational, label.TrimEnd('…'), state.Reason ?? "");
+                }
+            };
             menu.Items.Add(item);
         }
 

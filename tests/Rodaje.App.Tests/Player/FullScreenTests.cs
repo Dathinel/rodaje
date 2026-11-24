@@ -38,4 +38,18 @@ public class FullScreenTests
         Assert.Equal(2, SecondScreen.Pick([main, side, big], editor));
         Assert.Equal(0, SecondScreen.Pick([main, side], new ScreenRect(2000, 50, 1000, 600)));
     }
+
+    [Fact]
+    public void LaVentanaQueNoCabe_SeRecortaAlAreaDeTrabajoYQuedaDentro()
+    {
+        // 1366×768 con la barra de tareas abajo (40 px), y un segundo monitor a la derecha.
+        var work = new ScreenRect(0, 0, 1366, 728);
+        var side = new ScreenRect(1366, 0, 1920, 1040);
+
+        Assert.Equal(new ScreenRect(0, 0, 1366, 728), new ScreenRect(26, 26, 1440, 900).FitInside(work));
+        Assert.Equal(new ScreenRect(100, 50, 800, 600), new ScreenRect(100, 50, 800, 600).FitInside(work));
+        Assert.Equal(new ScreenRect(566, 128, 800, 600), new ScreenRect(1200, 700, 800, 600).FitInside(work));
+        Assert.Equal(new ScreenRect(1366, 0, 1920, 1040), new ScreenRect(1300, -20, 2560, 1400).FitInside(side));
+        Assert.Equal(new ScreenRect(26, 26, 1440, 900), new ScreenRect(26, 26, 1440, 900).FitInside(default));
+    }
 }

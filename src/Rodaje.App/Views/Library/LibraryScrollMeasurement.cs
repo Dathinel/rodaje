@@ -111,7 +111,7 @@ internal static class LibraryScrollMeasurement
                 continue;
             }
 
-            double top = WinRT.CastExtensions.As<UIElement>(container).TransformToVisual(grid).TransformPoint(default).Y;
+            double top = XamlCast.As<UIElement>(container).TransformToVisual(grid).TransformPoint(default).Y;
             if (top < grid.ActualHeight && top > -120)
             {
                 missing++;

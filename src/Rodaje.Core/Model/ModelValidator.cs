@@ -24,9 +24,34 @@ public static partial class ModelValidator
         foreach (MediaRef media in project.Media)
         {
             checkId(media.Id, "un medio");
-            if (media.Duration <= Time.Zero)
+            if (!media.IsStillImage && media.Duration <= Time.Zero)
             {
                 errors.Add($"El medio «{media.Id}» tiene una duración no positiva.");
+            }
+
+            if (media.IsStillImage && (media.Duration != Time.Zero || !media.HasVideo || media.HasAudio || media.FrameRate is not null))
+            {
+                errors.Add($"La imagen fija «{media.Id}» debe tener duración cero, imagen, sin audio ni tasa de cuadros.");
+            }
+
+            if (media.Timecode is not null && !IsTimecodeText(media.Timecode, media.FrameRate))
+            {
+                errors.Add($"El medio «{media.Id}» tiene un código de tiempo que no se entiende: «{Shorten(media.Timecode)}».");
+            }
+
+            if (media.Reel is { } reel && (reel.Length is 0 or > MaxReelLength || reel.Any(char.IsControl)))
+            {
+                errors.Add($"El medio «{media.Id}» tiene un carrete vacío, de más de {MaxReelLength} caracteres o con caracteres de control.");
+            }
+
+            if (media.ContentKey is not null && !Collab.ContentKey.IsValid(media.ContentKey))
+            {
+                errors.Add($"El medio «{media.Id}» tiene una huella de contenido (contentKey) con un formato que no es «tamaño:SHA-256».");
+            }
+
+            if (media.ContentHash is not null && !Collab.ContentHash.IsValid(media.ContentHash))
+            {
+                errors.Add($"El medio «{media.Id}» tiene un hash de contenido (contentHash) que no es un SHA-256 de 64 dígitos hexadecimales.");
             }
 
             // Una ruta más larga de lo que admite Windows no se rechaza (la v1.0.0 la guardaba): el medio queda sin archivo.
@@ -42,7 +67,10 @@ public static partial class ModelValidator
             ValidateSequence(project, sequence, errors, checkId);
         }
 
-        long text = project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).Sum(c => (long)(c.Generator?.Text.Length ?? 0) + WordsLength(c));
+        ValidateTranscripts(project, errors, checkId);
+
+        long text = project.Sequences.SelectMany(s => s.AllTracks).SelectMany(t => t.Clips).Sum(c => (long)(c.Generator?.Text?.Length ?? 0) + WordsLength(c) + TemplateTextLength(c))
+            + TranscriptsLength(project);
         if (text > MaxProjectTextLength)
         {
             errors.Add($"Los textos del proyecto suman {text} caracteres y el máximo es {MaxProjectTextLength}.");
@@ -96,6 +124,11 @@ public static partial class ModelValidator
         if (sequence.Width <= 0 || sequence.Height <= 0 || sequence.SampleRate <= 0)
         {
             errors.Add($"La secuencia «{sequence.Id}» tiene dimensiones o frecuencia de muestreo no positivas.");
+        }
+
+        if (sequence.StartTimecode is not null && !IsTimecodeText(sequence.StartTimecode, sequence.FrameRate))
+        {
+            errors.Add($"La secuencia «{sequence.Id}» tiene un código de tiempo de inicio que no se entiende: «{Shorten(sequence.StartTimecode)}».");
         }
 
         if (!double.IsFinite(sequence.MasterGainDb) || sequence.MasterGainDb < Sequence.MinMasterGainDb || sequence.MasterGainDb > Sequence.MaxMasterGainDb)
@@ -157,7 +190,7 @@ public static partial class ModelValidator
                 }
                 else
                 {
-                    if (clip.SourceOut > media.Duration)
+                    if (!media.IsStillImage && clip.SourceOut > media.Duration)
                     {
                         errors.Add($"{where} termina en {clip.SourceOut} y el medio solo dura {media.Duration}.");
                     }
@@ -174,7 +207,7 @@ public static partial class ModelValidator
                 }
 
                 // Un generador tiene un origen virtual sin límites: recortar su inicio puede dejar el punto de entrada negativo.
-                if (clip.SourceIn < Time.Zero && clip.Generator is null)
+                if (clip.SourceIn < Time.Zero && clip.Generator is null && media?.IsStillImage != true)
                 {
                     errors.Add($"{where} tiene un punto de entrada negativo.");
                 }
@@ -485,12 +518,16 @@ public static partial class ModelValidator
         }
     }
 
+    /// <summary>Tope de «template.values»: entra en la clave de la caché de transiciones.</summary>
+    public const int MaxTemplateValuesLength = 2 * GeneratorTemplate.MaxDocumentBytes;
+
     /// <summary>Las opciones que el tipo define deben tener un valor aceptado; las demás se conservan sin mirar.</summary>
     private static void ValidateOptions(EffectDefinition definition, Dictionary<string, string> options, string where, List<string> errors)
     {
         foreach ((string name, string value) in options)
         {
-            bool accepted = value is not null && (definition.FindOption(name) is { } option
+            bool accepted = value is not null && (name != BuiltInEffects.CommonOptions.TemplateValues || value.Length <= MaxTemplateValuesLength)
+                && (definition.FindOption(name) is { } option
                 ? option.Accepts(value)
                 : name != BuiltInEffects.CommonOptions.Source || OptionDefinition.IsWellFormedReference(value));
             if (!accepted)

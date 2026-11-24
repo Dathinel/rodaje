@@ -20,7 +20,7 @@ public sealed class TransformMotionTests
 
     public static TheoryData<bool> Devices => new() { false, true };
 
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(Devices))]
     public void Horizontal_motion_blur_is_the_average_of_its_samples(bool warp)
     {
@@ -28,7 +28,7 @@ public sealed class TransformMotionTests
         AssertMatchesReference(warp, samples, Small);
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(Devices))]
     public void Spin_with_changing_opacity_is_the_average_of_its_samples(bool warp)
     {
@@ -36,7 +36,7 @@ public sealed class TransformMotionTests
         AssertMatchesReference(warp, samples, Small);
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(Devices))]
     public void A_skewed_stretched_layer_with_an_anchor_covers_what_the_reference_says(bool warp)
     {
@@ -48,10 +48,10 @@ public sealed class TransformMotionTests
         AssertMatchesReference(warp, [shaped], shaped);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Flipping_mirrors_the_image_around_its_center()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = TransitionTests.Ready(gpu);
         byte[] flipped = Render(compositor, Layers.From(gpu, Bands(false), Bt709, LayerTransform.Identity with
         {
@@ -69,10 +69,10 @@ public sealed class TransformMotionTests
         AssertWithin(turned, both, 1);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Preview_and_export_compose_the_same_blurred_layer()
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         using Compositor compositor = TransitionTests.Ready(gpu);
         LayerFrame Layer() => Layers.From(gpu, Solid(64, 32), Bt709, new LayerLook(Blend: BlendMode.Screen), Small);
         LayerTransform[] samples = [.. Enumerable.Range(0, 12).Select(k => Small with { X = k * 5, RotationDegrees = k })];
@@ -97,7 +97,7 @@ public sealed class TransformMotionTests
 
     private static void AssertMatchesReference(bool warp, LayerTransform[] samples, LayerTransform still)
     {
-        using GpuDevice gpu = warp ? GpuDevice.CreateWarp() : GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create(warp);
         using Compositor compositor = TransitionTests.Ready(gpu);
 
         // El color de la capa lo da la GPU en un píxel cubierto del todo: la referencia mide la cobertura, no la conversión.
@@ -159,7 +159,7 @@ public sealed class TransformMotionTests
     private static YuvImage Solid(int width, int height) =>
         YuvImage.Solid(width, height, false, ReferenceColor.Encode(200, 120, 40, Bt709, false));
 
-    private static LayerFrame Background(GpuDevice gpu) =>
+    private static LayerFrame Background(TestGpu gpu) =>
         Layers.From(gpu, YuvImage.Solid(Width, Height, false, ReferenceColor.Encode(40, 60, 120, Bt709, false)), Bt709, track: 0);
 
     private static YuvImage Bands(bool mirrored)

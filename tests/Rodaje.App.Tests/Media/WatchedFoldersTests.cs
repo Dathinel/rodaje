@@ -62,6 +62,51 @@ public class WatchedFoldersTests
         Assert.Empty(inbox.Pending);
     }
 
+    [Fact]
+    public void LaBandeja_SiLaImportacionFalla_LosVuelveAOfrecer() => UiThread.Run(async () =>
+    {
+        var settings = new AppSettings();
+        var prober = new SwitchableProber();
+        var session = new Rodaje.App.Services.EditorSession(new FakePlayback(), prober, new FakeDialogs());
+        var inbox = new WatchedFolderInbox(session, () => settings);
+        WatchedFile[] files = [new(Path.GetFullPath("camara-a.mp4"), "camara", 1)];
+        inbox.Update(files);
+
+        await Assert.ThrowsAsync<IOException>(inbox.ImportAsync);
+        Assert.Empty(settings.HandledWatchedFiles);
+        inbox.Update(files);
+        Assert.Single(inbox.Pending);
+
+        prober.Down = false;
+        await inbox.ImportAsync();
+        Assert.Single(session.Project.Media);
+        Assert.Single(settings.HandledWatchedFiles);
+        inbox.Update(files);
+        Assert.Empty(inbox.Pending);
+    });
+
+    [Fact]
+    public void SoltarUnaCarpeta_EntraConSusMedios()
+    {
+        using var dir = new TempDirectory();
+        string clip = Write(Path.Combine(dir.Path, "DCIM", "100CANON"), "MVI_0002.MXF", 10);
+        string photo = Write(dir.Path, "a.jpg", 10);
+        Write(dir.Path, "notas.txt", 5);
+        string loose = dir.File("suelto.rodaje");
+
+        Assert.Equal([photo, clip, loose], WatchedFolderScanner.ExpandFolders([dir.Path, loose]));
+    }
+
+    /// <summary>Un disco que se desconecta: mientras <see cref="Down"/>, leer falla; si no, todo es un video.</summary>
+    private sealed class SwitchableProber : Rodaje.App.Services.IMediaProber
+    {
+        private readonly FakeProber _video = new FakeProber().Video("camara-a.mp4");
+
+        public bool Down { get; set; } = true;
+
+        public Rodaje.App.Services.MediaProbeResult Probe(string path) => Down ? throw new IOException("El disco se desconectó.") : _video.Probe(path);
+    }
+
     private static string Write(string folder, string name, int bytes)
     {
         Directory.CreateDirectory(folder);

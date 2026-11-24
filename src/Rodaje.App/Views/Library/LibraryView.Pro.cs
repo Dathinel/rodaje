@@ -54,24 +54,25 @@ internal sealed partial class LibraryView
         {
             int value = stars;
             var item = new RadioMenuFlyoutItem { Text = stars == 0 ? "Sin valorar" : new string('★', stars), GroupName = "valoracion", Tag = value };
-            item.Click += (_, _) => ForTargets(id => _organization.SetRating(id, value));
+            // Valorar, rechazar o quitar puede rehacer la cuadrícula y quitar el ancla del menú: después del clic (tarea 91).
+            item.Click += (_, _) => DispatcherQueue.RunAfterEvent(() => ForTargets(id => _organization.SetRating(id, value)));
             _ratingItem.Items.Add(item);
         }
 
-        _rejectItem.Click += (_, _) =>
+        _rejectItem.Click += (_, _) => DispatcherQueue.RunAfterEvent(() =>
         {
             bool reject = _menuTarget is { } target && _organization.MarkOf(target.Id) != MediaMark.Rejected;
             ForTargets(id => _organization.SetMark(id, reject ? MediaMark.Rejected : MediaMark.None));
-        };
+        });
         _tagsItem.Click += (_, _) => UiTask.Run(EditTagsAsync());
         _subclipItem.Click += (_, _) => UiTask.Run(CreateSubclipAsync());
-        _removeSubclipItem.Click += (_, _) =>
+        _removeSubclipItem.Click += (_, _) => DispatcherQueue.RunAfterEvent(() =>
         {
             if (_menuTarget?.Subclip is { } subclip && _organization.RemoveSubclip(subclip.Id))
             {
                 OrganizationChanged();
             }
-        };
+        });
         _relinkItem.Click += (_, _) => UiTask.Run(RelinkTargetAsync());
         _multicamItem.Click += (_, _) => UiTask.Run(CreateMulticamAsync());
         _mediaMenu.Items.Insert(_mediaMenu.Items.IndexOf(_moveItem), _ratingItem);
@@ -405,7 +406,6 @@ internal sealed partial class LibraryView
             PrimaryButtonText = accept,
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
         return await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary ? box.Text : null;
     }

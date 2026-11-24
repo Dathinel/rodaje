@@ -1,12 +1,14 @@
 using Microsoft.UI.Xaml;
 using Rodaje.App.Services;
 using Rodaje.App.Services.Effects;
+using Rodaje.App.Services.MotionTemplates;
 using Rodaje.App.Services.Packages;
 using Rodaje.App.Services.Titles;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 using Rodaje.Packages;
+using Rodaje.Packages.Content;
 using Windows.ApplicationModel.DataTransfer;
 using Windows.Foundation;
 
@@ -81,8 +83,35 @@ internal sealed partial class TimelineView
                 return;
             }
 
-            bool builtIn = reference == TitleStyles.BuiltInReference;
-            var element = new LibraryElement("Texto", "", "", reference, true, builtIn ? null : PackageOrigin.Installed, ItemKind.TextStyle);
+            // Una plantilla de movimiento de títulos se suelta igual que un estilo (D-064).
+            PackageScan installed = services.Packages.Installed;
+            string droppedOn = session.SequenceId;
+            if (PackageReference.TryParse(reference, out PackageReference? parsed)
+                && installed.Find(parsed.PackageId)?.Manifest.FindItem(parsed.ItemId, ItemKind.MotionTemplate) is not null)
+            {
+                if (await Task.Run(() => MotionTemplateCatalog.Find(installed, reference)) is not { } template || session.SequenceId != droppedOn)
+                {
+                    return;
+                }
+
+                if (template.Kind != TemplateKind.Title)
+                {
+                    session.Notify(NotificationSeverity.Informational, $"«{template.Name}» no se suelta en una pista",
+                        template.Kind == TemplateKind.Transition
+                            ? "Es una plantilla de transición: selecciona un clip pegado a otro y haz doble clic en ella."
+                            : "Es una plantilla de efecto: selecciona un clip de video y haz doble clic en ella.");
+                    return;
+                }
+
+                // La pista bajo el puntero se eligió con la duración de un título; si la plantilla dura más y no cabe, va a la libre más alta.
+                session.AddTemplate(template, TemplateDrops.FitsIn(t.Track, t.At, template.Document.DurationSeconds) ? t.Track!.Id : null, t.At);
+
+                return;
+            }
+
+            BuiltInStyle? builtIn = BuiltInStyles.All.FirstOrDefault(s => s.Reference == reference);
+            var element = new LibraryElement(builtIn?.Name ?? "Texto", "", "", reference, true,
+                builtIn is not null ? null : PackageOrigin.Installed, ItemKind.TextStyle);
             var applier = new ElementApplier(session, new InstalledContentLoader(() => services.Packages.Installed));
             string sequenceId = session.SequenceId;
             if (await applier.LoadTextStyleAsync(element) is { } style && session.SequenceId == sequenceId)

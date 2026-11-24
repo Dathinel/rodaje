@@ -4,9 +4,11 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Operations;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Shared;
 using Rodaje.Export;
 using Rodaje.Media.Video;
@@ -144,7 +146,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         {
             case ExportJobState.Completed:
                 session.Notify(NotificationSeverity.Success, "Exportación terminada",
-                    $"«{entry.Title}» está listo ({ExportText.Duration(entry.Progress.Elapsed)}).",
+                    $"«{entry.Title}» está listo ({ExportText.Duration(entry.Progress.Elapsed)})." + (entry.Job?.MeasuredNote is { } note ? $" {note}." : ""),
                     new NotificationAction("Abrir carpeta", () => OpenFolder(entry)));
                 break;
             case ExportJobState.Failed when entry.Failure is { } failure:
@@ -181,30 +183,44 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
 
     private void OpenFolder(ExportEntry entry)
     {
-        if (!File.Exists(entry.OutputPath))
+        if (!ExportEntry.OutputExists(entry.OutputPath))
         {
             NotWritten(entry);
             return;
         }
 
-        using Process? _ = Process.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{entry.OutputPath}\"") { UseShellExecute = false });
+        using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo("explorer.exe", $"/select,\"{Path.TrimEndingDirectorySeparator(entry.OutputPath)}\"") { UseShellExecute = false });
     }
 
+    // Una secuencia de imágenes es una carpeta: el shell la abre en el Explorador.
     private void Play(ExportEntry entry)
     {
-        if (!File.Exists(entry.OutputPath))
+        if (!ExportEntry.OutputExists(entry.OutputPath))
         {
             NotWritten(entry);
             return;
         }
 
-        using Process? _ = Process.Start(new ProcessStartInfo(entry.OutputPath) { UseShellExecute = true });
+        try
+        {
+            using Process? _ = Rodaje.App.Shell.SystemAccess.Start(new ProcessStartInfo(entry.OutputPath) { UseShellExecute = true });
+        }
+        catch (System.ComponentModel.Win32Exception ex)
+        {
+            _services?.Session.Notify(NotificationSeverity.Warning, "No se pudo abrir", ex.Message);
+        }
     }
 
     private void NotWritten(ExportEntry entry) => _services?.Session.Notify(NotificationSeverity.Warning, "No está el archivo",
         _jobs?.Runner.IsSimulation == true
             ? "Esta exportación fue una simulación: no se escribió ningún archivo."
             : $"«{entry.Title}» ya no está en su carpeta; quizá se movió o se borró.");
+
+    /// <summary>
+    /// La acción de un botón de una tarjeta, después de su clic: quitar o reintentar quita la tarjeta (y su botón) del árbol, y
+    /// hacerlo dentro del propio clic es lo que WinUI no tolera (ver <c>ExportView.QueueRefresh</c>). Si lanza, queda informe y aviso.
+    /// </summary>
+    private void AfterClick(Action action) => DispatcherQueue.RunAfterEvent(action);
 
     private static T Resource<T>(string key) => (T)Application.Current.Resources[key];
 
@@ -217,7 +233,8 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         private readonly TextBlock _title = new() { TextTrimming = TextTrimming.CharacterEllipsis };
         private readonly TextBlock _status = new() { TextWrapping = TextWrapping.Wrap };
         private readonly TextBlock _error = new() { TextWrapping = TextWrapping.Wrap, Visibility = Visibility.Collapsed };
-        private readonly ProgressBar _bar = new() { Maximum = 1, Margin = new Thickness(0, 4, 0, 0) };
+        private readonly Shared.OperationProgressView _progress = new() { ShowCancel = false, Margin = new Thickness(0, 4, 0, 0) };
+        private readonly OperationProgress _operation = new();
         private readonly Button _cancel = new() { Content = "", FontSize = ThemeResources.Size("CaptionFontSize") };
         private readonly StackPanel _actions = new() { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 6, 0, 0) };
         private BgraImage? _shownThumbnail;
@@ -236,7 +253,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
             _error.Foreground = Resource<Brush>("MeterHighBrush");
             _cancel.Style = Resource<Style>("ToolButtonStyle");
             ToolTipService.SetToolTip(_cancel, "Cancelar la exportación");
-            _cancel.Click += (_, _) => owner._jobs?.Cancel(entry);
+            _cancel.Click += (_, _) => owner.AfterClick(() => owner._jobs?.Cancel(entry));
 
             var thumbFrame = new Border
             {
@@ -246,7 +263,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
             var text = new StackPanel { Spacing = 2 };
             text.Children.Add(_title);
             text.Children.Add(_status);
-            text.Children.Add(_bar);
+            text.Children.Add(_progress);
             text.Children.Add(_error);
             text.Children.Add(_actions);
 
@@ -273,13 +290,19 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         {
             ExportProgress progress = _entry.Progress;
             int position = _entry.Job is null ? _owner._jobs?.QueuePosition(_entry) ?? 0 : 0;
-            _status.Text = position > 0
-                ? $"En cola · {position}.º" + (_owner._jobs?.IsPaused == true ? " · la cola está en pausa" : "")
-                : ExportText.Status(progress);
-            _bar.Value = progress.Fraction;
-            _bar.IsIndeterminate = progress.State is ExportJobState.Preparing or ExportJobState.MeasuringLoudness or ExportJobState.MixingAudio
-                or ExportJobState.Finalizing;
-            _bar.Visibility = progress.State.IsFinished() ? Visibility.Collapsed : Visibility.Visible;
+            // En marcha, la vista común dice fase, porcentaje, fps, tiempo restante y «último avance»; el resto, su estado en texto.
+            bool running = position == 0 && progress.State != ExportJobState.Queued && !progress.State.IsFinished();
+            if (running)
+            {
+                Feed(progress);
+            }
+
+            _progress.Operation = running ? _operation : null;
+            _status.Visibility = running ? Visibility.Collapsed : Visibility.Visible;
+            _status.Text = running ? ""
+                : position > 0
+                    ? $"En cola · {position}.º" + (_owner._jobs?.IsPaused == true ? " · la cola está en pausa" : "")
+                    : ExportText.Status(progress) + (progress.State == ExportJobState.Completed && _entry.Job?.MeasuredNote is { } note ? $" · {note}" : "");
             _cancel.Visibility = progress.State.IsFinished() ? Visibility.Collapsed : Visibility.Visible;
             if (_entry.Thumbnail is { } thumbnail && !ReferenceEquals(thumbnail, _shownThumbnail))
             {
@@ -292,6 +315,23 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
                 _shownState = progress.State;
                 _shownPosition = position;
                 ShowActions(progress.State);
+            }
+        }
+
+        private void Feed(ExportProgress progress)
+        {
+            if (progress.State == ExportJobState.Encoding)
+            {
+                if (progress.PassCount > 1)
+                {
+                    _operation.SetPhase(progress.Pass, progress.PassCount, "Exportando");
+                }
+
+                _operation.Report(progress.Fraction, ExportText.Number(progress.FramesPerSecond, 0) + " fps");
+            }
+            else
+            {
+                _operation.Report(null, ExportText.State(progress));
             }
         }
 
@@ -344,7 +384,7 @@ internal sealed partial class ExportJobsView : UserControl, IEditorView
         private void AddAction(string text, Action run)
         {
             var button = new Button { Content = text, Padding = new Thickness(8, 3, 8, 3) };
-            button.Click += (_, _) => run();
+            button.Click += (_, _) => _owner.AfterClick(run);
             _actions.Children.Add(button);
         }
     }

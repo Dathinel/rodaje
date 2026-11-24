@@ -79,14 +79,44 @@ public sealed class Track
 
     public void SortClips() => Clips.Sort((a, b) => a.Start.CompareTo(b.Start));
 
-    public Track Clone()
+    public Track Clone() => Clone(c => c.Clone(), t => t.Clone());
+
+    /// <summary>Como <see cref="Clone()"/>, pero cada clip y cada transición se copian con <paramref name="clip"/> y <paramref name="transition"/>.</summary>
+    internal Track Clone(Converter<Clip, Clip> clip, Converter<TransitionInstance, TransitionInstance> transition)
     {
         Track copy = (Track)MemberwiseClone();
-        copy.Clips = Clips.ConvertAll(c => c.Clone());
+        copy.Clips = Clips.ConvertAll(clip);
         copy.Effects = Effects.ConvertAll(e => e.Clone());
-        copy.Transitions = Transitions.ConvertAll(t => t.Clone());
+        copy.Transitions = Transitions.ConvertAll(transition);
         copy.Sends = Sends.ConvertAll(t => t.Clone());
         return copy;
+    }
+
+    /// <summary>Una copia con todo menos los clips (que quedan vacíos); comparte efectos, envíos y transiciones: es para serializar, no para editar.</summary>
+    internal Track WithoutClips()
+    {
+        Track copy = (Track)MemberwiseClone();
+        copy.Clips = [];
+        return copy;
+    }
+
+    /// <summary>Copia todo el estado de <paramref name="other"/> salvo los clips, que siguen siendo los de esta pista.</summary>
+    internal void CopyHeaderFrom(Track other)
+    {
+        Id = other.Id;
+        Kind = other.Kind;
+        Name = other.Name;
+        Muted = other.Muted;
+        Locked = other.Locked;
+        Hidden = other.Hidden;
+        Role = other.Role;
+        Solo = other.Solo;
+        Armed = other.Armed;
+        Output = other.Output;
+        Sends = other.Sends.ConvertAll(t => t.Clone());
+        Height = other.Height;
+        Effects = other.Effects.ConvertAll(e => e.Clone());
+        Transitions = other.Transitions.ConvertAll(t => t.Clone());
     }
 
     /// <summary>Copia el estado de otra pista sobre esta, conservando la identidad del objeto.</summary>

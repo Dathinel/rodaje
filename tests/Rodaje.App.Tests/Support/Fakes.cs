@@ -97,6 +97,11 @@ internal sealed class FakeDialogs : IEditorDialogs
         return Task.FromResult(SavePath);
     }
 
+    /// <summary>Las rutas elegidas que sí se guardaron (<see cref="IEditorDialogs.ProjectSavedAs"/>), en orden.</summary>
+    public List<string> SavedAs { get; } = [];
+
+    public void ProjectSavedAs(string path) => SavedAs.Add(path);
+
     public Task<IReadOnlyList<string>> PickMediaFilesAsync() => Task.FromResult(MediaFiles);
 
     /// <summary>Lo que contesta <see cref="ConfirmAsync"/>; por defecto no confirma, como quien cierra el diálogo.</summary>

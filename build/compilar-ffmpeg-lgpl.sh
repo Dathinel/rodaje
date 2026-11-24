@@ -1,5 +1,7 @@
 #!/bin/bash
-# Corre dentro de un contenedor docker:cli con el socket de Docker; lo lanza build/compilar-ffmpeg-lgpl.ps1.
+# Windows: dentro de docker:cli, lanzado por compilar-ffmpeg-lgpl.ps1 (interfaz anterior conservada).
+# Linux: directamente en el anfitrión con Docker, mediante compilar-ffmpeg-lgpl-linux.sh.
+# Se puede anteponer win64|linux64 a los argumentos; sin destino sigue siendo win64.
 # Uso: compilar-ffmpeg-lgpl.sh preparar|descargar|compilar <imagen base-win64 con huella> <commit de FFmpeg> <etapas a quitar...>
 #   $W     volumen con nombre montado en la misma ruta que en el demonio, para que los "docker run -v $PWD/..." de
 #          BtbN apunten a carpetas reales
@@ -11,6 +13,8 @@
 # release/9.0 y --extra-version=rodaje en vez de la fecha.
 set -eo pipefail
 
+DESTINO=win64
+case "${1:-}" in win64|linux64) DESTINO="$1"; shift ;; esac
 ACCION="$1"
 IMAGEN="$2"
 FFMPEG_COMMIT="$3"
@@ -18,6 +22,14 @@ shift 3
 QUITAR=("$@")
 
 W=/var/lib/docker/volumes/rodaje-ffmpeg-lgpl/_data
+ENTRADA=/entrada
+SALIDA=/salida
+if [[ "$DESTINO" == linux64 ]]; then
+    # Rutas absolutas del anfitrión: Docker monta los mismos archivos sin docker:cli intermedio.
+    W="${RODAJE_FFMPEG_TRABAJO:?Falta RODAJE_FFMPEG_TRABAJO}"
+    ENTRADA="${RODAJE_FFMPEG_ENTRADA:?Falta RODAJE_FFMPEG_ENTRADA}"
+    SALIDA="${RODAJE_FFMPEG_SALIDA:?Falta RODAJE_FFMPEG_SALIDA}"
+fi
 cd "$W"
 # Los temporales de download.sh y build.sh se montan en otros contenedores: tienen que estar en el volumen.
 export TMPDIR="$W/tmp"
@@ -25,7 +37,7 @@ mkdir -p "$TMPDIR"
 
 preparar() {
     rm -rf btbn.tmp && mkdir btbn.tmp
-    tar -xzf /entrada/FFmpeg-Builds-*.tar.gz -C btbn.tmp --strip-components=1
+    tar -xzf "$ENTRADA"/FFmpeg-Builds-*.tar.gz -C btbn.tmp --strip-components=1
     cd btbn.tmp
     for etapa in "${QUITAR[@]}"; do
         rm -rf scripts.d/??-"$etapa" scripts.d/??-"$etapa".sh
@@ -77,14 +89,18 @@ case "$ACCION" in
             echo "$limites" >"$W/limites-constructor"
         fi
         sed -i "s#^docker run --rm -i \$TTY_ARG#docker run --rm -i --memory ${RODAJE_MEMORIA:-8g} \$TTY_ARG#" build.sh
-        QUICKBUILD=1 ./makeimage.sh win64 lgpl-shared 9.0
-        ./build.sh win64 lgpl-shared 9.0
+        QUICKBUILD=1 ./makeimage.sh "$DESTINO" lgpl-shared 9.0
+        ./build.sh "$DESTINO" lgpl-shared 9.0
         # Fuente: exactamente los tarballs que monta el Dockerfile generado (download.sh baja también los de GPL).
-        rm -rf /salida/fuente.tmp && mkdir -p /salida/fuente.tmp
-        grep -o '\.cache/downloads/[^,]*\.tar\.xz' Dockerfile | sort -u | while read -r f; do cp "$f" /salida/fuente.tmp/; done
-        rm -rf /salida/fuente && mv /salida/fuente.tmp /salida/fuente
-        cp Dockerfile /salida/Dockerfile.generado
-        cp artifacts/*.zip /salida/
+        rm -rf "$SALIDA/fuente.tmp" && mkdir -p "$SALIDA/fuente.tmp"
+        grep -o '\.cache/downloads/[^,]*\.tar\.xz' Dockerfile | sort -u | while read -r f; do cp "$f" "$SALIDA/fuente.tmp/"; done
+        rm -rf "$SALIDA/fuente" && mv "$SALIDA/fuente.tmp" "$SALIDA/fuente"
+        cp Dockerfile "$SALIDA/Dockerfile.generado"
+        if [[ "$DESTINO" == win64 ]]; then
+            cp artifacts/*.zip "$SALIDA/"
+        else
+            cp artifacts/*.tar.xz "$SALIDA/"
+        fi
         ;;
     *) echo "Acción desconocida: $ACCION"; exit 2 ;;
 esac

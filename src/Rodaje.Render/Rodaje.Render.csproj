@@ -1,9 +1,11 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0-windows</TargetFramework>
+    <!-- net10.0 en todos los sistemas (D-066): el contrato IGpu y el motor Vulkan son portátiles; lo que aún llama a D3D11 lleva
+         [SupportedOSPlatform("windows7.0")] por tipo. -->
+    <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Rodaje.Render</RootNamespace>
-    <!-- Composición de capas en Direct3D 11 y presentación en una cadena de intercambio -->
+    <!-- Composición de capas y presentación sobre IGpu (D3D11 en Windows, Vulkan en Linux y macOS) -->
     <IsAotCompatible>true</IsAotCompatible>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
@@ -12,14 +14,25 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Rodaje.Render.Tests" />
+    <InternalsVisibleTo Include="Rodaje.Render.Vulkan.Tests" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Rodaje.Text\Rodaje.Text.csproj" />
     <ProjectReference Include="..\Rodaje.Media\Rodaje.Media.csproj" />
     <ProjectReference Include="..\Rodaje.Playback\Rodaje.Playback.csproj" />
+    <ProjectReference Include="..\Rodaje.Render.Spirv\Rodaje.Render.Spirv.csproj" />
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="..\..\docs\licencias\SkiaSharp-4.156.0-*.txt" Link="%(Filename)%(Extension)"
+          CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="SkiaSharp" Version="4.156.0" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="4.156.0" />
+    <PackageReference Include="TerraFX.Interop.Vulkan" Version="1.4.328.1" />
     <PackageReference Include="TerraFX.Interop.Windows" Version="10.0.26100.6" />
   </ItemGroup>
 

@@ -1,8 +1,9 @@
 # Integración continua de Rodaje.
-# - linux: Core, Packages y Playback, que compilan para net10.0 sin Windows.
+# - linux y macos: los proyectos que compilan para net10.0 sin Windows (build/pruebas-linux.sh).
 # - windows: la solución entera con el entorno propio (.entorno, D-005). Bloquea; sin exclusiones por nombre.
 # Las pruebas largas y de hardware solo corren con RODAJE_PRUEBAS_LARGAS=1, que aquí no se pone: esas,
-# TiempoReal y Rendimiento las corre nocturna.yml.
+# TiempoReal y Rendimiento las corre nocturna.yml en Linux y Windows. Las de TiempoReal de macOS (reloj de CoreAudio)
+# no tienen pasada programada: son manuales (Mac aparcado, docs/mac-y-linux-fase4.md).
 
 name: CI
 
@@ -25,6 +26,7 @@ env:
 
 jobs:
   linux:
+    # El nombre lo exige la protección de main; ya cubre todos los proyectos sin Windows.
     name: Linux (Core, Packages, Playback)
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -32,6 +34,8 @@ jobs:
       NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: ./.github/actions/preparar-linux
 
@@ -42,24 +46,173 @@ jobs:
         run: |
           set -euo pipefail
           dotnet restore Rodaje.slnx --locked-mode -p:EnableWindowsTargeting=true
-          # Los módulos que se publican con AOT, también con -r win-x64: su lockfile y el de lo que referencian no
-          # pueden depender de que se pase el RID. La app, el lanzador y AotSmoke se publican sin -r (lo llevan en el
-          # .csproj), porque como propiedad global llegaría a Rodaje.Core y demás bibliotecas y cambiaría sus lockfiles.
-          for m in Echo Voice Subtitles AudioAi Vision Raw; do
+          # Los módulos que solo son de Windows (RID fijo win-x64; hoy, RAW), también con -r win-x64: su lockfile y el de lo que
+          # referencian no pueden depender de que se pase el RID. La app, el lanzador, AotSmoke, el eco y los módulos con los
+          # tres RID (D-066) se publican sin -r (lo llevan en el .csproj), porque como propiedad global llegaría a
+          # Rodaje.Core y demás bibliotecas y cambiaría sus lockfiles.
+          for m in Raw; do
             dotnet restore "modules/Rodaje.Module.$m/Rodaje.Module.$m.csproj" -r win-x64 --locked-mode -p:EnableWindowsTargeting=true
           done
 
       # SoloWindows: pruebas que dependen de códigos de error de Windows. TiempoReal y Rendimiento miden contra el
       # reloj de pared y en un runner compartido dan falsos fallos.
+      - name: FFmpeg LGPL
+        shell: pwsh
+        run: build/preparar-entorno.ps1 -SoloFFmpeg
+
+      # El corredor no tiene tarjeta de sonido: PulseAudio con dos sumideros nulos a 48 kHz, que avanzan con el reloj del
+      # sistema. Las pruebas de Pulse (Categoria=AudioPulse) los usan para el reloj, el cambio de salida y la captura por
+      # el monitor; sin servidor se omiten.
+      - name: PulseAudio con sumideros nulos
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq pulseaudio pulseaudio-utils
+          pulseaudio -D --exit-idle-time=-1 --system=false
+          for i in $(seq 1 20); do pactl info >/dev/null 2>&1 && break; sleep 0.5; done
+          pactl load-module module-null-sink sink_name=rodaje_a rate=48000 channels=2
+          pactl load-module module-null-sink sink_name=rodaje_b rate=48000 channels=2
+          pactl set-default-sink rodaje_a
+          # Sin suspender los sumideros inactivos: al despertar uno, el servidor tarda hasta 1,1 s en sonar y las pruebas
+          # medirían eso en vez del reloj (con un dispositivo real despierto pasa lo mismo que aquí).
+          pactl unload-module module-suspend-on-idle || true
+          # Un flujo de ceros en cada sumidero, como un dispositivo ya en marcha: un sumidero nulo sin flujos duerme con
+          # latencia larga y tardaba de 1,1 a 1,6 s en atender un flujo nuevo. Los ceros no cambian lo que se mide.
+          for s in rodaje_a rodaje_b; do
+            nohup pacat --playback --device=$s --latency-msec=20 --format=float32le --rate=48000 --channels=2 /dev/zero >/dev/null 2>&1 &
+          done
+          sleep 1
+          pactl info | grep -E 'Server Name|Server Version|Default Sink'
+          pactl list short sinks
+
+      # Vulkan por software (lavapipe de Mesa): el motor Vulkan de IGpu y su comparación con D3D11 (D-066, fase 4). Sin él,
+      # las pruebas de Rodaje.Render.Vulkan.Tests se omiten; aquí se exige que corran.
+      - name: Vulkan por software (lavapipe)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y -qq mesa-vulkan-drivers libvulkan1 vulkan-tools
+          vulkaninfo --summary | grep -E 'deviceName|apiVersion|driverName'
+          echo "RODAJE_VK_EXIGIR=1" >> "$GITHUB_ENV"
+
       - name: Pruebas
         shell: bash
         run: bash build/pruebas-linux.sh 'Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento'
+
+      # El .paquete de modulo-audio-ia para este sistema (formato 2 con «platform»), instalado como lo hace el editor y
+      # arrancado por el protocolo (D-066, fase 7).
+      - name: Paquete de módulo de este sistema
+        shell: pwsh
+        run: |
+          ./build/empaquetar-modulo.ps1 -Modulo modulo-audio-ia -Salida dist/modulos
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:RODAJE_PAQUETE_MODULO = (Get-ChildItem dist/modulos -Filter '*.paquete' | Select-Object -First 1).FullName
+          dotnet test tests/Rodaje.Module.AudioAi.Tests/Rodaje.Module.AudioAi.Tests.csproj --filter 'FullyQualifiedName~PackagedModuleTests' `
+            --logger 'console;verbosity=detailed' --logger 'trx;LogFilePrefix=paquete' --results-directory TestResults
+          exit $LASTEXITCODE
 
       - name: Resultados
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: pruebas-linux
+          path: TestResults/**/*.trx
+          if-no-files-found: ignore
+
+  # La app de Linux (D-066, fase 8): Uno con Native AOT para linux-x64 y su autoprueba bajo Xvfb con lavapipe.
+  linux-app:
+    name: Interfaz Uno en Linux (AOT, Xvfb)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: ./.github/actions/preparar-linux
+
+      - name: Paquetes (Xvfb, lavapipe, fuentes)
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb xdotool imagemagick libfontconfig1 libgl1 libegl1 libx11-6 libxrandr2 libxi6 libxcursor1 \
+            fonts-dejavu-core mesa-vulkan-drivers libvulkan1 ffmpeg
+
+      - name: FFmpeg LGPL
+        shell: pwsh
+        run: build/preparar-entorno.ps1 -SoloFFmpeg
+
+      - name: Publicar y autoprueba
+        shell: bash
+        run: xvfb-run -a -s "-screen 0 1600x900x24" bash build/app-linux.sh --autoprueba
+
+      - name: Resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: app-linux
+          path: |
+            salida-linux/*.log
+            salida-linux/*.txt
+            salida-linux/*.json
+            salida-linux/*.png
+            src/Rodaje.App.Desktop/packages.lock.json
+          if-no-files-found: ignore
+
+  macos:
+    name: macOS (proyectos sin Windows)
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: ./.github/actions/preparar-linux
+
+      - name: FFmpeg LGPL
+        shell: pwsh
+        run: build/preparar-entorno.ps1 -SoloFFmpeg
+
+      # El corredor no tiene tarjeta de sonido: dos dispositivos virtuales de bucle (BlackHole, GPL-3.0, solo en el
+      # corredor; no se enlaza ni se distribuye) para las pruebas de CoreAudio (Categoria=AudioMac): reloj, cambio de
+      # salida y captura de lo que sale. Sin dispositivo se omiten.
+      - name: Dispositivos de audio virtuales
+        shell: bash
+        run: |
+          set -uo pipefail
+          brew install --cask blackhole-2ch blackhole-16ch || echo "No se pudo instalar BlackHole: las pruebas de CoreAudio se omitirán."
+          sudo killall -9 coreaudiod || true
+          sleep 5
+          system_profiler SPAudioDataType | grep -E '^ {8}[^ ]|Output Channels|Input Channels|Default' || true
+
+      - name: Pruebas
+        shell: bash
+        run: bash build/pruebas-linux.sh 'Categoria!=SoloWindows&Categoria!=TiempoReal&Categoria!=Rendimiento'
+
+      # El .paquete de modulo-audio-ia para este sistema (formato 2 con «platform»), instalado como lo hace el editor y
+      # arrancado por el protocolo (D-066, fase 7).
+      - name: Paquete de módulo de este sistema
+        shell: pwsh
+        run: |
+          ./build/empaquetar-modulo.ps1 -Modulo modulo-audio-ia -Salida dist/modulos
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $env:RODAJE_PAQUETE_MODULO = (Get-ChildItem dist/modulos -Filter '*.paquete' | Select-Object -First 1).FullName
+          dotnet test tests/Rodaje.Module.AudioAi.Tests/Rodaje.Module.AudioAi.Tests.csproj --filter 'FullyQualifiedName~PackagedModuleTests' `
+            --logger 'console;verbosity=detailed' --logger 'trx;LogFilePrefix=paquete' --results-directory TestResults
+          exit $LASTEXITCODE
+
+      - name: Resultados
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pruebas-macos
           path: TestResults/**/*.trx
           if-no-files-found: ignore
 
@@ -75,12 +228,66 @@ jobs:
       DOTNET_CLI_FORCE_UTF8_ENCODING: '1'
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: ./.github/actions/preparar-windows
+
+      - name: Shaders SPIR-V al día
+        shell: pwsh
+        run: powershell -NoProfile -ExecutionPolicy Bypass -File build\shaders.ps1 comprobar
+
+      # dathinel-red (Rust, de Sala) para las pruebas de la sala de colaboración: Rodaje.App.Tests lo busca en
+      # externo/sala/red/target/debug. Sin él esas pruebas se omiten, así que aquí se compila siempre.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            externo/sala/red/target
+          key: cargo-windows-${{ hashFiles('externo/sala/red/Cargo.lock', 'externo/sala/rust-toolchain.toml') }}
+
+      - name: dathinel-red (pruebas de colaboración)
+        shell: pwsh
+        working-directory: externo/sala/red
+        run: |
+          cargo build --locked
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Publicar AOT para la autoprueba
+        shell: pwsh
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\probar-autoprueba.ps1
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $reloj = [System.Diagnostics.Stopwatch]::StartNew()
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\app.ps1 -SoloPublicar
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & build\dotnet-local.cmd publish externo\sala\modules\Rodaje.Module.Echo\Rodaje.Module.Echo.csproj -c Release -o externo\sala\modules\Rodaje.Module.Echo\bin\aot -m:4 --nologo
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          "Publicación AOT: $($reloj.Elapsed.TotalSeconds.ToString('F1')) s" >> $env:GITHUB_STEP_SUMMARY
+
+      - name: Autoprueba de arranque (WARP, ventana lista)
+        timeout-minutes: 3
+        shell: pwsh
+        env:
+          RODAJE_FORZAR_WARP: '1'
+          RODAJE_DATOS: ${{ github.workspace }}\TestResults\autoprueba-ci
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File build\app.ps1 -SinPublicar -Autoprueba
+          $codigo = $LASTEXITCODE
+          if ($codigo -ne 0) {
+            # El informe de fallo va al registro del trabajo, no solo al artefacto.
+            Get-ChildItem -LiteralPath "$env:RODAJE_DATOS\fallos" -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
+              "--- $($_.FullName)"
+              Get-Content -LiteralPath $_.FullName -Encoding UTF8
+            }
+          }
+          exit $codigo
 
       # Sin RODAJE_PRUEBAS_LARGAS las largas y las de hardware se omiten solas (tests/Rodaje.TestMedia/Skip.cs);
       # TiempoReal y Rendimiento se excluyen igual que en Linux. Una prueba colgada se corta a los 10 minutos con su nombre
       # en el registro (--blame-hang), en vez de agotar los 45 del trabajo sin decir cuál era.
+      # -m:1: los proyectos de prueba en serie. Con los cuatro vCPU del runner, correr a la vez todos los proyectos dejaba sin hilos a
+      # las pruebas en memoria del protocolo (34 a 43 s por prueba el 20-nov) y repetía la CI entera por pruebas que no fallaban.
       # VSTEST_CONNECTION_TIMEOUT (segundos): dotnet test arranca a la vez un testhost por procesador, y el de
       # Rodaje.App.Tests (el más grande, win-x64) no llegó a conectarse con vstest.console en los 90 s por omisión con los
       # otros tres ya corriendo (13-oct): «Test Run Aborted» sin ejecutar ni una prueba de ese proyecto. No es el
@@ -91,7 +298,7 @@ jobs:
           VSTEST_CONNECTION_TIMEOUT: '300'
         run: |
           $filtro = 'Categoria!=TiempoReal&Categoria!=Rendimiento'
-          & .entorno\dotnet\dotnet.exe test Rodaje.slnx --no-build --filter $filtro --logger trx --results-directory TestResults `
+          & .entorno\dotnet\dotnet.exe test Rodaje.slnx --no-build -m:1 --filter $filtro --logger trx --results-directory TestResults `
             --blame-hang-timeout 10m --blame-hang-dump-type none
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
@@ -100,5 +307,139 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: pruebas-windows
-          path: TestResults/**/*.trx
+          path: |
+            TestResults/**/*.trx
+            TestResults/app-*.log
+            TestResults/app-arranque.txt
+            TestResults/autoprueba-ci/**
+            TestResults/maquetacion/**
+            dist/Rodaje/app/rodaje-error.txt
           if-no-files-found: ignore
+
+  referencias-warp:
+    name: Referencias de efectos (WARP)
+    runs-on: windows-latest
+    timeout-minutes: 30
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}\.entorno\nuget
+      DOTNET_ROOT: ${{ github.workspace }}\.entorno\dotnet
+      DOTNET_CLI_HOME: ${{ github.workspace }}\.entorno
+      DOTNET_MULTILEVEL_LOOKUP: '0'
+      DOTNET_CLI_FORCE_UTF8_ENCODING: '1'
+      DOTNET_PROCESSOR_COUNT: '2'
+      RODAJE_REFERENCIAS_WARP: ${{ github.workspace }}\TestResults\referencias-warp
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/preparar-windows
+      - name: Compilar pruebas Vulkan
+        shell: pwsh
+        run: |
+          & build/dotnet-local.cmd build tests/Rodaje.Render.Vulkan.Tests -m:2
+          exit $LASTEXITCODE
+      - name: Generar referencias WARP
+        shell: pwsh
+        run: |
+          & build/dotnet-local.cmd test tests/Rodaje.Render.Vulkan.Tests --no-build -m:2 --filter FullyQualifiedName~Generate_warp_references --logger 'console;verbosity=detailed'
+          exit $LASTEXITCODE
+      - name: Referencias Direct2D para títulos Skia
+        shell: pwsh
+        run: |
+          & build/dotnet-local.cmd test tests/Rodaje.Render.Tests -m:2 --filter FullyQualifiedName~Generate_warp_references_for_titles
+          exit $LASTEXITCODE
+      - uses: actions/upload-artifact@v4
+        with:
+          name: referencias-warp
+          path: TestResults/referencias-warp
+          if-no-files-found: error
+
+  # Las capas de validación de Khronos (también la de sincronización) sobre lavapipe: el motor Vulkan y el compositor en Vulkan.
+  # Falla si una prueba falla o si las capas dan algún error (VulkanGpu los añade a RODAJE_VK_VALIDACION_INFORME).
+  vulkan-validacion:
+    name: Vulkan con validación (lavapipe)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+      DOTNET_PROCESSOR_COUNT: '2'
+      RODAJE_VK_EXIGIR: '1'
+      RODAJE_VK_VALIDACION: '1'
+      RODAJE_VK_VALIDACION_INFORME: ${{ github.workspace }}/TestResults/validacion-vulkan.txt
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/preparar-linux
+      - name: Instalar lavapipe y las capas de validación
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mesa-vulkan-drivers libvulkan1 vulkan-validationlayers
+          test -n "$(ls /usr/share/vulkan/explicit_layer.d/*khronos_validation*.json)"
+          mkdir -p TestResults
+      # Las subidas de cuadros de CPU (CpuUploadTests) decodifican con el FFmpeg LGPL del entorno.
+      - name: FFmpeg LGPL
+        shell: pwsh
+        run: build/preparar-entorno.ps1 -SoloFFmpeg
+      - name: Motor Vulkan
+        run: dotnet test tests/Rodaje.Render.Vulkan.Tests -m:2 --filter "FullyQualifiedName!~ExportHash" --logger 'console;verbosity=normal'
+      - name: Compositor en Vulkan
+        env:
+          RODAJE_MOTOR: vulkan
+        run: dotnet test tests/Rodaje.Render.Tests -m:2 --logger 'console;verbosity=normal'
+      - name: Sin errores de validación
+        if: always()
+        run: |
+          informe="$RODAJE_VK_VALIDACION_INFORME"
+          if [ -s "$informe" ]; then
+            echo "Errores de validación de Vulkan: $(wc -l < "$informe")"
+            cut -c1-400 "$informe" | sort | uniq -c | sort -rn | head -60
+            exit 1
+          fi
+          echo "Sin errores de validación."
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: validacion-vulkan
+          path: TestResults/validacion-vulkan.txt
+          if-no-files-found: ignore
+
+  vulkan-warp:
+    name: Vulkan frente a WARP (lavapipe)
+    runs-on: ubuntu-24.04
+    needs: referencias-warp
+    timeout-minutes: 30
+    env:
+      NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+      DOTNET_PROCESSOR_COUNT: '2'
+      RODAJE_REFERENCIAS_WARP: ${{ github.workspace }}/TestResults/referencias-warp
+      RODAJE_VK_EXIGIR: '1'
+      RODAJE_VK_INFORME: ${{ github.workspace }}/TestResults/vulkan-warp.json
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: ./.github/actions/preparar-linux
+      - name: Instalar lavapipe
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq mesa-vulkan-drivers libvulkan1
+      # La exportación de ExportHashTests codifica con el FFmpeg LGPL del entorno, como el trabajo de Linux.
+      - name: FFmpeg LGPL
+        shell: pwsh
+        run: build/preparar-entorno.ps1 -SoloFFmpeg
+      - uses: actions/download-artifact@v4
+        with:
+          name: referencias-warp
+          path: TestResults/referencias-warp
+      - name: Comparar con WARP
+        run: dotnet test tests/Rodaje.Render.Vulkan.Tests -m:2 --filter "FullyQualifiedName~Variants|FullyQualifiedName~Composition|FullyQualifiedName~ExportHash" --logger 'console;verbosity=detailed'
+      - name: Títulos Skia frente a Direct2D
+        run: dotnet test tests/Rodaje.Render.Tests -m:2 --filter FullyQualifiedName~SkiaTitleReferenceTests --logger 'console;verbosity=detailed'
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: informe-vulkan-warp
+          path: TestResults/vulkan-warp.json
+          if-no-files-found: error

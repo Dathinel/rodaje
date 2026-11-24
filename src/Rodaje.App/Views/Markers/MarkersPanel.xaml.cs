@@ -9,6 +9,7 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.Shortcuts;
 using Rodaje.App.Shell;
+using Rodaje.App.Views.Inspector;
 using Rodaje.App.Views.Timeline;
 using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
@@ -127,7 +128,12 @@ internal sealed partial class MarkersPanel : UserControl, IEditorView
         _menu.Items.Add(MenuItem("Ir ahí", "", (_, _) => GoTo(_menuTarget)));
         _menu.Items.Add(MenuItem("Editar…", "", (_, _) => UiTask.Run(EditAsync(_menuTarget?.Key))));
         _menu.Items.Add(new MenuFlyoutSeparator());
-        _menu.Items.Add(MenuItem("Quitar", "", (_, _) => Remove(_menuTarget?.Key)));
+        // Quitar rehace la lista y quita la fila que ancla el menú o el botón pulsado: después del clic (tarea 91).
+        _menu.Items.Add(MenuItem("Quitar", "", (_, _) =>
+        {
+            string? key = _menuTarget?.Key;
+            DispatcherQueue.RunAfterEvent(() => Remove(key));
+        }));
         RegisterPropertyChangedCallback(VisibilityProperty, (_, _) =>
         {
             if (_stale && Visibility == Visibility.Visible)
@@ -300,7 +306,6 @@ internal sealed partial class MarkersPanel : UserControl, IEditorView
             PrimaryButtonText = "Guardar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
         if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary)
         {
@@ -375,7 +380,11 @@ internal sealed partial class MarkersPanel : UserControl, IEditorView
 
     private void OnEditClick(object sender, RoutedEventArgs e) => UiTask.Run(EditAsync((sender as FrameworkElement)?.Tag as string));
 
-    private void OnRemoveClick(object sender, RoutedEventArgs e) => Remove((sender as FrameworkElement)?.Tag as string);
+    private void OnRemoveClick(object sender, RoutedEventArgs e)
+    {
+        string? key = (sender as FrameworkElement)?.Tag as string;
+        DispatcherQueue.RunAfterEvent(() => Remove(key));
+    }
 
     private void OnPreviousClick(object sender, RoutedEventArgs e)
     {

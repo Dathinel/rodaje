@@ -29,13 +29,49 @@ public static partial class Edits
     }
 
     /// <summary>
-    /// Mueve los clips (con enlazados y grupos) en el tiempo sin pisar nada. Los empujones seguidos de la misma selección
-    /// se funden en un paso.
+    /// Mueve los clips (con enlazados y grupos; con <paramref name="alone"/>, solo ellos) en el tiempo sin pisar nada. Los
+    /// empujones seguidos de la misma selección se funden en un paso.
     /// </summary>
-    public static SequenceEditCommand MoveClips(string sequenceId, IEnumerable<string> clipIds, Time delta, IIdGenerator? ids = null)
+    public static SequenceEditCommand MoveClips(string sequenceId, IEnumerable<string> clipIds, Time delta, IIdGenerator? ids = null, bool alone = false)
     {
         string[] selection = CopySelection(clipIds);
-        return new("Mover clips", sequenceId, ctx => TimelineEdits.MoveClips(ctx, selection, delta), ids, "nudge:" + string.Join(',', selection));
+        return new("Mover clips", sequenceId, ctx => TimelineEdits.MoveClips(ctx, selection, delta, TrackKind.Video, 0, alone), ids, "nudge:" + string.Join(',', selection));
+    }
+
+    /// <summary>
+    /// Arrastre de una selección: todos <paramref name="delta"/> en el tiempo y los de <paramref name="kind"/>, además,
+    /// <paramref name="trackOffset"/> pistas; si en otra pista no caben todos, solo se mueven en el tiempo. Los pasos
+    /// seguidos de la misma selección se funden.
+    /// </summary>
+    public static SequenceEditCommand MoveClips(string sequenceId, IEnumerable<string> clipIds, Time delta, TrackKind kind, int trackOffset, bool alone = false, IIdGenerator? ids = null)
+    {
+        string[] selection = CopySelection(clipIds);
+        return new("Mover clips", sequenceId, ctx =>
+        {
+            if (trackOffset == 0)
+            {
+                TimelineEdits.MoveClips(ctx, selection, delta, kind, 0, alone);
+                return;
+            }
+
+            SequenceSnapshot before = SequenceSnapshot.Capture(ctx.Sequence);
+            try
+            {
+                TimelineEdits.MoveClips(ctx, selection, delta, kind, trackOffset, alone);
+            }
+            catch (EditException)
+            {
+                before.Restore(ctx.Sequence);
+                TimelineEdits.MoveClips(ctx, selection, delta, kind, 0, alone);
+            }
+        }, ids, "move-clips:" + string.Join(',', selection));
+    }
+
+    /// <summary>Arrastre de una selección que toca la pista principal magnética: el bloque se reordena en ella.</summary>
+    public static SequenceEditCommand MoveClipsOnMainTrack(string sequenceId, IEnumerable<string> clipIds, string mainTrackId, int index, bool alone = false, IIdGenerator? ids = null)
+    {
+        string[] selection = CopySelection(clipIds);
+        return new("Mover clips", sequenceId, ctx => TimelineEdits.MoveClipsOnMainTrack(ctx, selection, mainTrackId, index, alone), ids, "move-clips:" + string.Join(',', selection));
     }
 
     /// <summary>Cambia el alto de una pista; un arrastre del borde queda como un paso.</summary>

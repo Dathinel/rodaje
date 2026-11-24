@@ -25,7 +25,7 @@ internal sealed partial class PlayerEngine
     {
         Volatile.Write(ref _scopeKind, kind is { } k ? (int)k : -1);
         _dirty = true;
-        _wake.Set();
+        Wake();
     }
 
     /// <summary>La imagen de monitor más nueva desde la última vez, o <c>null</c>. Desde cualquier hilo.</summary>
@@ -39,7 +39,7 @@ internal sealed partial class PlayerEngine
     {
         Volatile.Write(ref _showQualifierMask, show ? 1 : 0);
         _dirty = true;
-        _wake.Set();
+        Wake();
     }
 
     private void SubmitScope(Compositor compositor)
@@ -84,7 +84,7 @@ internal sealed partial class PlayerEngine
 
         try
         {
-            _wake.Set();
+            Wake();
         }
         catch (ObjectDisposedException)
         {

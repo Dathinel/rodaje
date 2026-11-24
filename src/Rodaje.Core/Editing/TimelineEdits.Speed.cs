@@ -38,6 +38,22 @@ public static partial class TimelineEdits
         });
     }
 
+    /// <summary>Cambia la velocidad fija en varios clips en un solo paso, del último al primero para que el reajuste de uno no corra a los que faltan.</summary>
+    public static void SetSpeed(EditContext ctx, IEnumerable<string> clipIds, Rational rate, RippleScope scope = RippleScope.Track)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        var targets = clipIds
+            .Select(id => ctx.Sequence.FindClip(id))
+            .OfType<(Track Track, Clip Clip)>()
+            .OrderByDescending(f => f.Clip.Start)
+            .ToList();
+
+        foreach ((Track _, Clip clip) in targets)
+        {
+            SetSpeed(ctx, clip.Id, rate, scope);
+        }
+    }
+
     /// <summary>
     /// Velocidad que cambia a lo largo del clip; <c>null</c> vuelve a 1×. Se conservan
     /// la forma y el material: la duración es la que recorre el tramo del origen con esa forma, y la curva la cubre.
@@ -91,7 +107,7 @@ public static partial class TimelineEdits
         List<(Track Track, Clip Clip)> group = EditableSpeedGroup(ctx, clipId);
         if (group.Exists(m => m.Clip.Speed is { Freeze: true }))
         {
-            throw new EditException("Un cuadro congelado no se puede invertir.");
+            throw new EditException("Un fotograma congelado no se puede invertir.");
         }
 
         foreach ((_, Clip clip) in group)
@@ -140,9 +156,87 @@ public static partial class TimelineEdits
     }
 
     /// <summary>
+    /// Modo de interpolación de cuadros intermedios sobre varios clips y sus enlazados de video en un solo paso.
+    /// Crea velocidad a 1× si no tiene; ignora audio, congelados, fotos, títulos y compuestos.
+    /// </summary>
+    public static void SetFrameSampling(EditContext ctx, IReadOnlyList<string> clipIds, FrameSampling sampling)
+    {
+        ArgumentNullException.ThrowIfNull(ctx);
+        ArgumentNullException.ThrowIfNull(clipIds);
+
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        var toModify = new List<(Track Track, Clip Clip)>();
+
+        foreach (string id in clipIds)
+        {
+            if (ctx.Sequence.FindClip(id) is not { } found)
+            {
+                continue;
+            }
+
+            foreach ((Track track, Clip clip) in ctx.Sequence.GetLinkGroup(found.Clip.Id))
+            {
+                if (!seen.Add(clip.Id))
+                {
+                    continue;
+                }
+
+                if (track.Kind != TrackKind.Video)
+                {
+                    continue;
+                }
+
+                if (clip.IsCompound || clip.Generator is not null)
+                {
+                    continue;
+                }
+
+                if (clip.Speed is { Freeze: true })
+                {
+                    continue;
+                }
+
+                if (ctx.Project.FindMedia(clip.MediaId)?.IsStillImage == true)
+                {
+                    continue;
+                }
+
+                toModify.Add((track, clip));
+            }
+        }
+
+        foreach ((Track track, Clip clip) in toModify)
+        {
+            EditContext.EnsureUnlocked(track);
+
+            if (clip.Speed is null)
+            {
+                if (sampling != FrameSampling.Nearest)
+                {
+                    Time duration = clip.Duration;
+                    clip.Speed = Normalize(new ClipSpeed { FrameSampling = sampling });
+                    clip.Duration = duration;
+                }
+            }
+            else
+            {
+                clip.Speed.FrameSampling = sampling;
+                if (clip.Speed.IsIdentity && sampling == FrameSampling.Nearest)
+                {
+                    clip.Speed.Offset = Time.Zero;
+                }
+
+                clip.Speed = Normalize(clip.Speed);
+            }
+        }
+
+        ctx.EnsureValid();
+    }
+
+    /// <summary>
     /// Alt + arrastrar un borde: el clip pasa a durar <c>D ∓ delta</c> con el mismo material, así que cambia su velocidad
     /// a <c>material / duración</c>, aproximada con un denominador de hasta <see cref="StretchMaxDenominator"/> y acotada
-    /// a 0,1×–100×. El inicio queda, tire del borde que tire; lo que sigue se une o se empuja como en <see cref="SetSpeed"/>.
+    /// a 0,1×–100×. El inicio queda, tire del borde que tire; lo que sigue se une o se empuja como en <see cref="SetSpeed(EditContext, string, Rational, RippleScope)"/>.
     /// En un congelado es un recorte. En una curva se estira la forma: su <see cref="SpeedCurve.Span"/> y el
     /// desplazamiento se escalan por <c>D′/D</c> y cada punto se divide por lo mismo (velocidad media nueva), redondeado
     /// a centésimas y acotado para que ningún punto salga de 0,1×–10×.
@@ -278,7 +372,7 @@ public static partial class TimelineEdits
         ArgumentNullException.ThrowIfNull(ctx);
         Time length = duration ?? DefaultFreezeDuration;
         List<(Track Track, Clip Clip)> group = TrimmingSupport.ResolveGroup(ctx, clipId);
-        TrimmingSupport.EnsureNoGenerator(group, "congelar un cuadro");
+        TrimmingSupport.EnsureNoGenerator(group, "congelar un fotograma");
         (Track track, Clip primary) = group[0];
         if (track.Kind != TrackKind.Video)
         {
@@ -313,7 +407,7 @@ public static partial class TimelineEdits
             Id = ctx.Ids.NewId("clip"),
             MediaId = primary.MediaId,
             Enabled = primary.Enabled,
-            Speed = new ClipSpeed { Freeze = true, FrameSampling = primary.Speed?.FrameSampling ?? FrameSampling.Nearest },
+            Speed = new ClipSpeed { Freeze = true, FrameSampling = FrameSampling.Nearest },
             Effects = primary.Effects.ConvertAll(effect => effect.Clone()),
         };
         MaskEdits.RenewIds(ctx, frozen.Effects, "fx");
@@ -690,7 +784,8 @@ public static partial class TimelineEdits
     }
 
     /// <summary>Una velocidad que equivale a 1× sin desplazamiento vuelve a ser nula, como en el formato 3.</summary>
-    private static ClipSpeed? Normalize(ClipSpeed speed) => speed.IsIdentity && speed.Offset == Time.Zero ? null : speed;
+    private static ClipSpeed? Normalize(ClipSpeed speed) =>
+        speed.IsIdentity && speed.Offset == Time.Zero && speed.FrameSampling == FrameSampling.Nearest ? null : speed;
 
     private static List<(Track Track, Clip Clip)> EditableSpeedGroup(EditContext ctx, string clipId)
     {

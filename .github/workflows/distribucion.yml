@@ -31,7 +31,8 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-
+        with:
+          submodules: recursive
       # Las mismas cachés que ci.yml (desde main se comparten).
       - name: Caché del SDK y FFmpeg
         uses: actions/cache@v4

@@ -42,6 +42,20 @@ public sealed class ProjectFilePathsTests : IDisposable
     }
 
     [Fact]
+    public void Abrir_con_mapeo_de_rutas_busca_los_medios_de_otro_sistema_en_su_sitio()
+    {
+        string material = Path.Combine(_root, "Material común");
+        var project = new Project
+        {
+            Media = [new MediaRef { Id = "a", Path = @"D:\Material\toma ñ.mp4" }, new MediaRef { Id = "b", Path = "/media/otro/b.mp4" }],
+        };
+
+        ProjectFilePaths.MakeAbsolute(project, _root, [new PathMapping(@"D:\Material", material)]);
+
+        Assert.Equal(Path.Combine(material, "toma ñ.mp4"), project.Media[0].Path);
+        Assert.DoesNotContain("Material común", project.Media[1].Path, StringComparison.Ordinal);
+    }
+    [Fact]
     public void Guardar_mover_la_carpeta_y_abrir_encuentra_los_medios_y_los_archivos_sueltos()
     {
         var random = new Random(Seed);

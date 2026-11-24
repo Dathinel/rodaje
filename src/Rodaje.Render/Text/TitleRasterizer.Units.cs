@@ -4,6 +4,7 @@ using Rodaje.Playback.Composition;
 using TerraFX.Interop.DirectX;
 using TerraFX.Interop.Windows;
 using static Rodaje.Render.RenderException;
+using Rect = Rodaje.Render.Text.TitleRect;
 
 namespace Rodaje.Render.Text;
 
@@ -11,6 +12,7 @@ namespace Rodaje.Render.Text;
 /// Títulos por unidades: cada línea, palabra o letra en su celda de un atlas con mipmaps (sombra, borde, relleno y, en
 /// karaoke, relleno resaltado), para que el compositor las mueva una por una sin volver a rasterizar.
 /// </summary>
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed unsafe partial class TitleRasterizer
 {
     /// <summary>Margen entre celdas y alineación, en texeles: el mip 4 (16 texeles) no mezcla celdas vecinas.</summary>

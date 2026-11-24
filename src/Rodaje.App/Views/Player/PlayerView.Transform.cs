@@ -196,9 +196,16 @@ internal sealed partial class PlayerView
                 line.Add(new Point(q.X, q.Y));
             }
 
+            var drawn = new HashSet<(int, int)>();
             foreach (PathKey key in MotionPathView.Handles(transform, width, height))
             {
                 Vector2 at = image.ToPanel(key.Point);
+                // Con cientos de keyframes los puntos se pisan: uno por casilla de 8 px basta (y cada uno es un objeto de composición).
+                if (!drawn.Add(((int)Math.Floor(at.X / 8), (int)Math.Floor(at.Y / 8))))
+                {
+                    continue;
+                }
+
                 keys.Children.Add(new EllipseGeometry { Center = new Point(at.X, at.Y), RadiusX = 4, RadiusY = 4 });
                 foreach (Vector2? handle in new[] { key.In, key.Out })
                 {

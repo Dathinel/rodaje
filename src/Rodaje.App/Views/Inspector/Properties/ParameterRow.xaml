@@ -26,7 +26,7 @@
         <Grid.ColumnDefinitions>
             <ColumnDefinition x:Name="LabelColumn" Width="76" />
             <ColumnDefinition Width="*" />
-            <ColumnDefinition Width="58" />
+            <ColumnDefinition Width="Auto" />
             <ColumnDefinition Width="18" />
             <ColumnDefinition Width="24" />
             <ColumnDefinition Width="24" />
@@ -50,7 +50,7 @@
         <Slider x:Name="ValueSlider" Grid.Column="1" Margin="2,-6,4,-6" VerticalAlignment="Center" MinWidth="0"
                 IsThumbToolTipEnabled="False" ValueChanged="OnSliderValueChanged" />
 
-        <NumberBox x:Name="ValueBox" Grid.Column="2" MinWidth="0" Height="28" MinHeight="28" FontSize="{StaticResource BodyFontSize}"
+        <NumberBox x:Name="ValueBox" Grid.Column="2" MinWidth="58" Height="28" MinHeight="28" FontSize="{StaticResource BodyFontSize}"
                    SpinButtonPlacementMode="Hidden" ValueChanged="OnBoxValueChanged" />
         <TextBlock x:Name="UnitText" Grid.Column="3" Style="{StaticResource CaptionTextStyle}" TextTrimming="None" />
 

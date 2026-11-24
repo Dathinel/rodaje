@@ -229,7 +229,11 @@ internal sealed partial class FiltersPanel
             return;
         }
 
-        _services.Session.Execute(EffectCommands.ApplyFilter(_services.Session.SequenceId, _clipId, tile.Preset, tile.Reference));
+        string sequenceId = _services.Session.SequenceId;
+        if (InspectorTargets.AsOneStep(Targets().ConvertAll(t => EffectCommands.ApplyFilter(sequenceId, t.Clip.Id, tile.Preset, tile.Reference))) is { } step)
+        {
+            _services.Session.Execute(step);
+        }
     }
 
     private void OnSavePresetClick(object sender, RoutedEventArgs e) => UiTask.Run(OnSavePresetClickAsync(sender, e));
@@ -265,7 +269,6 @@ internal sealed partial class FiltersPanel
             PrimaryButtonText = "Guardar",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Primary,
-            RequestedTheme = ElementTheme.Dark,
         };
         if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary || CurrentClip() is not { } current)
         {

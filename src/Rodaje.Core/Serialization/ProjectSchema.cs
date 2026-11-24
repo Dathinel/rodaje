@@ -11,11 +11,11 @@ namespace Rodaje.Core.Serialization;
 /// <summary>Genera el esquema JSON (draft 2020-12) de <c>.rodaje</c> desde los mismos metadatos que usa el lector.</summary>
 /// <remarks>
 /// Describe la forma, no las invariantes (<see cref="ModelValidator"/>). Una prueba verifica que
-/// <c>schema/rodaje-proyecto.v13.schema.json</c> coincide con <see cref="Export"/>.
+/// <c>schema/rodaje-proyecto.v16.schema.json</c> coincide con <see cref="Export"/>.
 /// </remarks>
 public static class ProjectSchema
 {
-    public const string SchemaId = "https://github.com/Dathinel/rodaje/schema/rodaje-proyecto.v13.schema.json";
+    public const string SchemaId = "https://github.com/Dathinel/rodaje/schema/rodaje-proyecto.v16.schema.json";
 
     /// <summary>Esquema como JSON indentado con saltos de línea LF.</summary>
     public static string Export()
@@ -77,6 +77,20 @@ public static class ProjectSchema
             schema = type == typeof(Rational)
                 ? rational
                 : new JsonObject { ["anyOf"] = new JsonArray(rational, new JsonObject { ["type"] = "null" }) };
+        }
+
+        if (type == typeof(StyleLoop) && schema["$ref"] is null)
+        {
+            schema = new JsonObject
+            {
+                ["type"] = new JsonArray("object", "null"),
+                ["properties"] = new JsonObject
+                {
+                    ["kind"] = new JsonObject { ["type"] = "string", ["enum"] = new JsonArray("wobble", "shake", "pulse", "float") },
+                    ["amount"] = new JsonObject { ["type"] = "number", ["minimum"] = StyleLoop.MinAmount, ["maximum"] = StyleLoop.MaxAmount },
+                    ["speed"] = new JsonObject { ["type"] = "number", ["minimum"] = StyleLoop.MinSpeed, ["maximum"] = StyleLoop.MaxSpeed },
+                },
+            };
         }
 
         if (context.Path.IsEmpty && type == typeof(Project))

@@ -7,9 +7,11 @@ using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Modules;
 using Rodaje.App.Services.Titles;
+using Rodaje.App.Services.Transcripts;
 using Rodaje.App.Shell;
 using Rodaje.App.Theme;
 using Rodaje.App.Views.Analysis;
+using Rodaje.Core.Commands;
 using Rodaje.Core.Editing;
 using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
@@ -56,11 +58,15 @@ internal static class AutoSubtitlesDialog
 
         if (clip.Speed is { Freeze: true } || session.Project.FindMedia(clip.MediaId) is not { } media)
         {
-            session.Notify(NotificationSeverity.Informational, Title, "Un cuadro congelado no tiene voz que transcribir.");
+            session.Notify(NotificationSeverity.Informational, Title, "Un fotograma congelado no tiene voz que transcribir.");
             return;
         }
 
-        (Time Start, Time End) window = AutoSubtitles.Window(clip);
+        // Se transcribe el medio entero (D-061): la transcripción se guarda y sirve para todos sus clips. Un medio de más
+        // de tres horas no cabe: se transcribe solo el clip, como antes, sin guardarla.
+        (Time Start, Time End) whole = MediaTranscriber.Window(media);
+        bool wholeMedia = whole.End > whole.Start && whole.End - whole.Start <= ModuleMedia.MaxAudioSpan;
+        (Time Start, Time End) window = wholeMedia ? whole : AutoSubtitles.Window(clip);
         if (window.End <= window.Start || window.End - window.Start > ModuleMedia.MaxAudioSpan)
         {
             session.Notify(NotificationSeverity.Informational, Title, "El clip dura más de tres horas: córtalo y transcribe cada parte.");
@@ -89,7 +95,8 @@ internal static class AutoSubtitlesDialog
         var again = new Button { Content = "Transcribir de nuevo", IsEnabled = false, Margin = new Thickness(0, 4, 0, 4) };
         panel.Children.Add(again);
         var status = new TextBlock { TextWrapping = TextWrapping.Wrap };
-        var progress = new ProgressBar { Maximum = 1, Width = AnalysisUi.PreviewWidth };
+        var progress = new Views.Shared.OperationProgressView { Width = AnalysisUi.PreviewWidth, ShowMessage = false, ShowCancel = false };
+        var activity = new ModuleDialogActivity();
         panel.Children.Add(status);
         panel.Children.Add(progress);
 
@@ -109,13 +116,15 @@ internal static class AutoSubtitlesDialog
         ModuleJob? job = null;
         // La propuesta se descarta al empezar cada transcripción: si la nueva falla o se cancela, no queda la anterior.
         var draft = new TranscriptionDraft();
+        // La transcripción nueva del medio, si esta vez se pidió al módulo: se guarda en el mismo paso que los subtítulos.
+        MediaTranscript? fresh = null;
+        bool fromStored = false;
 
         var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(100) };
         void ShowActivity()
         {
             ModuleActivityView view = ModuleActivity.Describe(job, cancel.IsCancellationRequested, "Transcribiendo");
-            progress.IsIndeterminate = view.IsIndeterminate;
-            progress.Value = view.Progress;
+            progress.Operation = activity.Current(job, cancel.IsCancellationRequested);
             scope?.Report(view.IsIndeterminate ? null : view.Progress, view.IsIndeterminate ? view.Text : "Transcribiendo la voz…");
             status.Text = view.Text;
         }
@@ -134,7 +143,7 @@ internal static class AutoSubtitlesDialog
                 ThemeResources.Color("BeatMarkColor"));
         }
 
-        async Task Transcribe()
+        async Task Transcribe(bool force = false)
         {
             draft.Begin();
             Show(draft.Cues);
@@ -143,20 +152,46 @@ internal static class AutoSubtitlesDialog
             progress.Visibility = Visibility.Visible;
             string wanted = Selected();
             job = null;
+            activity.Restart();
             ShowActivity();
             timer.Start();
             try
             {
-                Transcript transcript = await AutoSubtitles.RunAsync(modules, module, media.Path, window, wanted,
-                    $"Subtítulos de «{media.Name}»", cancel.Token, j => job = j);
-                IReadOnlyList<SpeechSegment> segments = AutoSubtitles.ToSequence(clip, transcript);
+                fresh = null;
+                MediaTranscript? stored = force || !wholeMedia ? null : MediaTranscriber.Reusable(session.Project, media.Id, wanted);
+                fromStored = stored is not null;
+                IReadOnlyList<SpeechSegment> segments;
+                string? found;
+                if (stored is not null)
+                {
+                    segments = AutoSubtitles.ToSequence(clip, stored);
+                    found = stored.Language;
+                }
+                else
+                {
+                    Transcript transcript = await AutoSubtitles.RunAsync(modules, module, media.Path, window, wanted,
+                        $"Subtítulos de «{media.Name}»", cancel.Token, j => job = j);
+                    found = transcript.Language;
+                    if (wholeMedia)
+                    {
+                        string model = AutoSubtitles.Plan(modules, module) is { } plan ? Path.GetFileNameWithoutExtension(AiParameters.WhisperFile(plan.Subtitles.Model)) : "whisper";
+                        fresh = MediaTranscriber.FromTranscript(transcript, media, "transcript-" + Guid.NewGuid().ToString("N"), wanted, model, DateTime.UtcNow);
+                        segments = AutoSubtitles.ToSequence(clip, fresh);
+                    }
+                    else
+                    {
+                        segments = AutoSubtitles.ToSequence(clip, transcript);
+                    }
+                }
+
                 IReadOnlyList<SubtitleCue> cues = AutoSubtitles.Cues(segments, frameRate);
                 draft.Complete(wanted, segments, cues);
                 _language = wanted;
                 Show(cues);
+                string origin = fromStored ? " de la transcripción guardada" : "";
                 status.Text = cues.Count == 0
                     ? "No se oyó voz en el clip."
-                    : string.Create(SpanishNumbers.Format, $"{cues.Count} subtítulos{(transcript.Language is { Length: > 0 } found && wanted == "auto" ? $" (idioma: {found})" : "")}. Revísalos y aplica.");
+                    : string.Create(SpanishNumbers.Format, $"{cues.Count} subtítulos{origin}{(found is { Length: > 0 } && wanted == "auto" ? $" (idioma: {found})" : "")}. Revísalos y aplica.");
             }
             catch (OperationCanceledException)
             {
@@ -185,14 +220,16 @@ internal static class AutoSubtitlesDialog
                     draft.Fail();
                 }
 
-                again.IsEnabled = draft.CanTranscribe(Selected());
-                dialog.IsPrimaryButtonEnabled = true;
+                // Con la transcripción guardada siempre se puede pedir otra pasada de Whisper.
+                again.IsEnabled = draft.CanTranscribe(Selected()) || (fromStored && draft.CanApply);
+                // Activo mientras transcribe (aplica al terminar); después, solo si hay algo que aplicar.
+                dialog.IsPrimaryButtonEnabled = draft.CanApply;
             }
         }
 
         language.SelectionChanged += (_, _) => again.IsEnabled = draft.CanTranscribe(Selected());
         Task current = Task.CompletedTask;
-        again.Click += (_, _) => UiTask.Run(current = Transcribe());
+        again.Click += (_, _) => UiTask.Run(current = Transcribe(force: true));
         list.ItemClick += (_, e) =>
         {
             int index = e.ClickedItem is string label ? labels.IndexOf(label) : -1;
@@ -228,7 +265,9 @@ internal static class AutoSubtitlesDialog
         IReadOnlyList<SubtitleCue> applied = draft.Cues;
         var proposal = new ModuleProposal(AutoSubtitles.Description, sequenceId,
             [.. applied.Select(c => new PreviewMark(PreviewMarkKind.Clip, c.Start, c.End, c.Text))],
-            _ => [AutoSubtitles.Command(sequenceId, chosen, SubtitleStyles.NewSubtitle())]);
+            _ => fresh is { } transcript
+                ? [new SetTranscriptCommand(media.Id, transcript), AutoSubtitles.Command(sequenceId, chosen, SubtitleStyles.NewSubtitle())]
+                : [AutoSubtitles.Command(sequenceId, chosen, SubtitleStyles.NewSubtitle())]);
         if (services.Proposals is { } proposals)
         {
             proposals.Show(proposal);

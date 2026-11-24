@@ -62,7 +62,7 @@ public static class PointTracking
                 : new PointStepper(luma, view, request.Points, request.Threshold);
         }, token))
         {
-            throw new InvalidOperationException("No se pudo leer el cuadro de partida.");
+            throw new InvalidOperationException("No se pudo leer el fotograma de partida.");
         }
 
         report(new PointTrackFrame(Time.FromFrames(first, rate), [.. request.Points.Select(p => new TrackSample(p.Position, 1))], false));

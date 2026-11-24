@@ -90,9 +90,9 @@
                                     <StackPanel Orientation="Horizontal" Spacing="6"><FontIcon Glyph="&#xE892;" FontSize="12" /><TextBlock Text="Atrás" /></StackPanel>
                                 </Button>
                                 <Button Style="{StaticResource ToolButtonStyle}" Width="32" Height="30" Tag="back1" Click="OnRunClick" Content="&#xE76B;" FontSize="12"
-                                        AutomationProperties.Name="Seguir un cuadro hacia atrás" ToolTipService.ToolTip="Seguir un cuadro hacia atrás" />
+                                        AutomationProperties.Name="Seguir un fotograma hacia atrás" ToolTipService.ToolTip="Seguir un fotograma hacia atrás" />
                                 <Button Style="{StaticResource ToolButtonStyle}" Width="32" Height="30" Tag="forward1" Click="OnRunClick" Content="&#xE76C;" FontSize="12"
-                                        AutomationProperties.Name="Seguir un cuadro hacia adelante" ToolTipService.ToolTip="Seguir un cuadro hacia adelante" />
+                                        AutomationProperties.Name="Seguir un fotograma hacia adelante" ToolTipService.ToolTip="Seguir un fotograma hacia adelante" />
                                 <Button Style="{StaticResource AccentButtonStyle}" Height="30" Padding="10,0" Tag="forward" Click="OnRunClick"
                                         AutomationProperties.Name="Seguir hacia adelante" ToolTipService.ToolTip="Seguir hacia adelante hasta el final del clip">
                                     <StackPanel Orientation="Horizontal" Spacing="6"><TextBlock Text="Adelante" /><FontIcon Glyph="&#xE893;" FontSize="12" /></StackPanel>
@@ -110,15 +110,15 @@
                                 </Button>
                             </Grid>
                             <TextBlock x:Name="RunText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None"
-                                       Text="Sigue desde el cuadro del cursor. Para corregir un cuadro, arrastra el punto en el visor y vuelve a seguir desde ahí." />
+                                       Text="Sigue desde el fotograma del cursor. Para corregir un fotograma, arrastra el punto en el visor y vuelve a seguir desde ahí." />
                         </StackPanel>
                     </inspector:InspectorSection>
 
-                    <inspector:InspectorSection x:Name="ConfidenceSection" Key="seguimiento-confianza" Title="Confianza por cuadro">
+                    <inspector:InspectorSection x:Name="ConfidenceSection" Key="seguimiento-confianza" Title="Confianza por fotograma">
                         <StackPanel Padding="12,3,8,6" Spacing="6">
                             <Border BorderBrush="{StaticResource StrokeBrush}" BorderThickness="1" Background="{StaticResource BarBrush}" Height="64">
                                 <Canvas x:Name="Graph" Background="Transparent" PointerPressed="OnGraphPressed" SizeChanged="OnGraphSizeChanged"
-                                        AutomationProperties.Name="Confianza de cada cuadro seguido; clic para ir a ese cuadro" />
+                                        AutomationProperties.Name="Confianza de cada fotograma seguido; clic para ir a ese fotograma" />
                             </Border>
                             <TextBlock x:Name="GraphText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" />
                             <Grid ColumnSpacing="8">
@@ -128,23 +128,23 @@
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
                                 <TextBlock Text="Umbral" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center"
-                                           ToolTipService.ToolTip="Por debajo de esta confianza el cuadro es dudoso (naranja); muy por debajo, perdido (rojo)" />
+                                           ToolTipService.ToolTip="Por debajo de esta confianza el fotograma es dudoso (naranja); muy por debajo, perdido (rojo)" />
                                 <Slider x:Name="ThresholdSlider" Grid.Column="1" Minimum="0.3" Maximum="0.95" StepFrequency="0.01" VerticalAlignment="Center"
                                         ValueChanged="OnThresholdChanged" AutomationProperties.Name="Umbral de confianza" />
                                 <TextBlock x:Name="ThresholdText" Grid.Column="2" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" MinWidth="34" />
                             </Grid>
                             <StackPanel Orientation="Horizontal" Spacing="4">
                                 <Button x:Name="PreviousDoubtButton" Height="28" Padding="8,0" Tag="-1" Click="OnDoubtClick"
-                                        Content="Dudoso anterior" ToolTipService.ToolTip="Ir al cuadro dudoso o perdido anterior" />
+                                        Content="Dudoso anterior" ToolTipService.ToolTip="Ir al fotograma dudoso o perdido anterior" />
                                 <Button x:Name="NextDoubtButton" Height="28" Padding="8,0" Tag="1" Click="OnDoubtClick"
-                                        Content="Dudoso siguiente" ToolTipService.ToolTip="Ir al cuadro dudoso o perdido siguiente" />
+                                        Content="Dudoso siguiente" ToolTipService.ToolTip="Ir al fotograma dudoso o perdido siguiente" />
                             </StackPanel>
                         </StackPanel>
                     </inspector:InspectorSection>
 
                     <inspector:InspectorSection x:Name="RefineSection" Key="seguimiento-refinar" Title="Refinar" CollapsedByDefault="True">
                         <StackPanel Padding="12,3,8,6" Spacing="6">
-                            <Button Height="30" Click="OnFillClick" ToolTipService.ToolTip="Los cuadros dudosos y perdidos toman la recta entre los buenos de los lados">
+                            <Button Height="30" Click="OnFillClick" ToolTipService.ToolTip="Los fotogramas dudosos y perdidos toman la recta entre los buenos de los lados">
                                 <TextBlock Text="Rellenar los dudosos" />
                             </Button>
                             <Grid ColumnSpacing="8">
@@ -153,14 +153,14 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="Auto" />
                                 </Grid.ColumnDefinitions>
-                                <Button Height="30" Click="OnSmoothClick" ToolTipService.ToolTip="Quita el temblor de la trayectoria sin achatar el movimiento parejo; los cuadros corregidos a mano no se mueven">
+                                <Button Height="30" Click="OnSmoothClick" ToolTipService.ToolTip="Quita el temblor de la trayectoria sin achatar el movimiento parejo; los fotogramas corregidos a mano no se mueven">
                                     <TextBlock Text="Suavizar" />
                                 </Button>
                                 <Slider x:Name="SmoothSlider" Grid.Column="1" Minimum="1" Maximum="15" StepFrequency="1" Value="3" VerticalAlignment="Center"
-                                        ValueChanged="OnSmoothValueChanged" AutomationProperties.Name="Cuadros a cada lado" />
+                                        ValueChanged="OnSmoothValueChanged" AutomationProperties.Name="Fotogramas a cada lado" />
                                 <TextBlock x:Name="SmoothText" Grid.Column="2" Style="{StaticResource BodyTextStyle}" VerticalAlignment="Center" Text="±3" MinWidth="28" />
                             </Grid>
-                            <Button Height="30" Click="OnClearFromHereClick" ToolTipService.ToolTip="Borra los cuadros seguidos después del cursor, para volver a seguir desde aquí">
+                            <Button Height="30" Click="OnClearFromHereClick" ToolTipService.ToolTip="Borra los fotogramas seguidos después del cursor, para volver a seguir desde aquí">
                                 <TextBlock Text="Borrar lo seguido después del cursor" />
                             </Button>
                         </StackPanel>
@@ -173,7 +173,7 @@
                             <CheckBox x:Name="AutoCropBox" Content="Recorte automático" IsChecked="True" MinWidth="0"
                                       ToolTipService.ToolTip="Acerca lo justo para que no se vean los bordes al mover la imagen" />
                             <Button Style="{StaticResource AccentButtonStyle}" Height="30" Click="OnApplyClick" HorizontalAlignment="Left"
-                                    ToolTipService.ToolTip="Escribe keyframes normales (editables) en un paso del historial; el cuadro del cursor queda como está">
+                                    ToolTipService.ToolTip="Escribe keyframes normales (editables) en un paso del historial; el fotograma del cursor queda como está">
                                 <TextBlock Text="Aplicar" />
                             </Button>
                             <TextBlock x:Name="ApplyText" Style="{StaticResource CaptionTextStyle}" TextWrapping="Wrap" TextTrimming="None" />

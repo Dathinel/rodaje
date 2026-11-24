@@ -19,7 +19,7 @@ public static class FileDialogFolderPolicy
 
         string? remembered = kind switch
         {
-            SaveDialogKind.Project => settings.LastProjectSaveFolder,
+            SaveDialogKind.Project => Existing(settings.DefaultProjectFolder) ?? settings.LastProjectSaveFolder,
             SaveDialogKind.Export => settings.Export.Folder,
             SaveDialogKind.Still => settings.LastStillExportFolder,
             SaveDialogKind.ExportPreset => settings.LastExportPresetFolder,
@@ -73,7 +73,7 @@ public static class FileDialogFolderPolicy
         Environment.SpecialFolder preferred = kind is SaveDialogKind.Export or SaveDialogKind.Still
             ? Environment.SpecialFolder.MyVideos
             : Environment.SpecialFolder.MyDocuments;
-        string folder = Environment.GetFolderPath(preferred);
+        string folder = AppDataPaths.UserFolder(preferred);
         if (Directory.Exists(folder))
         {
             return folder;

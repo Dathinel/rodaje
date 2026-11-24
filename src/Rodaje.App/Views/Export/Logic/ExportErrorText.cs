@@ -36,14 +36,14 @@ public static class ExportErrorText
     {
         ArgumentNullException.ThrowIfNull(error);
         string culprit = error.Culprit is { Length: > 0 } c ? $" ({CulpritName(c)})" : "";
-        string frame = error.Frame is { } f ? $" en el cuadro {f}" : "";
-        string mediaFrame = error.MediaFrame is { } m ? $"el cuadro {m}" : "un cuadro";
+        string frame = error.Frame is { } f ? $" en el fotograma {f}" : "";
+        string mediaFrame = error.MediaFrame is { } m ? $"el fotograma {m}" : "un fotograma";
         string medium = error.Culprit is { Length: > 0 } named ? $"«{CulpritName(named)}»" : "un medio";
-        string exported = error.Frame is { } e ? $" (cuadro {e} de la exportación)" : "";
+        string exported = error.Frame is { } e ? $" (fotograma {e} de la exportación)" : "";
         (string title, string message, ExportErrorAction action) = error.Code switch
         {
             ExportErrorCode.MediaMissing => ("Falta un medio", $"Un video o audio de la secuencia no se encuentra o no se puede abrir{culprit}. Vuelve a enlazarlo o quítalo y exporta otra vez.", ExportErrorAction.Retry),
-            ExportErrorCode.DecodeFailed => ("No se pudo leer un cuadro", $"No se pudo decodificar {mediaFrame} de {medium}{exported}. Puede estar dañado o usar un formato que este equipo no decodifica: prueba a generar su proxy o a convertirlo, y exporta de nuevo.", ExportErrorAction.Retry),
+            ExportErrorCode.DecodeFailed => ("No se pudo leer un fotograma", $"No se pudo decodificar {mediaFrame} de {medium}{exported}. Puede estar dañado o usar un formato que este equipo no decodifica: prueba a generar su proxy o a convertirlo, y exporta de nuevo.", ExportErrorAction.Retry),
             ExportErrorCode.ContentMissing => ("Falta contenido", $"La secuencia usa una LUT, transición o paquete que no está instalado{culprit}. Puedes instalarlo o exportar sin él.", ExportErrorAction.ContinueWithout),
             ExportErrorCode.EffectFailed => ("Un efecto falló", $"Un efecto no se pudo aplicar{culprit}{frame}. Puedes exportar sin él o quitarlo del clip.", ExportErrorAction.ContinueWithout),
             ExportErrorCode.GpuFailed => ("La tarjeta gráfica se quedó sin memoria", "Cierra otros programas que usen la GPU o elige «Bajo rendimiento» y vuelve a intentarlo.", ExportErrorAction.Retry),
@@ -51,7 +51,8 @@ public static class ExportErrorText
             ExportErrorCode.EncoderRejected => ("El codificador no aceptó los ajustes", "Elige otro codificador (por ejemplo, el de CPU) o vuelve a un preajuste.", ExportErrorAction.ChangeSettings),
             ExportErrorCode.EncoderFailed => ("El codificador se detuvo", "Prueba otra vez; si se repite, elige otro codificador en Avanzado.", ExportErrorAction.Retry),
             ExportErrorCode.DiskFull => ("No hay espacio en el disco", "Libera espacio o guarda en otro disco.", ExportErrorAction.ChooseOutput),
-            ExportErrorCode.OutputNotWritable => ("No se puede escribir ahí", "La carpeta es de solo lectura o el archivo está abierto en otro programa. Ciérralo o elige otra carpeta.", ExportErrorAction.ChooseOutput),
+            // El motivo cambia mucho (carpeta con archivos, exportación cancelada que aún se cierra, temporal sin renombrar): se dice el real.
+            ExportErrorCode.OutputNotWritable => ("No se puede escribir ahí", $"{Reason(error)}Si no se resuelve, elige otra carpeta u otro nombre.", ExportErrorAction.ChooseOutput),
             // El motivo lo da el plan en español («Entrelazado, el alto tiene que ser par…»); sin él solo quedaba la pista.
             ExportErrorCode.InvalidSettings => ("Los ajustes no son válidos", $"{Reason(error)}Revisa el formato en Avanzado o vuelve a un preajuste.", ExportErrorAction.ChangeSettings),
             ExportErrorCode.Canceled => ("Exportación cancelada", "No se guardó ningún archivo.", ExportErrorAction.None),

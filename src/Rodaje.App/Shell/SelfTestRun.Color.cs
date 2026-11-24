@@ -54,7 +54,8 @@ internal static partial class SelfTestRun
         })
         {
             player.Scopes.Kind = kind;
-            for (int i = 0; i < 100 && player.Scopes.ShownKind != kind; i++)
+            // El primer monitor compila sus sombreadores de cómputo: con la máquina cargada pasaba de los 3 s de antes.
+            for (int i = 0; i < 500 && player.Scopes.ShownKind != kind; i++)
             {
                 await Task.Delay(30);
             }
@@ -72,7 +73,7 @@ internal static partial class SelfTestRun
         player.ShowScopes(false, save: false);
 
         await Task.Delay(800);
-        FrameCapture graded = await engine.CaptureFrameAsync().WaitAsync(TimeSpan.FromSeconds(5));
+        FrameCapture graded = await CaptureSettledAsync(engine);
         await CaptureAsync(window, "filtros-pila");
         engine.SetQualifierMaskView(true);
         await Task.Delay(250);

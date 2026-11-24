@@ -24,6 +24,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         Speed,
         Filters,
         Masks,
+        Graph,
         Tracking,
         Dynamics,
         Transition,
@@ -41,9 +42,13 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         }
 
         PropertiesPanel.Attach(services);
+        GraphPanel.Attach(services);
         TransitionPanel.ActiveChanged += (_, _) => OnTransitionActiveChanged();
         TransitionPanel.Attach(services);
         TextPanel.Attach(services);
+        // Con una plantilla de movimiento seleccionada, Texto muestra sus parámetros (D-064).
+        TemplatePanel.ActiveChanged += (_, _) => UpdateVisibility();
+        TemplatePanel.Attach(services);
         services.Session.TextPanelRequested += (_, _) => Show(Tab.Text);
         SpeedPanel.Attach(services);
         services.Session.SpeedPanelRequested += (_, _) => Show(Tab.Speed);
@@ -77,6 +82,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
 
         RadioButton button = tab switch
         {
+            Tab.Graph => GraphTab,
             Tab.Text => TextTab,
             Tab.Speed => SpeedTab,
             Tab.Filters => FiltersTab,
@@ -98,7 +104,7 @@ internal sealed partial class InspectorView : UserControl, IEditorView
     }
 
     private (RadioButton Tab, TextBlock Label)[] Tabs =>
-        [(PropertiesTab, PropertiesLabel), (TextTab, TextLabel), (SpeedTab, SpeedLabel), (FiltersTab, FiltersLabel), (MasksTab, MasksLabel), (TrackingTab, TrackingLabel), (DynamicsTab, DynamicsLabel), (TransitionTab, TransitionLabel)];
+        [(PropertiesTab, PropertiesLabel), (TextTab, TextLabel), (SpeedTab, SpeedLabel), (FiltersTab, FiltersLabel), (MasksTab, MasksLabel), (GraphTab, GraphLabel), (TrackingTab, TrackingLabel), (DynamicsTab, DynamicsLabel), (TransitionTab, TransitionLabel)];
 
     // Se mide con todos los nombres; si no caben, las pestañas pasan a ícono y solo la elegida conserva su nombre.
     private void UpdateTabLabels()
@@ -138,8 +144,16 @@ internal sealed partial class InspectorView : UserControl, IEditorView
         bool properties = PropertiesTab.IsChecked == true;
         bool transition = TransitionTab.IsChecked == true && TransitionPanel.IsActive;
         PropertiesPanel.Visibility = Visible(properties && !TransitionPanel.IsActive);
+        if (GraphPanel is not null)
+        {
+            GraphPanel.Visibility = Visible(GraphTab.IsChecked == true);
+        }
         TransitionPanel.Visibility = Visible(transition);
-        TextPanel.Visibility = Visible(TextTab.IsChecked == true);
+        TextPanel.Visibility = Visible(TextTab.IsChecked == true && TemplatePanel?.IsActive != true);
+        if (TemplatePanel is not null)
+        {
+            TemplatePanel.Visibility = Visible(TextTab.IsChecked == true && TemplatePanel.IsActive);
+        }
         SpeedPanel.Visibility = Visible(SpeedTab.IsChecked == true);
         FiltersPanel.Visibility = Visible(FiltersTab.IsChecked == true);
         MasksPanel.Visibility = Visible(MasksTab.IsChecked == true);

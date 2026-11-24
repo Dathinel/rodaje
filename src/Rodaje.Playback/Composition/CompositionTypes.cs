@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using Rodaje.Core.Effects;
+using Rodaje.Core.Model;
 using Rodaje.Core.Timing;
 
 namespace Rodaje.Playback.Composition;
@@ -8,6 +9,12 @@ namespace Rodaje.Playback.Composition;
 public readonly record struct LayerTransform(double X, double Y, double Scale, double RotationDegrees, double Opacity)
 {
     public static readonly LayerTransform Identity = new(0, 0, 1, 0, 1);
+
+    /// <summary>Blanco PQ o pico HLG en nits; cero elige 100 para PQ y 1000 para HLG.</summary>
+    public double HdrReferenceNits { get; init; }
+
+    /// <summary>«Expandir a HDR» de una capa SDR en una secuencia HDR: el pico en nits (203–1000); 0, sin expandir.</summary>
+    public double HdrExpandNits { get; init; }
 
     /// <summary>Corrección de «Estabilizar» del cuadro, que va antes de esta transformación; nula sin estabilizar.</summary>
     public LayerStabilization? Stabilization { get; init; }
@@ -181,6 +188,12 @@ public sealed class LayerFrame : IDisposable
 
     public DecodedFrame Frame { get; }
 
+    public DecodedFrame? Next { get; init; }
+
+    public float Fraction { get; init; }
+
+    public FrameSampling Sampling { get; init; }
+
     public LayerTransform Transform { get; }
 
     /// <summary>Forma del píxel del origen (ancho / alto); 1:1 si los píxeles son cuadrados.</summary>
@@ -228,6 +241,7 @@ public sealed class LayerFrame : IDisposable
     public void Dispose()
     {
         Frame.Dispose();
+        Next?.Dispose();
         if (Nested is { } nested)
         {
             foreach (LayerFrame layer in nested)

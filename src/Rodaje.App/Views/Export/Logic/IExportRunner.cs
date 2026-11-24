@@ -43,6 +43,9 @@ public interface IExportJob : IDisposable
     /// <summary>Termina (sin excepción) cuando el trabajo llega a un estado final.</summary>
     Task Completion { get; }
 
+    /// <summary>Lo medido en la exportación que vale la pena decir al terminar (MaxCLL/MaxFALL); <c>null</c> si nada.</summary>
+    string? MeasuredNote => null;
+
     /// <summary>Pide cancelar; el trabajo borra el temporal y pasa a <see cref="ExportJobState.Canceled"/>.</summary>
     void Cancel();
 }

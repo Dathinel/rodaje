@@ -13,6 +13,7 @@ public class CrashEndSessionTwiceTests
     private const string GaveUpWaiting = "Cierre de la sesión sin esperar";
 
     [Fact]
+    [Trait("Categoria", "TiempoReal")]
     public async Task EndSession_LaSegundaVez_NoEsperaElCerrojoNiAnotaNada()
     {
         using var dir = new TempDirectory();

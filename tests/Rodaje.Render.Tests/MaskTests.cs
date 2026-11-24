@@ -59,7 +59,7 @@ public sealed class MaskTests
         new(new Vector2(0.45f, -0.3f), new Vector2(-0.2f, 0.4f), Vector2.Zero, 3),
     ];
 
-    [GpuTheory]
+    [EngineTheory]
     [MemberData(nameof(Shapes))]
     public void Each_shape_matches_the_reference(int shape, double x, double y, double width, double height, double rotation,
         double feather, double opacity, bool invert)
@@ -77,7 +77,7 @@ public sealed class MaskTests
         AssertMasked([Mask(spec, text)], null, (px, py) => MaskGeometry.Factor(spec, px, py, Width, Height, polyline));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(0.5, 0)]
     [InlineData(1, 0.04)]
     [InlineData(0.3, -0.03)]
@@ -87,7 +87,7 @@ public sealed class MaskTests
         AssertMasked([Mask(spec)], null, (px, py) => MaskGeometry.Factor(spec, px, py, Width, Height));
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(MaskMode.Add)]
     [InlineData(MaskMode.Subtract)]
     [InlineData(MaskMode.Intersect)]
@@ -105,7 +105,7 @@ public sealed class MaskTests
         ]));
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Two_format_6_masks_still_multiply()
     {
         var a = new MaskSpec(MaskShape.Rectangle, 0.4, 0.5, 0.6, 0.8, 0, 0.1, 1, false);
@@ -114,7 +114,7 @@ public sealed class MaskTests
             (px, py) => MaskGeometry.Factor(a, px, py, Width, Height) * MaskGeometry.Factor(b, px, py, Width, Height));
     }
 
-    [GpuFact]
+    [EngineFact]
     public void An_animated_shape_is_drawn_at_its_time()
     {
         MaskVertex[] small = MaskPath.Rectangle();
@@ -126,7 +126,7 @@ public sealed class MaskTests
         AssertMasked([Mask(spec, keys, seconds: 2)], null, (px, py) => MaskGeometry.Factor(spec, px, py, Width, Height, polyline));
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_mask_on_the_color_effect_grades_only_inside_it()
     {
         var spec = new MaskSpec(MaskShape.Ellipse, 0.5, 0.5, 0.6, 0.7, 0, 0.08, 1, false) { Mode = MaskMode.Add };
@@ -135,7 +135,7 @@ public sealed class MaskTests
         YuvCode code = ReferenceColor.Encode(150, 90, 60, Bt709, false);
         C3 original = C3.From(ReferenceColor.Decode(code, Bt709, false));
         C3 graded = EffectReference.Grade(original, 0.6, 0, -0.5, 0, 0, 0, 0);
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(Width, Height, false, code), Bt709, new LayerLook([color, mask]));
         RgbaImage image = EffectFidelityTests.Compose(gpu, Width, Height, out CompositeResult result, null, layer);
         Assert.Equal(0, result.EffectsSkipped);
@@ -149,7 +149,7 @@ public sealed class MaskTests
         }
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_masked_blur_softens_only_inside_and_a_dangling_mask_does_nothing()
     {
         // Mitad izquierda oscura y derecha clara: el borde vertical en x = 128 se desenfoca solo dentro de la elipse de arriba.
@@ -157,7 +157,7 @@ public sealed class MaskTests
         YuvCode light = ReferenceColor.Encode(220, 220, 220, Bt709, false);
         YuvImage halves = YuvImage.Solid(Width, Height, false, dark).Fill(Width / 2, 0, Width / 2, Height, light);
         var spec = new MaskSpec(MaskShape.Ellipse, 0.5, 0.25, 0.5, 0.4, 0, 0, 1, false) { Mode = MaskMode.Add };
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerFrame layer = Layers.From(gpu, halves, Bt709, new LayerLook([Fx.Blur(24), Mask(spec, target: 0), Mask(spec with { X = 0.1 }, target: MaskGeometry.NoTarget - 1)]));
         RgbaImage image = EffectFidelityTests.Compose(gpu, Width, Height, out CompositeResult result, null, layer);
         Assert.Equal(0, result.EffectsSkipped);
@@ -170,7 +170,7 @@ public sealed class MaskTests
         Assert.InRange(image.At(4, 4).R, 30, 50);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void Pixelate_averages_each_block_and_a_mask_limits_it()
     {
         // Rayas verticales de 2 px: cada bloque de 16 px promedia la mitad clara y la mitad oscura.
@@ -184,7 +184,7 @@ public sealed class MaskTests
 
         var spec = new MaskSpec(MaskShape.Rectangle, 0.25, 0.5, 0.5, 1, 0, 0, 1, false) { Mode = MaskMode.Add };
         LayerEffect pixelate = Fx.Make(BuiltInEffects.Pixelate, null, (BuiltInEffects.PixelateParameters.Size, 16));
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerFrame layer = Layers.From(gpu, stripes, Bt709, new LayerLook([pixelate, Mask(spec, target: 0)]));
         RgbaImage image = EffectFidelityTests.Compose(gpu, Width, Height, out CompositeResult result, null, layer);
         Assert.Equal(0, result.EffectsSkipped);
@@ -201,7 +201,7 @@ public sealed class MaskTests
         Assert.True(Math.Abs(image.At(200, 60).R - image.At(202, 60).R) > 100);
     }
 
-    [GpuTheory]
+    [EngineTheory]
     [InlineData(MaskViewMode.Matte)]
     [InlineData(MaskViewMode.Overlay)]
     public void The_mask_view_shows_the_matte_or_tints_what_it_hides(MaskViewMode mode)
@@ -209,9 +209,10 @@ public sealed class MaskTests
         var spec = new MaskSpec(MaskShape.Ellipse, 0.5, 0.5, 0.5, 0.7, 0, 0.1, 1, false) { Mode = MaskMode.Add };
         YuvCode code = ReferenceColor.Encode(60, 140, 200, Bt709, false);
         C3 color = C3.From(ReferenceColor.Decode(code, Bt709, false));
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(Width, Height, false, code), Bt709, new LayerLook([Mask(spec)]));
-        using var compositor = new Compositor(gpu, Width, Height) { MaskView = new MaskPreview("clip-0", 0, mode) };
+        using var compositor = gpu.NewCompositor(Width, Height);
+        compositor.MaskView = new MaskPreview("clip-0", 0, mode);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         using CompositionFrame frame = Layers.Frame(Width, Height, layer);
         compositor.Render(frame);
@@ -234,7 +235,7 @@ public sealed class MaskTests
         strict.AssertColor(3, 3, new C3(0, 0, 0).To255(), 3);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void The_preview_and_the_export_draw_the_same_masks()
     {
         // Bézier con borde variable que suma, elipse que resta y una zona desenfocada: vista previa y exportación iguales.
@@ -244,10 +245,10 @@ public sealed class MaskTests
         var blob = new MaskSpec(MaskShape.Bezier, 0.5, 0.5, 0.8, 0.9, 10, 0.05, 1, false) { Mode = MaskMode.Add };
         var hole = new MaskSpec(MaskShape.Ellipse, 0.6, 0.5, 0.2, 0.3, 0, 0.03, 1, false) { Mode = MaskMode.Subtract };
         var zone = new MaskSpec(MaskShape.Ellipse, 0.5, 0.3, 0.3, 0.4, 0, 0.05, 1, false) { Mode = MaskMode.Add };
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         LayerFrame Layer() => Layers.From(gpu, halves, Bt709, new LayerLook(
             [Fx.Blur(12), Mask(blob, MaskPath.Format(Blob)), Mask(hole), Mask(zone, target: 0)]));
-        using var compositor = new Compositor(gpu, Width, Height);
+        using var compositor = gpu.NewCompositor(Width, Height);
         Assert.True(compositor.ShadersReady.Wait(TimeSpan.FromSeconds(60)));
         using CompositionFrame frame = Layers.Frame(Width, Height, Layer());
         compositor.Render(frame);
@@ -256,7 +257,7 @@ public sealed class MaskTests
         Assert.Equal(preview, compositor.ReadbackRgba());
     }
 
-    [GpuFact]
+    [EngineFact]
     public void An_image_mask_samples_the_gray_frame_at_its_time()
     {
         // Rampa horizontal de 64×32: el render la estira a la imagen con filtro bilineal.
@@ -282,7 +283,7 @@ public sealed class MaskTests
         Assert.Equal(0, result.MissingContent);
     }
 
-    [GpuFact]
+    [EngineFact]
     public void A_missing_image_mask_is_counted_and_the_layer_is_drawn_whole()
     {
         var spec = new MaskSpec(MaskShape.Image, 0.5, 0.5, 1, 1, 0, 0, 1, false);
@@ -293,7 +294,7 @@ public sealed class MaskTests
     /// <summary>Capa gris clara con las máscaras sobre negro: cada píxel es el color por el factor de la referencia.</summary>
     private static CompositeResult AssertMasked(IReadOnlyList<LayerEffect> masks, IEffectResources? resources, Func<double, double, double> factor)
     {
-        using GpuDevice gpu = GpuDevice.Create();
+        using TestGpu gpu = TestGpu.Create();
         YuvCode light = ReferenceColor.Encode(220, 210, 200, Bt709, false);
         C3 color = C3.From(ReferenceColor.Decode(light, Bt709, false));
         LayerFrame layer = Layers.From(gpu, YuvImage.Solid(Width, Height, false, light), Bt709, new LayerLook(masks));

@@ -174,9 +174,17 @@ public static class ExportOutputGuard
         string name = Path.GetFileName(path);
         if (directory is not null && Directory.Exists(directory))
         {
-            foreach (string sibling in Directory.EnumerateFiles(directory, name + "-*"))
+            // Una carpeta que no se puede listar (permisos) no debe tumbar el hilo de la exportación: queda algo sin borrar.
+            try
             {
-                left |= !TryDelete(sibling);
+                foreach (string sibling in Directory.EnumerateFiles(directory, name + "-*"))
+                {
+                    left |= !TryDelete(sibling);
+                }
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                left = true;
             }
         }
 

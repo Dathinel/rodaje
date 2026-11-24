@@ -5,13 +5,17 @@ using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Rodaje.App.Services;
+using Rodaje.App.Services.Collab;
 using Rodaje.App.Services.Crashes;
+using Rodaje.App.Services.Format;
 using Rodaje.App.Services.Inspector;
+using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Settings;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Inspector;
 using Rodaje.Core.Timing;
 using Rodaje.Export;
+using Rodaje.Export.Running;
 using Rodaje.Media.Export;
 
 namespace Rodaje.App.Views.Export;
@@ -32,7 +36,7 @@ internal sealed partial class ExportView : UserControl
     ];
 
     private static readonly (string Label, ExportFit Value)[] FitChoices =
-        [("Barras (la imagen entera)", ExportFit.Bars), ("Recortar (llena el cuadro)", ExportFit.Crop), ("Estirar (deforma)", ExportFit.Stretch)];
+        [("Barras (la imagen entera)", ExportFit.Bars), ("Recortar (llena el fotograma)", ExportFit.Crop), ("Estirar (deforma)", ExportFit.Stretch)];
 
     private readonly EditorServices _services;
     private readonly ExportJobList _jobs;
@@ -47,6 +51,7 @@ internal sealed partial class ExportView : UserControl
     private IReadOnlyList<RateChoice> _rates = [];
     private IReadOnlyList<SizeChoice> _sizes = [];
     private IReadOnlyList<int> _bitDepths = [];
+    private IReadOnlyList<ChromaSubsampling> _chromas = [];
     private IReadOnlyList<string?> _profiles = [];
     private IReadOnlyList<string?> _speedPresets = [];
     private IReadOnlyList<ExportCodec> _audioCodecs = [];
@@ -61,6 +66,11 @@ internal sealed partial class ExportView : UserControl
         _jobs = jobs;
         _hwnd = hwnd;
         InitializeComponent();
+        // El formato de WinRT sigue el idioma de Windows: en es-CO rechazaba «1.5» y leía «1.000» como mil.
+        RateValueBox.NumberFormatter = new TypedNumberFormatter(2);
+        RateMaxBox.NumberFormatter = new TypedNumberFormatter(2);
+        KeyframeBox.NumberFormatter = new TypedNumberFormatter(1);
+        AudioRateBox.NumberFormatter = new TypedNumberFormatter(0);
         PerformanceFastTitle.Text = ExportText.Performance(ExportPerformance.Fastest);
         PerformanceFastDetail.Text = ExportText.PerformanceDetail(ExportPerformance.Fastest);
         PerformanceLowTitle.Text = ExportText.Performance(ExportPerformance.Background);
@@ -120,11 +130,24 @@ internal sealed partial class ExportView : UserControl
     {
         EditorSession session = _services.Session;
         ExportButton.IsEnabled = false;
+        ProjectsButton.IsEnabled = false;
+        VersionsButton.IsEnabled = false;
+        HostExportButton.IsEnabled = false;
         FooterNote.Text = "Comprobando los codificadores de este equipo…";
         IReadOnlyList<EncoderSpec> encoders = await _jobs.Runner.GetEncodersAsync();
         string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
+        IReadOnlyList<string> proxyOnly = [.. session.Project.Media
+            .Where(m => m.Path.Length > 0 && RoomProxies.IsRoomProxyPath(m.ResolvePath(projectFolder ?? Directory.GetCurrentDirectory())))
+            .Select(m => m.Name is { Length: > 0 } name ? name : Path.GetFileNameWithoutExtension(m.Path))];
+        RoomState room = _services.Collab?.Room.State ?? RoomState.Closed;
         _model = new ExportDialogModel(_services.Settings.Current.Export, session.Sequence, session.SelectedClipIds, encoders, session.ProjectName,
-            projectFolder);
+            projectFolder, new SequenceMarks(session.SequenceIn, session.SequenceOut), proxyOnly)
+        {
+            PendingOutputs = [.. _jobs.Entries.Where(e => !e.IsFinished).Select(e => e.OutputPath)],
+            RoomGuest = room is { IsHost: false, InRoom: true },
+            CanAskHostExport = room is { IsHost: false } && room.CanEdit,
+            MissingOriginals = room is { IsHost: false, InRoom: true } && MediaPlaceholders.MissingOriginals(session.Project),
+        };
         _model.Changed += (_, _) => QueueRefresh();
         ShowAdvanced(_services.Settings.Current.Export.AdvancedOpen);
         Refresh();
@@ -189,15 +212,16 @@ internal sealed partial class ExportView : UserControl
     private void RefreshPresets(ExportDialogModel model)
     {
         var cards = model.Presets
-            .Select(p => (Id: p.Id, Name: p.Name, Description: p.Origin == ExportPresetOrigin.User ? "Propio · " + p.Description : p.Description))
-            .Append((Id: ExportPresetLibrary.CustomId, Name: "Personalizado", Description: "Lo que elijas en Avanzado."))
+            .Select(p => (Id: p.Id, Name: p.Name, Description: p.Origin == ExportPresetOrigin.User ? "Propio · " + p.Description : p.Description,
+                Size: model.PresetSizeLabel(p)))
+            .Append((Id: ExportPresetLibrary.CustomId, Name: "Personalizado", Description: "Lo que elijas en Avanzado.", Size: ""))
             .ToList();
         if (ComboChoices.NeedsRebuild(PresetCards.Children.Select(c => (c as Button)?.Tag as string ?? ""), cards.Select(c => c.Id)))
         {
             PresetCards.Children.Clear();
-            foreach ((string id, string name, string description) in cards)
+            foreach ((string id, string name, string description, string size) in cards)
             {
-                PresetCards.Children.Add(PresetCard(id, name, description));
+                PresetCards.Children.Add(PresetCard(id, name, description, size));
             }
         }
 
@@ -214,14 +238,21 @@ internal sealed partial class ExportView : UserControl
         ExportPresetButton.IsEnabled = model.PresetId != ExportPresetLibrary.CustomId;
     }
 
-    private Button PresetCard(string id, string name, string description)
+    // El tamaño real depende solo de la secuencia: la tarjeta no cambia de texto al elegirla.
+    private Button PresetCard(string id, string name, string description, string size)
     {
-        var text = new StackPanel { Spacing = 4 };
+        var text = new StackPanel { Spacing = 2 };
         text.Children.Add(new TextBlock { Text = name, Style = (Style)Application.Current.Resources["PanelTitleTextStyle"], TextTrimming = TextTrimming.CharacterEllipsis });
+        if (size.Length > 0)
+        {
+            text.Children.Add(new TextBlock { Text = size, Style = (Style)Application.Current.Resources["CaptionTextStyle"], TextTrimming = TextTrimming.CharacterEllipsis });
+            description = $"{size}. {description}";
+        }
+
         text.Children.Add(new TextBlock
         {
             Text = description, Style = (Style)Application.Current.Resources["CaptionTextStyle"], TextWrapping = TextWrapping.Wrap,
-            TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = 2,
+            TextTrimming = TextTrimming.CharacterEllipsis, MaxLines = size.Length > 0 ? 1 : 2,
         });
         var card = new Button
         {
@@ -247,11 +278,24 @@ internal sealed partial class ExportView : UserControl
         Fill(RangeBox, model.Ranges.Select(r => r.Label), model.RangeIndex);
         SummaryText.Text = Summary(model);
 
+        if (model.StandardSuggestion is var (w, h))
+        {
+            (int ow, int oh) = model.OutputSize;
+            StandardSizeText.Text = $"{ow}×{oh} no es un tamaño estándar: algunas plataformas lo reescalan.";
+            StandardSizeButton.Content = $"Usar {w}×{h}";
+            StandardSizePanel.Visibility = Visibility.Visible;
+        }
+        else
+        {
+            StandardSizePanel.Visibility = Visibility.Collapsed;
+        }
+
         string? presetNote = model.PresetShapeNote;
         PresetShapeText.Text = presetNote ?? "";
         PresetShapePanel.Visibility = presetNote is null ? Visibility.Collapsed : Visibility.Visible;
         ProjectFormatText.Text = $"Formato del proyecto: {ExportGeometry.AspectName(model.SequenceWidth, model.SequenceHeight)} · "
-            + $"{model.SequenceWidth}×{model.SequenceHeight} · {ExportText.Number(model.SequenceFrameRate.ToDouble(), 3)} fps";
+            + $"{model.SequenceWidth}×{model.SequenceHeight} · {ExportText.Number(model.SequenceFrameRate.ToDouble(), 3)} fps"
+            + (model.HdrNote is { } hdr ? $" · {ProjectFormats.ColorSpaceName(model.SequenceColorSpace)}. {hdr}" : "");
     }
 
     private void RefreshVideo(ExportDialogModel model)
@@ -263,6 +307,7 @@ internal sealed partial class ExportView : UserControl
         FastStartBox.IsEnabled = s.Container is ExportContainer.Mp4 or ExportContainer.Mov or ExportContainer.M4a;
         ChaptersBox.IsChecked = s.ChaptersFromMarkers;
         ChaptersBox.IsEnabled = s.Container is ExportContainer.Mp4 or ExportContainer.Mov or ExportContainer.Mkv;
+        RenderCacheBox.IsChecked = s.UseRenderCache;
         Visibility subtitles = model.HasSubtitles ? Visibility.Visible : Visibility.Collapsed;
         SubtitlesLabel.Visibility = SubtitlesBox.Visibility = subtitles;
         Fill(SubtitlesBox, SubtitleModes.Select(m => m.Name), model.AllowsSoftSubtitles ? IndexOf(SubtitleModes, m => m.Mode == s.Subtitles) : 0);
@@ -287,23 +332,17 @@ internal sealed partial class ExportView : UserControl
         Fill(RateBox, _rates.Select(ExportChoices.RateChoiceName), Index(_rates, rate));
         ShowRateValues(video.RateControl, rate, encoder);
 
-        _sizes = ExportGeometry.Sizes(model.SequenceWidth, model.SequenceHeight);
-        int sizeIndex = IndexOf(_sizes, z => z.Width == video.Width && z.Height == video.Height);
-        if (sizeIndex < 0)
-        {
-            (int w, int h) = model.OutputSize;
-            _sizes = [.. _sizes, new SizeChoice($"{w}×{h} (del preajuste)", video.Width, video.Height)];
-            sizeIndex = _sizes.Count - 1;
-        }
-
-        Fill(SizeBox, _sizes.Select(z => z.Label), sizeIndex);
+        _sizes = model.SizeChoices;
+        Fill(SizeBox, _sizes.Select(z => z.Label), IndexOf(_sizes, z => z.Width == video.Width && z.Height == video.Height));
         Fill(FitBox, FitChoices.Select(f => f.Label), Array.FindIndex(FitChoices, f => f.Value == video.Fit));
         FitBox.IsEnabled = model.ShapeDiffers;
-        Fill(FrameRateBox, ExportGeometry.FrameRates.Select(f => f.Rate is null ? $"Como la secuencia ({ExportText.Number(model.FrameRate.ToDouble(), 3)})" : f.Label),
-            IndexOf(ExportGeometry.FrameRates, f => f.Rate == video.FrameRate));
+        Fill(FrameRateBox, model.FrameRateLabels, IndexOf(ExportGeometry.FrameRates, f => f.Rate == video.FrameRate));
 
         _bitDepths = ExportChoices.BitDepths(encoder);
         Fill(BitDepthBox, _bitDepths.Select(b => $"{b} bits"), Index(_bitDepths, video.BitDepth));
+        _chromas = ExportChoices.Chromas(encoder, video.BitDepth);
+        Fill(ChromaBox, _chromas.Select(ExportChoices.ChromaName), Math.Max(0, Index(_chromas, video.Chroma)));
+        ChromaBox.IsEnabled = _chromas.Count > 1;
         ExportPixelFormat? pixels = encoder.PixelFormatFor(video.BitDepth, video.Chroma, video.Alpha);
         _profiles = [null, .. ExportChoices.Profiles(encoder, pixels).Select(p => p.Id)];
         Fill(ProfileBox, _profiles.Select(id => id is null ? "Automático" : encoder.Profiles.First(p => p.Id == id).Name), Index(_profiles, video.Profile));
@@ -314,6 +353,8 @@ internal sealed partial class ExportView : UserControl
         SpeedPresetBox.IsEnabled = _speedPresets.Count > 1;
         KeyframeBox.IsEnabled = !encoder.IntraOnly;
         KeyframeBox.Value = video.Gop.KeyframeSeconds ?? double.NaN;
+        MeasureLightBox.Visibility = model.OffersLightMeasurement ? Visibility.Visible : Visibility.Collapsed;
+        MeasureLightBox.IsChecked = video.MeasureLightLevels;
     }
 
     private void ShowRateValues(RateControl rate, RateChoice choice, EncoderSpec encoder)
@@ -394,6 +435,10 @@ internal sealed partial class ExportView : UserControl
         ProblemsText.Text = string.Join("\n", problems);
         ProblemsText.Visibility = problems.Count > 0 ? Visibility.Visible : Visibility.Collapsed;
         ExportButton.IsEnabled = problems.Count == 0;
+        ProjectsButton.IsEnabled = problems.Count == 0;
+        VersionsButton.IsEnabled = model.VersionProblems.Count == 0;
+        HostExportButton.Visibility = model.RoomGuest ? Visibility.Visible : Visibility.Collapsed;
+        HostExportButton.IsEnabled = model.CanExportOnHost;
         FooterNote.Text = _jobs.Runner.IsSimulation
             ? "Simulación: no se escribe ningún archivo."
             : _jobs.ActiveCount > 0 ? "Hay otra exportación en curso: esta esperará su turno." : "";
@@ -408,12 +453,16 @@ internal sealed partial class ExportView : UserControl
         {
             string where = encoder.IsHardware ? "por GPU" : encoder.Vendor == EncoderVendor.Microsoft ? "por Windows" : "por CPU";
             parts.Add($"{ExportChoices.CodecName(video.Codec)} {where} ({encoder.Id})");
-            (int w, int h) = model.OutputSize;
-            parts.Add($"{w}×{h}");
+            parts.Add(model.SizeLabel(model.OutputSize));
             parts.Add($"{ExportText.Number(model.FrameRate.ToDouble(), 3)} fps");
             if (video.BitDepth != 8)
             {
                 parts.Add($"{video.BitDepth} bits");
+            }
+
+            if (video.Chroma != ChromaSubsampling.Chroma420)
+            {
+                parts.Add(ExportChoices.ChromaName(video.Chroma));
             }
 
             RateControl rate = video.RateControl;
@@ -440,7 +489,8 @@ internal sealed partial class ExportView : UserControl
             parts.Add("sin audio");
         }
 
-        return string.Join(" · ", parts);
+        // Con una secuencia HDR, si sale en HDR o cae a SDR se dice aquí y no solo en Avanzado, que suele estar plegado.
+        return string.Join(" · ", parts) + (model.HdrNote is { } hdr ? $"\n{hdr}" : "");
     }
 
     /// <summary>Pone las opciones y la elegida; si las opciones no cambiaron, solo mueve la elección (ver <see cref="QueueRefresh"/>).</summary>
@@ -586,6 +636,9 @@ internal sealed partial class ExportView : UserControl
     private void OnChaptersClick(object sender, RoutedEventArgs e) =>
         _model?.Update(s => s with { ChaptersFromMarkers = ChaptersBox.IsChecked == true });
 
+    private void OnRenderCacheClick(object sender, RoutedEventArgs e) =>
+        _model?.Update(s => s with { UseRenderCache = RenderCacheBox.IsChecked == true });
+
     private void OnVideoToggled(object sender, RoutedEventArgs e)
     {
         if (!_refreshing && _model is { } model && VideoSwitch.IsOn != (model.Settings.Video is not null))
@@ -672,6 +725,8 @@ internal sealed partial class ExportView : UserControl
 
     private static int Kbps(double mbps) => (int)Math.Max(1, Math.Round(mbps * 1000));
 
+    private void OnUseStandardSizeClick(object sender, RoutedEventArgs e) => _model?.UseStandardSize();
+
     private void OnSizeChanged(object sender, SelectionChangedEventArgs e)
     {
         if (TryChange(SizeBox, out int index))
@@ -708,6 +763,51 @@ internal sealed partial class ExportView : UserControl
         }
     }
 
+    private void OnChromaChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (TryChange(ChromaBox, out int index) && index < _chromas.Count)
+        {
+            ChromaSubsampling chroma = _chromas[index];
+            UpdateVideo(v => v with { Chroma = chroma });
+        }
+    }
+
+    /// <summary>«Copiar la línea de ffmpeg»: los argumentos de la exportación con estos ajustes, al portapapeles.</summary>
+    private void OnCopyCommandClick(object sender, RoutedEventArgs e)
+    {
+        if (_model is not { } model)
+        {
+            return;
+        }
+
+        model.SetOutputPath(PathBox.Text);
+        if (!model.CanExport)
+        {
+            _services.Session.Notify(NotificationSeverity.Informational, "Línea de ffmpeg", "Arregla primero lo que impide exportar: la línea sale de los ajustes válidos.");
+            return;
+        }
+
+        EditorSession session = _services.Session;
+        string? projectFolder = session.FilePath is { } file ? Path.GetDirectoryName(file) : null;
+        string text;
+        try
+        {
+            ExportRequest request = model.CreatePreviewRequest(session.Project.Clone(), session.SequenceId, projectFolder);
+            text = ExportCommandLine.Text(ExportPlan.Create(request, model.Encoders));
+        }
+        catch (Exception ex) when (ex is ExportException or ArgumentException or InvalidOperationException)
+        {
+            session.Notify(NotificationSeverity.Warning, "No se pudo armar la línea de ffmpeg", ex.Message);
+            return;
+        }
+
+        var package = new global::Windows.ApplicationModel.DataTransfer.DataPackage();
+        package.SetText(text);
+        Rodaje.App.Shell.SystemAccess.SetClipboard(package);
+        session.Notify(NotificationSeverity.Success, "Línea de ffmpeg copiada",
+            "Es lo que recibe ffmpeg.exe: la imagen entra compuesta por la tubería (pipe:0) y la mezcla por «mezcla.wav», sin capítulos ni pistas de subtítulos.");
+    }
+
     private void OnProfileChanged(object sender, SelectionChangedEventArgs e)
     {
         if (TryChange(ProfileBox, out int index))
@@ -725,6 +825,8 @@ internal sealed partial class ExportView : UserControl
             UpdateVideo(v => v with { SpeedPreset = preset });
         }
     }
+
+    private void OnMeasureLightClick(object sender, RoutedEventArgs e) => UpdateVideo(v => v with { MeasureLightLevels = MeasureLightBox.IsChecked == true });
 
     private void OnKeyframeChanged(NumberBox sender, NumberBoxValueChangedEventArgs args)
     {
@@ -801,11 +903,25 @@ internal sealed partial class ExportView : UserControl
         var dialog = new ContentDialog
         {
             XamlRoot = XamlRoot, Title = "Guardar como preajuste", Content = name, PrimaryButtonText = "Guardar", CloseButtonText = "Cancelar",
-            DefaultButton = ContentDialogButton.Primary, RequestedTheme = ElementTheme.Dark,
+            DefaultButton = ContentDialogButton.Primary,
         };
         if (await DialogGate.ShowAsync(dialog) != ContentDialogResult.Primary || string.IsNullOrWhiteSpace(name.Text))
         {
             return;
+        }
+
+        if (ExportPresetLibrary.FindUserPreset(_services.Settings.Current.Export, name.Text) is { } existing && XamlRoot is not null)
+        {
+            var confirm = new ContentDialog
+            {
+                XamlRoot = XamlRoot, Title = $"¿Reemplazar «{existing.Name}»?",
+                Content = "Ya hay un preajuste propio con ese nombre. Si guardas, sus ajustes se cambian por los de ahora.",
+                PrimaryButtonText = "Reemplazar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Close,
+            };
+            if (await DialogGate.ShowAsync(confirm) != ContentDialogResult.Primary)
+            {
+                return;
+            }
         }
 
         try
@@ -895,7 +1011,6 @@ internal sealed partial class ExportView : UserControl
             PrimaryButtonText = "Quitar preajuste",
             CloseButtonText = "Cancelar",
             DefaultButton = ContentDialogButton.Close,
-            RequestedTheme = ElementTheme.Dark,
         };
         if (await DialogGate.ShowAsync(dialog) == ContentDialogResult.Primary
             && ReferenceEquals(_model, model) && model.PresetId == preset.Id)
@@ -926,9 +1041,8 @@ internal sealed partial class ExportView : UserControl
             var confirm = new ContentDialog
             {
                 XamlRoot = XamlRoot, Title = "¿Reemplazar el archivo?",
-                Content = $"Ya existe «{Path.GetFileName(model.OutputPath)}» en esa carpeta. Si exportas, se reemplaza al terminar.",
+                Content = $"Ya existe «{Path.GetFileName(model.OutputPath)}» en esa carpeta, o lo escribirá otra exportación de la cola. Si exportas, se reemplaza al terminar.",
                 PrimaryButtonText = "Reemplazar", CloseButtonText = "Cancelar", DefaultButton = ContentDialogButton.Close,
-                RequestedTheme = ElementTheme.Dark,
             };
             if (await DialogGate.ShowAsync(confirm) != ContentDialogResult.Primary)
             {
@@ -942,5 +1056,51 @@ internal sealed partial class ExportView : UserControl
         ExportEntry entry = _jobs.Enqueue(request);
         Started?.Invoke(this, entry);
         CloseRequested?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnHostExportClick(object sender, RoutedEventArgs e) => UiTask.Run(OnHostExportClickAsync());
+
+    /// <summary>
+    /// «Exportar en el anfitrión»: manda el pedido (solo ajustes, rango y nombre sugerido, sin rutas) y sigue su progreso
+    /// en la barra de avisos; el archivo queda en el equipo de quien hospeda la sala.
+    /// </summary>
+    private async Task OnHostExportClickAsync()
+    {
+        if (_model is not { } model || _services.Collab is not { } collab)
+        {
+            return;
+        }
+
+        model.SetOutputPath(PathBox.Text);
+        if (!model.CanExportOnHost)
+        {
+            return;
+        }
+
+        EditorSession session = _services.Session;
+        string sequenceId = session.SequenceId;
+        string suggestedName = Path.GetFileName(model.OutputPath);
+        ExportSettings settings = model.ResolvedSettings();
+        ExportRange? range = model.Ranges[model.RangeIndex].Range;
+        // Se cierra ya: la espera y el avance siguen en la barra de avisos, con Cancelar.
+        CloseRequested?.Invoke(this, EventArgs.Empty);
+        using LongActionScope? scope = _services.LongActions.TryBegin(
+            "exportar.anfitrion", "Exportar en el anfitrión", "La exportación se hace en el equipo de quien hospeda la sala.",
+            canCancel: true, showAfter: LongActionService.QuickOperationDelay);
+        try
+        {
+            string fileName = await ExportShareGuest.RequestAsync(collab.Room, sequenceId, suggestedName, settings, range,
+                scope?.Operation, scope?.Token ?? CancellationToken.None);
+            session.Notify(NotificationSeverity.Success, "Exportado en el anfitrión",
+                $"«{fileName}» quedó en el equipo de quien hospeda la sala. El archivo está allí: pídeselo si lo necesitas.");
+        }
+        catch (OperationCanceledException)
+        {
+            session.Notify(NotificationSeverity.Informational, "Exportar en el anfitrión", "Cancelado: no quedó nada exportando allí.");
+        }
+        catch (CollabException ex)
+        {
+            session.Notify(NotificationSeverity.Warning, "No se pudo exportar en el anfitrión", ex.Message);
+        }
     }
 }

@@ -1,5 +1,9 @@
 ﻿# Toma la siguiente tarea «gemini-local» de la cola y la hace con agy, sin gastar tokens de Claude (D-045).
 # Gemini no escribe ni ejecuta nada: devuelve el archivo y este script lo escribe, lo prueba y hace el commit.
+# RIESGO (auditoría 5-nov): corre `dotnet test` sobre el archivo del modelo sin sandbox y con el entorno
+# de Daniel; la lista negra $peligroso se salta (cadenas partidas, GetEnvironmentVariable, IO.Pipes) y en
+# tareas «caza» la entrada sale del repo público (inyección de instrucciones). Antes de rehabilitarlo:
+# sandbox o usuario restringido con entorno vacío, o revisión humana previa a `Probar`.
 # Uso: build\gemini-cola.ps1 [-Cola <cola.md>] [-Publicar] [-Simular]
 # -RespuestaGuardada <salida.json> reproduce una respuesta guardada de agy en vez de llamarlo (pruebas del script, sin cuota ni métricas).
 param(

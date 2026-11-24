@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Rodaje.Media.Gpu;
+using Rodaje.Render.Tests.Support;
 using Rodaje.TestMedia;
 
 namespace Rodaje.Render.Tests.Text;
@@ -11,6 +12,7 @@ namespace Rodaje.Render.Tests.Text;
 /// con el resto de las pruebas y no dice nada del costo en una GPU.
 /// </summary>
 [AttributeUsage(AttributeTargets.Method, AllowMultiple = false)]
+[System.Runtime.Versioning.SupportedOSPlatform("windows7.0")]
 public sealed class MeasuredGpuFactAttribute : FactAttribute
 {
     private static readonly Lazy<string?> SoftwareAdapterReason = new(() =>
@@ -22,7 +24,8 @@ public sealed class MeasuredGpuFactAttribute : FactAttribute
     });
 
     public MeasuredGpuFactAttribute() =>
-        Skip = Rodaje.TestMedia.Skip.First(Rodaje.TestMedia.Skip.GpuTextures, SoftwareAdapterReason.Value);
+        Skip = TestGpu.D3D11Only("títulos con Direct2D")
+            ?? Rodaje.TestMedia.Skip.First(Rodaje.TestMedia.Skip.GpuTextures, SoftwareAdapterReason.Value);
 
     /// <summary>
     /// Si una prueba que también comprueba otra cosa puede exigir sus cotas de tiempo: con código optimizado y una GPU de

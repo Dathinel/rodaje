@@ -24,6 +24,13 @@ $Raiz = Split-Path -Parent $PSScriptRoot
 if (-not $Exe) { $Exe = Join-Path $Raiz 'dist\Rodaje\app\Rodaje.exe' }
 $Exe = (Resolve-Path -LiteralPath $Exe).Path
 if (-not $Etiqueta) { $Etiqueta = [IO.Path]::GetFileNameWithoutExtension($Exe) }
+# --arranque va de fondo solo en un exe con ese modo; a través del lanzador, el que cuenta es app\Rodaje.exe.
+if ($Argumentos -match '--arranque' -and $Argumentos -notmatch '--visible') {
+    Import-Module (Join-Path $PSScriptRoot 'comun.psm1') -DisableNameChecking -Force
+    $real = Join-Path (Split-Path -Parent $Exe) 'app\Rodaje.exe'
+    if (-not (Test-Path -LiteralPath $real)) { $real = $Exe }
+    Exigir-Fondo $real
+}
 
 Add-Type -TypeDefinition @'
 using System;

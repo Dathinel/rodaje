@@ -23,12 +23,23 @@ public readonly record struct YuvRange(float LumaScale, float LumaBias, float Ch
 
     public static YuvRange FullP010 { get; } = Full(P010CodesPerUnit, 1023);
 
+    /// <summary>P016 usa la palabra entera: negro en 16·256 y blanco en 235·256.</summary>
+    public static YuvRange LimitedP016 { get; } = Limited(65535.0, 256.0);
+
+    public static YuvRange FullP016 { get; } = Full(65535.0, 65535);
+
     public static YuvRange For(bool tenBit, bool fullRange) => (tenBit, fullRange) switch
     {
         (false, false) => LimitedNv12,
         (true, false) => LimitedP010,
         (false, true) => FullNv12,
         (true, true) => FullP010,
+    };
+
+    public static YuvRange For(FramePixelFormat format, bool fullRange) => format switch
+    {
+        FramePixelFormat.P016 => fullRange ? FullP016 : LimitedP016,
+        _ => For(format == FramePixelFormat.P010, fullRange),
     };
 
     private static YuvRange Limited(double codesPerUnit, double step) => new(

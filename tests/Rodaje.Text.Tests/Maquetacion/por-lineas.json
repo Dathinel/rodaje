@@ -1,0 +1,26 @@
+{
+  "case": "por-lineas",
+  "engine": "DirectWrite",
+  "units": [
+    {
+      "start": 0,
+      "end": 13,
+      "line": 0,
+      "word": 0,
+      "left": -149.15,
+      "right": 149.15,
+      "top": -79.31,
+      "bottom": 4.99
+    },
+    {
+      "start": 14,
+      "end": 21,
+      "line": 1,
+      "word": 2,
+      "left": -96.11,
+      "right": 96.11,
+      "top": -12.11,
+      "bottom": 72.19
+    }
+  ]
+}

@@ -4,6 +4,8 @@ using Rodaje.App.Services;
 using Rodaje.App.Services.Crashes;
 using Rodaje.App.Services.LongActions;
 using Rodaje.App.Services.Format;
+using Rodaje.App.Services.Modules;
+using Rodaje.App.Services.Operations;
 using Rodaje.App.Services.Voice;
 using Rodaje.App.Shell;
 using Rodaje.App.Views.Analysis;
@@ -56,8 +58,9 @@ internal static class VoiceDialog
 
         // Los desplegables llevan textos y se elige por posición: mostrar una propiedad del elemento enlaza por reflexión, que con Native AOT
         // no encuentra la propiedad de un record de C# y deja los elementos en blanco.
-        var language = new ComboBox { Header = "Idioma", Width = AnalysisUi.PreviewWidth };
-        var voice = new ComboBox { Header = "Voz", Width = AnalysisUi.PreviewWidth };
+        // Desactivados hasta tener las voces: llenarlos con la lista abierta cierra WinUI (tarea 91).
+        var language = new ComboBox { Header = "Idioma", Width = AnalysisUi.PreviewWidth, IsEnabled = false };
+        var voice = new ComboBox { Header = "Voz", Width = AnalysisUi.PreviewWidth, IsEnabled = false };
         VoiceLanguage[] langs = [];
         VoiceChoice[] choices = [];
         panel.Children.Add(language);
@@ -69,13 +72,13 @@ internal static class VoiceDialog
         Slider commaPause = AnalysisUi.Slider(panel, "Pausa en comas", 0, 1, start.CommaPause, 0.05, AnalysisUi.Sec, () => { });
 
         var listen = new Button { Content = "Escuchar", IsEnabled = false };
-        var busy = new ProgressRing { IsActive = false, Width = 20, Height = 20 };
+        var busy = new OperationProgressView { Width = AnalysisUi.PreviewWidth - 20, ShowMessage = false, ShowCancel = false };
         var status = new TextBlock { Text = "Cargando las voces…", TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center, Width = 330 };
         var row = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 8, 0, 0) };
         row.Children.Add(listen);
-        row.Children.Add(busy);
         row.Children.Add(status);
         panel.Children.Add(row);
+        panel.Children.Add(busy);
         var advice = new Shared.AiAdvicePanel();
         panel.Children.Add(advice.Panel);
         if (synth is ModuleVoiceSynthesizer estimating)
@@ -131,6 +134,20 @@ internal static class VoiceDialog
             voice.SelectedIndex = choices.Length == 0 ? -1 : Math.Max(0, Array.FindIndex(choices, c => c.Voice.Id == wanted));
         }
 
+        // Hasta que el trabajo de módulo exista (o si no lo hay), un avance propio con lo que lleva; luego, el del trabajo.
+        void ShowBusy(string message)
+        {
+            var own = new OperationProgress();
+            own.Report(null, message);
+            busy.Operation = own;
+        }
+
+        void Adopt(ModuleJob job)
+        {
+            busy.Operation = job.Operation;
+            scope?.Follow(job.Operation);
+        }
+
         Task<SynthesizedVoice?> Generate() => work.Track(GenerateAsync());
 
         async Task<SynthesizedVoice?> GenerateAsync()
@@ -142,13 +159,19 @@ internal static class VoiceDialog
             }
 
             generating = true;
-            busy.IsActive = true;
+            ShowBusy("Generando la voz…");
             status.Text = "Generando la voz…";
             scope?.Report(null, "Generando la voz…");
             Refresh();
             try
             {
-                SynthesizedVoice v = await synth.SynthesizeAsync(wanted, "Texto a voz", work.Token);
+                Task<SynthesizedVoice> call;
+                using (ModuleJobList.CaptureNext(Adopt))
+                {
+                    call = synth.SynthesizeAsync(wanted, "Texto a voz", work.Token);
+                }
+
+                SynthesizedVoice v = await call;
                 made = (wanted, v);
                 status.Text = Fmt($"Listo: {v.Seconds:0.0} s de audio.");
                 return v;
@@ -173,7 +196,7 @@ internal static class VoiceDialog
             finally
             {
                 generating = false;
-                busy.IsActive = false;
+                busy.Operation = null;
                 Refresh();
             }
         }
@@ -279,14 +302,17 @@ internal static class VoiceDialog
         // Leer las voces arranca el módulo (hasta 30 s en frío): el círculo se mueve mientras tanto.
         async Task LoadVoices()
         {
-            busy.IsActive = true;
+            ShowBusy("Cargando las voces…");
             try
             {
                 await ReadVoices();
             }
             finally
             {
-                busy.IsActive = generating;
+                if (!generating)
+                {
+                    busy.Operation = null;
+                }
             }
         }
 
@@ -294,7 +320,13 @@ internal static class VoiceDialog
         {
             try
             {
-                catalog = await synth.GetVoicesAsync(work.Token);
+                Task<VoiceCatalog> call;
+                using (ModuleJobList.CaptureNext(Adopt))
+                {
+                    call = synth.GetVoicesAsync(work.Token);
+                }
+
+                catalog = await call;
             }
             catch (OperationCanceledException)
             {
@@ -318,6 +350,7 @@ internal static class VoiceDialog
             language.ItemsSource = langs.Select(l => l.Name).ToArray();
             language.SelectedIndex = langs.Length == 0 ? -1 : Math.Max(0, Array.FindIndex(langs, l => l.Id == start.Language));
             FillVoices();
+            language.IsEnabled = voice.IsEnabled = true;
             status.Text = existing is null ? "" : "Cambia el texto o la voz y pulsa «Regenerar».";
             Refresh();
         }
